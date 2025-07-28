@@ -15,6 +15,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 121,
+            "end": 121
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
           "args": [
             {
               "idx": 1,
@@ -22,7 +30,7 @@ expression: "&snapshot"
             }
           ],
           "block": {
-            "idx": 1,
+            "idx": 2,
             "version": 1
           }
         },
@@ -34,6 +42,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 291,
+            "end": 291
+          },
+          "ident": {
+            "idx": 10,
+            "version": 1
+          },
           "args": [
             {
               "idx": 2,
@@ -41,7 +57,7 @@ expression: "&snapshot"
             }
           ],
           "block": {
-            "idx": 2,
+            "idx": 3,
             "version": 1
           }
         },
@@ -59,8 +75,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 1,
+            "idx": 2,
             "version": 1
           },
           "ty": {
@@ -76,8 +96,12 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 9,
+            "idx": 11,
             "version": 1
           },
           "ty": {
@@ -111,6 +135,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 406,
+            "end": 406
+          },
+          "ident": {
+            "idx": 18,
+            "version": 1
+          },
           "items": [
             {
               "idx": 1,
@@ -136,10 +168,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Field": {
               "ident": {
-                "idx": 16,
+                "idx": 19,
                 "version": 1
               },
               "ty": {
@@ -157,10 +193,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Field": {
               "ident": {
-                "idx": 17,
+                "idx": 20,
                 "version": 1
               },
               "ty": {
@@ -190,6 +230,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 1,
+            "end": 1
+          },
+          "ident": {
+            "idx": 21,
+            "version": 1
+          },
           "keys": [
             {
               "idx": 1,
@@ -213,6 +261,14 @@ expression: "&snapshot"
         "value": {
           "id": {
             "idx": 2,
+            "version": 1
+          },
+          "span": {
+            "start": 55,
+            "end": 55
+          },
+          "ident": {
+            "idx": 25,
             "version": 1
           },
           "keys": [
@@ -246,8 +302,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 18,
+            "idx": 22,
             "version": 1
           },
           "ty": {
@@ -263,8 +323,12 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 21,
+            "idx": 26,
             "version": 1
           },
           "ty": {
@@ -280,8 +344,12 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 22,
+            "idx": 27,
             "version": 1
           },
           "ty": {
@@ -303,8 +371,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 19,
+            "idx": 23,
             "version": 1
           },
           "ty": {
@@ -320,8 +392,12 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 20,
+            "idx": 24,
             "version": 1
           },
           "ty": {
@@ -337,8 +413,12 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 23,
+            "idx": 28,
             "version": 1
           },
           "ty": {
@@ -360,6 +440,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 477,
+            "end": 477
+          },
+          "ident": {
+            "idx": 29,
+            "version": 1
+          },
           "args": [
             {
               "idx": 1,
@@ -370,16 +458,10 @@ expression: "&snapshot"
               "version": 1
             }
           ],
-          "stmts": [
-            {
-              "idx": 5,
-              "version": 1
-            },
-            {
-              "idx": 6,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 4,
+            "version": 1
+          }
         },
         "version": 1
       },
@@ -387,6 +469,14 @@ expression: "&snapshot"
         "value": {
           "id": {
             "idx": 2,
+            "version": 1
+          },
+          "span": {
+            "start": 755,
+            "end": 755
+          },
+          "ident": {
+            "idx": 43,
             "version": 1
           },
           "args": [
@@ -399,12 +489,10 @@ expression: "&snapshot"
               "version": 1
             }
           ],
-          "stmts": [
-            {
-              "idx": 7,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 5,
+            "version": 1
+          }
         },
         "version": 1
       }
@@ -420,8 +508,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 24,
+            "idx": 30,
             "version": 1
           },
           "ty": {
@@ -437,8 +529,12 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 25,
+            "idx": 31,
             "version": 1
           },
           "ty": {
@@ -454,8 +550,12 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 37,
+            "idx": 44,
             "version": 1
           },
           "ty": {
@@ -471,8 +571,12 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 38,
+            "idx": 45,
             "version": 1
           },
           "ty": {
@@ -524,6 +628,10 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 263,
+            "end": 263
+          },
           "kind": {
             "Check": {
               "expr": {
@@ -541,17 +649,21 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 199,
+            "end": 199
+          },
           "kind": {
             "Map": {
               "fact": {
                 "ident": {
-                  "idx": 2,
+                  "idx": 3,
                   "version": 1
                 },
                 "keys": [
                   [
                     {
-                      "idx": 3,
+                      "idx": 4,
                       "version": 1
                     },
                     {
@@ -563,7 +675,7 @@ expression: "&snapshot"
                   ],
                   [
                     {
-                      "idx": 5,
+                      "idx": 6,
                       "version": 1
                     },
                     "Bind"
@@ -572,15 +684,13 @@ expression: "&snapshot"
                 "vals": []
               },
               "ident": {
-                "idx": 6,
+                "idx": 7,
                 "version": 1
               },
-              "stmts": [
-                {
-                  "idx": 1,
-                  "version": 1
-                }
-              ]
+              "block": {
+                "idx": 1,
+                "version": 1
+              }
             }
           }
         },
@@ -592,10 +702,14 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 332,
+            "end": 332
+          },
           "kind": {
             "Let": {
               "ident": {
-                "idx": 10,
+                "idx": 12,
                 "version": 1
               },
               "expr": {
@@ -612,6 +726,10 @@ expression: "&snapshot"
           "id": {
             "idx": 4,
             "version": 1
+          },
+          "span": {
+            "start": 376,
+            "end": 376
           },
           "kind": {
             "Check": {
@@ -630,17 +748,21 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 549,
+            "end": 549
+          },
           "kind": {
             "Create": {
               "fact": {
                 "ident": {
-                  "idx": 26,
+                  "idx": 32,
                   "version": 1
                 },
                 "keys": [
                   [
                     {
-                      "idx": 27,
+                      "idx": 33,
                       "version": 1
                     },
                     {
@@ -652,7 +774,7 @@ expression: "&snapshot"
                   ],
                   [
                     {
-                      "idx": 29,
+                      "idx": 35,
                       "version": 1
                     },
                     {
@@ -666,7 +788,7 @@ expression: "&snapshot"
                 "vals": [
                   [
                     {
-                      "idx": 31,
+                      "idx": 37,
                       "version": 1
                     },
                     {
@@ -689,6 +811,10 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
+          "span": {
+            "start": 667,
+            "end": 667
+          },
           "kind": {
             "Emit": {
               "expr": {
@@ -706,17 +832,21 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 828,
+            "end": 828
+          },
           "kind": {
             "Delete": {
               "fact": {
                 "ident": {
-                  "idx": 39,
+                  "idx": 46,
                   "version": 1
                 },
                 "keys": [
                   [
                     {
-                      "idx": 40,
+                      "idx": 47,
                       "version": 1
                     },
                     {
@@ -728,7 +858,7 @@ expression: "&snapshot"
                   ],
                   [
                     {
-                      "idx": 42,
+                      "idx": 49,
                       "version": 1
                     },
                     {
@@ -758,9 +888,13 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 4,
+              "idx": 5,
               "version": 1
             }
           }
@@ -773,9 +907,13 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 7,
+              "idx": 8,
               "version": 1
             }
           }
@@ -788,6 +926,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Dot": [
               {
@@ -795,7 +937,7 @@ expression: "&snapshot"
                 "version": 1
               },
               {
-                "idx": 8,
+                "idx": 9,
                 "version": 1
               }
             ]
@@ -809,9 +951,13 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 13,
+              "idx": 15,
               "version": 1
             }
           }
@@ -824,17 +970,21 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "InternalFunction": {
               "Query": {
                 "ident": {
-                  "idx": 11,
+                  "idx": 13,
                   "version": 1
                 },
                 "keys": [
                   [
                     {
-                      "idx": 12,
+                      "idx": 14,
                       "version": 1
                     },
                     {
@@ -858,9 +1008,13 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 14,
+              "idx": 16,
               "version": 1
             }
           }
@@ -873,6 +1027,10 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Dot": [
               {
@@ -880,7 +1038,7 @@ expression: "&snapshot"
                 "version": 1
               },
               {
-                "idx": 15,
+                "idx": 17,
                 "version": 1
               }
             ]
@@ -894,7 +1052,13 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
-          "kind": "String"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "String": "admin"
+          }
         },
         "version": 1
       },
@@ -903,6 +1067,10 @@ expression: "&snapshot"
           "id": {
             "idx": 9,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Equal": [
@@ -925,45 +1093,9 @@ expression: "&snapshot"
             "idx": 10,
             "version": 1
           },
-          "kind": {
-            "Identifier": {
-              "idx": 28,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 11,
-            "version": 1
-          },
-          "kind": {
-            "Identifier": {
-              "idx": 30,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 12,
-            "version": 1
-          },
-          "kind": "Bool"
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 13,
-            "version": 1
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -977,8 +1109,12 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
-            "idx": 14,
+            "idx": 11,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -992,19 +1128,77 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Bool": true
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 40,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 42,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
             "idx": 15,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "NamedStruct": {
               "ident": {
-                "idx": 32,
+                "idx": 38,
                 "version": 1
               },
               "fields": [
                 [
                   {
-                    "idx": 33,
+                    "idx": 39,
                     "version": 1
                   },
                   {
@@ -1014,7 +1208,7 @@ expression: "&snapshot"
                 ],
                 [
                   {
-                    "idx": 35,
+                    "idx": 41,
                     "version": 1
                   },
                   {
@@ -1034,9 +1228,13 @@ expression: "&snapshot"
             "idx": 16,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 41,
+              "idx": 48,
               "version": 1
             }
           }
@@ -1049,9 +1247,13 @@ expression: "&snapshot"
             "idx": 17,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 43,
+              "idx": 50,
               "version": 1
             }
           }
@@ -1070,7 +1272,11 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "check_permissions"
         },
         "version": 1
       },
@@ -1080,7 +1286,11 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
-          "ident": "Permission"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1090,7 +1300,11 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Permission"
         },
         "version": 1
       },
@@ -1099,6 +1313,10 @@ expression: "&snapshot"
           "id": {
             "idx": 4,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "user_id"
         },
@@ -1110,7 +1328,11 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1120,7 +1342,11 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
-          "ident": "perm"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
         },
         "version": 1
       },
@@ -1129,6 +1355,10 @@ expression: "&snapshot"
           "id": {
             "idx": 7,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "perm"
         },
@@ -1140,7 +1370,11 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
-          "ident": "allowed"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "perm"
         },
         "version": 1
       },
@@ -1150,7 +1384,11 @@ expression: "&snapshot"
             "idx": 9,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "allowed"
         },
         "version": 1
       },
@@ -1160,7 +1398,11 @@ expression: "&snapshot"
             "idx": 10,
             "version": 1
           },
-          "ident": "user"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "check_admin"
         },
         "version": 1
       },
@@ -1170,7 +1412,11 @@ expression: "&snapshot"
             "idx": 11,
             "version": 1
           },
-          "ident": "User"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1180,7 +1426,11 @@ expression: "&snapshot"
             "idx": 12,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user"
         },
         "version": 1
       },
@@ -1190,7 +1440,11 @@ expression: "&snapshot"
             "idx": 13,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "User"
         },
         "version": 1
       },
@@ -1200,7 +1454,11 @@ expression: "&snapshot"
             "idx": 14,
             "version": 1
           },
-          "ident": "user"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1210,7 +1468,11 @@ expression: "&snapshot"
             "idx": 15,
             "version": 1
           },
-          "ident": "role"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1220,7 +1482,11 @@ expression: "&snapshot"
             "idx": 16,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user"
         },
         "version": 1
       },
@@ -1230,7 +1496,11 @@ expression: "&snapshot"
             "idx": 17,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "role"
         },
         "version": 1
       },
@@ -1240,7 +1510,11 @@ expression: "&snapshot"
             "idx": 18,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "PermissionGranted"
         },
         "version": 1
       },
@@ -1250,7 +1524,11 @@ expression: "&snapshot"
             "idx": 19,
             "version": 1
           },
-          "ident": "name"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1260,7 +1538,11 @@ expression: "&snapshot"
             "idx": 20,
             "version": 1
           },
-          "ident": "role"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
         },
         "version": 1
       },
@@ -1270,7 +1552,11 @@ expression: "&snapshot"
             "idx": 21,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "User"
         },
         "version": 1
       },
@@ -1280,7 +1566,11 @@ expression: "&snapshot"
             "idx": 22,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1290,7 +1580,11 @@ expression: "&snapshot"
             "idx": 23,
             "version": 1
           },
-          "ident": "allowed"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "name"
         },
         "version": 1
       },
@@ -1300,7 +1594,11 @@ expression: "&snapshot"
             "idx": 24,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "role"
         },
         "version": 1
       },
@@ -1310,7 +1608,11 @@ expression: "&snapshot"
             "idx": 25,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Permission"
         },
         "version": 1
       },
@@ -1320,7 +1622,11 @@ expression: "&snapshot"
             "idx": 26,
             "version": 1
           },
-          "ident": "Permission"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1330,7 +1636,11 @@ expression: "&snapshot"
             "idx": 27,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
         },
         "version": 1
       },
@@ -1340,7 +1650,11 @@ expression: "&snapshot"
             "idx": 28,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "allowed"
         },
         "version": 1
       },
@@ -1350,7 +1664,11 @@ expression: "&snapshot"
             "idx": 29,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "grant_permission"
         },
         "version": 1
       },
@@ -1360,7 +1678,11 @@ expression: "&snapshot"
             "idx": 30,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1370,7 +1692,11 @@ expression: "&snapshot"
             "idx": 31,
             "version": 1
           },
-          "ident": "allowed"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
         },
         "version": 1
       },
@@ -1380,7 +1706,11 @@ expression: "&snapshot"
             "idx": 32,
             "version": 1
           },
-          "ident": "PermissionGranted"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Permission"
         },
         "version": 1
       },
@@ -1389,6 +1719,10 @@ expression: "&snapshot"
           "id": {
             "idx": 33,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "user_id"
         },
@@ -1400,6 +1734,10 @@ expression: "&snapshot"
             "idx": 34,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": "user_id"
         },
         "version": 1
@@ -1409,6 +1747,10 @@ expression: "&snapshot"
           "id": {
             "idx": 35,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "resource"
         },
@@ -1420,6 +1762,10 @@ expression: "&snapshot"
             "idx": 36,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": "resource"
         },
         "version": 1
@@ -1430,7 +1776,11 @@ expression: "&snapshot"
             "idx": 37,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "allowed"
         },
         "version": 1
       },
@@ -1440,7 +1790,11 @@ expression: "&snapshot"
             "idx": 38,
             "version": 1
           },
-          "ident": "resource"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "PermissionGranted"
         },
         "version": 1
       },
@@ -1450,7 +1804,11 @@ expression: "&snapshot"
             "idx": 39,
             "version": 1
           },
-          "ident": "Permission"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
         },
         "version": 1
       },
@@ -1459,6 +1817,10 @@ expression: "&snapshot"
           "id": {
             "idx": 40,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "user_id"
         },
@@ -1470,7 +1832,11 @@ expression: "&snapshot"
             "idx": 41,
             "version": 1
           },
-          "ident": "user_id"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
         },
         "version": 1
       },
@@ -1479,6 +1845,10 @@ expression: "&snapshot"
           "id": {
             "idx": 42,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "resource"
         },
@@ -1489,6 +1859,108 @@ expression: "&snapshot"
           "id": {
             "idx": 43,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "revoke_permission"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 44,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 45,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 46,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Permission"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 47,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 48,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 49,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 50,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "resource"
         },
@@ -1506,9 +1978,13 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 263,
+            "end": 263
+          },
           "stmts": [
             {
-              "idx": 2,
+              "idx": 1,
               "version": 1
             }
           ]
@@ -1521,6 +1997,29 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 199,
+            "end": 199
+          },
+          "stmts": [
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "span": {
+            "start": 332,
+            "end": 332
+          },
           "stmts": [
             {
               "idx": 3,
@@ -1528,6 +2027,48 @@ expression: "&snapshot"
             },
             {
               "idx": 4,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "span": {
+            "start": 549,
+            "end": 549
+          },
+          "stmts": [
+            {
+              "idx": 5,
+              "version": 1
+            },
+            {
+              "idx": 6,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "span": {
+            "start": 828,
+            "end": 828
+          },
+          "stmts": [
+            {
+              "idx": 7,
               "version": 1
             }
           ]
@@ -1546,6 +2087,10 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1555,6 +2100,10 @@ expression: "&snapshot"
           "id": {
             "idx": 2,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "String"
         },
@@ -1566,6 +2115,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1575,6 +2128,10 @@ expression: "&snapshot"
           "id": {
             "idx": 4,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "String"
         },
@@ -1586,6 +2143,10 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1595,6 +2156,10 @@ expression: "&snapshot"
           "id": {
             "idx": 6,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "String"
         },
@@ -1606,6 +2171,10 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1615,6 +2184,10 @@ expression: "&snapshot"
           "id": {
             "idx": 8,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "String"
         },
@@ -1626,6 +2199,10 @@ expression: "&snapshot"
             "idx": 9,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1635,6 +2212,10 @@ expression: "&snapshot"
           "id": {
             "idx": 10,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Bool"
         },
@@ -1646,6 +2227,10 @@ expression: "&snapshot"
             "idx": 11,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1655,6 +2240,10 @@ expression: "&snapshot"
           "id": {
             "idx": 12,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "String"
         },
@@ -1666,6 +2255,10 @@ expression: "&snapshot"
             "idx": 13,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1676,9 +2269,43 @@ expression: "&snapshot"
             "idx": 14,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
+      }
+    ],
+    "ffi_imports": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_modules": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_enums": [
+      {
+        "value": null,
+        "version": 0
       }
     ]
   },
@@ -2615,6 +3242,10 @@ expression: "&snapshot"
         "version": 0
       },
       {
+        "value": "check_permissions",
+        "version": 1
+      },
+      {
         "value": "user_id",
         "version": 1
       },
@@ -2647,6 +3278,10 @@ expression: "&snapshot"
         "version": 1
       },
       {
+        "value": "check_admin",
+        "version": 1
+      },
+      {
         "value": "user_id",
         "version": 1
       },
@@ -2675,11 +3310,19 @@ expression: "&snapshot"
         "version": 1
       },
       {
+        "value": "PermissionGranted",
+        "version": 1
+      },
+      {
         "value": "user_id",
         "version": 1
       },
       {
         "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "User",
         "version": 1
       },
       {
@@ -2695,6 +3338,10 @@ expression: "&snapshot"
         "version": 1
       },
       {
+        "value": "Permission",
+        "version": 1
+      },
+      {
         "value": "user_id",
         "version": 1
       },
@@ -2704,6 +3351,10 @@ expression: "&snapshot"
       },
       {
         "value": "allowed",
+        "version": 1
+      },
+      {
+        "value": "grant_permission",
         "version": 1
       },
       {
@@ -2759,6 +3410,10 @@ expression: "&snapshot"
         "version": 1
       },
       {
+        "value": "revoke_permission",
+        "version": 1
+      },
+      {
         "value": "user_id",
         "version": 1
       },
@@ -2791,6 +3446,26 @@ expression: "&snapshot"
       {
         "value": null,
         "version": 0
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Check": {
+                "expression": {
+                  "Dot": [
+                    {
+                      "Identifier": "perm"
+                    },
+                    "allowed"
+                  ]
+                }
+              }
+            },
+            "locator": 263
+          }
+        ],
+        "version": 1
       },
       {
         "value": [
@@ -2889,6 +3564,107 @@ expression: "&snapshot"
               }
             },
             "locator": 376
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Create": {
+                "fact": {
+                  "identifier": "Permission",
+                  "key_fields": [
+                    [
+                      "user_id",
+                      {
+                        "Expression": {
+                          "Identifier": "user_id"
+                        }
+                      }
+                    ],
+                    [
+                      "resource",
+                      {
+                        "Expression": {
+                          "Identifier": "resource"
+                        }
+                      }
+                    ]
+                  ],
+                  "value_fields": [
+                    [
+                      "allowed",
+                      {
+                        "Expression": {
+                          "Bool": true
+                        }
+                      }
+                    ]
+                  ]
+                }
+              }
+            },
+            "locator": 549
+          },
+          {
+            "inner": {
+              "Emit": {
+                "NamedStruct": {
+                  "identifier": "PermissionGranted",
+                  "fields": [
+                    [
+                      "user_id",
+                      {
+                        "Identifier": "user_id"
+                      }
+                    ],
+                    [
+                      "resource",
+                      {
+                        "Identifier": "resource"
+                      }
+                    ]
+                  ]
+                }
+              }
+            },
+            "locator": 667
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Delete": {
+                "fact": {
+                  "identifier": "Permission",
+                  "key_fields": [
+                    [
+                      "user_id",
+                      {
+                        "Expression": {
+                          "Identifier": "user_id"
+                        }
+                      }
+                    ],
+                    [
+                      "resource",
+                      {
+                        "Expression": {
+                          "Identifier": "resource"
+                        }
+                      }
+                    ]
+                  ],
+                  "value_fields": null
+                }
+              }
+            },
+            "locator": 828
           }
         ],
         "version": 1

@@ -1,0 +1,158 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "ActionDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 43,
+        "end": 43
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "args": [],
+      "block": {
+        "idx": 1,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 67,
+        "end": 67
+      },
+      "stmts": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 67,
+        "end": 67
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "expr": {
+            "idx": 1,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "s"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "EnumReference": {
+          "ident": {
+            "idx": 3,
+            "version": 1
+          },
+          "value": {
+            "idx": 4,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "Status"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "Active"
+    }
+  },
+  {
+    "EnumDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 5,
+        "version": 1
+      },
+      "variants": [
+        {
+          "idx": 6,
+          "version": 1
+        },
+        {
+          "idx": 7,
+          "version": 1
+        }
+      ]
+    }
+  }
+]

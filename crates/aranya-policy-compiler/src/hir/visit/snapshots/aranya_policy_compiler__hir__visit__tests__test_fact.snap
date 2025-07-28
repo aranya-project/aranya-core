@@ -1,0 +1,478 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "ActionDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 52,
+        "end": 52
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "args": [],
+      "block": {
+        "idx": 1,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 78,
+        "end": 78
+      },
+      "stmts": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 2,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 78,
+        "end": 78
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "expr": {
+            "idx": 2,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "u"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "InternalFunction": {
+          "Query": {
+            "ident": {
+              "idx": 3,
+              "version": 1
+            },
+            "keys": [
+              [
+                {
+                  "idx": 4,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 1,
+                    "version": 1
+                  }
+                }
+              ]
+            ],
+            "vals": []
+          }
+        }
+      }
+    }
+  },
+  {
+    "FactLiteral": {
+      "ident": {
+        "idx": 3,
+        "version": 1
+      },
+      "keys": [
+        [
+          {
+            "idx": 4,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 1,
+              "version": 1
+            }
+          }
+        ]
+      ],
+      "vals": []
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "User"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "123"
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 117,
+        "end": 117
+      },
+      "kind": {
+        "Check": {
+          "expr": {
+            "idx": 4,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "InternalFunction": {
+          "Exists": {
+            "ident": {
+              "idx": 5,
+              "version": 1
+            },
+            "keys": [
+              [
+                {
+                  "idx": 6,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 3,
+                    "version": 1
+                  }
+                }
+              ]
+            ],
+            "vals": []
+          }
+        }
+      }
+    }
+  },
+  {
+    "FactLiteral": {
+      "ident": {
+        "idx": 5,
+        "version": 1
+      },
+      "keys": [
+        [
+          {
+            "idx": 6,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 3,
+              "version": 1
+            }
+          }
+        ]
+      ],
+      "vals": []
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "User"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "456"
+      }
+    }
+  },
+  {
+    "FactDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 7,
+        "version": 1
+      },
+      "keys": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ],
+      "vals": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 2,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "FactKey": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": {
+        "idx": 8,
+        "version": 1
+      },
+      "ty": {
+        "idx": 1,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  },
+  {
+    "FactVal": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": {
+        "idx": 9,
+        "version": 1
+      },
+      "ty": {
+        "idx": 2,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "name"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  },
+  {
+    "FactVal": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": {
+        "idx": 10,
+        "version": 1
+      },
+      "ty": {
+        "idx": 3,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "age"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  }
+]

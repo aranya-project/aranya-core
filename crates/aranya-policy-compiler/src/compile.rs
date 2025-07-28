@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,26 +11,29 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, StructItem, VType, ident,
+    self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
+    MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
     ffi::{self, ModuleSchema},
+    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
-use crate::dependency_graph::{DependencyGraph, DependencyKind, SortError};
+use crate::{
+    dependency_graph::{DependencyGraph, DependencyKind, SortError},
+    hir, symbol_resolution,
+};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -192,7 +195,6 @@ impl<'a> CompileState<'a> {
         identifier: Identifier,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        println!("define_struct({identifier})");
         if self.m.struct_defs.contains_key(&identifier) {
             return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
         }
@@ -1719,7 +1721,6 @@ impl<'a> CompileState<'a> {
         &mut self,
         global_let: &AstNode<ast::GlobalLetStatement>,
     ) -> Result<(), CompileError> {
-        println!("compile_global_let({global_let:?})");
         let identifier = &global_let.inner.identifier;
         let expression = &global_let.inner.expression;
 
@@ -2194,187 +2195,113 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
-        let items = collect_items(self.policy, self.ffi_modules);
+        {
+            let (hir, ast) = hir::parse(self.policy, self.ffi_modules);
+            let _hir = symbol_resolution::resolve(&hir, &ast, self.ffi_modules)?;
+        }
 
-        let graph = build_dependency_graph(&items)?;
-        println!("sorted = {:?}", topo_sort(&graph));
-        for item in topo_sort(&graph)? {
-            match &items[&item] {
-                Item::GlobalLet(v) => {
-                    self.compile_global_let(v)?;
-                }
-                Item::Fact(v) => {
-                    let FactDefinition { key, value, .. } = &v.inner;
+        // Compile global let statements
+        for global_let in &self.policy.global_lets {
+            self.compile_global_let(global_let)?;
+        }
 
-                    let fields: Vec<StructItem<FieldDefinition>> = key
-                        .iter()
-                        .chain(value.iter())
-                        .cloned()
-                        .map(StructItem::Field)
-                        .collect();
+        for struct_def in &self.policy.structs {
+            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
+        }
 
-                    self.define_struct(v.identifier.clone(), &fields)?;
-                    self.define_fact(&v)?;
-                }
-                Item::Action(v) => {
-                    self.enter_statement_context(StatementContext::Action(v.inner.clone()));
-                    self.compile_action(v)?;
-                    self.exit_statement_context();
-                }
-                Item::Effect(v) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = v
-                        .items
-                        .iter()
-                        .map(|i| match i {
-                            StructItem::Field(f) => StructItem::Field(f.into()),
-                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+        for effect in &self.policy.effects {
+            let fields: Vec<StructItem<FieldDefinition>> = effect
+                .inner
+                .items
+                .iter()
+                .map(|i| match i {
+                    StructItem::Field(f) => StructItem::Field(f.into()),
+                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                })
+                .collect();
+            self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            self.m.effects.insert(effect.inner.identifier.clone());
+        }
+
+        // define the structs provided by FFI schema
+        for ffi_mod in self.ffi_modules {
+            for s in ffi_mod.structs {
+                let fields: Vec<StructItem<FieldDefinition>> = s
+                    .fields
+                    .iter()
+                    .map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            identifier: a.name.clone(),
+                            field_type: VType::from(&a.vtype),
                         })
-                        .collect();
-                    self.define_struct(v.identifier.clone(), &fields)?;
-                    self.m.effects.insert(v.identifier.clone());
-                }
-                Item::Struct(v) => {
-                    self.define_struct(v.identifier.clone(), &v.items)?;
-                }
-                Item::Enum(v) => {
-                    self.compile_enum_definition(v)?;
-                }
-                Item::Command(v) => {
-                    self.define_struct(v.identifier.clone(), &v.fields)?;
-                    self.compile_command(v)?;
-                }
-                Item::Function(v) => {
-                    self.define_function_signature(v)?;
-                    self.enter_statement_context(StatementContext::PureFunction(v.inner.clone()));
-                    self.compile_function(v)?;
-                    self.exit_statement_context();
-                }
-                Item::FinishFunction(v) => {
-                    self.define_finish_function_signature(v)?;
-                    self.enter_statement_context(StatementContext::Finish);
-                    self.compile_finish_function(v)?;
-                    self.exit_statement_context();
-                }
-                Item::FfiStruct(v) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = v
-                        .fields
-                        .iter()
-                        .map(|a| {
-                            StructItem::Field(FieldDefinition {
-                                identifier: a.name.clone(),
-                                field_type: VType::from(&a.vtype),
-                            })
-                        })
-                        .collect();
-                    self.define_struct(v.name.to_owned(), &fields)?;
-                }
-                Item::FfiEnum(_) => {}
-                Item::FfiFunc(_) => {}
+                    })
+                    .collect();
+                self.define_struct(s.name.to_owned(), &fields)?;
             }
         }
 
-        // // Compile global let statements
-        // for global_let in &self.policy.global_lets {
-        //     self.compile_global_let(global_let)?;
-        // }
+        // map enum names to constants
+        for enum_def in &self.policy.enums {
+            self.compile_enum_definition(enum_def)?;
+        }
 
-        // for struct_def in &self.policy.structs {
-        //     self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
-        // }
+        for fact in &self.policy.facts {
+            let FactDefinition { key, value, .. } = &fact.inner;
 
-        // for effect in &self.policy.effects {
-        //     let fields: Vec<StructItem<FieldDefinition>> = effect
-        //         .inner
-        //         .items
-        //         .iter()
-        //         .map(|i| match i {
-        //             StructItem::Field(f) => StructItem::Field(f.into()),
-        //             StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-        //         })
-        //         .collect();
-        //     self.define_struct(effect.inner.identifier.clone(), &fields)?;
-        //     self.m.effects.insert(effect.inner.identifier.clone());
-        // }
+            let fields: Vec<StructItem<FieldDefinition>> = key
+                .iter()
+                .chain(value.iter())
+                .cloned()
+                .map(StructItem::Field)
+                .collect();
 
-        // // define the structs provided by FFI schema
-        // for ffi_mod in self.ffi_modules {
-        //     for s in ffi_mod.structs {
-        //         let fields: Vec<StructItem<FieldDefinition>> = s
-        //             .fields
-        //             .iter()
-        //             .map(|a| {
-        //                 StructItem::Field(FieldDefinition {
-        //                     identifier: a.name.clone(),
-        //                     field_type: VType::from(&a.vtype),
-        //                 })
-        //             })
-        //             .collect();
-        //         self.define_struct(s.name.to_owned(), &fields)?;
-        //     }
-        // }
+            self.define_struct(fact.inner.identifier.clone(), &fields)?;
+            self.define_fact(&fact.inner)?;
+        }
 
-        // // map enum names to constants
-        // for enum_def in &self.policy.enums {
-        //     self.compile_enum_definition(enum_def)?;
-        // }
+        // Define command structs before compiling functions
+        for command in &self.policy.commands {
+            self.define_struct(command.identifier.clone(), &command.fields)?;
+        }
 
-        // for fact in &self.policy.facts {
-        //     let FactDefinition { key, value, .. } = &fact.inner;
+        // Define the finish function signatures before compiling them, so that they can be
+        // used to catch usage errors in regular functions.
+        for function_def in &self.policy.finish_functions {
+            self.define_finish_function_signature(function_def)?;
+        }
+
+        // Define function signatures before compiling them to
+        // support using a function before it's defined.
         //
-        //     let fields: Vec<StructItem<FieldDefinition>> = key
-        //         .iter()
-        //         .chain(value.iter())
-        //         .cloned()
-        //         .map(StructItem::Field)
-        //         .collect();
-        //
-        //     self.define_struct(fact.inner.identifier.clone(), &fields)?;
-        //     self.define_fact(&fact.inner)?;
-        // }
+        // See https://github.com/aranya-project/aranya-core/issues/336
+        for function_def in &self.policy.functions {
+            self.define_function_signature(function_def)?;
+        }
 
-        // // Define command structs before compiling functions
-        // for command in &self.policy.commands {
-        //     self.define_struct(command.identifier.clone(), &command.fields)?;
-        // }
+        for function_def in &self.policy.functions {
+            self.enter_statement_context(StatementContext::PureFunction(
+                function_def.inner.clone(),
+            ));
+            self.compile_function(function_def)?;
+            self.exit_statement_context();
+        }
 
-        // // Define the finish function signatures before compiling them, so that they can be
-        // // used to catch usage errors in regular functions.
-        // for function_def in &self.policy.finish_functions {
-        //     self.define_finish_function_signature(function_def)?;
-        // }
+        self.enter_statement_context(StatementContext::Finish);
+        for function_def in &self.policy.finish_functions {
+            self.compile_finish_function(function_def)?;
+        }
+        self.exit_statement_context();
 
-        // // Define function signatures before compiling them to
-        // // support using a function before it's defined.
-        // //
-        // // See https://github.com/aranya-project/aranya-core/issues/336
-        // for function_def in &self.policy.functions {
-        //     self.define_function_signature(function_def)?;
-        // }
+        // Commands have several sub-contexts, so `compile_command` handles those.
+        for command in &self.policy.commands {
+            self.compile_command(command)?;
+        }
 
-        // for function_def in &self.policy.functions {
-        //     self.enter_statement_context(StatementContext::PureFunction(
-        //         function_def.inner.clone(),
-        //     ));
-        //     self.compile_function(function_def)?;
-        //     self.exit_statement_context();
-        // }
-
-        // self.enter_statement_context(StatementContext::Finish);
-        // for function_def in &self.policy.finish_functions {
-        //     self.compile_finish_function(function_def)?;
-        // }
-        // self.exit_statement_context();
-
-        // // Commands have several sub-contexts, so `compile_command` handles those.
-        // for command in &self.policy.commands {
-        //     self.compile_command(command)?;
-        // }
-
-        // for action in &self.policy.actions {
-        //     self.enter_statement_context(StatementContext::Action(action.inner.clone()));
-        //     self.compile_action(action)?;
-        //     self.exit_statement_context();
-        // }
+        for action in &self.policy.actions {
+            self.enter_statement_context(StatementContext::Action(action.inner.clone()));
+            self.compile_action(action)?;
+            self.exit_statement_context();
+        }
 
         self.resolve_targets()?;
 
@@ -2417,10 +2344,10 @@ enum Scope {
 
 /// A builder for creating an instance of [`Module`]
 pub struct Compiler<'a> {
-    policy: &'a AstPolicy,
-    ffi_modules: &'a [ModuleSchema<'a>],
-    is_debug: bool,
-    stub_ffi: bool,
+    pub(crate) policy: &'a AstPolicy,
+    pub(crate) ffi_modules: &'a [ModuleSchema<'a>],
+    pub(crate) is_debug: bool,
+    pub(crate) stub_ffi: bool,
 }
 
 impl<'a> Compiler<'a> {

@@ -1,0 +1,1665 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "ActionDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "args": [],
+      "block": {
+        "idx": 6,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 60,
+        "end": 60
+      },
+      "stmts": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 4,
+          "version": 1
+        },
+        {
+          "idx": 5,
+          "version": 1
+        },
+        {
+          "idx": 9,
+          "version": 1
+        },
+        {
+          "idx": 10,
+          "version": 1
+        },
+        {
+          "idx": 11,
+          "version": 1
+        },
+        {
+          "idx": 12,
+          "version": 1
+        },
+        {
+          "idx": 13,
+          "version": 1
+        },
+        {
+          "idx": 14,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 60,
+        "end": 60
+      },
+      "kind": {
+        "Check": {
+          "expr": {
+            "idx": 1,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Bool": true
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 101,
+        "end": 101
+      },
+      "kind": {
+        "If": {
+          "branches": [
+            {
+              "expr": {
+                "idx": 2,
+                "version": 1
+              },
+              "block": {
+                "idx": 1,
+                "version": 1
+              }
+            }
+          ],
+          "else_block": {
+            "idx": 2,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Bool": true
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 119,
+        "end": 119
+      },
+      "stmts": [
+        {
+          "idx": 2,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 119,
+        "end": 119
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "expr": {
+            "idx": 3,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "x"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 1
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 150,
+        "end": 150
+      },
+      "stmts": [
+        {
+          "idx": 3,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 150,
+        "end": 150
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 3,
+            "version": 1
+          },
+          "expr": {
+            "idx": 4,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "x"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 2
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 199,
+        "end": 199
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 4,
+            "version": 1
+          },
+          "expr": {
+            "idx": 5,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "status"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 1
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 218,
+        "end": 218
+      },
+      "kind": {
+        "Match": {
+          "expr": {
+            "idx": 6,
+            "version": 1
+          },
+          "arms": [
+            {
+              "pattern": {
+                "Values": [
+                  {
+                    "idx": 7,
+                    "version": 1
+                  }
+                ]
+              },
+              "block": {
+                "idx": 3,
+                "version": 1
+              }
+            },
+            {
+              "pattern": {
+                "Values": [
+                  {
+                    "idx": 9,
+                    "version": 1
+                  }
+                ]
+              },
+              "block": {
+                "idx": 4,
+                "version": 1
+              }
+            },
+            {
+              "pattern": "Default",
+              "block": {
+                "idx": 5,
+                "version": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 5,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "status"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 1
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 260,
+        "end": 260
+      },
+      "stmts": [
+        {
+          "idx": 6,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 260,
+        "end": 260
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 6,
+            "version": 1
+          },
+          "expr": {
+            "idx": 8,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "result"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "one"
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 2
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 316,
+        "end": 316
+      },
+      "stmts": [
+        {
+          "idx": 7,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 316,
+        "end": 316
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 7,
+            "version": 1
+          },
+          "expr": {
+            "idx": 10,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "result"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "two"
+      }
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 372,
+        "end": 372
+      },
+      "stmts": [
+        {
+          "idx": 8,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 372,
+        "end": 372
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 8,
+            "version": 1
+          },
+          "expr": {
+            "idx": 11,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "result"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 11,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "other"
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 443,
+        "end": 443
+      },
+      "kind": {
+        "Create": {
+          "fact": {
+            "ident": {
+              "idx": 9,
+              "version": 1
+            },
+            "keys": [
+              [
+                {
+                  "idx": 10,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 12,
+                    "version": 1
+                  }
+                }
+              ]
+            ],
+            "vals": [
+              [
+                {
+                  "idx": 11,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 13,
+                    "version": 1
+                  }
+                }
+              ]
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "FactLiteral": {
+      "ident": {
+        "idx": 9,
+        "version": 1
+      },
+      "keys": [
+        [
+          {
+            "idx": 10,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 12,
+              "version": 1
+            }
+          }
+        ]
+      ],
+      "vals": [
+        [
+          {
+            "idx": 11,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 13,
+              "version": 1
+            }
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "User"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 12,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "test"
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 11,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "name"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 13,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "Test User"
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 11,
+        "version": 1
+      },
+      "span": {
+        "start": 529,
+        "end": 529
+      },
+      "kind": {
+        "Update": {
+          "fact": {
+            "ident": {
+              "idx": 12,
+              "version": 1
+            },
+            "keys": [
+              [
+                {
+                  "idx": 13,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 14,
+                    "version": 1
+                  }
+                }
+              ]
+            ],
+            "vals": [
+              [
+                {
+                  "idx": 14,
+                  "version": 1
+                },
+                "Bind"
+              ]
+            ]
+          },
+          "to": [
+            [
+              {
+                "idx": 15,
+                "version": 1
+              },
+              {
+                "Expr": {
+                  "idx": 15,
+                  "version": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "FactLiteral": {
+      "ident": {
+        "idx": 12,
+        "version": 1
+      },
+      "keys": [
+        [
+          {
+            "idx": 13,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 14,
+              "version": 1
+            }
+          }
+        ]
+      ],
+      "vals": [
+        [
+          {
+            "idx": 14,
+            "version": 1
+          },
+          "Bind"
+        ]
+      ]
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 12,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "User"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 13,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 14,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "test"
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 14,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "name"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 15,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "name"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 15,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "Updated User"
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 12,
+        "version": 1
+      },
+      "span": {
+        "start": 633,
+        "end": 633
+      },
+      "kind": {
+        "Delete": {
+          "fact": {
+            "ident": {
+              "idx": 16,
+              "version": 1
+            },
+            "keys": [
+              [
+                {
+                  "idx": 17,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 16,
+                    "version": 1
+                  }
+                }
+              ]
+            ],
+            "vals": []
+          }
+        }
+      }
+    }
+  },
+  {
+    "FactLiteral": {
+      "ident": {
+        "idx": 16,
+        "version": 1
+      },
+      "keys": [
+        [
+          {
+            "idx": 17,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 16,
+              "version": 1
+            }
+          }
+        ]
+      ],
+      "vals": []
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 16,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "User"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 17,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 16,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "test"
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 13,
+        "version": 1
+      },
+      "span": {
+        "start": 694,
+        "end": 694
+      },
+      "kind": {
+        "Emit": {
+          "expr": {
+            "idx": 18,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 18,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "NamedStruct": {
+          "ident": {
+            "idx": 18,
+            "version": 1
+          },
+          "fields": [
+            [
+              {
+                "idx": 19,
+                "version": 1
+              },
+              {
+                "idx": 17,
+                "version": 1
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 18,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "UserUpdated"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 19,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 17,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "test"
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 14,
+        "version": 1
+      },
+      "span": {
+        "start": 766,
+        "end": 766
+      },
+      "kind": {
+        "Publish": {
+          "exor": {
+            "idx": 20,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 20,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "NamedStruct": {
+          "ident": {
+            "idx": 20,
+            "version": 1
+          },
+          "fields": [
+            [
+              {
+                "idx": 21,
+                "version": 1
+              },
+              {
+                "idx": 19,
+                "version": 1
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 20,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "TestCommand"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 21,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "value"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 19,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 42
+      }
+    }
+  },
+  {
+    "CmdDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 890,
+        "end": 890
+      },
+      "ident": {
+        "idx": 22,
+        "version": 1
+      },
+      "fields": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ],
+      "seal": {
+        "idx": 7,
+        "version": 1
+      },
+      "open": {
+        "idx": 8,
+        "version": 1
+      },
+      "policy": {
+        "idx": 9,
+        "version": 1
+      },
+      "recall": {
+        "idx": 10,
+        "version": 1
+      }
+    }
+  },
+  {
+    "CmdField": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 23,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 23,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "value"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "stmts": []
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "stmts": []
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "stmts": []
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 1000,
+        "end": 1000
+      },
+      "stmts": [
+        {
+          "idx": 15,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 15,
+        "version": 1
+      },
+      "span": {
+        "start": 1000,
+        "end": 1000
+      },
+      "kind": {
+        "Return": {
+          "expr": {
+            "idx": 21,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 21,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Optional": null
+      }
+    }
+  },
+  {
+    "EffectDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 847,
+        "end": 847
+      },
+      "ident": {
+        "idx": 24,
+        "version": 1
+      },
+      "items": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "EffectField": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 25,
+            "version": 1
+          },
+          "ty": {
+            "idx": 2,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 25,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  },
+  {
+    "FactDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 803,
+        "end": 803
+      },
+      "ident": {
+        "idx": 26,
+        "version": 1
+      },
+      "keys": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ],
+      "vals": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "FactKey": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": {
+        "idx": 27,
+        "version": 1
+      },
+      "ty": {
+        "idx": 3,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 27,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  },
+  {
+    "FactVal": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": {
+        "idx": 28,
+        "version": 1
+      },
+      "ty": {
+        "idx": 4,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 28,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "name"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  }
+]

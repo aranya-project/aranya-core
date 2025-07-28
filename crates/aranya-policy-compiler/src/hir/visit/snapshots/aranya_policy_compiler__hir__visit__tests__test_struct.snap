@@ -1,0 +1,366 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "StructDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "items": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 2,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "x"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 3,
+            "version": 1
+          },
+          "ty": {
+            "idx": 2,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "y"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  },
+  {
+    "StructDef": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 40,
+        "end": 40
+      },
+      "ident": {
+        "idx": 4,
+        "version": 1
+      },
+      "items": [
+        {
+          "idx": 3,
+          "version": 1
+        },
+        {
+          "idx": 4,
+          "version": 1
+        },
+        {
+          "idx": 5,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 5,
+            "version": 1
+          },
+          "ty": {
+            "idx": 3,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "start"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Struct": {
+          "idx": 6,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "Point"
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 7,
+            "version": 1
+          },
+          "ty": {
+            "idx": 4,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "end"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Struct": {
+          "idx": 8,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "Point"
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 9,
+            "version": 1
+          },
+          "ty": {
+            "idx": 6,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "color"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Optional": {
+          "idx": 5,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  }
+]

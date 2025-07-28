@@ -24,8 +24,35 @@
 
 use std::{fmt, hash::Hash};
 
-use aranya_policy_ast::{self as ast};
+use aranya_policy_ast::{self as ast, Text};
+use serde::{Deserialize, Serialize};
 use slotmap::SlotMap;
+
+/// A span representing a range in the source text.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct Span {
+    /// The start position in the source text (in bytes).
+    pub start: usize,
+    /// The end position in the source text (in bytes).
+    pub end: usize,
+}
+
+impl Span {
+    /// Creates a new span with the given start and end positions.
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    /// Creates a point span where start and end are the same.
+    pub fn point(pos: usize) -> Self {
+        Self { start: pos, end: pos }
+    }
+
+    /// Creates a dummy span for testing purposes.
+    pub fn dummy() -> Self {
+        Self { start: 0, end: 0 }
+    }
+}
 
 /// High-level Intermediate Representation (HIR).
 ///
@@ -33,8 +60,7 @@ use slotmap::SlotMap;
 /// [`Policy`][ast::Policy] AST that makes semantic analysis and
 /// code generation easier. It stores all policy definitions in
 /// arena-allocated collections indexed by typed IDs.
-#[derive(Clone, Default, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub(crate) struct Hir {
     /// Action definitions.
     pub actions: SlotMap<ActionId, ActionDef>,
@@ -80,6 +106,16 @@ pub(crate) struct Hir {
     pub blocks: SlotMap<BlockId, Block>,
     /// Type definitions and references
     pub types: SlotMap<VTypeId, VType>,
+    /// FFI import statements from the policy
+    pub ffi_imports: SlotMap<FfiImportId, FfiImportDef>,
+    /// FFI module definitions
+    pub ffi_modules: SlotMap<FfiModuleId, FfiModuleDef>,
+    /// FFI function definitions
+    pub ffi_funcs: SlotMap<FfiFuncId, FfiFuncDef>,
+    /// FFI struct definitions
+    pub ffi_structs: SlotMap<FfiStructId, FfiStructDef>,
+    /// FFI enum definitions
+    pub ffi_enums: SlotMap<FfiEnumId, FfiEnumDef>,
 }
 
 /// Trait for HIR nodes.
@@ -93,8 +129,9 @@ pub(crate) trait Node {
 ///
 /// This macro ensures all HIR nodes have:
 /// - A unique `id` field of the specified type
-/// - Consistent derive attributes (Clone, Debug, Eq, PartialEq)
-/// - Optional serde support when the feature is enabled
+/// - A `span` field for source location information
+/// - Consistent derive attributes (Clone, Debug, Eq, PartialEq),
+///   etc.
 macro_rules! hir_node {
     (
         $(#[$meta:meta])*
@@ -104,10 +141,10 @@ macro_rules! hir_node {
         }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq)]
-        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
         $vis struct $name {
             pub id: $id,
+            pub span: Span,
             $(pub $field: $ty),*
         }
     };
@@ -141,8 +178,7 @@ macro_rules! hir_type {
         }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq)]
-        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
         $vis struct $name {
             $($body)*
         }
@@ -154,8 +190,7 @@ macro_rules! hir_type {
         }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq)]
-        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
         $vis enum $name {
             $($body)*
         }
@@ -171,6 +206,7 @@ hir_node! {
     /// An action definition.
     pub(crate) struct ActionDef {
         pub id: ActionId,
+        pub ident: IdentId,
         pub args: Vec<ActionArgId>,
         pub block: BlockId,
     }
@@ -212,6 +248,7 @@ hir_node! {
     /// A command definition.
     pub(crate) struct CmdDef {
         pub id: CmdId,
+        pub ident: IdentId,
         pub fields: Vec<CmdFieldId>,
         pub seal: BlockId,
         pub open: BlockId,
@@ -252,6 +289,7 @@ hir_node! {
     /// An effect definition.
     pub(crate) struct EffectDef {
         pub id: EffectId,
+        pub ident: IdentId,
         pub items: Vec<EffectFieldId>,
     }
 }
@@ -288,6 +326,8 @@ hir_node! {
     /// An enum definition.
     pub(crate) struct EnumDef {
         pub id: EnumId,
+        pub ident: IdentId,
+        pub variants: Vec<IdentId>,
     }
 }
 
@@ -308,11 +348,11 @@ hir_type! {
     /// An expression.
     pub(crate) enum ExprKind {
         /// An integer literal.
-        Int,
+        Int(i64),
         /// A text string.
-        String,
+        String(Text),
         /// A boolean literal.
-        Bool,
+        Bool(bool),
         /// An optional literal.
         Optional(Option<ExprId>),
         /// A named struct literal.
@@ -426,6 +466,7 @@ hir_node! {
     /// A fact definition.
     pub(crate) struct FactDef {
         pub id: FactId,
+        pub ident: IdentId,
         pub keys: Vec<FactKeyId>,
         pub vals: Vec<FactValId>,
     }
@@ -468,9 +509,9 @@ hir_node! {
     /// A finish function definition.
     pub(crate) struct FinishFuncDef {
         pub id: FinishFuncId,
+        pub ident: IdentId,
         pub args: Vec<FinishFuncArgId>,
-        // TODO(eric): Make this `BlockId`.
-        pub stmts: Vec<StmtId>,
+        pub block: BlockId,
     }
 }
 
@@ -497,10 +538,10 @@ hir_node! {
     /// A function definition.
     pub(crate) struct FuncDef {
         pub id: FuncId,
+        pub ident: IdentId,
         pub args: Vec<FuncArgId>,
         pub result: VTypeId,
-        // TODO(eric): Make this `BlockId`.
-        pub stmts: Vec<StmtId>,
+        pub block: BlockId,
     }
 }
 
@@ -527,6 +568,7 @@ hir_node! {
     /// A global let definition.
     pub(crate) struct GlobalLetDef {
         pub id: GlobalId,
+        pub ident: IdentId,
         pub expr: ExprId,
     }
 }
@@ -592,8 +634,7 @@ hir_type! {
     /// A match statement arm.
     pub(crate) struct MatchArm {
         pub pattern: MatchPattern,
-        // TODO(eric): Make this `BlockId`.
-        pub stmts: Vec<StmtId>,
+        pub block: BlockId,
     }
 }
 
@@ -617,8 +658,7 @@ hir_type! {
     /// An if statement branch.
     pub(crate) struct IfBranch {
         pub expr: ExprId,
-        // TODO(eric): Make this `BlockId`.
-        pub stmts: Vec<StmtId>,
+        pub block: BlockId,
     }
 }
 
@@ -627,8 +667,7 @@ hir_type! {
     pub(crate) struct MapStmt {
         pub fact: FactLiteral,
         pub ident: IdentId,
-        // TODO(eric): Make this `BlockId`.
-        pub stmts: Vec<StmtId>,
+        pub block: BlockId,
     }
 }
 
@@ -699,6 +738,7 @@ hir_node! {
     /// A struct definition.
     pub(crate) struct StructDef {
         pub id: StructId,
+        pub ident: IdentId,
         pub items: Vec<StructFieldId>,
     }
 }
@@ -744,6 +784,31 @@ make_node_id! {
     pub(crate) struct VTypeId;
 }
 
+make_node_id! {
+    /// Uniquely identifies an FFI import statement.
+    pub(crate) struct FfiImportId;
+}
+
+make_node_id! {
+    /// Uniquely identifies an FFI module.
+    pub(crate) struct FfiModuleId;
+}
+
+make_node_id! {
+    /// Uniquely identifies an FFI function.
+    pub(crate) struct FfiFuncId;
+}
+
+make_node_id! {
+    /// Uniquely identifies an FFI struct.
+    pub(crate) struct FfiStructId;
+}
+
+make_node_id! {
+    /// Uniquely identifies an FFI enum.
+    pub(crate) struct FfiEnumId;
+}
+
 hir_node! {
     pub(crate) struct VType {
         pub id: VTypeId,
@@ -761,6 +826,53 @@ hir_type! {
         Struct(IdentId),
         Enum(IdentId),
         Optional(VTypeId),
+    }
+}
+
+hir_node! {
+    /// An FFI import statement (e.g., `use crypto`).
+    pub(crate) struct FfiImportDef {
+        pub id: FfiImportId,
+        pub module: IdentId,
+    }
+}
+
+hir_node! {
+    /// An FFI module definition.
+    pub(crate) struct FfiModuleDef {
+        pub id: FfiModuleId,
+        pub name: IdentId,
+        pub functions: Vec<FfiFuncId>,
+        pub structs: Vec<FfiStructId>,
+        pub enums: Vec<FfiEnumId>,
+    }
+}
+
+hir_node! {
+    /// An FFI function definition.
+    pub(crate) struct FfiFuncDef {
+        pub id: FfiFuncId,
+        pub name: IdentId,
+        pub args: Vec<(IdentId, VTypeId)>,
+        pub return_type: VTypeId,
+    }
+}
+
+hir_node! {
+    /// An FFI struct definition.
+    pub(crate) struct FfiStructDef {
+        pub id: FfiStructId,
+        pub name: IdentId,
+        pub fields: Vec<(IdentId, VTypeId)>,
+    }
+}
+
+hir_node! {
+    /// An FFI enum definition.
+    pub(crate) struct FfiEnumDef {
+        pub id: FfiEnumId,
+        pub name: IdentId,
+        pub variants: Vec<IdentId>,
     }
 }
 

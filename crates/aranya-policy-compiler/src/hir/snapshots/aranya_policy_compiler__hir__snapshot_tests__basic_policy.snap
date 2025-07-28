@@ -15,6 +15,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 1,
+            "end": 1
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
           "args": [],
           "block": {
             "idx": 1,
@@ -26,6 +34,14 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "span": {
+            "start": 21,
+            "end": 21
+          },
+          "ident": {
             "idx": 2,
             "version": 1
           },
@@ -48,6 +64,14 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 88,
+            "end": 88
+          },
+          "ident": {
+            "idx": 6,
+            "version": 1
+          },
           "args": [],
           "block": {
             "idx": 3,
@@ -68,8 +92,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 1,
+            "idx": 3,
             "version": 1
           },
           "ty": {
@@ -89,6 +117,14 @@ expression: "&snapshot"
         "value": {
           "id": {
             "idx": 1,
+            "version": 1
+          },
+          "span": {
+            "start": 109,
+            "end": 109
+          },
+          "ident": {
+            "idx": 7,
             "version": 1
           },
           "fields": [],
@@ -129,6 +165,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 191,
+            "end": 191
+          },
+          "ident": {
+            "idx": 8,
+            "version": 1
+          },
           "items": [
             {
               "idx": 1,
@@ -148,6 +192,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 245,
+            "end": 245
+          },
+          "ident": {
+            "idx": 11,
+            "version": 1
+          },
           "items": []
         },
         "version": 1
@@ -164,10 +216,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Field": {
               "ident": {
-                "idx": 4,
+                "idx": 9,
                 "version": 1
               },
               "ty": {
@@ -185,10 +241,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Field": {
               "ident": {
-                "idx": 5,
+                "idx": 10,
                 "version": 1
               },
               "ty": {
@@ -218,6 +278,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 283,
+            "end": 283
+          },
+          "ident": {
+            "idx": 12,
+            "version": 1
+          },
           "keys": [
             {
               "idx": 1,
@@ -243,6 +311,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 321,
+            "end": 321
+          },
+          "ident": {
+            "idx": 16,
+            "version": 1
+          },
           "keys": [],
           "vals": []
         },
@@ -260,8 +336,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 6,
+            "idx": 13,
             "version": 1
           },
           "ty": {
@@ -277,8 +357,12 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 7,
+            "idx": 14,
             "version": 1
           },
           "ty": {
@@ -300,8 +384,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 8,
+            "idx": 15,
             "version": 1
           },
           "ty": {
@@ -323,8 +411,19 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 368,
+            "end": 368
+          },
+          "ident": {
+            "idx": 17,
+            "version": 1
+          },
           "args": [],
-          "stmts": []
+          "block": {
+            "idx": 8,
+            "version": 1
+          }
         },
         "version": 1
       },
@@ -334,17 +433,19 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 395,
+            "end": 395
+          },
+          "ident": {
+            "idx": 18,
+            "version": 1
+          },
           "args": [],
-          "stmts": [
-            {
-              "idx": 5,
-              "version": 1
-            },
-            {
-              "idx": 6,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 9,
+            "version": 1
+          }
         },
         "version": 1
       }
@@ -366,17 +467,23 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 500,
+            "end": 500
+          },
+          "ident": {
+            "idx": 23,
+            "version": 1
+          },
           "args": [],
           "result": {
             "idx": 7,
             "version": 1
           },
-          "stmts": [
-            {
-              "idx": 7,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 10,
+            "version": 1
+          }
         },
         "version": 1
       },
@@ -386,17 +493,23 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 535,
+            "end": 535
+          },
+          "ident": {
+            "idx": 24,
+            "version": 1
+          },
           "args": [],
           "result": {
             "idx": 8,
             "version": 1
           },
-          "stmts": [
-            {
-              "idx": 8,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 11,
+            "version": 1
+          }
         },
         "version": 1
       },
@@ -406,17 +519,23 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 573,
+            "end": 573
+          },
+          "ident": {
+            "idx": 25,
+            "version": 1
+          },
           "args": [],
           "result": {
             "idx": 9,
             "version": 1
           },
-          "stmts": [
-            {
-              "idx": 9,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 12,
+            "version": 1
+          }
         },
         "version": 1
       }
@@ -444,6 +563,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 614,
+            "end": 614
+          },
+          "ident": {
+            "idx": 27,
+            "version": 1
+          },
           "items": [
             {
               "idx": 1,
@@ -469,10 +596,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Field": {
               "ident": {
-                "idx": 14,
+                "idx": 28,
                 "version": 1
               },
               "ty": {
@@ -490,10 +621,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Field": {
               "ident": {
-                "idx": 15,
+                "idx": 29,
                 "version": 1
               },
               "ty": {
@@ -517,10 +652,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 49,
+            "end": 49
+          },
           "kind": {
             "ActionCall": {
               "ident": {
-                "idx": 2,
+                "idx": 4,
                 "version": 1
               },
               "args": []
@@ -534,6 +673,10 @@ expression: "&snapshot"
           "id": {
             "idx": 2,
             "version": 1
+          },
+          "span": {
+            "start": 70,
+            "end": 70
           },
           "kind": {
             "Publish": {
@@ -552,6 +695,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 149,
+            "end": 149
+          },
           "kind": {
             "Return": {
               "expr": {
@@ -568,6 +715,10 @@ expression: "&snapshot"
           "id": {
             "idx": 4,
             "version": 1
+          },
+          "span": {
+            "start": 174,
+            "end": 174
           },
           "kind": {
             "Return": {
@@ -586,10 +737,14 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 425,
+            "end": 425
+          },
           "kind": {
             "FunctionCall": {
               "ident": {
-                "idx": 9,
+                "idx": 19,
                 "version": 1
               },
               "args": []
@@ -604,17 +759,21 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
+          "span": {
+            "start": 437,
+            "end": 437
+          },
           "kind": {
             "Delete": {
               "fact": {
                 "ident": {
-                  "idx": 10,
+                  "idx": 20,
                   "version": 1
                 },
                 "keys": [
                   [
                     {
-                      "idx": 11,
+                      "idx": 21,
                       "version": 1
                     },
                     {
@@ -626,7 +785,7 @@ expression: "&snapshot"
                   ],
                   [
                     {
-                      "idx": 12,
+                      "idx": 22,
                       "version": 1
                     },
                     {
@@ -650,6 +809,10 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 523,
+            "end": 523
+          },
           "kind": {
             "Return": {
               "expr": {
@@ -667,6 +830,10 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
+          "span": {
+            "start": 559,
+            "end": 559
+          },
           "kind": {
             "Return": {
               "expr": {
@@ -683,6 +850,10 @@ expression: "&snapshot"
           "id": {
             "idx": 9,
             "version": 1
+          },
+          "span": {
+            "start": 596,
+            "end": 596
           },
           "kind": {
             "Return": {
@@ -707,10 +878,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "NamedStruct": {
               "ident": {
-                "idx": 3,
+                "idx": 5,
                 "version": 1
               },
               "fields": []
@@ -725,6 +900,10 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Optional": null
           }
@@ -736,6 +915,10 @@ expression: "&snapshot"
           "id": {
             "idx": 3,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Optional": null
@@ -749,7 +932,13 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
-          "kind": "Int"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Int": 42
+          }
         },
         "version": 1
       },
@@ -759,7 +948,13 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
-          "kind": "String"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "String": "test"
+          }
         },
         "version": 1
       },
@@ -769,7 +964,13 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
-          "kind": "Int"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Int": 42
+          }
         },
         "version": 1
       },
@@ -779,7 +980,13 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
-          "kind": "Bool"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Bool": true
+          }
         },
         "version": 1
       },
@@ -789,10 +996,14 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "FunctionCall": {
               "ident": {
-                "idx": 13,
+                "idx": 26,
                 "version": 1
               },
               "args": []
@@ -813,7 +1024,11 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "action1"
         },
         "version": 1
       },
@@ -823,7 +1038,11 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
-          "ident": "action1"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "action2"
         },
         "version": 1
       },
@@ -833,7 +1052,11 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
-          "ident": "Cmd1"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
         },
         "version": 1
       },
@@ -843,7 +1066,11 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
-          "ident": "field1"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "action1"
         },
         "version": 1
       },
@@ -853,7 +1080,11 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
-          "ident": "field2"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Cmd1"
         },
         "version": 1
       },
@@ -863,7 +1094,11 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
-          "ident": "a"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "action3"
         },
         "version": 1
       },
@@ -873,7 +1108,11 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
-          "ident": "b"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Cmd1"
         },
         "version": 1
       },
@@ -883,7 +1122,11 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
-          "ident": "c"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Effect1"
         },
         "version": 1
       },
@@ -893,7 +1136,11 @@ expression: "&snapshot"
             "idx": 9,
             "version": 1
           },
-          "ident": "func4"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "field1"
         },
         "version": 1
       },
@@ -903,7 +1150,11 @@ expression: "&snapshot"
             "idx": 10,
             "version": 1
           },
-          "ident": "Fact1"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "field2"
         },
         "version": 1
       },
@@ -913,7 +1164,11 @@ expression: "&snapshot"
             "idx": 11,
             "version": 1
           },
-          "ident": "a"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Effect2"
         },
         "version": 1
       },
@@ -923,7 +1178,11 @@ expression: "&snapshot"
             "idx": 12,
             "version": 1
           },
-          "ident": "b"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Fact1"
         },
         "version": 1
       },
@@ -933,7 +1192,11 @@ expression: "&snapshot"
             "idx": 13,
             "version": 1
           },
-          "ident": "func1"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "a"
         },
         "version": 1
       },
@@ -943,7 +1206,11 @@ expression: "&snapshot"
             "idx": 14,
             "version": 1
           },
-          "ident": "field1"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "b"
         },
         "version": 1
       },
@@ -952,6 +1219,206 @@ expression: "&snapshot"
           "id": {
             "idx": 15,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "c"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 16,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Fact2"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 17,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func4"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 18,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func5"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 19,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func4"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 20,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Fact1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 21,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "a"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 22,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "b"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 23,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 24,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func2"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 25,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func3"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 26,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "func1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 27,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "Struct1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 28,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "field1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 29,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "field2"
         },
@@ -969,6 +1436,10 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "stmts": []
         },
         "version": 1
@@ -978,6 +1449,10 @@ expression: "&snapshot"
           "id": {
             "idx": 2,
             "version": 1
+          },
+          "span": {
+            "start": 49,
+            "end": 49
           },
           "stmts": [
             {
@@ -998,6 +1473,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "stmts": []
         },
         "version": 1
@@ -1007,6 +1486,10 @@ expression: "&snapshot"
           "id": {
             "idx": 4,
             "version": 1
+          },
+          "span": {
+            "start": 149,
+            "end": 149
           },
           "stmts": [
             {
@@ -1023,6 +1506,10 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 174,
+            "end": 174
+          },
           "stmts": [
             {
               "idx": 4,
@@ -1038,6 +1525,10 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "stmts": []
         },
         "version": 1
@@ -1048,7 +1539,105 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "span": {
+            "start": 425,
+            "end": 425
+          },
+          "stmts": [
+            {
+              "idx": 5,
+              "version": 1
+            },
+            {
+              "idx": 6,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "span": {
+            "start": 523,
+            "end": 523
+          },
+          "stmts": [
+            {
+              "idx": 7,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "span": {
+            "start": 559,
+            "end": 559
+          },
+          "stmts": [
+            {
+              "idx": 8,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "span": {
+            "start": 596,
+            "end": 596
+          },
+          "stmts": [
+            {
+              "idx": 9,
+              "version": 1
+            }
+          ]
         },
         "version": 1
       }
@@ -1064,6 +1653,10 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
@@ -1073,6 +1666,10 @@ expression: "&snapshot"
           "id": {
             "idx": 2,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Int"
         },
@@ -1084,6 +1681,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1093,6 +1694,10 @@ expression: "&snapshot"
           "id": {
             "idx": 4,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Int"
         },
@@ -1104,6 +1709,10 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
@@ -1113,6 +1722,10 @@ expression: "&snapshot"
           "id": {
             "idx": 6,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Bool"
         },
@@ -1124,6 +1737,10 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
@@ -1133,6 +1750,10 @@ expression: "&snapshot"
           "id": {
             "idx": 8,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Bool"
         },
@@ -1144,6 +1765,10 @@ expression: "&snapshot"
             "idx": 9,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
@@ -1153,6 +1778,10 @@ expression: "&snapshot"
           "id": {
             "idx": 10,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Bool"
         },
@@ -1164,9 +1793,43 @@ expression: "&snapshot"
             "idx": 11,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
+      }
+    ],
+    "ffi_imports": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_modules": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_enums": [
+      {
+        "value": null,
+        "version": 0
       }
     ]
   },
@@ -1874,6 +2537,14 @@ expression: "&snapshot"
         "version": 0
       },
       {
+        "value": "action1",
+        "version": 1
+      },
+      {
+        "value": "action2",
+        "version": 1
+      },
+      {
         "value": "x",
         "version": 1
       },
@@ -1886,11 +2557,31 @@ expression: "&snapshot"
         "version": 1
       },
       {
+        "value": "action3",
+        "version": 1
+      },
+      {
+        "value": "Cmd1",
+        "version": 1
+      },
+      {
+        "value": "Effect1",
+        "version": 1
+      },
+      {
         "value": "field1",
         "version": 1
       },
       {
         "value": "field2",
+        "version": 1
+      },
+      {
+        "value": "Effect2",
+        "version": 1
+      },
+      {
+        "value": "Fact1",
         "version": 1
       },
       {
@@ -1903,6 +2594,18 @@ expression: "&snapshot"
       },
       {
         "value": "c",
+        "version": 1
+      },
+      {
+        "value": "Fact2",
+        "version": 1
+      },
+      {
+        "value": "func4",
+        "version": 1
+      },
+      {
+        "value": "func5",
         "version": 1
       },
       {
@@ -1923,6 +2626,22 @@ expression: "&snapshot"
       },
       {
         "value": "func1",
+        "version": 1
+      },
+      {
+        "value": "func2",
+        "version": 1
+      },
+      {
+        "value": "func3",
+        "version": 1
+      },
+      {
+        "value": "func1",
+        "version": 1
+      },
+      {
+        "value": "Struct1",
         "version": 1
       },
       {
@@ -2008,6 +2727,101 @@ expression: "&snapshot"
       },
       {
         "value": [],
+        "version": 1
+      },
+      {
+        "value": [],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "FunctionCall": {
+                "identifier": "func4",
+                "arguments": []
+              }
+            },
+            "locator": 425
+          },
+          {
+            "inner": {
+              "Delete": {
+                "fact": {
+                  "identifier": "Fact1",
+                  "key_fields": [
+                    [
+                      "a",
+                      {
+                        "Expression": {
+                          "Int": 42
+                        }
+                      }
+                    ],
+                    [
+                      "b",
+                      {
+                        "Expression": {
+                          "String": "test"
+                        }
+                      }
+                    ]
+                  ],
+                  "value_fields": null
+                }
+              }
+            },
+            "locator": 437
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Int": 42
+                }
+              }
+            },
+            "locator": 523
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Bool": true
+                }
+              }
+            },
+            "locator": 559
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "FunctionCall": {
+                    "identifier": "func1",
+                    "arguments": []
+                  }
+                }
+              }
+            },
+            "locator": 596
+          }
+        ],
         "version": 1
       }
     ],

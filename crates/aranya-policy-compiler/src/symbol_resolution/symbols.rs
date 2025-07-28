@@ -2,20 +2,20 @@
 
 use std::hash::Hash;
 
-use aranya_policy_ast::{Identifier, VType};
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    hir::hir::{IdentId, VTypeId},
+    hir::{IdentId, Span, VTypeId},
     symbol_resolution::scope::ScopeId,
 };
 
 /// Uniquely identifies a [`Symbol`] in a [`Symbols`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct SymbolId(usize);
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub(crate) struct SymbolId(usize);
 
 /// A collection of [`Symbols`].
 #[derive(Clone, Debug)]
-pub struct Symbols {
+pub(crate) struct Symbols {
     symbols: Vec<Symbol>,
 }
 
@@ -50,7 +50,7 @@ impl Symbols {
 
 /// A symbol in the symbol table.
 #[derive(Clone, Debug)]
-pub struct Symbol {
+pub(crate) struct Symbol {
     pub ident: IdentId,
     pub kind: SymbolKind,
     /// The scope that the symbol was defined in.
@@ -59,12 +59,12 @@ pub struct Symbol {
     /// global scope. That function's local variable declarations
     /// will be defined in a child scope of the global scope.
     pub scope: ScopeId,
-    pub location: Option<usize>,
+    pub span: Option<Span>,
 }
 
 /// A symbol in the symbol table.
 #[derive(Clone, Debug)]
-pub enum SymbolKind {
+pub(crate) enum SymbolKind {
     GlobalVar(SymGlobalVar),
     LocalVar(SymLocalVar),
     Fact(SymFact),
@@ -80,7 +80,7 @@ pub enum SymbolKind {
 
 /// A global variable.
 #[derive(Clone, Debug)]
-pub struct SymGlobalVar {
+pub(crate) struct SymGlobalVar {
     /// The value of the global variable.
     pub vtype: SymType,
     /// Expression local scope.
@@ -89,7 +89,7 @@ pub struct SymGlobalVar {
 
 /// A local variable.
 #[derive(Clone, Debug)]
-pub struct SymLocalVar {
+pub(crate) struct SymLocalVar {
     /// The type of the local variable.
     pub vtype: SymType,
     /// Expression local scope.
@@ -98,14 +98,14 @@ pub struct SymLocalVar {
 
 /// A `fact` declaration.
 #[derive(Clone, Debug)]
-pub struct SymFact {
+pub(crate) struct SymFact {
     pub keys: Vec<(IdentId, SymType)>,
     pub values: Vec<(IdentId, SymType)>,
 }
 
 /// An `action` declaration.
 #[derive(Clone, Debug)]
-pub struct SymAction {
+pub(crate) struct SymAction {
     pub params: Vec<(IdentId, SymType)>,
     /// Action-local scope.
     pub scope: ScopeId,
@@ -113,25 +113,25 @@ pub struct SymAction {
 
 /// An `effect` declaration.
 #[derive(Clone, Debug)]
-pub struct SymEffect {
+pub(crate) struct SymEffect {
     pub fields: Status<Vec<(IdentId, SymType)>>,
 }
 
 /// A `struct` declaration.
 #[derive(Clone, Debug)]
-pub struct SymStruct {
+pub(crate) struct SymStruct {
     pub fields: Status<Vec<(IdentId, SymType)>>,
 }
 
 /// An `enum` declaration.
 #[derive(Clone, Debug)]
-pub struct SymEnum {
+pub(crate) struct SymEnum {
     pub variants: Vec<IdentId>,
 }
 
 /// A `command` declaration.
 #[derive(Clone, Debug)]
-pub struct SymCommand {
+pub(crate) struct SymCommand {
     pub fields: Status<Vec<(IdentId, SymType)>>,
     pub policy: Status<PolicyBlock>,
     pub finish: Status<FinishBlock>,
@@ -140,7 +140,7 @@ pub struct SymCommand {
 
 /// A `policy` block inside a [`SymCommand`].
 #[derive(Clone, Debug)]
-pub struct PolicyBlock {
+pub(crate) struct PolicyBlock {
     /// Block-local scope.
     pub scope: ScopeId,
     pub finish: FinishBlock,
@@ -148,7 +148,7 @@ pub struct PolicyBlock {
 
 /// A `recall` block inside a [`SymCommand`].
 #[derive(Clone, Debug)]
-pub struct RecallBlock {
+pub(crate) struct RecallBlock {
     /// Block-local scope.
     pub scope: ScopeId,
     pub finish: FinishBlock,
@@ -156,21 +156,21 @@ pub struct RecallBlock {
 
 /// A `finish` block inside a [`PolicyBlock`] or [`RecallBlock`].
 #[derive(Clone, Debug)]
-pub struct FinishBlock {
+pub(crate) struct FinishBlock {
     /// Block-local scope.
     pub scope: ScopeId,
 }
 
 /// An FFI module.
 #[derive(Clone, Debug)]
-pub struct SymFfiModule {
+pub(crate) struct SymFfiModule {
     /// Module-local scope.
     pub scope: ScopeId,
 }
 
 /// A `function` declaration.
 #[derive(Clone, Debug)]
-pub struct SymFunction {
+pub(crate) struct SymFunction {
     pub params: Vec<(IdentId, SymType)>,
     pub result: SymType,
     /// Function-local scope.
@@ -179,7 +179,7 @@ pub struct SymFunction {
 
 /// A `finish function` declaration.
 #[derive(Clone, Debug)]
-pub struct SymFinishFunction {
+pub(crate) struct SymFinishFunction {
     pub params: Vec<(IdentId, SymType)>,
     /// Function-local scope.
     pub scope: ScopeId,
@@ -187,7 +187,7 @@ pub struct SymFinishFunction {
 
 /// Has this field been resolved?
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Status<T> {
+pub(crate) enum Status<T> {
     /// Yes.
     Resolved(T),
     /// Nope.
@@ -195,9 +195,7 @@ pub enum Status<T> {
 }
 
 /// A maybe resolved [`VTypeId`].
-pub type SymType = Status<VTypeId>;
+pub(crate) type SymType = Status<VTypeId>;
 
 // Note: VTypeId resolution will be handled during symbol resolution
 // All types start as Unresolved and are resolved later
-
-

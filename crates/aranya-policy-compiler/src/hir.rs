@@ -12,12 +12,16 @@ mod snapshot_tests;
 mod visit;
 
 use aranya_policy_ast::Policy;
+use aranya_policy_module::ffi::ModuleSchema;
 
 use crate::hir::lower::LowerCtx;
-pub(crate) use crate::hir::{arena::AstNodes, hir::Hir};
+pub(crate) use crate::hir::{arena::AstNodes, hir::*, visit::Visitor};
 
 /// Parses a [`Policy`] into [`Hir`] and [`AstNodes`].
-pub(crate) fn parse(policy: &Policy) -> (Hir, AstNodes<'_>) {
-    let LowerCtx { ast, arena } = LowerCtx::build(policy);
+pub(crate) fn parse<'a>(
+    policy: &'a Policy,
+    ffi_modules: &'a [ModuleSchema<'a>],
+) -> (Hir, AstNodes<'a>) {
+    let LowerCtx { ast, arena } = LowerCtx::build(policy, ffi_modules);
     (ast, arena)
 }

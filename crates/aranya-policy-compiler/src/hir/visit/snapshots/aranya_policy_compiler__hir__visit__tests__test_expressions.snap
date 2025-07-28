@@ -1,0 +1,921 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "FuncDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "args": [],
+      "result": {
+        "idx": 1,
+        "version": 1
+      },
+      "block": {
+        "idx": 1,
+        "version": 1
+      }
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 73,
+        "end": 73
+      },
+      "stmts": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 2,
+          "version": 1
+        },
+        {
+          "idx": 3,
+          "version": 1
+        },
+        {
+          "idx": 4,
+          "version": 1
+        },
+        {
+          "idx": 5,
+          "version": 1
+        },
+        {
+          "idx": 6,
+          "version": 1
+        },
+        {
+          "idx": 7,
+          "version": 1
+        },
+        {
+          "idx": 8,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 73,
+        "end": 73
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "expr": {
+            "idx": 1,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "a"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 42
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 120,
+        "end": 120
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 3,
+            "version": 1
+          },
+          "expr": {
+            "idx": 4,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "b"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Add": [
+          {
+            "idx": 2,
+            "version": 1
+          },
+          {
+            "idx": 3,
+            "version": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 4,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "a"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 5
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 168,
+        "end": 168
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 5,
+            "version": 1
+          },
+          "expr": {
+            "idx": 6,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "c"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Negative": {
+          "idx": 5,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 6,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "a"
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 215,
+        "end": 215
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 7,
+            "version": 1
+          },
+          "expr": {
+            "idx": 9,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "d"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "NamedStruct": {
+          "ident": {
+            "idx": 8,
+            "version": 1
+          },
+          "fields": [
+            [
+              {
+                "idx": 9,
+                "version": 1
+              },
+              {
+                "idx": 7,
+                "version": 1
+              }
+            ],
+            [
+              {
+                "idx": 10,
+                "version": 1
+              },
+              {
+                "idx": 8,
+                "version": 1
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "Point"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "x"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "y"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 2
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 267,
+        "end": 267
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 11,
+            "version": 1
+          },
+          "expr": {
+            "idx": 11,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 11,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "e"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 11,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Dot": [
+          {
+            "idx": 10,
+            "version": 1
+          },
+          {
+            "idx": 13,
+            "version": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 12,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 12,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "d"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 13,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "x"
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 311,
+        "end": 311
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 14,
+            "version": 1
+          },
+          "expr": {
+            "idx": 13,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 14,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "f"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 13,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Optional": {
+          "idx": 12,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 12,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 10
+      }
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 362,
+        "end": 362
+      },
+      "kind": {
+        "Let": {
+          "ident": {
+            "idx": 15,
+            "version": 1
+          },
+          "expr": {
+            "idx": 15,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 15,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "g"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 15,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Unwrap": {
+          "idx": 14,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 14,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 16,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 16,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "f"
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 411,
+        "end": 411
+      },
+      "kind": {
+        "Return": {
+          "expr": {
+            "idx": 16,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 16,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 17,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 17,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "g"
+    }
+  },
+  {
+    "StructDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 423,
+        "end": 423
+      },
+      "ident": {
+        "idx": 18,
+        "version": 1
+      },
+      "items": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 2,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 19,
+            "version": 1
+          },
+          "ty": {
+            "idx": 2,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 19,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "x"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  },
+  {
+    "StructField": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 20,
+            "version": 1
+          },
+          "ty": {
+            "idx": 3,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 20,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "y"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "Int"
+    }
+  }
+]

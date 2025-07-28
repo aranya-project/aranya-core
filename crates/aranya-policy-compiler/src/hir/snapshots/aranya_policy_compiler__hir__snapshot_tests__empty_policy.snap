@@ -135,6 +135,36 @@ expression: "&snapshot"
         "value": null,
         "version": 0
       }
+    ],
+    "ffi_imports": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_modules": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_enums": [
+      {
+        "value": null,
+        "version": 0
+      }
     ]
   },
   "ast_nodes": {

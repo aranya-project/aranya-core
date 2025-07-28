@@ -1,0 +1,398 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "EffectDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "items": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "EffectField": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Field": {
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  },
+  {
+    "FinishFuncDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 44,
+        "end": 44
+      },
+      "ident": {
+        "idx": 3,
+        "version": 1
+      },
+      "args": [
+        {
+          "idx": 1,
+          "version": 1
+        }
+      ],
+      "block": {
+        "idx": 1,
+        "version": 1
+      }
+    }
+  },
+  {
+    "FinishFuncArg": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": {
+        "idx": 4,
+        "version": 1
+      },
+      "ty": {
+        "idx": 2,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 4,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "VType": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": "String"
+    }
+  },
+  {
+    "Block": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 90,
+        "end": 90
+      },
+      "stmts": [
+        {
+          "idx": 1,
+          "version": 1
+        },
+        {
+          "idx": 2,
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 90,
+        "end": 90
+      },
+      "kind": {
+        "Delete": {
+          "fact": {
+            "ident": {
+              "idx": 5,
+              "version": 1
+            },
+            "keys": [
+              [
+                {
+                  "idx": 6,
+                  "version": 1
+                },
+                {
+                  "Expr": {
+                    "idx": 1,
+                    "version": 1
+                  }
+                }
+              ]
+            ],
+            "vals": []
+          }
+        }
+      }
+    }
+  },
+  {
+    "FactLiteral": {
+      "ident": {
+        "idx": 5,
+        "version": 1
+      },
+      "keys": [
+        [
+          {
+            "idx": 6,
+            "version": 1
+          },
+          {
+            "Expr": {
+              "idx": 1,
+              "version": 1
+            }
+          }
+        ]
+      ],
+      "vals": []
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 5,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "User"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 6,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 7,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 7,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Stmt": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 124,
+        "end": 124
+      },
+      "kind": {
+        "Emit": {
+          "expr": {
+            "idx": 3,
+            "version": 1
+          }
+        }
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 3,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "NamedStruct": {
+          "ident": {
+            "idx": 8,
+            "version": 1
+          },
+          "fields": [
+            [
+              {
+                "idx": 9,
+                "version": 1
+              },
+              {
+                "idx": 2,
+                "version": 1
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 8,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "UserDeleted"
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 9,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Identifier": {
+          "idx": 10,
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "Ident": {
+      "id": {
+        "idx": 10,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "ident": "user_id"
+    }
+  }
+]

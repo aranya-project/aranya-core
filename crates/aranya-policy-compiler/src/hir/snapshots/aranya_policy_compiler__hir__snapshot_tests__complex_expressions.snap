@@ -87,6 +87,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 1,
+            "end": 1
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
           "args": [
             {
               "idx": 1,
@@ -101,32 +109,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
-          "stmts": [
-            {
-              "idx": 1,
-              "version": 1
-            },
-            {
-              "idx": 2,
-              "version": 1
-            },
-            {
-              "idx": 3,
-              "version": 1
-            },
-            {
-              "idx": 4,
-              "version": 1
-            },
-            {
-              "idx": 5,
-              "version": 1
-            },
-            {
-              "idx": 6,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 1,
+            "version": 1
+          }
         },
         "version": 1
       },
@@ -134,6 +120,14 @@ expression: "&snapshot"
         "value": {
           "id": {
             "idx": 2,
+            "version": 1
+          },
+          "span": {
+            "start": 218,
+            "end": 218
+          },
+          "ident": {
+            "idx": 20,
             "version": 1
           },
           "args": [
@@ -146,12 +140,10 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
-          "stmts": [
-            {
-              "idx": 7,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 2,
+            "version": 1
+          }
         },
         "version": 1
       },
@@ -159,6 +151,14 @@ expression: "&snapshot"
         "value": {
           "id": {
             "idx": 3,
+            "version": 1
+          },
+          "span": {
+            "start": 290,
+            "end": 290
+          },
+          "ident": {
+            "idx": 23,
             "version": 1
           },
           "args": [
@@ -171,12 +171,10 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
-          "stmts": [
-            {
-              "idx": 11,
-              "version": 1
-            }
-          ]
+          "block": {
+            "idx": 6,
+            "version": 1
+          }
         },
         "version": 1
       }
@@ -192,8 +190,12 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 1,
+            "idx": 2,
             "version": 1
           },
           "ty": {
@@ -209,8 +211,12 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 2,
+            "idx": 3,
             "version": 1
           },
           "ty": {
@@ -226,8 +232,12 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 19,
+            "idx": 21,
             "version": 1
           },
           "ty": {
@@ -243,8 +253,12 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": {
-            "idx": 21,
+            "idx": 24,
             "version": 1
           },
           "ty": {
@@ -284,10 +298,14 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 48,
+            "end": 48
+          },
           "kind": {
             "Let": {
               "ident": {
-                "idx": 3,
+                "idx": 4,
                 "version": 1
               },
               "expr": {
@@ -305,10 +323,14 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
+          "span": {
+            "start": 68,
+            "end": 68
+          },
           "kind": {
             "Let": {
               "ident": {
-                "idx": 6,
+                "idx": 7,
                 "version": 1
               },
               "expr": {
@@ -326,10 +348,14 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 89,
+            "end": 89
+          },
           "kind": {
             "Let": {
               "ident": {
-                "idx": 9,
+                "idx": 10,
                 "version": 1
               },
               "expr": {
@@ -347,10 +373,14 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
+          "span": {
+            "start": 119,
+            "end": 119
+          },
           "kind": {
             "Let": {
               "ident": {
-                "idx": 11,
+                "idx": 12,
                 "version": 1
               },
               "expr": {
@@ -368,10 +398,14 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
+          "span": {
+            "start": 145,
+            "end": 145
+          },
           "kind": {
             "Let": {
               "ident": {
-                "idx": 14,
+                "idx": 15,
                 "version": 1
               },
               "expr": {
@@ -388,6 +422,10 @@ expression: "&snapshot"
           "id": {
             "idx": 6,
             "version": 1
+          },
+          "span": {
+            "start": 187,
+            "end": 187
           },
           "kind": {
             "Return": {
@@ -406,6 +444,10 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 271,
+            "end": 271
+          },
           "kind": {
             "Return": {
               "expr": {
@@ -422,6 +464,10 @@ expression: "&snapshot"
           "id": {
             "idx": 8,
             "version": 1
+          },
+          "span": {
+            "start": 355,
+            "end": 355
           },
           "kind": {
             "Return": {
@@ -440,6 +486,10 @@ expression: "&snapshot"
             "idx": 9,
             "version": 1
           },
+          "span": {
+            "start": 385,
+            "end": 385
+          },
           "kind": {
             "Return": {
               "expr": {
@@ -456,6 +506,10 @@ expression: "&snapshot"
           "id": {
             "idx": 10,
             "version": 1
+          },
+          "span": {
+            "start": 415,
+            "end": 415
           },
           "kind": {
             "Return": {
@@ -474,6 +528,10 @@ expression: "&snapshot"
             "idx": 11,
             "version": 1
           },
+          "span": {
+            "start": 330,
+            "end": 330
+          },
           "kind": {
             "Match": {
               "expr": {
@@ -490,12 +548,10 @@ expression: "&snapshot"
                       }
                     ]
                   },
-                  "stmts": [
-                    {
-                      "idx": 8,
-                      "version": 1
-                    }
-                  ]
+                  "block": {
+                    "idx": 3,
+                    "version": 1
+                  }
                 },
                 {
                   "pattern": {
@@ -506,21 +562,17 @@ expression: "&snapshot"
                       }
                     ]
                   },
-                  "stmts": [
-                    {
-                      "idx": 9,
-                      "version": 1
-                    }
-                  ]
+                  "block": {
+                    "idx": 4,
+                    "version": 1
+                  }
                 },
                 {
                   "pattern": "Default",
-                  "stmts": [
-                    {
-                      "idx": 10,
-                      "version": 1
-                    }
-                  ]
+                  "block": {
+                    "idx": 5,
+                    "version": 1
+                  }
                 }
               ]
             }
@@ -540,20 +592,9 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
-          "kind": {
-            "Identifier": {
-              "idx": 4,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 2,
-            "version": 1
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -567,8 +608,31 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 6,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
             "idx": 3,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Add": [
@@ -591,20 +655,9 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
-          "kind": {
-            "Identifier": {
-              "idx": 7,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 5,
-            "version": 1
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -618,8 +671,31 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 9,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
             "idx": 6,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Sub": [
@@ -642,9 +718,13 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 10,
+              "idx": 11,
               "version": 1
             }
           }
@@ -657,7 +737,13 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
-          "kind": "Int"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Int": 0
+          }
         },
         "version": 1
       },
@@ -666,6 +752,10 @@ expression: "&snapshot"
           "id": {
             "idx": 9,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "GreaterThan": [
@@ -688,20 +778,9 @@ expression: "&snapshot"
             "idx": 10,
             "version": 1
           },
-          "kind": {
-            "Identifier": {
-              "idx": 12,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 11,
-            "version": 1
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -715,8 +794,31 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 14,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
             "idx": 12,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Equal": [
@@ -739,20 +841,9 @@ expression: "&snapshot"
             "idx": 13,
             "version": 1
           },
-          "kind": {
-            "Identifier": {
-              "idx": 15,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 14,
-            "version": 1
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -766,8 +857,31 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 17,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
             "idx": 15,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Not": {
@@ -783,6 +897,10 @@ expression: "&snapshot"
           "id": {
             "idx": 16,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "And": [
@@ -805,20 +923,9 @@ expression: "&snapshot"
             "idx": 17,
             "version": 1
           },
-          "kind": {
-            "Identifier": {
-              "idx": 17,
-              "version": 1
-            }
-          }
-        },
-        "version": 1
-      },
-      {
-        "value": {
-          "id": {
-            "idx": 18,
-            "version": 1
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Identifier": {
@@ -832,10 +939,35 @@ expression: "&snapshot"
       {
         "value": {
           "id": {
+            "idx": 18,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 19,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
             "idx": 19,
             "version": 1
           },
-          "kind": "Int"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Int": 0
+          }
         },
         "version": 1
       },
@@ -844,6 +976,10 @@ expression: "&snapshot"
           "id": {
             "idx": 20,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "LessThan": [
@@ -866,6 +1002,10 @@ expression: "&snapshot"
             "idx": 21,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Or": [
               {
@@ -887,9 +1027,13 @@ expression: "&snapshot"
             "idx": 22,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 20,
+              "idx": 22,
               "version": 1
             }
           }
@@ -901,6 +1045,10 @@ expression: "&snapshot"
           "id": {
             "idx": 23,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Unwrap": {
@@ -917,9 +1065,13 @@ expression: "&snapshot"
             "idx": 24,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": {
             "Identifier": {
-              "idx": 22,
+              "idx": 25,
               "version": 1
             }
           }
@@ -932,7 +1084,13 @@ expression: "&snapshot"
             "idx": 25,
             "version": 1
           },
-          "kind": "Int"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Int": 1
+          }
         },
         "version": 1
       },
@@ -942,7 +1100,13 @@ expression: "&snapshot"
             "idx": 26,
             "version": 1
           },
-          "kind": "String"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "String": "one"
+          }
         },
         "version": 1
       },
@@ -952,7 +1116,13 @@ expression: "&snapshot"
             "idx": 27,
             "version": 1
           },
-          "kind": "Int"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "Int": 2
+          }
         },
         "version": 1
       },
@@ -962,7 +1132,13 @@ expression: "&snapshot"
             "idx": 28,
             "version": 1
           },
-          "kind": "String"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "String": "two"
+          }
         },
         "version": 1
       },
@@ -972,7 +1148,13 @@ expression: "&snapshot"
             "idx": 29,
             "version": 1
           },
-          "kind": "String"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "kind": {
+            "String": "other"
+          }
         },
         "version": 1
       }
@@ -988,7 +1170,11 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "complex_expr"
         },
         "version": 1
       },
@@ -998,7 +1184,11 @@ expression: "&snapshot"
             "idx": 2,
             "version": 1
           },
-          "ident": "y"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
         },
         "version": 1
       },
@@ -1008,7 +1198,11 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
-          "ident": "sum"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "y"
         },
         "version": 1
       },
@@ -1018,7 +1212,11 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "sum"
         },
         "version": 1
       },
@@ -1028,7 +1226,11 @@ expression: "&snapshot"
             "idx": 5,
             "version": 1
           },
-          "ident": "y"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
         },
         "version": 1
       },
@@ -1038,7 +1240,11 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
-          "ident": "diff"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "y"
         },
         "version": 1
       },
@@ -1048,7 +1254,11 @@ expression: "&snapshot"
             "idx": 7,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "diff"
         },
         "version": 1
       },
@@ -1058,7 +1268,11 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
-          "ident": "y"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
         },
         "version": 1
       },
@@ -1068,7 +1282,11 @@ expression: "&snapshot"
             "idx": 9,
             "version": 1
           },
-          "ident": "is_positive"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "y"
         },
         "version": 1
       },
@@ -1078,7 +1296,11 @@ expression: "&snapshot"
             "idx": 10,
             "version": 1
           },
-          "ident": "sum"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "is_positive"
         },
         "version": 1
       },
@@ -1088,7 +1310,11 @@ expression: "&snapshot"
             "idx": 11,
             "version": 1
           },
-          "ident": "is_equal"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "sum"
         },
         "version": 1
       },
@@ -1098,7 +1324,11 @@ expression: "&snapshot"
             "idx": 12,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "is_equal"
         },
         "version": 1
       },
@@ -1108,7 +1338,11 @@ expression: "&snapshot"
             "idx": 13,
             "version": 1
           },
-          "ident": "y"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
         },
         "version": 1
       },
@@ -1118,7 +1352,11 @@ expression: "&snapshot"
             "idx": 14,
             "version": 1
           },
-          "ident": "result"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "y"
         },
         "version": 1
       },
@@ -1128,7 +1366,11 @@ expression: "&snapshot"
             "idx": 15,
             "version": 1
           },
-          "ident": "is_positive"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "result"
         },
         "version": 1
       },
@@ -1138,7 +1380,11 @@ expression: "&snapshot"
             "idx": 16,
             "version": 1
           },
-          "ident": "is_equal"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "is_positive"
         },
         "version": 1
       },
@@ -1148,7 +1394,11 @@ expression: "&snapshot"
             "idx": 17,
             "version": 1
           },
-          "ident": "result"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "is_equal"
         },
         "version": 1
       },
@@ -1158,7 +1408,11 @@ expression: "&snapshot"
             "idx": 18,
             "version": 1
           },
-          "ident": "diff"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "result"
         },
         "version": 1
       },
@@ -1168,7 +1422,11 @@ expression: "&snapshot"
             "idx": 19,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "diff"
         },
         "version": 1
       },
@@ -1178,7 +1436,11 @@ expression: "&snapshot"
             "idx": 20,
             "version": 1
           },
-          "ident": "x"
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "optional_handling"
         },
         "version": 1
       },
@@ -1187,6 +1449,10 @@ expression: "&snapshot"
           "id": {
             "idx": 21,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "ident": "x"
         },
@@ -1198,6 +1464,52 @@ expression: "&snapshot"
             "idx": 22,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 23,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "match_expr"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 24,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 25,
+            "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "ident": "x"
         },
         "version": 1
@@ -1207,6 +1519,140 @@ expression: "&snapshot"
       {
         "value": null,
         "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "span": {
+            "start": 48,
+            "end": 48
+          },
+          "stmts": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            },
+            {
+              "idx": 3,
+              "version": 1
+            },
+            {
+              "idx": 4,
+              "version": 1
+            },
+            {
+              "idx": 5,
+              "version": 1
+            },
+            {
+              "idx": 6,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "span": {
+            "start": 271,
+            "end": 271
+          },
+          "stmts": [
+            {
+              "idx": 7,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "span": {
+            "start": 355,
+            "end": 355
+          },
+          "stmts": [
+            {
+              "idx": 8,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "span": {
+            "start": 385,
+            "end": 385
+          },
+          "stmts": [
+            {
+              "idx": 9,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "span": {
+            "start": 415,
+            "end": 415
+          },
+          "stmts": [
+            {
+              "idx": 10,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "span": {
+            "start": 330,
+            "end": 330
+          },
+          "stmts": [
+            {
+              "idx": 11,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
       }
     ],
     "types": [
@@ -1220,6 +1666,10 @@ expression: "&snapshot"
             "idx": 1,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
@@ -1229,6 +1679,10 @@ expression: "&snapshot"
           "id": {
             "idx": 2,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Int"
         },
@@ -1240,6 +1694,10 @@ expression: "&snapshot"
             "idx": 3,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Bool"
         },
         "version": 1
@@ -1250,6 +1708,10 @@ expression: "&snapshot"
             "idx": 4,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
@@ -1259,6 +1721,10 @@ expression: "&snapshot"
           "id": {
             "idx": 5,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": {
             "Optional": {
@@ -1275,6 +1741,10 @@ expression: "&snapshot"
             "idx": 6,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "Int"
         },
         "version": 1
@@ -1284,6 +1754,10 @@ expression: "&snapshot"
           "id": {
             "idx": 7,
             "version": 1
+          },
+          "span": {
+            "start": 0,
+            "end": 0
           },
           "kind": "Int"
         },
@@ -1295,9 +1769,43 @@ expression: "&snapshot"
             "idx": 8,
             "version": 1
           },
+          "span": {
+            "start": 0,
+            "end": 0
+          },
           "kind": "String"
         },
         "version": 1
+      }
+    ],
+    "ffi_imports": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_modules": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "ffi_enums": [
+      {
+        "value": null,
+        "version": 0
       }
     ]
   },
@@ -2205,6 +2713,10 @@ expression: "&snapshot"
         "version": 0
       },
       {
+        "value": "complex_expr",
+        "version": 1
+      },
+      {
         "value": "x",
         "version": 1
       },
@@ -2277,11 +2789,19 @@ expression: "&snapshot"
         "version": 1
       },
       {
+        "value": "optional_handling",
+        "version": 1
+      },
+      {
         "value": "x",
         "version": 1
       },
       {
         "value": "x",
+        "version": 1
+      },
+      {
+        "value": "match_expr",
         "version": 1
       },
       {
@@ -2297,6 +2817,263 @@ expression: "&snapshot"
       {
         "value": null,
         "version": 0
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Let": {
+                "identifier": "sum",
+                "expression": {
+                  "Add": [
+                    {
+                      "Identifier": "x"
+                    },
+                    {
+                      "Identifier": "y"
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 48
+          },
+          {
+            "inner": {
+              "Let": {
+                "identifier": "diff",
+                "expression": {
+                  "Subtract": [
+                    {
+                      "Identifier": "x"
+                    },
+                    {
+                      "Identifier": "y"
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 68
+          },
+          {
+            "inner": {
+              "Let": {
+                "identifier": "is_positive",
+                "expression": {
+                  "GreaterThan": [
+                    {
+                      "Identifier": "sum"
+                    },
+                    {
+                      "Int": 0
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 89
+          },
+          {
+            "inner": {
+              "Let": {
+                "identifier": "is_equal",
+                "expression": {
+                  "Equal": [
+                    {
+                      "Identifier": "x"
+                    },
+                    {
+                      "Identifier": "y"
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 119
+          },
+          {
+            "inner": {
+              "Let": {
+                "identifier": "result",
+                "expression": {
+                  "And": [
+                    {
+                      "Identifier": "is_positive"
+                    },
+                    {
+                      "Not": {
+                        "Identifier": "is_equal"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 145
+          },
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Or": [
+                    {
+                      "Identifier": "result"
+                    },
+                    {
+                      "LessThan": [
+                        {
+                          "Identifier": "diff"
+                        },
+                        {
+                          "Int": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 187
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Unwrap": {
+                    "Identifier": "x"
+                  }
+                }
+              }
+            },
+            "locator": 271
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "String": "one"
+                }
+              }
+            },
+            "locator": 355
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "String": "two"
+                }
+              }
+            },
+            "locator": 385
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "String": "other"
+                }
+              }
+            },
+            "locator": 415
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Match": {
+                "expression": {
+                  "Identifier": "x"
+                },
+                "arms": [
+                  {
+                    "pattern": {
+                      "Values": [
+                        {
+                          "Int": 1
+                        }
+                      ]
+                    },
+                    "statements": [
+                      {
+                        "inner": {
+                          "Return": {
+                            "expression": {
+                              "String": "one"
+                            }
+                          }
+                        },
+                        "locator": 355
+                      }
+                    ]
+                  },
+                  {
+                    "pattern": {
+                      "Values": [
+                        {
+                          "Int": 2
+                        }
+                      ]
+                    },
+                    "statements": [
+                      {
+                        "inner": {
+                          "Return": {
+                            "expression": {
+                              "String": "two"
+                            }
+                          }
+                        },
+                        "locator": 385
+                      }
+                    ]
+                  },
+                  {
+                    "pattern": "Default",
+                    "statements": [
+                      {
+                        "inner": {
+                          "Return": {
+                            "expression": {
+                              "String": "other"
+                            }
+                          }
+                        },
+                        "locator": 415
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "locator": 330
+          }
+        ],
+        "version": 1
       }
     ],
     "types": [

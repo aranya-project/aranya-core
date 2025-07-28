@@ -2,29 +2,29 @@
 
 use std::collections::{HashMap, HashSet};
 
-use aranya_policy_ast;
-use aranya_policy_module::ffi::{self, ModuleSchema};
+use aranya_policy_module::ffi::ModuleSchema;
 use buggy::{bug, BugExt};
 
-use super::{
-    error::SymbolResolutionError,
-    scope::{InsertError, ScopeId, Scopes},
-    symbols::{
-        Status, SymAction, SymCommand, SymEffect, SymEnum, SymFact, SymFfiModule,
-        SymFinishFunction, SymFunction, SymGlobalVar, SymLocalVar, SymStruct, SymType, Symbol,
-        SymbolId, SymbolKind, Symbols,
-    },
-    ResolvedHir,
-};
-use crate::hir::{
-    arena::AstNodes,
+use crate::{
     hir::{
-        ActionDef, ActionId, BlockId, CmdDef, CmdId, EffectDef, EffectId, EnumDef, EnumId, ExprId,
+        ActionDef, ActionId, AstNodes, CmdDef, CmdId, EffectDef, EffectId, EnumDef, EnumId, ExprId,
         ExprKind, FactDef, FactField, FactId, FactLiteral, FinishFuncDef, FinishFuncId, FuncDef,
-        FuncId, GlobalId, GlobalLetDef, Hir, IdentId, InternalFunction, StmtId, StmtKind,
+        FuncId, GlobalId, GlobalLetDef, Hir, IdentId, InternalFunction, Span, StmtId, StmtKind,
         StructDef, StructId, VTypeId, VTypeKind,
     },
+    symbol_resolution::{
+        error::SymbolResolutionError,
+        scope::{InsertError, ScopeId, Scopes},
+        symbols::{
+            Status, SymAction, SymCommand, SymEffect, SymEnum, SymFact, SymFfiModule,
+            SymFinishFunction, SymFunction, SymGlobalVar, SymLocalVar, SymStruct, SymType, Symbol,
+            SymbolId, SymbolKind, Symbols,
+        },
+        ResolvedHir,
+    },
 };
+
+type Result<T, E = SymbolResolutionError> = std::result::Result<T, E>;
 
 /// A hint for finding source locations in AST nodes.
 #[derive(Copy, Clone, Debug)]
@@ -51,73 +51,250 @@ pub(super) struct Resolver<'a> {
 }
 
 impl<'a> Resolver<'a> {
+    /// Create a new resolver.
+    pub fn new(
+        hir: &'a Hir,
+        ast_nodes: &'a AstNodes<'a>,
+        ffi_modules: &'a [ModuleSchema<'a>],
+    ) -> Result<Self> {
+        Ok(Self {
+            hir,
+            ast_nodes,
+            ffi_modules,
+            reserved_idents: HashSet::new(),
+            scopes: Scopes::new(),
+            symbols: Symbols::new(),
+            resolved_idents: HashMap::new(),
+        })
+    }
+
     /// Perform symbol resolution.
-    pub fn resolve(mut self) -> Result<ResolvedAst<'a>, SymbolResolutionError> {
+    pub fn resolve(mut self) -> Result<ResolvedHir<'a>> {
         self.add_reserved_idents();
         self.add_ffi_modules()?;
 
         // First pass: collect all top-level declarations
-        self.collect_declarations()?;
+        self.collect_decls()?;
 
         // Second pass: resolve all identifier references
         self.resolve_references()?;
 
         Ok(ResolvedHir {
             hir: self.hir,
-            ast_nodes: self.ast_nodes,
-            identifier_resolutions: self.resolved_idents,
+            ast: self.ast_nodes,
+            resolutions: self.resolved_idents,
             scopes: self.scopes,
             symbols: self.symbols,
         })
     }
 
-    fn add_reserved_idents(&mut self) {
-        // TODO: Need to find or create IdentIds for reserved identifiers
-        // For now, we'll check reserved names during symbol creation
-    }
-
-    fn add_ffi_modules(&mut self) -> Result<(), SymbolResolutionError> {
-        // for schema in self.ffi_modules {
-        //     self.globals.insert(
-        //         schema.name.clone(),
-        //         Symbol::FfiModule(SymFfiModule {
-        //             ident: schema.name,
-        //             // TODO
-        //             symbols: Rc::new(SymbolTable::new()),
-        //         }),
-        //     )?;
-        // }
-        // Ok(())
-        todo!()
-    }
-    /// Find the IdentId for an identifier by searching through HIR idents.
-    fn find_or_create_ident_id(&self, ident: &aranya_policy_ast::Identifier) -> IdentId {
-        // Search through all identifiers in HIR to find matching one
-        for (id, hir_ident) in &self.hir.idents {
-            if &hir_ident.ident == ident {
-                return id;
+    /// Find an existing IdentId for a given name by searching through all identifiers.
+    fn find_ident_id(&self, name: &str) -> Option<IdentId> {
+        for (id, ident) in &self.hir.idents {
+            if ident.ident.as_str() == name {
+                return Some(id);
             }
         }
-        // This shouldn't happen if HIR was properly constructed
-        bug!("identifier not found in HIR: {:?}", ident)
+        None
     }
 
-    /// Get the source location from a location hint.
-    fn get_location_from_hint(&self, hint: LocationHint) -> usize {
+    fn add_reserved_idents(&mut self) {
+        // List of reserved identifiers
+        const RESERVED_NAMES: &[&str] = &["this", "envelope", "id"];
+
+        // Find or track reserved identifier IDs
+        for &name in RESERVED_NAMES {
+            if let Some(ident_id) = self.find_ident_id(name) {
+                self.reserved_idents.insert(ident_id);
+            }
+            // Note: We cannot create new IdentIds here because we have immutable access to HIR.
+            // Instead, we'll check by name when we encounter identifiers.
+        }
+    }
+
+    /// Check if an identifier is reserved.
+    fn is_reserved(&self, ident: IdentId) -> bool {
+        // First check if it's in our reserved set
+        if self.reserved_idents.contains(&ident) {
+            return true;
+        }
+
+        // Fall back to name-based check for identifiers not in our set
+        if let Some(ident_node) = self.hir.idents.get(ident) {
+            let name = ident_node.ident.as_str();
+            matches!(name, "this" | "envelope" | "id")
+        } else {
+            false
+        }
+    }
+
+    /// Check if an identifier is reserved and return an error if it is.
+    fn check_reserved(&self, ident: IdentId, span: Option<Span>) -> Result<()> {
+        if self.is_reserved(ident) {
+            Err(SymbolResolutionError::ReservedIdentifier {
+                ident,
+                span,
+                reserved_for: "language built-ins",
+            })
+        } else {
+            Ok(())
+        }
+    }
+
+    fn add_ffi_modules(&mut self) -> Result<()> {
+        // Process FFI imports from the policy to check they
+        // reference valid modules
+        for def in self.hir.ffi_imports.values() {
+            // Check if the imported module exists in the HIR FFI
+            // modules
+            let module_found = self
+                .hir
+                .ffi_modules
+                .values()
+                .any(|module| module.name == def.module);
+
+            if !module_found {
+                // Get the module name for error reporting
+                if let Some(_ident) = self.hir.idents.get(def.module) {
+                    return Err(SymbolResolutionError::Undefined {
+                        ident: def.module,
+                        // TODO: Get span from AST node
+                        span: Span::dummy(),
+                    });
+                }
+            }
+        }
+
+        // Add FFI modules to the symbol table
+        for def in self.hir.ffi_modules.values() {
+            // Create a scope for the module
+            let module_scope = self
+                .scopes
+                .create_child_scope(ScopeId::GLOBAL)
+                .assume("global scope should always be valid")?;
+
+            // Add the module symbol
+            let kind = SymbolKind::FfiModule(SymFfiModule {
+                scope: module_scope,
+            });
+            let sym_id = self.symbols.insert(Symbol {
+                ident: def.name,
+                kind,
+                scope: ScopeId::GLOBAL,
+                span: None,
+            });
+
+            // Register the module in global scope
+            match self.scopes.insert(ScopeId::GLOBAL, def.name, sym_id) {
+                Ok(()) => {}
+                Err(InsertError::Duplicate(err)) => {
+                    return Err(SymbolResolutionError::Duplicate(err))
+                }
+                Err(InsertError::InvalidScopeId(_)) => bug!("global scope should always be valid"),
+            }
+
+            // Add FFI functions to the module scope
+            for &id in &def.functions {
+                if let Some(func) = self.hir.ffi_funcs.get(id) {
+                    let func_sym = Symbol {
+                        ident: func.name,
+                        kind: SymbolKind::Function(SymFunction {
+                            // FFI functions params are resolved
+                            // later.
+                            params: vec![],
+                            result: SymType::Unresolved,
+                            scope: module_scope,
+                        }),
+                        scope: module_scope,
+                        span: None,
+                    };
+                    let func_sym_id = self.symbols.insert(func_sym);
+                    self.scopes
+                        .insert(module_scope, func.name, func_sym_id)
+                        .assume("module scope should be valid")?;
+                }
+            }
+
+            // Add FFI structs to global scope (FFI structs are
+            // globally accessible)
+            for &id in &def.structs {
+                if let Some(ffi_struct) = self.hir.ffi_structs.get(id) {
+                    let struct_sym = Symbol {
+                        ident: ffi_struct.name,
+                        kind: SymbolKind::Struct(SymStruct {
+                            fields: Status::Unresolved,
+                        }),
+                        scope: ScopeId::GLOBAL,
+                        span: None,
+                    };
+                    let struct_sym_id = self.symbols.insert(struct_sym);
+                    match self
+                        .scopes
+                        .insert(ScopeId::GLOBAL, ffi_struct.name, struct_sym_id)
+                    {
+                        Ok(()) => {}
+                        Err(InsertError::Duplicate(err)) => {
+                            return Err(SymbolResolutionError::Duplicate(err))
+                        }
+                        Err(InsertError::InvalidScopeId(_)) => {
+                            bug!("global scope should always be valid")
+                        }
+                    }
+                }
+            }
+
+            // Add FFI enums to global scope (FFI enums are
+            // globally accessible)
+            for &id in &def.enums {
+                if let Some(ffi_enum) = self.hir.ffi_enums.get(id) {
+                    let enum_sym = Symbol {
+                        ident: ffi_enum.name,
+                        kind: SymbolKind::Enum(SymEnum {
+                            variants: ffi_enum.variants.clone(),
+                        }),
+                        scope: ScopeId::GLOBAL,
+                        span: None,
+                    };
+                    let enum_sym_id = self.symbols.insert(enum_sym);
+                    match self
+                        .scopes
+                        .insert(ScopeId::GLOBAL, ffi_enum.name, enum_sym_id)
+                    {
+                        Ok(()) => {}
+                        Err(InsertError::Duplicate(err)) => {
+                            return Err(SymbolResolutionError::Duplicate(err))
+                        }
+                        Err(InsertError::InvalidScopeId(_)) => {
+                            bug!("global scope should always be valid")
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get the source span from a location hint.
+    fn get_span_from_hint(&self, hint: LocationHint) -> Span {
         match hint {
             LocationHint::Expr(expr_id) => {
-                // Try to find a parent statement that contains this expression
-                // For now, we don't have direct location info for expressions
-                // TODO: This could be improved by tracking expression locations during lowering
-                0
+                // Get span from HIR expression
+                self.hir
+                    .exprs
+                    .get(expr_id)
+                    .map(|expr| expr.span)
+                    .unwrap_or_else(Span::dummy)
             }
-            LocationHint::Stmt(stmt_id) => self
-                .ast_nodes
-                .stmts
-                .get(stmt_id)
-                .map(|ast_stmt| ast_stmt.locator)
-                .unwrap_or(0),
-            LocationHint::None => 0,
+            LocationHint::Stmt(stmt_id) => {
+                // Get span from HIR statement
+                self.hir
+                    .stmts
+                    .get(stmt_id)
+                    .map(|stmt| stmt.span)
+                    .unwrap_or_else(Span::dummy)
+            }
+            LocationHint::None => Span::dummy(),
         }
     }
 
@@ -126,30 +303,16 @@ impl<'a> Resolver<'a> {
         &mut self,
         ident: IdentId,
         kind: SymbolKind,
-        location: Option<usize>,
-    ) -> Result<(), SymbolResolutionError> {
+        span: Option<Span>,
+    ) -> Result<()> {
         // Check if this is a reserved identifier
-        if let Some(ident_node) = self.hir.idents.get(ident) {
-            let name = &ident_node.ident;
-            if name.as_str() == "this" || name.as_str() == "envelope" || name.as_str() == "id" {
-                let sym = Symbol {
-                    ident,
-                    kind,
-                    scope: ScopeId::GLOBAL,
-                    location,
-                };
-                return Err(SymbolResolutionError::ReservedIdentifier {
-                    sym,
-                    reserved_for: "language built-ins",
-                });
-            }
-        }
+        self.check_reserved(ident, span)?;
 
         let sym = Symbol {
             ident,
             kind,
             scope: ScopeId::GLOBAL,
-            location,
+            span,
         };
         let sym_id = self.symbols.insert(sym);
         match self.scopes.insert(ScopeId::GLOBAL, ident, sym_id) {
@@ -159,40 +322,31 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn collect_declarations(&mut self) -> Result<(), SymbolResolutionError> {
-        // Collect global lets
+    fn collect_decls(&mut self) -> Result<()> {
         for (id, global) in &self.hir.global_lets {
             self.collect_global_let(id, global)?;
         }
-        // Collect facts
         for (id, fact) in &self.hir.facts {
             self.collect_fact(id, fact)?;
         }
-        // Collect actions
         for (id, action) in &self.hir.actions {
             self.collect_action(id, action)?;
         }
-        // Collect effects
         for (id, effect) in &self.hir.effects {
             self.collect_effect(id, effect)?;
         }
-        // Collect structs
         for (id, struct_def) in &self.hir.structs {
             self.collect_struct(id, struct_def)?;
         }
-        // Collect enums
         for (id, enum_def) in &self.hir.enums {
             self.collect_enum(id, enum_def)?;
         }
-        // Collect commands
         for (id, cmd) in &self.hir.cmds {
             self.collect_command(id, cmd)?;
         }
-        // Collect functions
         for (id, func) in &self.hir.funcs {
             self.collect_function(id, func)?;
         }
-        // Collect finish functions
         for (id, func) in &self.hir.finish_funcs {
             self.collect_finish_function(id, func)?;
         }
@@ -200,20 +354,13 @@ impl<'a> Resolver<'a> {
     }
 
     /// Collect a global let statement.
-    fn collect_global_let(
-        &mut self,
-        id: GlobalId,
-        global: &GlobalLetDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_global_let(&mut self, id: GlobalId, global: &GlobalLetDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .global_lets
             .get(id)
             .assume("global let should have AST node")?;
-
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
 
         let kind = SymbolKind::GlobalVar(SymGlobalVar {
             vtype: SymType::Unresolved,
@@ -223,75 +370,62 @@ impl<'a> Resolver<'a> {
                 .assume("global should always be valid")?,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(global.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect a fact definition.
-    fn collect_fact(&mut self, id: FactId, fact: &FactDef) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_fact(&mut self, id: FactId, fact: &FactDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .facts
             .get(id)
             .assume("fact should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Collect keys
         let mut keys = Vec::new();
         for key_id in &fact.keys {
-            let key_ast = self
-                .ast_nodes
+            let key = self
+                .hir
                 .fact_keys
                 .get(*key_id)
-                .assume("fact key should have AST node")?;
-            let key_ident_id = self.find_or_create_ident_id(&key_ast.identifier);
-            keys.push((key_ident_id, SymType::Unresolved));
+                .assume("fact key should exist in HIR")?;
+            keys.push((key.ident, SymType::Unresolved));
         }
 
         // Collect values
         let mut values = Vec::new();
         for val_id in &fact.vals {
-            let val_ast = self
-                .ast_nodes
+            let val = self
+                .hir
                 .fact_vals
                 .get(*val_id)
-                .assume("fact val should have AST node")?;
-            let val_ident_id = self.find_or_create_ident_id(&val_ast.identifier);
-            values.push((val_ident_id, SymType::Unresolved));
+                .assume("fact val should exist in HIR")?;
+            values.push((val.ident, SymType::Unresolved));
         }
 
         let kind = SymbolKind::Fact(SymFact { keys, values });
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(fact.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect an action definition.
-    fn collect_action(
-        &mut self,
-        id: ActionId,
-        action: &ActionDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_action(&mut self, id: ActionId, action: &ActionDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .actions
             .get(id)
             .assume("action should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Collect parameters
         let mut params = Vec::new();
         for arg_id in &action.args {
-            let arg_ast = self
-                .ast_nodes
+            let arg = self
+                .hir
                 .action_args
                 .get(*arg_id)
-                .assume("action arg should have AST node")?;
-            let arg_ident_id = self.find_or_create_ident_id(&arg_ast.identifier);
-            params.push((arg_ident_id, SymType::Unresolved));
+                .assume("action arg should exist in HIR")?;
+            params.push((arg.ident, SymType::Unresolved));
         }
 
         let kind = SymbolKind::Action(SymAction {
@@ -302,94 +436,65 @@ impl<'a> Resolver<'a> {
                 .assume("global should always be valid")?,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(action.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect an effect definition.
-    fn collect_effect(
-        &mut self,
-        id: EffectId,
-        effect: &EffectDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_effect(&mut self, id: EffectId, effect: &EffectDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .effects
             .get(id)
             .assume("effect should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         let kind = SymbolKind::Effect(SymEffect {
             fields: Status::Unresolved,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(effect.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect a struct definition.
-    fn collect_struct(
-        &mut self,
-        id: StructId,
-        struct_def: &StructDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_struct(&mut self, id: StructId, struct_def: &StructDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .structs
             .get(id)
             .assume("struct should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         let kind = SymbolKind::Struct(SymStruct {
             fields: Status::Unresolved,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(struct_def.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect an enum definition.
-    fn collect_enum(
-        &mut self,
-        id: EnumId,
-        enum_def: &EnumDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_enum(&mut self, id: EnumId, enum_def: &EnumDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .enums
             .get(id)
             .assume("enum should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
+        let kind = SymbolKind::Enum(SymEnum {
+            variants: enum_def.variants.clone(),
+        });
 
-        // Collect variant IdentIds
-        let mut variants = Vec::new();
-        for variant in &ast_node.variants {
-            let variant_ident_id = self.find_or_create_ident_id(variant);
-            variants.push(variant_ident_id);
-        }
-
-        let kind = SymbolKind::Enum(SymEnum { variants });
-
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(enum_def.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect a command definition.
-    fn collect_command(&mut self, id: CmdId, cmd: &CmdDef) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_command(&mut self, id: CmdId, cmd: &CmdDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .cmds
             .get(id)
             .assume("command should have AST node")?;
-
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
 
         let kind = SymbolKind::Command(SymCommand {
             fields: Status::Unresolved,
@@ -398,35 +503,27 @@ impl<'a> Resolver<'a> {
             recall: Status::Unresolved,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(cmd.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect a function definition.
-    fn collect_function(
-        &mut self,
-        id: FuncId,
-        func: &FuncDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_function(&mut self, id: FuncId, func: &FuncDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .funcs
             .get(id)
             .assume("function should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Collect parameters
         let mut params = Vec::new();
         for arg_id in &func.args {
-            let arg_ast = self
-                .ast_nodes
+            let arg = self
+                .hir
                 .func_args
                 .get(*arg_id)
-                .assume("func arg should have AST node")?;
-            let arg_ident_id = self.find_or_create_ident_id(&arg_ast.identifier);
-            params.push((arg_ident_id, SymType::Unresolved));
+                .assume("func arg should exist in HIR")?;
+            params.push((arg.ident, SymType::Unresolved));
         }
 
         let kind = SymbolKind::Function(SymFunction {
@@ -438,35 +535,27 @@ impl<'a> Resolver<'a> {
                 .assume("global should always be valid")?,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(func.ident, kind, Some(Span::point(ast_node.locator)))
     }
 
     /// Collect a finish function definition.
-    fn collect_finish_function(
-        &mut self,
-        id: FinishFuncId,
-        func: &FinishFuncDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn collect_finish_function(&mut self, id: FinishFuncId, func: &FinishFuncDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .finish_funcs
             .get(id)
             .assume("finish function should have AST node")?;
 
-        // Find the IdentId for this identifier
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Collect parameters
         let mut params = Vec::new();
         for arg_id in &func.args {
-            let arg_ast = self
-                .ast_nodes
+            let arg = self
+                .hir
                 .finish_func_args
                 .get(*arg_id)
-                .assume("finish func arg should have AST node")?;
-            let arg_ident_id = self.find_or_create_ident_id(&arg_ast.identifier);
-            params.push((arg_ident_id, SymType::Unresolved));
+                .assume("finish func arg should exist in HIR")?;
+            params.push((arg.ident, SymType::Unresolved));
         }
 
         let kind = SymbolKind::FinishFunction(SymFinishFunction {
@@ -477,21 +566,19 @@ impl<'a> Resolver<'a> {
                 .assume("global should always be valid")?,
         });
 
-        self.add_global_def(ident_id, kind, Some(ast_node.locator))
+        self.add_global_def(func.ident, kind, Some(Span::point(ast_node.locator)))
     }
 }
 
-impl<'a> Resolver<'a> {
+impl Resolver<'_> {
     fn get_symbol_id(&self, ident: IdentId) -> Result<SymbolId, SymbolResolutionError> {
         let sym_id = self
             .scopes
             .get(ScopeId::GLOBAL, &ident)
             .assume("global scope should always be valid")?
-            .ok_or_else(|| {
-                SymbolResolutionError::Undefined {
-                    ident,
-                    location: 0, // TODO: Use actual location from AstNodes
-                }
+            .ok_or(SymbolResolutionError::Undefined {
+                ident,
+                span: Span::dummy(), // TODO: Use actual span from HIR nodes
             })?;
         Ok(sym_id)
     }
@@ -519,20 +606,16 @@ impl<'a> Resolver<'a> {
     }
 
     /// Second pass: resolve all identifier references.
-    fn resolve_references(&mut self) -> Result<(), SymbolResolutionError> {
-        // Resolve global lets
+    fn resolve_references(&mut self) -> Result<()> {
         for (id, global) in &self.hir.global_lets {
             self.resolve_global_let_references(id, global)?;
         }
-        // Resolve actions
         for (id, action) in &self.hir.actions {
             self.resolve_action_references(id, action)?;
         }
-        // Resolve functions
         for (id, func) in &self.hir.funcs {
             self.resolve_function_references(id, func)?;
         }
-        // Resolve finish functions
         for (id, func) in &self.hir.finish_funcs {
             self.resolve_finish_function_references(id, func)?;
         }
@@ -542,54 +625,36 @@ impl<'a> Resolver<'a> {
     /// Resolve references within a global let statement.
     fn resolve_global_let_references(
         &mut self,
-        id: GlobalId,
+        _id: GlobalId,
         global: &GlobalLetDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
-        let ast_node = self
-            .ast_nodes
-            .global_lets
-            .get(id)
-            .assume("global let should have AST node")?;
-
-        // Find the IdentId for this global let
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
+    ) -> Result<()> {
         // Get the scope for this global let
-        let scope = self.get_symbol_scope(ident_id)?;
+        let scope = self.get_symbol_scope(global.ident)?;
 
         // Resolve the expression
         self.resolve_expr(scope, global.expr)
     }
 
     /// Resolve references within an action.
-    fn resolve_action_references(
-        &mut self,
-        id: ActionId,
-        action: &ActionDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn resolve_action_references(&mut self, id: ActionId, action: &ActionDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .actions
             .get(id)
             .assume("action should have AST node")?;
 
-        // Find the IdentId for this action
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Get the scope for this action
-        let scope = self.get_symbol_scope(ident_id)?;
+        let scope = self.get_symbol_scope(action.ident)?;
 
         // Add parameters to local scope
         for arg_id in &action.args {
-            let arg_ast = self
-                .ast_nodes
+            let arg = self
+                .hir
                 .action_args
                 .get(*arg_id)
-                .assume("action arg should have AST node")?;
-            let arg_ident_id = self.find_or_create_ident_id(&arg_ast.identifier);
-            self.add_parameter(scope, arg_ident_id, ast_node.locator)?;
+                .assume("action arg should exist in HIR")?;
+            self.add_parameter(scope, arg.ident, Span::point(ast_node.locator))?;
         }
 
         // Resolve action body
@@ -606,40 +671,37 @@ impl<'a> Resolver<'a> {
     }
 
     /// Resolve references within a function.
-    fn resolve_function_references(
-        &mut self,
-        id: FuncId,
-        func: &FuncDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    fn resolve_function_references(&mut self, id: FuncId, func: &FuncDef) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .funcs
             .get(id)
             .assume("function should have AST node")?;
 
-        // Find the IdentId for this function
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Get the scope for this function
-        let scope = self.get_symbol_scope(ident_id)?;
+        let scope = self.get_symbol_scope(func.ident)?;
 
         // Add parameters to local scope
         for arg_id in &func.args {
-            let arg_ast = self
-                .ast_nodes
+            let arg = self
+                .hir
                 .func_args
                 .get(*arg_id)
-                .assume("func arg should have AST node")?;
-            let arg_ident_id = self.find_or_create_ident_id(&arg_ast.identifier);
-            self.add_parameter(scope, arg_ident_id, ast_node.locator)?;
+                .assume("func arg should exist in HIR")?;
+            self.add_parameter(scope, arg.ident, Span::point(ast_node.locator))?;
         }
 
         // Resolve return type
-        self.resolve_type_reference(func.result)?;
+        self.resolve_type_ref(func.result)?;
 
         // Resolve function body
-        for stmt_id in &func.stmts {
+        let block = self
+            .hir
+            .blocks
+            .get(func.block)
+            .assume("function block should exist")?;
+        for stmt_id in &block.stmts {
             self.resolve_statement(scope, *stmt_id)?;
         }
 
@@ -651,33 +713,34 @@ impl<'a> Resolver<'a> {
         &mut self,
         id: FinishFuncId,
         func: &FinishFuncDef,
-    ) -> Result<(), SymbolResolutionError> {
-        // Get the AST node to find the identifier
+    ) -> Result<()> {
+        // Get the AST node for location info
         let ast_node = self
             .ast_nodes
             .finish_funcs
             .get(id)
             .assume("finish function should have AST node")?;
 
-        // Find the IdentId for this finish function
-        let ident_id = self.find_or_create_ident_id(&ast_node.identifier);
-
         // Get the scope for this finish function
-        let scope = self.get_symbol_scope(ident_id)?;
+        let scope = self.get_symbol_scope(func.ident)?;
 
         // Add parameters to local scope
         for arg_id in &func.args {
-            let arg_ast = self
-                .ast_nodes
+            let arg = self
+                .hir
                 .finish_func_args
                 .get(*arg_id)
-                .assume("finish func arg should have AST node")?;
-            let arg_ident_id = self.find_or_create_ident_id(&arg_ast.identifier);
-            self.add_parameter(scope, arg_ident_id, ast_node.locator)?;
+                .assume("finish func arg should exist in HIR")?;
+            self.add_parameter(scope, arg.ident, Span::point(ast_node.locator))?;
         }
 
         // Resolve function body
-        for stmt_id in &func.stmts {
+        let block = self
+            .hir
+            .blocks
+            .get(func.block)
+            .assume("finish function block should exist")?;
+        for stmt_id in &block.stmts {
             self.resolve_statement(scope, *stmt_id)?;
         }
 
@@ -685,12 +748,10 @@ impl<'a> Resolver<'a> {
     }
 
     /// Add a parameter to the current scope.
-    fn add_parameter(
-        &mut self,
-        scope: ScopeId,
-        param_ident: IdentId,
-        location: usize,
-    ) -> Result<(), SymbolResolutionError> {
+    fn add_parameter(&mut self, scope: ScopeId, param_ident: IdentId, span: Span) -> Result<()> {
+        // Check if this is a reserved identifier
+        self.check_reserved(param_ident, Some(span))?;
+
         // Create a local variable symbol for the parameter
         let sym = Symbol {
             ident: param_ident,
@@ -699,7 +760,7 @@ impl<'a> Resolver<'a> {
                 scope,
             }),
             scope,
-            location: Some(location),
+            span: Some(span),
         };
 
         let sym_id = self.symbols.insert(sym);
@@ -718,11 +779,7 @@ impl<'a> Resolver<'a> {
     }
 
     /// Resolve references in a statement.
-    fn resolve_statement(
-        &mut self,
-        scope: ScopeId,
-        stmt_id: StmtId,
-    ) -> Result<(), SymbolResolutionError> {
+    fn resolve_statement(&mut self, scope: ScopeId, stmt_id: StmtId) -> Result<()> {
         let stmt = self
             .hir
             .stmts
@@ -733,6 +790,10 @@ impl<'a> Resolver<'a> {
                 // Resolve the value expression first
                 self.resolve_expr(scope, v.expr)?;
 
+                // Check if this is a reserved identifier
+                let span = self.hir.stmts.get(stmt_id).map(|stmt| stmt.span);
+                self.check_reserved(v.ident, span)?;
+
                 // Add to local scope
                 let sym = Symbol {
                     ident: v.ident,
@@ -741,7 +802,7 @@ impl<'a> Resolver<'a> {
                         scope,
                     }),
                     scope,
-                    location: self.ast_nodes.stmts.get(stmt_id).map(|ast| ast.locator),
+                    span,
                 };
 
                 let sym_id = self.symbols.insert(sym);
@@ -766,7 +827,12 @@ impl<'a> Resolver<'a> {
                         .create_child_scope(scope)
                         .assume("statement scope should always be valid")?;
                     // TODO: Handle pattern bindings in match arms
-                    for stmt in &arm.stmts {
+                    let block = self
+                        .hir
+                        .blocks
+                        .get(arm.block)
+                        .assume("match arm block should exist")?;
+                    for stmt in &block.stmts {
                         self.resolve_statement(arm_scope, *stmt)?;
                     }
                 }
@@ -780,7 +846,12 @@ impl<'a> Resolver<'a> {
                         .scopes
                         .create_child_scope(scope)
                         .assume("statement scope should always be valid")?;
-                    for stmt in &branch.stmts {
+                    let block = self
+                        .hir
+                        .blocks
+                        .get(branch.block)
+                        .assume("if branch block should exist")?;
+                    for stmt in &block.stmts {
                         self.resolve_statement(branch_scope, *stmt)?;
                     }
                 }
@@ -825,6 +896,10 @@ impl<'a> Resolver<'a> {
                     .create_child_scope(scope)
                     .assume("statement scope should always be valid")?;
 
+                // Check if the map binding is a reserved identifier
+                let span = self.hir.stmts.get(stmt_id).map(|stmt| stmt.span);
+                self.check_reserved(v.ident, span)?;
+
                 // Add the map binding to scope
                 let sym = Symbol {
                     ident: v.ident,
@@ -833,14 +908,19 @@ impl<'a> Resolver<'a> {
                         scope: map_scope,
                     }),
                     scope: map_scope,
-                    location: self.ast_nodes.stmts.get(stmt_id).map(|ast| ast.locator),
+                    span,
                 };
                 let sym_id = self.symbols.insert(sym);
                 self.scopes
                     .insert(map_scope, v.ident, sym_id)
                     .assume("map scope should be valid")?;
 
-                for stmt in &v.stmts {
+                let block = self
+                    .hir
+                    .blocks
+                    .get(v.block)
+                    .assume("map block should exist")?;
+                for stmt in &block.stmts {
                     self.resolve_statement(map_scope, *stmt)?;
                 }
             }
@@ -888,11 +968,17 @@ impl<'a> Resolver<'a> {
     }
 
     /// Resolve references in an expression.
-    fn resolve_expr(
+    fn resolve_expr(&mut self, scope: ScopeId, expr_id: ExprId) -> Result<()> {
+        self.resolve_expr_with_hint(scope, expr_id, LocationHint::Expr(expr_id))
+    }
+
+    /// Resolve references in an expression with a location hint.
+    fn resolve_expr_with_hint(
         &mut self,
         scope: ScopeId,
         expr_id: ExprId,
-    ) -> Result<(), SymbolResolutionError> {
+        hint: LocationHint,
+    ) -> Result<()> {
         let expr = self
             .hir
             .exprs
@@ -900,7 +986,7 @@ impl<'a> Resolver<'a> {
             .assume("expression should exist in HIR")?;
         match &expr.kind {
             // Literals do not have any references to resolve.
-            ExprKind::Int | ExprKind::String | ExprKind::Bool => {}
+            ExprKind::Int(_) | ExprKind::String(_) | ExprKind::Bool(_) => {}
             ExprKind::Optional(v) => {
                 if let Some(expr) = v {
                     self.resolve_expr(scope, *expr)?;
@@ -935,8 +1021,53 @@ impl<'a> Resolver<'a> {
                 }
             }
             ExprKind::ForeignFunctionCall(v) => {
-                // TODO: Resolve FFI module and function
-                self.resolve_ident_ref(scope, v.module, LocationHint::Expr(expr_id))?;
+                // Resolve FFI module first
+                let module_sym_id = self
+                    .scopes
+                    .get(ScopeId::GLOBAL, &v.module)
+                    .assume("global scope should always be valid")?
+                    .ok_or_else(|| {
+                        let span = self.get_span_from_hint(hint);
+                        SymbolResolutionError::Undefined {
+                            ident: v.module,
+                            span,
+                        }
+                    })?;
+
+                // Get the module's scope
+                let module_sym = self
+                    .symbols
+                    .get(module_sym_id)
+                    .assume("symbol should exist")?;
+                let module_scope = match &module_sym.kind {
+                    SymbolKind::FfiModule(ffi_module) => ffi_module.scope,
+                    _ => {
+                        let span = self.get_span_from_hint(hint);
+                        return Err(SymbolResolutionError::Undefined {
+                            ident: v.module,
+                            span,
+                        });
+                    }
+                };
+
+                // Resolve function within module scope
+                let func_sym_id = self
+                    .scopes
+                    .get(module_scope, &v.ident)
+                    .assume("module scope should be valid")?
+                    .ok_or_else(|| {
+                        let span = self.get_span_from_hint(hint);
+                        SymbolResolutionError::Undefined {
+                            ident: v.ident,
+                            span,
+                        }
+                    })?;
+
+                // Record resolutions
+                self.resolved_idents.insert(v.module, module_sym_id);
+                self.resolved_idents.insert(v.ident, func_sym_id);
+
+                // Resolve arguments
                 for arg in &v.args {
                     self.resolve_expr(scope, *arg)?;
                 }
@@ -1006,7 +1137,7 @@ impl<'a> Resolver<'a> {
         scope: ScopeId,
         fact: &FactLiteral,
         location_hint: LocationHint,
-    ) -> Result<(), SymbolResolutionError> {
+    ) -> Result<()> {
         // Resolve the fact identifier
         self.resolve_ident_ref(scope, fact.ident, location_hint)?;
 
@@ -1033,21 +1164,21 @@ impl<'a> Resolver<'a> {
         scope: ScopeId,
         ident: IdentId,
         location_hint: LocationHint,
-    ) -> Result<(), SymbolResolutionError> {
+    ) -> Result<()> {
         let sym_id = self
             .scopes
             .get(scope, &ident)
             .assume("scope should always be valid")?
             .ok_or_else(|| {
-                let location = self.get_location_from_hint(location_hint);
-                SymbolResolutionError::Undefined { ident, location }
+                let span = self.get_span_from_hint(location_hint);
+                SymbolResolutionError::Undefined { ident, span }
             })?;
         self.resolved_idents.insert(ident, sym_id);
         Ok(())
     }
 
     /// Resolve type references within a type.
-    fn resolve_type_reference(&mut self, vtype_id: VTypeId) -> Result<(), SymbolResolutionError> {
+    fn resolve_type_ref(&mut self, vtype_id: VTypeId) -> Result<()> {
         let vtype = self
             .hir
             .types
@@ -1063,7 +1194,7 @@ impl<'a> Resolver<'a> {
                 self.resolve_ident_ref(ScopeId::GLOBAL, *name, LocationHint::None)?;
             }
             VTypeKind::Optional(inner_type) => {
-                self.resolve_type_reference(*inner_type)?;
+                self.resolve_type_ref(*inner_type)?;
             }
             // Built-in types don't need resolution
             VTypeKind::Int

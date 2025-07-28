@@ -212,9 +212,7 @@ impl Hir {
             try_branch!(self.walk_ident(arg.ident, visitor));
             try_branch!(self.walk_vtype(arg.ty, visitor));
         }
-        for &stmt in &def.stmts {
-            try_branch!(self.walk_stmt(stmt, visitor));
-        }
+        try_branch!(self.walk_block(def.block, visitor));
         V::Result::output()
     }
 
@@ -243,9 +241,7 @@ impl Hir {
             try_branch!(self.walk_vtype(arg.ty, visitor));
         }
         try_branch!(self.walk_vtype(def.result, visitor));
-        for &stmt in &def.stmts {
-            try_branch!(self.walk_stmt(stmt, visitor));
-        }
+        try_branch!(self.walk_block(def.block, visitor));
         V::Result::output()
     }
 
@@ -334,7 +330,7 @@ impl Hir {
         let expr = &self.exprs[id];
         try_branch!(visitor.visit_expr(expr));
         match &expr.kind {
-            ExprKind::Int | ExprKind::String | ExprKind::Bool => {}
+            ExprKind::Int(_) | ExprKind::String(_) | ExprKind::Bool(_) => {}
             ExprKind::Optional(v) => {
                 if let Some(&id) = v.as_ref() {
                     try_branch!(self.walk_expr(id, visitor));
@@ -494,17 +490,13 @@ impl Hir {
                             }
                         }
                     }
-                    for &stmt in &arm.stmts {
-                        try_branch!(self.walk_stmt(stmt, visitor));
-                    }
+                    try_branch!(self.walk_block(arm.block, visitor));
                 }
             }
             StmtKind::If(v) => {
                 for branch in &v.branches {
                     try_branch!(self.walk_expr(branch.expr, visitor));
-                    for &stmt in &branch.stmts {
-                        try_branch!(self.walk_stmt(stmt, visitor));
-                    }
+                    try_branch!(self.walk_block(branch.block, visitor));
                 }
                 if let Some(else_block) = v.else_block {
                     try_branch!(self.walk_block(else_block, visitor));
@@ -516,9 +508,7 @@ impl Hir {
             StmtKind::Map(v) => {
                 try_branch!(self.walk_fact_literal(&v.fact, visitor));
                 try_branch!(self.walk_ident(v.ident, visitor));
-                for &stmt in &v.stmts {
-                    try_branch!(self.walk_stmt(stmt, visitor));
-                }
+                try_branch!(self.walk_block(v.block, visitor));
             }
             StmtKind::Return(v) => {
                 try_branch!(self.walk_expr(v.expr, visitor));

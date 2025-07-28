@@ -6,10 +6,7 @@ use std::{
 
 use buggy::{Bug, BugExt};
 
-use crate::{
-    hir::hir::IdentId,
-    symbol_resolution::symbols::SymbolId,
-};
+use crate::{hir::IdentId, symbol_resolution::symbols::SymbolId};
 
 /// Uniquely identifies a [`Scope`] in an [`Arena`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]

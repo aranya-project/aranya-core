@@ -59,7 +59,7 @@ struct Struct1 {
 "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, ast_nodes) = hir::parse(&policy);
+    let (hir, ast_nodes) = hir::parse(&policy, &[]);
 
     // Create snapshot of the parsed HIR and AST nodes
     let snapshot = ParseSnapshot {
@@ -74,7 +74,7 @@ struct Struct1 {
 fn test_parse_empty_policy() {
     let policy_text = "";
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, ast_nodes) = hir::parse(&policy);
+    let (hir, ast_nodes) = hir::parse(&policy, &[]);
 
     let snapshot = ParseSnapshot {
         hir: &hir,
@@ -110,7 +110,7 @@ function match_expr(x int) string {
 "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, ast_nodes) = hir::parse(&policy);
+    let (hir, ast_nodes) = hir::parse(&policy, &[]);
 
     let snapshot = ParseSnapshot {
         hir: &hir,
@@ -157,7 +157,7 @@ action create_person(name string, age int, street string, city string) {
 "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, ast_nodes) = hir::parse(&policy);
+    let (hir, ast_nodes) = hir::parse(&policy, &[]);
 
     let snapshot = ParseSnapshot {
         hir: &hir,
@@ -205,7 +205,7 @@ finish function revoke_permission(user_id string, resource string) {
 "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, ast_nodes) = hir::parse(&policy);
+    let (hir, ast_nodes) = hir::parse(&policy, &[]);
 
     let snapshot = ParseSnapshot {
         hir: &hir,

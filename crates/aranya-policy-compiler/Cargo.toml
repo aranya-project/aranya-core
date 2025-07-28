@@ -13,11 +13,6 @@ workspace = true
 
 [features]
 default = []
-serde = [
-	"dep:serde",
-
-	"slotmap/serde",
-]
 
 [dependencies]
 aranya-policy-ast = { version = "0.6.0", path = "../aranya-policy-ast" }
@@ -28,12 +23,10 @@ buggy = { version = "0.1.0", features = ["std"] }
 ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }
 indexmap = { version = "2.9.0", default-features = false, features = ["serde"] }
-serde = { workspace = true, optional = true }
-slotmap = { version = "1" }
+serde = { workspace = true }
+slotmap = { version = "1", features = ["serde"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-aranya-policy-compiler = { path = ".", features = ["serde"] }
-
 anyhow = { workspace = true }
 insta = { version = "1", features = ["json"] }

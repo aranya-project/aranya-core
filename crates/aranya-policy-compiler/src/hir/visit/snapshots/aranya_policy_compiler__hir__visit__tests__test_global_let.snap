@@ -1,0 +1,76 @@
+---
+source: crates/aranya-policy-compiler/src/hir/visit/tests.rs
+expression: "&visitor.items"
+---
+[
+  {
+    "GlobalLetDef": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 1,
+        "end": 1
+      },
+      "ident": {
+        "idx": 1,
+        "version": 1
+      },
+      "expr": {
+        "idx": 1,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 1,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "Int": 100
+      }
+    }
+  },
+  {
+    "GlobalLetDef": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 20,
+        "end": 20
+      },
+      "ident": {
+        "idx": 2,
+        "version": 1
+      },
+      "expr": {
+        "idx": 2,
+        "version": 1
+      }
+    }
+  },
+  {
+    "Expr": {
+      "id": {
+        "idx": 2,
+        "version": 1
+      },
+      "span": {
+        "start": 0,
+        "end": 0
+      },
+      "kind": {
+        "String": "anonymous"
+      }
+    }
+  }
+]

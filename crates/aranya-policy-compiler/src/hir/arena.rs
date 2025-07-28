@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use aranya_policy_ast::{self as ast, AstNode};
+use serde::{Deserialize, Serialize};
 use slotmap::SecondaryMap;
 
 use crate::hir::hir::{
@@ -10,9 +11,8 @@ use crate::hir::hir::{
 };
 
 /// An arena of AST nodes.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct AstNodes<'ast> {
     pub actions: SecondaryMap<ActionId, Cow<'ast, AstNode<ast::ActionDefinition>>>,
     pub action_args: SecondaryMap<ActionArgId, Cow<'ast, ast::FieldDefinition>>,
