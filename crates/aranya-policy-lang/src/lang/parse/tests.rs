@@ -243,8 +243,7 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             description: String::from("Integer overflow"),
             input: r#"18446744073709551617"#.to_string(),
             error_message: String::from(
-                "Invalid number: line 1 column 1: 18446744073709551617: \
-                number too large to fit in target type",
+                "Invalid number: line 1 column 1: number too large to fit in target type",
             ),
             rule: Rule::expression,
         },
@@ -255,24 +254,21 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             )"#
             .to_string(),
             error_message: String::from(
-                "Invalid number: line 2 column 17: 18446744073709551617: \
-                number too large to fit in target type",
+                "Invalid number: line 2 column 17: number too large to fit in target type",
             ),
             rule: Rule::expression,
         },
         ErrorInput {
             description: String::from("Invalid string escape"),
             input: r#""\\""#.to_string(),
-            error_message: String::from(
-                "Invalid string: line 1 column 1: \"\\\\\": invalid escape: \\",
-            ),
+            error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
             rule: Rule::expression,
         },
         ErrorInput {
             description: String::from("Expect Invalid substruct operation"),
             input: r#"x substruct 4"#.to_string(),
             error_message: String::from(
-                "Invalid substruct operation: line 1 column 3: substruct: Expression `Int(4)` to the right of the substruct operator must be an identifier",
+                "Invalid substruct operation: line 1 column 3: Expression `Int(4)` to the right of the substruct operator must be an identifier",
             ),
             rule: Rule::expression,
         },
@@ -1935,5 +1931,64 @@ fn test_invalid_text() {
     for src in cases {
         let err = parse_policy_str(src, Version::V2).unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::InvalidString, "{src:?}");
+    }
+}
+
+#[test]
+fn test_error_line_number_in_chunks() {
+    let cases = [
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let int = 0
+```
+"#,
+            "Reserved identifier: line 6 column 9: int",
+        ),
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let x = 0
+```
+Next chunk:
+```policy
+    let x = 0
+    let y = "a\\0b"
+```
+        "#,
+            "Invalid string: line 11 column 13: invalid escape: \\",
+        ),
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let x = 0
+```
+Next chunk:
+```policy
+    let x = 0
+    let = 2
+```
+        "#,
+            r#"Syntax error: line 11 column 9:   --> 11:9
+   |
+11 |     let = 2
+   |         ^---
+   |
+   = expected identifier"#,
+        ),
+    ];
+
+    for (policy, expected) in cases {
+        let err = parse_policy_document(policy).unwrap_err();
+        assert_eq!(err.to_string(), expected);
     }
 }
