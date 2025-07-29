@@ -123,6 +123,12 @@ impl<'a> PairContext<'a> {
             .parse()
             .assume("grammar produces valid identifiers")?)
     }
+
+    fn consume_optional(&self, rule: Rule) -> Option<Pair<'_, Rule>> {
+        self.peek()
+            .filter(|p| p.as_rule() == rule)
+            .inspect(|_| _ = self.next())
+    }
 }
 
 /// Helper function which consumes and returns an iterator over the
@@ -1141,15 +1147,7 @@ impl ChunkParser<'_> {
 
         let locator = self.add_range(&item)?;
         let pc = descend(item);
-        let token = pc.consume()?;
-        let ephemeral = token.as_rule() == Rule::ephemeral_modifier;
-        let token = if ephemeral {
-            pc.consume_of_type(Rule::action_def)?
-        } else {
-            token
-        };
-
-        let pc = descend(token);
+        let ephemeral = pc.consume_optional(Rule::ephemeral_modifier).is_some();
         let identifier = pc.consume_identifier()?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
@@ -1291,15 +1289,7 @@ impl ChunkParser<'_> {
         let locator = self.add_range(&item)?;
 
         let pc = descend(item);
-        let token = pc.consume()?;
-        let ephemeral = token.as_rule() == Rule::ephemeral_modifier;
-        let token = if ephemeral {
-            pc.consume_of_type(Rule::command_def)?
-        } else {
-            token
-        };
-        let pc = descend(token);
-
+        let ephemeral = pc.consume_optional(Rule::ephemeral_modifier).is_some();
         let identifier = pc.consume_identifier()?;
 
         let mut attributes = vec![];

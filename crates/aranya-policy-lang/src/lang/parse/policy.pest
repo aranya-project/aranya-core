@@ -331,8 +331,7 @@ immutable_modifier = { "immutable" }
 use_definition = { "use" ~ identifier }
 fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
 // [ephemeral] action foo(a int) { ... }
-action_def = { identifier ~ function_arguments ~ statement_block }
-action_definition = { ephemeral_modifier? ~ "action" ~ action_def }
+action_definition = { ephemeral_modifier? ~ "action" ~ identifier ~ function_arguments ~ statement_block }
 // effect Foo { bar id }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }
@@ -340,8 +339,7 @@ struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
-command_def = { identifier ~ "{" ~ command_blocks+ ~ "}" }
-command_definition = { ephemeral_modifier? ~ "command" ~ command_def }
+command_definition = { ephemeral_modifier? ~ "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }
