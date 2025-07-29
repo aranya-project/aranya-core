@@ -166,6 +166,8 @@ if_expr = { "if" ~ expression ~ block_expression ~ "else" ~ block_expression }
 // serialize() and deserialize() transform command structs to/from bytes
 serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
+// Indicates a not yet implemented panic
+todo = { "todo()" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
@@ -177,7 +179,8 @@ internal_function = _{
     exactly |
     if_expr |
     serialize |
-    deserialize
+    deserialize |
+    todo
 }
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing
