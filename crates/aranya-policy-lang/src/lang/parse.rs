@@ -517,6 +517,7 @@ impl ChunkParser<'_> {
                     ))
                 }
                 Rule::this => Ok(Expression::Identifier(ident!("this"))),
+                Rule::todo => Ok(Expression::InternalFunction(ast::InternalFunction::Todo)),
                 Rule::identifier => Ok(Expression::Identifier(remain(primary).consume_identifier()?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
