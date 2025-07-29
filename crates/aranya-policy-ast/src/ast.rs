@@ -247,6 +247,8 @@ pub enum InternalFunction {
     Serialize(Box<Expression>),
     /// Deserialize function
     Deserialize(Box<Expression>),
+    /// Not yet implemented panic
+    Todo,
 }
 
 /// A foreign function call with a list of arguments.
