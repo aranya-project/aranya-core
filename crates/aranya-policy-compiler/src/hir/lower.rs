@@ -46,6 +46,10 @@ impl<'ast> LowerCtx<'ast> {
         p
     }
 
+    fn is_pure(&self, id: ExprId) -> bool {
+        self.hir.exprs[id].pure
+    }
+
     fn lower<T, U>(&mut self, item: &'ast T) -> T::Result
     where
         T: Lower<U>,
@@ -93,6 +97,121 @@ impl<'ast> LowerCtx<'ast> {
         });
         self.arena.types.insert(id, Cow::Borrowed(vtype));
         id
+    }
+
+    fn lower_expr_kind(&mut self, expr: &'ast ast::Expression) -> (ExprKind, bool) {
+        match expr {
+            ast::Expression::Int(v) => (ExprKind::Int(*v), true),
+            ast::Expression::String(v) => (ExprKind::String(v.clone()), true),
+            ast::Expression::Bool(v) => (ExprKind::Bool(*v), true),
+            ast::Expression::Optional(v) => {
+                let expr = v.lower(self);
+                let kind = ExprKind::Optional(expr);
+                (kind, expr.is_some_and(|id| self.is_pure(id)))
+            }
+            ast::Expression::NamedStruct(v) => {
+                let kind = ExprKind::NamedStruct(NamedStruct {
+                    ident: self.lower_ident(&v.identifier),
+                    fields: self.lower_list::<_, _, (IdentId, ExprId), _>(&v.fields),
+                });
+                // TODO: check kind.fields for purity
+                (kind, false)
+            }
+            ast::Expression::InternalFunction(v) => match v {
+                ast::InternalFunction::Query(fact) => {
+                    ExprKind::Intrinsic(Intrinsic::Query(fact.lower(self)))
+                }
+                ast::InternalFunction::Exists(fact) => {
+                    // `exists` is sugar for `at_least 1`, so
+                    // desugar it.
+                    ExprKind::Intrinsic(Intrinsic::FactCount(
+                        FactCountType::AtLeast,
+                        1,
+                        fact.lower(self),
+                    ))
+                }
+                ast::InternalFunction::FactCount(count_type, limit, fact) => ExprKind::Intrinsic(
+                    Intrinsic::FactCount(count_type.lower(self), *limit, fact.lower(self)),
+                ),
+                ast::InternalFunction::If(cond, then_expr, else_expr) => {
+                    ExprKind::Ternary(Ternary {
+                        cond: self.lower_expr(cond),
+                        true_expr: self.lower_expr(then_expr),
+                        false_expr: self.lower_expr(else_expr),
+                    })
+                }
+                ast::InternalFunction::Serialize(expr) => {
+                    ExprKind::Intrinsic(Intrinsic::Serialize(self.lower_expr(expr)))
+                }
+                ast::InternalFunction::Deserialize(expr) => {
+                    ExprKind::Intrinsic(Intrinsic::Deserialize(self.lower_expr(expr)))
+                }
+            },
+            ast::Expression::FunctionCall(v) => ExprKind::FunctionCall(FunctionCall {
+                ident: self.lower_ident(&v.identifier),
+                args: self.lower_list(&v.arguments),
+            }),
+            ast::Expression::ForeignFunctionCall(v) => {
+                ExprKind::ForeignFunctionCall(ForeignFunctionCall {
+                    module: self.lower_ident(&v.module),
+                    ident: self.lower_ident(&v.identifier),
+                    args: self.lower_list(&v.arguments),
+                })
+            }
+            ast::Expression::Identifier(v) => ExprKind::Identifier(self.lower_ident(v)),
+            ast::Expression::EnumReference(v) => ExprKind::EnumReference(EnumRef {
+                ident: self.lower_ident(&v.identifier),
+                value: self.lower_ident(&v.value),
+            }),
+            ast::Expression::Add(lhs, rhs) => {
+                ExprKind::Add(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::Subtract(lhs, rhs) => {
+                ExprKind::Sub(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::And(lhs, rhs) => {
+                ExprKind::And(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::Or(lhs, rhs) => {
+                ExprKind::Or(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::Dot(expr, ident) => {
+                ExprKind::Dot(self.lower_expr(expr), self.lower_ident(ident))
+            }
+            ast::Expression::Equal(lhs, rhs) => {
+                ExprKind::Equal(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::NotEqual(lhs, rhs) => {
+                ExprKind::NotEqual(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::GreaterThan(lhs, rhs) => {
+                ExprKind::GreaterThan(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::LessThan(lhs, rhs) => {
+                ExprKind::LessThan(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::GreaterThanOrEqual(lhs, rhs) => {
+                ExprKind::GreaterThanOrEqual(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::LessThanOrEqual(lhs, rhs) => {
+                ExprKind::LessThanOrEqual(self.lower_expr(lhs), self.lower_expr(rhs))
+            }
+            ast::Expression::Negative(expr) => ExprKind::Negative(self.lower_expr(expr)),
+            ast::Expression::Not(expr) => ExprKind::Not(self.lower_expr(expr)),
+            ast::Expression::Unwrap(expr) => ExprKind::Unwrap(self.lower_expr(expr)),
+            ast::Expression::CheckUnwrap(expr) => ExprKind::CheckUnwrap(self.lower_expr(expr)),
+            ast::Expression::Is(expr, is_some) => ExprKind::Is(self.lower_expr(expr), *is_some),
+            ast::Expression::Block(stmts, expr) => {
+                ExprKind::Block(self.lower_block(stmts), self.lower_expr(expr))
+            }
+            ast::Expression::Substruct(expr, ident) => {
+                ExprKind::Substruct(self.lower_expr(expr), self.lower_ident(ident))
+            }
+            ast::Expression::Match(expr) => ExprKind::Match(MatchExpr {
+                scrutinee: self.lower_expr(&expr.scrutinee),
+                arms: self.lower_list(&expr.arms),
+            }),
+        }
     }
 
     /// Lowers an [`ast::Expression`].
@@ -205,6 +324,8 @@ impl<'ast> LowerCtx<'ast> {
             id,
             span: Span::dummy(), // Expressions don't have direct spans in the AST
             kind,
+            // TODO
+            pure: false,
         });
         self.arena.exprs.insert(id, Cow::Borrowed(expr));
         id

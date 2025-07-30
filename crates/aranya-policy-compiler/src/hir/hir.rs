@@ -97,36 +97,7 @@ pub(crate) struct Hir {
     pub ffi_enums: SlotMap<FfiEnumId, FfiEnumDef>,
 }
 
-/// Generates a HIR node struct with consistent derives and an ID
-/// field.
-///
-/// This macro ensures all HIR nodes have:
-/// - A unique `id` field of the specified type
-/// - A `span` field for source location information
-/// - Consistent derive attributes (Clone, Debug, Eq, PartialEe,
-///   etc.)
-macro_rules! hir_node {
-    (
-        $(#[$meta:meta])*
-        $vis:vis struct $name:ident {
-            pub id: $id:ty,
-            $(pub $field:ident: $ty:ty),* $(,)?
-        }
-    ) => {
-        $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-        $vis struct $name {
-            pub id: $id,
-            pub span: Span,
-            $(pub $field: $ty),*
-        }
-    };
-}
-
-/// Generates typed ID structs for use with SlotMap.
-///
-/// This macro creates newtype wrappers that serve as keys for
-/// the arena-allocated collections in the HIR.
+/// Generates an ID type for a HIR node.
 macro_rules! make_node_id {
     ($(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)*) => {
         slotmap::new_key_type! {
@@ -138,12 +109,48 @@ macro_rules! make_node_id {
     () => {};
 }
 
-/// Generates HIR helper types with consistent derives.
+/// Generates a HIR node.
 ///
-/// This macro ensures all HIR helper types (structs and enums
-/// that aren't nodes themselves) have consistent derive
-/// attributes.
+/// It ensures that all HIR nodes have:
+/// - An `id` field
+/// - A `span` field
+/// - Consistent derive attributes (Clone, Debug, Eq, PartialEe,
+///   etc.)
+macro_rules! hir_node {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            pub id: $id:ident,
+            $(
+                $(#[$field_meta:meta])*
+                pub $field:ident: $ty:ty
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+        $vis struct $name {
+            /// Uniquely identifies the HIR node.
+            pub id: $id,
+            /// Where the node appears in the source text.
+            pub span: Span,
+            $(
+                $(#[$field_meta])*
+                pub $field: $ty
+            ),*
+        }
+        make_node_id! {
+            /// Uniquely identifies a
+            #[doc = concat!("`", stringify!($name), "`")]
+            $vis struct $id;
+        }
+    };
+}
+
+/// Generates a HIR "helper" type. That is, a type that is used
+/// by a HIR node but is not a HIR node itself.
 macro_rules! hir_type {
+    // `struct`
     (
         $(#[$meta:meta])*
         $vis:vis struct $name:ident {
@@ -156,6 +163,7 @@ macro_rules! hir_type {
             $($body)*
         }
     };
+    // `enum`
     (
         $(#[$meta:meta])*
         $vis:vis enum $name:ident {
@@ -170,11 +178,6 @@ macro_rules! hir_type {
     };
 }
 
-make_node_id! {
-    /// Uniquely identifies an action.
-    pub(crate) struct ActionId;
-}
-
 hir_node! {
     /// An action definition.
     pub(crate) struct ActionDef {
@@ -185,13 +188,8 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an action parameter.
-    pub(crate) struct ActionArgId;
-}
-
 hir_node! {
-    /// An action argument
+    /// An argument to an action.
     pub(crate) struct ActionArg {
         pub id: ActionArgId,
         pub ident: IdentId,
@@ -199,22 +197,12 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a block.
-    pub(crate) struct BlockId;
-}
-
 hir_node! {
-    /// A block.
+    /// A block is a collection of statements.
     pub(crate) struct Block {
         pub id: BlockId,
         pub stmts: Vec<StmtId>,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies a command.
-    pub(crate) struct CmdId;
 }
 
 hir_node! {
@@ -230,13 +218,8 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a command field.
-    pub(crate) struct CmdFieldId;
-}
-
 hir_node! {
-    /// A command field.
+    /// A field in a command`s fields block.
     pub(crate) struct CmdField {
         pub id: CmdFieldId,
         pub kind: CmdFieldKind,
@@ -253,11 +236,6 @@ hir_type! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an effect.
-    pub(crate) struct EffectId;
-}
-
 hir_node! {
     /// An effect definition.
     pub(crate) struct EffectDef {
@@ -265,11 +243,6 @@ hir_node! {
         pub ident: IdentId,
         pub items: Vec<EffectFieldId>,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies an effect field.
-    pub(crate) struct EffectFieldId;
 }
 
 hir_node! {
@@ -290,11 +263,6 @@ hir_type! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an enum.
-    pub(crate) struct EnumId;
-}
-
 hir_node! {
     /// An enum definition.
     pub(crate) struct EnumDef {
@@ -304,16 +272,22 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an expression.
-    pub(crate) struct ExprId;
-}
-
 hir_node! {
     /// An expression.
     pub(crate) struct Expr {
         pub id: ExprId,
         pub kind: ExprKind,
+        /// An expression is pure iff it has no side effects.
+        ///
+        /// A side effect is defined as:
+        ///
+        /// - Calling an action.
+        /// - Calling a foreign function.
+        /// - Calling a finish function.
+        ///
+        /// Note that foreign functions *should* be pure, but it
+        /// is impossible to guarantee that they are.
+        pub pure: bool,
     }
 }
 
@@ -559,11 +533,6 @@ hir_type! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a fact.
-    pub(crate) struct FactId;
-}
-
 hir_node! {
     /// A fact definition.
     pub(crate) struct FactDef {
@@ -572,11 +541,6 @@ hir_node! {
         pub keys: Vec<FactKeyId>,
         pub vals: Vec<FactValId>,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies a fact key.
-    pub(crate) struct FactKeyId;
 }
 
 hir_node! {
@@ -588,11 +552,6 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a fact value.
-    pub(crate) struct FactValId;
-}
-
 hir_node! {
     /// A fact value.
     pub(crate) struct FactVal {
@@ -600,11 +559,6 @@ hir_node! {
         pub ident: IdentId,
         pub ty: VTypeId,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies a finish function.
-    pub(crate) struct FinishFuncId;
 }
 
 hir_node! {
@@ -617,11 +571,6 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a finish function argument.
-    pub(crate) struct FinishFuncArgId;
-}
-
 hir_node! {
     /// A finish function argument
     pub(crate) struct FinishFuncArg {
@@ -629,11 +578,6 @@ hir_node! {
         pub ident: IdentId,
         pub ty: VTypeId,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies a function.
-    pub(crate) struct FuncId;
 }
 
 hir_node! {
@@ -647,11 +591,6 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a function argument.
-    pub(crate) struct FuncArgId;
-}
-
 hir_node! {
     /// A function argument
     pub(crate) struct FuncArg {
@@ -661,11 +600,6 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a global variable.
-    pub(crate) struct GlobalId;
-}
-
 hir_node! {
     /// A global let definition.
     pub(crate) struct GlobalLetDef {
@@ -673,11 +607,6 @@ hir_node! {
         pub ident: IdentId,
         pub expr: ExprId,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies a statement.
-    pub(crate) struct StmtId;
 }
 
 hir_node! {
@@ -831,11 +760,6 @@ hir_type! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a struct.
-    pub(crate) struct StructId;
-}
-
 hir_node! {
     /// A struct definition.
     pub(crate) struct StructDef {
@@ -843,11 +767,6 @@ hir_node! {
         pub ident: IdentId,
         pub items: Vec<StructFieldId>,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies a struct field.
-    pub(crate) struct StructFieldId;
 }
 
 hir_node! {
@@ -866,11 +785,6 @@ hir_type! {
         /// A reference to another struct whose fields should be included
         StructRef(IdentId),
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies an identifier in the HIR.
-    pub(crate) struct IdentId;
 }
 
 hir_node! {
@@ -895,11 +809,6 @@ hir_type! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies a variable type.
-    pub(crate) struct VTypeId;
-}
-
 hir_node! {
     pub(crate) struct VType {
         pub id: VTypeId,
@@ -920,22 +829,12 @@ hir_type! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an FFI import statement.
-    pub(crate) struct FfiImportId;
-}
-
 hir_node! {
     /// An FFI import statement (e.g., `use crypto`).
     pub(crate) struct FfiImportDef {
         pub id: FfiImportId,
         pub module: IdentId,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI module.
-    pub(crate) struct FfiModuleId;
 }
 
 hir_node! {
@@ -949,11 +848,6 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an FFI function.
-    pub(crate) struct FfiFuncId;
-}
-
 hir_node! {
     /// An FFI function definition.
     pub(crate) struct FfiFuncDef {
@@ -964,11 +858,6 @@ hir_node! {
     }
 }
 
-make_node_id! {
-    /// Uniquely identifies an FFI struct.
-    pub(crate) struct FfiStructId;
-}
-
 hir_node! {
     /// An FFI struct definition.
     pub(crate) struct FfiStructDef {
@@ -976,11 +865,6 @@ hir_node! {
         pub name: IdentId,
         pub fields: Vec<(IdentId, VTypeId)>,
     }
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI enum.
-    pub(crate) struct FfiEnumId;
 }
 
 hir_node! {
