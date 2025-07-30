@@ -1,4 +1,7 @@
-use std::hash::Hash;
+use std::{
+    hash::Hash,
+    ops::{BitAnd, BitAndAssign},
+};
 
 use aranya_policy_ast::{self as ast, Text};
 use serde::{Deserialize, Serialize};
@@ -202,6 +205,9 @@ hir_node! {
     pub(crate) struct Block {
         pub id: BlockId,
         pub stmts: Vec<StmtId>,
+        /// `true` it any of the statements in the block contain
+        /// a [`ReturnStmt`].
+        pub returns: bool,
     }
 }
 
@@ -284,10 +290,47 @@ hir_node! {
         /// - Calling an action.
         /// - Calling a foreign function.
         /// - Calling a finish function.
+        /// - `create`, `update`, `delete`, `emit`, or `publish`
         ///
         /// Note that foreign functions *should* be pure, but it
         /// is impossible to guarantee that they are.
-        pub pure: bool,
+        pub pure: Pure,
+        /// `true` if this expression contains at least one
+        /// [`ReturnStmt`].
+        ///
+        /// NB: This means that the expression contains at least
+        /// one [`ExprKind::Block`].
+        pub returns: bool,
+    }
+}
+
+hir_type! {
+    /// Is this pure?
+    #[derive(Copy, Default)]
+    pub(crate) enum Pure {
+        Yes,
+        No,
+        /// We don't have enough information to determine its
+        /// purity.
+        #[default]
+        Maybe,
+    }
+}
+
+impl BitAnd for Pure {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Pure::Yes, Pure::Yes) => Pure::Yes,
+            (Pure::No, _) | (_, Pure::No) => Pure::No,
+            _ => Pure::Maybe,
+        }
+    }
+}
+
+impl BitAndAssign for Pure {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = *self & rhs;
     }
 }
 
@@ -614,6 +657,11 @@ hir_node! {
     pub(crate) struct Stmt {
         pub id: StmtId,
         pub kind: StmtKind,
+        /// `true` if this statement could return.
+        ///
+        /// NB: This could be true for more than just
+        /// [`StmtKind::Return`].
+        pub returns: bool,
     }
 }
 

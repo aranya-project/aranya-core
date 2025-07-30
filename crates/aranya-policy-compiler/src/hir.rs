@@ -35,7 +35,7 @@ mod hir;
 mod lower;
 mod normalize;
 mod snapshot_tests;
-mod visit;
+pub(crate) mod visit;
 
 use aranya_policy_ast::Policy;
 use aranya_policy_module::ffi::ModuleSchema;
@@ -49,6 +49,6 @@ pub(crate) fn parse<'a>(
     policy: &'a Policy,
     ffi_modules: &'a [ModuleSchema<'a>],
 ) -> (Hir, AstNodes<'a>) {
-    let LowerCtx { ast, arena } = LowerCtx::build(policy, ffi_modules);
-    (ast, arena)
+    let LowerCtx { hir, ast } = LowerCtx::build(policy, ffi_modules);
+    (hir, ast)
 }

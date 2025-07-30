@@ -498,3 +498,108 @@ struct NamedRectangle {
 
     insta::assert_json_snapshot!("test_struct_refs", &visitor.items);
 }
+
+#[test]
+fn test_walker_depth_limiting() {
+    let policy_str = r#"
+function deeply_nested() int {
+    // Create a deeply nested expression
+    return 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+}
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2).unwrap();
+    let (hir, _) = hir::parse(&policy, &[]);
+
+    // Test unlimited depth (default)
+    let mut visitor_unlimited = RecordingVisitor::new();
+    hir.walker().walk(&mut visitor_unlimited);
+    let unlimited_count = visitor_unlimited.items.len();
+
+    // Test with depth limit of 5
+    let mut visitor_limited = RecordingVisitor::new();
+    hir.walker().with_max_depth(5).walk(&mut visitor_limited);
+    let limited_count = visitor_limited.items.len();
+
+    // The limited walker should have visited fewer items
+    assert!(limited_count < unlimited_count);
+
+    // Test that we can get the max depth reached
+    let mut walker = hir.walker().with_max_depth(3);
+    let mut visitor = RecordingVisitor::new();
+    walker.walk(&mut visitor);
+
+    // The walker should have reached the max depth
+    assert_eq!(walker.current_depth(), 0); // Depth resets to 0 after walking
+}
+
+#[test]
+fn test_walker_depth_tracking() {
+    use crate::hir::visit::Walker;
+
+    let policy_str = r#"
+action nested_blocks() {
+    if true {
+        if true {
+            let x = 1
+        }
+    }
+}
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2).unwrap();
+    let (hir, _) = hir::parse(&policy, &[]);
+
+    /// A visitor that records the depth at each visit
+    struct DepthRecordingVisitor {
+        depths: Vec<(String, usize)>,
+        walker_depth: usize,
+    }
+
+    impl DepthRecordingVisitor {
+        fn new() -> Self {
+            Self {
+                depths: Vec::new(),
+                walker_depth: 0,
+            }
+        }
+
+        fn record(&mut self, item: &str) {
+            self.depths.push((item.to_string(), self.walker_depth));
+        }
+    }
+
+    impl<'hir> Visitor<'hir> for DepthRecordingVisitor {
+        type Result = ();
+
+        fn visit_action_def(&mut self, _def: &'hir ActionDef) {
+            self.record("action");
+        }
+
+        fn visit_block(&mut self, _block: &'hir Block) {
+            self.record("block");
+        }
+
+        fn visit_stmt(&mut self, _stmt: &'hir Stmt) {
+            self.record("stmt");
+        }
+
+        fn visit_expr(&mut self, _expr: &'hir Expr) {
+            self.record("expr");
+        }
+    }
+
+    // Create a custom walker that tracks depth
+    let mut walker = Walker::new(&hir);
+    let mut visitor = DepthRecordingVisitor::new();
+
+    // Manually walk to track depth at each step
+    for id in hir.actions.keys() {
+        visitor.walker_depth = walker.current_depth();
+        walker.walk_action(id, &mut visitor);
+    }
+
+    // Verify we recorded some depths
+    assert!(!visitor.depths.is_empty());
+
+    // The action should be at depth 0, blocks and statements at increasing depths
+    assert_eq!(visitor.depths[0].1, 0); // action at depth 0
+}

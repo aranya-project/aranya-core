@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 use slotmap::SlotMap;
 
@@ -60,44 +60,46 @@ impl Normalizer {
 
     /// Walk the entire HIR and apply normalizations.
     fn walk_hir(mut self, mut old: Hir) -> NormalizedHir {
-        // Transfer simple types first (no dependencies)
-        self.hir.idents = std::mem::take(&mut old.idents);
-        self.hir.types = std::mem::take(&mut old.types);
-
-        // Transfer type definitions
-        self.hir.enums = std::mem::take(&mut old.enums);
-        self.hir.struct_fields = std::mem::take(&mut old.struct_fields);
-        self.hir.structs = std::mem::take(&mut old.structs);
-        self.hir.facts = std::mem::take(&mut old.facts);
-        self.hir.fact_keys = std::mem::take(&mut old.fact_keys);
-        self.hir.fact_vals = std::mem::take(&mut old.fact_vals);
-
-        // Transfer FFI definitions
-        self.hir.ffi_imports = std::mem::take(&mut old.ffi_imports);
-        self.hir.ffi_modules = std::mem::take(&mut old.ffi_modules);
-        self.hir.ffi_funcs = std::mem::take(&mut old.ffi_funcs);
-        self.hir.ffi_structs = std::mem::take(&mut old.ffi_structs);
-        self.hir.ffi_enums = std::mem::take(&mut old.ffi_enums);
-
-        // Transfer effect definitions
-        self.hir.effects = std::mem::take(&mut old.effects);
-        self.hir.effect_fields = std::mem::take(&mut old.effect_fields);
+        // Transfer HIR nodes that
+        // 1. Do not have any `Expr`, `Stmt`, or `Block`
+        //    references.
+        // 2. Do not reference any HIR nodes that have `Expr`,
+        //    `Stmt`, or `Block` references.
+        self.hir.effect_fields = mem::take(&mut old.effect_fields);
+        self.hir.effects = mem::take(&mut old.effects);
+        self.hir.enums = mem::take(&mut old.enums);
+        self.hir.fact_keys = mem::take(&mut old.fact_keys);
+        self.hir.fact_vals = mem::take(&mut old.fact_vals);
+        self.hir.facts = mem::take(&mut old.facts);
+        self.hir.ffi_enums = mem::take(&mut old.ffi_enums);
+        self.hir.ffi_funcs = mem::take(&mut old.ffi_funcs);
+        self.hir.ffi_imports = mem::take(&mut old.ffi_imports);
+        self.hir.ffi_modules = mem::take(&mut old.ffi_modules);
+        self.hir.ffi_structs = mem::take(&mut old.ffi_structs);
+        self.hir.idents = mem::take(&mut old.idents);
+        self.hir.struct_fields = mem::take(&mut old.struct_fields);
+        self.hir.structs = mem::take(&mut old.structs);
+        self.hir.types = mem::take(&mut old.types);
 
         // Move the remaining items we need to walk
-        let global_lets = std::mem::take(&mut old.global_lets);
-        let actions = std::mem::take(&mut old.actions);
-        let action_args = std::mem::take(&mut old.action_args);
-        let cmds = std::mem::take(&mut old.cmds);
-        let cmd_fields = std::mem::take(&mut old.cmd_fields);
-        let finish_funcs = std::mem::take(&mut old.finish_funcs);
-        let finish_func_args = std::mem::take(&mut old.finish_func_args);
-        let funcs = std::mem::take(&mut old.funcs);
-        let func_args = std::mem::take(&mut old.func_args);
+        let actions = mem::take(&mut old.actions);
+        let action_args = mem::take(&mut old.action_args);
+        let cmds = mem::take(&mut old.cmds);
+        let cmd_fields = mem::take(&mut old.cmd_fields);
+        let finish_funcs = mem::take(&mut old.finish_funcs);
+        let finish_func_args = mem::take(&mut old.finish_func_args);
+        let funcs = mem::take(&mut old.funcs);
+        let func_args = mem::take(&mut old.func_args);
+        let global_lets = mem::take(&mut old.global_lets);
 
-        // Process global lets
-        for (_id, mut global) in global_lets {
-            global.expr = self.walk_expr(global.expr, &mut old);
-            self.hir.global_lets.insert(global);
+        for def in global_lets.values() {
+            let expr = self.walk_expr(def.expr, &mut old);
+            self.hir.global_lets.insert_with_key(|id| GlobalLetDef {
+                id,
+                span: def.span,
+                ident: def.ident,
+                expr,
+            });
         }
 
         // Transfer arg collections

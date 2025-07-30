@@ -16,15 +16,16 @@ use crate::hir::{
         FinishFuncArgId, FinishFuncDef, ForeignFunctionCall, FuncArg, FuncArgId, FuncDef,
         FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt, Intrinsic, LetStmt,
         MapStmt, MatchArm, MatchExpr, MatchExprArm, MatchPattern, MatchStmt, NamedStruct, Publish,
-        ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldId,
+        Pure, ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldId,
         StructFieldKind, Ternary, Update, VType, VTypeId, VTypeKind,
     },
+    visit::Visitor,
 };
 
 #[derive(Clone, Default, Debug)]
 pub(crate) struct LowerCtx<'ast> {
-    pub ast: Hir,
-    pub arena: AstNodes<'ast>,
+    pub hir: Hir,
+    pub ast: AstNodes<'ast>,
 }
 
 impl<'ast> LowerCtx<'ast> {
@@ -46,10 +47,6 @@ impl<'ast> LowerCtx<'ast> {
         p
     }
 
-    fn is_pure(&self, id: ExprId) -> bool {
-        self.hir.exprs[id].pure
-    }
-
     fn lower<T, U>(&mut self, item: &'ast T) -> T::Result
     where
         T: Lower<U>,
@@ -69,12 +66,12 @@ impl<'ast> LowerCtx<'ast> {
 
     /// Lowers an [`ast::Identifier`].
     fn lower_ident(&mut self, ident: &'ast ast::Identifier) -> IdentId {
-        let id = self.ast.idents.insert_with_key(|id| Ident {
+        let id = self.hir.idents.insert_with_key(|id| Ident {
             id,
             span: Span::dummy(), // Identifiers don't have their own span in the AST
             ident: ident.clone(),
         });
-        self.arena.idents.insert(id, Cow::Borrowed(ident));
+        self.ast.idents.insert(id, Cow::Borrowed(ident));
         id
     }
 
@@ -90,128 +87,13 @@ impl<'ast> LowerCtx<'ast> {
             ast::VType::Enum(v) => VTypeKind::Enum(self.lower_ident(v)),
             ast::VType::Optional(v) => VTypeKind::Optional(v.lower(self)),
         };
-        let id = self.ast.types.insert_with_key(|id| VType {
+        let id = self.hir.types.insert_with_key(|id| VType {
             id,
             span: Span::dummy(), // Types don't have their own span in the AST
             kind,
         });
-        self.arena.types.insert(id, Cow::Borrowed(vtype));
+        self.ast.types.insert(id, Cow::Borrowed(vtype));
         id
-    }
-
-    fn lower_expr_kind(&mut self, expr: &'ast ast::Expression) -> (ExprKind, bool) {
-        match expr {
-            ast::Expression::Int(v) => (ExprKind::Int(*v), true),
-            ast::Expression::String(v) => (ExprKind::String(v.clone()), true),
-            ast::Expression::Bool(v) => (ExprKind::Bool(*v), true),
-            ast::Expression::Optional(v) => {
-                let expr = v.lower(self);
-                let kind = ExprKind::Optional(expr);
-                (kind, expr.is_some_and(|id| self.is_pure(id)))
-            }
-            ast::Expression::NamedStruct(v) => {
-                let kind = ExprKind::NamedStruct(NamedStruct {
-                    ident: self.lower_ident(&v.identifier),
-                    fields: self.lower_list::<_, _, (IdentId, ExprId), _>(&v.fields),
-                });
-                // TODO: check kind.fields for purity
-                (kind, false)
-            }
-            ast::Expression::InternalFunction(v) => match v {
-                ast::InternalFunction::Query(fact) => {
-                    ExprKind::Intrinsic(Intrinsic::Query(fact.lower(self)))
-                }
-                ast::InternalFunction::Exists(fact) => {
-                    // `exists` is sugar for `at_least 1`, so
-                    // desugar it.
-                    ExprKind::Intrinsic(Intrinsic::FactCount(
-                        FactCountType::AtLeast,
-                        1,
-                        fact.lower(self),
-                    ))
-                }
-                ast::InternalFunction::FactCount(count_type, limit, fact) => ExprKind::Intrinsic(
-                    Intrinsic::FactCount(count_type.lower(self), *limit, fact.lower(self)),
-                ),
-                ast::InternalFunction::If(cond, then_expr, else_expr) => {
-                    ExprKind::Ternary(Ternary {
-                        cond: self.lower_expr(cond),
-                        true_expr: self.lower_expr(then_expr),
-                        false_expr: self.lower_expr(else_expr),
-                    })
-                }
-                ast::InternalFunction::Serialize(expr) => {
-                    ExprKind::Intrinsic(Intrinsic::Serialize(self.lower_expr(expr)))
-                }
-                ast::InternalFunction::Deserialize(expr) => {
-                    ExprKind::Intrinsic(Intrinsic::Deserialize(self.lower_expr(expr)))
-                }
-            },
-            ast::Expression::FunctionCall(v) => ExprKind::FunctionCall(FunctionCall {
-                ident: self.lower_ident(&v.identifier),
-                args: self.lower_list(&v.arguments),
-            }),
-            ast::Expression::ForeignFunctionCall(v) => {
-                ExprKind::ForeignFunctionCall(ForeignFunctionCall {
-                    module: self.lower_ident(&v.module),
-                    ident: self.lower_ident(&v.identifier),
-                    args: self.lower_list(&v.arguments),
-                })
-            }
-            ast::Expression::Identifier(v) => ExprKind::Identifier(self.lower_ident(v)),
-            ast::Expression::EnumReference(v) => ExprKind::EnumReference(EnumRef {
-                ident: self.lower_ident(&v.identifier),
-                value: self.lower_ident(&v.value),
-            }),
-            ast::Expression::Add(lhs, rhs) => {
-                ExprKind::Add(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::Subtract(lhs, rhs) => {
-                ExprKind::Sub(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::And(lhs, rhs) => {
-                ExprKind::And(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::Or(lhs, rhs) => {
-                ExprKind::Or(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::Dot(expr, ident) => {
-                ExprKind::Dot(self.lower_expr(expr), self.lower_ident(ident))
-            }
-            ast::Expression::Equal(lhs, rhs) => {
-                ExprKind::Equal(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::NotEqual(lhs, rhs) => {
-                ExprKind::NotEqual(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::GreaterThan(lhs, rhs) => {
-                ExprKind::GreaterThan(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::LessThan(lhs, rhs) => {
-                ExprKind::LessThan(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::GreaterThanOrEqual(lhs, rhs) => {
-                ExprKind::GreaterThanOrEqual(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::LessThanOrEqual(lhs, rhs) => {
-                ExprKind::LessThanOrEqual(self.lower_expr(lhs), self.lower_expr(rhs))
-            }
-            ast::Expression::Negative(expr) => ExprKind::Negative(self.lower_expr(expr)),
-            ast::Expression::Not(expr) => ExprKind::Not(self.lower_expr(expr)),
-            ast::Expression::Unwrap(expr) => ExprKind::Unwrap(self.lower_expr(expr)),
-            ast::Expression::CheckUnwrap(expr) => ExprKind::CheckUnwrap(self.lower_expr(expr)),
-            ast::Expression::Is(expr, is_some) => ExprKind::Is(self.lower_expr(expr), *is_some),
-            ast::Expression::Block(stmts, expr) => {
-                ExprKind::Block(self.lower_block(stmts), self.lower_expr(expr))
-            }
-            ast::Expression::Substruct(expr, ident) => {
-                ExprKind::Substruct(self.lower_expr(expr), self.lower_ident(ident))
-            }
-            ast::Expression::Match(expr) => ExprKind::Match(MatchExpr {
-                scrutinee: self.lower_expr(&expr.scrutinee),
-                arms: self.lower_list(&expr.arms),
-            }),
-        }
     }
 
     /// Lowers an [`ast::Expression`].
@@ -320,14 +202,17 @@ impl<'ast> LowerCtx<'ast> {
                 arms: self.lower_list(&expr.arms),
             }),
         };
-        let id = self.ast.exprs.insert_with_key(|id| Expr {
+
+        let ExprInfo { pure, returns } = find_expr_info(&self.hir, &kind);
+        let id = self.hir.exprs.insert_with_key(|id| Expr {
             id,
-            span: Span::dummy(), // Expressions don't have direct spans in the AST
+            // Expressions don't have direct spans in the AST.
+            span: Span::dummy(),
             kind,
-            // TODO
-            pure: false,
+            pure,
+            returns,
         });
-        self.arena.exprs.insert(id, Cow::Borrowed(expr));
+        self.ast.exprs.insert(id, Cow::Borrowed(expr));
         id
     }
 
@@ -386,28 +271,35 @@ impl<'ast> LowerCtx<'ast> {
                 expr: self.lower_expr(v),
             }),
         };
-        let id = self.ast.stmts.insert_with_key(|id| Stmt {
+
+        let StmtInfo { returns } = find_stmt_info(&self.hir, &kind);
+        let id = self.hir.stmts.insert_with_key(|id| Stmt {
             id,
             span: Span::point(stmt.locator),
             kind,
+            returns,
         });
-        self.arena.stmts.insert(id, Cow::Borrowed(stmt));
+        self.ast.stmts.insert(id, Cow::Borrowed(stmt));
         id
     }
 
     /// Lowers a block.
     fn lower_block(&mut self, block: &'ast Vec<AstNode<ast::Statement>>) -> BlockId {
         let stmts = self.lower_stmts(block);
-        // Use the span from the first statement if available, otherwise dummy
+        // TODO(eric): Figure this out while lowering the block.
+        let returns = stmts.iter().any(|&id| self.hir.stmts[id].returns);
+        // Use the span from the first statement if available.
         let span = block
             .first()
             .map(|stmt| Span::point(stmt.locator))
             .unwrap_or_else(Span::dummy);
-        let id = self
-            .ast
-            .blocks
-            .insert_with_key(|id| Block { id, span, stmts });
-        self.arena.blocks.insert(id, Cow::Borrowed(block));
+        let id = self.hir.blocks.insert_with_key(|id| Block {
+            id,
+            span,
+            stmts,
+            returns,
+        });
+        self.ast.blocks.insert(id, Cow::Borrowed(block));
         id
     }
 
@@ -423,53 +315,53 @@ impl<'ast> LowerCtx<'ast> {
         let ident = self.lower_ident(&node.identifier);
         let args: Vec<ActionArgId> = self.lower_list::<_, _, ActionArg, _>(&node.arguments);
         let block = self.lower_block(&node.statements);
-        let id = self.ast.actions.insert_with_key(|id| ActionDef {
+        let id = self.hir.actions.insert_with_key(|id| ActionDef {
             id,
             span: Span::point(node.locator),
             ident,
             args,
             block,
         });
-        self.arena.actions.insert(id, Cow::Borrowed(node));
+        self.ast.actions.insert(id, Cow::Borrowed(node));
         id
     }
 
     fn lower_action_arg(&mut self, node: &'ast ast::FieldDefinition) -> ActionArgId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        let id = self.ast.action_args.insert_with_key(|id| ActionArg {
+        let id = self.hir.action_args.insert_with_key(|id| ActionArg {
             id,
             span: Span::dummy(), // FieldDefinitions don't have spans in the AST
             ident,
             ty,
         });
-        self.arena.action_args.insert(id, Cow::Borrowed(node));
+        self.ast.action_args.insert(id, Cow::Borrowed(node));
         id
     }
 
     fn lower_fact_key(&mut self, node: &'ast ast::FieldDefinition) -> FactKeyId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        let id = self.ast.fact_keys.insert_with_key(|id| FactKey {
+        let id = self.hir.fact_keys.insert_with_key(|id| FactKey {
             id,
             span: Span::dummy(), // FieldDefinitions don't have spans in the AST
             ident,
             ty,
         });
-        self.arena.fact_keys.insert(id, Cow::Borrowed(node));
+        self.ast.fact_keys.insert(id, Cow::Borrowed(node));
         id
     }
 
     fn lower_fact_val(&mut self, node: &'ast ast::FieldDefinition) -> FactValId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        let id = self.ast.fact_vals.insert_with_key(|id| FactVal {
+        let id = self.hir.fact_vals.insert_with_key(|id| FactVal {
             id,
             span: Span::dummy(), // FieldDefinitions don't have spans in the AST
             ident,
             ty,
         });
-        self.arena.fact_vals.insert(id, Cow::Borrowed(node));
+        self.ast.fact_vals.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -477,7 +369,7 @@ impl<'ast> LowerCtx<'ast> {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
         let id = self
-            .ast
+            .hir
             .finish_func_args
             .insert_with_key(|id| FinishFuncArg {
                 id,
@@ -485,20 +377,20 @@ impl<'ast> LowerCtx<'ast> {
                 ident,
                 ty,
             });
-        self.arena.finish_func_args.insert(id, Cow::Borrowed(node));
+        self.ast.finish_func_args.insert(id, Cow::Borrowed(node));
         id
     }
 
     fn lower_func_arg(&mut self, node: &'ast ast::FieldDefinition) -> FuncArgId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        let id = self.ast.func_args.insert_with_key(|id| FuncArg {
+        let id = self.hir.func_args.insert_with_key(|id| FuncArg {
             id,
             span: Span::dummy(), // FieldDefinitions don't have spans in the AST
             ident,
             ty,
         });
-        self.arena.func_args.insert(id, Cow::Borrowed(node));
+        self.ast.func_args.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -509,7 +401,7 @@ impl<'ast> LowerCtx<'ast> {
         let open = self.lower_block(&node.open);
         let policy = self.lower_block(&node.policy);
         let recall = self.lower_block(&node.recall);
-        let id = self.ast.cmds.insert_with_key(|id| CmdDef {
+        let id = self.hir.cmds.insert_with_key(|id| CmdDef {
             id,
             span: Span::point(node.locator),
             ident,
@@ -519,7 +411,7 @@ impl<'ast> LowerCtx<'ast> {
             policy,
             recall,
         });
-        self.arena.cmds.insert(id, Cow::Borrowed(node));
+        self.ast.cmds.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -535,12 +427,12 @@ impl<'ast> LowerCtx<'ast> {
                 CmdFieldKind::StructRef(ident)
             }
         };
-        let id = self.ast.cmd_fields.insert_with_key(|id| CmdField {
+        let id = self.hir.cmd_fields.insert_with_key(|id| CmdField {
             id,
             span: Span::dummy(), // StructItem doesn't have span in the AST
             kind,
         });
-        self.arena.cmd_fields.insert(id, Cow::Borrowed(node));
+        self.ast.cmd_fields.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -559,12 +451,12 @@ impl<'ast> LowerCtx<'ast> {
                 EffectFieldKind::StructRef(ident)
             }
         };
-        let id = self.ast.effect_fields.insert_with_key(|id| EffectField {
+        let id = self.hir.effect_fields.insert_with_key(|id| EffectField {
             id,
             span: Span::dummy(), // StructItem doesn't have span in the AST
             kind,
         });
-        self.arena.effect_fields.insert(id, Cow::Borrowed(node));
+        self.ast.effect_fields.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -583,12 +475,12 @@ impl<'ast> LowerCtx<'ast> {
                 StructFieldKind::StructRef(ident)
             }
         };
-        let id = self.ast.struct_fields.insert_with_key(|id| StructField {
+        let id = self.hir.struct_fields.insert_with_key(|id| StructField {
             id,
             span: Span::dummy(), // StructItem doesn't have span in the AST
             kind,
         });
-        self.arena.struct_fields.insert(id, Cow::Borrowed(node));
+        self.ast.struct_fields.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -602,13 +494,13 @@ impl<'ast> LowerCtx<'ast> {
         for e in &ast.effects {
             let ident = self.lower_ident(&e.identifier);
             let items = self.lower_list::<_, _, EffectFieldId, _>(&e.items);
-            let id = self.ast.effects.insert_with_key(|id| EffectDef {
+            let id = self.hir.effects.insert_with_key(|id| EffectDef {
                 id,
                 span: Span::point(e.locator),
                 ident,
                 items,
             });
-            self.arena.effects.insert(id, Cow::Borrowed(e));
+            self.ast.effects.insert(id, Cow::Borrowed(e));
         }
     }
 
@@ -617,13 +509,13 @@ impl<'ast> LowerCtx<'ast> {
             let ident = self.lower_ident(&e.identifier);
             // Lower enum variants as identifiers
             let variants: Vec<IdentId> = e.variants.iter().map(|v| self.lower_ident(v)).collect();
-            let id = self.ast.enums.insert_with_key(|id| EnumDef {
+            let id = self.hir.enums.insert_with_key(|id| EnumDef {
                 id,
                 span: Span::point(e.locator),
                 ident,
                 variants,
             });
-            self.arena.enums.insert(id, Cow::Borrowed(e));
+            self.ast.enums.insert(id, Cow::Borrowed(e));
         }
     }
 
@@ -632,14 +524,14 @@ impl<'ast> LowerCtx<'ast> {
             let ident = self.lower_ident(&f.identifier);
             let keys: Vec<FactKeyId> = self.lower_list::<_, _, FactKey, _>(&f.key);
             let vals: Vec<FactValId> = self.lower_list::<_, _, FactVal, _>(&f.value);
-            let id = self.ast.facts.insert_with_key(|id| FactDef {
+            let id = self.hir.facts.insert_with_key(|id| FactDef {
                 id,
                 span: Span::point(f.locator),
                 ident,
                 keys,
                 vals,
             });
-            self.arena.facts.insert(id, Cow::Borrowed(f));
+            self.ast.facts.insert(id, Cow::Borrowed(f));
         }
     }
 
@@ -649,14 +541,14 @@ impl<'ast> LowerCtx<'ast> {
             let args: Vec<FinishFuncArgId> =
                 self.lower_list::<_, _, FinishFuncArg, _>(&f.arguments);
             let block = self.lower_block(&f.statements);
-            let id = self.ast.finish_funcs.insert_with_key(|id| FinishFuncDef {
+            let id = self.hir.finish_funcs.insert_with_key(|id| FinishFuncDef {
                 id,
                 span: Span::point(f.locator),
                 ident,
                 args,
                 block,
             });
-            self.arena.finish_funcs.insert(id, Cow::Borrowed(f));
+            self.ast.finish_funcs.insert(id, Cow::Borrowed(f));
         }
     }
 
@@ -666,7 +558,7 @@ impl<'ast> LowerCtx<'ast> {
             let args: Vec<FuncArgId> = self.lower_list::<_, _, FuncArg, _>(&f.arguments);
             let result = self.lower_vtype(&f.return_type);
             let block = self.lower_block(&f.statements);
-            let id = self.ast.funcs.insert_with_key(|id| FuncDef {
+            let id = self.hir.funcs.insert_with_key(|id| FuncDef {
                 id,
                 span: Span::point(f.locator),
                 ident,
@@ -674,7 +566,7 @@ impl<'ast> LowerCtx<'ast> {
                 result,
                 block,
             });
-            self.arena.funcs.insert(id, Cow::Borrowed(f));
+            self.ast.funcs.insert(id, Cow::Borrowed(f));
         }
     }
 
@@ -682,13 +574,13 @@ impl<'ast> LowerCtx<'ast> {
         for g in &ast.global_lets {
             let ident = self.lower_ident(&g.identifier);
             let expr = self.lower_expr(&g.expression);
-            let id = self.ast.global_lets.insert_with_key(|id| GlobalLetDef {
+            let id = self.hir.global_lets.insert_with_key(|id| GlobalLetDef {
                 id,
                 span: Span::point(g.locator),
                 ident,
                 expr,
             });
-            self.arena.global_lets.insert(id, Cow::Borrowed(g));
+            self.ast.global_lets.insert(id, Cow::Borrowed(g));
         }
     }
 
@@ -696,20 +588,20 @@ impl<'ast> LowerCtx<'ast> {
         for s in &ast.structs {
             let ident = self.lower_ident(&s.identifier);
             let items: Vec<StructFieldId> = self.lower_list::<_, _, StructFieldId, _>(&s.items);
-            let id = self.ast.structs.insert_with_key(|id| StructDef {
+            let id = self.hir.structs.insert_with_key(|id| StructDef {
                 id,
                 span: Span::point(s.locator),
                 ident,
                 items,
             });
-            self.arena.structs.insert(id, Cow::Borrowed(s));
+            self.ast.structs.insert(id, Cow::Borrowed(s));
         }
     }
 
     fn lower_ffi_imports(&mut self, ast: &'ast Policy) {
         for import in &ast.ffi_imports {
             let module = self.lower_ident(import);
-            self.ast.ffi_imports.insert_with_key(|id| FfiImportDef {
+            self.hir.ffi_imports.insert_with_key(|id| FfiImportDef {
                 id,
                 span: Span::dummy(), // FFI imports don't have spans in the AST
                 module,
@@ -732,7 +624,7 @@ impl<'ast> LowerCtx<'ast> {
                     args.push((arg_name, arg_type));
                 }
                 let return_type = self.lower_ffi_type(&func.return_type);
-                let func_id = self.ast.ffi_funcs.insert_with_key(|id| FfiFuncDef {
+                let func_id = self.hir.ffi_funcs.insert_with_key(|id| FfiFuncDef {
                     id,
                     span: Span::dummy(), // FFI functions don't have spans in the AST
                     name: func_name,
@@ -752,7 +644,7 @@ impl<'ast> LowerCtx<'ast> {
                     let field_type = self.lower_ffi_type(&field.vtype);
                     fields.push((field_name, field_type));
                 }
-                let struct_id = self.ast.ffi_structs.insert_with_key(|id| FfiStructDef {
+                let struct_id = self.hir.ffi_structs.insert_with_key(|id| FfiStructDef {
                     id,
                     span: Span::dummy(), // FFI structs don't have spans in the AST
                     name: struct_name,
@@ -770,7 +662,7 @@ impl<'ast> LowerCtx<'ast> {
                     .iter()
                     .map(|v| self.lower_ident(v))
                     .collect();
-                let enum_id = self.ast.ffi_enums.insert_with_key(|id| FfiEnumDef {
+                let enum_id = self.hir.ffi_enums.insert_with_key(|id| FfiEnumDef {
                     id,
                     span: Span::dummy(), // FFI enums don't have spans in the AST
                     name: enum_name,
@@ -779,7 +671,7 @@ impl<'ast> LowerCtx<'ast> {
                 enums.push(enum_id);
             }
 
-            self.ast.ffi_modules.insert_with_key(|id| FfiModuleDef {
+            self.hir.ffi_modules.insert_with_key(|id| FfiModuleDef {
                 id,
                 span: Span::dummy(), // FFI modules don't have span in the AST
                 name,
@@ -805,7 +697,7 @@ impl<'ast> LowerCtx<'ast> {
                 VTypeKind::Optional(inner_type)
             }
         };
-        self.ast.types.insert_with_key(|id| VType {
+        self.hir.types.insert_with_key(|id| VType {
             id,
             span: Span::dummy(), // FFI types don't have spans in the AST
             kind,
@@ -1054,4 +946,71 @@ impl Lower<MatchExprArm> for AstNode<ast::MatchExpressionArm> {
             expr: ctx.lower_expr(&self.expression),
         }
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct StmtInfo {
+    returns: bool,
+}
+
+fn find_stmt_info(hir: &Hir, kind: &StmtKind) -> StmtInfo {
+    if let StmtKind::Return(_) = kind {
+        return StmtInfo { returns: true };
+    }
+
+    impl<'hir> Visitor<'hir> for StmtInfo {
+        type Result = ();
+        fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
+            self.returns |= expr.returns;
+        }
+        fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+            self.returns |= block.returns;
+        }
+        fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+            self.returns |= stmt.returns;
+        }
+    }
+
+    let mut info = StmtInfo { returns: false };
+
+    // NB: `walk_stmt_kind` does not call `walker.recurse`, so
+    // max depth = 0 is correct.
+    hir.walker()
+        .with_max_depth(0)
+        .walk_stmt_kind(kind, &mut info);
+    info
+}
+
+#[derive(Copy, Clone, Debug)]
+struct ExprInfo {
+    pure: Pure,
+    returns: bool,
+}
+
+fn find_expr_info(hir: &Hir, kind: &ExprKind) -> ExprInfo {
+    impl<'hir> Visitor<'hir> for ExprInfo {
+        type Result = ();
+        fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
+            self.pure &= expr.pure;
+            self.returns |= expr.returns;
+        }
+        fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+            self.returns |= block.returns;
+        }
+        fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+            self.returns |= stmt.returns;
+        }
+    }
+
+    let mut info = ExprInfo {
+        pure: Pure::Yes,
+        returns: false,
+    };
+
+    // NB: `walk_expr_kind` does not call `walker.recurse`, so
+    // max depth = 0 is correct.
+    hir.walker()
+        .with_max_depth(0)
+        .walk_expr_kind(kind, &mut info);
+    info
 }
