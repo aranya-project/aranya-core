@@ -983,11 +983,9 @@ impl<'a> CompileState<'a> {
                         }
                         Ok(NullableVType::Type(VType::Struct(rhs_ident.clone())))
                     }
-                    _ => {
-                        return Err(self.err(CompileErrorType::InvalidType(
-                            "Expression to the left of `as` is not a struct".to_string(),
-                        )));
-                    }
+                    _ => Err(self.err(CompileErrorType::InvalidType(
+                        "Expression to the left of `as` is not a struct".to_string(),
+                    ))),
                 })?;
 
                 self.append_instruction(Instruction::Cast(rhs_ident.clone()));
