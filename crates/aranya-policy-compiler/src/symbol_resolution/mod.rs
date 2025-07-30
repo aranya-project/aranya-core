@@ -23,8 +23,7 @@ use crate::{
 
 /// Entry point for symbol resolution.
 pub(crate) fn resolve<'a>(hir: &'a Hir) -> Result<ResolvedHir<'a>, SymbolResolutionError> {
-    let resolver = Resolver::new(hir)?;
-    resolver.resolve()
+    Resolver::resolve(hir)
 }
 
 /// HIR with symbol resolution information.

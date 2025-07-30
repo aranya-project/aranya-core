@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use slotmap::SlotMap;
 
 /// A span representing a range in the source text.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Span {
     /// The start position in the source text (in bytes).
     pub start: usize,
@@ -31,6 +31,8 @@ impl Span {
     }
 
     /// Creates a dummy span for testing purposes.
+    // TODO(eric): This is used throughout the code. Make the
+    // code use `Default::default` instead.
     pub fn dummy() -> Self {
         Self::new(0, 0)
     }
@@ -837,6 +839,9 @@ hir_type! {
 
 hir_node! {
     /// An identifier.
+    ///
+    /// NB: All `Ident`s are unique, even if they refer to the
+    /// same [`Identifier`][ast::Identifier] string.
     pub(crate) struct Ident {
         pub id: IdentId,
         pub ident: ast::Identifier,
@@ -889,7 +894,7 @@ hir_node! {
     /// An FFI module definition.
     pub(crate) struct FfiModuleDef {
         pub id: FfiModuleId,
-        pub name: IdentId,
+        pub ident: IdentId,
         pub functions: Vec<FfiFuncId>,
         pub structs: Vec<FfiStructId>,
         pub enums: Vec<FfiEnumId>,
@@ -900,7 +905,7 @@ hir_node! {
     /// An FFI function definition.
     pub(crate) struct FfiFuncDef {
         pub id: FfiFuncId,
-        pub name: IdentId,
+        pub ident: IdentId,
         pub args: Vec<(IdentId, VTypeId)>,
         pub return_type: VTypeId,
     }

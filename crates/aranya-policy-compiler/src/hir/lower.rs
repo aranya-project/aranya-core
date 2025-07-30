@@ -603,7 +603,8 @@ impl<'ast> LowerCtx<'ast> {
             let module = self.lower_ident(import);
             self.hir.ffi_imports.insert_with_key(|id| FfiImportDef {
                 id,
-                span: Span::dummy(), // FFI imports don't have spans in the AST
+                // FFI imports don't have spans in the AST
+                span: Span::dummy(),
                 module,
             });
         }
@@ -611,70 +612,65 @@ impl<'ast> LowerCtx<'ast> {
 
     fn lower_ffi_modules(&mut self, ffi_modules: &'ast [ModuleSchema<'ast>]) {
         for module in ffi_modules {
-            let name = self.lower_ident(&module.name);
+            let ident = self.lower_ident(&module.name);
 
-            // Lower FFI functions
-            let mut functions = Vec::new();
-            for func in module.functions {
-                let func_name = self.lower_ident(&func.name);
-                let mut args = Vec::new();
-                for arg in func.args {
-                    let arg_name = self.lower_ident(&arg.name);
-                    let arg_type = self.lower_ffi_type(&arg.vtype);
-                    args.push((arg_name, arg_type));
-                }
-                let return_type = self.lower_ffi_type(&func.return_type);
-                let func_id = self.hir.ffi_funcs.insert_with_key(|id| FfiFuncDef {
-                    id,
-                    span: Span::dummy(), // FFI functions don't have spans in the AST
-                    name: func_name,
-                    args,
-                    return_type,
-                });
-                functions.push(func_id);
-            }
+            let functions = module
+                .functions
+                .iter()
+                .map(|f| {
+                    let ident = self.lower_ident(&f.name);
+                    let args = self.lower_list(f.args);
+                    let return_type = self.lower_ffi_type(&f.return_type);
+                    self.hir.ffi_funcs.insert_with_key(|id| FfiFuncDef {
+                        id,
+                        // FFI functions don't have spans in the
+                        // AST
+                        span: Span::dummy(),
+                        ident,
+                        args,
+                        return_type,
+                    })
+                })
+                .collect();
 
-            // Lower FFI structs
-            let mut structs = Vec::new();
-            for ffi_struct in module.structs {
-                let struct_name = self.lower_ident(&ffi_struct.name);
-                let mut fields = Vec::new();
-                for field in ffi_struct.fields {
-                    let field_name = self.lower_ident(&field.name);
-                    let field_type = self.lower_ffi_type(&field.vtype);
-                    fields.push((field_name, field_type));
-                }
-                let struct_id = self.hir.ffi_structs.insert_with_key(|id| FfiStructDef {
-                    id,
-                    span: Span::dummy(), // FFI structs don't have spans in the AST
-                    name: struct_name,
-                    fields,
-                });
-                structs.push(struct_id);
-            }
+            let structs = module
+                .structs
+                .iter()
+                .map(|s| {
+                    let struct_name = self.lower_ident(&s.name);
+                    let fields = self.lower_list(s.fields);
+                    self.hir.ffi_structs.insert_with_key(|id| FfiStructDef {
+                        id,
+                        // FFI structs don't have spans in the
+                        // AST
+                        span: Span::dummy(),
+                        name: struct_name,
+                        fields,
+                    })
+                })
+                .collect();
 
-            // Lower FFI enums
-            let mut enums = Vec::new();
-            for ffi_enum in module.enums {
-                let enum_name = self.lower_ident(&ffi_enum.name);
-                let variants = ffi_enum
-                    .variants
-                    .iter()
-                    .map(|v| self.lower_ident(v))
-                    .collect();
-                let enum_id = self.hir.ffi_enums.insert_with_key(|id| FfiEnumDef {
-                    id,
-                    span: Span::dummy(), // FFI enums don't have spans in the AST
-                    name: enum_name,
-                    variants,
-                });
-                enums.push(enum_id);
-            }
+            let enums = module
+                .enums
+                .iter()
+                .map(|e| {
+                    let enum_name = self.lower_ident(&e.name);
+                    let variants = self.lower_list(e.variants);
+                    self.hir.ffi_enums.insert_with_key(|id| FfiEnumDef {
+                        id,
+                        // FFI enums don't have spans in the AST
+                        span: Span::dummy(),
+                        name: enum_name,
+                        variants,
+                    })
+                })
+                .collect();
 
             self.hir.ffi_modules.insert_with_key(|id| FfiModuleDef {
                 id,
-                span: Span::dummy(), // FFI modules don't have span in the AST
-                name,
+                // FFI modules don't have span in the AST
+                span: Span::dummy(),
+                ident,
                 functions,
                 structs,
                 enums,
@@ -945,6 +941,15 @@ impl Lower<MatchExprArm> for AstNode<ast::MatchExpressionArm> {
             pattern: self.pattern.lower(ctx),
             expr: ctx.lower_expr(&self.expression),
         }
+    }
+}
+
+impl Lower<(IdentId, VType)> for ffi::Arg<'_> {
+    type Result = (IdentId, VTypeId);
+    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+        let ident = ctx.lower_ident(&self.name);
+        let vtype = ctx.lower_ffi_type(&self.vtype);
+        (ident, vtype)
     }
 }
 

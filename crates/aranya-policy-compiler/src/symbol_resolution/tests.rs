@@ -43,9 +43,9 @@ fn assert_symbol_kind(symbol: &Symbol, expected_kind: &str) -> bool {
         (SymbolKind::Effect(_), "Effect") => true,
         (SymbolKind::Struct(_), "Struct") => true,
         (SymbolKind::Enum(_), "Enum") => true,
-        (SymbolKind::Command(_), "Command") => true,
-        (SymbolKind::Function(_), "Function") => true,
-        (SymbolKind::FinishFunction(_), "FinishFunction") => true,
+        (SymbolKind::Cmd(_), "Command") => true,
+        (SymbolKind::Func(_), "Function") => true,
+        (SymbolKind::FinishFunc(_), "FinishFunction") => true,
         (SymbolKind::FfiModule(_), "FfiModule") => true,
         _ => false,
     }
@@ -252,7 +252,7 @@ function test_func(param_a int, param_b int) int {
 
     // Verify function symbol
     let func_sym = find_symbol_by_name(&resolution, "test_func").unwrap();
-    if let SymbolKind::Function(f) = &func_sym.kind {
+    if let SymbolKind::Func(f) = &func_sym.kind {
         assert_eq!(f.params.len(), 2);
         assert!(f.scope.0 > 0); // Function has its own scope
     } else {

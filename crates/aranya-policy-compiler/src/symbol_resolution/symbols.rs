@@ -26,7 +26,7 @@ impl Symbols {
             symbols: Vec::new(),
         }
     }
-    
+
     /// Get the underlying symbols vector (for testing only)
     #[cfg(test)]
     pub(crate) fn symbols(&self) -> &Vec<Symbol> {
@@ -59,7 +59,7 @@ impl Symbols {
 pub(crate) struct Symbol {
     pub ident: IdentId,
     pub kind: SymbolKind,
-    /// The scope that the symbol was defined in.
+    /// The scope that the symbol was defined in (a backref).
     ///
     /// For example, a top-level function will be defined in the
     /// global scope. That function's local variable declarations
@@ -78,17 +78,29 @@ pub(crate) enum SymbolKind {
     Effect(SymEffect),
     Struct(SymStruct),
     Enum(SymEnum),
-    Command(SymCommand),
-    Function(SymFunction),
-    FinishFunction(SymFinishFunction),
+    Cmd(SymCmd),
+    Func(SymFunc),
+    FinishFunc(SymFinishFunc),
     FfiModule(SymFfiModule),
+    FfiFunc(SymFfiFunc),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SymFfiFunc {
+    /// The parameters of the FFI function.
+    ///
+    /// NB: We do not include the `IdentId` because we cannot see
+    /// into FFI functions, so the argument IDs are irrelevant.
+    pub params: Vec<SymType>,
+    /// The return type of the FFI function.
+    pub result: SymType,
+    /// The scope that the FFI function was defined in.
+    pub scope: ScopeId,
 }
 
 /// A global variable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymGlobalVar {
-    /// The value of the global variable.
-    pub vtype: SymType,
     /// Expression local scope.
     pub scope: ScopeId,
 }
@@ -96,52 +108,38 @@ pub(crate) struct SymGlobalVar {
 /// A local variable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymLocalVar {
-    /// The type of the local variable.
-    pub vtype: SymType,
     /// Expression local scope.
     pub scope: ScopeId,
 }
 
 /// A `fact` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymFact {
-    pub keys: Vec<(IdentId, SymType)>,
-    pub values: Vec<(IdentId, SymType)>,
-}
+pub(crate) struct SymFact {}
 
 /// An `action` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymAction {
-    pub params: Vec<(IdentId, SymType)>,
     /// Action-local scope.
     pub scope: ScopeId,
 }
 
 /// An `effect` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymEffect {
-    pub fields: Status<Vec<(IdentId, SymType)>>,
-}
+pub(crate) struct SymEffect {}
 
 /// A `struct` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymStruct {
-    pub fields: Status<Vec<(IdentId, SymType)>>,
-}
+pub(crate) struct SymStruct {}
 
 /// An `enum` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymEnum {
-    pub variants: Vec<IdentId>,
-}
+pub(crate) struct SymEnum {}
 
 /// A `command` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymCommand {
-    pub fields: Status<Vec<(IdentId, SymType)>>,
-    pub policy: Status<PolicyBlock>,
-    pub finish: Status<FinishBlock>,
-    pub recall: Status<RecallBlock>,
+pub(crate) struct SymCmd {
+    pub policy: PolicyBlock,
+    pub recall: RecallBlock,
 }
 
 /// A `policy` block inside a [`SymCommand`].
@@ -176,17 +174,14 @@ pub(crate) struct SymFfiModule {
 
 /// A `function` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymFunction {
-    pub params: Vec<(IdentId, SymType)>,
-    pub result: SymType,
+pub(crate) struct SymFunc {
     /// Function-local scope.
     pub scope: ScopeId,
 }
 
 /// A `finish function` declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SymFinishFunction {
-    pub params: Vec<(IdentId, SymType)>,
+pub(crate) struct SymFinishFunc {
     /// Function-local scope.
     pub scope: ScopeId,
 }
@@ -201,7 +196,10 @@ pub(crate) enum Status<T> {
 }
 
 /// A maybe resolved [`VTypeId`].
-pub(crate) type SymType = Status<VTypeId>;
-
-// Note: VTypeId resolution will be handled during symbol resolution
-// All types start as Unresolved and are resolved later
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SymType {
+    Builtin,
+    Struct(Status<IdentId>),
+    Enum(Status<IdentId>),
+    Optional(Status<SymType2>),
+}

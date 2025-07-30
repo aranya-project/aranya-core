@@ -79,7 +79,7 @@ impl Scopes {
         arena.create_scope();
         arena
     }
-    
+
     /// Get the underlying scopes vector (for testing only)
     #[cfg(test)]
     pub(crate) fn scopes(&self) -> &Vec<Scope> {
@@ -129,9 +129,9 @@ impl Scopes {
     }
 
     /// Looks up a symbol given its name and scope.
-    pub fn get(&self, id: ScopeId, ident: &IdentId) -> Result<Option<SymbolId>, LookupError> {
+    pub fn get(&self, id: ScopeId, ident: IdentId) -> Result<Option<SymbolId>, LookupError> {
         let scope = self.scopes.get(id.0).ok_or(InvalidScopeId(id))?;
-        if let Some(sym) = scope.symbols.get(ident) {
+        if let Some(sym) = scope.symbols.get(&ident) {
             return Ok(Some(*sym));
         }
         let mut current = scope.parent;
@@ -140,7 +140,7 @@ impl Scopes {
                 .scopes
                 .get(id.0)
                 .assume("parent scope ID should be valid")?;
-            if let Some(sym) = scope.symbols.get(ident) {
+            if let Some(sym) = scope.symbols.get(&ident) {
                 return Ok(Some(*sym));
             }
             current = scope.parent;
