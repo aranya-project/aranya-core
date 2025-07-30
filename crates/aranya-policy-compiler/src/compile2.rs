@@ -20,7 +20,7 @@ impl Compiler<'_> {
 
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let (hir, ast) = hir::parse(self.policy, self.ffi_modules);
-        let _hir = symbol_resolution::resolve(&hir, &ast, self.ffi_modules)?;
+        let _hir = symbol_resolution::resolve(&hir)?;
         let mut ctx = CompileCtx {
             out: &mut out,
             hir: &hir,

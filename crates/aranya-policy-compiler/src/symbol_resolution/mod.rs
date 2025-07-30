@@ -13,22 +13,17 @@ mod tests;
 
 use std::{collections::HashMap, ops::Deref};
 
-use aranya_policy_module::ffi::ModuleSchema;
 pub(crate) use error::SymbolResolutionError;
 pub(crate) use symbols::{Symbol, SymbolId, Symbols};
 
 use crate::{
-    hir::{AstNodes, Hir, IdentId},
+    hir::{Hir, IdentId},
     symbol_resolution::{resolver::Resolver, scope::Scopes},
 };
 
 /// Entry point for symbol resolution.
-pub(crate) fn resolve<'a>(
-    hir: &'a Hir,
-    ast_nodes: &'a AstNodes<'a>,
-    ffi_modules: &'a [ModuleSchema<'a>],
-) -> Result<ResolvedHir<'a>, SymbolResolutionError> {
-    let resolver = Resolver::new(hir, ast_nodes, ffi_modules)?;
+pub(crate) fn resolve<'a>(hir: &'a Hir) -> Result<ResolvedHir<'a>, SymbolResolutionError> {
+    let resolver = Resolver::new(hir)?;
     resolver.resolve()
 }
 
@@ -37,9 +32,7 @@ pub(crate) fn resolve<'a>(
 pub(crate) struct ResolvedHir<'a> {
     /// The HIR.
     pub hir: &'a Hir,
-    /// The AST nodes for error location lookup.
-    pub ast: &'a AstNodes<'a>,
-    /// Map from identifier usage locations to their resolved symbols.
+    /// Maps identifiers to their symbols.
     pub resolutions: HashMap<IdentId, SymbolId>,
     /// The scope hierarchy.
     pub scopes: Scopes,

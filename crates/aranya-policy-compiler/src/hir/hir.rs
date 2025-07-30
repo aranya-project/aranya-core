@@ -1,28 +1,4 @@
-//! High-level Intermediate Representation (HIR) for Aranya
-//! policy code.
-//!
-//! All HIR nodes are stored in flat collections and can be
-//! referenced with stable IDs (e.g., [`ActionId`], [`ExprId`]).
-//!
-//! # Example Structure
-//!
-//! An action like
-//!
-//! ```text
-//! action foo(x int) {
-//!     let y = x + 1
-//!     check y > 0
-//! }
-//! ```
-//!
-//! Becomes the following HIR nodes:
-//! - `ActionDef` with ID referencing:
-//!   - `ActionArg` for parameter `x`
-//!   - `Block` containing:
-//!     - `Stmt::Let` referencing `Expr::Add`
-//!     - `Stmt::Check` referencing `Expr::GreaterThan`
-
-use std::{fmt, hash::Hash};
+use std::hash::Hash;
 
 use aranya_policy_ast::{self as ast, Text};
 use serde::{Deserialize, Serialize};
@@ -40,17 +16,20 @@ pub struct Span {
 impl Span {
     /// Creates a new span with the given start and end positions.
     pub fn new(start: usize, end: usize) -> Self {
+        debug_assert!(start >= end);
+
         Self { start, end }
     }
 
-    /// Creates a point span where start and end are the same.
+    /// Creates a span where start and end positions are the
+    /// same.
     pub fn point(pos: usize) -> Self {
-        Self { start: pos, end: pos }
+        Self::new(pos, pos)
     }
 
     /// Creates a dummy span for testing purposes.
     pub fn dummy() -> Self {
-        Self { start: 0, end: 0 }
+        Self::new(0, 0)
     }
 }
 
@@ -118,20 +97,14 @@ pub(crate) struct Hir {
     pub ffi_enums: SlotMap<FfiEnumId, FfiEnumDef>,
 }
 
-/// Trait for HIR nodes.
-pub(crate) trait Node {
-    /// The ID type for this node.
-    type Id: fmt::Debug;
-}
-
 /// Generates a HIR node struct with consistent derives and an ID
 /// field.
 ///
 /// This macro ensures all HIR nodes have:
 /// - A unique `id` field of the specified type
 /// - A `span` field for source location information
-/// - Consistent derive attributes (Clone, Debug, Eq, PartialEq),
-///   etc.
+/// - Consistent derive attributes (Clone, Debug, Eq, PartialEe,
+///   etc.)
 macro_rules! hir_node {
     (
         $(#[$meta:meta])*
@@ -347,40 +320,146 @@ hir_node! {
 hir_type! {
     /// An expression.
     pub(crate) enum ExprKind {
-        /// An integer literal.
+        /// A 64-bit signed integer literal.
         Int(i64),
-        /// A text string.
+        /// A text string literal.
         String(Text),
         /// A boolean literal.
         Bool(bool),
         /// An optional literal.
+        ///
+        /// For example:
+        ///
+        /// ```policy
+        /// let x = Some(42);
+        ///         ^^^^^^^^ ExprKind::Optional(Some(...))
+        /// return None
+        ///        ^^^^ ExprKind::Optional(None)
+        /// ```
         Optional(Option<ExprId>),
         /// A named struct literal.
         NamedStruct(NamedStruct),
-        InternalFunction(InternalFunction),
+        /// A VM intrinsic.
+        Intrinsic(Intrinsic),
+        /// A function call expression.
         FunctionCall(FunctionCall),
+        /// A foreign function call expression.
         ForeignFunctionCall(ForeignFunctionCall),
+        /// An identifier reference.
         Identifier(IdentId),
-        EnumReference(EnumReference),
+        /// An enum reference.
+        ///
+        /// ```policy
+        /// let x = MyEnum::Variant;
+        ///         ^^^^^^^^^^^^^^^ ExprKind::EnumReference(...)
+        /// ```
+        EnumReference(EnumRef),
+        /// A binary [add] expression.
+        ///
+        /// [add]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         Add(ExprId, ExprId),
+        /// A binary [sub] expression.
+        ///
+        /// [sub]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         Sub(ExprId, ExprId),
+        /// A binary [and] expression.
+        ///
+        /// [and]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         And(ExprId, ExprId),
+        /// A binary [or] expression.
+        ///
+        /// [or]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         Or(ExprId, ExprId),
+        /// A [field access] expression.
+        ///
+        /// [field access]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        // TODO(eric): Make this Dot(Dot) so it's more clear.
         Dot(ExprId, IdentId),
+        /// A binary [equal] expression.
+        ///
+        /// [equal]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         Equal(ExprId, ExprId),
+        /// A binary ["not equal"][ne] expression.
+        ///
+        /// [not equal][ne]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         NotEqual(ExprId, ExprId),
+        /// A binary ["greater than"][gt] expression.
+        ///
+        /// [gt]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         GreaterThan(ExprId, ExprId),
+        /// A binary ["less than"][lt] expression.
+        ///
+        /// [lt]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         LessThan(ExprId, ExprId),
+        /// A binary ["greater than or equal to"][gte] expression.
+        ///
+        /// [gte]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         GreaterThanOrEqual(ExprId, ExprId),
+        /// A binary ["less than or equal to"][lte] expression.
+        ///
+        /// [lte]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         LessThanOrEqual(ExprId, ExprId),
+        /// A unary [negation] expression.
+        ///
+        /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
         Negative(ExprId),
+        /// A unary logical [negation] expression.
+        ///
+        /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
         Not(ExprId),
+        /// A unary [`unwrap`] expression.
+        ///
+        /// [`unwrap`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
         Unwrap(ExprId),
+        /// A unary [`check_unwrap`] expression.
+        ///
+        /// [`check_unwrap`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
         CheckUnwrap(ExprId),
+        /// The `is Some` and `is None` postfix [expressions].
+        ///
+        /// The second argument is `true` for `is Some` and false
+        /// for `is None`.
+        ///
+        /// [expressions]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#postfix-operators
         Is(ExprId, bool),
+        /// A [block] expression.
+        ///
+        /// [block]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v2.md#block-expressions
         Block(BlockId, ExprId),
+        /// A [`substruct`] expression.
+        ///
+        /// [`substruct`]: https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v2.md#struct-subselection
         Substruct(ExprId, IdentId),
-        Match(ExprId),
+        /// `match` used as an expression.
+        ///
+        /// ```policy
+        /// let foo = match bar {
+        ///     MyEnum::A => { "A" },
+        ///     MyEnum::B => { "B" },
+        ///     _ => { "C" },
+        /// }
+        /// ```
+        Match(MatchExpr),
+        /// A ternary [`if`] expression.
+        ///
+        /// [`if`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if
+        Ternary(Ternary),
+    }
+}
+
+hir_type! {
+    /// `match` used as an expression.
+    pub(crate) struct MatchExpr {
+        pub scrutinee: ExprId,
+        pub arms: Vec<MatchExprArm>,
+    }
+}
+
+hir_type! {
+    /// An arm in a [`MatchExpr`].
+    pub(crate) struct MatchExprArm {
+        pub pattern: MatchPattern,
+        pub expr: ExprId,
     }
 }
 
@@ -393,12 +472,27 @@ hir_type! {
 }
 
 hir_type! {
-    pub(crate) enum InternalFunction {
+    /// An intrinsic implemented by the VM.
+    pub(crate) enum Intrinsic {
+        /// A [`query`] expression.
+        ///
+        /// [`query`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#query
         Query(FactLiteral),
-        Exists(FactLiteral),
+        /// One of the [`count_up_to`], `at_least`, `at_most`, or
+        /// `exactly` expressions.
+        ///
+        /// NB: [`exists`] is desugared to `at_least 1`.
+        ///
+        /// [`count_up_to`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#count_up_to
+        /// [`exists`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#exists
         FactCount(FactCountType, i64, FactLiteral),
-        If(ExprId, ExprId, ExprId),
+        /// A `serialize` expression.
+        ///
+        /// [`serialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
         Serialize(ExprId),
+        /// A `deserialize` expression.
+        ///
+        /// [`deserialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
         Deserialize(ExprId),
     }
 }
@@ -451,8 +545,16 @@ hir_type! {
 }
 
 hir_type! {
-    pub(crate) struct EnumReference {
+    /// An enum reference.
+    ///
+    /// ```policy
+    /// let x = MyEnum::Variant;
+    ///         ^^^^^^^^^^^^^^^
+    /// ```
+    pub(crate) struct EnumRef {
+        /// The enum's identifier.
         pub ident: IdentId,
+        /// The enum's variant.
         pub value: IdentId,
     }
 }
@@ -779,34 +881,23 @@ hir_node! {
     }
 }
 
+hir_type! {
+    /// A ternary [`if`] expression.
+    ///
+    /// [`if`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if
+    pub(crate) struct Ternary {
+        /// The condition being evaluated.
+        pub cond: ExprId,
+        /// The result when `cond` is true.
+        pub true_expr: ExprId,
+        /// The result when `cond` is false.
+        pub false_expr: ExprId,
+    }
+}
+
 make_node_id! {
     /// Uniquely identifies a variable type.
     pub(crate) struct VTypeId;
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI import statement.
-    pub(crate) struct FfiImportId;
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI module.
-    pub(crate) struct FfiModuleId;
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI function.
-    pub(crate) struct FfiFuncId;
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI struct.
-    pub(crate) struct FfiStructId;
-}
-
-make_node_id! {
-    /// Uniquely identifies an FFI enum.
-    pub(crate) struct FfiEnumId;
 }
 
 hir_node! {
@@ -829,12 +920,22 @@ hir_type! {
     }
 }
 
+make_node_id! {
+    /// Uniquely identifies an FFI import statement.
+    pub(crate) struct FfiImportId;
+}
+
 hir_node! {
     /// An FFI import statement (e.g., `use crypto`).
     pub(crate) struct FfiImportDef {
         pub id: FfiImportId,
         pub module: IdentId,
     }
+}
+
+make_node_id! {
+    /// Uniquely identifies an FFI module.
+    pub(crate) struct FfiModuleId;
 }
 
 hir_node! {
@@ -848,6 +949,11 @@ hir_node! {
     }
 }
 
+make_node_id! {
+    /// Uniquely identifies an FFI function.
+    pub(crate) struct FfiFuncId;
+}
+
 hir_node! {
     /// An FFI function definition.
     pub(crate) struct FfiFuncDef {
@@ -856,6 +962,11 @@ hir_node! {
         pub args: Vec<(IdentId, VTypeId)>,
         pub return_type: VTypeId,
     }
+}
+
+make_node_id! {
+    /// Uniquely identifies an FFI struct.
+    pub(crate) struct FfiStructId;
 }
 
 hir_node! {
@@ -867,6 +978,11 @@ hir_node! {
     }
 }
 
+make_node_id! {
+    /// Uniquely identifies an FFI enum.
+    pub(crate) struct FfiEnumId;
+}
+
 hir_node! {
     /// An FFI enum definition.
     pub(crate) struct FfiEnumDef {
@@ -874,14 +990,4 @@ hir_node! {
         pub name: IdentId,
         pub variants: Vec<IdentId>,
     }
-}
-
-/// Uniquely identifies a HIR node.
-pub(crate) trait NodeId:
-    Copy + Clone + Default + Eq + PartialEq + Ord + PartialOrd + Hash + fmt::Debug
-{
-    /// The underlying type.
-    // TODO(eric): Into<Item<'ast>> isn't really needed since you
-    // could convert it to `NodeId` whose `Type` is `Item`.
-    type Node<'ast>: PartialEq + fmt::Debug;
 }

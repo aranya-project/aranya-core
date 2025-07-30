@@ -30,10 +30,7 @@ use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
-use crate::{
-    dependency_graph::{DependencyGraph, DependencyKind, SortError},
-    hir, symbol_resolution,
-};
+use crate::dependency_graph::{DependencyGraph, DependencyKind, SortError};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -2194,11 +2191,6 @@ impl<'a> CompileState<'a> {
     pub fn compile(&mut self) -> Result<(), CompileError> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        {
-            let (hir, ast) = hir::parse(self.policy, self.ffi_modules);
-            let _hir = symbol_resolution::resolve(&hir, &ast, self.ffi_modules)?;
-        }
 
         // Compile global let statements
         for global_let in &self.policy.global_lets {

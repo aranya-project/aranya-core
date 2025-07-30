@@ -14,7 +14,7 @@ use crate::{
 pub(crate) struct SymbolId(usize);
 
 /// A collection of [`Symbols`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Symbols {
     symbols: Vec<Symbol>,
 }
@@ -25,6 +25,12 @@ impl Symbols {
         Self {
             symbols: Vec::new(),
         }
+    }
+    
+    /// Get the underlying symbols vector (for testing only)
+    #[cfg(test)]
+    pub(crate) fn symbols(&self) -> &Vec<Symbol> {
+        &self.symbols
     }
 
     /// Inserts a symbol into the arena and returns its ID.
@@ -49,7 +55,7 @@ impl Symbols {
 }
 
 /// A symbol in the symbol table.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Symbol {
     pub ident: IdentId,
     pub kind: SymbolKind,
@@ -63,7 +69,7 @@ pub(crate) struct Symbol {
 }
 
 /// A symbol in the symbol table.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SymbolKind {
     GlobalVar(SymGlobalVar),
     LocalVar(SymLocalVar),
@@ -79,7 +85,7 @@ pub(crate) enum SymbolKind {
 }
 
 /// A global variable.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymGlobalVar {
     /// The value of the global variable.
     pub vtype: SymType,
@@ -88,7 +94,7 @@ pub(crate) struct SymGlobalVar {
 }
 
 /// A local variable.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymLocalVar {
     /// The type of the local variable.
     pub vtype: SymType,
@@ -97,14 +103,14 @@ pub(crate) struct SymLocalVar {
 }
 
 /// A `fact` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymFact {
     pub keys: Vec<(IdentId, SymType)>,
     pub values: Vec<(IdentId, SymType)>,
 }
 
 /// An `action` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymAction {
     pub params: Vec<(IdentId, SymType)>,
     /// Action-local scope.
@@ -112,25 +118,25 @@ pub(crate) struct SymAction {
 }
 
 /// An `effect` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymEffect {
     pub fields: Status<Vec<(IdentId, SymType)>>,
 }
 
 /// A `struct` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymStruct {
     pub fields: Status<Vec<(IdentId, SymType)>>,
 }
 
 /// An `enum` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymEnum {
     pub variants: Vec<IdentId>,
 }
 
 /// A `command` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymCommand {
     pub fields: Status<Vec<(IdentId, SymType)>>,
     pub policy: Status<PolicyBlock>,
@@ -139,7 +145,7 @@ pub(crate) struct SymCommand {
 }
 
 /// A `policy` block inside a [`SymCommand`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PolicyBlock {
     /// Block-local scope.
     pub scope: ScopeId,
@@ -147,7 +153,7 @@ pub(crate) struct PolicyBlock {
 }
 
 /// A `recall` block inside a [`SymCommand`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RecallBlock {
     /// Block-local scope.
     pub scope: ScopeId,
@@ -155,21 +161,21 @@ pub(crate) struct RecallBlock {
 }
 
 /// A `finish` block inside a [`PolicyBlock`] or [`RecallBlock`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FinishBlock {
     /// Block-local scope.
     pub scope: ScopeId,
 }
 
 /// An FFI module.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymFfiModule {
     /// Module-local scope.
     pub scope: ScopeId,
 }
 
 /// A `function` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymFunction {
     pub params: Vec<(IdentId, SymType)>,
     pub result: SymType,
@@ -178,7 +184,7 @@ pub(crate) struct SymFunction {
 }
 
 /// A `finish function` declaration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymFinishFunction {
     pub params: Vec<(IdentId, SymType)>,
     /// Function-local scope.

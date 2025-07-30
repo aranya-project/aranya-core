@@ -11,17 +11,25 @@ use crate::{Identifier, Text};
 #[error("invalid version string")]
 pub struct InvalidVersion;
 
-/// Policy language version
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Version {
-    /// Version 1, the initial version of the "new" policy
-    /// language.
-    #[deprecated]
-    V1,
-    /// Version 2, the second version of the policy language
-    #[default]
-    V2,
+mod version {
+    // See https://github.com/serde-rs/serde/issues/2195
+    #![allow(deprecated)]
+
+    use super::*;
+
+    /// Policy language version
+    #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+    pub enum Version {
+        /// Version 1, the initial version of the "new" policy
+        /// language.
+        #[deprecated]
+        V1,
+        /// Version 2, the second version of the policy language
+        #[default]
+        V2,
+    }
 }
+pub use version::*;
 
 // This supports the command-line tools, allowing automatic
 // conversion between string arguments and the enum.

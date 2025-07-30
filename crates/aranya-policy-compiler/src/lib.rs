@@ -7,7 +7,7 @@ mod dependency_graph;
 mod mir;
 //pub mod ir;
 //pub mod semantic_analysis;
-mod hir;
+pub mod hir;
 mod symbol_resolution;
 mod tests;
 mod tracer;

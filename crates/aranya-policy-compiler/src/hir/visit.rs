@@ -5,7 +5,7 @@ use crate::hir::hir::{
     EffectDef, EffectField, EffectFieldId, EffectFieldKind, EffectId, EnumDef, EnumId, Expr,
     ExprId, ExprKind, FactDef, FactField, FactId, FactKey, FactLiteral, FactVal, FinishFuncArg,
     FinishFuncDef, FinishFuncId, FuncArg, FuncDef, FuncId, GlobalId, GlobalLetDef, Hir, Ident,
-    IdentId, InternalFunction, MatchPattern, Stmt, StmtId, StmtKind, StructDef, StructField,
+    IdentId, Intrinsic, MatchPattern, Stmt, StmtId, StmtKind, StructDef, StructField,
     StructFieldId, StructFieldKind, StructId, VType, VTypeId, VTypeKind,
 };
 
@@ -343,19 +343,19 @@ impl Hir {
                     try_branch!(self.walk_expr(*expr, visitor));
                 }
             }
-            ExprKind::InternalFunction(v) => match v {
-                InternalFunction::Query(fact) | InternalFunction::Exists(fact) => {
+            ExprKind::Ternary(v) => {
+                try_branch!(self.walk_expr(v.cond, visitor));
+                try_branch!(self.walk_expr(v.true_expr, visitor));
+                try_branch!(self.walk_expr(v.false_expr, visitor));
+            }
+            ExprKind::Intrinsic(v) => match v {
+                Intrinsic::Query(fact) | Intrinsic::Exists(fact) => {
                     try_branch!(self.walk_fact_literal(fact, visitor));
                 }
-                InternalFunction::FactCount(_, _, fact) => {
+                Intrinsic::FactCount(_, _, fact) => {
                     try_branch!(self.walk_fact_literal(fact, visitor));
                 }
-                InternalFunction::If(a, b, c) => {
-                    try_branch!(self.walk_expr(*a, visitor));
-                    try_branch!(self.walk_expr(*b, visitor));
-                    try_branch!(self.walk_expr(*c, visitor));
-                }
-                InternalFunction::Serialize(expr) | InternalFunction::Deserialize(expr) => {
+                Intrinsic::Serialize(expr) | Intrinsic::Deserialize(expr) => {
                     try_branch!(self.walk_expr(*expr, visitor));
                 }
             },
@@ -405,9 +405,8 @@ impl Hir {
             | ExprKind::CheckUnwrap(expr) => {
                 try_branch!(self.walk_expr(*expr, visitor));
             }
-            ExprKind::Is(expr, _) => {
+            ExprKind::Is(expr, true | false) => {
                 try_branch!(self.walk_expr(*expr, visitor));
-                // TODO: visit the other element.
             }
             ExprKind::Block(block, expr) => {
                 try_branch!(self.walk_block(*block, visitor));
@@ -417,8 +416,19 @@ impl Hir {
                 try_branch!(self.walk_expr(*expr, visitor));
                 try_branch!(self.walk_ident(*ident, visitor));
             }
-            ExprKind::Match(expr) => {
-                try_branch!(self.walk_expr(*expr, visitor));
+            ExprKind::Match(v) => {
+                try_branch!(self.walk_expr(v.scrutinee, visitor));
+                for arm in &v.arms {
+                    match &arm.pattern {
+                        MatchPattern::Default => {}
+                        MatchPattern::Values(values) => {
+                            for &expr in values {
+                                try_branch!(self.walk_expr(expr, visitor));
+                            }
+                        }
+                    }
+                    try_branch!(self.walk_expr(arm.expr, visitor));
+                }
             }
         }
         V::Result::output()

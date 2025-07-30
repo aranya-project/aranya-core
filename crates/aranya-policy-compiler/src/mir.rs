@@ -1,11 +1,23 @@
 mod lower;
-mod ssa;
+pub(crate) mod ssa;
 
-use crate::hir::Hir;
+use slotmap::SlotMap;
 
-pub(crate) fn lower(_hir: &Hir) -> Mir {
-    todo!()
+use crate::{
+    hir::NormalizedHir,
+    mir::{
+        lower::LowerCtx,
+        ssa::{Func, FuncId},
+    },
+};
+
+pub(crate) fn lower(hir: &NormalizedHir) -> Mir {
+    let LowerCtx { funcs, .. } = LowerCtx::build(hir);
+
+    Mir { funcs }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Mir {}
+pub(crate) struct Mir {
+    pub funcs: SlotMap<FuncId, Func>,
+}

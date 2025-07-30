@@ -57,16 +57,16 @@ pub enum InsertError {
 pub struct DuplicateSymbolId(SymbolId);
 
 /// A program scope (e.g., global, function, block, etc.).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Scope {
-    id: ScopeId,
-    parent: Option<ScopeId>,
-    symbols: HashMap<IdentId, SymbolId>,
+    pub(crate) id: ScopeId,
+    pub(crate) parent: Option<ScopeId>,
+    pub(crate) symbols: HashMap<IdentId, SymbolId>,
     // TODO: scope kind (e.g., function, block, etc.)
 }
 
 /// A collection of [`Scope`]s.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Scopes {
     scopes: Vec<Scope>,
 }
@@ -78,6 +78,12 @@ impl Scopes {
         // Always create the global scope.
         arena.create_scope();
         arena
+    }
+    
+    /// Get the underlying scopes vector (for testing only)
+    #[cfg(test)]
+    pub(crate) fn scopes(&self) -> &Vec<Scope> {
+        &self.scopes
     }
 
     /// Creates a new scope.

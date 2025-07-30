@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use aranya_policy_ast::ident;
 use aranya_policy_module::ffi::ModuleSchema;
 use buggy::{bug, BugExt};
 
@@ -9,8 +10,8 @@ use crate::{
     hir::{
         ActionDef, ActionId, AstNodes, CmdDef, CmdId, EffectDef, EffectId, EnumDef, EnumId, ExprId,
         ExprKind, FactDef, FactField, FactId, FactLiteral, FinishFuncDef, FinishFuncId, FuncDef,
-        FuncId, GlobalId, GlobalLetDef, Hir, IdentId, InternalFunction, Span, StmtId, StmtKind,
-        StructDef, StructId, VTypeId, VTypeKind,
+        FuncId, GlobalId, GlobalLetDef, Hir, IdentId, Intrinsic, Span, StmtId, StmtKind, StructDef,
+        StructId, VTypeId, VTypeKind,
     },
     symbol_resolution::{
         error::SymbolResolutionError,
@@ -38,12 +39,8 @@ enum LocationHint {
 pub(super) struct Resolver<'a> {
     /// The HIR being resolved.
     hir: &'a Hir,
-    /// AST nodes for error location lookup.
-    ast_nodes: &'a AstNodes<'a>,
-    /// FFI modules.
-    ffi_modules: &'a [ModuleSchema<'a>],
     /// Reserved identifiers that cannot be redefined.
-    reserved_idents: HashSet<IdentId>,
+    reserved_idents: HashSet<aranya_policy_ast::Identifier>,
     scopes: Scopes,
     symbols: Symbols,
     /// Map from identifier usage locations to their resolved symbols.
@@ -52,15 +49,9 @@ pub(super) struct Resolver<'a> {
 
 impl<'a> Resolver<'a> {
     /// Create a new resolver.
-    pub fn new(
-        hir: &'a Hir,
-        ast_nodes: &'a AstNodes<'a>,
-        ffi_modules: &'a [ModuleSchema<'a>],
-    ) -> Result<Self> {
+    pub fn new(hir: &'a Hir) -> Result<Self> {
         Ok(Self {
             hir,
-            ast_nodes,
-            ffi_modules,
             reserved_idents: HashSet::new(),
             scopes: Scopes::new(),
             symbols: Symbols::new(),
@@ -81,54 +72,26 @@ impl<'a> Resolver<'a> {
 
         Ok(ResolvedHir {
             hir: self.hir,
-            ast: self.ast_nodes,
             resolutions: self.resolved_idents,
             scopes: self.scopes,
             symbols: self.symbols,
         })
     }
 
-    /// Find an existing IdentId for a given name by searching through all identifiers.
-    fn find_ident_id(&self, name: &str) -> Option<IdentId> {
-        for (id, ident) in &self.hir.idents {
-            if ident.ident.as_str() == name {
-                return Some(id);
-            }
-        }
-        None
-    }
-
     fn add_reserved_idents(&mut self) {
-        // List of reserved identifiers
-        const RESERVED_NAMES: &[&str] = &["this", "envelope", "id"];
-
-        // Find or track reserved identifier IDs
-        for &name in RESERVED_NAMES {
-            if let Some(ident_id) = self.find_ident_id(name) {
-                self.reserved_idents.insert(ident_id);
-            }
-            // Note: We cannot create new IdentIds here because we have immutable access to HIR.
-            // Instead, we'll check by name when we encounter identifiers.
-        }
+        self.reserved_idents.insert(ident!("this"));
+        self.reserved_idents.insert(ident!("envelope"));
+        self.reserved_idents.insert(ident!("id"));
     }
 
     /// Check if an identifier is reserved.
-    fn is_reserved(&self, ident: IdentId) -> bool {
-        // First check if it's in our reserved set
-        if self.reserved_idents.contains(&ident) {
-            return true;
-        }
-
-        // Fall back to name-based check for identifiers not in our set
-        if let Some(ident_node) = self.hir.idents.get(ident) {
-            let name = ident_node.ident.as_str();
-            matches!(name, "this" | "envelope" | "id")
-        } else {
-            false
-        }
+    fn is_reserved(&self, id: IdentId) -> bool {
+        let ident = &self.hir.idents[id].ident;
+        self.reserved_idents.contains(ident)
     }
 
-    /// Check if an identifier is reserved and return an error if it is.
+    /// Check if an identifier is reserved and return an error if
+    /// it is.
     fn check_reserved(&self, ident: IdentId, span: Option<Span>) -> Result<()> {
         if self.is_reserved(ident) {
             Err(SymbolResolutionError::ReservedIdentifier {
@@ -188,7 +151,7 @@ impl<'a> Resolver<'a> {
             match self.scopes.insert(ScopeId::GLOBAL, def.name, sym_id) {
                 Ok(()) => {}
                 Err(InsertError::Duplicate(err)) => {
-                    return Err(SymbolResolutionError::Duplicate(err))
+                    return Err(SymbolResolutionError::Duplicate(err));
                 }
                 Err(InsertError::InvalidScopeId(_)) => bug!("global scope should always be valid"),
             }
@@ -234,7 +197,7 @@ impl<'a> Resolver<'a> {
                     {
                         Ok(()) => {}
                         Err(InsertError::Duplicate(err)) => {
-                            return Err(SymbolResolutionError::Duplicate(err))
+                            return Err(SymbolResolutionError::Duplicate(err));
                         }
                         Err(InsertError::InvalidScopeId(_)) => {
                             bug!("global scope should always be valid")
@@ -262,7 +225,7 @@ impl<'a> Resolver<'a> {
                     {
                         Ok(()) => {}
                         Err(InsertError::Duplicate(err)) => {
-                            return Err(SymbolResolutionError::Duplicate(err))
+                            return Err(SymbolResolutionError::Duplicate(err));
                         }
                         Err(InsertError::InvalidScopeId(_)) => {
                             bug!("global scope should always be valid")
@@ -323,45 +286,38 @@ impl<'a> Resolver<'a> {
     }
 
     fn collect_decls(&mut self) -> Result<()> {
-        for (id, global) in &self.hir.global_lets {
-            self.collect_global_let(id, global)?;
+        for global in self.hir.global_lets.values() {
+            self.collect_global_let(global)?;
         }
-        for (id, fact) in &self.hir.facts {
-            self.collect_fact(id, fact)?;
+        for fact in self.hir.facts.values() {
+            self.collect_fact(fact)?;
         }
-        for (id, action) in &self.hir.actions {
-            self.collect_action(id, action)?;
+        for action in self.hir.actions.values() {
+            self.collect_action(action)?;
         }
-        for (id, effect) in &self.hir.effects {
-            self.collect_effect(id, effect)?;
+        for effect in self.hir.effects.values() {
+            self.collect_effect(effect)?;
         }
-        for (id, struct_def) in &self.hir.structs {
-            self.collect_struct(id, struct_def)?;
+        for struct_def in self.hir.structs.values() {
+            self.collect_struct(struct_def)?;
         }
-        for (id, enum_def) in &self.hir.enums {
-            self.collect_enum(id, enum_def)?;
+        for enum_def in self.hir.enums.values() {
+            self.collect_enum(enum_def)?;
         }
-        for (id, cmd) in &self.hir.cmds {
-            self.collect_command(id, cmd)?;
+        for cmd in self.hir.cmds.values() {
+            self.collect_command(cmd)?;
         }
-        for (id, func) in &self.hir.funcs {
-            self.collect_function(id, func)?;
+        for func in self.hir.funcs.values() {
+            self.collect_function(func)?;
         }
-        for (id, func) in &self.hir.finish_funcs {
-            self.collect_finish_function(id, func)?;
+        for func in self.hir.finish_funcs.values() {
+            self.collect_finish_function(func)?;
         }
         Ok(())
     }
 
     /// Collect a global let statement.
-    fn collect_global_let(&mut self, id: GlobalId, global: &GlobalLetDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .global_lets
-            .get(id)
-            .assume("global let should have AST node")?;
-
+    fn collect_global_let(&mut self, global: &GlobalLetDef) -> Result<()> {
         let kind = SymbolKind::GlobalVar(SymGlobalVar {
             vtype: SymType::Unresolved,
             scope: self
@@ -369,20 +325,11 @@ impl<'a> Resolver<'a> {
                 .create_child_scope(ScopeId::GLOBAL)
                 .assume("global should always be valid")?,
         });
-
-        self.add_global_def(global.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(global.ident, kind, Some(global.span))
     }
 
     /// Collect a fact definition.
-    fn collect_fact(&mut self, id: FactId, fact: &FactDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .facts
-            .get(id)
-            .assume("fact should have AST node")?;
-
-        // Collect keys
+    fn collect_fact(&mut self, fact: &FactDef) -> Result<()> {
         let mut keys = Vec::new();
         for key_id in &fact.keys {
             let key = self
@@ -393,7 +340,6 @@ impl<'a> Resolver<'a> {
             keys.push((key.ident, SymType::Unresolved));
         }
 
-        // Collect values
         let mut values = Vec::new();
         for val_id in &fact.vals {
             let val = self
@@ -405,18 +351,11 @@ impl<'a> Resolver<'a> {
         }
 
         let kind = SymbolKind::Fact(SymFact { keys, values });
-        self.add_global_def(fact.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(fact.ident, kind, Some(fact.span))
     }
 
     /// Collect an action definition.
-    fn collect_action(&mut self, id: ActionId, action: &ActionDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .actions
-            .get(id)
-            .assume("action should have AST node")?;
-
+    fn collect_action(&mut self, action: &ActionDef) -> Result<()> {
         // Collect parameters
         let mut params = Vec::new();
         for arg_id in &action.args {
@@ -435,86 +374,46 @@ impl<'a> Resolver<'a> {
                 .create_child_scope(ScopeId::GLOBAL)
                 .assume("global should always be valid")?,
         });
-
-        self.add_global_def(action.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(action.ident, kind, Some(action.span))
     }
 
     /// Collect an effect definition.
-    fn collect_effect(&mut self, id: EffectId, effect: &EffectDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .effects
-            .get(id)
-            .assume("effect should have AST node")?;
-
+    fn collect_effect(&mut self, effect: &EffectDef) -> Result<()> {
         let kind = SymbolKind::Effect(SymEffect {
             fields: Status::Unresolved,
         });
-
-        self.add_global_def(effect.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(effect.ident, kind, Some(effect.span))
     }
 
     /// Collect a struct definition.
-    fn collect_struct(&mut self, id: StructId, struct_def: &StructDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .structs
-            .get(id)
-            .assume("struct should have AST node")?;
-
+    fn collect_struct(&mut self, struct_def: &StructDef) -> Result<()> {
         let kind = SymbolKind::Struct(SymStruct {
             fields: Status::Unresolved,
         });
-
-        self.add_global_def(struct_def.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(struct_def.ident, kind, Some(struct_def.span))
     }
 
     /// Collect an enum definition.
-    fn collect_enum(&mut self, id: EnumId, enum_def: &EnumDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .enums
-            .get(id)
-            .assume("enum should have AST node")?;
-
+    fn collect_enum(&mut self, enum_def: &EnumDef) -> Result<()> {
         let kind = SymbolKind::Enum(SymEnum {
             variants: enum_def.variants.clone(),
         });
-
-        self.add_global_def(enum_def.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(enum_def.ident, kind, Some(enum_def.span))
     }
 
     /// Collect a command definition.
-    fn collect_command(&mut self, id: CmdId, cmd: &CmdDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .cmds
-            .get(id)
-            .assume("command should have AST node")?;
-
+    fn collect_command(&mut self, cmd: &CmdDef) -> Result<()> {
         let kind = SymbolKind::Command(SymCommand {
             fields: Status::Unresolved,
             policy: Status::Unresolved,
             finish: Status::Unresolved,
             recall: Status::Unresolved,
         });
-
-        self.add_global_def(cmd.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(cmd.ident, kind, Some(cmd.span))
     }
 
     /// Collect a function definition.
-    fn collect_function(&mut self, id: FuncId, func: &FuncDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .funcs
-            .get(id)
-            .assume("function should have AST node")?;
-
+    fn collect_function(&mut self, func: &FuncDef) -> Result<()> {
         // Collect parameters
         let mut params = Vec::new();
         for arg_id in &func.args {
@@ -535,25 +434,18 @@ impl<'a> Resolver<'a> {
                 .assume("global should always be valid")?,
         });
 
-        self.add_global_def(func.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(func.ident, kind, Some(func.span))
     }
 
     /// Collect a finish function definition.
-    fn collect_finish_function(&mut self, id: FinishFuncId, func: &FinishFuncDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .finish_funcs
-            .get(id)
-            .assume("finish function should have AST node")?;
-
+    fn collect_finish_function(&mut self, func: &FinishFuncDef) -> Result<()> {
         // Collect parameters
         let mut params = Vec::new();
-        for arg_id in &func.args {
+        for id in &func.args {
             let arg = self
                 .hir
                 .finish_func_args
-                .get(*arg_id)
+                .get(*id)
                 .assume("finish func arg should exist in HIR")?;
             params.push((arg.ident, SymType::Unresolved));
         }
@@ -565,8 +457,7 @@ impl<'a> Resolver<'a> {
                 .create_child_scope(ScopeId::GLOBAL)
                 .assume("global should always be valid")?,
         });
-
-        self.add_global_def(func.ident, kind, Some(Span::point(ast_node.locator)))
+        self.add_global_def(func.ident, kind, Some(func.span))
     }
 }
 
@@ -607,27 +498,23 @@ impl Resolver<'_> {
 
     /// Second pass: resolve all identifier references.
     fn resolve_references(&mut self) -> Result<()> {
-        for (id, global) in &self.hir.global_lets {
-            self.resolve_global_let_references(id, global)?;
+        for global in self.hir.global_lets.values() {
+            self.resolve_global_let_references(global)?;
         }
-        for (id, action) in &self.hir.actions {
-            self.resolve_action_references(id, action)?;
+        for action in self.hir.actions.values() {
+            self.resolve_action_references(action)?;
         }
-        for (id, func) in &self.hir.funcs {
-            self.resolve_function_references(id, func)?;
+        for func in self.hir.funcs.values() {
+            self.resolve_function_references(func)?;
         }
-        for (id, func) in &self.hir.finish_funcs {
-            self.resolve_finish_function_references(id, func)?;
+        for func in self.hir.finish_funcs.values() {
+            self.resolve_finish_function_references(func)?;
         }
         Ok(())
     }
 
     /// Resolve references within a global let statement.
-    fn resolve_global_let_references(
-        &mut self,
-        _id: GlobalId,
-        global: &GlobalLetDef,
-    ) -> Result<()> {
+    fn resolve_global_let_references(&mut self, global: &GlobalLetDef) -> Result<()> {
         // Get the scope for this global let
         let scope = self.get_symbol_scope(global.ident)?;
 
@@ -636,14 +523,7 @@ impl Resolver<'_> {
     }
 
     /// Resolve references within an action.
-    fn resolve_action_references(&mut self, id: ActionId, action: &ActionDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .actions
-            .get(id)
-            .assume("action should have AST node")?;
-
+    fn resolve_action_references(&mut self, action: &ActionDef) -> Result<()> {
         // Get the scope for this action
         let scope = self.get_symbol_scope(action.ident)?;
 
@@ -654,7 +534,7 @@ impl Resolver<'_> {
                 .action_args
                 .get(*arg_id)
                 .assume("action arg should exist in HIR")?;
-            self.add_parameter(scope, arg.ident, Span::point(ast_node.locator))?;
+            self.add_parameter(scope, arg.ident, action.span)?;
         }
 
         // Resolve action body
@@ -671,14 +551,7 @@ impl Resolver<'_> {
     }
 
     /// Resolve references within a function.
-    fn resolve_function_references(&mut self, id: FuncId, func: &FuncDef) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .funcs
-            .get(id)
-            .assume("function should have AST node")?;
-
+    fn resolve_function_references(&mut self, func: &FuncDef) -> Result<()> {
         // Get the scope for this function
         let scope = self.get_symbol_scope(func.ident)?;
 
@@ -689,7 +562,7 @@ impl Resolver<'_> {
                 .func_args
                 .get(*arg_id)
                 .assume("func arg should exist in HIR")?;
-            self.add_parameter(scope, arg.ident, Span::point(ast_node.locator))?;
+            self.add_parameter(scope, arg.ident, func.span)?;
         }
 
         // Resolve return type
@@ -709,18 +582,7 @@ impl Resolver<'_> {
     }
 
     /// Resolve references within a finish function.
-    fn resolve_finish_function_references(
-        &mut self,
-        id: FinishFuncId,
-        func: &FinishFuncDef,
-    ) -> Result<()> {
-        // Get the AST node for location info
-        let ast_node = self
-            .ast_nodes
-            .finish_funcs
-            .get(id)
-            .assume("finish function should have AST node")?;
-
+    fn resolve_finish_function_references(&mut self, func: &FinishFuncDef) -> Result<()> {
         // Get the scope for this finish function
         let scope = self.get_symbol_scope(func.ident)?;
 
@@ -731,7 +593,7 @@ impl Resolver<'_> {
                 .finish_func_args
                 .get(*arg_id)
                 .assume("finish func arg should exist in HIR")?;
-            self.add_parameter(scope, arg.ident, Span::point(ast_node.locator))?;
+            self.add_parameter(scope, arg.ident, func.span)?;
         }
 
         // Resolve function body
@@ -998,19 +860,19 @@ impl Resolver<'_> {
                     self.resolve_expr(scope, *expr)?;
                 }
             }
-            ExprKind::InternalFunction(func) => match func {
-                InternalFunction::Query(fact) | InternalFunction::Exists(fact) => {
+            ExprKind::Ternary(v) => {
+                self.resolve_expr(scope, v.cond)?;
+                self.resolve_expr(scope, v.true_expr)?;
+                self.resolve_expr(scope, v.false_expr)?;
+            }
+            ExprKind::Intrinsic(v) => match v {
+                Intrinsic::Query(fact) => {
                     self.resolve_fact_literal(scope, fact, LocationHint::Expr(expr_id))?;
                 }
-                InternalFunction::FactCount(_, _, fact) => {
+                Intrinsic::FactCount(_, _, fact) => {
                     self.resolve_fact_literal(scope, fact, LocationHint::Expr(expr_id))?;
                 }
-                InternalFunction::If(cond, then_expr, else_expr) => {
-                    self.resolve_expr(scope, *cond)?;
-                    self.resolve_expr(scope, *then_expr)?;
-                    self.resolve_expr(scope, *else_expr)?;
-                }
-                InternalFunction::Serialize(expr) | InternalFunction::Deserialize(expr) => {
+                Intrinsic::Serialize(expr) | Intrinsic::Deserialize(expr) => {
                     self.resolve_expr(scope, *expr)?;
                 }
             },
