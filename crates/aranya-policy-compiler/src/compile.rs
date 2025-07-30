@@ -963,8 +963,8 @@ impl<'a> CompileState<'a> {
                 })?;
 
                 let lhs_type = self.compile_expression(lhs)?;
-                match lhs_type {
-                    Typeish::Definitely(NullableVType::Type(VType::Struct(lhs_struct_name))) => {
+                _ = lhs_type.try_map(|t| match t {
+                    NullableVType::Type(VType::Struct(lhs_struct_name)) => {
                         let lhs_fields =
                             self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
                                 self.err(CompileErrorType::NotDefined(format!(
@@ -981,14 +981,14 @@ impl<'a> CompileState<'a> {
                                 rhs_ident.clone(),
                             )));
                         }
+                        Ok(NullableVType::Type(VType::Struct(rhs_ident.clone())))
                     }
-                    Typeish::Definitely(_) => {
+                    _ => {
                         return Err(self.err(CompileErrorType::InvalidType(
                             "Expression to the left of `as` is not a struct".to_string(),
                         )));
                     }
-                    Typeish::Indeterminate | Typeish::Probably(_) => {}
-                }
+                })?;
 
                 self.append_instruction(Instruction::Cast(rhs_ident.clone()));
 
