@@ -11,7 +11,7 @@ mod symbols;
 #[cfg(test)]
 mod tests;
 
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 pub(crate) use error::SymbolResolutionError;
 pub(crate) use symbols::{Symbol, SymbolId, Symbols};
@@ -21,16 +21,11 @@ use crate::{
     symbol_resolution::{resolver::Resolver, scope::Scopes},
 };
 
-/// Entry point for symbol resolution.
-pub(crate) fn resolve<'a>(hir: &'a Hir) -> Result<ResolvedHir<'a>, SymbolResolutionError> {
-    Resolver::resolve(hir)
-}
+pub(crate) type Result<T, E = SymbolResolutionError> = std::result::Result<T, E>;
 
 /// HIR with symbol resolution information.
 #[derive(Clone, Debug)]
-pub(crate) struct ResolvedHir<'a> {
-    /// The HIR.
-    pub hir: &'a Hir,
+pub(crate) struct SymbolTable {
     /// Maps identifiers to their symbols.
     pub resolutions: HashMap<IdentId, SymbolId>,
     /// The scope hierarchy.
@@ -39,7 +34,20 @@ pub(crate) struct ResolvedHir<'a> {
     pub symbols: Symbols,
 }
 
-impl ResolvedHir<'_> {
+impl SymbolTable {
+    /// Creates a new symbol table.
+    pub fn new(hir: &Hir) -> Result<Self> {
+        Resolver::resolve(hir)
+    }
+
+    pub(super) fn empty() -> Self {
+        Self {
+            resolutions: HashMap::new(),
+            scopes: Scopes::new(),
+            symbols: Symbols::new(),
+        }
+    }
+
     /// Get the symbol that an identifier resolves to.
     pub fn get_resolution(&self, ident_id: IdentId) -> Option<SymbolId> {
         self.resolutions.get(&ident_id).copied()
@@ -48,13 +56,5 @@ impl ResolvedHir<'_> {
     /// Get a symbol by its ID.
     pub fn get_symbol(&self, sym_id: SymbolId) -> Option<&Symbol> {
         self.symbols.get(sym_id)
-    }
-}
-
-impl Deref for ResolvedHir<'_> {
-    type Target = Hir;
-
-    fn deref(&self) -> &Self::Target {
-        self.hir
     }
 }

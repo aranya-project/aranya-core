@@ -8,7 +8,7 @@ use aranya_policy_module::{
 use crate::{
     compile::{CompileError, Compiler},
     hir::{self, AstNodes, Hir},
-    symbol_resolution,
+    symbol_resolution::SymbolTable,
 };
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
@@ -20,10 +20,11 @@ impl Compiler<'_> {
 
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let (hir, ast) = hir::parse(self.policy, self.ffi_modules);
-        let _hir = symbol_resolution::resolve(&hir)?;
+        let syms = SymbolTable::new(&hir)?;
         let mut ctx = CompileCtx {
             out: &mut out,
             hir: &hir,
+            syms,
             ast,
             prog: Vec::new(),
             codemap: Some(codemap),
@@ -67,6 +68,7 @@ struct Output {
 struct CompileCtx<'a> {
     out: &'a mut Output,
     hir: &'a Hir,
+    syms: SymbolTable,
     ast: AstNodes<'a>,
     prog: Vec<Instruction>,
     codemap: Option<CodeMap>,

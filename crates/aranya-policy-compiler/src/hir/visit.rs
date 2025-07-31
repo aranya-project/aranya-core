@@ -4,28 +4,45 @@ mod tests;
 use std::{convert::Infallible, ops::ControlFlow};
 
 use crate::hir::hir::{
-    ActionArg, ActionDef, ActionId, Block, BlockId, CmdDef, CmdField, CmdFieldKind, CmdId,
-    EffectDef, EffectField, EffectFieldId, EffectFieldKind, EffectId, EnumDef, EnumId, Expr,
+    ActionArg, ActionArgId, ActionDef, ActionId, Block, BlockId, CmdDef, CmdField, CmdFieldKind,
+    CmdId, EffectDef, EffectField, EffectFieldId, EffectFieldKind, EffectId, EnumDef, EnumId, Expr,
     ExprId, ExprKind, FactDef, FactField, FactId, FactKey, FactLiteral, FactVal, FinishFuncArg,
     FinishFuncDef, FinishFuncId, FuncArg, FuncDef, FuncId, GlobalId, GlobalLetDef, Hir, Ident,
     IdentId, Intrinsic, MatchPattern, Stmt, StmtId, StmtKind, StructDef, StructField,
     StructFieldId, StructFieldKind, StructId, VType, VTypeId, VTypeKind,
 };
 
+macro_rules! try_branch {
+    ($e:expr) => {
+        match $crate::hir::visit::VisitorResult::branch($e) {
+            core::ops::ControlFlow::Continue(()) => (),
+            #[allow(unreachable_code)]
+            core::ops::ControlFlow::Break(r) => {
+                return $crate::hir::visit::VisitorResult::from_residual(r);
+            }
+        }
+    };
+}
+pub(crate) use try_branch;
+
 impl Hir {
-    /// Walks all AST nodes using a default walker.
+    /// Walks all AST nodes.
     ///
     /// This performs a DFS.
-    pub fn walk<'hir, V>(&'hir self, visitor: &mut V)
+    pub fn walk<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk(visitor);
-    }
-
-    /// Creates a new walker for this HIR with custom configuration.
-    pub fn walker(&self) -> Walker<'_> {
-        Walker::new(self)
+        try_branch!(self.walk_actions(visitor));
+        try_branch!(self.walk_cmds(visitor));
+        try_branch!(self.walk_effects(visitor));
+        try_branch!(self.walk_enums(visitor));
+        try_branch!(self.walk_facts(visitor));
+        try_branch!(self.walk_finish_funcs(visitor));
+        try_branch!(self.walk_funcs(visitor));
+        try_branch!(self.walk_global_lets(visitor));
+        try_branch!(self.walk_structs(visitor));
+        V::Result::output()
     }
 
     /// Walks all actions.
@@ -35,17 +52,42 @@ impl Hir {
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk_actions(visitor)
+        for def in self.actions.values() {
+            try_branch!(visitor.visit_action(def));
+        }
+        V::Result::output()
     }
 
     /// Walks a specific action.
     ///
     /// This performs a DFS.
-    pub fn walk_action<'hir, V>(&'hir self, id: ActionId, visitor: &mut V) -> V::Result
+    pub fn walk_action<'hir, V>(&'hir self, def: &'hir ActionDef, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk_action(id, visitor)
+        try_branch!(visitor.visit_action_id(def.id));
+        for &id in &def.args {
+            let arg = &self.action_args[id];
+            try_branch!(visitor.visit_action_arg(arg));
+        }
+        V::Result::output()
+    }
+
+    /// Walks a specific action argument.
+    ///
+    /// This performs a DFS.
+    pub fn walk_action_arg<'hir, V>(
+        &'hir mut self,
+        arg: &'hir ActionArg,
+        visitor: &mut V,
+    ) -> V::Result
+    where
+        V: Visitor<'hir>,
+    {
+        try_branch!(visitor.visit_action_arg_id(arg.id));
+        try_branch!(visitor.visit_ident(&self.idents[arg.ident]));
+        try_branch!(visitor.visit_vtype(&self.types[arg.ty]));
+        V::Result::output()
     }
 
     /// Walks all commands.
@@ -55,191 +97,38 @@ impl Hir {
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk_cmds(visitor)
+        for def in self.cmds.values() {
+            try_branch!(visitor.visit_cmd(def));
+        }
+        V::Result::output()
     }
 
     /// Walks a specific command.
     ///
     /// This performs a DFS.
-    pub fn walk_cmd<'hir, V>(&'hir self, id: CmdId, visitor: &mut V) -> V::Result
+    pub fn walk_cmd<'hir, V>(&'hir self, def: &'hir CmdDef, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk_cmd(id, visitor)
-    }
-
-    /// Walks all effects.
-    ///
-    /// This performs a DFS.
-    pub fn walk_effects<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_effects(visitor)
-    }
-
-    /// Walks a specific effect.
-    ///
-    /// This performs a DFS.
-    pub fn walk_effect<'hir, V>(&'hir self, id: EffectId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_effect(id, visitor)
-    }
-
-    /// Walks all enums.
-    ///
-    /// This performs a DFS.
-    pub fn walk_enums<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_enums(visitor)
-    }
-
-    /// Walks a specific enum.
-    ///
-    /// This performs a DFS.
-    pub fn walk_enum<'hir, V>(&'hir self, id: EnumId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_enum(id, visitor)
-    }
-
-    /// Walks all facts.
-    ///
-    /// This performs a DFS.
-    pub fn walk_facts<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_facts(visitor)
-    }
-
-    /// Walks a specific fact.
-    ///
-    /// This performs a DFS.
-    pub fn walk_fact<'hir, V>(&'hir self, id: FactId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_fact(id, visitor)
-    }
-
-    /// Walks all finish functions.
-    ///
-    /// This performs a DFS.
-    pub fn walk_finish_funcs<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_finish_funcs(visitor)
-    }
-
-    /// Walks a specific finish function.
-    ///
-    /// This performs a DFS.
-    pub fn walk_finish_func<'hir, V>(&'hir self, id: FinishFuncId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_finish_func(id, visitor)
-    }
-
-    /// Walks all functions.
-    ///
-    /// This performs a DFS.
-    pub fn walk_funcs<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_funcs(visitor)
-    }
-
-    /// Walks a specific function.
-    ///
-    /// This performs a DFS.
-    pub fn walk_func<'hir, V>(&'hir self, id: FuncId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_func(id, visitor)
-    }
-
-    /// Walks all global let statements.
-    ///
-    /// This performs a DFS.
-    pub fn walk_global_lets<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_global_lets(visitor)
-    }
-
-    /// Walks a specific global let.
-    ///
-    /// This performs a DFS.
-    pub fn walk_global_let<'hir, V>(&'hir self, id: GlobalId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_global_let(id, visitor)
-    }
-
-    /// Walks all structs.
-    ///
-    /// This performs a DFS.
-    pub fn walk_structs<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_structs(visitor)
-    }
-
-    /// Walks a specific struct.
-    ///
-    /// This performs a DFS.
-    pub fn walk_struct<'hir, V>(&'hir self, id: StructId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_struct(id, visitor)
-    }
-
-    /// Walks a block.
-    ///
-    /// This performs a DFS.
-    pub fn walk_block<'hir, V>(&'hir self, id: BlockId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_block(id, visitor)
-    }
-
-    /// Walks an expression.
-    ///
-    /// This performs a DFS.
-    pub fn walk_expr<'hir, V>(&'hir self, id: ExprId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_expr(id, visitor)
-    }
-
-    /// Broken out for HIR lowering.
-    ///
-    /// This performs a DFS.
-    pub(super) fn walk_expr_kind<'hir, V>(
-        &'hir self,
-        kind: &'hir ExprKind,
-        visitor: &mut V,
-    ) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_expr_kind(kind, visitor)
+        try_branch!(visitor.visit_cmd_id(def.id));
+        for &id in &def.fields {
+            let field = &self.cmd_fields[id];
+            try_branch!(visitor.visit_cmd_field(field));
+            match &field.kind {
+                CmdFieldKind::Field { ident, ty } => {
+                    try_branch!(self.walk_ident(*ident, visitor));
+                    try_branch!(self.walk_vtype(*ty, visitor));
+                }
+                CmdFieldKind::StructRef(ident) => {
+                    try_branch!(self.walk_ident(*ident, visitor));
+                }
+            }
+        }
+        try_branch!(visitor.visit_block(&self.blocks[def.seal]));
+        try_branch!(visitor.visit_block(&self.blocks[def.open]));
+        try_branch!(visitor.visit_block(&self.blocks[def.policy]));
+        try_branch!(visitor.visit_block(&self.blocks[def.recall]));
+        V::Result::output()
     }
 
     /// Walks an identifier.
@@ -249,17 +138,9 @@ impl Hir {
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk_ident(id, visitor)
-    }
-
-    /// Walks a statement.
-    ///
-    /// This performs a DFS.
-    pub fn walk_stmt<'hir, V>(&'hir self, id: StmtId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        Walker::new(self).walk_stmt(id, visitor)
+        let ident = &self.idents[id];
+        try_branch!(visitor.visit_ident(ident));
+        V::Result::output()
     }
 
     /// Walks a variable type.
@@ -269,430 +150,62 @@ impl Hir {
     where
         V: Visitor<'hir>,
     {
-        Walker::new(self).walk_vtype(id, visitor)
-    }
-}
-
-/// Visits [`Node`]s in [`Hir`].
-pub(crate) trait Visitor<'hir>: Sized {
-    /// The result from a "visit_" method.
-    type Result: VisitorResult;
-
-    //
-    // Actions
-    //
-
-    fn visit_action_def(&mut self, _def: &'hir ActionDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_action_arg(&mut self, _arg: &'hir ActionArg) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_action_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Commands
-    //
-
-    fn visit_cmd_def(&mut self, _def: &'hir CmdDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_cmd_field(&mut self, _field: &'hir CmdField) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_cmd_seal(&mut self, _block: &'hir Block) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_cmd_open(&mut self, _block: &'hir Block) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_cmd_policy(&mut self, _block: &'hir Block) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_cmd_recall(&mut self, _block: &'hir Block) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Effects
-    //
-
-    fn visit_effect_def(&mut self, _def: &'hir EffectDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_effect_field(&mut self, _field: &'hir EffectField) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Enums
-    //
-
-    fn visit_enum_def(&mut self, _def: &'hir EnumDef) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Facts
-    //
-
-    fn visit_fact_def(&mut self, _def: &'hir FactDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_fact_key(&mut self, _key: &'hir FactKey) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_fact_value(&mut self, _val: &'hir FactVal) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Finish functions
-    //
-
-    fn visit_finish_func_def(&mut self, _def: &'hir FinishFuncDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_finish_func_arg(&mut self, _arg: &'hir FinishFuncArg) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_finish_func_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Functions
-    //
-
-    fn visit_func_def(&mut self, _def: &'hir FuncDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_func_arg(&mut self, _arg: &'hir FuncArg) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_func_result(&mut self, _vtype: &'hir VType) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_func_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Globals
-    //
-
-    fn visit_global_def(&mut self, _def: &'hir GlobalLetDef) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Structs
-    //
-
-    fn visit_struct_def(&mut self, _def: &'hir StructDef) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_struct_field(&mut self, _field: &'hir StructField) -> Self::Result {
-        Self::Result::output()
-    }
-
-    //
-    // Misc
-    //
-
-    fn visit_ident(&mut self, _ident: &'hir Ident) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_block(&mut self, _block: &'hir Block) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_expr(&mut self, _expr: &'hir Expr) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_vtype(&mut self, _vtype: &'hir VType) -> Self::Result {
-        Self::Result::output()
-    }
-    fn visit_fact_literal(&mut self, _fact: &'hir FactLiteral) -> Self::Result {
-        Self::Result::output()
-    }
-}
-
-/// The result from a [`Visitor`] method.
-pub(crate) trait VisitorResult {
-    type Residual;
-
-    fn output() -> Self;
-    fn from_residual(residual: Self::Residual) -> Self;
-    fn from_branch(b: ControlFlow<Self::Residual>) -> Self;
-    fn branch(self) -> ControlFlow<Self::Residual>;
-}
-
-impl VisitorResult for () {
-    type Residual = Infallible;
-
-    fn output() -> Self {}
-    fn from_residual(_: Self::Residual) -> Self {}
-    fn from_branch(_: ControlFlow<Self::Residual>) -> Self {}
-    fn branch(self) -> ControlFlow<Self::Residual> {
-        ControlFlow::Continue(())
-    }
-}
-
-impl<T> VisitorResult for ControlFlow<T> {
-    type Residual = T;
-
-    fn output() -> Self {
-        ControlFlow::Continue(())
-    }
-    fn from_residual(residual: Self::Residual) -> Self {
-        ControlFlow::Break(residual)
-    }
-    fn from_branch(b: Self) -> Self {
-        b
-    }
-    fn branch(self) -> Self {
-        self
-    }
-}
-
-/// Walks a [`Hir`].
-pub struct Walker<'hir> {
-    hir: &'hir Hir,
-    /// Maximum recursion depth.
-    /// `None` means unlimited.
-    max_depth: Option<usize>,
-    /// Current recursion depth.
-    depth: usize,
-}
-
-impl<'hir> Walker<'hir> {
-    /// Create a new walker with the default settings.
-    pub fn new(hir: &'hir Hir) -> Self {
-        Self {
-            hir,
-            max_depth: None,
-            depth: 0,
-        }
-    }
-
-    /// Sets the maximum recursion depth.
-    ///
-    /// When the walker reaches this depth it will stop recursing
-    /// into child nodes, but will still call [`Visitor`] methods
-    /// for nodes at the depth.
-    pub fn with_max_depth(mut self, depth: usize) -> Self {
-        self.max_depth = Some(depth);
-        self
-    }
-
-    /// Returns the current depth.
-    #[cfg(test)]
-    pub fn current_depth(&self) -> usize {
-        self.depth
-    }
-
-    /// Reports whether we should continue recursing.
-    #[inline]
-    fn should_recurse(&self) -> bool {
-        self.max_depth.map_or(true, |max| self.depth < max)
-    }
-
-    #[inline]
-    fn recurse<F, R>(&mut self, f: F) -> R
-    where
-        F: FnOnce(&mut Self) -> R,
-        R: VisitorResult,
-    {
-        if !self.should_recurse() {
-            return R::output();
-        }
-        self.depth += 1;
-        let result = f(self);
-        self.depth -= 1;
-        result
-    }
-
-    /// Walks all AST nodes.
-    ///
-    /// This performs a DFS.
-    pub fn walk<V>(&mut self, visitor: &mut V)
-    where
-        V: Visitor<'hir>,
-    {
-        self.walk_actions(visitor);
-        self.walk_cmds(visitor);
-        self.walk_effects(visitor);
-        self.walk_enums(visitor);
-        self.walk_facts(visitor);
-        self.walk_finish_funcs(visitor);
-        self.walk_funcs(visitor);
-        self.walk_global_lets(visitor);
-        self.walk_structs(visitor);
-    }
-
-    /// Walks all actions.
-    ///
-    /// This performs a DFS.
-    pub fn walk_actions<V>(&mut self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        for id in self.hir.actions.keys() {
-            try_branch!(self.walk_action(id, visitor));
-        }
-        V::Result::output()
-    }
-
-    /// Walks a specific action.
-    ///
-    /// This performs a DFS.
-    pub fn walk_action<V>(&mut self, id: ActionId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        let def = &self.hir.actions[id];
-        try_branch!(visitor.visit_action_def(def));
-
-        self.recurse(|walker| {
-            for &id in &def.args {
-                let arg = &walker.hir.action_args[id];
-                try_branch!(visitor.visit_action_arg(arg));
-                try_branch!(walker.walk_ident(arg.ident, visitor));
-                try_branch!(walker.walk_vtype(arg.ty, visitor));
-            }
-            try_branch!(walker.walk_block(def.block, visitor));
-            V::Result::output()
-        })
-    }
-
-    /// Walks all commands.
-    ///
-    /// This performs a DFS.
-    pub fn walk_cmds<V>(&mut self, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        for id in self.hir.cmds.keys() {
-            try_branch!(self.walk_cmd(id, visitor));
-        }
-        V::Result::output()
-    }
-
-    /// Walks a specific command.
-    ///
-    /// This performs a DFS.
-    pub fn walk_cmd<V>(&mut self, id: CmdId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        let def = &self.hir.cmds[id];
-        try_branch!(visitor.visit_cmd_def(def));
-
-        self.recurse(|walker| {
-            for &id in &def.fields {
-                let field = &walker.hir.cmd_fields[id];
-                try_branch!(visitor.visit_cmd_field(field));
-                match &field.kind {
-                    CmdFieldKind::Field { ident, ty } => {
-                        try_branch!(walker.walk_ident(*ident, visitor));
-                        try_branch!(walker.walk_vtype(*ty, visitor));
-                    }
-                    CmdFieldKind::StructRef(ident) => {
-                        try_branch!(walker.walk_ident(*ident, visitor));
-                    }
-                }
-            }
-            try_branch!(walker.walk_block(def.seal, visitor));
-            try_branch!(walker.walk_block(def.open, visitor));
-            try_branch!(walker.walk_block(def.policy, visitor));
-            try_branch!(walker.walk_block(def.recall, visitor));
-            V::Result::output()
-        })
-    }
-
-    /// Walks an identifier.
-    ///
-    /// This performs a DFS.
-    pub fn walk_ident<V>(&mut self, id: IdentId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        let ident = &self.hir.idents[id];
-        try_branch!(visitor.visit_ident(ident));
-        V::Result::output()
-    }
-
-    /// Walks a variable type.
-    ///
-    /// This performs a DFS.
-    pub fn walk_vtype<V>(&mut self, id: VTypeId, visitor: &mut V) -> V::Result
-    where
-        V: Visitor<'hir>,
-    {
-        let ty = &self.hir.types[id];
+        let ty = &self.types[id];
         try_branch!(visitor.visit_vtype(ty));
 
-        self.recurse(|walker| {
-            match &ty.kind {
-                VTypeKind::String
-                | VTypeKind::Bytes
-                | VTypeKind::Int
-                | VTypeKind::Bool
-                | VTypeKind::Id => {}
-                VTypeKind::Struct(v) => {
-                    try_branch!(walker.walk_ident(*v, visitor));
-                }
-                VTypeKind::Enum(v) => {
-                    try_branch!(walker.walk_ident(*v, visitor));
-                }
-                VTypeKind::Optional(v) => {
-                    try_branch!(walker.walk_vtype(*v, visitor));
-                }
+        match &ty.kind {
+            VTypeKind::String
+            | VTypeKind::Bytes
+            | VTypeKind::Int
+            | VTypeKind::Bool
+            | VTypeKind::Id => {}
+            VTypeKind::Struct(v) => {
+                try_branch!(self.walk_ident(*v, visitor));
             }
-            V::Result::output()
-        })
+            VTypeKind::Enum(v) => {
+                try_branch!(self.walk_ident(*v, visitor));
+            }
+            VTypeKind::Optional(v) => {
+                try_branch!(self.walk_vtype(*v, visitor));
+            }
+        }
+        V::Result::output()
     }
 
     /// Walks a block.
     ///
     /// This performs a DFS.
-    pub fn walk_block<V>(&mut self, id: BlockId, visitor: &mut V) -> V::Result
+    pub fn walk_block<'hir, V>(&'hir self, block: &'hir Block, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let block = &self.hir.blocks[id];
-        try_branch!(visitor.visit_block(block));
-
-        self.recurse(|walker| {
-            for &stmt in &block.stmts {
-                try_branch!(walker.walk_stmt(stmt, visitor));
-            }
-            V::Result::output()
-        })
+        try_branch!(visitor.visit_block_id(block.id));
+        for &stmt in &block.stmts {
+            try_branch!(visitor.visit_stmt(&self.stmts[stmt]));
+        }
+        V::Result::output()
     }
 
     /// Walks a statement.
     ///
     /// This performs a DFS.
-    pub fn walk_stmt<V>(&mut self, id: StmtId, visitor: &mut V) -> V::Result
+    pub fn walk_stmt<'hir, V>(&'hir self, id: StmtId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let stmt = &self.hir.stmts[id];
+        let stmt = &self.stmts[id];
         try_branch!(visitor.visit_stmt(stmt));
-
-        self.recurse(|walker| walker.walk_stmt_kind(&stmt.kind, visitor))
+        self.walk_stmt_kind(&stmt.kind, visitor)
     }
 
     /// Walks a statement.
     ///
     /// This performs a DFS.
-    pub(super) fn walk_stmt_kind<V>(&mut self, kind: &'hir StmtKind, visitor: &mut V) -> V::Result
+    pub(super) fn walk_stmt_kind<'hir, V>(
+        &'hir self,
+        kind: &'hir StmtKind,
+        visitor: &mut V,
+    ) -> V::Result
     where
         V: Visitor<'hir>,
     {
@@ -779,20 +292,24 @@ impl<'hir> Walker<'hir> {
     /// Walks an expression.
     ///
     /// This performs a DFS.
-    pub fn walk_expr<V>(&mut self, id: ExprId, visitor: &mut V) -> V::Result
+    pub fn walk_expr<'hir, V>(&'hir self, id: ExprId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let expr = &self.hir.exprs[id];
+        let expr = &self.exprs[id];
         try_branch!(visitor.visit_expr(expr));
 
-        self.recurse(|walker| walker.walk_expr_kind(&expr.kind, visitor))
+        self.walk_expr_kind(&expr.kind, visitor)
     }
 
     /// Broken out for HIR lowering.
     ///
     /// This performs a DFS.
-    pub(super) fn walk_expr_kind<V>(&mut self, kind: &'hir ExprKind, visitor: &mut V) -> V::Result
+    pub(super) fn walk_expr_kind<'hir, V>(
+        &'hir self,
+        kind: &'hir ExprKind,
+        visitor: &mut V,
+    ) -> V::Result
     where
         V: Visitor<'hir>,
     {
@@ -902,7 +419,7 @@ impl<'hir> Walker<'hir> {
     }
 
     /// This performs a DFS.
-    fn walk_fact_literal<V>(&mut self, fact: &'hir FactLiteral, visitor: &mut V) -> V::Result
+    fn walk_fact_literal<'hir, V>(&'hir self, fact: &'hir FactLiteral, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
@@ -920,7 +437,7 @@ impl<'hir> Walker<'hir> {
     }
 
     /// This performs a DFS.
-    fn walk_fact_field<V>(&mut self, field: &'hir FactField, visitor: &mut V) -> V::Result
+    fn walk_fact_field<'hir, V>(&'hir self, field: &'hir FactField, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
@@ -934,11 +451,11 @@ impl<'hir> Walker<'hir> {
     }
 
     /// This performs a DFS.
-    fn walk_effect_field<V>(&mut self, id: EffectFieldId, visitor: &mut V) -> V::Result
+    fn walk_effect_field<'hir, V>(&'hir self, id: EffectFieldId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let field = &self.hir.effect_fields[id];
+        let field = &self.effect_fields[id];
         try_branch!(visitor.visit_effect_field(field));
         match &field.kind {
             EffectFieldKind::Field { ident, ty } => {
@@ -953,11 +470,11 @@ impl<'hir> Walker<'hir> {
     }
 
     /// This performs a DFS.
-    fn walk_struct_field<V>(&mut self, id: StructFieldId, visitor: &mut V) -> V::Result
+    fn walk_struct_field<'hir, V>(&'hir self, id: StructFieldId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let field = &self.hir.struct_fields[id];
+        let field = &self.struct_fields[id];
         try_branch!(visitor.visit_struct_field(field));
         match &field.kind {
             StructFieldKind::Field { ident, ty } => {
@@ -974,11 +491,11 @@ impl<'hir> Walker<'hir> {
     /// Walks all effects.
     ///
     /// This performs a DFS.
-    pub fn walk_effects<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_effects<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.effects.keys() {
+        for id in self.effects.keys() {
             try_branch!(self.walk_effect(id, visitor));
         }
         V::Result::output()
@@ -987,29 +504,27 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific effect.
     ///
     /// This performs a DFS.
-    pub fn walk_effect<V>(&mut self, id: EffectId, visitor: &mut V) -> V::Result
+    pub fn walk_effect<'hir, V>(&'hir self, id: EffectId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.effects[id];
+        let def = &self.effects[id];
         try_branch!(visitor.visit_effect_def(def));
 
-        self.recurse(|walker| {
-            for &id in &def.items {
-                try_branch!(walker.walk_effect_field(id, visitor));
-            }
-            V::Result::output()
-        })
+        for &id in &def.items {
+            try_branch!(self.walk_effect_field(id, visitor));
+        }
+        V::Result::output()
     }
 
     /// Walks all enums.
     ///
     /// This performs a DFS.
-    pub fn walk_enums<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_enums<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.enums.keys() {
+        for id in self.enums.keys() {
             try_branch!(self.walk_enum(id, visitor));
         }
         V::Result::output()
@@ -1018,11 +533,11 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific enum.
     ///
     /// This performs a DFS.
-    pub fn walk_enum<V>(&mut self, id: EnumId, visitor: &mut V) -> V::Result
+    pub fn walk_enum<'hir, V>(&'hir self, id: EnumId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.enums[id];
+        let def = &self.enums[id];
         try_branch!(visitor.visit_enum_def(def));
         V::Result::output()
     }
@@ -1030,11 +545,11 @@ impl<'hir> Walker<'hir> {
     /// Walks all facts.
     ///
     /// This performs a DFS.
-    pub fn walk_facts<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_facts<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.facts.keys() {
+        for id in self.facts.keys() {
             try_branch!(self.walk_fact(id, visitor));
         }
         V::Result::output()
@@ -1043,38 +558,36 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific fact.
     ///
     /// This performs a DFS.
-    pub fn walk_fact<V>(&mut self, id: FactId, visitor: &mut V) -> V::Result
+    pub fn walk_fact<'hir, V>(&'hir self, id: FactId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.facts[id];
+        let def = &self.facts[id];
         try_branch!(visitor.visit_fact_def(def));
 
-        self.recurse(|walker| {
-            for &key_id in &def.keys {
-                let key = &walker.hir.fact_keys[key_id];
-                try_branch!(visitor.visit_fact_key(key));
-                try_branch!(walker.walk_ident(key.ident, visitor));
-                try_branch!(walker.walk_vtype(key.ty, visitor));
-            }
-            for &val_id in &def.vals {
-                let val = &walker.hir.fact_vals[val_id];
-                try_branch!(visitor.visit_fact_value(val));
-                try_branch!(walker.walk_ident(val.ident, visitor));
-                try_branch!(walker.walk_vtype(val.ty, visitor));
-            }
-            V::Result::output()
-        })
+        for &key_id in &def.keys {
+            let key = &self.fact_keys[key_id];
+            try_branch!(visitor.visit_fact_key(key));
+            try_branch!(self.walk_ident(key.ident, visitor));
+            try_branch!(self.walk_vtype(key.ty, visitor));
+        }
+        for &val_id in &def.vals {
+            let val = &self.fact_vals[val_id];
+            try_branch!(visitor.visit_fact_value(val));
+            try_branch!(self.walk_ident(val.ident, visitor));
+            try_branch!(self.walk_vtype(val.ty, visitor));
+        }
+        V::Result::output()
     }
 
     /// Walks all finish functions.
     ///
     /// This performs a DFS.
-    pub fn walk_finish_funcs<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_finish_funcs<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.finish_funcs.keys() {
+        for id in self.finish_funcs.keys() {
             try_branch!(self.walk_finish_func(id, visitor));
         }
         V::Result::output()
@@ -1083,33 +596,31 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific finish function.
     ///
     /// This performs a DFS.
-    pub fn walk_finish_func<V>(&mut self, id: FinishFuncId, visitor: &mut V) -> V::Result
+    pub fn walk_finish_func<'hir, V>(&'hir self, id: FinishFuncId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.finish_funcs[id];
+        let def = &self.finish_funcs[id];
         try_branch!(visitor.visit_finish_func_def(def));
 
-        self.recurse(|walker| {
-            for &arg_id in &def.args {
-                let arg = &walker.hir.finish_func_args[arg_id];
-                try_branch!(visitor.visit_finish_func_arg(arg));
-                try_branch!(walker.walk_ident(arg.ident, visitor));
-                try_branch!(walker.walk_vtype(arg.ty, visitor));
-            }
-            try_branch!(walker.walk_block(def.block, visitor));
-            V::Result::output()
-        })
+        for &arg_id in &def.args {
+            let arg = &self.finish_func_args[arg_id];
+            try_branch!(visitor.visit_finish_func_arg(arg));
+            try_branch!(self.walk_ident(arg.ident, visitor));
+            try_branch!(self.walk_vtype(arg.ty, visitor));
+        }
+        try_branch!(self.walk_block(def.block, visitor));
+        V::Result::output()
     }
 
     /// Walks all functions.
     ///
     /// This performs a DFS.
-    pub fn walk_funcs<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_funcs<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.funcs.keys() {
+        for id in self.funcs.keys() {
             try_branch!(self.walk_func(id, visitor));
         }
         V::Result::output()
@@ -1118,34 +629,32 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific function.
     ///
     /// This performs a DFS.
-    pub fn walk_func<V>(&mut self, id: FuncId, visitor: &mut V) -> V::Result
+    pub fn walk_func<'hir, V>(&'hir self, id: FuncId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.funcs[id];
+        let def = &self.funcs[id];
         try_branch!(visitor.visit_func_def(def));
 
-        self.recurse(|walker| {
-            for &arg_id in &def.args {
-                let arg = &walker.hir.func_args[arg_id];
-                try_branch!(visitor.visit_func_arg(arg));
-                try_branch!(walker.walk_ident(arg.ident, visitor));
-                try_branch!(walker.walk_vtype(arg.ty, visitor));
-            }
-            try_branch!(walker.walk_vtype(def.result, visitor));
-            try_branch!(walker.walk_block(def.block, visitor));
-            V::Result::output()
-        })
+        for &arg_id in &def.args {
+            let arg = &self.func_args[arg_id];
+            try_branch!(visitor.visit_func_arg(arg));
+            try_branch!(self.walk_ident(arg.ident, visitor));
+            try_branch!(self.walk_vtype(arg.ty, visitor));
+        }
+        try_branch!(self.walk_vtype(def.result, visitor));
+        try_branch!(self.walk_block(def.block, visitor));
+        V::Result::output()
     }
 
     /// Walks all global let statements.
     ///
     /// This performs a DFS.
-    pub fn walk_global_lets<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_global_lets<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.global_lets.keys() {
+        for id in self.global_lets.keys() {
             try_branch!(self.walk_global_let(id, visitor));
         }
         V::Result::output()
@@ -1154,27 +663,25 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific global let.
     ///
     /// This performs a DFS.
-    pub fn walk_global_let<V>(&mut self, id: GlobalId, visitor: &mut V) -> V::Result
+    pub fn walk_global_let<'hir, V>(&'hir self, id: GlobalId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.global_lets[id];
+        let def = &self.lobal_lets[id];
         try_branch!(visitor.visit_global_def(def));
 
-        self.recurse(|walker| {
-            try_branch!(walker.walk_expr(def.expr, visitor));
-            V::Result::output()
-        })
+        try_branch!(self.walk_expr(def.expr, visitor));
+        V::Result::output()
     }
 
     /// Walks all structs.
     ///
     /// This performs a DFS.
-    pub fn walk_structs<V>(&mut self, visitor: &mut V) -> V::Result
+    pub fn walk_structs<'hir, V>(&'hir self, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        for id in self.hir.structs.keys() {
+        for id in self.structs.keys() {
             try_branch!(self.walk_struct(id, visitor));
         }
         V::Result::output()
@@ -1183,31 +690,278 @@ impl<'hir> Walker<'hir> {
     /// Walks a specific struct.
     ///
     /// This performs a DFS.
-    pub fn walk_struct<V>(&mut self, id: StructId, visitor: &mut V) -> V::Result
+    pub fn walk_struct<'hir, V>(&'hir self, id: StructId, visitor: &mut V) -> V::Result
     where
         V: Visitor<'hir>,
     {
-        let def = &self.hir.structs[id];
+        let def = &self.structs[id];
         try_branch!(visitor.visit_struct_def(def));
 
-        self.recurse(|walker| {
-            for &id in &def.items {
-                try_branch!(walker.walk_struct_field(id, visitor));
-            }
-            V::Result::output()
-        })
+        for &id in &def.items {
+            try_branch!(self.walk_struct_field(id, visitor));
+        }
+        V::Result::output()
     }
 }
 
-macro_rules! try_branch {
-    ($e:expr) => {
-        match $crate::hir::visit::VisitorResult::branch($e) {
-            core::ops::ControlFlow::Continue(()) => (),
-            #[allow(unreachable_code)]
-            core::ops::ControlFlow::Break(r) => {
-                return $crate::hir::visit::VisitorResult::from_residual(r);
-            }
-        }
-    };
+/// Visits [`Node`]s in [`Hir`].
+pub(crate) trait Visitor<'hir>: Sized {
+    /// The result from a "visit_" method.
+    type Result: VisitorResult;
+
+    //
+    // Actions
+    //
+
+    fn visit_action(&mut self, _def: &'hir ActionDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_action_id(&mut self, _id: ActionId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_action_arg(&mut self, _arg: &'hir ActionArg) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_action_arg_id(&mut self, _id: ActionArgId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_action_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Commands
+    //
+
+    fn visit_cmd(&mut self, _def: &'hir CmdDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_cmd_id(&mut self, _id: CmdId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_cmd_field(&mut self, _field: &'hir CmdField) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_cmd_seal(&mut self, _block: &'hir Block) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_cmd_open(&mut self, _block: &'hir Block) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_cmd_policy(&mut self, _block: &'hir Block) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_cmd_recall(&mut self, _block: &'hir Block) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Effects
+    //
+
+    fn visit_effect_def(&mut self, _def: &'hir EffectDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_effect_id(&mut self, _id: EffectId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_effect_field(&mut self, _field: &'hir EffectField) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Enums
+    //
+
+    fn visit_enum_def(&mut self, _def: &'hir EnumDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_enum_id(&mut self, _id: EnumId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Facts
+    //
+
+    fn visit_fact_def(&mut self, _def: &'hir FactDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_fact_id(&mut self, _id: FactId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_fact_key(&mut self, _key: &'hir FactKey) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_fact_value(&mut self, _val: &'hir FactVal) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Finish functions
+    //
+
+    fn visit_finish_func_def(&mut self, _def: &'hir FinishFuncDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_finish_func_id(&mut self, _id: FinishFuncId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_finish_func_arg(&mut self, _arg: &'hir FinishFuncArg) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_finish_func_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Functions
+    //
+
+    fn visit_func_def(&mut self, _def: &'hir FuncDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_func_id(&mut self, _id: FuncId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_func_arg(&mut self, _arg: &'hir FuncArg) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_func_result(&mut self, _vtype: &'hir VType) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_func_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Globals
+    //
+
+    fn visit_global_def(&mut self, _def: &'hir GlobalLetDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_global_id(&mut self, _id: GlobalId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Structs
+    //
+
+    fn visit_struct_def(&mut self, _def: &'hir StructDef) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_struct_id(&mut self, _id: StructId) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_struct_field(&mut self, _field: &'hir StructField) -> Self::Result {
+        Self::Result::output()
+    }
+
+    //
+    // Misc
+    //
+
+    fn visit_ident(&mut self, _ident: &'hir Ident) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_ident_id(&mut self, _id: IdentId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    fn visit_block(&mut self, _block: &'hir Block) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_block_id(&mut self, _id: BlockId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    fn visit_expr(&mut self, _expr: &'hir Expr) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_expr_id(&mut self, _id: ExprId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    fn visit_stmt(&mut self, _stmt: &'hir Stmt) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_stmt_id(&mut self, _id: StmtId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    fn visit_vtype(&mut self, _vtype: &'hir VType) -> Self::Result {
+        Self::Result::output()
+    }
+    fn visit_vtype_id(&mut self, _id: VTypeId) -> Self::Result {
+        Self::Result::output()
+    }
+
+    fn visit_fact_literal(&mut self, _fact: &'hir FactLiteral) -> Self::Result {
+        Self::Result::output()
+    }
 }
-pub(crate) use try_branch;
+
+/// The result from a [`Visitor`] method.
+pub(crate) trait VisitorResult {
+    type Residual;
+
+    fn output() -> Self;
+    fn from_residual(residual: Self::Residual) -> Self;
+    fn from_branch(b: ControlFlow<Self::Residual>) -> Self;
+    fn branch(self) -> ControlFlow<Self::Residual>;
+}
+
+impl VisitorResult for () {
+    type Residual = Infallible;
+
+    fn output() -> Self {}
+    fn from_residual(_: Self::Residual) -> Self {}
+    fn from_branch(_: ControlFlow<Self::Residual>) -> Self {}
+    fn branch(self) -> ControlFlow<Self::Residual> {
+        ControlFlow::Continue(())
+    }
+}
+
+impl<T> VisitorResult for ControlFlow<T> {
+    type Residual = T;
+
+    fn output() -> Self {
+        ControlFlow::Continue(())
+    }
+    fn from_residual(residual: Self::Residual) -> Self {
+        ControlFlow::Break(residual)
+    }
+    fn from_branch(b: Self) -> Self {
+        b
+    }
+    fn branch(self) -> Self {
+        self
+    }
+}
+
+impl<E> VisitorResult for Result<(), E> {
+    type Residual = Result<Infallible, E>;
+
+    fn output() -> Self {
+        Ok(())
+    }
+    fn from_residual(residual: Self::Residual) -> Self {
+        match residual {
+            Err(e) => Err(From::from(e)),
+        }
+    }
+    fn from_branch(b: ControlFlow<Self::Residual>) -> Self {
+        match b {
+            ControlFlow::Continue(()) => Ok(()),
+            ControlFlow::Break(Err(e)) => Err(e),
+        }
+    }
+    fn branch(self) -> ControlFlow<Self::Residual> {
+        match self {
+            Ok(v) => ControlFlow::Continue(v),
+            Err(e) => ControlFlow::Break(Err(e)),
+        }
+    }
+}

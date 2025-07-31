@@ -958,22 +958,22 @@ struct StmtInfo {
     returns: bool,
 }
 
+impl<'hir> Visitor<'hir> for StmtInfo {
+    type Result = ();
+    fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
+        self.returns |= expr.returns;
+    }
+    fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+        self.returns |= block.returns;
+    }
+    fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+        self.returns |= stmt.returns;
+    }
+}
+
 fn find_stmt_info(hir: &Hir, kind: &StmtKind) -> StmtInfo {
     if let StmtKind::Return(_) = kind {
         return StmtInfo { returns: true };
-    }
-
-    impl<'hir> Visitor<'hir> for StmtInfo {
-        type Result = ();
-        fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
-            self.returns |= expr.returns;
-        }
-        fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
-            self.returns |= block.returns;
-        }
-        fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
-            self.returns |= stmt.returns;
-        }
     }
 
     let mut info = StmtInfo { returns: false };
@@ -992,21 +992,21 @@ struct ExprInfo {
     returns: bool,
 }
 
-fn find_expr_info(hir: &Hir, kind: &ExprKind) -> ExprInfo {
-    impl<'hir> Visitor<'hir> for ExprInfo {
-        type Result = ();
-        fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
-            self.pure &= expr.pure;
-            self.returns |= expr.returns;
-        }
-        fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
-            self.returns |= block.returns;
-        }
-        fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
-            self.returns |= stmt.returns;
-        }
+impl<'hir> Visitor<'hir> for ExprInfo {
+    type Result = ();
+    fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
+        self.pure &= expr.pure;
+        self.returns |= expr.returns;
     }
+    fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+        self.returns |= block.returns;
+    }
+    fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+        self.returns |= stmt.returns;
+    }
+}
 
+fn find_expr_info(hir: &Hir, kind: &ExprKind) -> ExprInfo {
     let mut info = ExprInfo {
         pure: Pure::Yes,
         returns: false,

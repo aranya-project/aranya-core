@@ -16,3 +16,5 @@ tarpaulin-report.html
 
 rustc-ice*
 .aider*
+.claude
+.crush

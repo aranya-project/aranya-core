@@ -5,7 +5,7 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    hir::{IdentId, Span, VTypeId},
+    hir::{IdentId, Span},
     symbol_resolution::scope::ScopeId,
 };
 

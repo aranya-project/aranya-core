@@ -3,8 +3,9 @@
 
 pub mod compile;
 mod compile2;
-mod dependency_graph;
-mod mir;
+mod ctx;
+//mod dependency_graph;
+//mod mir;
 //pub mod ir;
 //pub mod semantic_analysis;
 pub mod hir;

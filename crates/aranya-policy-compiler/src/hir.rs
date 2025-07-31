@@ -33,7 +33,7 @@ mod arena;
 mod dsl;
 mod hir;
 mod lower;
-mod normalize;
+//mod normalize;
 mod snapshot_tests;
 pub(crate) mod visit;
 
@@ -41,7 +41,7 @@ use aranya_policy_ast::Policy;
 use aranya_policy_module::ffi::ModuleSchema;
 
 use crate::hir::lower::LowerCtx;
-pub(crate) use crate::hir::{arena::AstNodes, hir::*, normalize::NormalizedHir};
+pub(crate) use crate::hir::{arena::AstNodes, hir::*};
 
 /// Parses a [`Policy`] into [`Hir`] and [`AstNodes`].
 // TODO(eric): Rename this to `lower`.

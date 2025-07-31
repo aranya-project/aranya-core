@@ -11,7 +11,7 @@ use crate::{
         resolve,
         scope::{Scope, ScopeId, Scopes},
         symbols::{Symbol, SymbolId, SymbolKind},
-        ResolvedHir,
+        SymbolTable,
     },
 };
 
@@ -24,7 +24,7 @@ fn find_ident_id(hir: &Hir, name: &str) -> Option<IdentId> {
 }
 
 /// Find a symbol by name in the resolved HIR
-fn find_symbol_by_name<'a>(resolution: &'a ResolvedHir<'_>, name: &str) -> Option<&'a Symbol> {
+fn find_symbol_by_name<'a>(resolution: &'a SymbolTable<'_>, name: &str) -> Option<&'a Symbol> {
     // Find the IdentId for the given name
     let ident_id = find_ident_id(resolution.hir, name)?;
 
@@ -52,12 +52,12 @@ fn assert_symbol_kind(symbol: &Symbol, expected_kind: &str) -> bool {
 }
 
 /// Check that a symbol exists for a given name
-fn assert_symbol_exists(resolution: &ResolvedHir<'_>, name: &str) -> bool {
+fn assert_symbol_exists(resolution: &SymbolTable<'_>, name: &str) -> bool {
     find_symbol_by_name(resolution, name).is_some()
 }
 
 /// Check that an identifier resolves to a symbol
-fn assert_resolution_exists(resolution: &ResolvedHir<'_>, ident_id: IdentId) -> bool {
+fn assert_resolution_exists(resolution: &SymbolTable<'_>, ident_id: IdentId) -> bool {
     resolution.resolutions.contains_key(&ident_id)
 }
 

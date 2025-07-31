@@ -4,10 +4,7 @@ use aranya_policy_ast::{self as ast, Identifier};
 use aranya_policy_module::CodeMap;
 use buggy::Bug;
 
-use crate::{
-    compile::StatementContext,
-    dependency_graph::{InvalidNodeIdx, SortError},
-};
+use crate::compile::StatementContext;
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
 #[derive(Debug, PartialEq, thiserror::Error)]
@@ -153,22 +150,22 @@ impl From<Bug> for CompileError {
     }
 }
 
-impl From<SortError> for CompileError {
-    fn from(err: SortError) -> Self {
-        match err {
-            SortError::Bug(bug) => bug.into(),
-            SortError::Cycle(_cycle) => {
-                // TODO: Convert NodeIdx cycle to identifiers for error message
-                CompileError::new(CompileErrorType::RecursiveDefinition(vec![]))
-            }
-        }
-    }
-}
+// impl From<SortError> for CompileError {
+//     fn from(err: SortError) -> Self {
+//         match err {
+//             SortError::Bug(bug) => bug.into(),
+//             SortError::Cycle(_cycle) => {
+//                 // TODO: Convert NodeIdx cycle to identifiers for error message
+//                 CompileError::new(CompileErrorType::RecursiveDefinition(vec![]))
+//             }
+//         }
+//     }
+// }
 
-impl From<InvalidNodeIdx> for CompileError {
-    fn from(_err: InvalidNodeIdx) -> Self {
-        CompileError::new(CompileErrorType::Bug(Bug::new(
-            "invalid node index in dependency graph",
-        )))
-    }
-}
+// impl From<InvalidNodeIdx> for CompileError {
+//     fn from(_err: InvalidNodeIdx) -> Self {
+//         CompileError::new(CompileErrorType::Bug(Bug::new(
+//             "invalid node index in dependency graph",
+//         )))
+//     }
+// }

@@ -76,7 +76,7 @@ impl RecordingVisitor {
 impl<'hir> Visitor<'hir> for RecordingVisitor {
     type Result = ();
 
-    fn visit_action_def(&mut self, def: &'hir ActionDef) {
+    fn visit_action(&mut self, def: &'hir ActionDef) {
         self.items.push(Item::ActionDef(def.clone()));
     }
 
@@ -88,7 +88,7 @@ impl<'hir> Visitor<'hir> for RecordingVisitor {
         self.items.push(Item::Block(block.clone()));
     }
 
-    fn visit_cmd_def(&mut self, def: &'hir CmdDef) {
+    fn visit_cmd(&mut self, def: &'hir CmdDef) {
         self.items.push(Item::CmdDef(def.clone()));
     }
 
@@ -570,7 +570,7 @@ action nested_blocks() {
     impl<'hir> Visitor<'hir> for DepthRecordingVisitor {
         type Result = ();
 
-        fn visit_action_def(&mut self, _def: &'hir ActionDef) {
+        fn visit_action(&mut self, _def: &'hir ActionDef) {
             self.record("action");
         }
 
