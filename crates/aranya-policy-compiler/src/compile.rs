@@ -2438,14 +2438,15 @@ impl<'a> CompileState<'a> {
                 .map_err(|err| self.err(err))?;
 
             let src_struct_type_name = match src_type {
-                Typeish::Definitely(NullableVType::Type(VType::Struct(type_name))) => type_name,
+                Typeish::Definitely(NullableVType::Type(VType::Struct(type_name)))
+                | Typeish::Probably(NullableVType::Type(VType::Struct(type_name))) => type_name,
                 // Known type, but not a struct
-                Typeish::Definitely(other_type) => {
+                Typeish::Definitely(other_type) | Typeish::Probably(other_type) => {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
                         "Expected `{src_var_name}` to be a struct, but it's a(n) {other_type}",
                     ))));
                 }
-                Typeish::Indeterminate | Typeish::Probably(_) => {
+                Typeish::Indeterminate => {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
                         "Cannot perform struct composition on `{src_var_name}` - type unknown"
                     ))));
