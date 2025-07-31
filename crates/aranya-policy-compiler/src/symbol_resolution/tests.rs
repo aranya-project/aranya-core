@@ -29,7 +29,7 @@ fn find_symbol_by_name<'a>(resolution: &'a ResolvedHir<'_>, name: &str) -> Optio
     let ident_id = find_ident_id(resolution.hir, name)?;
 
     // Look up the symbol in the global scope
-    let sym_id = resolution.scopes.get(ScopeId::GLOBAL, &ident_id).ok()??;
+    let sym_id = resolution.scopes.get(ScopeId::GLOBAL, ident_id).ok()??;
     resolution.symbols.get(sym_id)
 }
 

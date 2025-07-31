@@ -17,9 +17,9 @@ use crate::{
         error::SymbolResolutionError,
         scope::{InsertError, ScopeId, Scopes},
         symbols::{
-            FinishBlock, PolicyBlock, RecallBlock, Status, SymAction, SymCmd, SymEffect, SymEnum,
-            SymFact, SymFfiModule, SymFinishFunc, SymFunc, SymGlobalVar, SymLocalVar, SymStruct,
-            SymType, Symbol, SymbolId, SymbolKind, Symbols,
+            FinishBlock, PolicyBlock, RecallBlock, SymAction, SymCmd, SymEffect, SymEnum, SymFact,
+            SymFfiModule, SymFinishFunc, SymFunc, SymGlobalVar, SymLocalVar, SymStruct, Symbol,
+            SymbolId, SymbolKind, Symbols,
         },
         ResolvedHir,
     },
@@ -253,20 +253,8 @@ impl<'hir> Resolver<'hir> {
 
     /// Collect a finish function definition.
     fn collect_finish_function(&mut self, func: &FinishFuncDef) -> Result<()> {
-        // Collect parameters
-        let mut params = Vec::new();
-        for id in &func.args {
-            let arg = self
-                .hir
-                .finish_func_args
-                .get(*id)
-                .assume("finish func arg should exist in HIR")?;
-            params.push((arg.ident, SymType::Unresolved));
-        }
-
         let kind = SymbolKind::FinishFunc(SymFinishFunc {
-            params,
-            scope: self.create_child_scope(ScopeId::GLOBAL),
+            scope: self.create_child_scope(ScopeId::GLOBAL)?,
         });
         self.add_global_def(func.ident, kind, Some(func.span))
     }
@@ -305,7 +293,8 @@ impl Resolver<'_> {
             .assume("global scope should always be valid")?
             .ok_or(SymbolResolutionError::Undefined {
                 ident,
-                span: Span::dummy(), // TODO: Use actual span from HIR nodes
+                // TODO: Use actual span from HIR nodes
+                span: Span::dummy(),
             })?;
         Ok(sym_id)
     }
@@ -341,30 +330,6 @@ impl Resolver<'_> {
             .get(sym_id)
             .assume("symbol should always be valid")?;
         Ok(sym)
-    }
-
-    /// Retrieves a symbol for an identifier in the scope.
-    fn lookup_sym(&self, scope: ScopeId, ident: IdentId, hint: LocationHint) -> Result<SymbolId> {
-        self.scopes
-            .get(scope, ident)
-            .assume("scope should always be valid")?
-            .ok_or_else(|| SymbolResolutionError::Undefined {
-                ident,
-                span: Span::dummy(),
-            })
-    }
-
-    /// Retrieves the scope for a symbol
-    fn lookup_scope(&self, scope: ScopeId, ident: IdentId, hint: LocationHint) -> Result<ScopeId> {
-        let sym_id = self.lookup_sym(scope, ident, hint)?;
-        self.symbols
-            .get(sym_id)
-            .map(|sym| sym.scope)
-            .ok_or(SymbolResolutionError::Undefined {
-                ident,
-                // TODO: Use actual span from HIR nodes
-                span: Span::dummy(),
-            })
     }
 
     /// Second pass: resolve all identifier references.

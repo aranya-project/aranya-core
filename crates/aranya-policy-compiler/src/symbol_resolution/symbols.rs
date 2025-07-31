@@ -87,13 +87,6 @@ pub(crate) enum SymbolKind {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SymFfiFunc {
-    /// The parameters of the FFI function.
-    ///
-    /// NB: We do not include the `IdentId` because we cannot see
-    /// into FFI functions, so the argument IDs are irrelevant.
-    pub params: Vec<SymType>,
-    /// The return type of the FFI function.
-    pub result: SymType,
     /// The scope that the FFI function was defined in.
     pub scope: ScopeId,
 }
@@ -184,22 +177,4 @@ pub(crate) struct SymFunc {
 pub(crate) struct SymFinishFunc {
     /// Function-local scope.
     pub scope: ScopeId,
-}
-
-/// Has this field been resolved?
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Status<T> {
-    /// Yes.
-    Resolved(T),
-    /// Nope.
-    Unresolved,
-}
-
-/// A maybe resolved [`VTypeId`].
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SymType {
-    Builtin,
-    Struct(Status<IdentId>),
-    Enum(Status<IdentId>),
-    Optional(Status<SymType2>),
 }
