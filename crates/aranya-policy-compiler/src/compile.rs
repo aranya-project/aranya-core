@@ -1299,22 +1299,23 @@ impl<'a> CompileState<'a> {
                                     )));
                                 }
 
-                                // Check persistence constraints:
-                                // - Persistent actions can publish both ephemeral and persistent commands
-                                // - Ephemeral actions can only publish ephemeral commands
-                                if action.ephemeral {
-                                    let command = self
-                                        .policy
-                                        .commands
-                                        .iter()
-                                        .find(|c| c.identifier == *ident)
-                                        .assume("command must be defined")?;
-                                    if !command.ephemeral {
-                                        return Err(CompileErrorType::InvalidType(format!(
-                                            "Ephemeral action `{}` cannot publish persistent command `{}`",
-                                            action.identifier, ident
-                                        )));
-                                    }
+                                //  Persistent actions can publish only persistent commands, and vice versa.
+                                let command = self
+                                    .policy
+                                    .commands
+                                    .iter()
+                                    .find(|c| c.identifier == *ident)
+                                    .assume("command must be defined")?;
+                                if action.ephemeral != command.ephemeral {
+                                    let (action_type, command_type) = if action.ephemeral {
+                                        ("ephemeral", "persistent")
+                                    } else {
+                                        ("persistent", "ephemeral")
+                                    };
+                                    return Err(CompileErrorType::InvalidType(format!(
+                                        "{} action `{}` cannot publish {} command `{}`",
+                                        action_type, action.identifier, command_type, ident
+                                    )));
                                 }
                                 Ok(nty)
                             }
