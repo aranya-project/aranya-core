@@ -611,7 +611,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         vec![
             AstNode::new(
                 ast::ActionDefinition {
-                    ephemeral: false,
+                    persistence: ast::Persistence::Persistent,
                     identifier: ident!("add"),
                     arguments: vec![
                         ast::FieldDefinition {
@@ -647,7 +647,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             ),
             AstNode::new(
                 ast::ActionDefinition {
-                    ephemeral: true,
+                    persistence: ast::Persistence::Ephemeral,
                     identifier: ident!("a"),
                     arguments: vec![],
                     statements: vec![],
@@ -682,7 +682,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         vec![
             AstNode::new(
                 ast::CommandDefinition {
-                    ephemeral: false,
+                    persistence: ast::Persistence::Persistent,
                     attributes: vec![],
                     identifier: ident!("Add"),
                     fields: vec![ast::StructItem::Field(ast::FieldDefinition {
@@ -1037,7 +1037,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             ),
             AstNode::new(
                 ast::CommandDefinition {
-                    ephemeral: true,
+                    persistence: ast::Persistence::Ephemeral,
                     attributes: vec![],
                     identifier: ident!("C"),
                     fields: vec![ast::StructItem::Field(ast::FieldDefinition {
@@ -1455,7 +1455,7 @@ fn parse_seal_open() {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
-                ephemeral: false,
+                persistence: ast::Persistence::Persistent,
                 attributes: vec![],
                 identifier: ident!("Foo"),
                 fields: vec![],
@@ -1504,7 +1504,7 @@ fn parse_serialize_deserialize() {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
-                ephemeral: false,
+                persistence: ast::Persistence::Persistent,
                 attributes: vec![],
                 identifier: ident!("Foo"),
                 fields: vec![],
@@ -1634,7 +1634,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
         policy.actions,
         vec![AstNode::new(
             ast::ActionDefinition {
-                ephemeral: false,
+                persistence: ast::Persistence::Persistent,
                 identifier: ident!("foo"),
                 arguments: vec![],
                 statements: vec![
@@ -1777,7 +1777,7 @@ fn test_action_call() -> anyhow::Result<()> {
         policy.actions[1],
         AstNode {
             inner: ast::ActionDefinition {
-                ephemeral: false,
+                persistence: ast::Persistence::Persistent,
                 identifier: ident!("pong"),
                 arguments: vec![],
                 statements: vec![AstNode {

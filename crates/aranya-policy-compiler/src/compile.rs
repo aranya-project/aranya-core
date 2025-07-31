@@ -1306,11 +1306,10 @@ impl<'a> CompileState<'a> {
                                     .iter()
                                     .find(|c| c.identifier == *ident)
                                     .assume("command must be defined")?;
-                                if action.ephemeral != command.ephemeral {
-                                    let (action_type, command_type) = if action.ephemeral {
-                                        ("ephemeral", "persistent")
-                                    } else {
-                                        ("persistent", "ephemeral")
+                                if action.persistence != command.persistence {
+                                    let (action_type, command_type) = match action.persistence {
+                                        ast::Persistence::Ephemeral => ("ephemeral", "persistent"),
+                                        ast::Persistence::Persistent => ("persistent", "ephemeral"),
                                     };
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
