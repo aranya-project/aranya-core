@@ -120,7 +120,7 @@ impl<'hir> Visitor<'hir> for RecordingVisitor {
         self.items.push(Item::FactKey(key.clone()));
     }
 
-    fn visit_fact_value(&mut self, val: &'hir FactVal) {
+    fn visit_fact_val(&mut self, val: &'hir FactVal) {
         self.items.push(Item::FactVal(val.clone()));
     }
 
@@ -164,7 +164,7 @@ impl<'hir> Visitor<'hir> for RecordingVisitor {
         self.items.push(Item::VType(ty.clone()));
     }
 
-    fn visit_fact_literal(&mut self, fact: &'hir FactLiteral) {
+    fn visit_fact_lit(&mut self, fact: &'hir FactLiteral) {
         self.items.push(Item::FactLiteral(fact.clone()));
     }
 }

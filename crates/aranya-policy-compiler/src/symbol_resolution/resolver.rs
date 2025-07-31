@@ -1,14 +1,17 @@
 //! Main symbol resolver implementation.
 
+use std::mem;
+
 use buggy::{bug, BugExt};
 use phf::phf_set;
 
 use crate::{
     hir::{
-        visit::Visitor, ActionDef, Block, BlockId, CmdDef, EffectDef, EffectFieldKind, EnumDef,
-        ExprId, ExprKind, FactDef, FactField, FactLiteral, FfiModuleDef, FinishFuncDef, FuncArg,
-        FuncDef, GlobalLetDef, Hir, Ident, IdentId, Intrinsic, MatchPattern, Span, Stmt, StmtId,
-        StmtKind, StructDef, StructFieldKind, VTypeId, VTypeKind,
+        visit::{self, Visitor},
+        ActionArg, ActionDef, Block, BlockId, CmdDef, EffectDef, EffectFieldKind, EnumDef, ExprId,
+        ExprKind, FactDef, FactField, FactLiteral, FfiModuleDef, FinishFuncArg, FinishFuncDef,
+        FuncArg, FuncDef, GlobalLetDef, Hir, Ident, IdentId, Intrinsic, MatchPattern, Span, Stmt,
+        StmtId, StmtKind, StructDef, StructFieldKind, VTypeId, VTypeKind,
     },
     symbol_resolution::{
         error::SymbolResolutionError,
@@ -84,14 +87,14 @@ impl SymbolTable {
 #[derive(Clone, Debug)]
 pub(super) struct Resolver<'hir> {
     /// The HIR being resolved.
-    hir: &'hir Hir,
+    hir: &'hir Hir<'hir>,
     /// The table build built.
     table: SymbolTable,
 }
 
 impl<'hir> Resolver<'hir> {
     /// Creates a symbol table from the given HIR.
-    pub(super) fn resolve(hir: &'hir Hir) -> Result<SymbolTable> {
+    pub(super) fn resolve(hir: &'hir Hir<'hir>) -> Result<SymbolTable> {
         let mut v = Self {
             hir,
             table: SymbolTable::empty(),
@@ -114,7 +117,7 @@ impl<'hir> Resolver<'hir> {
     }
 }
 
-impl Resolver<'_> {
+impl<'hir> Resolver<'hir> {
     fn collect_defs(&mut self) -> Result<()> {
         let mut visitor = Collector {
             hir: self.hir,
@@ -130,91 +133,8 @@ impl Resolver<'_> {
         Ok(())
     }
 
-    /// Collect a global let statement.
-    fn collect_global_let(&mut self, global: &GlobalLetDef) -> Result<()> {
-        let kind = SymbolKind::GlobalVar(SymGlobalVar {
-            scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
-        });
-        self.table
-            .add_global_def(global.ident, kind, Some(global.span))
-    }
-
-    /// Collect a fact definition.
-    fn collect_fact(&mut self, fact: &FactDef) -> Result<()> {
-        let kind = SymbolKind::Fact(SymFact {});
-        self.table.add_global_def(fact.ident, kind, Some(fact.span))
-    }
-
-    /// Collect an action definition.
-    fn collect_action(&mut self, action: &ActionDef) -> Result<()> {
-        let kind = SymbolKind::Action(SymAction {
-            scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
-        });
-        self.table
-            .add_global_def(action.ident, kind, Some(action.span))
-    }
-
-    /// Collect an effect definition.
-    fn collect_effect(&mut self, effect: &EffectDef) -> Result<()> {
-        let kind = SymbolKind::Effect(SymEffect {});
-        self.table
-            .add_global_def(effect.ident, kind, Some(effect.span))
-    }
-
-    /// Collect a struct definition.
-    fn collect_struct(&mut self, struct_def: &StructDef) -> Result<()> {
-        let kind = SymbolKind::Struct(SymStruct {});
-        self.table
-            .add_global_def(struct_def.ident, kind, Some(struct_def.span))
-    }
-
-    /// Collect an enum definition.
-    fn collect_enum(&mut self, enum_def: &EnumDef) -> Result<()> {
-        let kind = SymbolKind::Enum(SymEnum {});
-        self.table
-            .add_global_def(enum_def.ident, kind, Some(enum_def.span))
-    }
-
-    /// Collect a command definition.
-    fn collect_cmd(&mut self, cmd: &CmdDef) -> Result<()> {
-        let policy_scope = self.table.create_child_scope(ScopeId::GLOBAL)?;
-        let policy = PolicyBlock {
-            scope: policy_scope,
-            finish: FinishBlock {
-                scope: self.table.create_child_scope(policy_scope)?,
-            },
-        };
-
-        let recall_scope = self.table.create_child_scope(ScopeId::GLOBAL)?;
-        let recall = RecallBlock {
-            scope: recall_scope,
-            finish: FinishBlock {
-                scope: self.table.create_child_scope(recall_scope)?,
-            },
-        };
-
-        let kind = SymbolKind::Cmd(SymCmd { policy, recall });
-        self.table.add_global_def(cmd.ident, kind, Some(cmd.span))
-    }
-
-    /// Collect a function definition.
-    fn collect_func(&mut self, func: &FuncDef) -> Result<()> {
-        let kind = SymbolKind::Func(SymFunc {
-            scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
-        });
-        self.table.add_global_def(func.ident, kind, Some(func.span))
-    }
-
-    /// Collect a finish function definition.
-    fn collect_finish_function(&mut self, func: &FinishFuncDef) -> Result<()> {
-        let kind = SymbolKind::FinishFunc(SymFinishFunc {
-            scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
-        });
-        self.table.add_global_def(func.ident, kind, Some(func.span))
-    }
-
     /// Collects an FFI module.
-    fn collect_ffi_module(&mut self, def: &FfiModuleDef) -> Result<()> {
+    fn collect_ffi_module(&mut self, def: &'hir FfiModuleDef<'hir>) -> Result<()> {
         let scope = self.table.create_child_scope(ScopeId::GLOBAL)?;
         let kind = SymbolKind::FfiModule(SymFfiModule { scope });
         self.table.add_global_def(def.ident, kind, Some(def.span))?;
@@ -236,7 +156,7 @@ impl Resolver<'_> {
     }
 }
 
-impl Resolver<'_> {
+impl<'hir> Resolver<'hir> {
     fn get_symbol_id(&self, ident: IdentId) -> Result<SymbolId> {
         let sym_id = self
             .table
@@ -459,33 +379,7 @@ impl Resolver<'_> {
         Ok(())
     }
 
-    fn resolve_effect_def(&mut self, def: &EffectDef) -> Result<()> {
-        let &Symbol {
-            kind: SymbolKind::Effect(SymEffect { .. }),
-            scope,
-            ..
-        } = self.get_global(def.ident)?
-        else {
-            bug!("symbol should be an effect");
-        };
-
-        for &id in &def.items {
-            let field = &self.hir.effect_fields[id];
-            match &field.kind {
-                EffectFieldKind::Field { ident, ty } => {
-                    self.resolve_ident(scope, *ident)?;
-                    self.resolve_vtype(scope, *ty)?;
-                }
-                EffectFieldKind::StructRef(ident) => {
-                    self.resolve_ident(scope, *ident)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn resolve_struct_def(&mut self, def: &StructDef) -> Result<()> {
+    fn resolve_struct_def(&mut self, def: &'hir StructDef<'hir>) -> Result<()> {
         let &Symbol {
             kind: SymbolKind::Struct(SymStruct { .. }),
             scope,
@@ -730,7 +624,7 @@ impl Resolver<'_> {
             ExprKind::Identifier(ident) => {
                 self.resolve_ident(scope, *ident)?;
             }
-            ExprKind::EnumReference(v) => {
+            ExprKind::EnumRef(v) => {
                 self.resolve_ident(scope, v.ident)?;
             }
             ExprKind::Dot(expr, _field) => {
@@ -799,7 +693,7 @@ impl Resolver<'_> {
         Ok(())
     }
 
-    fn resolve_fact_literal(&mut self, scope: ScopeId, fact: &FactLiteral) -> Result<()> {
+    fn resolve_fact_literal(&mut self, scope: ScopeId, fact: &FactLiteral<'hir>) -> Result<()> {
         self.resolve_ident(scope, fact.ident)?;
         for (_, field) in &fact.keys {
             if let FactField::Expr(expr) = field {
@@ -816,74 +710,74 @@ impl Resolver<'_> {
 }
 
 #[derive(Debug)]
-struct Collector<'a> {
-    hir: &'a Hir,
+struct Collector<'hir: 'a, 'a> {
+    hir: &'a Hir<'hir>,
     table: &'a mut SymbolTable,
 }
 
-impl<'a: 'hir, 'hir> Visitor<'hir> for Collector<'a> {
+impl<'hir, 'a> Visitor<'hir> for Collector<'hir, 'a> {
     type Result = Result<()>;
 
-    fn visit_action(&mut self, def: &ActionDef) -> Self::Result {
+    fn visit_action(&mut self, def: &'hir ActionDef<'hir>) -> Self::Result {
         let kind = SymbolKind::Action(SymAction {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_effect_def(&mut self, def: &EffectDef) -> Self::Result {
+    fn visit_effect_def(&mut self, def: &'hir EffectDef<'hir>) -> Self::Result {
         let kind = SymbolKind::Effect(SymEffect {});
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_enum_def(&mut self, def: &EnumDef) -> Self::Result {
+    fn visit_enum_def(&mut self, def: &'hir EnumDef<'hir>) -> Self::Result {
         let kind = SymbolKind::Enum(SymEnum {});
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_fact_def(&mut self, def: &FactDef) -> Self::Result {
+    fn visit_fact_def(&mut self, def: &'hir FactDef<'hir>) -> Self::Result {
         let kind = SymbolKind::Fact(SymFact {});
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_finish_func_def(&mut self, def: &FinishFuncDef) -> Self::Result {
+    fn visit_finish_func_def(&mut self, def: &'hir FinishFuncDef<'hir>) -> Self::Result {
         let kind = SymbolKind::FinishFunc(SymFinishFunc {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_func_def(&mut self, def: &FuncDef) -> Self::Result {
+    fn visit_func_def(&mut self, def: &'hir FuncDef<'hir>) -> Self::Result {
         let kind = SymbolKind::Func(SymFunc {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_global_def(&mut self, def: &GlobalLetDef) -> Self::Result {
+    fn visit_global_def(&mut self, def: &'hir GlobalLetDef<'hir>) -> Self::Result {
         let kind = SymbolKind::GlobalVar(SymGlobalVar {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 
-    fn visit_struct_def(&mut self, def: &StructDef) -> Self::Result {
+    fn visit_struct_def(&mut self, def: &'hir StructDef<'hir>) -> Self::Result {
         let kind = SymbolKind::Struct(SymStruct {});
         self.table.add_global_def(def.ident, kind, Some(def.span))
     }
 }
 
 #[derive(Debug)]
-struct Resolver2<'a> {
-    hir: &'a Hir,
+struct Resolver2<'hir: 'a, 'a> {
+    hir: &'a Hir<'hir>,
     table: &'a mut SymbolTable,
     scope: ScopeId,
 }
 
-impl<'a> Resolver2<'a> {
+impl<'hir, 'a> Resolver2<'hir, 'a> {
     /// Check if an identifier is reserved and return an error if
     /// it is.
-    fn check_reserved(&self, ident: &'a Ident) -> Result<()> {
+    fn check_reserved(&self, ident: Ident) -> Result<()> {
         if RESERVED_IDENTS.contains(ident.ident.as_str()) {
             Err(SymbolResolutionError::ReservedIdentifier {
                 ident: ident.id,
@@ -920,12 +814,74 @@ impl<'a> Resolver2<'a> {
             .assume("symbol ID should be valid")?;
         Ok(sym)
     }
+
+    fn with_scope<F, R>(&mut self, scope: ScopeId, f: F) -> Result<R>
+    where
+        F: FnOnce() -> Result<R>,
+    {
+        let prev = mem::replace(&mut self.scope, scope);
+        let result = f(self);
+        self.scope = prev;
+        result
+    }
 }
 
-impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
+impl<'hir, 'a> Visitor<'hir> for Resolver2<'hir, 'a> {
     type Result = Result<()>;
 
-    fn visit_func_def(&mut self, def: &'hir FuncDef) -> Self::Result {
+    fn visit_action(&mut self, def: &'hir ActionDef<'hir>) -> Self::Result {
+        let &Symbol {
+            kind: SymbolKind::Action(SymAction { scope }),
+            ..
+        } = self.get_global(def.ident)?
+        else {
+            bug!("symbol should be an action");
+        };
+        self.with_scope(scope, || visit::walk_action(self, def))
+    }
+
+    fn visit_action_arg(&mut self, arg: &'hir ActionArg<'hir>) -> Self::Result {
+        self.table.add_local_var(self.scope, arg.ident, arg.span)
+    }
+
+    fn visit_effect_def(&mut self, def: &'hir EffectDef<'hir>) -> Self::Result {
+        let &Symbol {
+            kind: SymbolKind::Effect(SymEffect {}),
+            ..
+        } = self.get_global(def.ident)?
+        else {
+            bug!("symbol should be an effect");
+        };
+        self.with_scope(ScopeId::GLOBAL, || visit::walk_effect(self, def))
+    }
+
+    fn visit_enum_def(&mut self, def: &'hir EnumDef<'hir>) -> Self::Result {
+        let &Symbol {
+            kind: SymbolKind::Enum(SymEnum {}),
+            ..
+        } = self.get_global(def.ident)?
+        else {
+            bug!("symbol should be an enum");
+        };
+        self.with_scope(ScopeId::GLOBAL, || visit::walk_enum(self, def))
+    }
+
+    fn visit_finish_func_def(&mut self, def: &'hir FinishFuncDef<'hir>) -> Self::Result {
+        let &Symbol {
+            kind: SymbolKind::FinishFunc(SymFinishFunc { scope }),
+            ..
+        } = self.get_global(def.ident)?
+        else {
+            bug!("symbol should be a finish function");
+        };
+        self.with_scope(scope, || visit::walk_finish_func(self, def))
+    }
+
+    fn visit_finish_func_arg(&mut self, arg: &'hir FinishFuncArg<'hir>) -> Self::Result {
+        self.table.add_local_var(self.scope, arg.ident, arg.span)
+    }
+
+    fn visit_func_def(&mut self, def: &'hir FuncDef<'hir>) -> Self::Result {
         let &Symbol {
             kind: SymbolKind::Func(SymFunc { scope }),
             ..
@@ -933,16 +889,14 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         else {
             bug!("symbol should be a function");
         };
-
-        self.scope = ScopeId::GLOBAL;
-        Ok(())
+        self.with_scope(scope, || visit::walk_func(self, def))
     }
 
-    fn visit_func_arg(&mut self, arg: &'hir FuncArg) -> Self::Result {
+    fn visit_func_arg(&mut self, arg: &'hir FuncArg<'hir>) -> Self::Result {
         self.table.add_local_var(self.scope, arg.ident, arg.span)
     }
 
-    fn visit_ident(&mut self, ident: &'hir Ident) -> Self::Result {
+    fn visit_ident(&mut self, ident: Ident) -> Self::Result {
         self.check_reserved(ident)?;
 
         // TODO(eric): All identifier usages are unique, so
@@ -960,7 +914,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         Ok(())
     }
 
-    fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+    fn visit_block(&mut self, block: &'hir Block<'hir>) -> Self::Result {
         let old = self.scope;
         self.scope = self
             .table

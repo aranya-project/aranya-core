@@ -3,9 +3,11 @@ use std::{
     ops::{BitAnd, BitAndAssign},
 };
 
-use aranya_policy_ast::{self as ast, Text};
+use aranya_policy_ast::Text;
 use serde::{Deserialize, Serialize};
 use slotmap::SlotMap;
+
+use crate::ctx::{Idents, InternedIdent};
 
 /// A span representing a range in the source text.
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -44,62 +46,64 @@ impl Span {
 /// [`Policy`][ast::Policy] AST that makes semantic analysis and
 /// code generation easier. It stores all policy definitions in
 /// arena-allocated collections indexed by typed IDs.
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-pub(crate) struct Hir {
+#[derive(Clone, Default, Debug, Serialize)]
+pub(crate) struct Hir<'ctx> {
     /// Action definitions.
-    pub actions: SlotMap<ActionId, ActionDef>,
+    pub actions: SlotMap<ActionId, ActionDef<'ctx>>,
     /// Arguments for action definitions
-    pub action_args: SlotMap<ActionArgId, ActionArg>,
+    pub action_args: SlotMap<ActionArgId, ActionArg<'ctx>>,
     /// Command definitions.
-    pub cmds: SlotMap<CmdId, CmdDef>,
+    pub cmds: SlotMap<CmdId, CmdDef<'ctx>>,
     /// Fields within command definitions
-    pub cmd_fields: SlotMap<CmdFieldId, CmdField>,
+    pub cmd_fields: SlotMap<CmdFieldId, CmdField<'ctx>>,
     /// Effect definitions
-    pub effects: SlotMap<EffectId, EffectDef>,
+    pub effects: SlotMap<EffectId, EffectDef<'ctx>>,
     /// Fields within effect definitions
-    pub effect_fields: SlotMap<EffectFieldId, EffectField>,
+    pub effect_fields: SlotMap<EffectFieldId, EffectField<'ctx>>,
     /// Enumeration type definitions
-    pub enums: SlotMap<EnumId, EnumDef>,
+    pub enums: SlotMap<EnumId, EnumDef<'ctx>>,
     /// Fact definitions
-    pub facts: SlotMap<FactId, FactDef>,
+    pub facts: SlotMap<FactId, FactDef<'ctx>>,
     /// Key fields for fact definitions
-    pub fact_keys: SlotMap<FactKeyId, FactKey>,
+    pub fact_keys: SlotMap<FactKeyId, FactKey<'ctx>>,
     /// Value fields for fact definitions
-    pub fact_vals: SlotMap<FactValId, FactVal>,
+    pub fact_vals: SlotMap<FactValId, FactVal<'ctx>>,
     /// Finish function definitions
-    pub finish_funcs: SlotMap<FinishFuncId, FinishFuncDef>,
+    pub finish_funcs: SlotMap<FinishFuncId, FinishFuncDef<'ctx>>,
     /// Arguments for finish function definitions
-    pub finish_func_args: SlotMap<FinishFuncArgId, FinishFuncArg>,
+    pub finish_func_args: SlotMap<FinishFuncArgId, FinishFuncArg<'ctx>>,
     /// Regular function definitions
-    pub funcs: SlotMap<FuncId, FuncDef>,
+    pub funcs: SlotMap<FuncId, FuncDef<'ctx>>,
     /// Arguments for function definitions
-    pub func_args: SlotMap<FuncArgId, FuncArg>,
+    pub func_args: SlotMap<FuncArgId, FuncArg<'ctx>>,
     /// Global constant definitions
-    pub global_lets: SlotMap<GlobalId, GlobalLetDef>,
+    pub global_lets: SlotMap<GlobalId, GlobalLetDef<'ctx>>,
     /// Structure type definitions
-    pub structs: SlotMap<StructId, StructDef>,
+    pub structs: SlotMap<StructId, StructDef<'ctx>>,
     /// Fields within structure definitions
-    pub struct_fields: SlotMap<StructFieldId, StructField>,
+    pub struct_fields: SlotMap<StructFieldId, StructField<'ctx>>,
     /// All statements
-    pub stmts: SlotMap<StmtId, Stmt>,
+    pub stmts: SlotMap<StmtId, Stmt<'ctx>>,
     /// All expressions
-    pub exprs: SlotMap<ExprId, Expr>,
+    pub exprs: SlotMap<ExprId, Expr<'ctx>>,
     /// All identifiers
     pub idents: SlotMap<IdentId, Ident>,
     /// Statement blocks (collections of statements)
-    pub blocks: SlotMap<BlockId, Block>,
+    pub blocks: SlotMap<BlockId, Block<'ctx>>,
     /// Type definitions and references
-    pub types: SlotMap<VTypeId, VType>,
+    pub types: SlotMap<VTypeId, VType<'ctx>>,
     /// FFI import statements from the policy
     pub ffi_imports: SlotMap<FfiImportId, FfiImportDef>,
     /// FFI module definitions
-    pub ffi_modules: SlotMap<FfiModuleId, FfiModuleDef>,
+    pub ffi_modules: SlotMap<FfiModuleId, FfiModuleDef<'ctx>>,
     /// FFI function definitions
-    pub ffi_funcs: SlotMap<FfiFuncId, FfiFuncDef>,
+    pub ffi_funcs: SlotMap<FfiFuncId, FfiFuncDef<'ctx>>,
     /// FFI struct definitions
-    pub ffi_structs: SlotMap<FfiStructId, FfiStructDef>,
+    pub ffi_structs: SlotMap<FfiStructId, FfiStructDef<'ctx>>,
     /// FFI enum definitions
-    pub ffi_enums: SlotMap<FfiEnumId, FfiEnumDef>,
+    pub ffi_enums: SlotMap<FfiEnumId, FfiEnumDef<'ctx>>,
+    /// Interned identifiers.
+    pub intern: Idents,
 }
 
 /// Generates an ID type for a HIR node.
@@ -124,7 +128,7 @@ macro_rules! make_node_id {
 macro_rules! hir_node {
     (
         $(#[$meta:meta])*
-        $vis:vis struct $name:ident {
+        $vis:vis struct $name:ident $(<$lt:lifetime>)? {
             pub id: $id:ident,
             $(
                 $(#[$field_meta:meta])*
@@ -133,8 +137,8 @@ macro_rules! hir_node {
         }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-        $vis struct $name {
+        #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
+        $vis struct $name $(<$lt>)? {
             /// Uniquely identifies the HIR node.
             pub id: $id,
             /// Where the node appears in the source text.
@@ -158,55 +162,72 @@ macro_rules! hir_type {
     // `struct`
     (
         $(#[$meta:meta])*
-        $vis:vis struct $name:ident {
-            $($body:tt)*
-        }
+        $vis:vis struct $name:ident $(<$lt:lifetime>)? { $($body:tt)* }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-        $vis struct $name {
-            $($body)*
-        }
+        #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
+        $vis struct $name $(<$lt>)? { $($body)* }
+    };
+    // `struct`
+    (@nocopy
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident $(<$lt:lifetime>)? { $($body:tt)* }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+        $vis struct $name $(<$lt>)? { $($body)* }
     };
     // `enum`
     (
         $(#[$meta:meta])*
-        $vis:vis enum $name:ident {
-            $($body:tt)*
-        }
+        $vis:vis enum $name:ident $(<$lt:lifetime>)? { $($body:tt)* }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-        $vis enum $name {
-            $($body)*
-        }
+        #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
+        $vis enum $name $(<$lt>)? { $($body)* }
+    };
+    // `enum`
+    (@nocopy
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident $(<$lt:lifetime>)? { $($body:tt)* }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+        $vis enum $name $(<$lt>)? { $($body)* }
     };
 }
 
 hir_node! {
     /// An action definition.
-    pub(crate) struct ActionDef {
+    pub(crate) struct ActionDef<'ctx> {
         pub id: ActionId,
-        pub ident: IdentId,
-        pub args: Vec<ActionArgId>,
-        pub block: BlockId,
+        pub ident: Ident,
+        pub sig: &'ctx ActionSig<'ctx>,
+        pub block: &'ctx Block<'ctx>,
+    }
+}
+
+hir_type! {
+    pub(crate) struct ActionSig<'ctx> {
+        pub args: &'ctx [ActionArg<'ctx>],
     }
 }
 
 hir_node! {
     /// An argument to an action.
-    pub(crate) struct ActionArg {
+    pub(crate) struct ActionArg<'ctx> {
         pub id: ActionArgId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub ident: Ident,
+        pub ty: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// A block is a collection of statements.
-    pub(crate) struct Block {
+    pub(crate) struct Block<'ctx> {
         pub id: BlockId,
-        pub stmts: Vec<StmtId>,
+        pub stmts: &'ctx [Stmt<'ctx>],
+        pub expr: Option<&'ctx Expr<'ctx>>,
         /// `true` it any of the statements in the block contain
         /// a [`ReturnStmt`].
         pub returns: bool,
@@ -215,76 +236,85 @@ hir_node! {
 
 hir_node! {
     /// A command definition.
-    pub(crate) struct CmdDef {
+    pub(crate) struct CmdDef<'ctx> {
         pub id: CmdId,
-        pub ident: IdentId,
-        pub fields: Vec<CmdFieldId>,
-        pub seal: BlockId,
-        pub open: BlockId,
-        pub policy: BlockId,
-        pub recall: BlockId,
+        pub ident: Ident,
+        pub fields: &'ctx [CmdField<'ctx>],
+        pub seal: &'ctx Block<'ctx>,
+        pub open: &'ctx Block<'ctx>,
+        pub policy: &'ctx Block<'ctx>,
+        pub recall: &'ctx Block<'ctx>,
     }
 }
 
 hir_node! {
     /// A field in a command`s fields block.
-    pub(crate) struct CmdField {
+    pub(crate) struct CmdField<'ctx> {
         pub id: CmdFieldId,
-        pub kind: CmdFieldKind,
+        pub kind: CmdFieldKind<'ctx>,
     }
 }
 
 hir_type! {
     /// The kind of a command field.
-    pub(crate) enum CmdFieldKind {
-        /// A regular field with an identifier and type
-        Field { ident: IdentId, ty: VTypeId },
-        /// A reference to another struct whose fields should be included
-        StructRef(IdentId),
+    pub(crate) enum CmdFieldKind<'ctx> {
+        /// A regular field with an identifier and type.
+        Field { ident: Ident, ty: &'ctx VType<'ctx> },
+        /// A reference to another struct whose fields should be
+        /// included.
+        StructRef(Ident),
+    }
+}
+
+hir_type! {
+    pub(crate) struct FieldDef<'ctx> {
+        pub ident: Ident,
+        pub ty: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// An effect definition.
-    pub(crate) struct EffectDef {
+    pub(crate) struct EffectDef<'ctx> {
         pub id: EffectId,
-        pub ident: IdentId,
-        pub items: Vec<EffectFieldId>,
+        pub ident: Ident,
+        pub items: &'ctx [EffectField<'ctx>],
     }
 }
 
 hir_node! {
     /// An effect field.
-    pub(crate) struct EffectField {
+    pub(crate) struct EffectField<'ctx> {
         pub id: EffectFieldId,
-        pub kind: EffectFieldKind,
+        pub kind: EffectFieldKind<'ctx>,
     }
 }
 
 hir_type! {
     /// The kind of an effect field.
-    pub(crate) enum EffectFieldKind {
-        /// A regular field with an identifier and type
-        Field { ident: IdentId, ty: VTypeId },
-        /// A reference to another struct whose fields should be included
-        StructRef(IdentId),
+    pub(crate) enum EffectFieldKind<'ctx> {
+        /// A regular field with an identifier and type.
+        Field { ident: Ident, ty: &'ctx VType<'ctx> },
+        /// A reference to another struct whose fields should be
+        /// included.
+        StructRef(Ident),
     }
 }
 
 hir_node! {
     /// An enum definition.
-    pub(crate) struct EnumDef {
+    pub(crate) struct EnumDef<'ctx> {
         pub id: EnumId,
-        pub ident: IdentId,
-        pub variants: Vec<IdentId>,
+        pub ident: Ident,
+        pub variants: &'ctx [Ident],
     }
 }
 
 hir_node! {
     /// An expression.
-    pub(crate) struct Expr {
+    pub(crate) struct Expr<'ctx> {
         pub id: ExprId,
-        pub kind: ExprKind,
+        pub kind: ExprKind<'ctx>,
         /// An expression is pure iff it has no side effects.
         ///
         /// A side effect is defined as:
@@ -308,7 +338,7 @@ hir_node! {
 
 hir_type! {
     /// Is this pure?
-    #[derive(Copy, Default)]
+    #[derive(Default)]
     pub(crate) enum Pure {
         Yes,
         No,
@@ -336,9 +366,15 @@ impl BitAndAssign for Pure {
     }
 }
 
-hir_type! {
-    /// An expression.
-    pub(crate) enum ExprKind {
+hir_type! { @nocopy
+    /// A literal.
+    pub(crate) struct Lit<'ctx> {
+        pub kind: LitKind<'ctx>,
+    }
+}
+
+hir_type! { @nocopy
+    pub(crate) enum LitKind<'ctx> {
         /// A 64-bit signed integer literal.
         Int(i64),
         /// A text string literal.
@@ -355,100 +391,61 @@ hir_type! {
         /// return None
         ///        ^^^^ ExprKind::Optional(None)
         /// ```
-        Optional(Option<ExprId>),
+        // TODO(eric): This really isn't a literal per-se.
+        Optional(Option<&'ctx Expr<'ctx>>),
         /// A named struct literal.
-        NamedStruct(NamedStruct),
+        // TODO(eric): This isn't a literal per-se.
+        NamedStruct(NamedStruct<'ctx>),
+        /// A fact literal.
+        // TODO(eric): This isn't a literal per-se.
+        Fact(FactLiteral<'ctx>),
+    }
+}
+
+hir_type! {
+    /// An expression.
+    pub(crate) enum ExprKind<'ctx> {
+        /// A literal.
+        Lit(&'ctx Lit<'ctx>),
         /// A VM intrinsic.
-        Intrinsic(Intrinsic),
+        Intrinsic(Intrinsic<'ctx>),
         /// A function call expression.
-        FunctionCall(FunctionCall),
+        FunctionCall(FunctionCall<'ctx>),
         /// A foreign function call expression.
-        ForeignFunctionCall(ForeignFunctionCall),
+        ForeignFunctionCall(ForeignFunctionCall<'ctx>),
         /// An identifier reference.
-        Identifier(IdentId),
+        Identifier(Ident),
         /// An enum reference.
         ///
         /// ```policy
         /// let x = MyEnum::Variant;
         ///         ^^^^^^^^^^^^^^^ ExprKind::EnumReference(...)
         /// ```
-        EnumReference(EnumRef),
-        /// A binary [add] expression.
-        ///
-        /// [add]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        Add(ExprId, ExprId),
-        /// A binary [sub] expression.
-        ///
-        /// [sub]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        Sub(ExprId, ExprId),
-        /// A binary [and] expression.
-        ///
-        /// [and]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        And(ExprId, ExprId),
-        /// A binary [or] expression.
-        ///
-        /// [or]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        Or(ExprId, ExprId),
+        EnumRef(EnumRef),
+        /// A binary operation.
+        Binary(BinOp, &'ctx Expr<'ctx>, &'ctx Expr<'ctx>),
+        /// A unary operation.
+        Unary(UnaryOp, &'ctx Expr<'ctx>),
         /// A [field access] expression.
         ///
         /// [field access]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
         // TODO(eric): Make this Dot(Dot) so it's more clear.
-        Dot(ExprId, IdentId),
-        /// A binary [equal] expression.
-        ///
-        /// [equal]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        Equal(ExprId, ExprId),
-        /// A binary ["not equal"][ne] expression.
-        ///
-        /// [not equal][ne]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        NotEqual(ExprId, ExprId),
-        /// A binary ["greater than"][gt] expression.
-        ///
-        /// [gt]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        GreaterThan(ExprId, ExprId),
-        /// A binary ["less than"][lt] expression.
-        ///
-        /// [lt]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        LessThan(ExprId, ExprId),
-        /// A binary ["greater than or equal to"][gte] expression.
-        ///
-        /// [gte]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        GreaterThanOrEqual(ExprId, ExprId),
-        /// A binary ["less than or equal to"][lte] expression.
-        ///
-        /// [lte]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
-        LessThanOrEqual(ExprId, ExprId),
-        /// A unary [negation] expression.
-        ///
-        /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
-        Negative(ExprId),
-        /// A unary logical [negation] expression.
-        ///
-        /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
-        Not(ExprId),
-        /// A unary [`unwrap`] expression.
-        ///
-        /// [`unwrap`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
-        Unwrap(ExprId),
-        /// A unary [`check_unwrap`] expression.
-        ///
-        /// [`check_unwrap`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
-        CheckUnwrap(ExprId),
+        Dot(&'ctx Expr<'ctx>, Ident),
         /// The `is Some` and `is None` postfix [expressions].
         ///
         /// The second argument is `true` for `is Some` and false
         /// for `is None`.
         ///
         /// [expressions]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#postfix-operators
-        Is(ExprId, bool),
+        Is(&'ctx Expr<'ctx>, bool),
         /// A [block] expression.
         ///
         /// [block]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v2.md#block-expressions
-        Block(BlockId, ExprId),
+        Block(&'ctx Block<'ctx>, &'ctx Expr<'ctx>),
         /// A [`substruct`] expression.
         ///
         /// [`substruct`]: https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v2.md#struct-subselection
-        Substruct(ExprId, IdentId),
+        Substruct(&'ctx Expr<'ctx>, Ident),
         /// `match` used as an expression.
         ///
         /// ```policy
@@ -458,45 +455,121 @@ hir_type! {
         ///     _ => { "C" },
         /// }
         /// ```
-        Match(MatchExpr),
+        Match(MatchExpr<'ctx>),
         /// A ternary [`if`] expression.
         ///
         /// [`if`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if
-        Ternary(Ternary),
+        Ternary(Ternary<'ctx>),
+    }
+}
+
+hir_type! {
+    /// A binary opeation.
+    pub(crate) enum BinOp {
+        /// A binary [add] expression.
+        ///
+        /// [add]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Add,
+        /// A binary [sub] expression.
+        ///
+        /// [sub]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Sub,
+        /// A binary [and] expression.
+        ///
+        /// [and]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        And,
+        /// A binary [or] expression.
+        ///
+        /// [or]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Or,
+        /// A binary [equal] expression.
+        ///
+        /// [equal]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Eq,
+        /// A binary ["not equal"][ne] expression.
+        ///
+        /// [not equal][ne]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Neq,
+        /// A binary ["greater than"][gt] expression.
+        ///
+        /// [gt]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Gt,
+        /// A binary ["less than"][lt] expression.
+        ///
+        /// [lt]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        Lt,
+        /// A binary ["greater than or equal to"][gte] expression.
+        ///
+        /// [gte]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        GtEq,
+        /// A binary ["less than or equal to"][lte] expression.
+        ///
+        /// [lte]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
+        LtEq,
+    }
+}
+
+hir_type! {
+    /// A unary operation.
+    pub(crate) enum UnaryOp {
+        /// A unary [negation] operation.
+        ///
+        /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
+        Neg,
+        /// A unary logical [negation] operation.
+        ///
+        /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
+        Not,
+        /// A unary [`unwrap`] operation.
+        ///
+        /// [`unwrap`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
+        Check,
+        /// A unary [`check_unwrap`] operation.
+        ///
+        /// [`check_unwrap`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
+        CheckUnwrap,
     }
 }
 
 hir_type! {
     /// `match` used as an expression.
-    pub(crate) struct MatchExpr {
-        pub scrutinee: ExprId,
-        pub arms: Vec<MatchExprArm>,
+    pub(crate) struct MatchExpr<'ctx> {
+        pub scrutinee: &'ctx Expr<'ctx>,
+        pub arms: &'ctx [MatchExprArm<'ctx>],
     }
 }
 
 hir_type! {
     /// An arm in a [`MatchExpr`].
-    pub(crate) struct MatchExprArm {
-        pub pattern: MatchPattern,
-        pub expr: ExprId,
+    pub(crate) struct MatchExprArm<'ctx> {
+        pub pattern: MatchPattern<'ctx>,
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// A named struct.
-    pub(crate) struct NamedStruct {
+    pub(crate) struct NamedStruct<'ctx> {
+        pub ident: Ident,
+        pub fields: &'ctx [StructFieldExpr<'ctx>],
+    }
+}
+
+hir_type! {
+    /// A field expression.
+    pub(crate) struct StructFieldExpr<'ctx> {
         pub ident: IdentId,
-        pub fields: Vec<(IdentId, ExprId)>,
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// An intrinsic implemented by the VM.
-    pub(crate) enum Intrinsic {
+    pub(crate) enum Intrinsic<'ctx> {
         /// A [`query`] expression.
         ///
         /// [`query`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#query
-        Query(FactLiteral),
+        Query(&'ctx FactLiteral<'ctx>),
         /// One of the [`count_up_to`], `at_least`, `at_most`, or
         /// `exactly` expressions.
         ///
@@ -504,15 +577,15 @@ hir_type! {
         ///
         /// [`count_up_to`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#count_up_to
         /// [`exists`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#exists
-        FactCount(FactCountType, i64, FactLiteral),
+        FactCount(FactCountType, i64, &'ctx FactLiteral<'ctx>),
         /// A `serialize` expression.
         ///
         /// [`serialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
-        Serialize(ExprId),
+        Serialize(&'ctx Expr<'ctx>),
         /// A `deserialize` expression.
         ///
         /// [`deserialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
-        Deserialize(ExprId),
+        Deserialize(&'ctx Expr<'ctx>),
     }
 }
 
@@ -532,34 +605,48 @@ hir_type! {
 
 hir_type! {
     /// A named struct literal.
-    pub(crate) struct FactLiteral {
+    // TODO(eric): rename to FactLit
+    pub(crate) struct FactLiteral<'ctx> {
+        pub ident: Ident,
+        pub keys: &'ctx [FactFieldExpr<'ctx>],
+        pub vals: &'ctx [FactFieldExpr<'ctx>],
+    }
+}
+
+hir_type! {
+    /// A fact field expression.
+    ///
+    /// ```policy
+    /// query Foo[x: 42]=>{y: true}
+    ///           ^^^^^    ^^^^^^^
+    /// ```
+    pub(crate) struct FactFieldExpr<'ctx> {
         pub ident: IdentId,
-        pub keys: Vec<(IdentId, FactField)>,
-        pub vals: Vec<(IdentId, FactField)>,
+        pub expr: FactField<'ctx>,
     }
 }
 
 hir_type! {
     /// Either an expression or "?".
-    pub(crate) enum FactField {
-        Expr(ExprId),
+    pub(crate) enum FactField<'ctx> {
+        Expr(&'ctx Expr<'ctx>),
         Bind,
     }
 }
 
 hir_type! {
     /// A function call.
-    pub(crate) struct FunctionCall {
-        pub ident: IdentId,
-        pub args: Vec<ExprId>,
+    pub(crate) struct FunctionCall<'ctx> {
+        pub ident: Ident,
+        pub args: &'ctx [Expr<'ctx>],
     }
 }
 
 hir_type! {
-    pub(crate) struct ForeignFunctionCall {
+    pub(crate) struct ForeignFunctionCall<'ctx> {
         pub module: IdentId,
-        pub ident: IdentId,
-        pub args: Vec<ExprId>,
+        pub ident: Ident,
+        pub args: &'ctx [Expr<'ctx>],
     }
 }
 
@@ -572,93 +659,105 @@ hir_type! {
     /// ```
     pub(crate) struct EnumRef {
         /// The enum's identifier.
-        pub ident: IdentId,
+        pub ident: Ident,
         /// The enum's variant.
-        pub value: IdentId,
+        pub value: Ident,
     }
 }
 
 hir_node! {
     /// A fact definition.
-    pub(crate) struct FactDef {
+    pub(crate) struct FactDef<'ctx> {
         pub id: FactId,
-        pub ident: IdentId,
-        pub keys: Vec<FactKeyId>,
-        pub vals: Vec<FactValId>,
+        pub ident: Ident,
+        pub keys: &'ctx [FactKey<'ctx>],
+        pub vals: &'ctx [FactVal<'ctx>],
     }
 }
 
 hir_node! {
     /// A fact key.
-    pub(crate) struct FactKey {
+    pub(crate) struct FactKey<'ctx> {
         pub id: FactKeyId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub ident: Ident,
+        pub ty: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// A fact value.
-    pub(crate) struct FactVal {
+    pub(crate) struct FactVal<'ctx> {
         pub id: FactValId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub ident: Ident,
+        pub ty: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// A finish function definition.
-    pub(crate) struct FinishFuncDef {
+    pub(crate) struct FinishFuncDef<'ctx> {
         pub id: FinishFuncId,
-        pub ident: IdentId,
-        pub args: Vec<FinishFuncArgId>,
-        pub block: BlockId,
+        pub ident: Ident,
+        pub sig: &'ctx FinishFuncSig<'ctx>,
+        pub block: &'ctx Block<'ctx>,
+    }
+}
+
+hir_type! {
+    pub(crate) struct FinishFuncSig<'ctx> {
+        pub args: &'ctx [FinishFuncArg<'ctx>],
     }
 }
 
 hir_node! {
     /// A finish function argument
-    pub(crate) struct FinishFuncArg {
+    pub(crate) struct FinishFuncArg<'ctx> {
         pub id: FinishFuncArgId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub ident: Ident,
+        pub ty: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// A function definition.
-    pub(crate) struct FuncDef {
+    pub(crate) struct FuncDef<'ctx> {
         pub id: FuncId,
-        pub ident: IdentId,
-        pub args: Vec<FuncArgId>,
-        pub result: VTypeId,
-        pub block: BlockId,
+        pub ident: Ident,
+        pub sig: &'ctx FuncSig<'ctx>,
+        pub block: &'ctx Block<'ctx>,
+    }
+}
+
+hir_type! {
+    pub(crate) struct FuncSig<'ctx> {
+        pub args: &'ctx [FuncArg<'ctx>],
+        pub result: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// A function argument
-    pub(crate) struct FuncArg {
+    pub(crate) struct FuncArg<'ctx> {
         pub id: FuncArgId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub ident: Ident,
+        pub ty: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// A global let definition.
-    pub(crate) struct GlobalLetDef {
+    pub(crate) struct GlobalLetDef<'ctx> {
         pub id: GlobalId,
-        pub ident: IdentId,
-        pub expr: ExprId,
+        pub ident: Ident,
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_node! {
     /// A statement.
-    pub(crate) struct Stmt {
+    pub(crate) struct Stmt<'ctx> {
         pub id: StmtId,
-        pub kind: StmtKind,
+        pub kind: StmtKind<'ctx>,
         /// `true` if this statement could return.
         ///
         /// NB: This could be true for more than just
@@ -669,171 +768,182 @@ hir_node! {
 
 hir_type! {
     /// The kind of a statement.
-    pub(crate) enum StmtKind {
-        Let(LetStmt),
-        Check(CheckStmt),
-        Match(MatchStmt),
-        If(IfStmt),
-        Finish(BlockId),
-        Map(MapStmt),
-        Return(ReturnStmt),
-        ActionCall(ActionCall),
-        Publish(Publish),
-        Create(Create),
-        Update(Update),
-        Delete(Delete),
-        Emit(Emit),
-        FunctionCall(FunctionCall),
-        DebugAssert(DebugAssert),
+    pub(crate) enum StmtKind<'ctx> {
+        Let(LetStmt<'ctx>),
+        Check(CheckStmt<'ctx>),
+        Match(MatchStmt<'ctx>),
+        If(IfStmt<'ctx>),
+        Finish(&'ctx Block<'ctx>),
+        Map(MapStmt<'ctx>),
+        Return(ReturnStmt<'ctx>),
+        ActionCall(ActionCall<'ctx>),
+        Publish(Publish<'ctx>),
+        Create(Create<'ctx>),
+        Update(Update<'ctx>),
+        Delete(Delete<'ctx>),
+        Emit(Emit<'ctx>),
+        FunctionCall(FunctionCall<'ctx>),
+        DebugAssert(DebugAssert<'ctx>),
     }
 }
 
 hir_type! {
     /// A let statement.
-    pub(crate) struct LetStmt {
-        pub ident: IdentId,
-        pub expr: ExprId,
+    ///
+    /// ```policy
+    /// let foo = 42;
+    ///     ^^^   ^^
+    ///    ident  expr
+    /// ```
+    pub(crate) struct LetStmt<'ctx> {
+        pub ident: Ident,
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// A check statement.
-    pub(crate) struct CheckStmt {
-        pub expr: ExprId,
+    ///
+    /// ```policy
+    /// check x > 0;
+    ///       ^^^^^ expr
+    /// ```
+    pub(crate) struct CheckStmt<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// A match statement.
-    pub(crate) struct MatchStmt {
-        pub expr: ExprId,
-        pub arms: Vec<MatchArm>,
+    pub(crate) struct MatchStmt<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
+        pub arms: &'ctx [MatchArm<'ctx>],
     }
 }
 
 hir_type! {
     /// A match statement arm.
-    pub(crate) struct MatchArm {
-        pub pattern: MatchPattern,
-        pub block: BlockId,
+    pub(crate) struct MatchArm<'ctx> {
+        pub pattern: &'ctx MatchPattern<'ctx>,
+        pub block: &'ctx Block<'ctx>,
     }
 }
 
 hir_type! {
     /// A match arm pattern.
-    pub(crate) enum MatchPattern {
+    pub(crate) enum MatchPattern<'ctx> {
         Default,
-        Values(Vec<ExprId>),
+        Values(&'ctx [Expr<'ctx>]),
     }
 }
 
 hir_type! {
     /// An if statement.
-    pub(crate) struct IfStmt {
-        pub branches: Vec<IfBranch>,
-        pub else_block: Option<BlockId>,
+    pub(crate) struct IfStmt<'ctx> {
+        pub branches: &'ctx [IfBranch<'ctx>],
+        pub else_block: Option<&'ctx Block<'ctx>>,
     }
 }
 
 hir_type! {
     /// An if statement branch.
-    pub(crate) struct IfBranch {
-        pub expr: ExprId,
-        pub block: BlockId,
+    pub(crate) struct IfBranch<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
+        pub block: &'ctx Block<'ctx>,
     }
 }
 
 hir_type! {
     /// A map statement.
-    pub(crate) struct MapStmt {
-        pub fact: FactLiteral,
-        pub ident: IdentId,
-        pub block: BlockId,
+    pub(crate) struct MapStmt<'ctx> {
+        pub fact: &'ctx FactLiteral<'ctx> ,
+        pub ident: Ident,
+        pub block: &'ctx Block<'ctx>,
     }
 }
 
 hir_type! {
     /// A return statement.
-    pub(crate) struct ReturnStmt {
-        pub expr: ExprId,
+    pub(crate) struct ReturnStmt<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// Calling an action.
-    pub(crate) struct ActionCall {
-        pub ident: IdentId,
-        pub args: Vec<ExprId>,
+    pub(crate) struct ActionCall<'ctx> {
+        pub ident: Ident,
+        pub args: &'ctx [Expr<'ctx>],
     }
 }
 
 hir_type! {
     /// A publish statement.
-    pub(crate) struct Publish {
-        pub exor: ExprId,
+    pub(crate) struct Publish<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// A create statement.
-    pub(crate) struct Create {
-        pub fact: FactLiteral,
+    pub(crate) struct Create<'ctx> {
+        pub fact: &'ctx FactLiteral<'ctx>,
     }
 }
 
 hir_type! {
     /// An update statement.
-    pub(crate) struct Update {
-        pub fact: FactLiteral,
-        pub to: Vec<(IdentId, FactField)>,
+    pub(crate) struct Update<'ctx> {
+        pub fact: &'ctx FactLiteral<'ctx>,
+        pub to: &'ctx [(Ident, &'ctx FactField<'ctx>)],
     }
 }
 
 hir_type! {
     /// A delete statement.
-    pub(crate) struct Delete {
-        pub fact: FactLiteral,
+    pub(crate) struct Delete<'ctx> {
+        pub fact: &'ctx FactLiteral<'ctx>,
     }
 }
 
 hir_type! {
     /// An emit statement.
-    pub(crate) struct Emit {
-        pub expr: ExprId,
+    pub(crate) struct Emit<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_type! {
     /// A debug assert statement.
-    pub(crate) struct DebugAssert {
-        pub expr: ExprId,
+    pub(crate) struct DebugAssert<'ctx> {
+        pub expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_node! {
     /// A struct definition.
-    pub(crate) struct StructDef {
+    pub(crate) struct StructDef<'ctx> {
         pub id: StructId,
-        pub ident: IdentId,
-        pub items: Vec<StructFieldId>,
+        pub ident: Ident,
+        pub items: &'ctx [StructField<'ctx>],
     }
 }
 
 hir_node! {
     /// A struct field.
-    pub(crate) struct StructField {
+    pub(crate) struct StructField<'ctx> {
         pub id: StructFieldId,
-        pub kind: StructFieldKind,
+        pub kind: StructFieldKind<'ctx>,
     }
 }
 
 hir_type! {
     /// The kind of an struct field.
-    pub(crate) enum StructFieldKind {
+    pub(crate) enum StructFieldKind<'ctx> {
         /// A regular field with an identifier and type
-        Field { ident: IdentId, ty: VTypeId },
+        Field { ident: Ident, ty: &'ctx VType<'ctx> },
         /// A reference to another struct whose fields should be included
-        StructRef(IdentId),
+        StructRef(Ident),
     }
 }
 
@@ -844,7 +954,7 @@ hir_node! {
     /// same [`Identifier`][ast::Identifier] string.
     pub(crate) struct Ident {
         pub id: IdentId,
-        pub ident: ast::Identifier,
+        pub ident: InternedIdent,
     }
 }
 
@@ -852,33 +962,33 @@ hir_type! {
     /// A ternary [`if`] expression.
     ///
     /// [`if`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if
-    pub(crate) struct Ternary {
+    pub(crate) struct Ternary<'ctx> {
         /// The condition being evaluated.
-        pub cond: ExprId,
+        pub cond: &'ctx Expr<'ctx>,
         /// The result when `cond` is true.
-        pub true_expr: ExprId,
+        pub true_expr: &'ctx Expr<'ctx>,
         /// The result when `cond` is false.
-        pub false_expr: ExprId,
+        pub false_expr: &'ctx Expr<'ctx>,
     }
 }
 
 hir_node! {
-    pub(crate) struct VType {
+    pub(crate) struct VType<'ctx> {
         pub id: VTypeId,
-        pub kind: VTypeKind,
+        pub kind: VTypeKind<'ctx>,
     }
 }
 
 hir_type! {
-    pub(crate) enum VTypeKind {
+    pub(crate) enum VTypeKind<'ctx> {
         String,
         Bytes,
         Int,
         Bool,
         Id,
-        Struct(IdentId),
-        Enum(IdentId),
-        Optional(VTypeId),
+        Struct(Ident),
+        Enum(Ident),
+        Optional(&'ctx VType<'ctx>),
     }
 }
 
@@ -886,45 +996,45 @@ hir_node! {
     /// An FFI import statement (e.g., `use crypto`).
     pub(crate) struct FfiImportDef {
         pub id: FfiImportId,
-        pub module: IdentId,
+        pub module: Ident,
     }
 }
 
 hir_node! {
     /// An FFI module definition.
-    pub(crate) struct FfiModuleDef {
+    pub(crate) struct FfiModuleDef<'ctx> {
         pub id: FfiModuleId,
-        pub ident: IdentId,
-        pub functions: Vec<FfiFuncId>,
-        pub structs: Vec<FfiStructId>,
-        pub enums: Vec<FfiEnumId>,
+        pub ident: Ident,
+        pub functions: &'ctx [FfiFuncDef<'ctx>],
+        pub structs: &'ctx [FfiStructDef<'ctx>],
+        pub enums: &'ctx [FfiEnumDef<'ctx>],
     }
 }
 
 hir_node! {
     /// An FFI function definition.
-    pub(crate) struct FfiFuncDef {
+    pub(crate) struct FfiFuncDef<'ctx> {
         pub id: FfiFuncId,
-        pub ident: IdentId,
-        pub args: Vec<(IdentId, VTypeId)>,
-        pub return_type: VTypeId,
+        pub ident: Ident,
+        pub args: &'ctx [(Ident, &'ctx VType<'ctx>)],
+        pub return_type: &'ctx VType<'ctx>,
     }
 }
 
 hir_node! {
     /// An FFI struct definition.
-    pub(crate) struct FfiStructDef {
+    pub(crate) struct FfiStructDef<'ctx> {
         pub id: FfiStructId,
-        pub name: IdentId,
-        pub fields: Vec<(IdentId, VTypeId)>,
+        pub ident: Ident,
+        pub fields: &'ctx [(Ident, &'ctx VType<'ctx>)],
     }
 }
 
 hir_node! {
     /// An FFI enum definition.
-    pub(crate) struct FfiEnumDef {
+    pub(crate) struct FfiEnumDef<'ctx> {
         pub id: FfiEnumId,
-        pub name: IdentId,
-        pub variants: Vec<IdentId>,
+        pub ident: Ident,
+        pub variants: &'ctx [Ident],
     }
 }

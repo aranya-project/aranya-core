@@ -2,12 +2,14 @@ use std::collections::BTreeMap;
 
 use aranya_policy_ast::Identifier;
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, Module, ModuleData, ModuleV0, Value,
+    CodeMap, ExitReason, Instruction, Label, Module, ModuleData, ModuleV0, Value,
 };
 
 use crate::{
+    ast,
     compile::{CompileError, Compiler},
-    hir::{self, AstNodes, Hir},
+    ctx::Ctx,
+    hir::{self, Hir},
     symbol_resolution::SymbolTable,
 };
 
@@ -16,19 +18,20 @@ type Result<T, E = CompileError> = std::result::Result<T, E>;
 impl Compiler<'_> {
     /// TODO
     pub fn compile2(self) -> Result<Module> {
-        let mut out = Output::default();
+        let out = Output::default();
 
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
-        let (hir, ast) = hir::parse(self.policy, self.ffi_modules);
-        let syms = SymbolTable::new(&hir)?;
+        //let hir = hir::parse(&ctx);
+        //let syms = SymbolTable::new(&hir)?;
         let mut ctx = CompileCtx {
-            out: &mut out,
-            hir: &hir,
-            syms,
-            ast,
+            ctx: Ctx {
+                ast: ast::index(&self.policy, self.ffi_modules),
+                hir: Hir::default(),
+                hir_arena: hir::Arena::new(),
+                symbols: SymbolTable::empty(),
+            },
             prog: Vec::new(),
             codemap: Some(codemap),
-            ffi_modules: self.ffi_modules,
             wp: 0,
             c: 0,
             is_debug: self.is_debug,
@@ -66,13 +69,10 @@ struct Output {
 
 #[derive(Debug)]
 struct CompileCtx<'a> {
-    out: &'a mut Output,
-    hir: &'a Hir,
-    syms: SymbolTable,
-    ast: AstNodes<'a>,
+    //out: &'a mut Output,
+    ctx: Ctx<'a>,
     prog: Vec<Instruction>,
     codemap: Option<CodeMap>,
-    ffi_modules: &'a [ModuleSchema<'a>],
     wp: usize,
     c: usize,
     is_debug: bool,
@@ -87,22 +87,5 @@ impl CompileCtx<'_> {
     fn append_instruction(&mut self, i: Instruction) {
         self.prog.push(i);
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
-    }
-
-    fn define_label(&mut self, label: Label, addr: usize) -> Result<()> {
-        use std::collections::btree_map::Entry;
-        match self.out.labels.entry(label.clone()) {
-            Entry::Vacant(e) => {
-                e.insert(addr);
-                Ok(())
-            }
-            Entry::Occupied(_) => todo!(),
-        }
-    }
-
-    fn anonymous_label(&mut self) -> Label {
-        let name = format!("anonymous{}", self.c);
-        self.c = self.c.checked_add(1).expect("self.c + 1 must not wrap");
-        Label::new_temp(name.try_into().expect("must be valid identifier"))
     }
 }

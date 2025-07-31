@@ -29,26 +29,23 @@
 #![allow(dead_code)]
 #![allow(clippy::module_inception)]
 
-mod arena;
-mod dsl;
+//mod dsl;
 mod hir;
 mod lower;
 //mod normalize;
 mod snapshot_tests;
 pub(crate) mod visit;
 
-use aranya_policy_ast::Policy;
-use aranya_policy_module::ffi::ModuleSchema;
-
-use crate::hir::lower::LowerCtx;
-pub(crate) use crate::hir::{arena::AstNodes, hir::*};
+pub(crate) use crate::hir::{hir::*, lower::Arena};
+use crate::{ctx::Ctx, hir::lower::LowerCtx};
 
 /// Parses a [`Policy`] into [`Hir`] and [`AstNodes`].
 // TODO(eric): Rename this to `lower`.
-pub(crate) fn parse<'a>(
-    policy: &'a Policy,
-    ffi_modules: &'a [ModuleSchema<'a>],
-) -> (Hir, AstNodes<'a>) {
-    let LowerCtx { hir, ast } = LowerCtx::build(policy, ffi_modules);
-    (hir, ast)
+pub(crate) fn parse<'ctx>(ctx: &'ctx Ctx<'ctx>) -> Hir<'ctx> {
+    let ctx = LowerCtx {
+        ast: &ctx.ast,
+        arena: &ctx.hir_arena,
+        hir: Hir::default(),
+    };
+    ctx.lower()
 }

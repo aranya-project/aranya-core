@@ -36,11 +36,11 @@ pub(crate) struct SymbolTable {
 
 impl SymbolTable {
     /// Creates a new symbol table.
-    pub fn new(hir: &Hir) -> Result<Self> {
+    pub fn new(hir: &Hir<'_>) -> Result<Self> {
         Resolver::resolve(hir)
     }
 
-    pub(super) fn empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             resolutions: HashMap::new(),
             scopes: Scopes::new(),

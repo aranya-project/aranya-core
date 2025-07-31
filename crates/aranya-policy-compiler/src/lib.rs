@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::arithmetic_side_effects)]
 
+mod ast;
 pub mod compile;
 mod compile2;
 mod ctx;
