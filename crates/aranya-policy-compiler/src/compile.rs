@@ -861,11 +861,12 @@ impl<'a> CompileState<'a> {
                 }
             }
             Expression::Identifier(i) => {
-                let t = self
-                    .identifier_types
-                    .get(i)
-                    .map_err(|err| self.err(err))?
-                    .clone();
+                let t = self.identifier_types.get(i).map_err(|_| {
+                    self.err(CompileErrorType::NotDefined(format!(
+                        "Unknown identifier `{}`",
+                        i
+                    )))
+                })?;
 
                 self.append_instruction(Instruction::Meta(Meta::Get(i.clone())));
                 self.append_instruction(Instruction::Get(i.clone()));

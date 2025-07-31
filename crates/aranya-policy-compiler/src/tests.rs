@@ -1989,7 +1989,7 @@ fn test_struct_composition_errors() {
                     return new_foo
                 }
             "#,
-            e: "A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions",
+            e: "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions",
         },
         Case {
             t: r#"
@@ -2003,7 +2003,7 @@ fn test_struct_composition_errors() {
                     return new_foo
                 }
             "#,
-            e: "not defined: Unknown identifier `x`",
+            e: "not defined: x",
         },
     ];
 

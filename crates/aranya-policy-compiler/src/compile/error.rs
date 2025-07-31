@@ -62,7 +62,7 @@ pub enum CompileErrorType {
     SourceStructNotSubsetOfBase(Identifier, Identifier),
     /// It is an error to add a composed struct when all fields are directly specified
     #[error(
-        "A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions"
+        "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions"
     )]
     NoOpStructComp,
     /// Invalid Substruct operation - The struct on the RHS of the substruct
