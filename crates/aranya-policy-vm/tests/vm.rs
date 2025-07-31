@@ -2548,3 +2548,64 @@ fn test_substruct_errors() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_struct_composition() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Foo {
+            fields {
+                x int,
+                y bool,
+                z string,
+            }
+            seal { return todo() }
+            open { return todo() }
+        }
+        struct Bar {
+            x int,
+            y bool,
+            z string,
+        }
+        action baz(source struct Bar, x int) {
+            publish Foo { x: x, ...source }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let action_name = ident!("baz");
+    let ctx = dummy_ctx_action(action_name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    call_action(
+        &mut rs,
+        &io,
+        action_name,
+        [
+            Value::Struct(Struct::new(
+                ident!("Bar"),
+                [
+                    (ident!("x"), Value::Int(30)),
+                    (ident!("y"), Value::Bool(false)),
+                    (ident!("z"), Value::String(text!("lorem"))),
+                ],
+            )),
+            Value::Int(10),
+        ],
+    )?
+    .success();
+    drop(rs);
+
+    assert_eq!(
+        io.borrow().publish_stack[0],
+        (
+            ident!("Foo"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(10)),
+                KVPair::new(ident!("y"), Value::Bool(false)),
+                KVPair::new(ident!("z"), Value::String(text!("lorem")))
+            ]
+        )
+    );
+    Ok(())
+}
