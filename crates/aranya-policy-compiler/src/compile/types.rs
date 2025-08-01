@@ -95,15 +95,15 @@ impl IdentifierTypeStack {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
         }
         let locals = self.locals.last_mut().expect("no function scope");
-        for prev in locals.iter().rev().skip(1) {
+        for prev in locals.iter().rev() {
             if prev.contains_key(&ident) {
                 return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
             }
         }
         let block = locals.last_mut().expect("no block scope");
         match block.entry(ident) {
-            hash_map::Entry::Occupied(o) => {
-                let _type: Typeish = o.get().clone().unify(value)?; // can we disallow this yet?
+            hash_map::Entry::Occupied(_) => {
+                unreachable!();
             }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
