@@ -26,7 +26,6 @@ indexmap = { version = "2.9.0", default-features = false, features = ["serde"] }
 serde = { workspace = true }
 slotmap = { version = "1", features = ["serde"] }
 thiserror = { workspace = true }
-phf = { version = "0.12", features = ["macros"] }
 bumpalo = { version = "3" }
 
 [dev-dependencies]

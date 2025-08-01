@@ -30,22 +30,27 @@
 #![allow(clippy::module_inception)]
 
 //mod dsl;
+mod arena;
 mod hir;
 mod lower;
 //mod normalize;
 mod snapshot_tests;
 pub(crate) mod visit;
 
-pub(crate) use crate::hir::{hir::*, lower::Arena};
+pub(crate) use crate::hir::{
+    arena::{Arena, IdentInterner, IdentRef, TextInterner, TextRef},
+    hir::*,
+};
 use crate::{ctx::Ctx, hir::lower::LowerCtx};
 
 /// Parses a [`Policy`] into [`Hir`] and [`AstNodes`].
 // TODO(eric): Rename this to `lower`.
-pub(crate) fn parse<'ctx>(ctx: &'ctx Ctx<'ctx>) -> Hir<'ctx> {
+pub(crate) fn parse<'ctx>(ctx: &'ctx Ctx<'ctx>) -> Hir {
     let ctx = LowerCtx {
         ast: &ctx.ast,
-        arena: &ctx.hir_arena,
         hir: Hir::default(),
+        idents: IdentInterner::new(),
+        text: TextInterner::new(),
     };
     ctx.lower()
 }

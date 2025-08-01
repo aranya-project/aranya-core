@@ -10,102 +10,75 @@ use crate::{
     ast::{Index, Item},
     ctx::Ctx,
     hir::{
+        arena::{IdentInterner, TextInterner},
         hir::{
-            ActionArg, ActionArgId, ActionCall, ActionDef, ActionId, BinOp, Block, BlockId,
-            CheckStmt, CmdDef, CmdField, CmdFieldId, CmdFieldKind, CmdId, Create, DebugAssert,
-            Delete, EffectDef, EffectField, EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumRef,
-            Expr, ExprId, ExprKind, FactCountType, FactDef, FactField, FactFieldExpr, FactKey,
-            FactKeyId, FactLiteral, FactVal, FactValId, FfiEnumDef, FfiFuncDef, FfiImportDef,
-            FfiModuleDef, FfiStructDef, FieldDef, FinishFuncArg, FinishFuncArgId, FinishFuncDef,
-            ForeignFunctionCall, FuncArg, FuncArgId, FuncDef, FunctionCall, GlobalLetDef, Hir,
-            Ident, IdentId, IfBranch, IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm,
-            MatchExpr, MatchExprArm, MatchPattern, MatchStmt, NamedStruct, Publish, Pure,
-            ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr,
-            StructFieldId, StructFieldKind, Ternary, UnaryOp, Update, VType, VTypeId, VTypeKind,
+            ActionArg, ActionArgId, ActionCall, ActionDef, ActionId, ActionSig, BinOp, Block,
+            BlockId, CheckStmt, CmdDef, CmdField, CmdFieldId, CmdFieldKind, CmdId, Create,
+            DebugAssert, Delete, EffectDef, EffectField, EffectFieldId, EffectFieldKind, Emit,
+            EnumDef, EnumRef, Expr, ExprId, ExprKind, FactCountType, FactDef, FactField,
+            FactFieldExpr, FactKey, FactKeyId, FactLiteral, FactVal, FactValId, FfiEnumDef,
+            FfiFuncDef, FfiImportDef, FfiModuleDef, FfiStructDef, FieldDef, FinishFuncArg,
+            FinishFuncArgId, FinishFuncDef, FinishFuncSig, ForeignFunctionCall, FuncArg, FuncArgId,
+            FuncDef, FuncSig, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt,
+            Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm, MatchExpr, MatchExprArm,
+            MatchPattern, MatchStmt, NamedStruct, Publish, Pure, ReturnStmt, Span, Stmt, StmtId,
+            StmtKind, StructDef, StructField, StructFieldExpr, StructFieldId, StructFieldKind,
+            Ternary, UnaryOp, Update, VType, VTypeId, VTypeKind,
         },
-        visit::Visitor,
+        visit::{self, Visitor},
     },
 };
-
-/// Alocates HIR nodes.
-#[derive(Debug)]
-pub(crate) struct Arena<'ctx> {
-    pub bump: Bump,
-    pub _marker: PhantomData<&'ctx ()>,
-}
-
-impl<'ctx> Arena<'ctx> {
-    pub fn new() -> Self {
-        Self {
-            bump: Bump::new(),
-            _marker: PhantomData,
-        }
-    }
-
-    fn alloc<T: Copy>(&'ctx self, value: T) -> &'ctx T {
-        self.bump.alloc(value)
-    }
-
-    fn alloc_from_iter<T, I>(&'ctx self, iter: I) -> &'ctx [T]
-    where
-        T: Copy,
-        I: IntoIterator<Item = T>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        self.bump.alloc_slice_fill_iter(iter)
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct LowerCtx<'ctx> {
     pub ast: &'ctx Index<'ctx>,
-    pub arena: &'ctx Arena<'ctx>,
-    pub hir: Hir<'ctx>,
+    pub hir: Hir,
+    pub idents: IdentInterner,
+    pub text: TextInterner,
 }
 
-impl<'ctx> LowerCtx<'ctx> {
-    pub(crate) fn lower(self) -> Hir<'ctx> {
-        for (id, item) in self.ast {
+impl LowerCtx<'_> {
+    pub(crate) fn lower(mut self) -> Hir {
+        for (_, item) in self.ast {
             match item {
-                Item::Action(node) => self.lower_action(&*node),
-                Item::Cmd(node) => self.lower_cmd(&*node),
-                Item::Effect(node) => self.lower_effect(&*node),
-                Item::Enum(node) => self.lower_enum(&*node),
-                Item::Fact(node) => self.lower_fact(&*node),
-                Item::FinishFunc(node) => self.lower_finish_func(&*node),
-                Item::Func(node) => self.lower_func(&*node),
-                Item::GlobalLet(node) => self.lower_global_let(&*node),
-                Item::Struct(node) => self.lower_struct(&*node),
-                Item::FfiFunc(node) => {}
-                Item::FfiEnum(node) => {}
-                Item::FfiStruct(node) => {}
+                Item::Action(node) => self.lower_action(node),
+                Item::Cmd(node) => self.lower_cmd(node),
+                Item::Effect(node) => self.lower_effect(node),
+                Item::Enum(node) => self.lower_enum(node),
+                Item::Fact(node) => self.lower_fact(node),
+                Item::FinishFunc(node) => self.lower_finish_func(node),
+                Item::Func(node) => self.lower_func(node),
+                Item::GlobalLet(node) => self.lower_global(node),
+                Item::Struct(node) => self.lower_struct(node),
+                Item::FfiFunc(_node) => { /* TODO */ }
+                Item::FfiEnum(_node) => { /* TODO */ }
+                Item::FfiStruct(_node) => { /* TODO */ }
             }
         }
         self.hir
     }
 
     /// Lowers a list.
-    fn lower_list<I, T, U>(&mut self, list: I) -> &'ctx [T::Result]
+    fn lower_list<I, U, R>(&mut self, list: I) -> R
     where
-        I: IntoIterator<Item = &'ctx T>,
-        T: Lower<U> + 'ctx,
+        I: IntoIterator<Item: Lower<U>>,
+        R: FromIterator<<I::Item as Lower<U>>::Result>,
     {
-        self.arena
-            .alloc_from_iter(list.into_iter().map(|item| item.lower(self)))
+        list.into_iter().map(|item| item.lower(self)).collect()
     }
 
     /// Lowers an [`ast::Identifier`].
-    fn lower_ident(&mut self, ident: &'ctx ast::Identifier) -> Ident {
-        let ident = self.hir.intern.intern(ident);
+    fn lower_ident(&mut self, ident: &ast::Identifier) -> IdentId {
+        let ident = self.idents.intern(ident.clone());
         self.hir.idents.insert_with_key(|id| Ident {
             id,
             span: Span::dummy(),
             ident,
-        });
+        })
     }
 
     /// Lowers a [`ast::VType`].
-    fn lower_vtype(&mut self, vtype: &'ctx ast::VType) -> &'ctx VType<'ctx> {
+    fn lower_vtype(&mut self, vtype: &ast::VType) -> VTypeId {
         let kind = match vtype {
             ast::VType::String => VTypeKind::String,
             ast::VType::Bytes => VTypeKind::Bytes,
@@ -114,36 +87,39 @@ impl<'ctx> LowerCtx<'ctx> {
             ast::VType::Id => VTypeKind::Id,
             ast::VType::Struct(v) => VTypeKind::Struct(self.lower_ident(v)),
             ast::VType::Enum(v) => VTypeKind::Enum(self.lower_ident(v)),
-            ast::VType::Optional(v) => VTypeKind::Optional(v.lower(self)),
+            ast::VType::Optional(v) => VTypeKind::Optional(self.lower_vtype(v)),
         };
-        self.hir.types.insert_with_key(|id| {
-            self.arena.alloc(VType {
-                id,
-                span: Span::dummy(),
-                kind,
-            })
+        self.hir.types.insert_with_key(|id| VType {
+            id,
+            span: Span::dummy(),
+            kind,
         })
     }
 
     /// Lowers an [`ast::Expression`].
-    fn lower_expr(&mut self, expr: &'ctx ast::Expression) -> &'ctx Expr<'ctx> {
+    fn lower_expr(&mut self, expr: &ast::Expression) -> ExprId {
         let kind = match expr {
-            ast::Expression::Int(v) => ExprKind::Lit(self.arena.alloc(Lit {
+            ast::Expression::Int(v) => ExprKind::Lit(Lit {
                 kind: LitKind::Int(*v),
-            })),
-            ast::Expression::String(v) => ExprKind::Lit(self.arena.alloc(Lit {
-                kind: LitKind::String(v.clone()),
-            })),
-            ast::Expression::Bool(v) => ExprKind::Lit(self.arena.alloc(Lit {
+            }),
+            ast::Expression::String(v) => {
+                let text = self.text.intern(v.clone());
+                ExprKind::Lit(Lit {
+                    kind: LitKind::String(text),
+                })
+            }
+            ast::Expression::Bool(v) => ExprKind::Lit(Lit {
                 kind: LitKind::Bool(*v),
-            })),
-            ast::Expression::Optional(v) => ExprKind::Optional(v.lower(self)),
-            ast::Expression::NamedStruct(v) => ExprKind::Lit(self.arena.alloc(Lit {
+            }),
+            ast::Expression::Optional(v) => ExprKind::Lit(Lit {
+                kind: LitKind::Optional(v.lower(self)),
+            }),
+            ast::Expression::NamedStruct(v) => ExprKind::Lit(Lit {
                 kind: LitKind::NamedStruct(NamedStruct {
                     ident: self.lower_ident(&v.identifier),
-                    fields: self.lower_list(&v.fields),
+                    fields: self.lower_list::<_, StructFieldExpr, _>(&v.fields),
                 }),
-            })),
+            }),
             ast::Expression::InternalFunction(v) => match v {
                 ast::InternalFunction::Query(fact) => {
                     ExprKind::Intrinsic(Intrinsic::Query(fact.lower(self)))
@@ -191,42 +167,46 @@ impl<'ctx> LowerCtx<'ctx> {
                 value: self.lower_ident(&v.value),
             }),
             ast::Expression::Add(lhs, rhs) => {
-                ExprKind::Add(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Add, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::Subtract(lhs, rhs) => {
-                ExprKind::Sub(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Sub, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::And(lhs, rhs) => {
-                ExprKind::And(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::And, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::Or(lhs, rhs) => {
-                ExprKind::Or(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Or, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::Dot(expr, ident) => {
                 ExprKind::Dot(self.lower_expr(expr), self.lower_ident(ident))
             }
             ast::Expression::Equal(lhs, rhs) => {
-                ExprKind::Equal(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Eq, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::NotEqual(lhs, rhs) => {
-                ExprKind::NotEqual(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Neq, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::GreaterThan(lhs, rhs) => {
-                ExprKind::GreaterThan(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Gt, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::LessThan(lhs, rhs) => {
-                ExprKind::LessThan(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::Lt, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::GreaterThanOrEqual(lhs, rhs) => {
-                ExprKind::GreaterThanOrEqual(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::GtEq, self.lower_expr(lhs), self.lower_expr(rhs))
             }
             ast::Expression::LessThanOrEqual(lhs, rhs) => {
-                ExprKind::LessThanOrEqual(self.lower_expr(lhs), self.lower_expr(rhs))
+                ExprKind::Binary(BinOp::LtEq, self.lower_expr(lhs), self.lower_expr(rhs))
             }
-            ast::Expression::Negative(expr) => ExprKind::Negative(self.lower_expr(expr)),
-            ast::Expression::Not(expr) => ExprKind::Not(self.lower_expr(expr)),
-            ast::Expression::Unwrap(expr) => ExprKind::Unwrap(self.lower_expr(expr)),
-            ast::Expression::CheckUnwrap(expr) => ExprKind::CheckUnwrap(self.lower_expr(expr)),
+            ast::Expression::Negative(expr) => ExprKind::Unary(UnaryOp::Neg, self.lower_expr(expr)),
+            ast::Expression::Not(expr) => ExprKind::Unary(UnaryOp::Not, self.lower_expr(expr)),
+            ast::Expression::Unwrap(expr) => {
+                ExprKind::Unary(UnaryOp::Unwrap, self.lower_expr(expr))
+            }
+            ast::Expression::CheckUnwrap(expr) => {
+                ExprKind::Unary(UnaryOp::CheckUnwrap, self.lower_expr(expr))
+            }
             ast::Expression::Is(expr, is_some) => ExprKind::Is(self.lower_expr(expr), *is_some),
             ast::Expression::Block(stmts, expr) => {
                 ExprKind::Block(self.lower_block(stmts), self.lower_expr(expr))
@@ -241,8 +221,8 @@ impl<'ctx> LowerCtx<'ctx> {
         };
 
         let ExprInfo { pure, returns } = find_expr_info(&self.hir, &kind);
-        self.arena.alloc(Expr {
-            id: ExprId::default(), // TODO,
+        self.hir.exprs.insert_with_key(|id| Expr {
+            id,
             span: Span::dummy(),
             kind,
             pure,
@@ -251,7 +231,7 @@ impl<'ctx> LowerCtx<'ctx> {
     }
 
     /// Lowers a [`ast::Statement`].
-    fn lower_stmt(&mut self, stmt: &'ctx AstNode<ast::Statement>) -> Stmt<'ctx> {
+    fn lower_stmt(&mut self, stmt: &AstNode<ast::Statement>) -> StmtId {
         let kind = match &stmt.inner {
             ast::Statement::Let(v) => StmtKind::Let(LetStmt {
                 ident: self.lower_ident(&v.identifier),
@@ -265,7 +245,7 @@ impl<'ctx> LowerCtx<'ctx> {
                 arms: self.lower_list(&v.arms),
             }),
             ast::Statement::If(v) => StmtKind::If(IfStmt {
-                branches: self.lower_list(&v.branches),
+                branches: self.lower_list::<_, IfBranch, _>(&v.branches),
                 else_block: v.fallback.lower(self),
             }),
             ast::Statement::Finish(v) => StmtKind::Finish(self.lower_block(v)),
@@ -289,7 +269,7 @@ impl<'ctx> LowerCtx<'ctx> {
             }),
             ast::Statement::Update(v) => StmtKind::Update(Update {
                 fact: v.fact.lower(self),
-                to: self.lower_list::<_, _, (IdentId, FactField), _>(&v.to),
+                to: self.lower_list::<_, FactFieldExpr, _>(&v.to),
             }),
             ast::Statement::Delete(v) => StmtKind::Delete(Delete {
                 fact: v.fact.lower(self),
@@ -307,16 +287,16 @@ impl<'ctx> LowerCtx<'ctx> {
         };
 
         let StmtInfo { returns } = find_stmt_info(&self.hir, &kind);
-        self.arena.alloc(Stmt {
-            id: StmtId::default(), // TODO
+        self.hir.stmts.insert_with_key(|id| Stmt {
+            id,
             span: Span::point(stmt.locator),
             kind,
             returns,
-        });
+        })
     }
 
     /// Lowers a block.
-    fn lower_block(&mut self, block: &'ctx Vec<AstNode<ast::Statement>>) -> &'ctx Block<'ctx> {
+    fn lower_block(&mut self, block: &Vec<AstNode<ast::Statement>>) -> BlockId {
         // Use the span from the first statement if available.
         let span = block
             .first()
@@ -327,8 +307,8 @@ impl<'ctx> LowerCtx<'ctx> {
         // TODO(eric): Figure this out while lowering the block.
         let returns = stmts.iter().any(|&id| self.hir.stmts[id].returns);
 
-        self.arena.alloc(Block {
-            id: BlockId::default(), // TODO
+        self.hir.blocks.insert_with_key(|id| Block {
+            id,
             span,
             stmts,
             expr: None,
@@ -336,51 +316,27 @@ impl<'ctx> LowerCtx<'ctx> {
         })
     }
 
-    fn lower_stmts(&mut self, stmts: &'ctx Vec<AstNode<ast::Statement>>) -> &'ctx [Stmt<'ctx>] {
+    fn lower_stmts(&mut self, stmts: &Vec<AstNode<ast::Statement>>) -> Vec<StmtId> {
         self.lower_list(stmts)
     }
 
-    fn lower_action(&mut self, node: &'ctx AstNode<ast::ActionDefinition>) {
+    fn lower_action(&mut self, node: &AstNode<ast::ActionDefinition>) {
         let ident = self.lower_ident(&node.identifier);
-        let args = self.lower_list(&node.arguments);
+        let args = self.lower_list::<_, ActionArg, _>(&node.arguments);
         let block = self.lower_block(&node.statements);
         self.hir.actions.insert_with_key(|id| ActionDef {
             id,
             span: Span::point(node.locator),
             ident,
-            args,
+            sig: ActionSig { args },
             block,
         });
     }
 
-    fn lower_action_arg(&mut self, node: &'ctx ast::FieldDefinition) -> ActionArg<'ctx> {
+    fn lower_action_arg(&mut self, node: &ast::FieldDefinition) -> ActionArgId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        ActionArg {
-            id: ActionArgId::default(), // TODO
-            span: Span::dummy(),
-            ident,
-            ty,
-        }
-    }
-
-    fn lower_finish_func_arg(&mut self, node: &'ctx ast::FieldDefinition) -> FinishFuncArgId {
-        let ident = self.lower_ident(&node.identifier);
-        let ty = self.lower_vtype(&node.field_type);
-        self.hir
-            .finish_func_args
-            .insert_with_key(|id| FinishFuncArg {
-                id,
-                span: Span::dummy(),
-                ident,
-                ty,
-            })
-    }
-
-    fn lower_func_arg(&mut self, node: &'ctx ast::FieldDefinition) -> FuncArgId {
-        let ident = self.lower_ident(&node.identifier);
-        let ty = self.lower_vtype(&node.field_type);
-        self.hir.func_args.insert_with_key(|id| FuncArg {
+        self.hir.action_args.insert_with_key(|id| ActionArg {
             id,
             span: Span::dummy(),
             ident,
@@ -388,9 +344,9 @@ impl<'ctx> LowerCtx<'ctx> {
         })
     }
 
-    fn lower_cmd(&mut self, node: &'ctx AstNode<ast::CommandDefinition>) {
+    fn lower_cmd(&mut self, node: &AstNode<ast::CommandDefinition>) {
         let ident = self.lower_ident(&node.identifier);
-        let fields: Vec<CmdFieldId> = self.lower_list::<_, _, CmdField, _>(&node.fields);
+        let fields = self.lower_list::<_, CmdField, _>(&node.fields);
         let seal = self.lower_block(&node.seal);
         let open = self.lower_block(&node.open);
         let policy = self.lower_block(&node.policy);
@@ -407,10 +363,7 @@ impl<'ctx> LowerCtx<'ctx> {
         });
     }
 
-    fn lower_cmd_field(
-        &mut self,
-        node: &'ctx ast::StructItem<ast::FieldDefinition>,
-    ) -> CmdField<'ctx> {
+    fn lower_cmd_field(&mut self, node: &ast::StructItem<ast::FieldDefinition>) -> CmdFieldId {
         let kind = match node {
             ast::StructItem::Field(field) => {
                 let ident = self.lower_ident(&field.identifier);
@@ -422,16 +375,16 @@ impl<'ctx> LowerCtx<'ctx> {
                 CmdFieldKind::StructRef(ident)
             }
         };
-        CmdField {
-            id: CmdFieldId::default(), // TODO
+        self.hir.cmd_fields.insert_with_key(|id| CmdField {
+            id,
             span: Span::dummy(),
             kind,
-        }
+        })
     }
 
-    fn lower_effect(&mut self, e: &'ctx AstNode<ast::EffectDefinition>) {
+    fn lower_effect(&mut self, e: &AstNode<ast::EffectDefinition>) {
         let ident = self.lower_ident(&e.identifier);
-        let items = self.lower_list::<_, _, EffectFieldId, _>(&e.items);
+        let items = self.lower_list(&e.items);
         self.hir.effects.insert_with_key(|id| EffectDef {
             id,
             span: Span::point(e.locator),
@@ -442,7 +395,7 @@ impl<'ctx> LowerCtx<'ctx> {
 
     fn lower_effect_field(
         &mut self,
-        node: &'ctx ast::StructItem<ast::EffectFieldDefinition>,
+        node: &ast::StructItem<ast::EffectFieldDefinition>,
     ) -> EffectFieldId {
         let kind = match node {
             ast::StructItem::Field(field) => {
@@ -462,23 +415,21 @@ impl<'ctx> LowerCtx<'ctx> {
         })
     }
 
-    fn lower_enum(&mut self, e: &'ctx AstNode<ast::EnumDefinition>) {
+    fn lower_enum(&mut self, e: &AstNode<ast::EnumDefinition>) {
         let ident = self.lower_ident(&e.identifier);
         let variants = self.lower_list(&e.variants);
-        self.hir.enums.insert_with_key(|id| {
-            self.arena.alloc(EnumDef {
-                id,
-                span: Span::point(e.locator),
-                ident,
-                variants,
-            })
+        self.hir.enums.insert_with_key(|id| EnumDef {
+            id,
+            span: Span::point(e.locator),
+            ident,
+            variants,
         });
     }
 
-    fn lower_fact(&mut self, f: &'ctx AstNode<ast::FactDefinition>) {
+    fn lower_fact(&mut self, f: &AstNode<ast::FactDefinition>) {
         let ident = self.lower_ident(&f.identifier);
-        let keys = self.lower_list(&f.key);
-        let vals = self.lower_list(&f.value);
+        let keys = self.lower_list::<_, FactKey, _>(&f.key);
+        let vals = self.lower_list::<_, FactVal, _>(&f.value);
         self.hir.facts.insert_with_key(|id| FactDef {
             id,
             span: Span::point(f.locator),
@@ -488,57 +439,80 @@ impl<'ctx> LowerCtx<'ctx> {
         });
     }
 
-    fn lower_fact_key(&mut self, node: &'ctx ast::FieldDefinition) -> FactKey<'ctx> {
+    fn lower_fact_key(&mut self, node: &ast::FieldDefinition) -> FactKeyId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        FactKey {
-            id: FactKeyId::default(), // TODO
+        self.hir.fact_keys.insert_with_key(|id| FactKey {
+            id,
             span: Span::dummy(),
             ident,
             ty,
-        }
+        })
     }
 
-    fn lower_fact_val(&mut self, node: &'ctx ast::FieldDefinition) -> FactVal<'ctx> {
+    fn lower_fact_val(&mut self, node: &ast::FieldDefinition) -> FactValId {
         let ident = self.lower_ident(&node.identifier);
         let ty = self.lower_vtype(&node.field_type);
-        FactVal {
-            id: FactValId::default(), // TODO
+        self.hir.fact_vals.insert_with_key(|id| FactVal {
+            id,
             span: Span::dummy(),
             ident,
             ty,
-        }
+        })
     }
 
-    fn lower_finish_func(&mut self, f: &'ctx AstNode<ast::FinishFunctionDefinition>) {
+    fn lower_finish_func(&mut self, f: &AstNode<ast::FinishFunctionDefinition>) {
         let ident = self.lower_ident(&f.identifier);
-        let args: Vec<FinishFuncArgId> = self.lower_list(&f.arguments);
+        let args = self.lower_list::<_, FinishFuncArg, _>(&f.arguments);
         let block = self.lower_block(&f.statements);
         self.hir.finish_funcs.insert_with_key(|id| FinishFuncDef {
             id,
             span: Span::point(f.locator),
             ident,
-            args,
+            sig: FinishFuncSig { args },
             block,
         });
     }
 
-    fn lower_func(&mut self, f: &'ctx AstNode<ast::FunctionDefinition>) {
+    fn lower_finish_func_arg(&mut self, node: &ast::FieldDefinition) -> FinishFuncArgId {
+        let ident = self.lower_ident(&node.identifier);
+        let ty = self.lower_vtype(&node.field_type);
+        self.hir
+            .finish_func_args
+            .insert_with_key(|id| FinishFuncArg {
+                id,
+                span: Span::dummy(),
+                ident,
+                ty,
+            })
+    }
+
+    fn lower_func(&mut self, f: &AstNode<ast::FunctionDefinition>) {
         let ident = self.lower_ident(&f.identifier);
-        let args = self.lower_list(&f.arguments);
+        let args = self.lower_list::<_, FuncArg, _>(&f.arguments);
         let result = self.lower_vtype(&f.return_type);
         let block = self.lower_block(&f.statements);
         self.hir.funcs.insert_with_key(|id| FuncDef {
             id,
             span: Span::point(f.locator),
             ident,
-            args,
-            result,
+            sig: FuncSig { args, result },
             block,
         });
     }
 
-    fn lower_global(&mut self, g: &'ctx AstNode<ast::GlobalLetStatement>) {
+    fn lower_func_arg(&mut self, node: &ast::FieldDefinition) -> FuncArgId {
+        let ident = self.lower_ident(&node.identifier);
+        let ty = self.lower_vtype(&node.field_type);
+        self.hir.func_args.insert_with_key(|id| FuncArg {
+            id,
+            span: Span::dummy(),
+            ident,
+            ty,
+        })
+    }
+
+    fn lower_global(&mut self, g: &AstNode<ast::GlobalLetStatement>) {
         let ident = self.lower_ident(&g.identifier);
         let expr = self.lower_expr(&g.expression);
         self.hir.global_lets.insert_with_key(|id| GlobalLetDef {
@@ -549,9 +523,9 @@ impl<'ctx> LowerCtx<'ctx> {
         });
     }
 
-    fn lower_struct(&mut self, s: &'ctx AstNode<ast::StructDefinition>) {
+    fn lower_struct(&mut self, s: &AstNode<ast::StructDefinition>) {
         let ident = self.lower_ident(&s.identifier);
-        let items: Vec<StructFieldId> = self.lower_list::<_, _, StructFieldId, _>(&s.items);
+        let items = self.lower_list::<_, StructField, _>(&s.items);
         self.hir.structs.insert_with_key(|id| StructDef {
             id,
             span: Span::point(s.locator),
@@ -562,7 +536,7 @@ impl<'ctx> LowerCtx<'ctx> {
 
     fn lower_struct_field(
         &mut self,
-        node: &'ctx ast::StructItem<ast::FieldDefinition>,
+        node: &ast::StructItem<ast::FieldDefinition>,
     ) -> StructFieldId {
         let kind = match node {
             ast::StructItem::Field(field) => {
@@ -582,7 +556,7 @@ impl<'ctx> LowerCtx<'ctx> {
         })
     }
 
-    fn lower_ffi_imports(&mut self, ast: &'ctx Policy) {
+    fn lower_ffi_imports(&mut self, ast: &Policy) {
         for import in &ast.ffi_imports {
             let module = self.lower_ident(import);
             self.hir.ffi_imports.insert_with_key(|id| FfiImportDef {
@@ -593,7 +567,7 @@ impl<'ctx> LowerCtx<'ctx> {
         }
     }
 
-    fn lower_ffi_modules(&mut self, ffi_modules: &'ctx [ModuleSchema<'ctx>]) {
+    fn lower_ffi_modules(&mut self, ffi_modules: &[ModuleSchema<'_>]) {
         for module in ffi_modules {
             let ident = self.lower_ident(&module.name);
 
@@ -618,12 +592,12 @@ impl<'ctx> LowerCtx<'ctx> {
                 .structs
                 .iter()
                 .map(|s| {
-                    let struct_name = self.lower_ident(&s.name);
+                    let ident = self.lower_ident(&s.name);
                     let fields = self.lower_list(s.fields);
                     self.hir.ffi_structs.insert_with_key(|id| FfiStructDef {
                         id,
                         span: Span::dummy(),
-                        name: struct_name,
+                        ident,
                         fields,
                     })
                 })
@@ -633,12 +607,12 @@ impl<'ctx> LowerCtx<'ctx> {
                 .enums
                 .iter()
                 .map(|e| {
-                    let enum_name = self.lower_ident(&e.name);
+                    let ident = self.lower_ident(&e.name);
                     let variants = self.lower_list(e.variants);
                     self.hir.ffi_enums.insert_with_key(|id| FfiEnumDef {
                         id,
                         span: Span::dummy(),
-                        name: enum_name,
+                        ident,
                         variants,
                     })
                 })
@@ -656,7 +630,7 @@ impl<'ctx> LowerCtx<'ctx> {
     }
 
     /// Lowers an FFI type to a VType.
-    fn lower_ffi_type(&mut self, ffi_type: &'ctx ffi::Type<'ctx>) -> VTypeId {
+    fn lower_ffi_type(&mut self, ffi_type: &ffi::Type<'_>) -> VTypeId {
         let kind = match ffi_type {
             ffi::Type::Int => VTypeKind::Int,
             ffi::Type::Bool => VTypeKind::Bool,
@@ -665,10 +639,7 @@ impl<'ctx> LowerCtx<'ctx> {
             ffi::Type::Id => VTypeKind::Id,
             ffi::Type::Struct(name) => VTypeKind::Struct(self.lower_ident(name)),
             ffi::Type::Enum(name) => VTypeKind::Enum(self.lower_ident(name)),
-            ffi::Type::Optional(inner) => {
-                let inner_type = self.lower_ffi_type(inner);
-                VTypeKind::Optional(inner_type)
-            }
+            ffi::Type::Optional(inner) => VTypeKind::Optional(self.lower_ffi_type(inner)),
         };
         self.hir.types.insert_with_key(|id| VType {
             id,
@@ -691,7 +662,7 @@ impl<T> FromIterator<T> for Discard {
 /// Implemented by types that can lower themselves into HIR.
 trait Lower<T> {
     type Result;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result;
 }
 
 impl<A1, A2, L1, L2> Lower<(L1, L2)> for (A1, A2)
@@ -700,7 +671,7 @@ where
     A2: Lower<L2>,
 {
     type Result = (A1::Result, A2::Result);
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         (self.0.lower(ctx), self.1.lower(ctx))
     }
 }
@@ -710,7 +681,7 @@ where
     T: Lower<U>,
 {
     type Result = T::Result;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         (*self).lower(ctx)
     }
 }
@@ -720,7 +691,7 @@ where
     T: Lower<U>,
 {
     type Result = T::Result;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         self.as_ref().lower(ctx)
     }
 }
@@ -730,66 +701,73 @@ where
     T: Lower<U>,
 {
     type Result = Option<T::Result>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         self.as_ref().map(|v| v.lower(ctx))
     }
 }
 
 impl Lower<Ident> for ast::Identifier {
     type Result = IdentId;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_ident(self)
     }
 }
 
-impl<'ctx> Lower<&'ctx VType<'ctx>> for ast::VType {
-    type Result = &'ctx VType<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<VType> for ast::VType {
+    type Result = VTypeId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_vtype(self)
     }
 }
 
-impl<'ctx> Lower<&'ctx Expr<'ctx>> for ast::Expression {
-    type Result = &'ctx Expr<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<Expr> for ast::Expression {
+    type Result = ExprId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_expr(self)
     }
 }
 
-impl<'ctx> Lower<Stmt<'ctx>> for AstNode<ast::Statement> {
-    type Result = Stmt<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<Stmt> for AstNode<ast::Statement> {
+    type Result = StmtId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_stmt(self)
     }
 }
 
-impl<'ctx> Lower<&'ctx Block<'ctx>> for Vec<AstNode<ast::Statement>> {
-    type Result = &'ctx Block<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<Block> for Vec<AstNode<ast::Statement>> {
+    type Result = BlockId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_block(self)
     }
 }
 
-impl<'ctx> Lower<ActionDef<'ctx>> for AstNode<ast::ActionDefinition> {
+impl Lower<ActionDef> for AstNode<ast::ActionDefinition> {
     type Result = ();
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_action(self)
     }
 }
 
-impl<'ctx> Lower<&'ctx MatchPattern<'ctx>> for ast::MatchPattern {
-    type Result = MatchPattern<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
-        self.arena.alloc(match self {
-            ast::MatchPattern::Default => MatchPattern::Default,
-            ast::MatchPattern::Values(values) => MatchPattern::Values(ctx.lower_list(values)),
-        })
+impl Lower<EffectField> for ast::StructItem<ast::EffectFieldDefinition> {
+    type Result = EffectFieldId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        ctx.lower_effect_field(self)
     }
 }
 
-impl<'ctx> Lower<MatchArm<'ctx>> for ast::MatchArm {
-    type Result = MatchArm<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<MatchPattern> for ast::MatchPattern {
+    type Result = MatchPattern;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        match self {
+            ast::MatchPattern::Default => MatchPattern::Default,
+            ast::MatchPattern::Values(values) => MatchPattern::Values(ctx.lower_list(values)),
+        }
+    }
+}
+
+impl Lower<MatchArm> for ast::MatchArm {
+    type Result = MatchArm;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         MatchArm {
             pattern: self.pattern.lower(ctx),
             block: ctx.lower_block(&self.statements),
@@ -797,72 +775,72 @@ impl<'ctx> Lower<MatchArm<'ctx>> for ast::MatchArm {
     }
 }
 
-impl<'ctx> Lower<&'ctx FactLiteral<'ctx>> for ast::FactLiteral {
-    type Result = &'ctx FactLiteral<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
-        ctx.arena.alloc(FactLiteral {
+impl Lower<FactLiteral> for ast::FactLiteral {
+    type Result = FactLiteral;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        FactLiteral {
             ident: ctx.lower_ident(&self.identifier),
-            keys: ctx.lower_list(&self.key_fields),
-            vals: ctx.lower_list(self.value_fields.iter().flatten()),
-        })
+            keys: ctx.lower_list::<_, FactFieldExpr, _>(&self.key_fields),
+            vals: ctx.lower_list::<_, FactFieldExpr, _>(self.value_fields.iter().flatten()),
+        }
     }
 }
 
-impl<'ctx> Lower<&'ctx FactField<'ctx>> for ast::FactField {
-    type Result = &'ctx FactField<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
-        self.arena.alloc(match self {
+impl Lower<FactField> for ast::FactField {
+    type Result = FactField;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        match self {
             ast::FactField::Expression(expr) => FactField::Expr(ctx.lower_expr(expr)),
             ast::FactField::Bind => FactField::Bind,
-        })
+        }
     }
 }
 
-impl<'ctx> Lower<FactKey<'ctx>> for ast::FieldDefinition {
-    type Result = FactKey<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<FactKey> for ast::FieldDefinition {
+    type Result = FactKeyId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_fact_key(self)
     }
 }
 
-impl<'ctx> Lower<FactVal<'ctx>> for ast::FieldDefinition {
-    type Result = FactVal<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<FactVal> for ast::FieldDefinition {
+    type Result = FactValId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_fact_val(self)
     }
 }
 
-impl<'ctx> Lower<FinishFuncArg<'ctx>> for ast::FieldDefinition {
+impl Lower<FinishFuncArg> for ast::FieldDefinition {
     type Result = FinishFuncArgId;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_finish_func_arg(self)
     }
 }
 
-impl<'ctx> Lower<FuncArg<'ctx>> for ast::FieldDefinition {
+impl Lower<FuncArg> for ast::FieldDefinition {
     type Result = FuncArgId;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_func_arg(self)
     }
 }
 
-impl<'ctx> Lower<ActionArg<'ctx>> for ast::FieldDefinition {
+impl Lower<ActionArg> for ast::FieldDefinition {
     type Result = ActionArgId;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_action_arg(self)
     }
 }
 
-impl<'ctx> Lower<CmdField<'ctx>> for ast::StructItem<ast::FieldDefinition> {
+impl Lower<CmdField> for ast::StructItem<ast::FieldDefinition> {
     type Result = CmdFieldId;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_cmd_field(self)
     }
 }
 
-impl<'ctx> Lower<IfBranch<'ctx>> for (ast::Expression, Vec<AstNode<ast::Statement>>) {
-    type Result = IfBranch<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<IfBranch> for (ast::Expression, Vec<AstNode<ast::Statement>>) {
+    type Result = IfBranch;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         IfBranch {
             expr: ctx.lower_expr(&self.0),
             block: ctx.lower_block(&self.1),
@@ -870,9 +848,9 @@ impl<'ctx> Lower<IfBranch<'ctx>> for (ast::Expression, Vec<AstNode<ast::Statemen
     }
 }
 
-impl<'ctx> Lower<StructFieldExpr<'ctx>> for (ast::Identifier, ast::Expression) {
-    type Result = StructFieldExpr<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<StructFieldExpr> for (ast::Identifier, ast::Expression) {
+    type Result = StructFieldExpr;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         StructFieldExpr {
             ident: ctx.lower_ident(&self.0),
             expr: self.1.lower(ctx),
@@ -880,9 +858,16 @@ impl<'ctx> Lower<StructFieldExpr<'ctx>> for (ast::Identifier, ast::Expression) {
     }
 }
 
-impl<'ctx> Lower<FactFieldExpr<'ctx>> for (ast::Identifier, ast::FactField) {
-    type Result = FactFieldExpr<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<StructField> for ast::StructItem<ast::FieldDefinition> {
+    type Result = StructFieldId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        ctx.lower_struct_field(self)
+    }
+}
+
+impl Lower<FactFieldExpr> for (ast::Identifier, ast::FactField) {
+    type Result = FactFieldExpr;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         FactFieldExpr {
             ident: ctx.lower_ident(&self.0),
             expr: self.1.lower(ctx),
@@ -892,7 +877,7 @@ impl<'ctx> Lower<FactFieldExpr<'ctx>> for (ast::Identifier, ast::FactField) {
 
 impl Lower<FactCountType> for ast::FactCountType {
     type Result = FactCountType;
-    fn lower<'ast>(&'ast self, _ctx: &mut LowerCtx<'ast>) -> Self::Result {
+    fn lower(&self, _ctx: &mut LowerCtx<'_>) -> Self::Result {
         match self {
             ast::FactCountType::UpTo => FactCountType::UpTo,
             ast::FactCountType::AtLeast => FactCountType::AtLeast,
@@ -902,9 +887,9 @@ impl Lower<FactCountType> for ast::FactCountType {
     }
 }
 
-impl<'ctx> Lower<MatchExprArm<'ctx>> for AstNode<ast::MatchExpressionArm> {
-    type Result = MatchExprArm<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<MatchExprArm> for AstNode<ast::MatchExpressionArm> {
+    type Result = MatchExprArm;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         MatchExprArm {
             pattern: self.pattern.lower(ctx),
             expr: ctx.lower_expr(&self.expression),
@@ -912,9 +897,9 @@ impl<'ctx> Lower<MatchExprArm<'ctx>> for AstNode<ast::MatchExpressionArm> {
     }
 }
 
-impl<'ctx> Lower<FieldDef<'ctx>> for ffi::Arg<'_> {
-    type Result = FieldDef<'ctx>;
-    fn lower<'ast>(&'ast self, ctx: &mut LowerCtx<'ast>) -> Self::Result {
+impl Lower<FieldDef> for ffi::Arg<'_> {
+    type Result = FieldDef;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         FieldDef {
             ident: ctx.lower_ident(&self.name),
             ty: ctx.lower_ffi_type(&self.vtype),
@@ -927,32 +912,39 @@ struct StmtInfo {
     returns: bool,
 }
 
-impl<'hir> Visitor<'hir> for StmtInfo {
-    type Result = ();
-    fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> Self::Result {
-        self.returns |= expr.returns;
-    }
-    fn visit_block(&mut self, block: &'hir Block<'hir>) -> Self::Result {
-        self.returns |= block.returns;
-    }
-    fn visit_stmt(&mut self, stmt: &'hir Stmt<'hir>) -> Self::Result {
-        self.returns |= stmt.returns;
-    }
-}
-
-fn find_stmt_info(hir: &Hir<'_>, kind: &StmtKind<'_>) -> StmtInfo {
+fn find_stmt_info(hir: &Hir, kind: &StmtKind) -> StmtInfo {
     if let StmtKind::Return(_) = kind {
         return StmtInfo { returns: true };
     }
 
-    let mut info = StmtInfo { returns: false };
-
-    // NB: `walk_stmt_kind` does not call `walker.recurse`, so
-    // max depth = 0 is correct.
-    hir.walker()
-        .with_max_depth(0)
-        .walk_stmt_kind(kind, &mut info);
-    info
+    struct StmtInfoVisitor<'hir> {
+        hir: &'hir Hir,
+        info: StmtInfo,
+    }
+    impl<'hir> Visitor<'hir> for StmtInfoVisitor<'hir> {
+        type Result = ();
+        fn hir(&self) -> &'hir Hir {
+            self.hir
+        }
+        fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
+            self.info.returns |= expr.returns;
+        }
+        fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+            self.info.returns |= block.returns;
+        }
+        fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+            self.info.returns |= stmt.returns;
+        }
+        fn visit_stmt_kind(&mut self, kind: &'hir StmtKind) -> Self::Result {
+            visit::walk_stmt_kind(self, kind)
+        }
+    }
+    let mut visitor = StmtInfoVisitor {
+        hir,
+        info: StmtInfo { returns: false },
+    };
+    visitor.visit_stmt_kind(kind);
+    visitor.info
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -961,30 +953,38 @@ struct ExprInfo {
     returns: bool,
 }
 
-impl<'hir> Visitor<'hir> for ExprInfo {
-    type Result = ();
-    fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> Self::Result {
-        self.pure &= expr.pure;
-        self.returns |= expr.returns;
+fn find_expr_info(hir: &Hir, kind: &ExprKind) -> ExprInfo {
+    struct ExprInfoVisitor<'hir> {
+        hir: &'hir Hir,
+        info: ExprInfo,
     }
-    fn visit_block(&mut self, block: &'hir Block<'hir>) -> Self::Result {
-        self.returns |= block.returns;
+    impl<'hir> Visitor<'hir> for ExprInfoVisitor<'hir> {
+        type Result = ();
+        fn hir(&self) -> &'hir Hir {
+            self.hir
+        }
+        fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
+            self.info.pure &= expr.pure;
+            self.info.returns |= expr.returns;
+        }
+        fn visit_expr_kind(&mut self, expr: &'hir ExprKind) -> Self::Result {
+            visit::walk_expr_kind(self, expr);
+        }
+        fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
+            self.info.returns |= block.returns;
+        }
+        fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+            self.info.returns |= stmt.returns;
+        }
     }
-    fn visit_stmt(&mut self, stmt: &'hir Stmt<'hir>) -> Self::Result {
-        self.returns |= stmt.returns;
-    }
-}
 
-fn find_expr_info(hir: &Hir<'_>, kind: &ExprKind<'_>) -> ExprInfo {
-    let mut info = ExprInfo {
-        pure: Pure::Yes,
-        returns: false,
+    let mut visitor = ExprInfoVisitor {
+        hir,
+        info: ExprInfo {
+            pure: Pure::Yes,
+            returns: false,
+        },
     };
-
-    // NB: `walk_expr_kind` does not call `walker.recurse`, so
-    // max depth = 0 is correct.
-    hir.walker()
-        .with_max_depth(0)
-        .walk_expr_kind(kind, &mut info);
-    info
+    visitor.visit_expr_kind(kind);
+    visitor.info
 }

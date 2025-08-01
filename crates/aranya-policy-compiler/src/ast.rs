@@ -34,6 +34,7 @@ pub(crate) fn index<'ast>(
     Index { items }
 }
 
+#[derive(Clone, Debug)]
 pub(crate) struct Index<'ast> {
     pub(crate) items: SlotMap<ItemId, Item<'ast>>,
 }

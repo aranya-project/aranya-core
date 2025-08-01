@@ -17,7 +17,7 @@ pub(crate) use error::SymbolResolutionError;
 pub(crate) use symbols::{Symbol, SymbolId, Symbols};
 
 use crate::{
-    hir::{Hir, IdentId},
+    hir::{Hir, IdentId, IdentInterner},
     symbol_resolution::{resolver::Resolver, scope::Scopes},
 };
 
@@ -36,8 +36,8 @@ pub(crate) struct SymbolTable {
 
 impl SymbolTable {
     /// Creates a new symbol table.
-    pub fn new(hir: &Hir<'_>) -> Result<Self> {
-        Resolver::resolve(hir)
+    pub fn new(hir: &Hir, idents: &mut IdentInterner) -> Result<Self> {
+        Resolver::resolve(hir, idents)
     }
 
     pub fn empty() -> Self {

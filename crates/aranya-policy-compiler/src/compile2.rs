@@ -25,9 +25,8 @@ impl Compiler<'_> {
         //let syms = SymbolTable::new(&hir)?;
         let mut ctx = CompileCtx {
             ctx: Ctx {
-                ast: ast::index(&self.policy, self.ffi_modules),
+                ast: ast::index(self.policy, self.ffi_modules),
                 hir: Hir::default(),
-                hir_arena: hir::Arena::new(),
                 symbols: SymbolTable::empty(),
             },
             prog: Vec::new(),
