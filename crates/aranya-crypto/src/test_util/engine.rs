@@ -38,11 +38,8 @@ use crate::{
 ///
 /// ```
 /// use aranya_crypto::{
-///     default::{
-///         DefaultCipherSuite,
-///         DefaultEngine,
-///     },
 ///     Rng,
+///     default::{DefaultCipherSuite, DefaultEngine},
 ///     test_engine,
 /// };
 ///
@@ -181,12 +178,9 @@ pub use for_each_engine_test;
 ///
 /// ```
 /// use aranya_crypto::{
-///     test_engine,
-///     default::{
-///         DefaultCipherSuite,
-///         DefaultEngine,
-///     },
 ///     Rng,
+///     default::{DefaultCipherSuite, DefaultEngine},
+///     test_engine,
 /// };
 ///
 /// test_engine!(default_engine, || -> DefaultEngine<_, _> {

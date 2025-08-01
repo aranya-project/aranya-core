@@ -36,36 +36,16 @@
 //! # fn main() -> Result<(), Box<dyn core::error::Error>> {
 //! # #[cfg(all(feature = "posix", not(feature = "trng")))]
 //! # {
-//! use aranya_fast_channels::{
-//!     AfcState,
-//!     AranyaState,
-//!     Channel,
-//!     ChannelId,
-//!     Client,
-//!     Directed,
-//!     Error,
-//!     Label,
-//!     NodeId,
-//!     crypto::Aes256Gcm,
-//!     shm::{Flag, Mode, Path, ReadState, WriteState},
-//! };
 //! use aranya_crypto::{
-//!     afc::{
-//!         BidiChannel,
-//!         BidiKeys,
-//!         BidiSecrets,
-//!         RawOpenKey,
-//!         RawSealKey,
-//!     },
-//!     Csprng,
-//!     EncryptionKey,
-//!     Engine,
-//!     Id,
-//!     IdentityKey,
-//!     Random,
-//!     Rng,
+//!     Csprng, EncryptionKey, Engine, Id, IdentityKey, Random, Rng,
+//!     afc::{BidiChannel, BidiKeys, BidiSecrets, RawOpenKey, RawSealKey},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
+//! };
+//! use aranya_fast_channels::{
+//!     AfcState, AranyaState, Channel, ChannelId, Client, Directed, Error, Label, NodeId,
+//!     crypto::Aes256Gcm,
+//!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };
 //!
 //! type E = DefaultEngine;
@@ -81,14 +61,8 @@
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")
 //!         .map_err(|err| Error::SharedMem(err.into()))?;
 //!     # aranya_fast_channels::shm::unlink(path);
-//!     WriteState::open(
-//!         path,
-//!         Flag::Create,
-//!         Mode::ReadWrite,
-//!         MAX_CHANS,
-//!         Rng,
-//!     )
-//!     .map_err(Error::SharedMem)?
+//!     WriteState::open(path, Flag::Create, Mode::ReadWrite, MAX_CHANS, Rng)
+//!         .map_err(Error::SharedMem)?
 //! };
 //! let device1_node_id = NodeId::new(1);
 //!
@@ -96,14 +70,8 @@
 //!     let path = Path::from_bytes(b"/afc_doc_client_b\x00")
 //!         .map_err(|err| Error::SharedMem(err.into()))?;
 //!     # aranya_fast_channels::shm::unlink(path);
-//!     WriteState::open(
-//!         path,
-//!         Flag::Create,
-//!         Mode::ReadWrite,
-//!         MAX_CHANS,
-//!         Rng,
-//!     )
-//!     .map_err(Error::SharedMem)?
+//!     WriteState::open(path, Flag::Create, Mode::ReadWrite, MAX_CHANS, Rng)
+//!         .map_err(Error::SharedMem)?
 //! };
 //! let device2_node_id = NodeId::new(2);
 //!
@@ -129,12 +97,10 @@
 //!     their_id: device2_id,
 //!     label: TOP_SECRET.to_u32(),
 //! };
-//! let BidiSecrets { author, peer } =
-//!     BidiSecrets::new(&mut eng, &ch1)?;
+//! let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &ch1)?;
 //!
 //! // Inform device1 about device2.
-//! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?
-//!     .into_raw_keys();
+//! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?.into_raw_keys();
 //! aranya_client_a.add(
 //!     ChannelId::new(device2_node_id, TOP_SECRET),
 //!     Directed::Bidirectional { seal, open },
@@ -150,8 +116,7 @@
 //! };
 //!
 //! // Inform device2 about device1.
-//! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?
-//!     .into_raw_keys();
+//! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?.into_raw_keys();
 //! aranya_client_b.add(
 //!     ChannelId::new(device1_node_id, TOP_SECRET),
 //!     Directed::Bidirectional { seal, open },
@@ -160,25 +125,15 @@
 //! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")
 //!         .map_err(|err| Error::SharedMem(err.into()))?;
-//!     let state = ReadState::open(
-//!         path,
-//!         Flag::OpenOnly,
-//!         Mode::ReadWrite,
-//!         MAX_CHANS,
-//!     )
-//!     .map_err(Error::SharedMem)?;
+//!     let state = ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
+//!         .map_err(Error::SharedMem)?;
 //!     Client::<ReadState<CS>>::new(state)
 //! };
 //! let mut afc_client_b = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_b\x00")
 //!         .map_err(|err| Error::SharedMem(err.into()))?;
-//!     let state = ReadState::open(
-//!         path,
-//!         Flag::OpenOnly,
-//!         Mode::ReadWrite,
-//!         MAX_CHANS,
-//!     )
-//!     .map_err(Error::SharedMem)?;
+//!     let state = ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
+//!         .map_err(Error::SharedMem)?;
 //!     Client::<ReadState<CS>>::new(state)
 //! };
 //!

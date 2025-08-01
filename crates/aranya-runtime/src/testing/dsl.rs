@@ -8,7 +8,7 @@
 //! ```
 //! use aranya_runtime::{
 //!     storage::memory::MemStorageProvider,
-//!     testing::dsl::{test_suite, StorageBackend},
+//!     testing::dsl::{StorageBackend, test_suite},
 //! };
 //!
 //! struct MemBackend;
