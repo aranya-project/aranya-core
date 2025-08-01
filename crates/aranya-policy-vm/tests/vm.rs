@@ -2460,7 +2460,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
 }
 
 #[test]
-#[ignore = "TODO: rewrite to use deserialize so we have an Indeterminate struct as lhs of substruct"]
+#[ignore = "TODO: rewrite to use `error_test_harness` or just remove?"]
 fn test_substruct_errors() -> anyhow::Result<()> {
     let cases = [
         (

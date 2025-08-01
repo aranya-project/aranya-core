@@ -608,7 +608,7 @@ impl<'a> CompileState<'a> {
             Expression::Optional(o) => match o {
                 None => {
                     self.append_instruction(Instruction::Const(Value::None));
-                    Typeish::Definitely(NullableVType::Null)
+                    Typeish::Known(NullableVType::Null)
                 }
                 Some(v) => self
                     .compile_expression(v)?
@@ -694,10 +694,10 @@ impl<'a> CompileState<'a> {
                         }
                     }
 
-                    let Typeish::Definitely(NullableVType::Type(struct_type @ VType::Struct(_))) =
-                        self.identifier_types
-                            .get(&ident!("this"))
-                            .assume("seal must have `this`")?
+                    let Typeish::Known(NullableVType::Type(struct_type @ VType::Struct(_))) = self
+                        .identifier_types
+                        .get(&ident!("this"))
+                        .assume("seal must have `this`")?
                     else {
                         bug!("seal::this must be a struct type");
                     };
@@ -754,7 +754,7 @@ impl<'a> CompileState<'a> {
                     if self.is_debug {
                         warn!("{err}");
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                        Typeish::Indeterminate
+                        Typeish::Never
                     } else {
                         return Err(err);
                     }
@@ -802,7 +802,8 @@ impl<'a> CompileState<'a> {
                     f.identifier.clone(),
                 )));
                 if self.stub_ffi {
-                    Typeish::Indeterminate
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                    Typeish::Never
                 } else {
                     // find module by name
                     let (module_id, module) = self
