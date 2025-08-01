@@ -972,12 +972,37 @@ impl<'a> CompileState<'a> {
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
                 let left_type = self.compile_expression(a)?;
-                let right_type = self.compile_expression(b)?;
-                self.append_instruction(match expression {
-                    Expression::And(_, _) => Instruction::And,
-                    Expression::Or(_, _) => Instruction::Or,
+                let right_type;
+
+                let mid = self.anonymous_label();
+                let end = self.anonymous_label();
+
+                match expression {
+                    Expression::And(_, _) => {
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            mid.clone(),
+                        )));
+
+                        self.append_instruction(Instruction::Const(Value::Bool(false)));
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+
+                        self.define_label(mid, self.wp)?;
+                        right_type = self.compile_expression(b)?;
+                    }
+                    Expression::Or(_, _) => {
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            mid.clone(),
+                        )));
+                        right_type = self.compile_expression(b)?;
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+
+                        self.define_label(mid, self.wp)?;
+                        self.append_instruction(Instruction::Const(Value::Bool(true)));
+                    }
                     _ => unreachable!(),
-                });
+                };
+
+                self.define_label(end, self.wp)?;
 
                 self.unify_pair_as(
                     left_type,
