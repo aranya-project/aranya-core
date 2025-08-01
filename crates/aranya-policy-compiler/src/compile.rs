@@ -1300,20 +1300,20 @@ impl<'a> CompileState<'a> {
                                 }
 
                                 //  Persistent actions can publish only persistent commands, and vice versa.
-                                let command = self
+                                let command_persistence = &self
                                     .policy
                                     .commands
                                     .iter()
                                     .find(|c| c.identifier == *ident)
-                                    .assume("command must be defined")?;
-                                if action.persistence != command.persistence {
-                                    let (action_type, command_type) = match action.persistence {
-                                        ast::Persistence::Ephemeral => ("ephemeral", "persistent"),
-                                        ast::Persistence::Persistent => ("persistent", "ephemeral"),
-                                    };
+                                    .assume("command must be defined")?
+                                    .persistence;
+                                if &action.persistence != command_persistence {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
-                                        action_type, action.identifier, command_type, ident
+                                        action.persistence,
+                                        action.identifier,
+                                        command_persistence,
+                                        ident
                                     )));
                                 }
                                 Ok(nty)

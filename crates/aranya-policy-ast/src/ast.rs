@@ -81,6 +81,15 @@ pub enum Persistence {
     Ephemeral,
 }
 
+impl fmt::Display for Persistence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Persistent => write!(f, "persistent"),
+            Self::Ephemeral => write!(f, "ephemeral"),
+        }
+    }
+}
+
 impl Default for Persistence {
     fn default() -> Self {
         Self::Persistent
