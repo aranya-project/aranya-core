@@ -72,6 +72,30 @@ impl<T> Deref for AstNode<T> {
     }
 }
 
+/// Persistence mode for commands and actions
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum Persistence {
+    /// Persisted on-graph (default behavior)
+    Persistent,
+    /// Not persisted on-graph (ephemeral)
+    Ephemeral,
+}
+
+impl fmt::Display for Persistence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Persistent => write!(f, "persistent"),
+            Self::Ephemeral => write!(f, "ephemeral"),
+        }
+    }
+}
+
+impl Default for Persistence {
+    fn default() -> Self {
+        Self::Persistent
+    }
+}
+
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
@@ -517,6 +541,8 @@ pub struct FactDefinition {
 /// An action definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActionDefinition {
+    /// The persistence mode of the action
+    pub persistence: Persistence,
     /// The name of the action
     pub identifier: Identifier,
     /// The arguments to the action
@@ -565,6 +591,8 @@ impl<T> StructItem<T> {
 /// A command definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandDefinition {
+    /// The persistence mode of the command
+    pub persistence: Persistence,
     /// Optional attributes
     pub attributes: Vec<(Identifier, Expression)>,
     /// The name of the command

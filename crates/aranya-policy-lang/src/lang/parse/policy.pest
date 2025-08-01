@@ -325,12 +325,13 @@ open_block = { "open" ~ statement_block }
 command_blocks = _{ attributes_block | fields_block | seal_block | open_block | policy_block | recall_block }
 
 // # Top-level Statements
+ephemeral_modifier = { "ephemeral" }
 // fact Foo[]=>{}
 immutable_modifier = { "immutable" }
 use_definition = { "use" ~ identifier }
 fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
-// action foo(a int) { ... }
-action_definition = { "action" ~ identifier ~ function_arguments ~ statement_block }
+// [ephemeral] action foo(a int) { ... }
+action_definition = { ephemeral_modifier? ~ "action" ~ identifier ~ function_arguments ~ statement_block }
 // effect Foo { bar id }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }
@@ -338,7 +339,7 @@ struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
-command_definition = { "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
+command_definition = { ephemeral_modifier? ~ "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }
