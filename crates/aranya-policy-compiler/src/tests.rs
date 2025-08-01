@@ -2375,3 +2375,73 @@ fn test_function_used_before_definition() {
 
     compile_pass(text);
 }
+
+#[test]
+fn test_action_command_persistence() {
+    let valid_cases = [
+        // Ephemeral action publishing ephemeral command
+        r#"
+            ephemeral command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+            }
+            ephemeral action test() {
+                publish Cmd {}
+            }
+        "#,
+        // Persistent action publishing persistent command
+        r#"
+            command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+            }
+            action test() {
+                publish Cmd {}
+            }
+        "#,
+    ];
+    for case in valid_cases {
+        compile_pass(case);
+    }
+
+    let invalid_cases = [
+        // Ephemeral action publishing persistent command
+        (
+            r#"
+                command Cmd {
+                    fields {}
+                    seal { return todo() }
+                    open { return todo() }
+                }
+                ephemeral action test() {
+                    publish Cmd {}
+                }
+            "#,
+            CompileErrorType::InvalidType(
+                "ephemeral action `test` cannot publish persistent command `Cmd`".to_string(),
+            ),
+        ),
+        // Persistent action publishing ephemeral command
+        (
+            r#"
+                ephemeral command Cmd {
+                    fields {}
+                    seal { return todo() }
+                    open { return todo() }
+                }
+                action test() {
+                    publish Cmd {}
+                }
+            "#,
+            CompileErrorType::InvalidType(
+                "persistent action `test` cannot publish ephemeral command `Cmd`".to_string(),
+            ),
+        ),
+    ];
+    for (text, expected) in invalid_cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
