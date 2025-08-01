@@ -7,6 +7,7 @@
 use proc_macro::TokenStream;
 use syn::Error;
 
+mod action;
 mod actions;
 mod common;
 mod effect;
@@ -30,6 +31,13 @@ pub fn effect(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn effects(attr: TokenStream, item: TokenStream) -> TokenStream {
     effects::parse(attr.into(), item.into())
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro_attribute]
+pub fn action(attr: TokenStream, item: TokenStream) -> TokenStream {
+    action::parse(attr.into(), item.into())
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }

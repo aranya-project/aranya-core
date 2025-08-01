@@ -1,4 +1,7 @@
-use aranya_policy_ifgen::{ClientError, KVPair, macros::*};
+#![allow(non_camel_case_types)]
+#![allow(clippy::too_many_arguments)]
+
+use aranya_policy_ifgen::{KVPair, macros::*};
 use aranya_policy_vm::{Text, ident, text};
 
 #[effects]
@@ -57,22 +60,25 @@ pub enum TestEnum {
     C,
 }
 
-#[allow(clippy::too_many_arguments)]
-#[actions]
-pub trait TestActions {
-    fn act(
-        &mut self,
-        int: i64,
-        bool: bool,
-        string: Text,
-        bytes: Vec<u8>,
-        r#struct: TestStructFields,
-        r#enum: TestEnum,
-        optional_int: Option<i64>,
-        optional_struct: Option<TestStructFields>,
-        optional_enum: Option<TestEnum>,
-        optional_nested: Option<Option<Option<Option<i64>>>>,
-    ) -> Result<(), ClientError>;
+pub struct Interface;
+
+#[actions(interface = Interface)]
+pub enum TestActions {
+    act(act),
+}
+
+#[action(interface = Interface)]
+pub struct act {
+    pub int: i64,
+    pub bool: bool,
+    pub string: Text,
+    pub bytes: Vec<u8>,
+    pub r#struct: TestStructFields,
+    pub r#enum: TestEnum,
+    pub optional_int: Option<i64>,
+    pub optional_struct: Option<TestStructFields>,
+    pub optional_enum: Option<TestEnum>,
+    pub optional_nested: Option<Option<Option<Option<i64>>>>,
 }
 
 #[test]

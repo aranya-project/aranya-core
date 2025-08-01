@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, VType};
+use aranya_policy_ast::{FieldDefinition, Persistence, VType};
 use aranya_policy_compiler::compile::target::CompileTarget;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
@@ -75,21 +75,47 @@ pub fn generate_code(target: &CompileTarget) -> String {
         }
     };
 
+    let persistent = syn::Ident::new("Persistent", Span::call_site());
+    let ephemeral = syn::Ident::new("Ephemeral", Span::call_site());
+
     let actions = {
-        let sigs = target.action_defs.iter().map(|(id, args)| {
-            let ident = mk_ident(id);
-            let argnames = args.iter().map(|arg| mk_ident(&arg.identifier));
-            let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
-            quote! {
-                fn #ident(&mut self, #(#argnames: #argtypes),*) -> Result<(), ClientError>;
-            }
-        });
+        let mut persistent_actions = Vec::new();
+        let mut ephemeral_actions = Vec::new();
+        let structs = target
+            .action_defs
+            .iter()
+            .map(|(id, def)| {
+                match def.persistence {
+                    Persistence::Persistent => persistent_actions.push(mk_ident(id)),
+                    Persistence::Ephemeral => ephemeral_actions.push(mk_ident(id)),
+                }
+                let interface = match def.persistence {
+                    Persistence::Persistent => &persistent,
+                    Persistence::Ephemeral => &ephemeral,
+                };
+                let doc = format!(" {id} policy action.");
+                let ident = mk_ident(id);
+                let argnames = def.params.iter().map(|arg| mk_ident(&arg.identifier));
+                let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.field_type));
+                quote! {
+                    #[doc = #doc]
+                    #[action(interface = #interface)]
+                    pub struct #ident {
+                        #(pub #argnames: #argtypes),*
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
         quote! {
-            /// Implements all supported policy actions.
-            #[actions]
-            pub trait ActorExt {
-                #( #sigs )*
+            #[actions(interface = #persistent)]
+            pub enum PersistentAction {
+                #( #persistent_actions(#persistent_actions) ),*
             }
+            #[actions(interface = #ephemeral)]
+            pub enum EphemeralAction {
+                #( #ephemeral_actions(#ephemeral_actions) ),*
+            }
+            #( #structs )*
         }
     };
 
@@ -98,6 +124,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
         #![allow(clippy::duplicated_attributes)]
         #![allow(clippy::enum_variant_names)]
         #![allow(missing_docs)]
+        #![allow(non_camel_case_types)]
         #![allow(non_snake_case)]
         #![allow(unused_imports)]
 
@@ -106,9 +133,12 @@ pub fn generate_code(target: &CompileTarget) -> String {
         use alloc::vec::Vec;
 
         use aranya_policy_ifgen::{
-            macros::{actions, effect, effects, value},
+            macros::{action, actions, effect, effects, value},
             ClientError, Id, Value, Text,
         };
+
+        pub struct #persistent;
+        pub struct #ephemeral;
 
         #(#structs)*
         #(#enums)*
@@ -177,9 +207,9 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
 
     let mut found = HashSet::new();
 
-    for args in target.action_defs.values() {
-        for arg in args {
-            visit(&struct_defs, &mut found, &arg.field_type);
+    for def in target.action_defs.values() {
+        for param in &def.params {
+            visit(&struct_defs, &mut found, &param.field_type);
         }
     }
 
