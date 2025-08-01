@@ -2548,3 +2548,77 @@ fn test_substruct_errors() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_struct_conversion() -> anyhow::Result<()> {
+    let policy = r#"
+        struct Foo { y string, x int }
+
+        command Bar {
+            fields { x int, y string }
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        function new_foo(x int, y string) struct Foo {
+            return Foo { y:y, x: x }
+        }
+
+        action test() {
+            let foo = Foo { y: "abc", x: 42 }
+            publish foo as Bar // var reference
+            publish Foo { y: "b", x: 1 } as Bar // struct literal
+            publish new_foo(5, "def") as Bar // function return value
+            publish Bar { x: 100, y: "xyz" } as Bar
+        }
+        "#;
+
+    let policy = parse_policy_str(policy, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(ident!("test"));
+    let mut rs = machine.create_run_state(&io, ctx);
+    let _ = call_action(&mut rs, &io, ident!("test"), iter::empty::<Value>())?;
+    assert_eq!(
+        io.borrow().publish_stack[0],
+        (
+            ident!("Bar"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(42)),
+                KVPair::new(ident!("y"), Value::String(text!("abc"))),
+            ]
+        )
+    );
+    assert_eq!(
+        io.borrow().publish_stack[1],
+        (
+            ident!("Bar"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(1)),
+                KVPair::new(ident!("y"), Value::String(text!("b"))),
+            ]
+        )
+    );
+    assert_eq!(
+        io.borrow().publish_stack[2],
+        (
+            ident!("Bar"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(5)),
+                KVPair::new(ident!("y"), Value::String(text!("def"))),
+            ]
+        )
+    );
+    assert_eq!(
+        io.borrow().publish_stack[3],
+        (
+            ident!("Bar"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(100)),
+                KVPair::new(ident!("y"), Value::String(text!("xyz"))),
+            ]
+        )
+    );
+    Ok(())
+}
