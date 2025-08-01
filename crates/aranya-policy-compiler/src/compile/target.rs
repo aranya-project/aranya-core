@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, Persistence};
 use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
 use ast::FactDefinition;
 use indexmap::IndexMap;
@@ -19,7 +19,7 @@ pub struct CompileTarget {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, ActionDef>,
     /// Command definitions (`fields`)
     pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
@@ -36,6 +36,13 @@ pub struct CompileTarget {
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
     pub globals: BTreeMap<Identifier, Value>,
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(Clone, Eq, PartialEq))]
+pub struct ActionDef {
+    pub persistence: Persistence,
+    pub params: Vec<ast::FieldDefinition>,
 }
 
 impl CompileTarget {
@@ -69,7 +76,11 @@ impl CompileTarget {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
-                action_defs: self.action_defs,
+                action_defs: self
+                    .action_defs
+                    .into_iter()
+                    .map(|(k, v)| (k, v.params))
+                    .collect(),
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
