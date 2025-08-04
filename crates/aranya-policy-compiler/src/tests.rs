@@ -2092,6 +2092,12 @@ fn test_validate_return() {
             }
             // ok
         }"#,
+        r#"function g(n int) int {
+            match n {
+                0 => { return 0 }
+                _ => { return n }
+            }
+        }"#,
     ];
 
     let invalid = [
