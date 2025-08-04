@@ -409,7 +409,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.6.0"
+version = "0.12.0"
 dependencies = [
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
