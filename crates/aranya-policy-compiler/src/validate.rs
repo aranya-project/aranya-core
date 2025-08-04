@@ -1,7 +1,10 @@
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{LabelType, Module, ModuleData};
 
-use crate::{FinishAnalyzer, FunctionAnalyzer, TraceAnalyzerBuilder, TraceFailure, ValueAnalyzer};
+use crate::{
+    ActionAnalyzer, FinishAnalyzer, FunctionAnalyzer, TraceAnalyzerBuilder, TraceFailure,
+    ValueAnalyzer,
+};
 
 pub fn validate(module: &Module) -> bool {
     let ModuleData::V0(ref m) = module.data;
@@ -40,7 +43,10 @@ pub fn validate(module: &Module) -> bool {
 
         let tracer = TraceAnalyzerBuilder::new(m);
         let tracer = match l.ltype {
-            LabelType::Action | LabelType::CommandSeal | LabelType::CommandOpen => {
+            LabelType::Action => tracer
+                .add_analyzer(ActionAnalyzer::new())
+                .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names)),
+            LabelType::CommandSeal | LabelType::CommandOpen => {
                 tracer.add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
             }
             LabelType::CommandPolicy | LabelType::CommandRecall => tracer
