@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.6.0...aranya-policy-ast-v0.7.0) - 2025-08-04
+
+### Other
+
+- Add `ephemeral` keyword to actions and commands and enforce ephemeral/persistent rules at compile time. ([#338](https://github.com/aranya-project/aranya-core/pull/338))
+- improve type checking of None and Indeterminate ([#321](https://github.com/aranya-project/aranya-core/pull/321))
+- Close #186: Implement struct field insertion. ([#192](https://github.com/aranya-project/aranya-core/pull/192))
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.5.0...aranya-policy-ast-v0.6.0) - 2025-06-18
 
 ### Other
