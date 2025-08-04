@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.11.0...aranya-policy-vm-v0.12.0) - 2025-08-04
+
+### Other
+
+- improve type checking of None and Indeterminate ([#321](https://github.com/aranya-project/aranya-core/pull/321))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+- add `cfg_attr` for `bench` feature ([#304](https://github.com/aranya-project/aranya-core/pull/304))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.10.0...aranya-policy-vm-v0.11.0) - 2025-06-18
 
 ### Other
