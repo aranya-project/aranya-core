@@ -21,8 +21,8 @@ command AddUser {
     fields {
         +User
     }
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
     policy {
         finish {
             emit UserAdded { uid: this.uid }
@@ -39,4 +39,3 @@ action add_user(uid id, name string) {
 
 action delete_user(admin struct Admin, uid id) {}
 ```
-

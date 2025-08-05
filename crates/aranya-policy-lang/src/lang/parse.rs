@@ -16,7 +16,7 @@ mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{extract_policy, parse_policy_document};
+pub use markdown::{ChunkOffset, extract_policy, parse_policy_document};
 
 mod keywords;
 use keywords::KEYWORDS;
@@ -114,7 +114,7 @@ impl<'a> PairContext<'a> {
         if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
-                format!("Reserved identifier: {}", identifier),
+                identifier.to_string(),
                 Some(token.as_span()),
             ));
         }
@@ -122,6 +122,12 @@ impl<'a> PairContext<'a> {
         Ok(identifier
             .parse()
             .assume("grammar produces valid identifiers")?)
+    }
+
+    fn consume_optional(&self, rule: Rule) -> Option<Pair<'_, Rule>> {
+        self.peek()
+            .filter(|p| p.as_rule() == rule)
+            .inspect(|_| _ = self.next())
     }
 }
 
@@ -148,7 +154,7 @@ fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
 
 /// Context information for partial parsing of a chunk of source
 pub struct ChunkParser<'a> {
-    chunk_offset: usize,
+    offset: usize,
     text_ranges: ast::TextRanges,
     pratt: &'a PrattParser<Rule>,
 }
@@ -156,7 +162,7 @@ pub struct ChunkParser<'a> {
 impl ChunkParser<'_> {
     pub fn new(offset: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
         ChunkParser {
-            chunk_offset: offset,
+            offset,
             text_ranges: vec![],
             pratt,
         }
@@ -167,11 +173,11 @@ impl ChunkParser<'_> {
         let span = p.as_span();
         let start = span
             .start()
-            .checked_add(self.chunk_offset)
+            .checked_add(self.offset)
             .assume("start + offset must not wrap")?;
         let end = span
             .end()
-            .checked_add(self.chunk_offset)
+            .checked_add(self.offset)
             .assume("end + offset must not wrap")?;
         self.text_ranges.push((start, end));
         Ok(start)
@@ -517,6 +523,7 @@ impl ChunkParser<'_> {
                     ))
                 }
                 Rule::this => Ok(Expression::Identifier(ident!("this"))),
+                Rule::todo => Ok(Expression::InternalFunction(ast::InternalFunction::Todo)),
                 Rule::identifier => Ok(Expression::Identifier(remain(primary).consume_identifier()?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
@@ -1140,6 +1147,11 @@ impl ChunkParser<'_> {
 
         let locator = self.add_range(&item)?;
         let pc = descend(item);
+        let persistence = pc
+            .consume_optional(Rule::ephemeral_modifier)
+            .map_or(ast::Persistence::Persistent, |_| {
+                ast::Persistence::Ephemeral
+            });
         let identifier = pc.consume_identifier()?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
@@ -1153,6 +1165,7 @@ impl ChunkParser<'_> {
 
         Ok(AstNode::new(
             ast::ActionDefinition {
+                persistence,
                 identifier,
                 arguments,
                 statements,
@@ -1278,7 +1291,13 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
         let locator = self.add_range(&item)?;
+
         let pc = descend(item);
+        let persistence = pc
+            .consume_optional(Rule::ephemeral_modifier)
+            .map_or(ast::Persistence::Persistent, |_| {
+                ast::Persistence::Ephemeral
+            });
         let identifier = pc.consume_identifier()?;
 
         let mut attributes = vec![];
@@ -1349,6 +1368,7 @@ impl ChunkParser<'_> {
 
         Ok(AstNode::new(
             ast::CommandDefinition {
+                persistence,
                 attributes,
                 identifier,
                 fields,
@@ -1471,7 +1491,7 @@ impl ChunkParser<'_> {
 pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
     let mut policy = ast::Policy::new(version, data);
 
-    parse_policy_chunk(data, &mut policy, 0)?;
+    parse_policy_chunk(data, &mut policy, ChunkOffset::default())?;
 
     Ok(policy)
 }
@@ -1525,7 +1545,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 pub fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
-    offset: usize,
+    start: ChunkOffset,
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         return Err(ParseError::new(
@@ -1538,10 +1558,17 @@ pub fn parse_policy_chunk(
         ));
     }
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(offset, &policy.text, e))?;
+        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(offset, &pratt);
+    let mut p = ChunkParser::new(start.byte, &pratt);
+    parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start.line))
+}
 
+fn parse_policy_chunk_inner(
+    chunk: Pairs<'_, Rule>,
+    p: &mut ChunkParser<'_>,
+    policy: &mut ast::Policy,
+) -> Result<(), ParseError> {
     for item in chunk {
         match item.as_rule() {
             Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?.inner), // TODO(jdygert): keep ast node?
