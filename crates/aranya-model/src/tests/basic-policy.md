@@ -59,6 +59,10 @@ action init(nonce int) {
 
 // `Init` is a command that initializes a graph.
 command Init {
+    attributes {
+        init: true,
+    }
+
     // Local variables for command
     fields {
         nonce int
@@ -89,6 +93,10 @@ action create_action(v int) {
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
 // the `StuffHappened` effect back to the user.
 command Create {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -117,6 +125,10 @@ action increment(v int) {
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
 command Increment {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -149,6 +161,10 @@ action decrement(v int) {
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
 command Decrement {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -180,6 +196,10 @@ action get_stuff() {
 // absolutely nothing stopping us from using this command in an on-graph or
 // ephemeral context. We chose to use it strictly in the ephemeral context.
 command GetStuff {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
     }
@@ -207,6 +227,10 @@ action create_greeting(v string) {
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
 command CreateGreeting {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key string,
         value string,
@@ -239,6 +263,10 @@ action verify_hello() {
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
 command VerifyGreeting {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key string,
         value string,
@@ -273,6 +301,10 @@ action store_session_data(key string, value bytes) {
 // `StoreSessionData` will take serialized byte information and add it to
 // the factDB in a `PersistedSessionData` fact.
 command StoreSessionData {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key string,
         cmd bytes,
@@ -298,6 +330,10 @@ effect Relationship {
 
 // Emits `Relationship` effects
 command Link {
+    attributes {
+        priority: 0,
+    }
+
     // Local variables for command
     fields {}
 
