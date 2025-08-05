@@ -41,4 +41,8 @@ impl AttributeError {
     pub(crate) fn int_range(cmd: &str, attr: &str, min: i64, max: i64) -> AttributeError {
         Self(format!("{cmd}::{attr} must be within [{min}, {max}]"))
     }
+
+    pub(crate) fn missing(cmd: &str, attrs: &str) -> AttributeError {
+        Self(format!("{cmd} is missing {attrs}"))
+    }
 }
