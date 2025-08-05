@@ -125,6 +125,12 @@ impl<'a> PairContext<'a> {
             .parse()
             .assume("grammar produces valid identifiers")?)
     }
+
+    fn consume_optional(&self, rule: Rule) -> Option<Pair<'_, Rule>> {
+        self.peek()
+            .filter(|p| p.as_rule() == rule)
+            .inspect(|_| _ = self.next())
+    }
 }
 
 /// Helper function which consumes and returns an iterator over the
@@ -1155,6 +1161,11 @@ impl ChunkParser<'_> {
 
         let locator = self.add_range(&item)?;
         let pc = descend(item);
+        let persistence = pc
+            .consume_optional(Rule::ephemeral_modifier)
+            .map_or(ast::Persistence::Persistent, |_| {
+                ast::Persistence::Ephemeral
+            });
         let identifier = pc.consume_identifier()?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
@@ -1168,6 +1179,7 @@ impl ChunkParser<'_> {
 
         Ok(AstNode::new(
             ast::ActionDefinition {
+                persistence,
                 identifier,
                 arguments,
                 statements,
@@ -1293,7 +1305,13 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
         let locator = self.add_range(&item)?;
+
         let pc = descend(item);
+        let persistence = pc
+            .consume_optional(Rule::ephemeral_modifier)
+            .map_or(ast::Persistence::Persistent, |_| {
+                ast::Persistence::Ephemeral
+            });
         let identifier = pc.consume_identifier()?;
 
         let mut attributes = vec![];
@@ -1364,6 +1382,7 @@ impl ChunkParser<'_> {
 
         Ok(AstNode::new(
             ast::CommandDefinition {
+                persistence,
                 attributes,
                 identifier,
                 fields,

@@ -1292,14 +1292,32 @@ impl<'a> CompileState<'a> {
                     }
                     self.define_label(end_label, self.wp)?;
                 }
-                (ast::Statement::Publish(s), StatementContext::Action(_)) => {
+                (ast::Statement::Publish(s), StatementContext::Action(action)) => {
                     let t = self.compile_expression(s)?;
                     let _ty: Typeish = t
                         .try_map(|nty| match nty {
-                            NullableVType::Type(VType::Struct(ref n)) => {
-                                if !self.m.command_defs.contains_key(n.as_str()) {
+                            NullableVType::Type(VType::Struct(ref ident)) => {
+                                if !self.m.command_defs.contains_key(ident.as_str()) {
                                     return Err(CompileErrorType::InvalidType(format!(
-                                        "Struct `{n}` is not a Command struct",
+                                        "Struct `{ident}` is not a Command struct",
+                                    )));
+                                }
+
+                                //  Persistent actions can publish only persistent commands, and vice versa.
+                                let command_persistence = &self
+                                    .policy
+                                    .commands
+                                    .iter()
+                                    .find(|c| c.identifier == *ident)
+                                    .assume("command must be defined")?
+                                    .persistence;
+                                if &action.persistence != command_persistence {
+                                    return Err(CompileErrorType::InvalidType(format!(
+                                        "{} action `{}` cannot publish {} command `{}`",
+                                        action.persistence,
+                                        action.identifier,
+                                        command_persistence,
+                                        ident
                                     )));
                                 }
                                 Ok(nty)
