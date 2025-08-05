@@ -345,7 +345,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         for l in result {
             r.push(l).ok().assume("too many segments")?;
         }
-        //let mut result: Vec<Location, SEGMENT_BUFFER_MAX> = result.into_iter().collect();
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
         r.sort();
