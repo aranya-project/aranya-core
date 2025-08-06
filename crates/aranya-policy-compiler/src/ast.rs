@@ -4,11 +4,14 @@ use aranya_policy_ast::{self as ast, AstNode};
 use aranya_policy_module::ffi;
 use slotmap::SlotMap;
 
+#[derive(Clone, Debug)]
+pub(crate) struct Ast<'ast> {
+    pub ast: &'ast ast::Policy,
+    pub schemas: &'ast [ffi::ModuleSchema<'ast>],
+}
+
 /// Creates an index of the AST.
-pub(crate) fn index<'ast>(
-    ast: &'ast ast::Policy,
-    schemas: &'ast [ffi::ModuleSchema<'ast>],
-) -> Index<'ast> {
+pub(crate) fn index<'ast>(ast: Ast<'ast>) -> Index<'ast> {
     macro_rules! collect {
         ($($field:expr),+ $(,)?) => {{
             let mut items = SlotMap::with_key();
@@ -18,6 +21,7 @@ pub(crate) fn index<'ast>(
             items
         }};
     }
+    let Ast { ast, schemas } = ast;
     let items = collect! {
         &ast.actions,
         &ast.commands,
@@ -34,18 +38,9 @@ pub(crate) fn index<'ast>(
     Index { items }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct Index<'ast> {
     pub(crate) items: SlotMap<ItemId, Item<'ast>>,
-}
-
-impl<'ast: 'a, 'a> IntoIterator for &'a Index<'ast> {
-    type Item = (ItemId, &'a Item<'ast>);
-    type IntoIter = slotmap::basic::Iter<'a, ItemId, Item<'ast>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.iter()
-    }
 }
 
 impl<'ast> IntoIterator for Index<'ast> {
@@ -54,6 +49,15 @@ impl<'ast> IntoIterator for Index<'ast> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.items.into_iter()
+    }
+}
+
+impl<'ast: 'a, 'a> IntoIterator for &'a Index<'ast> {
+    type Item = (ItemId, &'a Item<'ast>);
+    type IntoIter = slotmap::basic::Iter<'a, ItemId, Item<'ast>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter()
     }
 }
 

@@ -7,11 +7,7 @@ use std::{
     slice,
 };
 
-use aranya_policy_ast as ast;
-use bumpalo::Bump;
 use serde::{Deserialize, Serialize};
-
-use crate::intern::typed_interner;
 
 pub(crate) trait Key:
     Copy + Clone + fmt::Debug + Eq + PartialEq + Hash + Sized + 'static
@@ -20,14 +16,14 @@ pub(crate) trait Key:
     fn from_usize(id: usize) -> Self;
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Arena<K, V> {
     items: Vec<V>,
     _marker: PhantomData<fn() -> K>,
 }
 
 impl<K, V> Arena<K, V> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             items: Vec::new(),
             _marker: PhantomData,
@@ -55,6 +51,10 @@ where
 
     pub fn get(&self, id: K) -> Option<&V> {
         self.items.get(id.to_usize())
+    }
+
+    pub fn get_mut(&mut self, id: K) -> Option<&mut V> {
+        self.items.get_mut(id.to_usize())
     }
 
     pub fn iter(&self) -> ArenaIter<'_, K, V> {
@@ -166,9 +166,9 @@ macro_rules! new_key_type {
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        $vis struct $name(u32);
+        $vis struct $name(pub u32);
 
-        impl $crate::hir::arena::Key for $name {
+        impl $crate::arena::Key for $name {
             #[inline]
             fn to_usize(self) -> usize {
                 self.0.try_into().unwrap()
@@ -182,11 +182,3 @@ macro_rules! new_key_type {
     };
 }
 pub(crate) use new_key_type;
-
-typed_interner! {
-    pub(crate) struct IdentInterner(ast::Identifier) => IdentRef;
-}
-
-typed_interner! {
-    pub(crate) struct TextInterner(ast::Text) => TextRef;
-}

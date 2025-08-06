@@ -179,7 +179,7 @@ action foo(x int, y string) {
 "#;
 
     let policy = parse_policy_str(text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -207,7 +207,7 @@ command Foo {
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -226,7 +226,7 @@ effect MyEffect {
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -248,7 +248,7 @@ action use_enum() {
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -268,7 +268,7 @@ action query_fact() {
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     // Analysis:
     // - Actions are visited first, then facts
@@ -295,7 +295,7 @@ finish function cleanup(user_id string) {
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -317,7 +317,7 @@ function multiply(x int, y int) int {
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -333,7 +333,7 @@ let DEFAULT_NAME = "anonymous"
     "#;
 
     let policy = parse_policy_str(policy_text, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -356,7 +356,7 @@ struct Line {
 }
 "#;
     let policy = parse_policy_str(policy_str, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -386,7 +386,7 @@ struct Point {
 }
 "#;
     let policy = parse_policy_str(policy_str, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -455,7 +455,7 @@ command TestCommand {
 }
 "#;
     let policy = parse_policy_str(policy_str, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -491,7 +491,7 @@ struct NamedRectangle {
 }
 "#;
     let policy = parse_policy_str(policy_str, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     let mut visitor = RecordingVisitor::new();
     hir.walk(&mut visitor);
@@ -508,7 +508,7 @@ function deeply_nested() int {
 }
     "#;
     let policy = parse_policy_str(policy_str, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     // Test unlimited depth (default)
     let mut visitor_unlimited = RecordingVisitor::new();
@@ -546,7 +546,7 @@ action nested_blocks() {
 }
     "#;
     let policy = parse_policy_str(policy_str, Version::V2).unwrap();
-    let (hir, _) = hir::parse(&policy, &[]);
+    let (hir, _) = hir::lower(&policy, &[]);
 
     /// A visitor that records the depth at each visit
     struct DepthRecordingVisitor {

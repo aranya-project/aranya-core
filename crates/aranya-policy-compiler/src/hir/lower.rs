@@ -1,61 +1,50 @@
 //! Lowers [`Policy`] items into the HIR.
 
-use std::{iter::ExactSizeIterator, marker::PhantomData};
-
 use aranya_policy_ast::{self as ast, AstNode, Policy};
 use aranya_policy_module::ffi::{self, ModuleSchema};
-use bumpalo::Bump;
 
-use crate::{
-    ast::{Index, Item},
-    ctx::Ctx,
-    hir::{
-        arena::{IdentInterner, TextInterner},
-        hir::{
-            ActionArg, ActionArgId, ActionCall, ActionDef, ActionId, ActionSig, BinOp, Block,
-            BlockId, CheckStmt, CmdDef, CmdField, CmdFieldId, CmdFieldKind, CmdId, Create,
-            DebugAssert, Delete, EffectDef, EffectField, EffectFieldId, EffectFieldKind, Emit,
-            EnumDef, EnumRef, Expr, ExprId, ExprKind, FactCountType, FactDef, FactField,
-            FactFieldExpr, FactKey, FactKeyId, FactLiteral, FactVal, FactValId, FfiEnumDef,
-            FfiFuncDef, FfiImportDef, FfiModuleDef, FfiStructDef, FieldDef, FinishFuncArg,
-            FinishFuncArgId, FinishFuncDef, FinishFuncSig, ForeignFunctionCall, FuncArg, FuncArgId,
-            FuncDef, FuncSig, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt,
-            Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm, MatchExpr, MatchExprArm,
-            MatchPattern, MatchStmt, NamedStruct, Publish, Pure, ReturnStmt, Span, Stmt, StmtId,
-            StmtKind, StructDef, StructField, StructFieldExpr, StructFieldId, StructFieldKind,
-            Ternary, UnaryOp, Update, VType, VTypeId, VTypeKind,
-        },
-        visit::{self, Visitor},
+use super::{
+    types::{
+        ActionArg, ActionArgId, ActionCall, ActionDef, ActionSig, BinOp, Block, BlockId, CheckStmt,
+        CmdDef, CmdField, CmdFieldId, CmdFieldKind, Create, DebugAssert, Delete, EffectDef,
+        EffectField, EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumRef, Expr, ExprId,
+        ExprKind, FactCountType, FactDef, FactField, FactFieldExpr, FactKey, FactKeyId,
+        FactLiteral, FactVal, FactValId, FfiEnumDef, FfiFuncDef, FfiImportDef, FfiModuleDef,
+        FfiStructDef, FieldDef, FinishFuncArg, FinishFuncArgId, FinishFuncDef, FinishFuncSig,
+        ForeignFunctionCall, FuncArg, FuncArgId, FuncDef, FuncSig, FunctionCall, GlobalLetDef, Hir,
+        Ident, IdentId, IdentInterner, IfBranch, IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt,
+        MatchArm, MatchExpr, MatchExprArm, MatchPattern, MatchStmt, NamedStruct, Publish, Pure,
+        ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr,
+        StructFieldId, StructFieldKind, Ternary, TextInterner, UnaryOp, Update, VType, VTypeId,
+        VTypeKind,
     },
+    visit::{self, Visitor},
 };
+use crate::ast::Item;
 
 #[derive(Debug)]
 pub(crate) struct LowerCtx<'ctx> {
-    pub ast: &'ctx Index<'ctx>,
     pub hir: Hir,
-    pub idents: IdentInterner,
-    pub text: TextInterner,
+    pub idents: &'ctx mut IdentInterner,
+    pub text: &'ctx mut TextInterner,
 }
 
 impl LowerCtx<'_> {
-    pub(crate) fn lower(mut self) -> Hir {
-        for (_, item) in self.ast {
-            match item {
-                Item::Action(node) => self.lower_action(node),
-                Item::Cmd(node) => self.lower_cmd(node),
-                Item::Effect(node) => self.lower_effect(node),
-                Item::Enum(node) => self.lower_enum(node),
-                Item::Fact(node) => self.lower_fact(node),
-                Item::FinishFunc(node) => self.lower_finish_func(node),
-                Item::Func(node) => self.lower_func(node),
-                Item::GlobalLet(node) => self.lower_global(node),
-                Item::Struct(node) => self.lower_struct(node),
-                Item::FfiFunc(_node) => { /* TODO */ }
-                Item::FfiEnum(_node) => { /* TODO */ }
-                Item::FfiStruct(_node) => { /* TODO */ }
-            }
+    pub(crate) fn lower_item(&mut self, item: &Item<'_>) {
+        match item {
+            Item::Action(node) => self.lower_action(node),
+            Item::Cmd(node) => self.lower_cmd(node),
+            Item::Effect(node) => self.lower_effect(node),
+            Item::Enum(node) => self.lower_enum(node),
+            Item::Fact(node) => self.lower_fact(node),
+            Item::FinishFunc(node) => self.lower_finish_func(node),
+            Item::Func(node) => self.lower_func(node),
+            Item::GlobalLet(node) => self.lower_global(node),
+            Item::Struct(node) => self.lower_struct(node),
+            Item::FfiFunc(_node) => { /* TODO */ }
+            Item::FfiEnum(_node) => { /* TODO */ }
+            Item::FfiStruct(_node) => { /* TODO */ }
         }
-        self.hir
     }
 
     /// Lowers a list.
@@ -73,7 +62,7 @@ impl LowerCtx<'_> {
         self.hir.idents.insert_with_key(|id| Ident {
             id,
             span: Span::dummy(),
-            ident,
+            xref: ident,
         })
     }
 

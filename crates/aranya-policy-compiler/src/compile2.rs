@@ -6,11 +6,9 @@ use aranya_policy_module::{
 };
 
 use crate::{
-    ast,
+    ast::Ast,
     compile::{CompileError, Compiler},
     ctx::Ctx,
-    hir::{self, Hir},
-    symbol_resolution::SymbolTable,
 };
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
@@ -21,26 +19,27 @@ impl Compiler<'_> {
         let out = Output::default();
 
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
-        //let hir = hir::parse(&ctx);
-        //let syms = SymbolTable::new(&hir)?;
-        let mut ctx = CompileCtx {
-            ctx: Ctx {
-                ast: ast::index(self.policy, self.ffi_modules),
-                hir: Hir::default(),
-                symbols: SymbolTable::empty(),
-            },
+
+        let mut ctx = Ctx::new(&self.policy.text, "<unknown>");
+        ctx.lower_hir(Ast {
+            ast: &self.policy,
+            schemas: &self.ffi_modules,
+        });
+        ctx.resolve_symbols()?;
+
+        let mut cg = Codegen {
             prog: Vec::new(),
             codemap: Some(codemap),
             wp: 0,
-            c: 0,
-            is_debug: self.is_debug,
-            stub_ffi: self.stub_ffi,
+            // c: 0,
+            // is_debug: self.is_debug,
+            // stub_ffi: self.stub_ffi,
         };
 
         // Panic when running a module without setup.
-        ctx.append_instruction(Instruction::Exit(ExitReason::Panic));
+        cg.append_instruction(Instruction::Exit(ExitReason::Panic));
 
-        let codemap = ctx.codemap;
+        let codemap = cg.codemap;
 
         Ok(Module {
             data: ModuleData::V0(ModuleV0 {
@@ -67,18 +66,17 @@ struct Output {
 }
 
 #[derive(Debug)]
-struct CompileCtx<'a> {
+struct Codegen {
     //out: &'a mut Output,
-    ctx: Ctx<'a>,
     prog: Vec<Instruction>,
     codemap: Option<CodeMap>,
     wp: usize,
-    c: usize,
-    is_debug: bool,
-    stub_ffi: bool,
+    // c: usize,
+    // is_debug: bool,
+    // stub_ffi: bool,
 }
 
-impl CompileCtx<'_> {
+impl Codegen {
     /// Append an instruction to the program memory, and increment the
     /// program counter. If no other PC manipulation has been done,
     /// this means that the program counter points to the new

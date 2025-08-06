@@ -27,7 +27,10 @@ serde = { workspace = true }
 slotmap = { version = "1", features = ["serde"] }
 thiserror = { workspace = true }
 bumpalo = { version = "3" }
+tracing = { workspace = true }
+codespan-reporting = { version = "0.12" }
 
 [dev-dependencies]
 anyhow = { workspace = true }
 insta = { version = "1", features = ["json"] }
+test-log = { workspace = true, features = ["color"] }

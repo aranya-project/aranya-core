@@ -1,27 +1,30 @@
 //! Main symbol resolver implementation.
 
-use std::mem;
+use std::{
+    mem,
+    ops::{ControlFlow, Index},
+};
 
 use aranya_policy_ast::ident;
-use buggy::{bug, BugExt};
+use buggy::{bug, Bug, BugExt};
+use tracing::{instrument, trace};
 
+use super::{
+    error::SymbolResolutionError,
+    scope::{InsertError, ScopeId},
+    symbols::{
+        SymAction, SymEffect, SymEnum, SymFact, SymFfiModule, SymFinishFunc, SymFunc, SymGlobalVar,
+        SymLocalVar, SymStruct, Symbol, SymbolId, SymbolKind,
+    },
+    Result, SymbolTable,
+};
 use crate::{
+    diag::{BugAbort, DiagCtx, ErrorGuaranteed},
     hir::{
         visit::{self, Visitor},
-        ActionArg, ActionDef, Block, BlockId, CmdDef, EffectDef, EffectFieldKind, EnumDef, ExprId,
-        ExprKind, FactDef, FactField, FactLiteral, FfiModuleDef, FinishFuncArg, FinishFuncDef,
-        FuncArg, FuncDef, GlobalLetDef, Hir, Ident, IdentId, IdentInterner, IdentRef, Intrinsic,
-        MatchPattern, Span, Stmt, StmtId, StmtKind, StructDef, StructFieldKind, VTypeId, VTypeKind,
-    },
-    symbol_resolution::{
-        error::SymbolResolutionError,
-        scope::{InsertError, ScopeId},
-        symbols::{
-            FinishBlock, PolicyBlock, RecallBlock, SymAction, SymCmd, SymEffect, SymEnum, SymFact,
-            SymFfiModule, SymFinishFunc, SymFunc, SymGlobalVar, SymLocalVar, SymStruct, Symbol,
-            SymbolId, SymbolKind,
-        },
-        Result, SymbolTable,
+        ActionArg, ActionDef, Block, EffectDef, EnumDef, ExprKind, FactDef, FfiModuleDef,
+        FinishFuncArg, FinishFuncDef, FuncArg, FuncDef, GlobalLetDef, Hir, Ident, IdentId,
+        IdentInterner, IdentRef, Span, Stmt, StmtKind, StructDef,
     },
 };
 
@@ -39,7 +42,7 @@ impl SymbolTable {
     // TODO(eric): make this generic over Into<SymKind>
     fn add_global_def(
         &mut self,
-        ident: IdentId,
+        ident: &Ident,
         kind: SymbolKind,
         span: Option<Span>,
     ) -> Result<()> {
@@ -48,21 +51,24 @@ impl SymbolTable {
 
     /// Adds a symbol created from `ident`, `kind`, and `span` to
     /// `scope`.
+    #[instrument(skip(self))]
     fn add_symbol(
         &mut self,
         scope: ScopeId,
-        ident: IdentId,
+        ident: &Ident,
         kind: SymbolKind,
         span: Option<Span>,
     ) -> Result<()> {
+        trace!("adding symbol");
         let sym = Symbol {
-            ident,
+            ident: ident.id,
             kind,
             scope,
             span,
         };
         let sym_id = self.symbols.insert(sym);
-        match self.scopes.insert(scope, ident, sym_id) {
+        trace!(?sym_id, "added symbol");
+        match self.scopes.try_insert(scope, ident.xref, sym_id) {
             Ok(()) => Ok(()),
             Err(InsertError::Duplicate(err)) => Err(SymbolResolutionError::Duplicate(err)),
             Err(InsertError::InvalidScopeId(_)) => bug!("scope should always be valid"),
@@ -70,51 +76,48 @@ impl SymbolTable {
     }
 
     /// Adds a local variable symbol to `scope`.
-    fn add_local_var(&mut self, scope: ScopeId, ident: IdentId, span: Span) -> Result<()> {
+    fn add_local_var(&mut self, scope: ScopeId, ident: &Ident, span: Span) -> Result<()> {
         let kind = SymbolKind::LocalVar(SymLocalVar { scope });
         self.add_symbol(scope, ident, kind, Some(span))
     }
 }
 
+pub(super) fn intern_reserved_idents(idents: &mut IdentInterner) -> Vec<IdentRef> {
+    [ident!("this"), ident!("envelope"), ident!("id")]
+        .into_iter()
+        .map(|ident| idents.intern(ident))
+        .collect::<Vec<_>>()
+}
+
 /// Walks [`Hir`] and builds the symbol table.
-// TODO(eric): use `Visitor` instead of manually walking.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(super) struct Resolver<'hir> {
+    pub dcx: &'hir DiagCtx,
     /// The HIR being resolved.
-    hir: &'hir Hir,
+    pub hir: &'hir Hir,
     /// The table being built.
-    table: SymbolTable,
-    reserved_idents: Vec<IdentRef>,
+    pub table: SymbolTable,
+    pub idents: &'hir IdentInterner,
+    pub reserved_idents: Vec<IdentRef>,
 }
 
 impl<'hir> Resolver<'hir> {
     /// Creates a symbol table from the given HIR.
-    pub(super) fn resolve(hir: &'hir Hir, idents: &mut IdentInterner) -> Result<SymbolTable> {
-        let reserved_idents = [ident!("this"), ident!("envelope"), ident!("id")]
-            .into_iter()
-            .map(|ident| idents.intern(ident))
-            .collect::<Vec<_>>();
-
-        let mut v = Self {
-            hir,
-            table: SymbolTable::empty(),
-            reserved_idents,
-        };
-
+    pub(super) fn resolve(mut self) -> Result<SymbolTable> {
         // First pass: collect all top-level declarations.
-        v.collect_defs()?;
+        self.collect_defs()?;
 
         // Second pass: resolve all identifier references.
-        v.resolve_refs()?;
+        self.resolve_refs()?;
 
-        for (ident, _) in &v.hir.idents {
-            if !v.table.resolutions.contains_key(&ident) {
+        for (ident, _) in &self.hir.idents {
+            if !self.table.resolutions.contains_key(&ident) {
                 // We goofed up somewhere!
                 bug!("missed identifier")
             }
         }
 
-        Ok(v.table)
+        Ok(self.table)
     }
 }
 
@@ -138,7 +141,8 @@ impl<'hir> Resolver<'hir> {
     fn collect_ffi_module(&mut self, def: &'hir FfiModuleDef) -> Result<()> {
         let scope = self.table.create_child_scope(ScopeId::GLOBAL)?;
         let kind = SymbolKind::FfiModule(SymFfiModule { scope });
-        self.table.add_global_def(def.ident, kind, Some(def.span))?;
+        self.table
+            .add_global_def(&self.hir[def.ident], kind, Some(def.span))?;
 
         // FFI modules are self-contained and cannot reference
         // anything in the policy file, so resolve everything
@@ -148,49 +152,26 @@ impl<'hir> Resolver<'hir> {
             let kind = SymbolKind::Func(SymFunc {
                 scope: self.table.create_child_scope(scope)?,
             });
-            self.table.add_symbol(scope, f.ident, kind, Some(f.span))?;
+            self.table
+                .add_symbol(scope, &self.hir[f.ident], kind, Some(f.span))?;
         }
 
         // TODO: other FFI module items
 
         Ok(())
     }
-}
-
-impl Resolver<'_> {
-    fn get_symbol_id(&self, ident: IdentId) -> Result<SymbolId> {
-        let sym_id = self
-            .table
-            .scopes
-            .get(ScopeId::GLOBAL, ident)
-            .assume("global scope should always be valid")?
-            .ok_or(SymbolResolutionError::Undefined {
-                ident,
-                // TODO: Use actual span from HIR nodes
-                span: Span::dummy(),
-            })?;
-        Ok(sym_id)
-    }
-
-    /// Retrieves a globa symbol.
-    fn get_global(&self, ident: IdentId) -> Result<&Symbol> {
-        let sym_id = self.get_symbol_id(ident)?;
-        assert_eq!(sym_id, self.table.resolutions[&ident]);
-        let sym = self
-            .table
-            .symbols
-            .get(sym_id)
-            .assume("symbol ID should be valid")?;
-        Ok(sym)
-    }
 
     /// Second pass: resolve all identifier references.
     fn resolve_refs(&mut self) -> Result<()> {
-        let mut visitor = Resolver2 {
+        let mut visitor = ResolveRefs {
+            dcx: self.dcx,
             hir: self.hir,
+            idents: self.idents,
             table: &mut self.table,
             scope: ScopeId::GLOBAL,
             reserved_idents: &self.reserved_idents,
+            max_errs: 10,
+            errs: Vec::new(),
         };
         visitor.visit_all()?;
 
@@ -206,6 +187,17 @@ struct Collector<'a> {
     table: &'a mut SymbolTable,
 }
 
+impl Collector<'_> {
+    fn add_global_def(
+        &mut self,
+        ident: IdentId,
+        kind: SymbolKind,
+        span: Option<Span>,
+    ) -> Result<()> {
+        self.table.add_global_def(&self.hir[ident], kind, span)
+    }
+}
+
 impl<'a: 'hir, 'hir> Visitor<'hir> for Collector<'a> {
     type Result = Result<()>;
 
@@ -217,103 +209,120 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Collector<'a> {
         let kind = SymbolKind::Action(SymAction {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_effect_def(&mut self, def: &'hir EffectDef) -> Self::Result {
         let kind = SymbolKind::Effect(SymEffect {});
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_enum_def(&mut self, def: &'hir EnumDef) -> Self::Result {
         let kind = SymbolKind::Enum(SymEnum {});
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_fact_def(&mut self, def: &'hir FactDef) -> Self::Result {
         let kind = SymbolKind::Fact(SymFact {});
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_finish_func_def(&mut self, def: &'hir FinishFuncDef) -> Self::Result {
         let kind = SymbolKind::FinishFunc(SymFinishFunc {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_func_def(&mut self, def: &'hir FuncDef) -> Self::Result {
         let kind = SymbolKind::Func(SymFunc {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_global_def(&mut self, def: &'hir GlobalLetDef) -> Self::Result {
         let kind = SymbolKind::GlobalVar(SymGlobalVar {
             scope: self.table.create_child_scope(ScopeId::GLOBAL)?,
         });
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 
     fn visit_struct_def(&mut self, def: &'hir StructDef) -> Self::Result {
         let kind = SymbolKind::Struct(SymStruct {});
-        self.table.add_global_def(def.ident, kind, Some(def.span))
+        self.add_global_def(def.ident, kind, Some(def.span))
     }
 }
 
 #[derive(Debug)]
-struct Resolver2<'a> {
+struct ResolveRefs<'a> {
+    dcx: &'a DiagCtx,
     hir: &'a Hir,
+    idents: &'a IdentInterner,
     table: &'a mut SymbolTable,
     reserved_idents: &'a [IdentRef],
     scope: ScopeId,
+    /// The maximum number of errors we collect before failing.
+    max_errs: usize,
+    /// Collected errors.
+    errs: Vec<SymbolResolutionError>,
 }
 
-impl Resolver2<'_> {
+impl ResolveRefs<'_> {
     /// Check if an identifier is reserved and return an error if
     /// it is.
-    fn check_reserved(&self, ident: &Ident) -> Result<()> {
-        if self.reserved_idents.contains(&ident.ident) {
-            Err(SymbolResolutionError::ReservedIdentifier {
+    fn check_reserved(&self, ident: &Ident) -> Result<(), ErrorGuaranteed> {
+        if self.reserved_idents.contains(&ident.xref) {
+            Err(self.dcx.emit_err_diag(SymbolResolutionError::Reserved {
                 ident: ident.id,
-                span: Some(ident.span),
+                span: ident.span,
                 reserved_for: "language built-ins",
-            })
+            }))
         } else {
             Ok(())
         }
     }
 
-    fn get_symbol_id(&self, ident: IdentId) -> Result<SymbolId> {
-        let sym_id = self
-            .table
-            .scopes
-            .get(ScopeId::GLOBAL, ident)
-            .assume("global scope should always be valid")?
-            .ok_or(SymbolResolutionError::Undefined {
-                ident,
-                // TODO: Use actual span from HIR nodes
-                span: Span::dummy(),
-            })?;
-        Ok(sym_id)
+    /// Retrieves a global symbol.
+    ///
+    /// NB: By this point, all global symbols must have been
+    /// collected.
+    #[instrument(skip(self))]
+    fn get_global(&mut self, id: IdentId) -> &Symbol {
+        let ident = self.hir.index(id);
+        if let Err(err) = self.resolve_ident(ident) {
+            err.raise_fatal();
+        }
+
+        let sym_id = match self.table.scopes.get(ScopeId::GLOBAL, ident.xref) {
+            Ok(Some(id)) => id,
+            Ok(None) => self.dcx.emit_bug_diag(SymbolResolutionError::Undefined {
+                ident: self.idents.get(ident.xref).unwrap().clone(),
+                span: ident.span,
+                scope: ScopeId::GLOBAL,
+            }),
+            Err(err) => self.dcx.emit_bug(err),
+        };
+
+        if let Some(got) = self.table.resolutions.get(&id) {
+            assert_eq!(sym_id, *got);
+        }
+
+        match self.table.symbols.get(sym_id) {
+            Some(sym) => sym,
+            None => self.dcx.emit_bug("global symbol should exist"),
+        }
     }
 
-    /// Retrieves a globa symbol.
-    fn get_global(&self, ident: IdentId) -> Result<&Symbol> {
-        let sym_id = self.get_symbol_id(ident)?;
-        assert_eq!(sym_id, self.table.resolutions[&ident]);
-        let sym = self
-            .table
-            .symbols
-            .get(sym_id)
-            .assume("symbol ID should be valid")?;
-        Ok(sym)
+    /// Adds a local variable symbol to `scope`.
+    fn add_local_var(&mut self, scope: ScopeId, ident: IdentId, span: Span) -> Result<()> {
+        let ident = &self.hir[ident];
+        self.table.add_local_var(scope, ident, span)
     }
 
-    fn with_scope<F, R>(&mut self, scope: ScopeId, f: F) -> Result<R>
+    fn with_scope<F, R>(&mut self, scope: ScopeId, f: F) -> ControlFlow<R>
     where
-        F: FnOnce(&mut Self) -> Result<R>,
+        F: FnOnce(&mut Self) -> ControlFlow<R>,
     {
         let prev = mem::replace(&mut self.scope, scope);
         let result = f(self);
@@ -321,27 +330,31 @@ impl Resolver2<'_> {
         result
     }
 
-    fn resolve_ident(&mut self, ident: &Ident) -> Result<SymbolId> {
+    #[instrument(skip(self))]
+    fn resolve_ident(&mut self, ident: &Ident) -> Result<SymbolId, ErrorGuaranteed> {
         self.check_reserved(ident)?;
 
-        // TODO(eric): All identifier usages are unique, so
-        // return an error if we've already resolved this ident.
         let sym_id = self
             .table
             .scopes
-            .get(self.scope, ident.id)
-            .assume("scope should always be valid")?
-            .ok_or(SymbolResolutionError::Undefined {
-                ident: ident.id,
-                span: ident.span,
+            .get(self.scope, ident.xref)
+            .map_err(|err| self.dcx.emit_bug(err))?
+            .ok_or_else(|| {
+                self.dcx.emit_err_diag(SymbolResolutionError::Undefined {
+                    ident: self.idents.get(ident.xref).unwrap().clone(),
+                    span: ident.span,
+                    scope: self.scope,
+                })
             })?;
         self.table.resolutions.insert(ident.id, sym_id);
+
+        trace!(?sym_id, "resolved ident");
         Ok(sym_id)
     }
 }
 
-impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
-    type Result = Result<()>;
+impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveRefs<'a> {
+    type Result = ControlFlow<Result<()>>;
 
     fn hir(&self) -> &'hir Hir {
         self.hir
@@ -351,24 +364,24 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         let &Symbol {
             kind: SymbolKind::Action(SymAction { scope }),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be an action");
+            self.dcx.emit_bug("symbol should be an action")
         };
         self.with_scope(scope, |this| visit::walk_action(this, def))
     }
 
     fn visit_action_arg(&mut self, arg: &'hir ActionArg) -> Self::Result {
-        self.table.add_local_var(self.scope, arg.ident, arg.span)
+        self.add_local_var(self.scope, arg.ident, arg.span)
     }
 
     fn visit_effect_def(&mut self, def: &'hir EffectDef) -> Self::Result {
         let &Symbol {
             kind: SymbolKind::Effect(SymEffect {}),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be an effect");
+            bug!("symbol should be an effect")
         };
         self.with_scope(ScopeId::GLOBAL, |this| visit::walk_effect(this, def))
     }
@@ -377,9 +390,9 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         let &Symbol {
             kind: SymbolKind::Enum(SymEnum {}),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be an enum");
+            bug!("symbol should be an enum")
         };
         self.with_scope(ScopeId::GLOBAL, |this| visit::walk_enum(this, def))
     }
@@ -389,9 +402,9 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
             kind: SymbolKind::Fact(SymFact {}),
             scope,
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be a fact");
+            bug!("symbol should be a fact")
         };
         self.with_scope(scope, |this| visit::walk_fact(this, def))
     }
@@ -400,39 +413,39 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         let &Symbol {
             kind: SymbolKind::FinishFunc(SymFinishFunc { scope }),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be a finish function");
+            bug!("symbol should be a finish function")
         };
         self.with_scope(scope, |this| visit::walk_finish_func(this, def))
     }
 
     fn visit_finish_func_arg(&mut self, arg: &'hir FinishFuncArg) -> Self::Result {
-        self.table.add_local_var(self.scope, arg.ident, arg.span)
+        self.add_local_var(self.scope, arg.ident, arg.span)
     }
 
     fn visit_func_def(&mut self, def: &'hir FuncDef) -> Self::Result {
         let &Symbol {
             kind: SymbolKind::Func(SymFunc { scope }),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be a function");
+            bug!("symbol should be a function")
         };
         self.with_scope(scope, |this| visit::walk_func(this, def))
     }
 
     fn visit_func_arg(&mut self, arg: &'hir FuncArg) -> Self::Result {
-        self.table.add_local_var(self.scope, arg.ident, arg.span)
+        self.add_local_var(self.scope, arg.ident, arg.span)
     }
 
     fn visit_global_def(&mut self, def: &'hir GlobalLetDef) -> Self::Result {
         let &Symbol {
             kind: SymbolKind::GlobalVar(SymGlobalVar { scope }),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be a global variable");
+            bug!("symbol should be a global variable")
         };
         self.with_scope(scope, |this| visit::walk_global_let(this, def))
     }
@@ -441,9 +454,9 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         let &Symbol {
             kind: SymbolKind::Struct(SymStruct {}),
             ..
-        } = self.get_global(def.ident)?
+        } = self.get_global(def.ident)
         else {
-            bug!("symbol should be a struct");
+            bug!("symbol should be a struct")
         };
         self.with_scope(ScopeId::GLOBAL, |this| visit::walk_struct(this, def))
     }
@@ -457,20 +470,21 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
         let StmtKind::Let(v) = &stmt.kind else {
             return visit::walk_stmt(self, stmt);
         };
+
         // Resolve the value expression first so that it
         // cannot refer to the named value. Eg, this
         // should be illegal:
         //
         //    let x = x + 1;
         self.visit_expr(&self.hir.exprs[v.expr])?;
-        self.table.add_local_var(self.scope, v.ident, stmt.span)
+        self.add_local_var(self.scope, v.ident, stmt.span)
     }
 
     fn visit_block(&mut self, block: &'hir Block) -> Self::Result {
         let scope = self
             .table
             .create_child_scope(self.scope)
-            .assume("scope should always be valid")?;
+            .assume("self.scope should always be valid")?;
         self.with_scope(scope, |this| visit::walk_block(this, block))
     }
 
@@ -489,30 +503,24 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Resolver2<'a> {
                 // checking.
             }
             ExprKind::ForeignFunctionCall(call) => {
-                // FFI calls are a little funky. They're written as
-                // `module::function(...)`, so we first have to resolve
-                // `module` to a module symbol, look up `function` in the
-                // module scope, then manually resolve the arguments.
-                let module_sym_id = self.resolve_ident({
-                    let id = call.module;
-                    &self.hir.idents[id]
-                })?;
-                let module_sym = self
-                    .table
-                    .symbols
-                    .get(module_sym_id)
-                    .assume("symbol should exist")?;
-                let SymbolKind::FfiModule(SymFfiModule {
-                    scope: module_scope,
-                }) = &module_sym.kind
+                // FFI calls are a little funky. They're written
+                // as `module::function(...)`, so we first have
+                // to resolve `module` to a module symbol, look
+                // up `function` in the module scope, then
+                // manually resolve the arguments in the
+                // `self.scope`.
+                //
+                // TODO(eric): Do not use `get_global` here since
+                // it should be a regular compiler error if the
+                // module is not defined, not an ICE.
+                let &Symbol {
+                    kind: SymbolKind::FfiModule(SymFfiModule { scope }),
+                    ..
+                } = self.get_global(call.module)
                 else {
-                    return Err(SymbolResolutionError::Undefined {
-                        ident: call.module,
-                        span: Span::dummy(),
-                    });
+                    bug!("symbol should be an FFI module")
                 };
-
-                self.with_scope(*module_scope, |this| {
+                self.with_scope(scope, |this| {
                     let id = call.ident;
                     this.resolve_ident(&self.hir.idents[id])
                 })?;

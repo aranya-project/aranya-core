@@ -1,11 +1,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::arithmetic_side_effects)]
 
+mod arena;
 mod ast;
 pub mod compile;
 mod compile2;
 mod ctx;
+mod diag;
 mod intern;
+mod typecheck;
 //mod dependency_graph;
 //mod mir;
 //pub mod ir;

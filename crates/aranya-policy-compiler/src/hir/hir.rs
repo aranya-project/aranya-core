@@ -1,42 +1,19 @@
 use std::{
     hash::Hash,
-    ops::{BitAnd, BitAndAssign, Index},
+    ops::{BitAnd, BitAndAssign, Index, Range},
 };
 
-use aranya_policy_ast::Text;
+use aranya_policy_ast as ast;
 use serde::{Deserialize, Serialize};
 
-use crate::hir::arena::{Arena, IdentRef, TextRef};
+use crate::{arena::Arena, intern::typed_interner};
 
-/// A span representing a range in the source text.
-#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct Span {
-    /// The start position in the source text (in bytes).
-    pub start: usize,
-    /// The end position in the source text (in bytes).
-    pub end: usize,
+typed_interner! {
+    pub(crate) struct IdentInterner(ast::Identifier) => IdentRef;
 }
 
-impl Span {
-    /// Creates a new span with the given start and end positions.
-    pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(start >= end);
-
-        Self { start, end }
-    }
-
-    /// Creates a span where start and end positions are the
-    /// same.
-    pub fn point(pos: usize) -> Self {
-        Self::new(pos, pos)
-    }
-
-    /// Creates a dummy span for testing purposes.
-    // TODO(eric): This is used throughout the code. Make the
-    // code use `Default::default` instead.
-    pub fn dummy() -> Self {
-        Self::new(0, 0)
-    }
+typed_interner! {
+    pub(crate) struct TextInterner(ast::Text) => TextRef;
 }
 
 macro_rules! hir {
@@ -141,10 +118,47 @@ hir! {
     }
 }
 
+/// A span representing a range in the source text.
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct Span {
+    /// The start position in the source text (in bytes).
+    pub start: usize,
+    /// The end position in the source text (in bytes).
+    pub end: usize,
+}
+
+impl Span {
+    /// Creates a new span with the given start and end positions.
+    pub fn new(start: usize, end: usize) -> Self {
+        debug_assert!(start >= end);
+
+        Self { start, end }
+    }
+
+    /// Creates a span where start and end positions are the
+    /// same.
+    pub fn point(pos: usize) -> Self {
+        Self::new(pos, pos)
+    }
+
+    /// Creates a dummy span for testing purposes.
+    // TODO(eric): This is used throughout the code. Make the
+    // code use `Default::default` instead.
+    pub fn dummy() -> Self {
+        Self::new(0, 0)
+    }
+}
+
+impl From<Span> for Range<usize> {
+    fn from(span: Span) -> Self {
+        span.start..span.end
+    }
+}
+
 /// Generates an ID type for a HIR node.
 macro_rules! make_node_id {
     ($(#[$meta:meta])* $vis:vis struct $name:ident; $($rest:tt)*) => {
-        $crate::hir::arena::new_key_type! {
+        $crate::arena::new_key_type! {
             $(#[$meta])*
             $vis struct $name;
         }
@@ -187,6 +201,11 @@ macro_rules! hir_node {
             /// Uniquely identifies a
             #[doc = concat!("`", stringify!($name), "`")]
             $vis struct $id;
+        }
+        impl From<$name> for Span {
+            fn from(node: $name) -> Self {
+                node.span
+            }
         }
     };
 }
@@ -998,7 +1017,7 @@ hir_node! {
     pub(crate) struct Ident {
         pub id: IdentId,
         /// The interned identifier.
-        pub ident: IdentRef,
+        pub xref: IdentRef,
     }
 }
 
