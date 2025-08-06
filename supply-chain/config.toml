@@ -64,6 +64,9 @@ audit-as-crates-io = false
 [policy.aranya-fast-channels]
 audit-as-crates-io = false
 
+[policy.aranya-id]
+audit-as-crates-io = false
+
 [policy.aranya-idam-ffi]
 audit-as-crates-io = false
 
@@ -437,10 +440,6 @@ criteria = "safe-to-deploy"
 version = "0.8.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.hermit-abi]]
-version = "0.4.0"
-criteria = "safe-to-run"
-
 [[exemptions.hex-literal]]
 version = "0.4.1"
 criteria = "safe-to-deploy"
@@ -456,10 +455,6 @@ criteria = "safe-to-deploy"
 [[exemptions.intrusive-collections]]
 version = "0.9.7"
 criteria = "safe-to-deploy"
-
-[[exemptions.is-terminal]]
-version = "0.4.13"
-criteria = "safe-to-run"
 
 [[exemptions.is_terminal_polyfill]]
 version = "1.70.1"

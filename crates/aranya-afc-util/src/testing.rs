@@ -23,6 +23,7 @@ use aranya_crypto::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{Entry, Occupied, Vacant, memstore},
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
@@ -240,7 +241,7 @@ impl<T: TestImpl> Device<T> {
             .wrap(enc_sk)
             .expect("should be able to wrap `EncryptionKey`");
         store
-            .try_insert(enc_key_id.into(), wrapped)
+            .try_insert(enc_key_id.into_id(), wrapped)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {

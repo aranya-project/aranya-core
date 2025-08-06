@@ -26,7 +26,7 @@ use crate::{
     engine::Engine,
     error::Error,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
-    id::{Id, Identified as _},
+    id::{Id, IdExt as _, Identified as _},
     policy::{GroupId, PolicyId},
     tls,
     util::cbor,
