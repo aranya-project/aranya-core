@@ -16,17 +16,6 @@ pub fn validate(module: &Module) -> bool {
     for (l, _) in m.labels.iter() {
         let mut predefined_names = vec![];
         match l.ltype {
-            LabelType::Action => {
-                let mut function_args = m
-                    .action_defs
-                    .get(&l.name)
-                    .expect("no action")
-                    .iter()
-                    .map(|fd| &fd.identifier)
-                    .cloned()
-                    .collect();
-                predefined_names.append(&mut function_args);
-            }
             LabelType::CommandPolicy | LabelType::CommandRecall => {
                 predefined_names.push(ident!("this"));
                 predefined_names.push(ident!("envelope"));
@@ -37,7 +26,7 @@ pub fn validate(module: &Module) -> bool {
             LabelType::CommandOpen => {
                 predefined_names.push(ident!("envelope"));
             }
-            LabelType::Function => {}
+            LabelType::Function | LabelType::Action => {}
             _ => continue,
         };
 
