@@ -517,15 +517,8 @@ where
                 let value = self.scope.get(&key)?;
                 self.ipush(value)?;
             }
-            Instruction::Dup(d) => {
-                let index = self
-                    .stack
-                    .len()
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let v = self.stack.0[index].clone();
+            Instruction::Dup => {
+                let v = self.stack.peek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {

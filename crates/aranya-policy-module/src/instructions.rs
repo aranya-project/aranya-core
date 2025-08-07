@@ -83,8 +83,8 @@ pub enum Instruction {
     Def(Identifier),
     /// Get a local value by name
     Get(Identifier),
-    /// Duplicate the value at depth d onto the top of the stack
-    Dup(usize),
+    /// Duplicate the value at the top of the stack
+    Dup,
     /// Remove a value from the top of the stack
     Pop,
     // control flow
@@ -172,7 +172,7 @@ impl Display for Instruction {
             Instruction::Const(v) => write!(f, "const {v}"),
             Instruction::Def(ident) => write!(f, "def {ident}"),
             Instruction::Get(ident) => write!(f, "get {ident}"),
-            Instruction::Dup(d) => write!(f, "dup {d}"),
+            Instruction::Dup => write!(f, "dup"),
             Instruction::Pop => write!(f, "pop"),
             Instruction::Block => write!(f, "block"),
             Instruction::End => write!(f, "end"),

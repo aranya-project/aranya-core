@@ -1427,7 +1427,7 @@ impl<'a> CompileState<'a> {
 
                     self.verify_fact_against_schema(&s.fact, true)?;
                     self.compile_fact_literal(&s.fact)?;
-                    self.append_instruction(Instruction::Dup(0));
+                    self.append_instruction(Instruction::Dup);
 
                     // Verify the 'to' fact literal
                     let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
@@ -1823,7 +1823,7 @@ impl<'a> CompileState<'a> {
         // evaluate the expression
         let inner_type = self.compile_expression(e)?;
         // Duplicate value for testing
-        self.append_instruction(Instruction::Dup(0));
+        self.append_instruction(Instruction::Dup);
         // Push a None to compare against
         self.append_instruction(Instruction::Const(Value::None));
         // Is the value not equal to None?
@@ -2162,7 +2162,7 @@ impl<'a> CompileState<'a> {
                 MatchPattern::Values(values) => {
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
-                        self.append_instruction(Instruction::Dup(0));
+                        self.append_instruction(Instruction::Dup);
                         if !value.is_literal() {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
                                 "match pattern {n} is not a literal expression",
