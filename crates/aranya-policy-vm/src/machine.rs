@@ -517,20 +517,6 @@ where
                 let value = self.scope.get(&key)?;
                 self.ipush(value)?;
             }
-            Instruction::Swap(d) => {
-                if d == 0 {
-                    return Err(self.err(MachineErrorType::InvalidInstruction));
-                }
-                let index1 = self
-                    .stack
-                    .len()
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let index2 = index1
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                self.stack.0.swap(index1, index2);
-            }
             Instruction::Dup(d) => {
                 let index = self
                     .stack

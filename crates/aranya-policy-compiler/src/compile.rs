@@ -1077,15 +1077,11 @@ impl<'a> CompileState<'a> {
                 .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::Negative(e) => {
-                // Evaluate the expression
-                let inner_type = self.compile_expression(e)?;
-
                 // Push a 0 to subtract from
                 self.append_instruction(Instruction::Const(Value::Int(0)));
 
-                // Swap e and 0
-                // 0 e
-                self.append_instruction(Instruction::Swap(1));
+                // Evaluate the expression
+                let inner_type = self.compile_expression(e)?;
 
                 // Subtract
                 self.append_instruction(Instruction::Sub);

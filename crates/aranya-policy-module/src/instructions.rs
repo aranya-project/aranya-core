@@ -83,8 +83,6 @@ pub enum Instruction {
     Def(Identifier),
     /// Get a local value by name
     Get(Identifier),
-    /// Swap value at depth d with the top of the stack
-    Swap(usize), // TODO(chip): remove this or limit the argument to small values
     /// Duplicate the value at depth d onto the top of the stack
     Dup(usize),
     /// Remove a value from the top of the stack
@@ -174,7 +172,6 @@ impl Display for Instruction {
             Instruction::Const(v) => write!(f, "const {v}"),
             Instruction::Def(ident) => write!(f, "def {ident}"),
             Instruction::Get(ident) => write!(f, "get {ident}"),
-            Instruction::Swap(d) => write!(f, "swap {d}"),
             Instruction::Dup(d) => write!(f, "dup {d}"),
             Instruction::Pop => write!(f, "pop"),
             Instruction::Block => write!(f, "block"),

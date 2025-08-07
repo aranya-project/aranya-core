@@ -60,52 +60,6 @@ fn test_pop() {
 }
 
 #[test]
-fn test_swap_empty() {
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy(ident!("test"));
-    let machine = Machine::new([Instruction::Swap(1)]);
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    // Empty stack - should fail
-    let result = rs.step();
-    assert!(result.is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow));
-}
-
-#[test]
-fn test_swap_top() {
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy(ident!("test"));
-    let machine = Machine::new([
-        // Swap with self (first) - should fail
-        Instruction::Swap(0),
-    ]);
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    rs.stack.push(5).unwrap();
-    assert!(
-        rs.step()
-            .is_err_and(|result| result.err_type == MachineErrorType::InvalidInstruction)
-    );
-}
-
-#[test]
-fn test_swap_middle() {
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy(ident!("test"));
-    let machine = Machine::new([Instruction::Swap(1)]);
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    // Swap with second - should succeed
-    rs.stack.push(3).unwrap();
-    rs.stack.push(5).unwrap();
-    rs.stack.push(8).unwrap();
-    assert!(rs.step().unwrap() == MachineStatus::Executing);
-    assert!(rs.stack.0[0] == Value::Int(3));
-    assert!(rs.stack.0[1] == Value::Int(8));
-    assert!(rs.stack.0[2] == Value::Int(5));
-}
-
-#[test]
 fn test_dup_underflow() {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy(ident!("test"));
@@ -679,12 +633,6 @@ fn test_errors() {
             Ok(())
         },
         ctx,
-    );
-
-    // InvalidInstruction: Swap of depth zero
-    error_test_harness(
-        &[Instruction::Swap(0)],
-        MachineErrorType::InvalidInstruction,
     );
 
     // IO: Delete a fact that does not exist
