@@ -971,6 +971,9 @@ impl<'a> CompileState<'a> {
                 .map_err(|e| self.err(e))?
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
+                // `a && b` becomes `if a { b } else { false }`
+                // `a || b` becomes `if a { true } else { b }`
+
                 let left_type = self.compile_expression(a)?;
                 let right_type;
 
