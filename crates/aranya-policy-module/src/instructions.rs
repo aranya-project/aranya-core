@@ -117,10 +117,6 @@ pub enum Instruction {
     Sub,
     /// Logical negation
     Not,
-    /// Logical and
-    And,
-    /// Logical or
-    Or,
     /// Greater than
     Gt,
     /// Less than
@@ -194,8 +190,6 @@ impl Display for Instruction {
             Instruction::Add => write!(f, "add"),
             Instruction::Sub => write!(f, "sub"),
             Instruction::Not => write!(f, "not"),
-            Instruction::And => write!(f, "and"),
-            Instruction::Or => write!(f, "or"),
             Instruction::Gt => write!(f, "gt"),
             Instruction::Lt => write!(f, "lt"),
             Instruction::Eq => write!(f, "eq"),

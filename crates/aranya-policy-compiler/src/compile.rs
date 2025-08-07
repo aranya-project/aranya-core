@@ -1056,35 +1056,16 @@ impl<'a> CompileState<'a> {
                 .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::GreaterThanOrEqual(a, b) | Expression::LessThanOrEqual(a, b) => {
+                // `a >= b` becomes `!(a < b)`. This relies on total ordering, which integers meet.
+
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;
-                // At this point we will have the values for a and b on the stack.
-                // a b
-                // Duplicate one below top to copy a to the top
-                // a b a
-                self.append_instruction(Instruction::Dup(1));
-                // Ditto for b
-                // a b a b
-                self.append_instruction(Instruction::Dup(1));
-                // Test for equivalence of a and b - we'll call this c
-                // a b c
-                self.append_instruction(Instruction::Eq);
-                // Swap a and c
-                // c b a
-                self.append_instruction(Instruction::Swap(2));
-                // Swap a and b
-                // c a b
-                self.append_instruction(Instruction::Swap(1));
-                // Then execute the other comparison on a and b - we'll call this d
-                // c d
                 self.append_instruction(match expression {
-                    Expression::GreaterThanOrEqual(_, _) => Instruction::Gt,
-                    Expression::LessThanOrEqual(_, _) => Instruction::Lt,
+                    Expression::GreaterThanOrEqual(_, _) => Instruction::Lt,
+                    Expression::LessThanOrEqual(_, _) => Instruction::Gt,
                     _ => unreachable!(),
                 });
-                // Now OR those two binary results together - call this e
-                // e
-                self.append_instruction(Instruction::Or);
+                self.append_instruction(Instruction::Not);
 
                 self.unify_pair_as(
                     left_type,

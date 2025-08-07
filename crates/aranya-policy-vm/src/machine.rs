@@ -621,16 +621,6 @@ where
                 };
                 self.ipush(r)?;
             }
-            Instruction::And | Instruction::Or => {
-                let a = self.ipop()?;
-                let b = self.ipop()?;
-                let r = match instruction {
-                    Instruction::And => a && b,
-                    Instruction::Or => a || b,
-                    _ => unreachable!(),
-                };
-                self.ipush(r)?;
-            }
             Instruction::Not => {
                 let a: &mut bool = self.ipeek()?;
                 *a = !*a;

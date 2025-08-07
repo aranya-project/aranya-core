@@ -2603,3 +2603,31 @@ fn test_boolean_short_circuit() {
     assert_eq!(run("true || todo()"), ExitReason::Normal);
     assert_eq!(run("false || todo()"), ExitReason::Panic);
 }
+
+#[test]
+fn test_comparison_operators() {
+    fn check(expr: &str) {
+        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
+            .expect("parse");
+        let module = Compiler::new(&policy).compile().expect("compile");
+        let machine = Machine::from_module(module).expect("machine");
+        let io = RefCell::new(TestIO::new());
+        let ctx = dummy_ctx_action(ident!("f"));
+        let mut rs = machine.create_run_state(&io, ctx);
+        let exit = rs
+            .call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs");
+        assert_eq!(exit, ExitReason::Normal);
+        assert!(rs.stack.is_empty());
+    }
+
+    check("1 < 2");
+    check("1 <= 2");
+    check("!(1 > 2)");
+    check("!(1 >= 2)");
+
+    check("2 > 1");
+    check("2 >= 1");
+    check("!(2 < 1)");
+    check("!(2 <= 1)");
+}

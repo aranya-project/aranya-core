@@ -541,16 +541,6 @@ fn test_errors() {
         MachineErrorType::invalid_type("Int", "String", "Value -> i64"),
     );
 
-    // InvalidType: 3 && "x"
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(text.clone())),
-            Instruction::And,
-        ],
-        MachineErrorType::invalid_type("Bool", "String", "Value -> bool"),
-    );
-
     // InvalidType: !3
     error_test_harness(
         &[Instruction::Const(Value::Int(3)), Instruction::Not],
