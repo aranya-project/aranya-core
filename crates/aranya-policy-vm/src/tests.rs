@@ -60,38 +60,6 @@ fn test_pop() {
 }
 
 #[test]
-fn test_dup_underflow() {
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy(ident!("test"));
-    let machine = Machine::new([Instruction::Dup(2)]);
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    // Try to dup with invalid stack index - should fail
-    rs.stack.push(3).unwrap();
-    assert!(
-        rs.step()
-            .is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow)
-    );
-}
-
-#[test]
-fn test_dup() {
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy(ident!("test"));
-    let machine = Machine::new([Instruction::Dup(1)]);
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    // Dup second value in stack - should succeed.
-    rs.stack.push(3).unwrap();
-    rs.stack.push(5).unwrap();
-    assert!(rs.step().unwrap() == MachineStatus::Executing);
-    assert!(rs.stack.len() == 3);
-    assert!(rs.stack.0[0] == Value::Int(3));
-    assert!(rs.stack.0[1] == Value::Int(5));
-    assert!(rs.stack.0[2] == Value::Int(3));
-}
-
-#[test]
 fn test_add() {
     // expect t.0+t.1==t.2
     let tups: [(i64, i64, i64); 5] = [
@@ -468,7 +436,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Dup(0),
+            Instruction::Dup,
             Instruction::Def(x.clone()),
             Instruction::Def(x.clone()),
         ],
@@ -557,7 +525,7 @@ fn test_errors() {
                 keys: vec![],
                 values: vec![],
             })),
-            Instruction::Dup(0),
+            Instruction::Dup,
             Instruction::Update,
         ],
         MachineErrorType::InvalidFact(x.clone()),
@@ -659,7 +627,7 @@ fn test_errors() {
                 keys: vec![],
                 values: vec![],
             })),
-            Instruction::Dup(0),
+            Instruction::Dup,
             Instruction::Create,
             Instruction::Create,
         ],
