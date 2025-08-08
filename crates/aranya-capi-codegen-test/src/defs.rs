@@ -1,3 +1,5 @@
+//! Test Comment
+
 use aranya_capi_core::{
     InvalidArg,
     prelude::*,

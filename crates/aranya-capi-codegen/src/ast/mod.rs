@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use bimap::{BiHashMap, hash::LeftValues};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{Error, Ident, Path, Result};
+use syn::{Attribute, Error, Ident, Path, Result};
 use tracing::{instrument, trace};
 
 use crate::{
     ctx::Ctx,
-    syntax::{self, Item, Node, Type},
+    syntax::{self, Doc, InnerDoc, Item, Node, Type},
     util::{IdentExt, PathExt},
 };
 
@@ -28,15 +28,31 @@ pub struct Ast {
     pub(super) idents: IdentMap,
     /// Code that should appear inside a `mod __hidden { ... }`.
     pub hidden: TokenStream,
+    /// Comments that appear at the beginning of a header file
+    pub doc: InnerDoc,
 }
 
 impl Ast {
     /// Parses an `Ast` from the module.
     #[instrument(skip_all)]
-    pub fn parse(ctx: &mut Ctx, items: Vec<Item>) -> Result<Self> {
+    pub fn parse(ctx: &mut Ctx, items: Vec<Item>, file_attrs: Vec<Attribute>) -> Result<Self> {
         trace!(items = items.len(), "parsing AST");
 
         let mut ast = {
+            let doc = {
+                let mut doc = Doc::new();
+                syntax::attrs::parse(
+                    ctx,
+                    file_attrs,
+                    syntax::Parser {
+                        doc: Some(&mut doc),
+                        ..Default::default()
+                    },
+                );
+
+                InnerDoc(doc)
+            };
+
             let nodes = syntax::parse_items(ctx, items);
             let types = nodes
                 .iter()
@@ -72,6 +88,7 @@ impl Ast {
                 types,
                 idents,
                 hidden: TokenStream::new(),
+                doc,
             }
         };
 

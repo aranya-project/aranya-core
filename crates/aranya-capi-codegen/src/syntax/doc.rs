@@ -59,3 +59,17 @@ impl ToTokens for Doc {
         }
     }
 }
+
+/// Same as [Doc] but for inner doc comments.
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
+pub(crate) struct InnerDoc(pub(crate) Doc);
+
+impl ToTokens for InnerDoc {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let fragments = &self.0.fragments;
+        tokens.extend(quote! { #(#![doc = #fragments])* });
+        if self.0.hidden {
+            tokens.extend(quote! { #![doc(hidden)] });
+        }
+    }
+}
