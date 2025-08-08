@@ -1,13 +1,14 @@
 use std::borrow::Cow;
 
 use aranya_policy_ast::{self as ast, AstNode};
-use aranya_policy_module::ffi;
+use aranya_policy_module::{ffi, CodeMap};
 use slotmap::SlotMap;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Ast<'ast> {
     pub ast: &'ast ast::Policy,
     pub schemas: &'ast [ffi::ModuleSchema<'ast>],
+    pub codemap: &'ast CodeMap,
 }
 
 /// Creates an index of the AST.
@@ -21,19 +22,19 @@ pub(crate) fn index<'ast>(ast: Ast<'ast>) -> Index<'ast> {
             items
         }};
     }
-    let Ast { ast, schemas } = ast;
+    let Ast { ast, schemas, .. } = ast;
     let items = collect! {
         &ast.actions,
         &ast.commands,
         &ast.effects,
         &ast.enums,
         &ast.facts,
+        &ast.ffi_imports,
         &ast.finish_functions,
         &ast.functions,
         &ast.global_lets,
-        schemas.iter().flat_map(|s| s.enums),
-        schemas.iter().flat_map(|s| s.functions),
-        schemas.iter().flat_map(|s| s.structs),
+        &ast.structs,
+        schemas,
     };
     Index { items }
 }
@@ -95,9 +96,9 @@ item_impl! {
         Effect(Cow<'ast, AstNode<ast::EffectDefinition>>),
         Enum(Cow<'ast, AstNode<ast::EnumDefinition>>),
         Fact(Cow<'ast, AstNode<ast::FactDefinition>>),
-        FfiEnum(Cow<'ast, ffi::Enum<'ast>>),
-        FfiFunc(Cow<'ast, ffi::Func<'ast>>),
-        FfiStruct(Cow<'ast, ffi::Struct<'ast>>),
+        /// An FFI import statement.
+        Use(Cow<'ast, ast::Identifier>),
+        FfiMod(Cow<'ast, ffi::ModuleSchema<'ast>>),
         FinishFunc(Cow<'ast, AstNode<ast::FinishFunctionDefinition>>),
         Func(Cow<'ast, AstNode<ast::FunctionDefinition>>),
         GlobalLet(Cow<'ast, AstNode<ast::GlobalLetStatement>>),

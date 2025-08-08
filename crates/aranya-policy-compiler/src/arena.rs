@@ -49,6 +49,10 @@ where
         K::from_usize(id)
     }
 
+    pub fn contains(&self, id: K) -> bool {
+        self.get(id).is_some()
+    }
+
     pub fn get(&self, id: K) -> Option<&V> {
         self.items.get(id.to_usize())
     }
@@ -167,6 +171,12 @@ macro_rules! new_key_type {
             ::serde::Deserialize,
         )]
         $vis struct $name(pub u32);
+
+        impl ::std::fmt::Display for $name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                ::std::fmt::Display::fmt(&self.0, f)
+            }
+        }
 
         impl $crate::arena::Key for $name {
             #[inline]

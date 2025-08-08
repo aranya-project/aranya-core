@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     hash::Hash,
     ops::{BitAnd, BitAndAssign, Index, Range},
 };
@@ -22,7 +23,7 @@ macro_rules! hir {
         $vis:vis struct $name:ident {
             $(
                 $(#[$field_meta:meta])*
-                pub $field:ident: Arena<$key:ty, $val:ty>
+                pub $field:ident: Arena<$key:ident, $val:ident>
             ),* $(,)?
         }
     ) => {
@@ -32,6 +33,14 @@ macro_rules! hir {
                 $(#[$field_meta])*
                 pub $field: Arena<$key, $val>,
             )*
+        }
+
+        impl $name {
+            pub fn lookup(&self, id: NodeId) -> Node<'_> {
+                match id {
+                    $(NodeId::$key(id) => Node::$val(self.index(id))),*
+                }
+            }
         }
 
         $(
@@ -48,6 +57,37 @@ macro_rules! hir {
                 }
             }
         )*
+
+        #[derive(
+            Clone,
+            Debug,
+            Eq,
+            PartialEq,
+        )]
+        $vis enum Node<'hir> {
+            $($val(&'hir $val)),*
+        }
+
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            Eq,
+            PartialEq,
+            Ord,
+            PartialOrd,
+            Hash,
+            Serialize,
+            Deserialize,
+        )]
+        $vis enum NodeId {
+            $($key($key)),*
+        }
+        $(impl From<$key> for NodeId {
+            fn from(id: $key) -> Self {
+                Self::$key(id)
+            }
+        })*
     };
 }
 
@@ -111,15 +151,19 @@ hir! {
         pub ffi_modules: Arena<FfiModuleId, FfiModuleDef>,
         /// FFI function definitions
         pub ffi_funcs: Arena<FfiFuncId, FfiFuncDef>,
+        /// FFI function arguments
+        pub ffi_func_args: Arena<FfiFuncArgId, FfiFuncArg>,
         /// FFI struct definitions
         pub ffi_structs: Arena<FfiStructId, FfiStructDef>,
+        /// FFI struct fields.
+        pub ffi_struct_fields: Arena<FfiStructFieldId, FfiStructField>,
         /// FFI enum definitions
         pub ffi_enums: Arena<FfiEnumId, FfiEnumDef>,
     }
 }
 
 /// A span representing a range in the source text.
-#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Span {
     /// The start position in the source text (in bytes).
     pub start: usize,
@@ -128,9 +172,10 @@ pub struct Span {
 }
 
 impl Span {
-    /// Creates a new span with the given start and end positions.
+    /// Creates a new span with the given start and end
+    /// positions.
     pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(start >= end);
+        debug_assert!(start <= end, "{start} {end}");
 
         Self { start, end }
     }
@@ -141,17 +186,37 @@ impl Span {
         Self::new(pos, pos)
     }
 
-    /// Creates a dummy span for testing purposes.
-    // TODO(eric): This is used throughout the code. Make the
-    // code use `Default::default` instead.
-    pub fn dummy() -> Self {
-        Self::new(0, 0)
+    /// Merges the two spans.
+    pub fn merge(self, rhs: Self) -> Self {
+        Self::new(self.start.min(rhs.start), self.end.max(rhs.end))
+    }
+
+    /// Reports whether `start == end`.
+    pub fn is_empty(self) -> bool {
+        self.start == self.end
+    }
+
+    /// Converts the span into a [`Range`].
+    pub fn into_range(self) -> Range<usize> {
+        self.start..self.end
     }
 }
 
 impl From<Span> for Range<usize> {
     fn from(span: Span) -> Self {
         span.start..span.end
+    }
+}
+
+impl From<aranya_policy_module::Span<'_>> for Span {
+    fn from(span: aranya_policy_module::Span<'_>) -> Self {
+        Self::new(span.start(), span.end())
+    }
+}
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}..{}", self.start, self.end)
     }
 }
 
@@ -234,28 +299,12 @@ macro_rules! hir_type {
 }
 
 hir_node! {
-    pub(crate) struct Param {
-        pub id: ParamId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
-    }
-}
-
-hir_node! {
-    pub(crate) struct Body {
-        pub id: BodyId,
-        pub params: Vec<Param>,
-        /// The block that contains the body.
-        pub expr: ExprId,
-    }
-}
-
-hir_node! {
     /// An action definition.
     pub(crate) struct ActionDef {
         pub id: ActionId,
         pub ident: IdentId,
         pub sig: ActionSig,
+        /// The body of the action.
         pub block: BlockId,
     }
 }
@@ -355,7 +404,9 @@ hir_type! {
 }
 
 hir_node! {
-    /// An enum definition.
+    /// An [enum] definition.
+    ///
+    /// [enum]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#enumerations
     pub(crate) struct EnumDef {
         pub id: EnumId,
         pub ident: IdentId,
@@ -723,6 +774,7 @@ hir_type! {
         /// The enum's identifier.
         pub ident: IdentId,
         /// The enum's variant.
+        // TODO(eric): Rename this to `variant`.
         pub value: IdentId,
     }
 }
@@ -756,16 +808,20 @@ hir_node! {
 }
 
 hir_node! {
-    /// A finish function definition.
+    /// A [finish function] definition.
+    ///
+    /// [finish function]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#functions
     pub(crate) struct FinishFuncDef {
         pub id: FinishFuncId,
         pub ident: IdentId,
         pub sig: FinishFuncSig,
+        /// The body of the finish function.
         pub block: BlockId,
     }
 }
 
 hir_type! {
+    /// A finish function signature.
     pub(crate) struct FinishFuncSig {
         pub args: Vec<FinishFuncArgId>,
     }
@@ -781,16 +837,20 @@ hir_node! {
 }
 
 hir_node! {
-    /// A function definition.
+    /// A [function] definition.
+    ///
+    /// [function]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#functions
     pub(crate) struct FuncDef {
         pub id: FuncId,
         pub ident: IdentId,
         pub sig: FuncSig,
+        /// The body of the function.
         pub block: BlockId,
     }
 }
 
 hir_type! {
+    /// A function signature.
     pub(crate) struct FuncSig {
         pub args: Vec<FuncArgId>,
         pub result: VTypeId,
@@ -850,13 +910,15 @@ hir_type! {
 }
 
 hir_type! {
-    /// A let statement.
+    /// A [let] statement.
     ///
     /// ```policy
     /// let foo = 42;
     ///     ^^^   ^^
     ///    ident  expr
     /// ```
+    ///
+    /// [let]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#let
     pub(crate) struct LetStmt {
         pub ident: IdentId,
         pub expr: ExprId,
@@ -864,19 +926,23 @@ hir_type! {
 }
 
 hir_type! {
-    /// A check statement.
+    /// A [check] statement.
     ///
     /// ```policy
     /// check x > 0;
     ///       ^^^^^ expr
     /// ```
+    ///
+    /// [check]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#check
     pub(crate) struct CheckStmt {
         pub expr: ExprId,
     }
 }
 
 hir_type! {
-    /// A match statement.
+    /// A [match] statement.
+    ///
+    /// [match]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#match
     pub(crate) struct MatchStmt {
         pub expr: ExprId,
         pub arms: Vec<MatchArm>,
@@ -940,21 +1006,27 @@ hir_type! {
 }
 
 hir_type! {
-    /// A publish statement.
+    /// A [publish] statement.
+    ///
+    /// [publish]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#publish
     pub(crate) struct Publish {
         pub expr: ExprId,
     }
 }
 
 hir_type! {
-    /// A create statement.
+    /// A [create] statement.
+    ///
+    /// [create]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#create
     pub(crate) struct Create {
         pub fact: FactLiteral,
     }
 }
 
 hir_type! {
-    /// An update statement.
+    /// An [update] statement.
+    ///
+    /// [update]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#update
     pub(crate) struct Update {
         pub fact: FactLiteral,
         pub to: Vec<FactFieldExpr>,
@@ -962,14 +1034,18 @@ hir_type! {
 }
 
 hir_type! {
-    /// A delete statement.
+    /// A [delete] statement.
+    ///
+    /// [delete]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#delete
     pub(crate) struct Delete {
         pub fact: FactLiteral,
     }
 }
 
 hir_type! {
-    /// An emit statement.
+    /// An [emit] statement.
+    ///
+    /// [emit]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#emit
     pub(crate) struct Emit {
         pub expr: ExprId,
     }
@@ -983,7 +1059,9 @@ hir_type! {
 }
 
 hir_node! {
-    /// A struct definition.
+    /// A [struct] definition.
+    ///
+    /// [struct]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#structs
     pub(crate) struct StructDef {
         pub id: StructId,
         pub ident: IdentId,
@@ -1000,11 +1078,12 @@ hir_node! {
 }
 
 hir_type! {
-    /// The kind of an struct field.
+    /// The kind of a struct field.
     pub(crate) enum StructFieldKind {
-        /// A regular field with an identifier and type
+        /// A regular field with an identifier and type.
         Field { ident: IdentId, ty: VTypeId },
-        /// A reference to another struct whose fields should be included
+        /// A reference to another struct whose fields should be
+        /// included.
         StructRef(IdentId),
     }
 }
@@ -1012,8 +1091,38 @@ hir_type! {
 hir_node! {
     /// An identifier.
     ///
-    /// NB: All `Ident`s are unique, even if they refer to the
-    /// same [`Identifier`][ast::Identifier] string.
+    /// All `Ident`s have a unique ID, even if they refer to the
+    /// same [`Identifier`]. To determine if two `Ident`s refer
+    /// to the same [`Identifier`], compare their `xref` fields.
+    ///
+    /// An `Ident` can refer to either a definition or usage. For
+    /// example:
+    ///
+    /// ```policy
+    /// function foo() int { return 42 }
+    ///          ^^^
+    ///          └ definition of `foo`
+    ///
+    /// function bar(x int) int {
+    ///          ^^^ ^
+    ///          │   └ definition of `x`
+    ///          └ definition of `bar`
+    ///     return foo() + x
+    ///            ^^^     ^
+    ///            │       └ usage of `x`
+    ///            └ usage of `foo`
+    /// }
+    /// ```
+    ///
+    /// The code snippet above has five `Ident`s:
+    ///
+    /// 1 `foo` (definition)
+    /// 2. `bar` (definition)
+    /// 3. `x` (definition)
+    /// 4. `foo` (usage)
+    /// 5. `x` (usage)
+    ///
+    /// [`Identifier`]: [ast::Identifier]
     pub(crate) struct Ident {
         pub id: IdentId,
         /// The interned identifier.
@@ -1036,6 +1145,7 @@ hir_type! {
 }
 
 hir_node! {
+    /// The type of a value (variable, argument, field, etc.).
     pub(crate) struct VType {
         pub id: VTypeId,
         pub kind: VTypeKind,
@@ -1044,13 +1154,48 @@ hir_node! {
 
 hir_type! {
     pub(crate) enum VTypeKind {
+        /// A UTF-8 [string].
+        ///
+        /// It cannot contain null bytes.
+        ///
+        /// [string]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#string
         String,
+        /// An arbitrary sequence of [bytes].
+        ///
+        /// [bytes]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#bytes
         Bytes,
+        /// A signed, 64-bit [integer].
+        ///
+        /// [integer]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#int
         Int,
+        /// Either true or false.
         Bool,
+        /// An opaque type for [identifiers].
+        ///
+        /// Cannot be used as a literal.
+        ///
+        /// [identifiers]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#id
         Id,
+        /// An ordered collection of fields.
+        ///
+        /// The `IdentId` refers to one of:
+        ///
+        /// - A [`StructDef`].
+        /// - An [`FfiStructDef`].
+        /// - A [`CmdDef`].
+        /// - An [`EffectDef`].
+        /// - A [`FactDef`].
         Struct(IdentId),
+        /// An enumeration.
+        ///
+        /// The `IdentId` refers to one of:
+        ///
+        /// - An [`EnumDef`].
+        /// - An [`FfiEnumDef`].
         Enum(IdentId),
+        /// An [optional] type.
+        ///
+        /// [optiona]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#optional-type
         Optional(VTypeId),
     }
 }
@@ -1059,7 +1204,7 @@ hir_node! {
     /// An FFI import statement (e.g., `use crypto`).
     pub(crate) struct FfiImportDef {
         pub id: FfiImportId,
-        pub module: IdentId,
+        pub ident: IdentId,
     }
 }
 
@@ -1068,7 +1213,7 @@ hir_node! {
     pub(crate) struct FfiModuleDef {
         pub id: FfiModuleId,
         pub ident: IdentId,
-        pub functions: Vec<FfiFuncId>,
+        pub funcs: Vec<FfiFuncId>,
         pub structs: Vec<FfiStructId>,
         pub enums: Vec<FfiEnumId>,
     }
@@ -1079,8 +1224,23 @@ hir_node! {
     pub(crate) struct FfiFuncDef {
         pub id: FfiFuncId,
         pub ident: IdentId,
-        pub args: Vec<FieldDef>,
-        pub return_type: VTypeId,
+        pub sig: FfiFuncSig,
+    }
+}
+
+hir_type! {
+    pub(crate) struct FfiFuncSig {
+        pub args: Vec<FfiFuncArgId>,
+        pub result: VTypeId,
+    }
+}
+
+hir_node! {
+    /// An FFI function argument.
+    pub(crate) struct FfiFuncArg {
+        pub id: FfiFuncArgId,
+        pub ident: IdentId,
+        pub ty: VTypeId,
     }
 }
 
@@ -1089,7 +1249,26 @@ hir_node! {
     pub(crate) struct FfiStructDef {
         pub id: FfiStructId,
         pub ident: IdentId,
-        pub fields: Vec<FieldDef>,
+        pub fields: Vec<FfiStructFieldId>,
+    }
+}
+
+hir_node! {
+    /// An FFI struct field.
+    pub(crate) struct FfiStructField {
+        pub id: FfiStructFieldId,
+        pub kind: FfiStructFieldKind,
+    }
+}
+
+hir_type! {
+    /// The kind of an FFI struct field.
+    pub(crate) enum FfiStructFieldKind {
+        /// A regular field with an identifier and type.
+        Field { ident: IdentId, ty: VTypeId },
+        /// A reference to another struct whose fields should be
+        /// included.
+        StructRef(IdentId),
     }
 }
 

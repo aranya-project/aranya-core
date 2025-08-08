@@ -82,28 +82,36 @@ mod error;
 mod resolver;
 mod scope;
 mod symbols;
-
-#[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-pub(crate) use error::SymbolResolutionError;
+use tracing::instrument;
 
+#[cfg(test)]
+use self::resolver::ScopeMap;
 pub(crate) use self::{
-    scope::{ScopeId, Scopes},
+    error::SymbolResolutionError,
+    scope::{InvalidScopeId, ScopeId, Scopes},
     symbols::{SymbolId, Symbols},
+};
+use self::{
+    resolver::{intern_reserved_idents, Resolver},
+    scope::InsertError,
+    symbols::{Symbol, SymbolKind},
 };
 use crate::{
     ctx::Ctx,
-    hir::IdentId,
-    symbol_resolution::resolver::{intern_reserved_idents, Resolver},
+    diag::ErrorGuaranteed,
+    hir::{Ident, IdentId, Span},
 };
 
 pub(crate) type Result<T, E = SymbolResolutionError> = std::result::Result<T, E>;
 
 impl Ctx<'_> {
-    pub fn resolve_symbols(&mut self) -> Result<()> {
+    /// Resolves symbols in the HIR.
+    #[instrument(skip(self))]
+    pub fn resolve_symbols(&mut self) -> Result<(), ErrorGuaranteed> {
         intern_reserved_idents(&mut self.idents);
 
         let res = Resolver {
@@ -122,19 +130,49 @@ impl Ctx<'_> {
 #[derive(Clone, Debug)]
 pub(crate) struct SymbolTable {
     /// Maps identifiers to their symbols.
-    pub resolutions: HashMap<IdentId, SymbolId>,
+    pub resolutions: BTreeMap<IdentId, SymbolId>,
     /// The scope hierarchy.
     pub scopes: Scopes,
     /// The symbol arena.
     pub symbols: Symbols,
+    /// TODO
+    #[cfg(test)]
+    pub scopemap: ScopeMap,
 }
 
 impl SymbolTable {
     pub fn empty() -> Self {
         Self {
-            resolutions: HashMap::new(),
+            resolutions: BTreeMap::new(),
             scopes: Scopes::new(),
             symbols: Symbols::new(),
+            #[cfg(test)]
+            scopemap: ScopeMap::new(),
         }
+    }
+
+    /// Sugar for creating a child scope of `scope`.
+    fn create_child_scope(&mut self, scope: ScopeId) -> Result<ScopeId, InvalidScopeId> {
+        self.scopes.create_child_scope(scope)
+    }
+
+    /// Adds a symbol created from `ident`, `kind`, and `span` to
+    /// `scope`.
+    fn add_symbol(
+        &mut self,
+        scope: ScopeId,
+        ident: &Ident,
+        kind: SymbolKind,
+        span: Option<Span>,
+    ) -> Result<(), InsertError> {
+        let sym = Symbol {
+            ident: ident.id,
+            kind,
+            scope,
+            span,
+        };
+        let sym_id = self.symbols.insert(sym);
+        self.resolutions.insert(ident.id, sym_id);
+        self.scopes.try_insert(scope, ident.xref, sym_id)
     }
 }

@@ -49,7 +49,7 @@ use crate::{
 };
 
 pub(crate) mod types {
-    pub use crate::hir::*;
+    pub(crate) use crate::hir::*;
 }
 
 impl Ctx<'_> {
@@ -58,6 +58,8 @@ impl Ctx<'_> {
             hir: Hir::default(),
             idents: &mut self.idents,
             text: &mut self.text,
+            codemap: ast.codemap,
+            last_span: Span::default(),
         };
         let index = ast::index(ast);
         for (_, item) in index {

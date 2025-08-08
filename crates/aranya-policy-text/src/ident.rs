@@ -4,13 +4,13 @@ use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
 use serde::de;
 
 use crate::{
-    Text,
     error::{InvalidIdentifier, InvalidIdentifierRepr},
     repr::Repr,
+    Text,
 };
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 /// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Identifier(Text);
 
 /// Creates an `Identifier` from a string literal.

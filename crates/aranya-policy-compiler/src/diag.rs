@@ -8,7 +8,7 @@ use std::{
     hash::Hash,
     marker::PhantomData,
     ops::{ControlFlow, Deref, DerefMut},
-    panic::panic_any,
+    panic,
 };
 
 use buggy::Bug;
@@ -24,8 +24,12 @@ use codespan_reporting::{
 
 use crate::hir::Span;
 
+/// A trait that guarantees the emission of a diagnostic.
 pub(crate) trait EmissionGuarantee: Sized {
+    /// The result type of the emission.
     type EmitResult;
+
+    /// An implementation of [`Diag::emit`].
     fn emit_producing_guarantee(diag: Diag<'_, Self>) -> Self::EmitResult;
 }
 
@@ -38,14 +42,18 @@ impl EmissionGuarantee for () {
     }
 }
 
-/// Used with `Result<>` to indicate that an error has been
-/// reported and the compiler should exit.
+/// Used with [`Result`] to indicate that an error has been
+/// reported and compilation can stop.
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct ErrorGuaranteed(());
 
 impl ErrorGuaranteed {
+    /// Aborts the process with a fatal error.
     pub fn raise_fatal(self) -> ! {
-        std::process::abort()
+        #[derive(Debug)]
+        struct FatalError;
+
+        panic::resume_unwind(Box::new(FatalError))
     }
 }
 
@@ -59,13 +67,14 @@ impl EmissionGuarantee for ErrorGuaranteed {
     }
 }
 
+// TODO(eric): keep this impl?
 impl From<ErrorGuaranteed> for ControlFlow<ErrorGuaranteed> {
     fn from(err: ErrorGuaranteed) -> Self {
         ControlFlow::Break(err)
     }
 }
 
-/// Marker type for the TODO
+/// Marker type for the `emit_bug` type methods on [`DiagCtx`].
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct BugAbort;
 
@@ -80,11 +89,23 @@ impl EmissionGuarantee for BugAbort {
         assert_eq!(inner.severity, Severity::Bug);
         diag.ctx.emit(inner);
 
-        panic_any(ExplicitBug)
+        panic::panic_any(ExplicitBug)
     }
 }
 
-pub(crate) trait Diagnostic<'a, G: EmissionGuarantee = ErrorGuaranteed> {
+/// Implemented by error types.
+///
+/// Only implement this trait for a generic
+/// [`EmissionGuarantee`], even if it is only ever used with
+/// a specific implementation.
+///
+/// ```ignore
+/// struct MyDiag;
+///
+/// impl<'a, G: EmissionGuarantee> Diagnostic<'a, G> for MyDiag { ... }
+/// ```
+pub(crate) trait Diagnostic<'a, G: EmissionGuarantee = ErrorGuaranteed>: fmt::Debug {
+    /// Converts the error into a [`Diag`].
     #[must_use]
     fn into_diag(self, ctx: &'a DiagCtx, severity: Severity) -> Diag<'a, G>;
 }
@@ -106,15 +127,22 @@ impl<'a, G: EmissionGuarantee> Diagnostic<'a, G> for Bug {
 /// A diagnostic message.
 pub(crate) type DiagMsg = Cow<'static, str>;
 
-/// A structured diagnostic error or bug.
+/// A structured diagnostic.
+///
+/// `Diag` must either be [emitted][Self::emit] or
+/// [cancelled][Self::cancel] before being dropped, otherwise it
+/// will panic.
 #[must_use]
 pub(crate) struct Diag<'a, G: EmissionGuarantee = ErrorGuaranteed> {
     pub ctx: &'a DiagCtx,
+    /// This is set to `None` when the diagnostic is consumed
+    /// (emitted, canceled, etc.).
     diag: Option<DiagInner>,
     _marker: PhantomData<G>,
 }
 
 impl<'a, G: EmissionGuarantee> Diag<'a, G> {
+    /// Creates a new diagnostic.
     pub fn new(ctx: &'a DiagCtx, severity: Severity, msg: impl Into<DiagMsg>) -> Self {
         Self {
             ctx,
@@ -122,8 +150,8 @@ impl<'a, G: EmissionGuarantee> Diag<'a, G> {
                 severity,
                 code: None,
                 message: msg.into().into_owned(),
-                labels: Vec::new(),
                 notes: Vec::new(),
+                span: MultiSpan::new(),
             }),
             _marker: PhantomData,
         }
@@ -134,21 +162,16 @@ impl<'a, G: EmissionGuarantee> Diag<'a, G> {
         G::emit_producing_guarantee(self)
     }
 
-    /// Adds spans to the diagnostic.
-    #[must_use]
-    pub fn with_span(mut self, span: impl Into<MultiSpan>) -> Self {
-        let span = span.into();
-        for (span, msg) in span.labels {
-            let label = Label::primary((), span).with_message(msg);
-            self = self.with_label(label);
-        }
-        self
+    /// Cancels and consumes the diagnostic.
+    pub fn cancel(mut self) {
+        self.diag = None;
+        drop(self);
     }
 
-    /// Adds a label to the diagnostic.
+    /// Sets the diagnostic's span.
     #[must_use]
-    pub fn with_label(mut self, label: Label<()>) -> Self {
-        self.deref_mut().labels.push(label);
+    pub fn with_span(mut self, span: impl Into<MultiSpan>) -> Self {
+        self.span = span.into();
         self
     }
 
@@ -192,28 +215,25 @@ impl<G: EmissionGuarantee> Drop for Diag<'_, G> {
     }
 }
 
+/// The inner part of [`Diag`].
+#[must_use]
 #[derive(Clone, Debug)]
-pub(crate) struct DiagInner<FileId = ()> {
+pub(crate) struct DiagInner {
+    /// The severity of the diagnostic.
     pub severity: Severity,
+    /// The diagnostic's error code, if any.
+    // TODO(eric): Make this required.
     pub code: Option<String>,
+    /// The main diagnostic message.
     pub message: String,
-    pub labels: Vec<Label<FileId>>,
+    /// Additional notes for the diagnostic.
+    /// May include line breaks.
     pub notes: Vec<String>,
+    /// The diagnostic's span.
+    pub span: MultiSpan,
 }
 
-impl<FileId> Into<diagnostic::Diagnostic<FileId>> for DiagInner<FileId> {
-    fn into(self) -> diagnostic::Diagnostic<FileId> {
-        diagnostic::Diagnostic {
-            severity: self.severity,
-            code: self.code,
-            message: self.message,
-            labels: self.labels,
-            notes: self.notes,
-        }
-    }
-}
-
-/// Diagnostic context.
+/// Diagnostic context for the compiler.
 #[derive(Clone, Debug)]
 pub(crate) struct DiagCtx {
     file: SimpleFile<Cow<'static, str>, String>,
@@ -222,7 +242,7 @@ pub(crate) struct DiagCtx {
 
 impl DiagCtx {
     /// Creates a diagnostic context.
-    pub fn new(path: &str, src: &str) -> Self {
+    pub fn new(src: &str, path: &str) -> Self {
         Self {
             file: SimpleFile::new(fix_path(path.to_string()), src.to_string()),
             errs: RefCell::new(Vec::new()),
@@ -231,14 +251,38 @@ impl DiagCtx {
 
     /// Aborts if an error or bug has occurred.
     pub fn abort_if_errors(&self) {
-        if let Some(err) = self.errs.borrow().first() {
+        if let Some(err) = self.has_errors() {
             err.raise_fatal();
         }
     }
 
-    fn emit(&self, diag: DiagInner) -> ErrorGuaranteed {
+    /// Returns `Some` if an error has occurred.
+    pub fn has_errors(&self) -> Option<ErrorGuaranteed> {
+        self.errs.borrow().first().copied()
+    }
+
+    fn emit(&self, inner: DiagInner) -> ErrorGuaranteed {
         let writer = StandardStream::stderr(ColorChoice::Auto);
         let ref mut stderr = writer.lock();
+
+        let mut diag = diagnostic::Diagnostic {
+            severity: inner.severity,
+            code: inner.code,
+            message: match inner.severity {
+                Severity::Bug => format!("ICE: {}", inner.message),
+                _ => inner.message,
+            },
+            labels: Vec::new(),
+            notes: inner.notes,
+        };
+        for (span, msg) in inner.span.primary {
+            let label = Label::primary((), self.fix_span(span)).with_message(msg);
+            diag.labels.push(label);
+        }
+        for (span, msg) in inner.span.labels {
+            let label = Label::secondary((), self.fix_span(span)).with_message(msg);
+            diag.labels.push(label);
+        }
 
         let mut config = term::Config::default();
         config.styles.header_error.set_intense(true);
@@ -248,11 +292,32 @@ impl DiagCtx {
         config.styles.primary_label_error.set_intense(true);
         config.styles.secondary_label.set_intense(true);
         config.styles.source_border.set_intense(true);
-        let _ = term::emit(stderr, &config, &self.file, &diag.into());
+        let _ = term::emit(stderr, &config, &self.file, &diag);
 
         self.errs.borrow_mut().push(ErrorGuaranteed(()));
 
         ErrorGuaranteed(())
+    }
+
+    fn fix_span(&self, mut span: Span) -> Span {
+        let src = self.file.source().as_str();
+        if span.is_empty() {
+            // Inflate the empty span to the end of its current
+            // line.
+            let frag = &src[span.start..];
+            let end = src.find('\n').unwrap_or(frag.len());
+            return Span::new(span.start, end);
+        }
+        // Chop off trailing whitespace so that our messages
+        // don't unnecessarily span multiple lines.
+        loop {
+            let frag = src[span.into_range()].as_bytes();
+            if !frag.last().is_some_and(|v| v.is_ascii_whitespace()) {
+                break;
+            }
+            span.end -= 1;
+        }
+        span
     }
 }
 
@@ -315,7 +380,9 @@ fn fix_path(path: String) -> Cow<'static, str> {
 /// A collection of spans.
 #[derive(Clone, Default, Debug)]
 pub(crate) struct MultiSpan {
-    primary: Vec<Span>,
+    // Labels that describe the primary cause of the diagnostic.
+    primary: Vec<(Span, DiagMsg)>,
+    // Labels that provide additional context for the diagnostic.
     labels: Vec<(Span, DiagMsg)>,
 }
 
@@ -329,9 +396,9 @@ impl MultiSpan {
     }
 
     /// Creates a collection of spans from a single primary span.
-    pub fn from_span(span: Span) -> Self {
+    pub fn from_span(span: Span, msg: impl Into<DiagMsg>) -> Self {
         Self {
-            primary: vec![span],
+            primary: vec![(span, msg.into())],
             labels: Vec::new(),
         }
     }
@@ -340,19 +407,89 @@ impl MultiSpan {
     pub fn push_label(&mut self, span: Span, msg: impl Into<DiagMsg>) {
         self.labels.push((span, msg.into()));
     }
-}
 
-impl From<Span> for MultiSpan {
-    fn from(span: Span) -> Self {
-        Self::from_span(span)
+    /// Are there any spans in this collection?
+    pub fn is_empty(&self) -> bool {
+        self.primary.is_empty() && self.labels.is_empty()
     }
 }
 
-impl From<Vec<Span>> for MultiSpan {
-    fn from(spans: Vec<Span>) -> Self {
+impl From<(Span, DiagMsg)> for MultiSpan {
+    fn from((span, msg): (Span, DiagMsg)) -> Self {
+        Self::from_span(span, msg)
+    }
+}
+
+impl From<Vec<(Span, DiagMsg)>> for MultiSpan {
+    fn from(spans: Vec<(Span, DiagMsg)>) -> Self {
         Self {
             primary: spans,
             labels: Vec::new(),
         }
+    }
+}
+
+/// Extension trait for [`Result`].
+pub(crate) trait ResultExt<T, E> {
+    /// Returns the [`Ok`] value, or emits an ICE.
+    fn unwrap_or_bug(self, ctx: &DiagCtx, msg: impl Into<DiagMsg>) -> T;
+}
+
+impl<T, E> ResultExt<T, E> for Result<T, E>
+where
+    E: fmt::Debug,
+{
+    fn unwrap_or_bug(self, ctx: &DiagCtx, msg: impl Into<DiagMsg>) -> T {
+        match self {
+            Ok(val) => val,
+            Err(err) => ctx.emit_bug(UnwrapOrBug {
+                msg: msg.into(),
+                err,
+            }),
+        }
+    }
+}
+
+/// Extension trait for [`Option`].
+pub(crate) trait OptionExt<T> {
+    /// Returns the [`Some`] value, or emits an ICE.
+    fn unwrap_or_bug(self, ctx: &DiagCtx, msg: impl Into<DiagMsg>) -> T;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    fn unwrap_or_bug(self, ctx: &DiagCtx, msg: impl Into<DiagMsg>) -> T {
+        match self {
+            Some(val) => val,
+            None => ctx.emit_bug(UnwrapOrBug {
+                msg: msg.into(),
+                err: (),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("{msg}: {err:?}")]
+struct UnwrapOrBug<E> {
+    msg: DiagMsg,
+    err: E,
+}
+
+impl<E> From<UnwrapOrBug<E>> for DiagMsg
+where
+    E: fmt::Debug,
+{
+    fn from(err: UnwrapOrBug<E>) -> Self {
+        DiagMsg::Owned(err.to_string())
+    }
+}
+
+impl<'a, G, E> Diagnostic<'a, G> for UnwrapOrBug<E>
+where
+    G: EmissionGuarantee,
+    E: fmt::Debug,
+{
+    fn into_diag(self, ctx: &'a DiagCtx, severity: Severity) -> Diag<'a, G> {
+        Diag::new(ctx, severity, self)
     }
 }

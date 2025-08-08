@@ -2,10 +2,13 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::scope::{ScopeId, ScopedId};
 use crate::{
     arena::{self, Arena},
-    hir::{IdentId, Span},
-    symbol_resolution::scope::ScopeId,
+    hir::{
+        ActionId, BlockId, CmdId, EffectId, EnumId, FactId, FfiEnumId, FfiFuncId, FfiModuleId,
+        FfiStructId, FinishFuncId, FuncId, GlobalId, IdentId, NodeId, Span, StructId,
+    },
 };
 
 arena::new_key_type! {
@@ -47,7 +50,7 @@ impl Symbols {
 }
 
 /// A symbol in the symbol table.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Symbol {
     pub ident: IdentId,
     pub kind: SymbolKind,
@@ -61,112 +64,20 @@ pub(crate) struct Symbol {
 }
 
 /// A symbol in the symbol table.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) enum SymbolKind {
-    Action(SymAction),
-    Cmd(SymCmd),
-    Effect(SymEffect),
-    Enum(SymEnum),
-    Fact(SymFact),
-    FfiFunc(SymFfiFunc),
-    FfiModule(SymFfiModule),
-    FinishFunc(SymFinishFunc),
-    Func(SymFunc),
-    GlobalVar(SymGlobalVar),
-    LocalVar(SymLocalVar),
-    Struct(SymStruct),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymFfiFunc {
-    /// The scope that the FFI function was defined in.
-    pub scope: ScopeId,
-}
-
-/// A global variable.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymGlobalVar {
-    /// Expression local scope.
-    pub scope: ScopeId,
-}
-
-/// A local variable.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymLocalVar {
-    /// Expression local scope.
-    pub scope: ScopeId,
-}
-
-/// A `fact` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymFact {}
-
-/// An `action` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymAction {
-    /// Action-local scope.
-    pub scope: ScopeId,
-}
-
-/// An `effect` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymEffect {}
-
-/// A `struct` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymStruct {}
-
-/// An `enum` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymEnum {}
-
-/// A `command` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymCmd {
-    pub policy: PolicyBlock,
-    pub recall: RecallBlock,
-}
-
-/// A `policy` block inside a [`SymCommand`].
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct PolicyBlock {
-    /// Block-local scope.
-    pub scope: ScopeId,
-    pub finish: FinishBlock,
-}
-
-/// A `recall` block inside a [`SymCommand`].
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct RecallBlock {
-    /// Block-local scope.
-    pub scope: ScopeId,
-    pub finish: FinishBlock,
-}
-
-/// A `finish` block inside a [`PolicyBlock`] or [`RecallBlock`].
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct FinishBlock {
-    /// Block-local scope.
-    pub scope: ScopeId,
-}
-
-/// An FFI module.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymFfiModule {
-    /// Module-local scope.
-    pub scope: ScopeId,
-}
-
-/// A `function` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymFunc {
-    /// Function-local scope.
-    pub scope: ScopeId,
-}
-
-/// A `finish function` declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SymFinishFunc {
-    /// Function-local scope.
-    pub scope: ScopeId,
+    Action(ActionId),
+    Cmd(CmdId),
+    Effect(EffectId),
+    Enum(EnumId),
+    Fact(FactId),
+    FfiEnum(FfiEnumId),
+    FfiFunc(FfiFuncId),
+    FfiModule(FfiModuleId),
+    FfiStruct(FfiStructId),
+    FinishFunc(FinishFuncId),
+    Func(FuncId),
+    GlobalVar(GlobalId),
+    LocalVar(Option<BlockId>),
+    Struct(StructId),
 }

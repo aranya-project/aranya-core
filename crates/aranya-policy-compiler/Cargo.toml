@@ -34,3 +34,4 @@ codespan-reporting = { version = "0.12" }
 anyhow = { workspace = true }
 insta = { version = "1", features = ["json"] }
 test-log = { workspace = true, features = ["color"] }
+pretty_assertions = { version = "1.4" }

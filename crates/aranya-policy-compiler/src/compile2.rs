@@ -24,8 +24,11 @@ impl Compiler<'_> {
         ctx.lower_hir(Ast {
             ast: &self.policy,
             schemas: &self.ffi_modules,
+            codemap: &codemap,
         });
-        ctx.resolve_symbols()?;
+        if let Err(err) = ctx.resolve_symbols() {
+            err.raise_fatal();
+        }
 
         let mut cg = Codegen {
             prog: Vec::new(),

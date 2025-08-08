@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 
 use aranya_policy_ast::{
-    self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
+    self as ast, ident, AstNode, Identifier, MapStatement, MatchExpression, Text, Version,
 };
 use ast::{EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
-    Parser, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
+    Parser, Span,
 };
 
 mod error;
