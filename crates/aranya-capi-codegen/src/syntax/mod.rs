@@ -15,7 +15,7 @@ mod util;
 pub use attrs::*;
 pub use builds::Builds;
 pub(crate) use derive::DeriveTrait;
-pub(crate) use doc::Doc;
+pub(crate) use doc::{Doc, InnerDoc};
 pub(crate) use error::ERRORS;
 pub use file::Item;
 pub(crate) use node::*;

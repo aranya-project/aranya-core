@@ -256,5 +256,7 @@ impl Ast {
         for node in &mut self.nodes {
             rewrite_node(ctx, &ac, node, &self.idents)
         }
+
+        rewrite_docs(ctx, &mut self.doc.0, &ac, &self.idents);
     }
 }
