@@ -226,7 +226,8 @@ fn get_command_priorities(
     machine: &Machine,
 ) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
-    for (name, attrs) in &machine.command_attributes {
+    for (name, def) in &machine.command_defs {
+        let attrs = &def.attributes;
         let finalize = attrs
             .get("finalize")
             .map(|attr| match *attr {

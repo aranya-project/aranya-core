@@ -1,13 +1,12 @@
 #![cfg(test)]
 
-use std::collections::BTreeMap;
-
-use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
+use aranya_policy_ast::{VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Label, LabelType, Module, ModuleData, Value,
     ffi::{self, ModuleSchema},
 };
+use indexmap::{IndexMap, indexmap};
 
 use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
 
@@ -302,10 +301,11 @@ fn test_command_attributes() {
     let m = compile_pass(text);
     match m.data {
         ModuleData::V0(m) => {
-            let attrs = m
-                .command_attributes
+            let attrs = &m
+                .command_defs
                 .get("A")
-                .expect("should find command attribute map");
+                .expect("should find command")
+                .attributes;
             assert_eq!(attrs.len(), 3);
             assert_eq!(
                 attrs.get("i").expect("should find 1st value"),
@@ -384,12 +384,12 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let ModuleData::V0(module) = module.data;
 
-    let want = BTreeMap::from([
+    let want = IndexMap::from([
         (ident!("a"), VType::Int),
         (ident!("b"), VType::String),
         (ident!("c"), VType::Bool),
     ]);
-    let got = module.command_defs.get("Foo").unwrap();
+    let got = &module.command_defs.get("Foo").unwrap().fields;
     assert_eq!(got, &want);
 
     Ok(())
@@ -496,17 +496,11 @@ fn test_autodefine_struct() {
     let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    let want = vec![
-        FieldDefinition {
-            identifier: ident!("a"),
-            field_type: VType::Int,
-        },
-        FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Int,
-        },
-    ];
-    let got = module.struct_defs.get("Foo").unwrap();
+    let want = indexmap! {
+        ident!("a") => VType::Int,
+        ident!("b") => VType::Int,
+    };
+    let got = &module.struct_defs.get("Foo").unwrap().fields;
     assert_eq!(got, &want);
 }
 
@@ -561,16 +555,10 @@ fn test_struct_field_insertion() {
             struct Bar { a int }
             struct Foo { +Bar, b string }
             "#,
-            vec![
-                FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
-                },
-                FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
-                },
-            ],
+            indexmap! {
+                ident!("a") => VType::Int,
+                ident!("b") => VType::String,
+            },
         ),
         (
             r#"
@@ -578,20 +566,11 @@ fn test_struct_field_insertion() {
             struct Baz { c bool }
             struct Foo { +Bar, b string, +Baz }
             "#,
-            vec![
-                FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
-                },
-                FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
-                },
-                FieldDefinition {
-                    identifier: ident!("c"),
-                    field_type: VType::Bool,
-                },
-            ],
+            indexmap! {
+                ident!("a") => VType::Int,
+                ident!("b") => VType::String,
+                ident!("c") => VType::Bool,
+            },
         ),
     ];
 
@@ -600,7 +579,7 @@ fn test_struct_field_insertion() {
         let result = Compiler::new(&policy).compile().expect("should compile");
         let ModuleData::V0(module) = result.data;
 
-        let got = module.struct_defs.get("Foo").unwrap();
+        let got = &module.struct_defs.get("Foo").unwrap().fields;
         assert_eq!(got, &want);
     }
 }
@@ -617,34 +596,19 @@ fn test_effect_with_field_insertion() {
     let m = Compiler::new(&policy).compile().expect("should compile");
     let ModuleData::V0(module) = m.data;
 
-    let foo_want = vec![
-        FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
-        },
-        FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
-        },
-    ];
-    let foo_got = module.struct_defs.get("Foo").unwrap();
+    let foo_want = indexmap! {
+        ident!("b") => VType::Bool,
+        ident!("s") => VType::String,
+    };
+    let foo_got = &module.struct_defs.get("Foo").unwrap().fields;
     assert_eq!(foo_got, &foo_want);
 
-    let baz_want = vec![
-        FieldDefinition {
-            identifier: ident!("i"),
-            field_type: VType::Int,
-        },
-        FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
-        },
-        FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
-        },
-    ];
-    let baz_got = module.struct_defs.get("Baz").unwrap();
+    let baz_want = indexmap! {
+       ident!("i") => VType::Int,
+       ident!("b") => VType::Bool,
+       ident!("s") => VType::String,
+    };
+    let baz_got = &module.struct_defs.get("Baz").unwrap().fields;
     assert_eq!(baz_got, &baz_want);
 }
 
@@ -2421,7 +2385,7 @@ fn test_function_used_before_definition() {
         function pow(x int, n int) int {
             if n == 0 {
                 // x^0 == x
-                return 1 
+                return 1
             }
             if n == 1 {
                 // x^1 = x

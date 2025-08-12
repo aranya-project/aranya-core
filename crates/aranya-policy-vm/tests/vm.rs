@@ -142,11 +142,10 @@ fn test_structs() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
 
     assert_eq!(
-        machine.struct_defs.get("Bar"),
-        Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x"),
-            field_type: ast::VType::Int
-        }])
+        machine.struct_defs.get("Bar").unwrap().fields,
+        indexmap::indexmap! {
+            ident!("x") => ast::VType::Int,
+        }
     );
 
     {

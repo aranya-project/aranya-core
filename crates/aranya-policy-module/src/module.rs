@@ -2,10 +2,10 @@
 
 extern crate alloc;
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, Persistence, VType};
 use ast::FactDefinition;
 use serde::{Deserialize, Serialize};
 
@@ -73,19 +73,53 @@ pub struct ModuleV0 {
     /// Labels
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, ActionDef>,
     /// Command definitions
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: BTreeMap<Identifier, CommandDef>,
     /// Fact definitions
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct definitions
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, StructDef>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
+    pub enum_defs: BTreeMap<Identifier, EnumDef>,
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data
     pub globals: BTreeMap<Identifier, Value>,
 }
+
+/// An action definition.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ActionDef {
+    /// The action's persistence.
+    pub persistence: Persistence,
+    /// The action's arguments.
+    pub args: IndexMap<Identifier, VType>,
+}
+
+/// A command definition.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CommandDef {
+    /// The command's persistence.
+    pub persistence: Persistence,
+    /// The command's attributes.
+    pub attributes: IndexMap<Identifier, Value>,
+    /// The command's fields.
+    pub fields: IndexMap<Identifier, VType>,
+}
+
+/// An struct definition.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StructDef {
+    /// The struct's fields.
+    pub fields: IndexMap<Identifier, VType>,
+}
+
+/// An enum definition.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EnumDef {
+    /// The enum's variants.
+    pub variants: IndexMap<Identifier, i64>,
+}
+
+type IndexMap<K, V> = indexmap::IndexMap<K, V, fnv::FnvBuildHasher>;
