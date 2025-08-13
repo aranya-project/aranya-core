@@ -263,7 +263,7 @@ impl ChunkParser<'_> {
         if it.next() != Some('"') {
             return Err(ParseError::new(
                 ParseErrorKind::InvalidString,
-                format!("bad string: {}", src),
+                format!("bad string: {src}"),
                 Some(string.as_span()),
             ));
         }
@@ -277,7 +277,7 @@ impl ChunkParser<'_> {
                                 let v = u8::from_str_radix(&s, 16).map_err(|e| {
                                     ParseError::new(
                                         ParseErrorKind::InvalidNumber,
-                                        format!("{}: {}", s, e),
+                                        format!("{s}: {e}"),
                                         Some(string.as_span()),
                                     )
                                 })?;
@@ -289,7 +289,7 @@ impl ChunkParser<'_> {
                             _ => {
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
-                                    format!("invalid escape: {}", next),
+                                    format!("invalid escape: {next}"),
                                     Some(string.as_span()),
                                 ));
                             }
@@ -411,7 +411,7 @@ impl ChunkParser<'_> {
                         Rule::bfalse => Ok(Expression::Bool(false)),
                         t => Err(ParseError::new(
                             ParseErrorKind::Unknown,
-                            format!("impossible token: {:?}", t),
+                            format!("impossible token: {t:?}"),
                             Some(primary.as_span()),
                         )),
                     }
@@ -441,7 +441,7 @@ impl ChunkParser<'_> {
                         t => {
                             return Err(ParseError::new(
                                 ParseErrorKind::Unknown,
-                                format!("invalid token in optional: {:?}", t),
+                                format!("invalid token in optional: {t:?}"),
                                 Some(primary.as_span()),
                             ))
                         }
@@ -573,7 +573,7 @@ impl ChunkParser<'_> {
                     Expression::Identifier(s) => Ok(Expression::Dot(Box::new(lhs?), s)),
                     e => Err(ParseError::new(
                         ParseErrorKind::InvalidMember,
-                        format!("{:?}", e),
+                        format!("{e:?}"),
                         Some(op.as_span()),
                     )),
                 },
@@ -581,7 +581,7 @@ impl ChunkParser<'_> {
                     Expression::Identifier(s) => Ok(Expression::Substruct(Box::new(lhs?), s)),
                     e => Err(ParseError::new(
                         ParseErrorKind::InvalidSubstruct,
-                        format!("Expression `{:?}` to the right of the substruct operator must be an identifier", e),
+                        format!("Expression `{e:?}` to the right of the substruct operator must be an identifier"),
                         Some(op.as_span()),
                     )),
                 }
@@ -640,7 +640,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_expression_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let pattern = match token.as_rule() {
@@ -648,7 +648,7 @@ impl ChunkParser<'_> {
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
-                        .map(|token| self.parse_expression(token.to_owned()))
+                        .map(|token| self.parse_expression(token.clone()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     MatchPattern::Values(values)
@@ -690,7 +690,7 @@ impl ChunkParser<'_> {
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
-                format!("{} requires count limit (int)", cmp_type),
+                format!("{cmp_type} requires count limit (int)"),
                 Some(statement.as_span()),
             )
         })?;
@@ -704,7 +704,7 @@ impl ChunkParser<'_> {
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
-                format!("{} requires fact literal", cmp_type),
+                format!("{cmp_type} requires fact literal"),
                 Some(statement.as_span()),
             )
         })?;
@@ -878,7 +878,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let pattern = match token.as_rule() {
@@ -887,7 +887,7 @@ impl ChunkParser<'_> {
                     let values = token
                         .into_inner()
                         .map(|token| {
-                            let expr = self.parse_expression(token.to_owned())?;
+                            let expr = self.parse_expression(token.clone())?;
                             Ok(expr)
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
@@ -1062,7 +1062,7 @@ impl ChunkParser<'_> {
                 s => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
-                        format!("found invalid rule `{:?}`", s),
+                        format!("found invalid rule `{s:?}`"),
                         Some(statement.as_span()),
                     ));
                 }
@@ -1359,7 +1359,7 @@ impl ChunkParser<'_> {
                 t => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
-                        format!("found {:?} in command definition", t),
+                        format!("found {t:?} in command definition"),
                         Some(token.as_span()),
                     ));
                 }

@@ -870,12 +870,9 @@ impl Named {
 impl ToTokens for Named {
     #[allow(clippy::arithmetic_side_effects)]
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let qself = match &self.qself {
-            Some(qself) => qself,
-            None => {
-                self.path.to_tokens(tokens);
-                return;
-            }
+        let qself = if let Some(qself) = &self.qself { qself } else {
+            self.path.to_tokens(tokens);
+            return;
         };
         qself.lt_token.to_tokens(tokens);
         qself.ty.to_tokens(tokens);
@@ -1471,12 +1468,12 @@ impl Unit {
     pub(crate) fn parse(_ctx: &Ctx, tuple: syn::TypeTuple) -> Result<Self> {
         trace!("parsing `Unit`");
 
-        if !tuple.elems.is_empty() {
-            Err(Error::new_spanned(&tuple, "only `()` is supported"))
-        } else {
+        if tuple.elems.is_empty() {
             Ok(Self {
                 paren_token: tuple.paren_token,
             })
+        } else {
+            Err(Error::new_spanned(&tuple, "only `()` is supported"))
         }
     }
 

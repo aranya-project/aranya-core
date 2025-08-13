@@ -158,8 +158,8 @@ impl MemStorage {
         }
 
         let segment = MemSegmentInner {
-            prior,
             index,
+            prior,
             policy,
             commands,
             facts,
@@ -400,7 +400,7 @@ impl Query for MemFactIndex {
         let mut prior = Some(self.deref());
         while let Some(facts) = prior {
             if let Some(slot) = facts.map.get(name).and_then(|m| m.get(keys)) {
-                return Ok(slot.as_ref().cloned());
+                return Ok(slot.clone());
             }
             prior = facts.prior.as_deref();
         }

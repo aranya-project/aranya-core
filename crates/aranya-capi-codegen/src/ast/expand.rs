@@ -934,14 +934,14 @@ impl Ast {
         let util = &ctx.util;
         let name = old.to_snake_case().with_suffix("_init");
 
-        let doc = parse_doc! {r#"
+        let doc = parse_doc! {r"
 /// Initializes `{ty}`.
 ///
 /// When no longer needed, `out`'s resources must be released
 /// with its cleanup routine.
 ///
 /// @relates {ty}
-"#};
+"};
         let f = RustFn::parse(
             ctx,
             parse_quote_spanned! {span=>
@@ -981,12 +981,12 @@ impl Ast {
         let util = &ctx.util;
         let name = old.to_snake_case().with_suffix("_build");
 
-        let doc = parse_doc! {r#"
+        let doc = parse_doc! {r"
 /// Builds `{output}`.
 ///
 /// When no longer needed, `out`'s resources must be released
 /// with its cleanup function.
-"#};
+"};
         let f = RustFn::parse(
             ctx,
             parse_quote_spanned! {span=>
@@ -1033,13 +1033,13 @@ impl Ast {
             .with_suffix("_init")
             .with_prefix(&ctx.fn_prefix);
 
-        let doc = parse_doc! {r#"
+        let doc = parse_doc! {r"
 /// Releases any resources associated with `ptr`.
 ///
 /// `ptr` must either be null or initialized by `::{init}`.
 ///
 /// @relates {ty}
-"#};
+"};
         let f = RustFn::parse(
             ctx,
             parse_quote_spanned! {span=>
@@ -1522,9 +1522,8 @@ fn cast_output_ty(
                 return Some(quote! {
                     #new_name::from(#ident)
                 });
-            } else {
-                (quote!(from_inner), named)
             }
+            (quote!(from_inner), named)
         }
         // `OwnedPtr<T>`
         Type::OwnedPtr(ptr) => {

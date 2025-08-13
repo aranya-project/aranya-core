@@ -40,17 +40,14 @@ enum Mode {
 }
 
 fn parse_text_and_version(s: &str, args: &Args) -> anyhow::Result<(String, Version)> {
-    match args.raw_policy_version {
-        Some(version) => Ok((s.to_owned(), version)),
-        None => {
-            let (chunks, version) = extract_policy(s)?;
-            let mut s = String::new();
-            for c in chunks {
-                s.push_str(&c.text);
-            }
-
-            Ok((s, version))
+    if let Some(version) = args.raw_policy_version { Ok((s.to_owned(), version)) } else {
+        let (chunks, version) = extract_policy(s)?;
+        let mut s = String::new();
+        for c in chunks {
+            s.push_str(&c.text);
         }
+
+        Ok((s, version))
     }
 }
 
@@ -73,7 +70,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let mut p = ChunkParser::new(0, &pratt);
             let ast = p.parse_expression(token)?;
 
-            Ok(format!("{:#?}", ast))
+            Ok(format!("{ast:#?}"))
         }
     }
 }
@@ -81,11 +78,11 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
 fn output(res: anyhow::Result<String>) -> ExitCode {
     match res {
         Ok(s) => {
-            println!("{}", s);
+            println!("{s}");
             ExitCode::SUCCESS
         }
         Err(e) => {
-            println!("error: {}", e);
+            println!("error: {e}");
             ExitCode::from(1)
         }
     }

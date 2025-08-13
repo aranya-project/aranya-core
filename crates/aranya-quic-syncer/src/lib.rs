@@ -5,7 +5,6 @@
 use std::{
     collections::BTreeMap,
     net::SocketAddr,
-    ops::DerefMut,
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -375,7 +374,7 @@ where
                             let mut client = self.client_state.lock().await;
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
-                            let sink = sink_guard.deref_mut();
+                            let sink = &mut *sink_guard;
                             client.add_commands(&mut trx, sink, &cmds)?;
                             client.commit(&mut trx, sink)?;
                             let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
@@ -395,7 +394,7 @@ where
     async fn send_push(&mut self, storage_id: GraphId) -> Result<(), QuicSyncError> {
         // Remove all expired subscriptions
         self.subscriptions.retain(|_, s| !s.expired());
-        for (addr, subscription) in self.subscriptions.iter_mut() {
+        for (addr, subscription) in &mut self.subscriptions {
             let response_cache = self.remote_heads.entry(*addr).or_default();
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);

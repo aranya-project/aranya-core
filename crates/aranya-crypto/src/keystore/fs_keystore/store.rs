@@ -372,10 +372,10 @@ fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
             Err(e) => return Err(e.into()),
         }
     }
-    if !buf.is_empty() {
-        Err(UnexpectedEof.into())
-    } else {
+    if buf.is_empty() {
         Ok(())
+    } else {
+        Err(UnexpectedEof.into())
     }
 }
 

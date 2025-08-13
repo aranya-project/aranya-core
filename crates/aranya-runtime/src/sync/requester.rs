@@ -224,16 +224,13 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                 for meta in commands {
                     let policy_len = meta.policy_length as usize;
 
-                    let policy = match policy_len == 0 {
-                        true => None,
-                        false => {
-                            let end = start
-                                .checked_add(policy_len)
-                                .assume("start + policy_len mustn't overflow")?;
-                            let policy = &remaining[start..end];
-                            start = end;
-                            Some(policy)
-                        }
+                    let policy = if policy_len == 0 { None } else {
+                        let end = start
+                            .checked_add(policy_len)
+                            .assume("start + policy_len mustn't overflow")?;
+                        let policy = &remaining[start..end];
+                        start = end;
+                        Some(policy)
                     };
 
                     let len = meta.length as usize;
@@ -404,7 +401,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                         }
                     }
 
-                    current = next.to_vec();
+                    current = next.clone();
                 }
             }
         }

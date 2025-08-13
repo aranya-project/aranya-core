@@ -221,10 +221,10 @@ function new(
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
                 parent_id,
-                command_id,
                 author_id,
-                signature,
+                command_id,
                 payload,
+                signature,
             })
         } else {
             Err(WrongContext("`envelope::new` called outside of a `seal` block").into())

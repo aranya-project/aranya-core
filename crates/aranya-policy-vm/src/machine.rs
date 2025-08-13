@@ -41,7 +41,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         return false;
     }
 
-    for key in fact.keys.iter() {
+    for key in &fact.keys {
         let Some(key_value) = schema.key.iter().find(|k| k.identifier == key.identifier) else {
             return false;
         };
@@ -51,7 +51,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         }
     }
 
-    for value in fact.values.iter() {
+    for value in &fact.values {
         // Ensure named value exists in schema
         let Some(schema_value) = schema
             .value
@@ -81,7 +81,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
         return false;
     }
 
-    for qv in query.values.iter() {
+    for qv in &query.values {
         if let Some(v) = values.iter().find(|v| v.identifier == qv.identifier) {
             // value found, but types don't match
             if v.value != qv.value {
@@ -113,7 +113,7 @@ impl Display for MachineStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MachineStatus::Executing => write!(f, "Executing"),
-            MachineStatus::Exited(reason) => write!(f, "Exited: {}", reason),
+            MachineStatus::Exited(reason) => write!(f, "Exited: {reason}"),
         }
     }
 }
@@ -290,19 +290,19 @@ impl Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
-            writeln!(f, "  {:4}  {}", addr, instr)?;
+            writeln!(f, "  {addr:4}  {instr}")?;
         }
         writeln!(f, "Labels:")?;
         for (k, v) in &self.labels {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         writeln!(f, "Fact definitions:")?;
         for (k, v) in &self.fact_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         writeln!(f, "Struct definitions:")?;
         for (k, v) in &self.struct_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         Ok(())
     }
@@ -639,29 +639,23 @@ where
                 let b = self.ipop_value()?;
                 let a = self.ipop_value()?;
                 let v = match instruction {
-                    Instruction::Gt => match (&a, &b) {
-                        (Value::Int(ia), Value::Int(ib)) => ia > ib,
-                        _ => {
-                            let a_type = a.type_name();
-                            let b_type = b.type_name();
-                            return Err(self.err(MachineErrorType::invalid_type(
-                                "Int, Int",
-                                alloc::format!("{a_type}, {b_type}").to_owned(),
-                                "Greater-than comparison",
-                            )));
-                        }
+                    Instruction::Gt => if let (Value::Int(ia), Value::Int(ib)) = (&a, &b) { ia > ib } else {
+                        let a_type = a.type_name();
+                        let b_type = b.type_name();
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Int, Int",
+                            alloc::format!("{a_type}, {b_type}").to_owned(),
+                            "Greater-than comparison",
+                        )));
                     },
-                    Instruction::Lt => match (&a, &b) {
-                        (Value::Int(ia), Value::Int(ib)) => ia < ib,
-                        _ => {
-                            let a_type = a.type_name();
-                            let b_type = b.type_name();
-                            return Err(self.err(MachineErrorType::invalid_type(
-                                "Int, Int",
-                                alloc::format!("{a_type}, {b_type}"),
-                                "Less-than comparison",
-                            )));
-                        }
+                    Instruction::Lt => if let (Value::Int(ia), Value::Int(ib)) = (&a, &b) { ia < ib } else {
+                        let a_type = a.type_name();
+                        let b_type = b.type_name();
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Int, Int",
+                            alloc::format!("{a_type}, {b_type}"),
+                            "Less-than comparison",
+                        )));
                     },
                     // This leans heavily on PartialEq to do the work.
                     // Equality depends on values having the same type and
@@ -851,8 +845,8 @@ where
                     Some(r) => {
                         let f = r?;
                         let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
-                        fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
                         let s = Struct::new(qf.name, fields);
                         self.ipush(s)?;
                     }
@@ -869,7 +863,7 @@ where
                         .io
                         .try_borrow()
                         .assume("should be able to borrow io")?
-                        .fact_query(fact.name.to_owned(), fact.keys.to_owned())?;
+                        .fact_query(fact.name.clone(), fact.keys.clone())?;
 
                     while count < limit {
                         let Some(r) = iter.next() else { break };
@@ -1134,7 +1128,7 @@ where
             .action_defs
             .get(&name)
             .ok_or_else(|| MachineError::new(MachineErrorType::NotDefined(name.to_string())))?;
-        let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
+        let args: Vec<Value> = args.into_iter().map(Into::into).collect();
         if args.len() != arg_def.len() {
             return Err(MachineError::new(MachineErrorType::Unknown(
                 alloc::format!(
@@ -1303,7 +1297,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "# Name table:")?;
         for (k, v) in &self.machine.labels {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         write!(f, "# Current defs")?;
         if !self.call_state.is_empty() {
@@ -1311,18 +1305,18 @@ where
         }
         writeln!(f, ":")?;
         for (k, v) in self.scope.locals() {
-            writeln!(f, "  {}: {}", k, v)?;
+            writeln!(f, "  {k}: {v}")?;
         }
         writeln!(f, "# Stack:")?;
         for v in &self.stack.0 {
-            write!(f, "{} ", v)?;
+            write!(f, "{v} ")?;
         }
         writeln!(f)?;
         writeln!(f, "# Program:")?;
         for (addr, instr) in self.machine.progmem.iter().enumerate() {
             for (k, v) in &self.machine.labels {
                 if *v == addr {
-                    writeln!(f, "{}:", k)?;
+                    writeln!(f, "{k}:")?;
                 }
             }
             if addr == self.pc() {
@@ -1330,7 +1324,7 @@ where
             } else {
                 write!(f, " ")?;
             }
-            writeln!(f, "  {:4}  {}", addr, instr)?;
+            writeln!(f, "  {addr:4}  {instr}")?;
         }
         Ok(())
     }

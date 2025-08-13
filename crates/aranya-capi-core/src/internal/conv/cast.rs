@@ -1,4 +1,4 @@
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ptr};
 
 use super::{
     alias::{self, Alias},
@@ -363,7 +363,7 @@ impl ToInnerTag {
             //
             // - `ToInner<T>` has the same memory layout as `T`.
             // - `val` is a ref, so the pointer is never null.
-            unsafe { &*(val as *const T as *const ToInner<T>) },
+            unsafe { &*ptr::from_ref::<T>(val).cast::<ToInner<T>>() },
         )
     }
 
@@ -375,18 +375,18 @@ impl ToInnerTag {
             // - `ToInner<T>` has the same memory layout as `T`.
             // - `val` is an exclusive ref, so the pointer is
             //   never null.
-            unsafe { &mut *(val as *mut T as *mut ToInner<T>) },
+            unsafe { &mut *ptr::from_mut::<T>(val).cast::<ToInner<T>>() },
         )
     }
 
     /// Casts a [`NewType`] to its inner type.
     pub fn to_inner_ptr<T: NewType>(self, val: *const T) -> *const T::Inner {
-        alias::cast_ptr(val as *const ToInner<T>)
+        alias::cast_ptr(val.cast::<ToInner<T>>())
     }
 
     /// Casts a [`NewType`] to its inner type.
     pub fn to_inner_mut_ptr<T: NewType>(self, val: *mut T) -> *mut T::Inner {
-        alias::cast_mut_ptr(val as *mut ToInner<T>)
+        alias::cast_mut_ptr(val.cast::<ToInner<T>>())
     }
 
     /// Casts a slice of [`NewType`] to its inner type.
@@ -398,7 +398,7 @@ impl ToInnerTag {
             // - `val` is a ref, so the pointer is never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &*(val as *const [T] as *const [ToInner<T>]) },
+            unsafe { &*(ptr::from_ref::<[T]>(val) as *const [ToInner<T>]) },
         )
     }
 
@@ -412,7 +412,7 @@ impl ToInnerTag {
             //   never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &mut *(val as *mut [T] as *mut [ToInner<T>]) },
+            unsafe { &mut *(ptr::from_mut::<[T]>(val) as *mut [ToInner<T>]) },
         )
     }
 }
@@ -460,7 +460,7 @@ impl FromInnerTag {
             // - `FromInner<T>` has the same memory layout as
             //   `T::Inner`.
             // - `val` is a ref, so the pointer is never null.
-            unsafe { &*(val as *const T::Inner as *const FromInner<T::Inner>) },
+            unsafe { &*ptr::from_ref::<T::Inner>(val).cast::<FromInner<T::Inner>>() },
         )
     }
 
@@ -473,18 +473,18 @@ impl FromInnerTag {
             //   `T::Inner`.
             // - `val` is an exclusive ref, so the pointer is
             //   never null.
-            unsafe { &mut *(val as *mut T::Inner as *mut FromInner<T::Inner>) },
+            unsafe { &mut *ptr::from_mut::<T::Inner>(val).cast::<FromInner<T::Inner>>() },
         )
     }
 
     /// Creates a [`NewType`] from its inner type.
     pub fn from_inner_ptr<T: NewType>(self, val: *const T::Inner) -> *const T {
-        alias::cast_ptr(val as *const FromInner<T::Inner>)
+        alias::cast_ptr(val.cast::<FromInner<T::Inner>>())
     }
 
     /// Creates a [`NewType`] from its inner type.
     pub fn from_inner_mut_ptr<T: NewType>(self, val: *mut T::Inner) -> *mut T {
-        alias::cast_mut_ptr(val as *mut FromInner<T::Inner>)
+        alias::cast_mut_ptr(val.cast::<FromInner<T::Inner>>())
     }
 
     /// Casts a slice of [`NewType`] to its inner type.
@@ -496,7 +496,7 @@ impl FromInnerTag {
             // - `val` is a ref, so the pointer is never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &*(val as *const [T::Inner] as *const [FromInner<T::Inner>]) },
+            unsafe { &*(ptr::from_ref::<[T::Inner]>(val) as *const [FromInner<T::Inner>]) },
         )
     }
 
@@ -510,7 +510,7 @@ impl FromInnerTag {
             //   never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &mut *(val as *mut [T::Inner] as *mut [FromInner<T::Inner>]) },
+            unsafe { &mut *(ptr::from_mut::<[T::Inner]>(val) as *mut [FromInner<T::Inner>]) },
         )
     }
 }

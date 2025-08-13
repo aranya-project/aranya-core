@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// The policy used by these tests.
-pub const TEST_POLICY_1: &str = r#"---
+pub const TEST_POLICY_1: &str = r"---
 policy-version: 2
 ---
 
@@ -152,7 +152,7 @@ action invalidate() {
     publish Invalidate { key: 1 }
 }
 ```
-"#;
+";
 
 #[derive(Debug, Default)]
 pub struct TestSink {

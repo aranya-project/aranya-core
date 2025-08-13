@@ -1,4 +1,4 @@
-use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit};
+use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit, ptr};
 
 use buggy::{Bug, BugExt};
 
@@ -30,7 +30,7 @@ pub fn write_c_str<T: fmt::Display>(
 ) -> Result<(), WriteCStrError> {
     let mut w = CStrWriter::new(dst, nw);
     write!(&mut w, "{src:}").assume("`write!` to `Writer` should not fail")?;
-    w.finish().map_err(|_| WriteCStrError::BufferTooSmall)
+    w.finish().map_err(|()| WriteCStrError::BufferTooSmall)
 }
 
 /// Implements [`Write`] for a fixed-size C string buffer.
@@ -67,7 +67,7 @@ impl<'a> CStrWriter<'a> {
 
         // SAFETY: `u8` and `MaybeUninit<u8>` have the same
         // size in memory.
-        let src = unsafe { &*(src as *const [u8] as *const [MaybeUninit<c_char>]) };
+        let src = unsafe { &*(ptr::from_ref::<[u8]>(src) as *const [MaybeUninit<c_char>]) };
         dst.copy_from_slice(src);
         *self.nw = end;
     }

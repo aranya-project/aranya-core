@@ -176,7 +176,7 @@ impl Value {
             Value::Struct(s) => format!("Struct {}", s.name),
             Value::Fact(f) => format!("Fact {}", f.name),
             Value::Id(_) => String::from("Id"),
-            Value::Enum(name, _) => format!("Enum {}", name),
+            Value::Enum(name, _) => format!("Enum {name}"),
             Value::Identifier(_) => String::from("Identifier"),
             Value::None => String::from("None"),
         }
@@ -500,13 +500,13 @@ impl TryAsMut<Fact> for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Int(i) => write!(f, "{}", i),
-            Value::Bool(b) => write!(f, "{}", b),
-            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Int(i) => write!(f, "{i}"),
+            Value::Bool(b) => write!(f, "{b}"),
+            Value::String(s) => write!(f, "\"{s}\""),
             Value::Bytes(v) => {
                 write!(f, "b:")?;
                 for b in v {
-                    write!(f, "{:02X}", b)?;
+                    write!(f, "{b:02X}")?;
                 }
                 Ok(())
             }
@@ -585,7 +585,7 @@ impl From<HashableValue> for Value {
 impl Display for HashableValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let real_value: Value = self.to_owned().into();
-        write!(f, "{}", real_value)
+        write!(f, "{real_value}")
     }
 }
 
@@ -765,7 +765,7 @@ impl Display for Fact {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{k}: {v}")?;
         }
         write!(f, "]=>{{")?;
         i = false;
@@ -778,7 +778,7 @@ impl Display for Fact {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{k}: {v}")?;
         }
         write!(f, " }}")
     }
@@ -801,7 +801,7 @@ impl Struct {
     ) -> Struct {
         Struct {
             name,
-            fields: fields.into_iter().map(|p| p.into()).collect(),
+            fields: fields.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -815,7 +815,7 @@ impl Display for Struct {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{k}: {v}")?;
         }
         write!(f, "}}")
     }

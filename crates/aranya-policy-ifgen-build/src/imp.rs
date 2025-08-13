@@ -15,7 +15,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
         .iter()
         .filter(|(id, _fields)| reachable.contains(id.as_str()))
         .map(|(id, fields)| {
-            let doc = format!(" {} policy struct.", id);
+            let doc = format!(" {id} policy struct.");
             let name = mk_ident(id);
             let names = fields.iter().map(|f| mk_ident(&f.identifier));
             let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
@@ -33,7 +33,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
         .iter()
         .filter(|(id, _values)| reachable.contains(id.as_str()))
         .map(|(id, values)| {
-            let doc = format!(" {} policy enum.", id);
+            let doc = format!(" {id} policy enum.");
             let name = mk_ident(id);
             let names = values.iter().map(|(id, _)| mk_ident(id));
             quote! {
@@ -50,7 +50,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
             .struct_defs
             .get(s)
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
-        let doc = format!(" {} policy effect.", s);
+        let doc = format!(" {s} policy effect.");
         let ident = mk_ident(s);
         let field_idents = fields.iter().map(|f| mk_ident(&f.identifier));
         let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));

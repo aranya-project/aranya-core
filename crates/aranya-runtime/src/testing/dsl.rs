@@ -201,8 +201,7 @@ impl Display for TestRule {
                 max_syncs,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, max_syncs,
+                r#"{{"Sync": {{ "graph": {graph}, "client": {client}, "from": {from}, "max_syncs": {max_syncs} }} }},"#,
             ),
             TestRule::Sync {
                 graph,
@@ -213,8 +212,7 @@ impl Display for TestRule {
                 max_syncs,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_receive, max_syncs,
+                r#"{{"Sync": {{ "graph": {graph}, "client": {client}, "from": {from}, "must_receive": {must_receive}, "max_syncs": {max_syncs} }} }},"#,
             ),
             TestRule::Sync {
                 graph,
@@ -225,8 +223,7 @@ impl Display for TestRule {
                 max_syncs,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, max_syncs,
+                r#"{{"Sync": {{ "graph": {graph}, "client": {client}, "from": {from}, "must_send": {must_send}, "max_syncs": {max_syncs} }} }},"#,
             ),
             TestRule::Sync {
                 graph,
@@ -237,8 +234,7 @@ impl Display for TestRule {
                 max_syncs,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, must_receive, max_syncs,
+                r#"{{"Sync": {{ "graph": {graph}, "client": {client}, "from": {from}, "must_send": {must_send}, "must_receive": {must_receive}, "max_syncs": {max_syncs} }} }},"#,
             ),
             TestRule::ActionSet {
                 client,
@@ -248,18 +244,16 @@ impl Display for TestRule {
                 repeat,
             } => write!(
                 f,
-                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
-                graph, client, key, value, repeat,
+                r#"{{"ActionSet": {{ "graph": {graph}, "client": {client}, "key": {key}, "value": {value}, "repeat": {repeat} }} }},"#,
             ),
-            TestRule::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
-            TestRule::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
+            TestRule::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {id} }} }},"#),
+            TestRule::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {value} }},"#),
             TestRule::AddExpectations {
                 expectation,
                 repeat,
             } => write!(
                 f,
-                r#"{{"AddExpectations": {{ "expectation": {}, "repeat": {} }} }},"#,
-                expectation, repeat,
+                r#"{{"AddExpectations": {{ "expectation": {expectation}, "repeat": {repeat} }} }},"#,
             ),
             TestRule::CompareGraphs {
                 clienta,
@@ -268,8 +262,7 @@ impl Display for TestRule {
                 equal,
             } => write!(
                 f,
-                r#"{{"CompareGraphs": {{ "clienta": {}, "clientb": {}, "graph": {}, "equal": {} }} }},"#,
-                clienta, clientb, graph, equal,
+                r#"{{"CompareGraphs": {{ "clienta": {clienta}, "clientb": {clientb}, "graph": {graph}, "equal": {equal} }} }},"#,
             ),
             TestRule::GenerateGraph {
                 clients,
@@ -279,13 +272,11 @@ impl Display for TestRule {
                 sync_chance,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {} }} }},"#,
-                clients, graph, commands, add_command_chance, sync_chance,
+                r#"{{"GenerateGraph": {{ "clients": {clients}, "graph": {graph}, "commands": {commands}, "add_command_chance": {add_command_chance}, "sync_chance": {sync_chance} }} }},"#,
             ),
             TestRule::IgnoreExpectations { ignore } => write!(
                 f,
-                r#"{{"IgnoreExpectations": {{ "ignore": {} }} }},"#,
-                ignore,
+                r#"{{"IgnoreExpectations": {{ "ignore": {ignore} }} }},"#,
             ),
             TestRule::MaxCut {
                 client,
@@ -293,23 +284,19 @@ impl Display for TestRule {
                 max_cut,
             } => write!(
                 f,
-                r#"{{"MaxCut": {{ "client": {}, "graph": {}, "max_cut": {} }} }},"#,
-                client, graph, max_cut,
+                r#"{{"MaxCut": {{ "client": {client}, "graph": {graph}, "max_cut": {max_cut} }} }},"#,
             ),
             TestRule::NewGraph { client, id, policy } => write!(
                 f,
-                r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
-                client, id, policy,
+                r#"{{"NewGraph": {{ "client": {client}, "id": {id}, "policy": {policy} }} }},"#,
             ),
             TestRule::RemoveGraph { client, id } => write!(
                 f,
-                r#"{{"RemoveGraph": {{ "client": {}, "id": {} }} }},"#,
-                client, id,
+                r#"{{"RemoveGraph": {{ "client": {client}, "id": {id} }} }},"#,
             ),
             TestRule::PrintGraph { client, graph } => write!(
                 f,
-                r#"{{"PrintGraph": {{ "client": {}, "graph": {} }} }},"#,
-                client, graph,
+                r#"{{"PrintGraph": {{ "client": {client}, "graph": {graph} }} }},"#,
             ),
             TestRule::SetupClientsAndGraph {
                 clients,
@@ -317,13 +304,11 @@ impl Display for TestRule {
                 policy,
             } => write!(
                 f,
-                r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
-                clients, graph, policy,
+                r#"{{"SetupClientsAndGraph": {{ "clients": {clients}, "graph": {graph}, "policy": {policy} }} }},"#,
             ),
             TestRule::VerifyGraphIds { client, ids } => write!(
                 f,
-                r#"{{"VerifyGraphIds": {{ "client": {}, "ids": {:?} }} }},"#,
-                client, ids
+                r#"{{"VerifyGraphIds": {{ "client": {client}, "ids": {ids:?} }} }},"#
             ),
         }
     }

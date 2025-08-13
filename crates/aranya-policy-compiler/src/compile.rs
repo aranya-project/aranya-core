@@ -160,7 +160,7 @@ impl<'a> CompileState<'a> {
 
         // ensure key identifiers are unique
         let mut identifiers = BTreeSet::new();
-        for key in fact.key.iter() {
+        for key in &fact.key {
             if !key.is_hashable() {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "Fact `{}` key field `{}` is not orderable; must be int, bool, string, or id",
@@ -173,7 +173,7 @@ impl<'a> CompileState<'a> {
         }
 
         // ensure value identifiers are unique
-        for value in fact.value.iter() {
+        for value in &fact.value {
             if !identifiers.insert(&value.identifier) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
                     value.identifier.to_string(),
@@ -253,8 +253,7 @@ impl<'a> CompileState<'a> {
             match values.entry(value_name.clone()) {
                 indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                        "{}::{}",
-                        enum_name, value_name
+                        "{enum_name}::{value_name}"
                     ))));
                 }
                 indexmap::map::Entry::Vacant(e) => {
@@ -661,8 +660,7 @@ impl<'a> CompileState<'a> {
                     let condition_type = self.compile_expression(c)?;
                     if !condition_type.fits_type(&VType::Bool) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "if condition must be a boolean expression, was type {}",
-                            condition_type,
+                            "if condition must be a boolean expression, was type {condition_type}",
                         ))));
                     }
                     self.append_instruction(Instruction::Branch(Target::Unresolved(
@@ -859,8 +857,7 @@ impl<'a> CompileState<'a> {
             Expression::Identifier(i) => {
                 let t = self.identifier_types.get(i).map_err(|_| {
                     self.err(CompileErrorType::NotDefined(format!(
-                        "Unknown identifier `{}`",
-                        i
+                        "Unknown identifier `{i}`"
                     )))
                 })?;
 
@@ -890,8 +887,7 @@ impl<'a> CompileState<'a> {
                                 .find(|f| &f.identifier == s)
                                 .ok_or_else(|| {
                                     TypeError::new_owned(format!(
-                                        "Struct `{}` has no member `{}`",
-                                        name, s
+                                        "Struct `{name}` has no member `{s}`"
                                     ))
                                 })?;
                             Ok(NullableVType::Type(field_def.field_type.clone()))
@@ -1165,7 +1161,7 @@ impl<'a> CompileState<'a> {
                 e.identifier, e.value
             )))
         })?;
-        Ok(Value::Enum(e.identifier.to_owned(), *value))
+        Ok(Value::Enum(e.identifier.clone(), *value))
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -1268,8 +1264,7 @@ impl<'a> CompileState<'a> {
                         let condition_type = self.compile_expression(cond)?;
                         if !condition_type.fits_type(&VType::Bool) {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "if condition must be a boolean expression, was type {}",
-                                condition_type,
+                                "if condition must be a boolean expression, was type {condition_type}",
                             ))));
                         }
 
@@ -1373,7 +1368,7 @@ impl<'a> CompileState<'a> {
                     // Consume results...
                     let top_label = self.anonymous_label();
                     let end_label = self.anonymous_label();
-                    self.define_label(top_label.to_owned(), self.wp)?;
+                    self.define_label(top_label.clone(), self.wp)?;
                     // Fetch next result
                     self.append_instruction(Instruction::Block);
                     self.append_instruction(Instruction::QueryNext(map_stmt.identifier.clone()));
@@ -2208,7 +2203,7 @@ impl<'a> CompileState<'a> {
         match s {
             LanguageContext::Statement(s) => {
                 for (i, arm) in s.arms.iter().enumerate() {
-                    let arm_start = arm_labels[i].to_owned();
+                    let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
                     // Drop expression value (It's still around because of the Dup)
@@ -2224,7 +2219,7 @@ impl<'a> CompileState<'a> {
             }
             LanguageContext::Expression(e) => {
                 for (i, arm) in e.arms.iter().enumerate() {
-                    let arm_start = arm_labels[i].to_owned();
+                    let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
                     // Drop expression value (It's still around because of the Dup)
@@ -2305,7 +2300,7 @@ impl<'a> CompileState<'a> {
                         })
                     })
                     .collect();
-                self.define_struct(s.name.to_owned(), &fields)?;
+                self.define_struct(s.name.clone(), &fields)?;
             }
         }
 

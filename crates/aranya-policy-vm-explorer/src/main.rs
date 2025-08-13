@@ -66,7 +66,7 @@ where
     let mut buf = String::new();
     let mut status = MachineStatus::Executing;
     while status == MachineStatus::Executing {
-        println!("{}", rs);
+        println!("{rs}");
         stdin().read_line(&mut buf)?;
         status = rs.step()?;
     }
@@ -81,9 +81,9 @@ fn print_machine_status<M>(reason: ExitReason, rs: &RunState<'_, M>)
 where
     M: MachineIO<MachineStack>,
 {
-    print!("Exited({})", reason);
+    print!("Exited({reason})");
     if let Some(loc) = rs.source_location() {
-        println!(" {}", loc);
+        println!(" {loc}");
     } else {
         println!();
     }
@@ -315,7 +315,7 @@ fn main() -> anyhow::Result<()> {
             } else {
                 match debug_loop(&mut rs) {
                     Ok(()) => (),
-                    Err(e) => println!("execution stopped: {}", e),
+                    Err(e) => println!("execution stopped: {e}"),
                 }
             }
 
@@ -323,35 +323,35 @@ fn main() -> anyhow::Result<()> {
 
             println!("Facts:");
             for ((name, k), v) in &io.borrow().facts {
-                print!("  {}[", name);
+                print!("  {name}[");
                 for e in k {
-                    print!("{}", e);
+                    print!("{e}");
                 }
                 print!("]=>{{");
                 for e in v {
-                    print!("{}", e);
+                    print!("{e}");
                 }
                 println!("}}");
             }
             println!("Effects:");
             for (name, fields) in &io.borrow().effects {
-                println!("  {} {{", name);
+                println!("  {name} {{");
                 for f in fields {
-                    println!("    {}", f);
+                    println!("    {f}");
                 }
                 println!("  }}");
             }
             println!("Published Commands:");
             for (name, fields) in &io.borrow().commands {
-                println!("  {} {{", name);
+                println!("  {name} {{");
                 for f in fields {
-                    println!("    {}", f);
+                    println!("    {f}");
                 }
                 println!("  }}");
             }
         }
         Mode::Compile => {
-            println!("{}", machine);
+            println!("{machine}");
         }
     }
 

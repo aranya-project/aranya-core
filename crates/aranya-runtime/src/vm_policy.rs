@@ -651,9 +651,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                 EngineError::Panic
                             })? {
                             ExitReason::Normal => (),
-                            r @ ExitReason::Yield
-                            | r @ ExitReason::Check
-                            | r @ ExitReason::Panic => {
+                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
                                 error!("Could not seal command: {}", r);
                                 return Err(EngineError::Panic);
                             }

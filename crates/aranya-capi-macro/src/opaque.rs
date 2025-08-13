@@ -14,9 +14,7 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
         generated,
     } = syn::parse2::<Opaque>(attr)?;
 
-    let capi: Path = capi
-        .map(Into::into)
-        .unwrap_or_else(|| parse_quote!(::aranya_capi_core));
+    let capi: Path = capi.map_or_else(|| parse_quote!(::aranya_capi_core), Into::into);
 
     let item = syn::parse2::<Item>(item)?;
     let Item::Type(mut t) = item else {

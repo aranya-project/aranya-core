@@ -149,7 +149,7 @@ impl DeriveTrait {
 
 impl ToTokens for DeriveTrait {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        use DeriveTrait::*;
+        use DeriveTrait::{Init, Cleanup, ErrorCode, Copy, Clone, Default, Debug, Eq, PartialEq};
         tokens.extend(match self {
             Init => quote!(::aranya_capi_core::Init),
             Cleanup => quote!(::aranya_capi_core::Cleanup),

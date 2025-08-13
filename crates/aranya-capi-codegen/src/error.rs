@@ -101,7 +101,7 @@ fn report(err: impl Error) -> impl fmt::Display {
             let mut error: &dyn Error = &self.0;
 
             while let Some(cause) = error.source() {
-                write!(f, "\n\nCaused by:\n    {}", cause)?;
+                write!(f, "\n\nCaused by:\n    {cause}")?;
                 error = cause;
             }
 

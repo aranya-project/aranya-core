@@ -100,7 +100,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         // Try to perform action.
         match policy.call_action(action, &mut perspective, effect_sink) {
-            Ok(_) => {
+            Ok(()) => {
                 // Success, commit effects
                 effect_sink.commit();
                 Ok(())
