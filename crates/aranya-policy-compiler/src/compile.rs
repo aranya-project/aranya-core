@@ -2197,7 +2197,7 @@ impl<'a> CompileState<'a> {
         }
 
         // if no match, and no default case, panic
-        if !patterns.iter().any(|p| *p == MatchPattern::Default) {
+        if !patterns.contains(&MatchPattern::Default) {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 

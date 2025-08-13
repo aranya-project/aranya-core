@@ -121,8 +121,7 @@ impl<'dir> DirEntry<'dir> {
         // SAFETY: We're far inside of the bounds of both usize and isize
         const OFFSET: isize = core::mem::offset_of!(libc::dirent, d_name) as isize;
         // SAFETY: d_name is guaranteed to be null terminated.
-        let name = unsafe { CStr::from_ptr((self.entry.byte_offset(OFFSET)).cast()) };
-        name
+        unsafe { CStr::from_ptr((self.entry.byte_offset(OFFSET)).cast()) }
     }
 }
 

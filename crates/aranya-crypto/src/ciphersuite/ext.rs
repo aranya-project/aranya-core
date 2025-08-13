@@ -65,7 +65,7 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
     /// Performs `LabeledExpand` per [RFC 9180].
     ///
     /// - `domain` provides domain separation. See [RFC 9180]
-    ///    section 9.6.
+    ///   section 9.6.
     /// - `prk`, `label`, and `info` are regular KDF parameters.
     ///
     /// ```text
