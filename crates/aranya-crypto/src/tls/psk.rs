@@ -352,7 +352,7 @@ impl<CS> ZeroizeOnDrop for Psk<CS> {}
 impl<CS> Drop for Psk<CS> {
     #[inline]
     fn drop(&mut self) {
-        self.secret.zeroize()
+        self.secret.zeroize();
     }
 }
 

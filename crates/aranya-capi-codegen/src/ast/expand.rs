@@ -40,7 +40,7 @@ impl Ast {
             Node::FfiFn(f) => {
                 // `FfiFn`s are generated during the expansion
                 // AST pass.
-                ctx.error(f, "bug: unexpected `FfiFn` in AST expansion pass")
+                ctx.error(f, "bug: unexpected `FfiFn` in AST expansion pass");
             }
             n @ Node::Other(_) => self.add_node(n),
             Node::Struct(s) => self.expand_struct(ctx, s)?,
@@ -1093,7 +1093,7 @@ impl Ast {
                     arg,
                     conv: None,
                     newtype: None,
-                })
+                });
             }
         }
         new
@@ -1374,12 +1374,12 @@ impl FnInputs {
 
     /// Appends `input` to `self`.
     fn push(&mut self, input: FnInput) {
-        self.inputs.push(input)
+        self.inputs.push(input);
     }
 
     /// Appends `other` to `self`.
     fn append(&mut self, mut other: Self) {
-        self.inputs.append(&mut other.inputs)
+        self.inputs.append(&mut other.inputs);
     }
 
     /// Reports whether all arguments do not contain conv glue.
@@ -1411,7 +1411,7 @@ impl Extend<FnInput> for FnInputs {
     where
         I: IntoIterator<Item = FnInput>,
     {
-        self.inputs.extend(iter)
+        self.inputs.extend(iter);
     }
 }
 
@@ -1426,7 +1426,7 @@ impl IntoIterator for FnInputs {
 
 impl ToTokens for FnInputs {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.append_all(self.punctuated_args())
+        tokens.append_all(self.punctuated_args());
     }
 }
 

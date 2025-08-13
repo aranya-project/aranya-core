@@ -450,7 +450,7 @@ where
 {
     fn extend<I: IntoIterator<Item = P>>(&mut self, iter: I) {
         for elem in iter {
-            self.push(elem.as_ref())
+            self.push(elem.as_ref());
         }
     }
 }

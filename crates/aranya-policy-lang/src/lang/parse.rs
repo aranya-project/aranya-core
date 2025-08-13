@@ -1228,7 +1228,7 @@ impl ChunkParser<'_> {
         for field in pc.into_inner() {
             match field.as_rule() {
                 Rule::field_definition => {
-                    items.push(ast::StructItem::Field(Self::parse_field_definition(field)?))
+                    items.push(ast::StructItem::Field(Self::parse_field_definition(field)?));
                 }
                 Rule::field_insertion => {
                     let ident = descend(field).consume_identifier()?;
@@ -1583,7 +1583,7 @@ fn parse_policy_chunk_inner(
                 .finish_functions
                 .push(p.parse_finish_function_definition(item)?),
             Rule::global_let_statement => {
-                policy.global_lets.push(p.parse_global_let_statement(item)?)
+                policy.global_lets.push(p.parse_global_let_statement(item)?);
             }
             Rule::EOI => (),
             _ => {

@@ -28,7 +28,7 @@ pub fn validate(module: &Module) -> bool {
             }
             LabelType::Function | LabelType::Action => {}
             _ => continue,
-        };
+        }
 
         let tracer = TraceAnalyzerBuilder::new(m);
         let tracer = match l.ltype {
@@ -69,7 +69,7 @@ pub fn validate(module: &Module) -> bool {
                                     responsible_instruction, e
                                 );
                             }
-                        };
+                        }
                     }
                     println!();
                     failed = true;

@@ -571,7 +571,7 @@ impl FfiExportAttr {
                     Err(meta.error(format!("unknown attr: {path}")))
                 }
             })?,
-        };
+        }
         attrs.remove(idx);
 
         let def = def
@@ -747,7 +747,7 @@ impl ToTokens for VTypeTokens<'_> {
                 quote!(Optional(&#vm::ffi::Type::#vtype))
             }
         };
-        tokens.extend(item)
+        tokens.extend(item);
     }
 }
 
@@ -795,6 +795,6 @@ impl ToTokens for TypeTokens<'_> {
                 quote!(::core::option::Option<#vtype>)
             }
         };
-        tokens.extend(item)
+        tokens.extend(item);
     }
 }

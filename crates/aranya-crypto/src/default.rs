@@ -98,7 +98,7 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
 
 impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
-        self.rng.fill_bytes(dst)
+        self.rng.fill_bytes(dst);
     }
 }
 

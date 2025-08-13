@@ -6,7 +6,7 @@ pub fn errno() -> Errno {
 }
 
 pub(crate) fn clear_errno() {
-    ::errno::set_errno(::errno::Errno(0))
+    ::errno::set_errno(::errno::Errno(0));
 }
 
 /// libc's `errno`.

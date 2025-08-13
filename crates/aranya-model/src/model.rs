@@ -261,7 +261,7 @@ impl Sink<&[u8]> for MsgSink {
     fn begin(&mut self) {}
 
     fn consume(&mut self, effect: &[u8]) {
-        self.cmds.push(effect.into())
+        self.cmds.push(effect.into());
     }
 
     fn rollback(&mut self) {}
@@ -533,7 +533,7 @@ where
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
                     request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
-                };
+                }
             }
         }
 

@@ -194,7 +194,7 @@ impl Type {
                     ctx.error(
                         &ty,
                         "`Option` can only be used with references, function pointers, and `OwnedPtr`",
-                    )
+                    );
                 }
                 Ok(ty)
             }
@@ -507,7 +507,7 @@ impl CBytes {
                 arguments,
                 "BUG: last segment must not have arguments",
             ));
-        };
+        }
 
         Ok(Self {
             ident: kw::CBytes(ident.span()),
@@ -551,7 +551,7 @@ impl CStr {
                 arguments,
                 "BUG: last segment must not have arguments",
             ));
-        };
+        }
 
         Ok(Self {
             ident: kw::CStr(ident.span()),
@@ -1352,7 +1352,7 @@ impl ToTokens for Scalar {
                 }
             }
         };
-        path.to_tokens(tokens)
+        path.to_tokens(tokens);
     }
 }
 
@@ -1442,7 +1442,7 @@ impl Str {
                 arguments,
                 "BUG: last segment must not have arguments",
             ));
-        };
+        }
 
         Ok(Self {
             ident: kw::str(ident.span()),

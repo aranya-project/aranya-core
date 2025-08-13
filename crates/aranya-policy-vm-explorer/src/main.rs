@@ -199,7 +199,7 @@ where
 
     fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
-        self.commands.push((name, fields))
+        self.commands.push((name, fields));
     }
 
     fn effect(
@@ -210,7 +210,7 @@ where
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
-        self.effects.push((name, fields))
+        self.effects.push((name, fields));
     }
 
     fn call(

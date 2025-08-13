@@ -126,7 +126,7 @@ impl ToTokens for Instrument {
                         self.fields.to_tokens(tokens);
                     });
                 }
-            })
+            });
         });
     }
 }

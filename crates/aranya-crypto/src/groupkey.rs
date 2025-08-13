@@ -33,7 +33,7 @@ pub struct GroupKey<CS> {
 impl<CS> ZeroizeOnDrop for GroupKey<CS> {}
 impl<CS> Drop for GroupKey<CS> {
     fn drop(&mut self) {
-        self.seed.zeroize()
+        self.seed.zeroize();
     }
 }
 

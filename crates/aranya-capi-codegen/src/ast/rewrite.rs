@@ -109,7 +109,7 @@ impl Ast {
                 Type::Ref(xref) => rewrite_ty(ctx, &mut xref.elem, idents),
                 Type::Result(res) => {
                     rewrite_ty(ctx, &mut res.ok, idents);
-                    rewrite_ty(ctx, &mut res.err, idents)
+                    rewrite_ty(ctx, &mut res.err, idents);
                 }
                 Type::Safe(v) => rewrite_ty(ctx, &mut v.elem, idents),
                 // Cannot rewrite `Scalar`.
@@ -122,7 +122,7 @@ impl Ast {
                 Type::Writer(writer) => rewrite_ty(ctx, &mut writer.elem, idents),
                 // Not much we can do here.
                 Type::Verbatim(_) => {
-                    debug!("skipping `Verbatim`")
+                    debug!("skipping `Verbatim`");
                 }
             }
         }
@@ -189,11 +189,11 @@ impl Ast {
                         _ => {}
                     }
                 }
-            };
+            }
         }
 
         for node in &mut self.nodes {
-            rewrite_node(node, ctx, &self.idents)
+            rewrite_node(node, ctx, &self.idents);
         }
     }
 
@@ -254,7 +254,7 @@ impl Ast {
         }
 
         for node in &mut self.nodes {
-            rewrite_node(ctx, &ac, node, &self.idents)
+            rewrite_node(ctx, &ac, node, &self.idents);
         }
     }
 }
