@@ -4,7 +4,7 @@ use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec,
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
-use aranya_crypto::{DeviceId, EncryptionKeyId};
+use aranya_crypto::{DeviceId, EncryptionKeyId, SigningKeyId};
 use aranya_policy_ast::{Identifier, Text, VType};
 use serde::{Deserialize, Serialize};
 
@@ -86,6 +86,7 @@ impl_typed!(bool => Bool);
 impl_typed!(Id => Id);
 impl_typed!(EncryptionKeyId => Id);
 impl_typed!(DeviceId => Id);
+impl_typed!(SigningKeyId => Id);
 
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
@@ -274,6 +275,12 @@ impl From<EncryptionKeyId> for Value {
     }
 }
 
+impl From<SigningKeyId> for Value {
+    fn from(id: SigningKeyId) -> Self {
+        Value::Id(id.into())
+    }
+}
+
 impl TryFrom<Value> for i64 {
     type Error = ValueConversionError;
 
@@ -412,6 +419,22 @@ impl TryFrom<Value> for DeviceId {
 }
 
 impl TryFrom<Value> for EncryptionKeyId {
+    type Error = ValueConversionError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Id(id) = value {
+            Ok(id.into())
+        } else {
+            Err(ValueConversionError::invalid_type(
+                "Id",
+                value.type_name(),
+                "Value -> EncryptionKeyId",
+            ))
+        }
+    }
+}
+
+impl TryFrom<Value> for SigningKeyId {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {

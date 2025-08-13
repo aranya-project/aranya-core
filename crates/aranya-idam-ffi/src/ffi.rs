@@ -4,9 +4,9 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id,
-    IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey, custom_id,
-    engine::Engine, policy, zeroize::Zeroizing,
+    Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
+    GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, SigningKeyId,
+    VerifyingKey, custom_id, engine::Engine, policy, zeroize::Zeroizing,
 };
 use aranya_policy_vm::{
     CommandContext, Text, Typed, Value, ValueConversionError,
@@ -163,18 +163,15 @@ function open_group_key(
         _ctx: &CommandContext,
         eng: &mut E,
         sealed_group_key: SealedGroupKey,
-        our_enc_sk_id: Id,
+        our_enc_sk_id: EncryptionKeyId,
         group_id: Id,
     ) -> Result<StoredGroupKey, Error> {
         let sk: EncryptionKey<E::CS> = self
             .store
             .get_key(eng, our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
-        debug_assert_eq!(
-            sk.id().map_err(aranya_crypto::Error::from)?.into_id(),
-            our_enc_sk_id
-        );
+            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.into())))?;
+        debug_assert_eq!(sk.id().map_err(aranya_crypto::Error::from)?, our_enc_sk_id);
 
         let group_key = {
             let enc = Encap::<E::CS>::from_bytes(&sealed_group_key.encap)?;
@@ -208,7 +205,7 @@ function encrypt_message(
         eng: &mut E,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
-        our_sign_sk_id: Id,
+        our_sign_sk_id: SigningKeyId,
         label: Text,
     ) -> Result<Vec<u8>, Error> {
         let plaintext = Zeroizing::new(plaintext);
@@ -226,7 +223,9 @@ function encrypt_message(
             .store
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id)))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id.into()))
+            })?;
         let our_sign_pk = sk.public().expect("signing key should be valid");
 
         let ctx = Context {

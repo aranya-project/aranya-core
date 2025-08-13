@@ -51,13 +51,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0)
+            .remove_key(eng, effect.key_id.0.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into())
+            .get_key(eng, effect.author_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -100,7 +100,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into())
+            .get_key(eng, effect.peer_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -211,13 +211,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0)
+            .remove_key(eng, effect.key_id.0.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into())
+            .get_key(eng, effect.author_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -263,7 +263,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into())
+            .get_key(eng, effect.peer_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {

@@ -118,7 +118,7 @@ function create_bidi_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, our_enc_key_id.into())
+            .get_key(eng, our_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound("device encryption key"))?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -134,22 +134,15 @@ function create_bidi_channel(
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let author_secrets_id = author
-            .id()
-            .map_err(|err| FfiError::Crypto(err.into()))?
-            .into();
-        self.store
-            .lock()
-            .try_insert(author_secrets_id, eng.wrap(author)?)
-            .map_err(|err| {
-                error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let author_secrets_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AqcBidiChannel {
             channel_id: peer.id().into(),
             peer_encap: peer.as_bytes().to_vec(),
-            author_secrets_id,
+            author_secrets_id: author_secrets_id.into(),
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
@@ -179,7 +172,7 @@ function create_uni_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, author_enc_key_id.into())
+            .get_key(eng, author_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound("device encryption key"))?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
@@ -195,22 +188,15 @@ function create_uni_channel(
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let author_secrets_id = author
-            .id()
-            .map_err(|err| FfiError::Crypto(err.into()))?
-            .into();
-        self.store
-            .lock()
-            .try_insert(author_secrets_id, eng.wrap(author)?)
-            .map_err(|err| {
-                error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let author_secrets_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AqcUniChannel {
             channel_id: peer.id().into(),
             peer_encap: peer.as_bytes().to_vec(),
-            author_secrets_id,
+            author_secrets_id: author_secrets_id.into(),
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
