@@ -40,7 +40,7 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
     /// Performs `LabeledExtract` per [RFC 9180].
     ///
     /// - `domain` provides domain separation. See [RFC 9180]
-    ///    section 9.6.
+    ///   section 9.6.
     /// - `salt`, `label`, and `ikm` are regular KDF parameters.
     ///
     /// ```text
