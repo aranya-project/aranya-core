@@ -1,6 +1,6 @@
 use core::fmt;
 
-use tracing::error;
+use tracing::debug;
 
 use crate::{
     as_mut,
@@ -15,7 +15,7 @@ where
     E1: fmt::Display,
     E2: ErrorCode + for<'a> From<&'a E1>,
 {
-    error!(%err);
+    debug!(%err);
     err.into()
 }
 
@@ -30,7 +30,7 @@ where
     E2: ExtendedError,
     E3: ErrorCode + for<'a> From<&'a E1>,
 {
-    error!(%err);
+    debug!(%err);
 
     let res = (&err).into();
     if let Ok(ext_err) = as_mut!(ext_err) {
