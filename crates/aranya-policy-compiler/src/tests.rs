@@ -858,6 +858,22 @@ fn test_fact_bind_value_type() {
 }
 
 #[test]
+fn test_fact_query_disallow_leading_binds() {
+    let text = r#"
+    fact Foo[x int, y int] => {}
+    action test() {
+        check exists Foo[x: ?, y: 42] => {}
+    }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidFactLiteral("leading bind values not allowed".to_string())
+    )
+}
+
+#[test]
 fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
