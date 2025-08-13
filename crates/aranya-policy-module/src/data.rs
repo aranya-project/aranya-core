@@ -444,7 +444,7 @@ impl TryFrom<Value> for SigningKeyId {
             Err(ValueConversionError::invalid_type(
                 "Id",
                 value.type_name(),
-                "Value -> EncryptionKeyId",
+                "Value -> SigningKeyId",
             ))
         }
     }
