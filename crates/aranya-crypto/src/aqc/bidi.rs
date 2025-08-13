@@ -449,6 +449,7 @@ impl<CS: CipherSuite> BidiPsk<CS> {
 }
 
 /// Uniquely identifies a [`BidiPsk`].
+#[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct BidiPskId {
     id: BidiChannelId,
