@@ -274,10 +274,9 @@ impl Display for TestRule {
                 f,
                 r#"{{"GenerateGraph": {{ "clients": {clients}, "graph": {graph}, "commands": {commands}, "add_command_chance": {add_command_chance}, "sync_chance": {sync_chance} }} }},"#,
             ),
-            TestRule::IgnoreExpectations { ignore } => write!(
-                f,
-                r#"{{"IgnoreExpectations": {{ "ignore": {ignore} }} }},"#,
-            ),
+            TestRule::IgnoreExpectations { ignore } => {
+                write!(f, r#"{{"IgnoreExpectations": {{ "ignore": {ignore} }} }},"#,)
+            }
             TestRule::MaxCut {
                 client,
                 graph,

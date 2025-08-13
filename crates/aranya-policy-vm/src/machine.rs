@@ -639,24 +639,32 @@ where
                 let b = self.ipop_value()?;
                 let a = self.ipop_value()?;
                 let v = match instruction {
-                    Instruction::Gt => if let (Value::Int(ia), Value::Int(ib)) = (&a, &b) { ia > ib } else {
-                        let a_type = a.type_name();
-                        let b_type = b.type_name();
-                        return Err(self.err(MachineErrorType::invalid_type(
-                            "Int, Int",
-                            alloc::format!("{a_type}, {b_type}").to_owned(),
-                            "Greater-than comparison",
-                        )));
-                    },
-                    Instruction::Lt => if let (Value::Int(ia), Value::Int(ib)) = (&a, &b) { ia < ib } else {
-                        let a_type = a.type_name();
-                        let b_type = b.type_name();
-                        return Err(self.err(MachineErrorType::invalid_type(
-                            "Int, Int",
-                            alloc::format!("{a_type}, {b_type}"),
-                            "Less-than comparison",
-                        )));
-                    },
+                    Instruction::Gt => {
+                        if let (Value::Int(ia), Value::Int(ib)) = (&a, &b) {
+                            ia > ib
+                        } else {
+                            let a_type = a.type_name();
+                            let b_type = b.type_name();
+                            return Err(self.err(MachineErrorType::invalid_type(
+                                "Int, Int",
+                                alloc::format!("{a_type}, {b_type}").to_owned(),
+                                "Greater-than comparison",
+                            )));
+                        }
+                    }
+                    Instruction::Lt => {
+                        if let (Value::Int(ia), Value::Int(ib)) = (&a, &b) {
+                            ia < ib
+                        } else {
+                            let a_type = a.type_name();
+                            let b_type = b.type_name();
+                            return Err(self.err(MachineErrorType::invalid_type(
+                                "Int, Int",
+                                alloc::format!("{a_type}, {b_type}"),
+                                "Less-than comparison",
+                            )));
+                        }
+                    }
                     // This leans heavily on PartialEq to do the work.
                     // Equality depends on values having the same type and
                     // interior value.

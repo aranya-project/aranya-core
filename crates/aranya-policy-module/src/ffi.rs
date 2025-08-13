@@ -31,7 +31,7 @@ impl Type<'_> {
     // Used by `policy-derive`.
     #[doc(hidden)]
     pub const fn const_eq(&self, rhs: &Self) -> bool {
-        use Type::{String, Bytes, Int, Bool, Id, Struct, Enum, Optional};
+        use Type::{Bool, Bytes, Enum, Id, Int, Optional, String, Struct};
         match (self, rhs) {
             (String, String) | (Bytes, Bytes) | (Int, Int) | (Bool, Bool) | (Id, Id) => true,
             (Struct(lhs), Struct(rhs)) => lhs.const_eq(rhs),

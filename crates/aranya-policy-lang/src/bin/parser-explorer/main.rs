@@ -40,7 +40,9 @@ enum Mode {
 }
 
 fn parse_text_and_version(s: &str, args: &Args) -> anyhow::Result<(String, Version)> {
-    if let Some(version) = args.raw_policy_version { Ok((s.to_owned(), version)) } else {
+    if let Some(version) = args.raw_policy_version {
+        Ok((s.to_owned(), version))
+    } else {
         let (chunks, version) = extract_policy(s)?;
         let mut s = String::new();
         for c in chunks {

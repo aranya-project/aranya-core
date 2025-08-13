@@ -60,7 +60,10 @@ pub enum CipherSuiteId {
 impl CipherSuiteId {
     /// Returns all of the cipher suites.
     pub const fn all() -> &'static [Self] {
-        use CipherSuiteId::{TlsAes128GcmSha256, TlsAes256GcmSha384, TlsChaCha20Poly1305Sha256, TlsAes128CcmSha256, TlsAes128Ccm8Sha256};
+        use CipherSuiteId::{
+            TlsAes128Ccm8Sha256, TlsAes128CcmSha256, TlsAes128GcmSha256, TlsAes256GcmSha384,
+            TlsChaCha20Poly1305Sha256,
+        };
         &[
             TlsAes128GcmSha256,
             TlsAes256GcmSha384,
@@ -81,7 +84,10 @@ impl CipherSuiteId {
     ///
     /// It returns `None` if `bytes` is not a valid cipher suite.
     pub const fn try_from_bytes(bytes: [u8; 2]) -> Option<Self> {
-        use CipherSuiteId::{TlsAes128GcmSha256, TlsAes256GcmSha384, TlsChaCha20Poly1305Sha256, TlsAes128CcmSha256, TlsAes128Ccm8Sha256};
+        use CipherSuiteId::{
+            TlsAes128Ccm8Sha256, TlsAes128CcmSha256, TlsAes128GcmSha256, TlsAes256GcmSha384,
+            TlsChaCha20Poly1305Sha256,
+        };
         let id = match u16::from_be_bytes(bytes) {
             0x1301 => TlsAes128GcmSha256,
             0x1302 => TlsAes256GcmSha384,
@@ -96,7 +102,10 @@ impl CipherSuiteId {
 
 impl fmt::Display for CipherSuiteId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use CipherSuiteId::{TlsAes128GcmSha256, TlsAes256GcmSha384, TlsChaCha20Poly1305Sha256, TlsAes128CcmSha256, TlsAes128Ccm8Sha256};
+        use CipherSuiteId::{
+            TlsAes128Ccm8Sha256, TlsAes128CcmSha256, TlsAes128GcmSha256, TlsAes256GcmSha384,
+            TlsChaCha20Poly1305Sha256,
+        };
         let name = match self {
             TlsAes128GcmSha256 => "TLS_AES_128_GCM_SHA256",
             TlsAes256GcmSha384 => "TLS_AES_256_GCM_SHA384",

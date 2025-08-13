@@ -175,7 +175,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
 
     /// Returns true if [`Self::poll`] would produce a message.
     pub fn ready(&self) -> bool {
-        use SyncResponderState::{Reset, Start, Send, New, Idle, Stopped};
+        use SyncResponderState::{Idle, New, Reset, Send, Start, Stopped};
         match self.state {
             Reset | Start | Send => true,
             New | Idle | Stopped => false,

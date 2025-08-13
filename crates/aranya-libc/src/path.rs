@@ -2,7 +2,12 @@
 
 use alloc::vec::Vec;
 use core::{
-    cmp::Ordering, ffi::{c_char, CStr}, fmt, mem::MaybeUninit, ops::Deref, ptr, slice, str
+    cmp::Ordering,
+    ffi::{CStr, c_char},
+    fmt,
+    mem::MaybeUninit,
+    ops::Deref,
+    ptr, slice, str,
 };
 
 /// The input to `Path` is missing a null byte.

@@ -870,7 +870,9 @@ impl Named {
 impl ToTokens for Named {
     #[allow(clippy::arithmetic_side_effects)]
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let qself = if let Some(qself) = &self.qself { qself } else {
+        let qself = if let Some(qself) = &self.qself {
+            qself
+        } else {
             self.path.to_tokens(tokens);
             return;
         };
