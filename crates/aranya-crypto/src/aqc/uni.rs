@@ -406,6 +406,7 @@ struct PskCtx {
 
 /// Uniquely identifies both a [`UniSendPsk`] and
 /// a [`UniRecvPsk`].
+#[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct UniPskId {
     id: UniChannelId,

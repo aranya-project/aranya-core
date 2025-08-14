@@ -92,7 +92,7 @@ function create_bidi_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, our_enc_key_id.into())
+            .get_key(eng, our_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -106,19 +106,14 @@ function create_bidi_channel(
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into();
-        let wrapped = eng.wrap(author)?;
-        self.store
-            .lock()
-            .try_insert(key_id, wrapped)
-            .map_err(|err| {
-                error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let key_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AfcBidiChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id,
+            key_id: key_id.into(),
         })
     }
 
@@ -149,7 +144,7 @@ function create_uni_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, author_enc_key_id.into())
+            .get_key(eng, author_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
@@ -163,19 +158,14 @@ function create_uni_channel(
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into();
-        let wrapped = eng.wrap(author)?;
-        self.store
-            .lock()
-            .try_insert(key_id, wrapped)
-            .map_err(|err| {
-                error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let key_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id,
+            key_id: key_id.into(),
         })
     }
 }

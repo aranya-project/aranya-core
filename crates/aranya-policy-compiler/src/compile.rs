@@ -972,13 +972,41 @@ impl<'a> CompileState<'a> {
                 .map_err(|e| self.err(e))?
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
+                // `a && b` becomes `if a { b } else { false }`
+                // `a || b` becomes `if a { true } else { b }`
+
                 let left_type = self.compile_expression(a)?;
-                let right_type = self.compile_expression(b)?;
-                self.append_instruction(match expression {
-                    Expression::And(_, _) => Instruction::And,
-                    Expression::Or(_, _) => Instruction::Or,
+                let right_type;
+
+                let mid = self.anonymous_label();
+                let end = self.anonymous_label();
+
+                match expression {
+                    Expression::And(_, _) => {
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            mid.clone(),
+                        )));
+
+                        self.append_instruction(Instruction::Const(Value::Bool(false)));
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+
+                        self.define_label(mid, self.wp)?;
+                        right_type = self.compile_expression(b)?;
+                    }
+                    Expression::Or(_, _) => {
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            mid.clone(),
+                        )));
+                        right_type = self.compile_expression(b)?;
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+
+                        self.define_label(mid, self.wp)?;
+                        self.append_instruction(Instruction::Const(Value::Bool(true)));
+                    }
                     _ => unreachable!(),
-                });
+                };
+
+                self.define_label(end, self.wp)?;
 
                 self.unify_pair_as(
                     left_type,
@@ -1029,35 +1057,16 @@ impl<'a> CompileState<'a> {
                 .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::GreaterThanOrEqual(a, b) | Expression::LessThanOrEqual(a, b) => {
+                // `a >= b` becomes `!(a < b)`. This relies on total ordering, which integers meet.
+
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;
-                // At this point we will have the values for a and b on the stack.
-                // a b
-                // Duplicate one below top to copy a to the top
-                // a b a
-                self.append_instruction(Instruction::Dup(1));
-                // Ditto for b
-                // a b a b
-                self.append_instruction(Instruction::Dup(1));
-                // Test for equivalence of a and b - we'll call this c
-                // a b c
-                self.append_instruction(Instruction::Eq);
-                // Swap a and c
-                // c b a
-                self.append_instruction(Instruction::Swap(2));
-                // Swap a and b
-                // c a b
-                self.append_instruction(Instruction::Swap(1));
-                // Then execute the other comparison on a and b - we'll call this d
-                // c d
                 self.append_instruction(match expression {
-                    Expression::GreaterThanOrEqual(_, _) => Instruction::Gt,
-                    Expression::LessThanOrEqual(_, _) => Instruction::Lt,
+                    Expression::GreaterThanOrEqual(_, _) => Instruction::Lt,
+                    Expression::LessThanOrEqual(_, _) => Instruction::Gt,
                     _ => unreachable!(),
                 });
-                // Now OR those two binary results together - call this e
-                // e
-                self.append_instruction(Instruction::Or);
+                self.append_instruction(Instruction::Not);
 
                 self.unify_pair_as(
                     left_type,
@@ -1069,15 +1078,11 @@ impl<'a> CompileState<'a> {
                 .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::Negative(e) => {
-                // Evaluate the expression
-                let inner_type = self.compile_expression(e)?;
-
                 // Push a 0 to subtract from
                 self.append_instruction(Instruction::Const(Value::Int(0)));
 
-                // Swap e and 0
-                // 0 e
-                self.append_instruction(Instruction::Swap(1));
+                // Evaluate the expression
+                let inner_type = self.compile_expression(e)?;
 
                 // Subtract
                 self.append_instruction(Instruction::Sub);
@@ -1423,7 +1428,7 @@ impl<'a> CompileState<'a> {
 
                     self.verify_fact_against_schema(&s.fact, true)?;
                     self.compile_fact_literal(&s.fact)?;
-                    self.append_instruction(Instruction::Dup(0));
+                    self.append_instruction(Instruction::Dup);
 
                     // Verify the 'to' fact literal
                     let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
@@ -1819,7 +1824,7 @@ impl<'a> CompileState<'a> {
         // evaluate the expression
         let inner_type = self.compile_expression(e)?;
         // Duplicate value for testing
-        self.append_instruction(Instruction::Dup(0));
+        self.append_instruction(Instruction::Dup);
         // Push a None to compare against
         self.append_instruction(Instruction::Const(Value::None));
         // Is the value not equal to None?
@@ -2158,7 +2163,7 @@ impl<'a> CompileState<'a> {
                 MatchPattern::Values(values) => {
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
-                        self.append_instruction(Instruction::Dup(0));
+                        self.append_instruction(Instruction::Dup);
                         if !value.is_literal() {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
                                 "match pattern {n} is not a literal expression",
