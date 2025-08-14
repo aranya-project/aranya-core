@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,17 +11,17 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
-    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
+    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
     MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Statement, StmtKind,
-    StructItem, TypeKind, VType,
+    StructItem, TypeKind, VType, ident,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
-    Target, Value,
+    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
+    ffi::ModuleSchema,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{bug, Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;

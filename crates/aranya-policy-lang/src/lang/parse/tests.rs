@@ -2,13 +2,13 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ident, text, ExprKind, Ident, Span, StmtKind, TypeKind};
+use aranya_policy_ast::{ExprKind, Ident, Span, StmtKind, TypeKind, ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{error::Error as PestError, iterators::Pair, Parser};
+use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
-    Version,
+    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
+    parse_policy_str,
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 

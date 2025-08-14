@@ -8,16 +8,16 @@ use aranya_policy_lang::{
     lang,
 };
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned, ToTokens};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
+    Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
+    PatType, Path, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_quote,
     spanned::Spanned,
-    Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
-    PatType, Path, ReturnType, Token,
 };
 
-use crate::attr::{get_lit_str, Attr, Symbol};
+use crate::attr::{Attr, Symbol, get_lit_str};
 
 // TODO(eric): allow `#[ffi_export("foo")]` as an alternative to
 // `#[ffi_export(name = "foo")]`?
