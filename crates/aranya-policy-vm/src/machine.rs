@@ -37,7 +37,7 @@ const STACK_SIZE: usize = 100;
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier {
+    if fact.name != schema.identifier.name {
         return false;
     }
 

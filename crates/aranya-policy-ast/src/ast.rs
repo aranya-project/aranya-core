@@ -466,7 +466,7 @@ pub enum ExprKind {
 #[derive(Debug, PartialEq)]
 pub struct FunctionDecl {
     /// The identifier of the function
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// A list of the arguments to the function, and their types
     pub arguments: Vec<FieldDefinition>,
     /// The return type of the function, if any
@@ -477,7 +477,7 @@ pub struct FunctionDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The variable's value
     pub expression: Expression,
 }
@@ -564,7 +564,7 @@ pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
     /// Identifier of container struct
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// Statements to execute for each fact
     pub statements: Vec<Statement>,
 }
@@ -661,7 +661,7 @@ pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
     /// The name of the fact
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// Types for all of the key fields
     pub key: Vec<FieldDefinition>,
     /// Types for all of the value fields
@@ -676,7 +676,7 @@ pub struct ActionDefinition {
     /// The persistence mode of the action
     pub persistence: Persistence,
     /// The name of the action
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The arguments to the action
     pub arguments: Vec<FieldDefinition>,
     /// The statements executed when the action is called
@@ -689,7 +689,7 @@ pub struct ActionDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectDefinition {
     /// The name of the effect
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields of the effect and their types
     pub items: Vec<StructItem<EffectFieldDefinition>>,
     /// The source location of this definition
@@ -700,7 +700,7 @@ pub struct EffectDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDefinition {
     /// The name of the struct
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields of the struct and their types
     pub items: Vec<StructItem<FieldDefinition>>,
     /// The source location of this definition
@@ -734,7 +734,7 @@ pub struct CommandDefinition {
     /// Optional attributes
     pub attributes: Vec<(Identifier, Expression)>,
     /// The name of the command
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
     /// Statements for sealing the command into an envelope
@@ -753,7 +753,7 @@ pub struct CommandDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
     /// The name of the function
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The return type
@@ -770,7 +770,7 @@ pub struct FunctionDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The finish block statements
@@ -783,7 +783,7 @@ pub struct FinishFunctionDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalLetStatement {
     /// The variable's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The variable's value
     pub expression: Expression,
     /// The source location of this statement
@@ -849,7 +849,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Invalid span")]
+    #[should_panic(expected = "invalid span")]
     #[cfg(debug_assertions)]
     fn test_span_new_invalid() {
         // This should panic in debug mode

@@ -2,13 +2,13 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ident, text, ExprKind, Ident, Identifier, Span, StmtKind, TypeKind};
+use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{error::Error as PestError, iterators::Pair, Parser};
+use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
-    Version,
+    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
+    parse_policy_str,
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
@@ -69,7 +69,14 @@ fn ident_span(name: &str, start: usize, end: usize) -> Ident {
     }
 }
 
-fn identifier(name: &str) -> Identifier {
+fn identifier(name: &str) -> Ident {
+    Ident {
+        name: name.parse().unwrap(),
+        span: Span::new(0, 0),
+    }
+}
+
+fn map_identifier(name: &str) -> Identifier {
     name.parse().unwrap()
 }
 
@@ -668,7 +675,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         policy.facts,
         vec![ast::FactDefinition {
             immutable: false,
-            identifier: identifier("F"),
+            identifier: ident_span("F", 150, 151),
             key: vec![ast::FieldDefinition {
                 identifier: ident_span("v", 152, 160),
                 field_type: vtype_span(TypeKind::String, 154, 160),
@@ -683,7 +690,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     field_type: vtype_span(TypeKind::Bool, 173, 177),
                 },
             ],
-            span: Span::new(145, 177),
+            span: Span::new(145, 178),
         }]
     );
     assert_eq!(
@@ -691,7 +698,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         vec![
             ast::ActionDefinition {
                 persistence: ast::Persistence::Persistent,
-                identifier: identifier("add"),
+                identifier: ident_span("add", 195, 198),
                 arguments: vec![
                     ast::FieldDefinition {
                         identifier: ident_span("x", 199, 204),
@@ -705,7 +712,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 statements: vec![
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("obj"),
+                            identifier: ident_span("obj", 231, 234),
                             expression: expr_span(
                                 ExprKind::NamedStruct(ast::NamedStruct {
                                     identifier: ident_span("Add", 237, 282),
@@ -727,21 +734,21 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         315
                     ),
                 ],
-                span: Span::new(188, 315),
+                span: Span::new(188, 316),
             },
             ast::ActionDefinition {
                 persistence: ast::Persistence::Ephemeral,
-                identifier: identifier("a"),
+                identifier: ident_span("a", 2348, 2349),
                 arguments: vec![],
                 statements: vec![],
-                span: Span::new(2339, 2339),
+                span: Span::new(2331, 2354),
             }
         ]
     );
     assert_eq!(
         policy.effects,
         vec![ast::EffectDefinition {
-            identifier: identifier("Added"),
+            identifier: ident_span("Added", 333, 338),
             items: vec![
                 ast::StructItem::Field(ast::EffectFieldDefinition {
                     identifier: ident_span("x", 353, 366),
@@ -754,7 +761,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     dynamic: false,
                 }),
             ],
-            span: Span::new(326, 391),
+            span: Span::new(326, 396),
         }]
     );
     assert_eq!(
@@ -763,7 +770,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             ast::CommandDefinition {
                 persistence: ast::Persistence::Persistent,
                 attributes: vec![],
-                identifier: identifier("Add"),
+                identifier: ident_span("Add", 414, 417),
                 fields: vec![ast::StructItem::Field(ast::FieldDefinition {
                     identifier: ident_span("count", 457, 466),
                     field_type: vtype_span(TypeKind::Int, 463, 466),
@@ -773,7 +780,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 policy: vec![
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("envelope_id"),
+                            identifier: ident_span("envelope_id", 523, 534),
                             expression: expr_span(
                                 ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                                     module: ident_span("envelope", 537, 567),
@@ -793,7 +800,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("author"),
+                            identifier: ident_span("author", 588, 594),
                             expression: expr_span(
                                 ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                                     module: ident_span("envelope", 597, 626),
@@ -813,7 +820,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("new_x"),
+                            identifier: ident_span("new_x", 647, 652),
                             expression: expr_span(
                                 ExprKind::Add(
                                     Box::new(expr_span(
@@ -970,7 +977,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("a"),
+                            identifier: ident_span("a", 1112, 1113),
                             expression: expr_span(
                                 ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                                     module: ident_span("foo", 1116, 1132),
@@ -1110,7 +1117,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 recall: vec![
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("envelope_id"),
+                            identifier: ident_span("envelope_id", 1505, 1516),
                             expression: expr_span(
                                 ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                                     module: ident_span("envelope", 1519, 1549),
@@ -1130,7 +1137,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("author"),
+                            identifier: ident_span("author", 1570, 1576),
                             expression: expr_span(
                                 ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                                     module: ident_span("envelope", 1579, 1608),
@@ -1150,7 +1157,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     stmt_span(
                         StmtKind::Let(ast::LetStatement {
-                            identifier: identifier("new_x"),
+                            identifier: ident_span("new_x", 1629, 1634),
                             expression: expr_span(
                                 ExprKind::Add(
                                     Box::new(expr_span(
@@ -1290,28 +1297,28 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         1962
                     ),
                 ],
-                span: Span::new(406, 1962),
+                span: Span::new(406, 1986),
             },
             ast::CommandDefinition {
                 persistence: ast::Persistence::Ephemeral,
                 attributes: vec![],
-                identifier: identifier("C"),
+                identifier: ident_span("C", 2251, 2252),
                 fields: vec![ast::StructItem::Field(ast::FieldDefinition {
-                    identifier: ident_span("x", 2300, 2305),
-                    field_type: vtype_span(TypeKind::Int, 2302, 2305),
+                    identifier: ident_span("x", 2292, 2297),
+                    field_type: vtype_span(TypeKind::Int, 2294, 2297),
                 })],
                 policy: vec![],
                 seal: vec![],
                 open: vec![],
                 recall: vec![],
-                span: Span::new(2241, 2305),
+                span: Span::new(2233, 2321),
             }
         ]
     );
     assert_eq!(
         policy.functions,
         vec![ast::FunctionDefinition {
-            identifier: identifier("positive"),
+            identifier: ident_span("positive", 2005, 2013),
             arguments: vec![ast::FieldDefinition {
                 identifier: ident_span("v", 2014, 2028),
                 field_type: vtype_span(
@@ -1324,7 +1331,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             statements: vec![
                 stmt_span(
                     StmtKind::Let(ast::LetStatement {
-                        identifier: identifier("x"),
+                        identifier: ident_span("x", 2053, 2054),
                         expression: expr_span(
                             ExprKind::Unwrap(Box::new(expr_span(
                                 ExprKind::Identifier(ident!("v")),
@@ -1353,13 +1360,13 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     2099
                 ),
             ],
-            span: Span::new(1996, 2099),
+            span: Span::new(1996, 2100),
         }]
     );
     assert_eq!(
         policy.finish_functions,
         vec![ast::FinishFunctionDefinition {
-            identifier: identifier("next"),
+            identifier: ident_span("next", 2126, 2130),
             arguments: vec![ast::FieldDefinition {
                 identifier: ident_span("x", 2131, 2136),
                 field_type: vtype_span(TypeKind::Int, 2133, 2136),
@@ -1375,7 +1382,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 2152,
                 2169
             )],
-            span: Span::new(2110, 2169),
+            span: Span::new(2110, 2179),
         }]
     );
 
@@ -1427,17 +1434,17 @@ fn parse_policy_immutable_facts() -> Result<(), ParseError> {
         vec![
             ast::FactDefinition {
                 immutable: false,
-                identifier: identifier("A"),
+                identifier: ident_span("A", 14, 15),
                 key: vec![],
                 value: vec![],
-                span: Span::new(9, 9),
+                span: Span::new(9, 21),
             },
             ast::FactDefinition {
                 immutable: true,
-                identifier: identifier("B"),
+                identifier: ident_span("B", 45, 46),
                 key: vec![],
                 value: vec![],
-                span: Span::new(30, 30),
+                span: Span::new(30, 52),
             }
         ]
     );
@@ -1516,18 +1523,18 @@ fn parse_struct() {
     assert_eq!(
         policy.structs,
         vec![ast::StructDefinition {
-            identifier: identifier("Foo"),
+            identifier: ident_span("Foo", 7, 10),
             items: vec![ast::StructItem::Field(ast::FieldDefinition {
                 identifier: ident_span("x", 25, 30),
                 field_type: vtype_span(TypeKind::Int, 27, 30),
             })],
-            span: Span::new(0, 30),
+            span: Span::new(0, 40),
         }]
     );
     assert_eq!(
         policy.functions,
         vec![ast::FunctionDefinition {
-            identifier: identifier("convert"),
+            identifier: ident_span("convert", 59, 66),
             arguments: vec![ast::FieldDefinition {
                 identifier: ident_span("foo", 67, 81),
                 field_type: vtype_span(TypeKind::Struct(ident!("Foo")), 71, 81),
@@ -1561,7 +1568,7 @@ fn parse_struct() {
                 108,
                 138
             )],
-            span: Span::new(50, 138),
+            span: Span::new(50, 139),
         }]
     );
 }
@@ -1653,7 +1660,7 @@ fn parse_ffi_decl() {
     assert_eq!(
         decl,
         ast::FunctionDecl {
-            identifier: identifier("foo"),
+            identifier: ident_span("foo", 9, 12),
             arguments: vec![
                 ast::FieldDefinition {
                     identifier: ident_span("x", 13, 18),
@@ -1687,7 +1694,7 @@ fn parse_ffi_structs_enums() {
         structs,
         vec![
             ast::StructDefinition {
-                identifier: identifier("A"),
+                identifier: ident_span("A", 7, 8),
                 items: vec![
                     ast::StructItem::Field(ast::FieldDefinition {
                         identifier: ident_span("x", 23, 28),
@@ -1698,12 +1705,12 @@ fn parse_ffi_structs_enums() {
                         field_type: vtype_span(TypeKind::Bool, 44, 48)
                     })
                 ],
-                span: Span::new(0, 48),
+                span: Span::new(0, 58),
             },
             ast::StructDefinition {
-                identifier: identifier("B"),
+                identifier: ident_span("B", 75, 76),
                 items: vec![],
-                span: Span::new(68, 68),
+                span: Span::new(68, 79),
             }
         ],
     );
@@ -1742,7 +1749,7 @@ fn parse_seal_open() {
         vec![ast::CommandDefinition {
             persistence: ast::Persistence::Persistent,
             attributes: vec![],
-            identifier: identifier("Foo"),
+            identifier: ident_span("Foo", 8, 11),
             fields: vec![],
             policy: vec![],
             recall: vec![],
@@ -1782,7 +1789,7 @@ fn parse_seal_open() {
                 116,
                 149
             )],
-            span: Span::new(0, 149),
+            span: Span::new(0, 160),
         }]
     );
 }
@@ -1807,7 +1814,7 @@ fn parse_serialize_deserialize() {
         vec![ast::CommandDefinition {
             persistence: ast::Persistence::Persistent,
             attributes: vec![],
-            identifier: identifier("Foo"),
+            identifier: ident_span("Foo", 8, 11),
             fields: vec![],
             policy: vec![],
             recall: vec![],
@@ -1837,7 +1844,7 @@ fn parse_serialize_deserialize() {
                 122,
                 163
             )],
-            span: Span::new(0, 163),
+            span: Span::new(0, 174),
         }]
     );
 }
@@ -1915,19 +1922,19 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
         policy.global_lets,
         vec![
             ast::GlobalLetStatement {
-                identifier: identifier("x"),
+                identifier: ident_span("x", 13, 14),
                 expression: expr_span(ExprKind::Int(42), 17, 19),
-                span: Span::new(9, 19),
+                span: Span::new(9, 28),
             },
             ast::GlobalLetStatement {
-                identifier: identifier("y"),
+                identifier: ident_span("y", 32, 33),
                 expression: expr_span(ExprKind::String(text!("hello")), 36, 43),
-                span: Span::new(28, 43),
+                span: Span::new(28, 52),
             },
             ast::GlobalLetStatement {
-                identifier: identifier("z"),
+                identifier: ident_span("z", 56, 57),
                 expression: expr_span(ExprKind::Bool(true), 60, 64),
-                span: Span::new(52, 64),
+                span: Span::new(52, 74),
             },
         ]
     );
@@ -1936,12 +1943,12 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
         policy.actions,
         vec![ast::ActionDefinition {
             persistence: ast::Persistence::Persistent,
-            identifier: identifier("foo"),
+            identifier: ident_span("foo", 81, 84),
             arguments: vec![],
             statements: vec![
                 stmt_span(
                     StmtKind::Let(ast::LetStatement {
-                        identifier: identifier("a"),
+                        identifier: ident_span("a", 105, 106),
                         expression: expr_span(
                             ExprKind::Add(
                                 Box::new(expr_span(ExprKind::Identifier(ident!("x")), 109, 110)),
@@ -1956,7 +1963,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                 ),
                 stmt_span(
                     StmtKind::Let(ast::LetStatement {
-                        identifier: identifier("b"),
+                        identifier: ident_span("b", 131, 132),
                         expression: expr_span(
                             ExprKind::Add(
                                 Box::new(expr_span(ExprKind::Identifier(ident!("y")), 135, 136)),
@@ -1971,7 +1978,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                 ),
                 stmt_span(
                     StmtKind::Let(ast::LetStatement {
-                        identifier: identifier("c"),
+                        identifier: ident_span("c", 164, 165),
                         expression: expr_span(
                             ExprKind::Not(Box::new(expr_span(
                                 ExprKind::Identifier(ident!("z")),
@@ -2011,7 +2018,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                     282
                 ),
             ],
-            span: Span::new(74, 282),
+            span: Span::new(74, 283),
         }]
     );
     Ok(())
@@ -2108,7 +2115,7 @@ fn test_action_call() -> anyhow::Result<()> {
         policy.actions[1],
         ast::ActionDefinition {
             persistence: ast::Persistence::Persistent,
-            identifier: identifier("pong"),
+            identifier: ident_span("pong", 33, 37),
             arguments: vec![],
             statements: vec![stmt_span(
                 StmtKind::ActionCall(ast::FunctionCall {
@@ -2148,7 +2155,7 @@ fn test_map_statement() {
                     )],
                     value_fields: None,
                 },
-                identifier: identifier("f"),
+                identifier: ident_span("f", 85, 86),
                 statements: vec![]
             }),
             69,
@@ -2174,13 +2181,13 @@ fn test_block_expression() {
         policy.actions[0].statements,
         vec![stmt_span(
             StmtKind::Let(ast::LetStatement {
-                identifier: identifier("x"),
+                identifier: ident_span("x", 32, 33),
                 expression: expr_span(
                     ExprKind::Block(
                         vec![
                             stmt_span(
                                 StmtKind::Let(ast::LetStatement {
-                                    identifier: identifier("a"),
+                                    identifier: ident_span("a", 54, 55),
                                     expression: expr_span(ExprKind::Int(3), 58, 59)
                                 }),
                                 50,
@@ -2188,7 +2195,7 @@ fn test_block_expression() {
                             ),
                             stmt_span(
                                 StmtKind::Let(ast::LetStatement {
-                                    identifier: identifier("b"),
+                                    identifier: ident_span("b", 76, 77),
                                     expression: expr_span(ExprKind::Int(4), 80, 81)
                                 }),
                                 72,
@@ -2233,7 +2240,7 @@ fn parse_match_expression() {
         policy.actions[0].statements,
         vec![stmt_span(
             StmtKind::Let(ast::LetStatement {
-                identifier: identifier("x"),
+                identifier: ident_span("x", 45, 46),
                 expression: expr_span(
                     ExprKind::Match(Box::new(ast::MatchExpression {
                         scrutinee: expr_span(ExprKind::Identifier(ident!("n")), 55, 56),
@@ -2248,7 +2255,7 @@ fn parse_match_expression() {
                                     ExprKind::Block(
                                         vec![stmt_span(
                                             StmtKind::Let(ast::LetStatement {
-                                                identifier: identifier("x"),
+                                                identifier: ident_span("x", 106, 107),
                                                 expression: expr_span(
                                                     ExprKind::Bool(true),
                                                     110,

@@ -1,4 +1,4 @@
-use aranya_policy_ast::{ident, Identifier};
+use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{LabelType, Module, ModuleData};
 
 use crate::{

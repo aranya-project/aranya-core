@@ -128,6 +128,12 @@ impl<'a> PairContext<'a> {
             .assume("grammar produces valid identifiers")?)
     }
 
+    /// Consumes the next Pair and returns it as an Ident with proper span
+    fn consume_ident(&self, parser: &ChunkParser<'_>) -> Result<Ident, ParseError> {
+        let token = self.consume_of_type(Rule::identifier)?;
+        parser.parse_ident(token)
+    }
+
     fn consume_optional(&self, rule: Rule) -> Option<Pair<'_, Rule>> {
         self.peek()
             .filter(|p| p.as_rule() == rule)
@@ -1090,7 +1096,7 @@ impl ChunkParser<'_> {
     /// Parse a Rule::let_statement into a LetStatement.
     fn parse_let_statement(&mut self, item: Pair<'_, Rule>) -> Result<LetStatement, ParseError> {
         let pc = descend(item);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
         let expression = pc.consume_expression(self)?;
 
         Ok(LetStatement {
@@ -1318,7 +1324,7 @@ impl ChunkParser<'_> {
         let pc = descend(field);
         let pair = pc.consume()?;
         let fact = self.parse_fact_literal(pair)?;
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
         let statements = self.parse_statement_list(pc.into_inner())?;
 
         Ok(MapStatement {
@@ -1350,7 +1356,7 @@ impl ChunkParser<'_> {
         };
 
         let pc = descend(token);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
         let token = pc.consume_of_type(Rule::fact_signature_key)?;
         let mut key = vec![];
         for field in token.into_inner() {
@@ -1386,7 +1392,7 @@ impl ChunkParser<'_> {
             .map_or(ast::Persistence::Persistent, |_| {
                 ast::Persistence::Ephemeral
             });
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
@@ -1415,7 +1421,7 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
 
         // All remaining tokens are fields
         let mut items = vec![];
@@ -1454,7 +1460,7 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
 
         // All remaining tokens are fields
         let mut items = vec![];
@@ -1535,7 +1541,7 @@ impl ChunkParser<'_> {
             .map_or(ast::Persistence::Persistent, |_| {
                 ast::Persistence::Ephemeral
             });
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
 
         let mut attributes = vec![];
         let mut fields = vec![];
@@ -1630,7 +1636,7 @@ impl ChunkParser<'_> {
         ));
 
         let pc = descend(item);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
 
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
@@ -1703,7 +1709,7 @@ impl ChunkParser<'_> {
     ) -> Result<ast::GlobalLetStatement, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
         let expression = pc.consume_expression(self)?;
 
         Ok(ast::GlobalLetStatement {
@@ -1849,8 +1855,22 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
         Rule::function_decl | Rule::finish_function_decl
     ));
 
-    let pc = descend(decl);
-    let identifier = pc.consume_identifier()?;
+    let pc = descend(decl.clone());
+    let identifier_token = pc.consume_of_type(Rule::identifier)?;
+    let identifier_str = identifier_token.as_str();
+    // Helper to convert pest span to AST span with offset 0
+    let to_ast_span = |pest_span: Span<'_>| -> Result<ast::Span, ParseError> {
+        let start = pest_span.start();
+        let end = pest_span.end();
+        Ok(ast::Span::new(start, end))
+    };
+    let identifier_span = to_ast_span(identifier_token.as_span())?;
+    let identifier = Ident::new(
+        identifier_str
+            .parse()
+            .assume("grammar produces valid identifiers")?,
+        identifier_span,
+    );
 
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
