@@ -31,6 +31,7 @@ proptest = [
 [dependencies]
 aranya-policy-text = { version = "0.1.0", path = "../aranya-policy-text", default-features = false }
 
+rkyv = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["alloc"] }
 serde_derive = { workspace = true }
 thiserror = { workspace = true, default-features = false }
