@@ -18,7 +18,7 @@ use core::{
 
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, Random, Rng,
+    IdentityKey, KeyStore, KeyStoreExt as _, Random, Rng,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},
@@ -298,18 +298,14 @@ impl<T: TestImpl> Device<T> {
             .expect("device ID should be valid");
 
         let enc_sk = EncryptionKey::new(&mut eng);
-        let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
                 .expect("encryption public key should be valid"),
         );
 
-        let wrapped = eng
-            .wrap(enc_sk)
-            .expect("should be able to wrap `EncryptionKey`");
-        store
-            .try_insert(enc_key_id.into(), wrapped)
+        let enc_key_id = store
+            .insert_key(&mut eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
