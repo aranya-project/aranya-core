@@ -114,7 +114,6 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
 
 struct MachExpIO {
     facts: HashMap<(Identifier, FactKeyList), FactValueList>,
-    commands: Vec<(Identifier, Vec<KVPair>)>,
     effects: Vec<(Identifier, Vec<KVPair>)>,
 }
 
@@ -122,7 +121,6 @@ impl MachExpIO {
     fn new() -> Self {
         MachExpIO {
             facts: HashMap::new(),
-            commands: vec![],
             effects: vec![],
         }
     }
@@ -195,11 +193,6 @@ where
             // TODO(jdygert): Worth removing clone?
             iter: self.facts.clone().into_iter(),
         })
-    }
-
-    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
-        let fields = fields.into_iter().collect();
-        self.commands.push((name, fields))
     }
 
     fn effect(
@@ -319,7 +312,10 @@ fn main() -> anyhow::Result<()> {
                 }
             }
 
-            drop(rs);
+            println!("Stack:");
+            for value in rs.stack.into_vec() {
+                println!("  {value}");
+            }
 
             println!("Facts:");
             for ((name, k), v) in &io.borrow().facts {
@@ -333,16 +329,9 @@ fn main() -> anyhow::Result<()> {
                 }
                 println!("}}");
             }
+
             println!("Effects:");
             for (name, fields) in &io.borrow().effects {
-                println!("  {} {{", name);
-                for f in fields {
-                    println!("    {}", f);
-                }
-                println!("  }}");
-            }
-            println!("Published Commands:");
-            for (name, fields) in &io.borrow().commands {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);
