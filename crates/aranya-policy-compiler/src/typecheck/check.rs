@@ -2,54 +2,32 @@ use std::collections::BTreeMap;
 
 use crate::{
     arena::Arena,
-    hir::{
-        types::{Expr, ExprId, ExprKind, LitKind},
-        visit::Visitor,
-        Hir,
-    },
-    typecheck::{
-        types::{Type, TypeId, TypeKind},
-        Result,
-    },
+    ctx::Ctx,
+    hir::{ExprId, Hir, VTypeId},
+    symbol_resolution::SymbolTable,
+    typecheck::types::{Type, TypeEnv, TypeId},
 };
 
-pub(super) struct TypeChecker<'hir> {
-    hir: &'hir Hir,
-    exprs: BTreeMap<ExprId, Type>,
+pub(crate) struct TypeChecker<'ctx> {
+    ctx: &'ctx Ctx<'ctx>,
+    hir: &'ctx Hir,
+    symbols: &'ctx SymbolTable,
+
+    /// Arena for storing types
     types: Arena<TypeId, Type>,
-}
 
-impl TypeChecker<'_> {
-    fn check_expr(&mut self, expr: &Expr) -> Result<Type> {
-        let kind = match &expr.kind {
-            ExprKind::Lit(lit) => match &lit.kind {
-                LitKind::String(_) => TypeKind::String,
-                LitKind::Int(_) => TypeKind::Int,
-                LitKind::Bool(_) => TypeKind::Bool,
-                _ => todo!(),
-            },
-            _ => todo!(),
-        };
-        Ok(Type {
-            id: TypeId::default(), // TODO
-            kind,
-        })
-    }
-}
+    /// Maps HIR expressions to their types
+    expr_types: BTreeMap<ExprId, Type>,
 
-impl<'hir> Visitor<'hir> for TypeChecker<'hir> {
-    type Result = Result<()>;
+    /// Maps HIR vtypes to our internal types (for caching)
+    vtype_map: BTreeMap<VTypeId, Type>,
 
-    fn hir(&self) -> &'hir Hir {
-        self.hir
-    }
+    /// Current type environment
+    env: TypeEnv,
 
-    fn visit_expr(&mut self, expr: &'hir Expr) -> Self::Result {
-        let _ = self.check_expr(expr); // TODO
-        Ok(())
-    }
+    /// Next type variable ID for inference
+    next_type_var: u32,
 
-    fn visit_expr_kind(&mut self, _kind: &'hir ExprKind) -> Self::Result {
-        Ok(())
-    }
+    /// Tracks whether we've seen errors
+    has_errors: bool,
 }

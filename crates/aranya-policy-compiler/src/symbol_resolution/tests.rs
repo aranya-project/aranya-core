@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use std::{collections::BTreeMap, ops::Index};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    ops::Index,
+};
 
 use aranya_policy_ast::{ident, Identifier, Version};
 use aranya_policy_lang::lang::parse_policy_str;
@@ -11,36 +14,230 @@ use test_log::test;
 
 use super::{
     scope::{Scope, ScopeId, ScopedId, Scopes},
-    symbols::SymbolKind,
+    symbols::{SymbolId, SymbolKind},
 };
-use crate::{ast::Ast, ctx::Ctx, hir::ExprKind};
+use crate::{
+    ast::Ast,
+    ctx::Ctx,
+    hir::{ExprKind, IdentRef},
+};
 
-type Edges = BTreeMap<ScopeId, Vec<ScopeId>>;
+struct ScopeTree {
+    global: Vec<Node>,
+}
 
-impl Scopes {
-    #[allow(dead_code)] // TODO
-    fn build_edges(&self) -> Edges {
-        let mut edges = Edges::new();
-        for (id, scope) in &self.scopes {
-            if let Some(parent) = &scope.parent {
-                edges.entry(id).and_modify(|v| v.push(*parent)).or_default();
-            } else {
-                // The global scope is the only scope without
-                // a parent.
-                assert_eq!(id, ScopeId::GLOBAL);
+struct Node {
+    scope: ScopeId,
+}
+
+/// Maps parent scopes to their child scopes.
+type InEdges = BTreeMap<ScopeId, BTreeSet<ScopeId>>;
+
+/// Maps child scopes to their parent scopes.
+type OutEdges = BTreeMap<ScopeId, ScopeId>;
+
+struct Graph {
+    incoming: InEdges,
+    outgoing: OutEdges,
+    sorted: Vec<ScopeId>,
+}
+
+impl Graph {
+    fn topo_sort(&self) -> Result<Vec<ScopeId>, HasCycles> {
+        let mut sorted = Vec::new();
+        let (mut q, mut incoming): (VecDeque<_>, InEdges) = self.incoming.iter().fold(
+            (VecDeque::new(), InEdges::new()),
+            |(mut q, mut edges), (id, incoming)| {
+                if incoming.is_empty() {
+                    q.push_back(*id);
+                } else {
+                    edges.insert(*id, incoming.clone());
+                }
+                (q, edges)
+            },
+        );
+        let mut outgoing = self.outgoing.clone();
+        while let Some(n) = q.pop_front() {
+            sorted.push(n);
+            let Some(m) = outgoing.remove(&n) else {
+                continue;
+            };
+            let out = incoming.get_mut(&m).unwrap();
+            out.remove(&n);
+            if out.is_empty() {
+                incoming.remove(&m);
+                q.push_back(m);
             }
         }
-        edges
+
+        // TODO(eric): Reverse the edge direction instead.
+        sorted.reverse();
+        assert_eq!(sorted[0], ScopeId::GLOBAL);
+
+        if incoming.is_empty() {
+            Ok(sorted)
+        } else {
+            Err(HasCycles)
+        }
     }
 
+    fn collect_items(&self, ctx: &Ctx<'_>) -> Vec<Item> {
+        self.dfs(ctx, ScopeId::GLOBAL, &|ctx, id| {
+            let scope = ctx.symbols.scopes.get_scope(id);
+            if let Some(children) = self.incoming.get(&id) {
+                assert!(
+                    children.len() <= scope.symbols.len(),
+                    "{} < {}",
+                    children.len(),
+                    scope.symbols.len()
+                );
+            }
+            // TODO
+        });
+        todo!()
+    }
+
+    fn walk<R>(&self, ctx: &Ctx<'_>, f: &impl FnMut(&Ctx<'_>, ScopeId) -> R) {
+        self.dfs(ctx, ScopeId::GLOBAL, f)
+    }
+
+    fn dfs<R>(&self, ctx: &Ctx<'_>, id: ScopeId, f: &impl FnMut(&Ctx<'_>, ScopeId) -> R) {
+        if let Some(children) = self.incoming.get(&id) {
+            for &child in children {
+                acc = self.dfs(child, edges, acc, f);
+            }
+        }
+        f(self, parent, acc)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct HasCycles;
+
+impl Scopes {
     fn get_scope(&self, id: ScopeId) -> &Scope {
         &self.scopes[id]
     }
 }
 
 impl Ctx<'_> {
+    fn build_scope_graph(&self) -> Result<Graph, HasCycles> {
+        let mut incoming = InEdges::new();
+        let mut outgoing = OutEdges::new();
+        for (id, scope) in &self.symbols.scopes.scopes {
+            if let Some(parent) = &scope.parent {
+                outgoing.insert(id, *parent);
+                incoming
+                    .entry(*parent)
+                    .and_modify(|v| {
+                        v.insert(id);
+                    })
+                    .or_default();
+            } else {
+                // The global scope is the only scope without
+                // a parent.
+                assert_eq!(id, ScopeId::GLOBAL);
+            }
+        }
+        let mut graph = Graph {
+            incoming,
+            outgoing,
+            sorted: Vec::new(),
+        };
+        graph.sorted = graph.topo_sort()?;
+        Ok(graph)
+    }
+
+    fn build_in_edges(&self) -> InEdges {
+        self.build_scope_graph().unwrap().incoming
+    }
+
+    fn build_out_edges(&self) -> OutEdges {
+        self.build_scope_graph().unwrap().outgoing
+    }
+
+    fn collect_all_items<R>(&self) -> Vec<Item> {
+        let edges = self.build_out_edges();
+        self.dfs(ScopeId::GLOBAL, &edges, Vec::new(), &|ctx, id, scopes| {})
+    }
+
+    fn dfs<R>(
+        &self,
+        parent: ScopeId,
+        edges: &OutEdges,
+        mut acc: R,
+        f: &impl Fn(&Self, ScopeId, R) -> R,
+    ) -> R {
+        if let Some(children) = edges.get(&parent) {
+            let scope = self.symbols.scopes.get_scope(parent);
+            assert!(
+                children.len() <= scope.symbols.len(),
+                "{} < {}",
+                children.len(),
+                scope.symbols.len()
+            );
+            for &child in children {
+                acc = self.dfs(child, edges, acc, f);
+            }
+        }
+        f(self, parent, acc)
+    }
+
+    fn idk(&self, id: SymbolId, xref: IdentRef) {
+        let ident = self.idents.get(xref).unwrap().clone();
+        let sym = self.symbols.symbols.get(id).unwrap();
+        let item = match sym.kind {
+            SymbolKind::Action(_) => Item::Action(ident, children),
+            SymbolKind::Cmd(_) => Item::Cmd(ident),
+            SymbolKind::Effect(_) => Item::Effect(ident),
+            SymbolKind::Enum(_) => Item::Enum(ident),
+            SymbolKind::Fact(_) => Item::Fact(ident),
+            SymbolKind::FfiEnum(_) => Item::FfiEnum(ident),
+            SymbolKind::FfiFunc(_) => Item::FfiFunc(ident),
+            SymbolKind::FfiModule { .. } => Item::FfiModule(ident),
+            SymbolKind::FfiStruct(_) => Item::FfiStruct(ident),
+            SymbolKind::FinishFunc(_) => Item::FinishFunc(ident, children),
+            SymbolKind::Func(_) => Item::Func(ident, children),
+            SymbolKind::GlobalVar(_) => Item::GlobalVar(ident, children),
+            SymbolKind::LocalVar(_) => Item::LocalVar(ident, children),
+            SymbolKind::Struct(_) => Item::Struct(ident),
+        };
+    }
+
+    fn collect_items(&self, id: ScopeId, mut acc: Vec<Items>) -> Vec<Item> {
+        let mut items = Items::new();
+        let scope = self.symbols.scopes.get_scope(id);
+        for (xref, sym_id) in &scope.symbols {
+            let ident = self.idents.get(*xref).unwrap().clone();
+            let sym = self.symbols.symbols.get(*sym_id).unwrap();
+            let item = match sym.kind {
+                SymbolKind::Action(_) => Item::Action(ident, children),
+                SymbolKind::Cmd(_) => Item::Cmd(ident),
+                SymbolKind::Effect(_) => Item::Effect(ident),
+                SymbolKind::Enum(_) => Item::Enum(ident),
+                SymbolKind::Fact(_) => Item::Fact(ident),
+                SymbolKind::FfiEnum(_) => Item::FfiEnum(ident),
+                SymbolKind::FfiFunc(_) => Item::FfiFunc(ident),
+                SymbolKind::FfiModule { .. } => Item::FfiModule(ident),
+                SymbolKind::FfiStruct(_) => Item::FfiStruct(ident),
+                SymbolKind::FinishFunc(_) => Item::FinishFunc(ident, children),
+                SymbolKind::Func(_) => Item::Func(ident, children),
+                SymbolKind::GlobalVar(_) => Item::GlobalVar(ident, children),
+                SymbolKind::LocalVar(_) => Item::LocalVar(ident, children),
+                SymbolKind::Struct(_) => Item::Struct(ident),
+            };
+            items.push(item);
+        }
+        items
+    }
+
     /// Recursively retrieves all items in the scope.
+    fn get_all_items(&self) -> Items {
+        self.get_items(ScopeId::GLOBAL)
+    }
+
     fn get_items(&self, id: ScopeId) -> Items {
+        println!("get_items({id})");
         let mut items = Items::new();
         let scope = self.symbols.scopes.get_scope(id);
         for (xref, sym_id) in &scope.symbols {
@@ -49,7 +246,7 @@ impl Ctx<'_> {
             let item = match sym.kind {
                 SymbolKind::Action(id) => {
                     let act = self.hir.index(id);
-                    Item::Action(ident, self.get_scoped_items(act.block))
+                    Item::Action(ident, self.get_scoped_items(act.body))
                 }
                 SymbolKind::Cmd(_) => Item::Cmd(ident),
                 SymbolKind::Effect(_) => Item::Effect(ident),
@@ -61,11 +258,11 @@ impl Ctx<'_> {
                 SymbolKind::FfiStruct(_) => Item::FfiStruct(ident),
                 SymbolKind::FinishFunc(id) => {
                     let func = self.hir.index(id);
-                    Item::FinishFunc(ident, self.get_scoped_items(func.block))
+                    Item::FinishFunc(ident, self.get_scoped_items(func.body))
                 }
                 SymbolKind::Func(id) => {
                     let func = self.hir.index(id);
-                    Item::Func(ident, self.get_scoped_items(func.block))
+                    Item::Func(ident, self.get_scoped_items(func.body))
                 }
                 SymbolKind::GlobalVar(id) => {
                     let v = self.hir.index(id);
@@ -76,6 +273,7 @@ impl Ctx<'_> {
                     Item::GlobalVar(ident, items)
                 }
                 SymbolKind::LocalVar(id) => {
+                    println!("LocalVar: {id:?}");
                     let items = id.map(|id| self.get_scoped_items(id)).unwrap_or_default();
                     Item::LocalVar(ident, items)
                 }
@@ -92,9 +290,46 @@ impl Ctx<'_> {
             .symbols
             .scopemap
             .get(&id)
-            .unwrap_or_else(|| panic!("unknown `Scoped` ID: {id:?}"));
+            .unwrap_or_else(|| panic!("unknown `ScopedId`: {id:?}"));
         self.get_items(*scope)
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+struct TestScope {
+    kind: ScopeKind,
+    symbols: Vec<SymKind>,
+    children: Vec<TestScope>,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+enum SymKind {
+    Action,
+    Cmd,
+    Effect,
+    Enum,
+    Fact,
+    FfiEnum,
+    FfiFunc,
+    FfiModule,
+    FfiStruct,
+    FinishFunc,
+    Func,
+    GlobalVar,
+    LocalVar,
+    Struct,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+enum ScopeKind {
+    Action(Identifier),
+    Block,
+    FfiFunc(Identifier),
+    FinishFunc(Identifier),
+    Func(Identifier),
+    GlobalVar(Identifier),
+    LocalVar(Identifier),
+    Param(Identifier),
 }
 
 type Items = Vec<Item>;
@@ -185,7 +420,7 @@ macro_rules! scope {
         $($block:tt)*
     } $($rest:tt)*) => {
         scope!(@global
-            [$($item,)* Item::Func(
+            [$($item,)* Item::FinishFunc(
                 ident!(stringify!($ident)),
                 scope!(@block [] $($block)*),
             ),]
@@ -346,7 +581,7 @@ struct S2 {
         function(func3): { { { ok } } }
         finish function(ff1): { x }
         finish function(ff2): { y }
-        finish function(ff3): { y }
+        finish function(ff3): { }
         finish function(ff4): { x, y }
         global(gx): {}
         global(gy): { tmp: { gx } }
@@ -356,10 +591,11 @@ struct S2 {
     //trace_macros!(false);
     want.sort();
 
-    let mut got = ctx.get_items(ScopeId::GLOBAL);
+    let mut got = ctx.walk_scopes(Items::new(), Ctx::collect_items);
     got.sort();
 
     println!("{got:#?}");
+    println!("{want:#?}");
 
     assert_eq!(got, want);
 }

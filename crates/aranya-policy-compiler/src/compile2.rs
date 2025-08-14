@@ -29,6 +29,9 @@ impl Compiler<'_> {
         if let Err(err) = ctx.resolve_symbols() {
             err.raise_fatal();
         }
+        if let Err(err) = ctx.build_dep_graph() {
+            err.raise_fatal();
+        }
 
         let mut cg = Codegen {
             prog: Vec::new(),

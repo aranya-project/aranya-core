@@ -1,5 +1,8 @@
 use std::{
-    collections::btree_map::{BTreeMap, Entry},
+    collections::{
+        btree_map::{BTreeMap, Entry},
+        BTreeSet, VecDeque,
+    },
     fmt,
     hash::Hash,
 };
@@ -7,29 +10,29 @@ use std::{
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
-use super::symbols::{SymbolId, SymbolKind};
+use super::symbols::SymbolId;
 use crate::{
     arena::{self, Arena},
     diag::DiagMsg,
-    hir::{ActionId, BlockId, FfiFuncId, FfiModuleId, FinishFuncId, FuncId, IdentRef},
+    hir::{ActionId, BlockId, BodyId, FfiFuncId, FfiModuleId, FinishFuncId, FuncId, IdentRef},
 };
 
 /// A program scope (global or block).
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Scope {
+pub(crate) struct Scope {
     /// Uniquely identifies this scope.
     // TODO(eric): Do we need this field?
-    id: ScopeId,
+    pub id: ScopeId,
     /// The parent scope, if any.
-    pub(super) parent: Option<ScopeId>,
+    pub parent: Option<ScopeId>,
     /// Symbols defined in this scope.
-    pub(super) symbols: BTreeMap<IdentRef, SymbolId>,
+    pub symbols: BTreeMap<IdentRef, SymbolId>,
 }
 
-arena::new_key_type!(
+arena::new_key_type! {
     /// Uniquely identifies a [`Scope`].
     pub(crate) struct ScopeId;
-);
+}
 
 impl ScopeId {
     /// The global scope.
@@ -38,7 +41,7 @@ impl ScopeId {
 
 /// A collection of [`Scope`]s.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Scopes {
+pub(crate) struct Scopes {
     pub(super) scopes: Arena<ScopeId, Scope>,
 }
 
@@ -91,7 +94,7 @@ impl Scopes {
         ident: IdentRef,
         sym: SymbolId,
     ) -> Result<(), InsertError> {
-        if let Some(id) = self.get(scope, ident)? {
+        if let Some(id) = self.get_sym(scope, ident)? {
             return Err(InsertError::Duplicate(id));
         }
         let scope = self.scopes.get_mut(scope).ok_or(InvalidScopeId(scope))?;
@@ -104,11 +107,20 @@ impl Scopes {
         }
     }
 
+    /// Retrieves a shared reference to a scope.
+    pub fn get(&self, scope: ScopeId) -> Result<&Scope, InvalidScopeId> {
+        self.scopes.get(scope).ok_or(InvalidScopeId(scope))
+    }
+
     /// Resolves `ident` to a symbol in the specified scope or
     /// any parent scopes up to (and including) the global scope.
     ///
     /// It returns `None` if the symbol cannot be found.
-    pub fn get(&self, scope: ScopeId, ident: IdentRef) -> Result<Option<SymbolId>, LookupError> {
+    pub fn get_sym(
+        &self,
+        scope: ScopeId,
+        ident: IdentRef,
+    ) -> Result<Option<SymbolId>, LookupError> {
         let scope = self.scopes.get(scope).ok_or(InvalidScopeId(scope))?;
         if let Some(sym) = scope.symbols.get(&ident) {
             return Ok(Some(*sym));
@@ -130,7 +142,7 @@ impl Scopes {
     /// Reports whether `ident` exists in the specified scope or
     /// any parent scopes up to (and including) the global scope.
     pub fn contains(&self, scope: ScopeId, ident: IdentRef) -> Result<bool, LookupError> {
-        self.get(scope, ident).map(|v| v.is_some())
+        self.get_sym(scope, ident).map(|v| v.is_some())
     }
 
     /// Returns the parent scope of `scope`.
@@ -138,7 +150,92 @@ impl Scopes {
         let scope = self.scopes.get(scope).ok_or(InvalidScopeId(scope))?;
         Ok(scope.parent)
     }
+
+    pub fn walk(&self, mut f: impl FnMut(&Self, ScopeId)) {
+        let Graph { sorted, .. } = self.build_graph().unwrap();
+        for id in sorted {
+            f(self, id);
+        }
+    }
+
+    fn build_graph(&self) -> Result<Graph, HasCycles> {
+        let mut incoming = BTreeMap::<_, BTreeSet<ScopeId>>::new();
+        let mut outgoing = BTreeMap::new();
+        for (id, scope) in &self.scopes {
+            if let Some(parent) = &scope.parent {
+                outgoing.insert(id, *parent);
+                incoming
+                    .entry(*parent)
+                    .and_modify(|v| {
+                        v.insert(id);
+                    })
+                    .or_default();
+            } else {
+                // The global scope is the only scope without
+                // a parent.
+                assert_eq!(id, ScopeId::GLOBAL);
+            }
+        }
+        let mut graph = Graph {
+            incoming,
+            outgoing,
+            sorted: Vec::new(),
+        };
+        graph.sorted = graph.topo_sort()?;
+        Ok(graph)
+    }
 }
+
+#[derive(Clone, Debug)]
+struct Graph {
+    incoming: BTreeMap<ScopeId, BTreeSet<ScopeId>>,
+    outgoing: BTreeMap<ScopeId, ScopeId>,
+    sorted: Vec<ScopeId>,
+}
+
+impl Graph {
+    fn topo_sort(&self) -> Result<Vec<ScopeId>, HasCycles> {
+        let mut sorted = Vec::new();
+        let (mut q, mut incoming): (VecDeque<_>, BTreeMap<_, _>) = self.incoming.iter().fold(
+            (VecDeque::new(), BTreeMap::new()),
+            |(mut q, mut edges), (id, incoming)| {
+                if incoming.is_empty() {
+                    q.push_back(*id);
+                } else {
+                    edges.insert(*id, incoming.clone());
+                }
+                (q, edges)
+            },
+        );
+        let mut outgoing = self.outgoing.clone();
+        while let Some(n) = q.pop_front() {
+            sorted.push(n);
+            let Some(m) = outgoing.remove(&n) else {
+                continue;
+            };
+            let out = incoming.get_mut(&m).unwrap();
+            out.remove(&n);
+            if out.is_empty() {
+                incoming.remove(&m);
+                q.push_back(m);
+            }
+        }
+
+        // TODO(eric): Reverse the edge direction instead.
+        sorted.reverse();
+        assert_eq!(sorted[0], ScopeId::GLOBAL);
+
+        if incoming.is_empty() {
+            Ok(sorted)
+        } else {
+            Err(HasCycles)
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("scope has cycles")]
+struct HasCycles;
 
 /// A [`ScopeId`] was invalid for a [`Scopes`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -191,7 +288,7 @@ impl From<LookupError> for DiagMsg {
     }
 }
 
-macro_rules! impl_scoped {
+macro_rules! impl_scoped_id {
     (
         $(#[$meta:meta])*
         $vis:vis enum $name:ident {
@@ -227,6 +324,7 @@ macro_rules! impl_scoped {
             }
         })*
 
+        // TODO: keep this impl?
         $(impl TryFrom<$name> for $ty {
             // TODO(eric): Better error type.
             type Error = ();
@@ -248,7 +346,7 @@ macro_rules! impl_scoped {
         }
     };
 }
-impl_scoped! {
+impl_scoped_id! {
     /// The ID of an item that has a scope.
     ///
     /// It's used by [`Scopes`] to more easily look up a thing's
@@ -256,23 +354,10 @@ impl_scoped! {
     pub(crate) enum ScopedId {
         Action(ActionId),
         Block(BlockId),
+        Body(BodyId),
         FfiFunc(FfiFuncId),
         FfiModule(FfiModuleId),
         FinishFunc(FinishFuncId),
         Func(FuncId),
-    }
-}
-
-impl ScopedId {
-    pub(super) fn try_from_sym_kind(kind: SymbolKind) -> Option<Self> {
-        let id = match kind {
-            SymbolKind::Action(id) => Self::Action(id),
-            SymbolKind::FfiFunc(id) => Self::FfiFunc(id),
-            SymbolKind::FfiModule(id) => Self::FfiModule(id),
-            SymbolKind::FinishFunc(id) => Self::FinishFunc(id),
-            SymbolKind::Func(id) => Self::Func(id),
-            _ => return None,
-        };
-        Some(id)
     }
 }

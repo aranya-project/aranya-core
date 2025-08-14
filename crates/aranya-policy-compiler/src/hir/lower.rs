@@ -8,17 +8,16 @@ use aranya_policy_module::{
 
 use super::{
     types::{
-        ActionArg, ActionArgId, ActionCall, ActionDef, ActionSig, BinOp, Block, BlockId, CheckStmt,
-        CmdDef, CmdField, CmdFieldId, CmdFieldKind, Create, DebugAssert, Delete, EffectDef,
-        EffectField, EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumRef, Expr, ExprId,
-        ExprKind, FactCountType, FactDef, FactField, FactFieldExpr, FactKey, FactKeyId,
-        FactLiteral, FactVal, FactValId, FfiEnumDef, FfiFuncArg, FfiFuncArgId, FfiFuncDef,
-        FfiFuncSig, FfiImportDef, FfiModuleDef, FfiStructDef, FfiStructField, FfiStructFieldId,
-        FfiStructFieldKind, FieldDef, FinishFuncArg, FinishFuncArgId, FinishFuncDef, FinishFuncSig,
-        ForeignFunctionCall, FuncArg, FuncArgId, FuncDef, FuncSig, FunctionCall, GlobalLetDef, Hir,
-        Ident, IdentId, IdentInterner, IfBranch, IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt,
-        MatchArm, MatchExpr, MatchExprArm, MatchPattern, MatchStmt, NamedStruct, Publish, Pure,
-        ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr,
+        ActionCall, ActionDef, BinOp, Block, BlockId, Body, BodyId, CheckStmt, CmdDef, CmdField,
+        CmdFieldId, CmdFieldKind, Create, DebugAssert, Delete, EffectDef, EffectField,
+        EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumRef, Expr, ExprId, ExprKind,
+        FactCountType, FactDef, FactField, FactFieldExpr, FactKey, FactKeyId, FactLiteral, FactVal,
+        FactValId, FfiEnumDef, FfiFuncDef, FfiFuncSig, FfiImportDef, FfiModuleDef, FfiStructDef,
+        FfiStructField, FfiStructFieldId, FfiStructFieldKind, FieldDef, FinishFuncDef,
+        ForeignFunctionCall, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId,
+        IdentInterner, IfBranch, IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm,
+        MatchExpr, MatchExprArm, MatchPattern, MatchStmt, NamedStruct, Param, ParamId, Publish,
+        Pure, ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr,
         StructFieldId, StructFieldKind, Ternary, TextInterner, UnaryOp, Update, VType, VTypeId,
         VTypeKind,
     },
@@ -342,6 +341,63 @@ impl LowerCtx<'_> {
         })
     }
 
+    /// Lowers a body.
+    fn lower_body(
+        &mut self,
+        params: &Vec<ast::FieldDefinition>,
+        stmts: &Vec<AstNode<ast::Statement>>,
+    ) -> BodyId {
+        // Create a span for the entire body by merging the first
+        // and last spans in `stmts`.
+        let span = {
+            let first = stmts
+                .first()
+                .map(|stmt| self.find_span(stmt.locator))
+                .unwrap_or_default();
+            let last = stmts
+                .last()
+                .map(|stmt| self.find_span(stmt.locator))
+                .unwrap_or(first);
+            first.merge(last)
+        };
+        self.last_span = span;
+
+        let params = self.lower_list::<_, Param, _>(params);
+        let stmts = self.lower_stmts(stmts);
+        // TODO(eric): Figure this out while lowering the block.
+        let returns = stmts.iter().any(|&id| self.hir.stmts[id].returns);
+
+        self.hir.bodies.insert_with_key(|id| Body {
+            id,
+            span,
+            params,
+            stmts,
+            returns,
+        })
+    }
+
+    fn lower_param(&mut self, node: &ast::FieldDefinition) -> ParamId {
+        let ident = self.lower_ident(&node.identifier);
+        let ty = self.lower_vtype(&node.field_type);
+        self.hir.params.insert_with_key(|id| Param {
+            id,
+            span: self.last_span,
+            ident,
+            ty,
+        })
+    }
+
+    fn lower_param_from_ffi(&mut self, ffi_arg: &ffi::Arg<'_>) -> ParamId {
+        let ident = self.lower_ident(&ffi_arg.name);
+        let ty = self.lower_ffi_type(&ffi_arg.vtype);
+        self.hir.params.insert_with_key(|id| Param {
+            id,
+            span: self.last_span,
+            ident,
+            ty,
+        })
+    }
+
     fn lower_stmts(&mut self, stmts: &Vec<AstNode<ast::Statement>>) -> Vec<StmtId> {
         self.lower_list(stmts)
     }
@@ -349,26 +405,13 @@ impl LowerCtx<'_> {
     fn lower_action(&mut self, node: &AstNode<ast::ActionDefinition>) {
         let span = self.find_and_update_last_span(node.locator);
         let ident = self.lower_ident(&node.identifier);
-        let args = self.lower_list::<_, ActionArg, _>(&node.arguments);
-        let block = self.lower_block(&node.statements);
+        let body = self.lower_body(&node.arguments, &node.statements);
         self.hir.actions.insert_with_key(|id| ActionDef {
             id,
             span,
             ident,
-            sig: ActionSig { args },
-            block,
+            body,
         });
-    }
-
-    fn lower_action_arg(&mut self, node: &ast::FieldDefinition) -> ActionArgId {
-        let ident = self.lower_ident(&node.identifier);
-        let ty = self.lower_vtype(&node.field_type);
-        self.hir.action_args.insert_with_key(|id| ActionArg {
-            id,
-            span: self.last_span,
-            ident,
-            ty,
-        })
     }
 
     fn lower_cmd(&mut self, node: &AstNode<ast::CommandDefinition>) {
@@ -495,54 +538,27 @@ impl LowerCtx<'_> {
     fn lower_finish_func(&mut self, f: &AstNode<ast::FinishFunctionDefinition>) {
         let span = self.find_and_update_last_span(f.locator);
         let ident = self.lower_ident(&f.identifier);
-        let args = self.lower_list::<_, FinishFuncArg, _>(&f.arguments);
-        let block = self.lower_block(&f.statements);
+        let body = self.lower_body(&f.arguments, &f.statements);
         self.hir.finish_funcs.insert_with_key(|id| FinishFuncDef {
             id,
             span,
             ident,
-            sig: FinishFuncSig { args },
-            block,
+            body,
         });
-    }
-
-    fn lower_finish_func_arg(&mut self, node: &ast::FieldDefinition) -> FinishFuncArgId {
-        let ident = self.lower_ident(&node.identifier);
-        let ty = self.lower_vtype(&node.field_type);
-        self.hir
-            .finish_func_args
-            .insert_with_key(|id| FinishFuncArg {
-                id,
-                span: self.last_span,
-                ident,
-                ty,
-            })
     }
 
     fn lower_func(&mut self, f: &AstNode<ast::FunctionDefinition>) {
         let span = self.find_and_update_last_span(f.locator);
         let ident = self.lower_ident(&f.identifier);
-        let args = self.lower_list::<_, FuncArg, _>(&f.arguments);
         let result = self.lower_vtype(&f.return_type);
-        let block = self.lower_block(&f.statements);
+        let body = self.lower_body(&f.arguments, &f.statements);
         self.hir.funcs.insert_with_key(|id| FuncDef {
             id,
             span,
             ident,
-            sig: FuncSig { args, result },
-            block,
+            result,
+            body,
         });
-    }
-
-    fn lower_func_arg(&mut self, node: &ast::FieldDefinition) -> FuncArgId {
-        let ident = self.lower_ident(&node.identifier);
-        let ty = self.lower_vtype(&node.field_type);
-        self.hir.func_args.insert_with_key(|id| FuncArg {
-            id,
-            span: self.last_span,
-            ident,
-            ty,
-        })
     }
 
     fn lower_global(&mut self, g: &AstNode<ast::GlobalLetStatement>) {
@@ -608,7 +624,7 @@ impl LowerCtx<'_> {
             .iter()
             .map(|f| {
                 let ident = self.lower_ident(&f.name);
-                let args = self.lower_list::<_, FfiFuncArg, _>(f.args);
+                let args = self.lower_list::<_, Param, _>(f.args);
                 let result = self.lower_ffi_type(&f.return_type);
                 self.hir.ffi_funcs.insert_with_key(|id| FfiFuncDef {
                     id,
@@ -657,17 +673,6 @@ impl LowerCtx<'_> {
             structs,
             enums,
         });
-    }
-
-    fn lower_ffi_func_arg(&mut self, arg: &ffi::Arg<'_>) -> FfiFuncArgId {
-        let ident = self.lower_ident(&arg.name);
-        let ty = self.lower_ffi_type(&arg.vtype);
-        self.hir.ffi_func_args.insert_with_key(|id| FfiFuncArg {
-            id,
-            span: self.last_span,
-            ident,
-            ty,
-        })
     }
 
     fn lower_ffi_struct_field(&mut self, field: &ffi::Arg<'_>) -> FfiStructFieldId {
@@ -864,31 +869,17 @@ impl Lower<FactVal> for ast::FieldDefinition {
     }
 }
 
-impl Lower<FinishFuncArg> for ast::FieldDefinition {
-    type Result = FinishFuncArgId;
+impl Lower<Param> for ffi::Arg<'_> {
+    type Result = ParamId;
     fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
-        ctx.lower_finish_func_arg(self)
+        ctx.lower_param_from_ffi(self)
     }
 }
 
-impl Lower<FuncArg> for ast::FieldDefinition {
-    type Result = FuncArgId;
+impl Lower<Param> for ast::FieldDefinition {
+    type Result = ParamId;
     fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
-        ctx.lower_func_arg(self)
-    }
-}
-
-impl Lower<FfiFuncArg> for ffi::Arg<'_> {
-    type Result = FfiFuncArgId;
-    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
-        ctx.lower_ffi_func_arg(self)
-    }
-}
-
-impl Lower<ActionArg> for ast::FieldDefinition {
-    type Result = ActionArgId;
-    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
-        ctx.lower_action_arg(self)
+        ctx.lower_param(self)
     }
 }
 

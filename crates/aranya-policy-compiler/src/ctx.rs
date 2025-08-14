@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
 use crate::{
+    depgraph::DepGraph,
     diag::DiagCtx,
     hir::{Hir, IdentInterner, TextInterner},
-    symbol_resolution::SymbolTable,
+    symbol_resolution::{SymbolId, SymbolTable},
 };
 
 /// Compiler context.
@@ -15,6 +16,7 @@ pub(crate) struct Ctx<'ctx> {
     pub idents: IdentInterner,
     // TODO(eric): rename this to `symtab` or similar.
     pub symbols: SymbolTable,
+    pub deps: DepGraph,
     pub _marker: PhantomData<&'ctx ()>,
 }
 
@@ -27,6 +29,7 @@ impl Ctx<'_> {
             text: TextInterner::new(),
             idents: IdentInterner::new(),
             symbols: SymbolTable::empty(),
+            deps: DepGraph::new(),
             _marker: PhantomData,
         }
     }

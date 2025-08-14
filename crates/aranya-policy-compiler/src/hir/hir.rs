@@ -5,9 +5,12 @@ use std::{
 };
 
 use aranya_policy_ast as ast;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{arena::Arena, intern::typed_interner};
+use crate::{
+    arena::{Arena, Key},
+    intern::typed_interner,
+};
 
 typed_interner! {
     pub(crate) struct IdentInterner(ast::Identifier) => IdentRef;
@@ -58,6 +61,7 @@ macro_rules! hir {
             }
         )*
 
+        /// TODO: docs
         #[derive(
             Clone,
             Debug,
@@ -68,6 +72,13 @@ macro_rules! hir {
             $($val(&'hir $val)),*
         }
 
+        $(impl<'hir> From<&'hir $val> for Node<'hir> {
+            fn from(val: &'hir $val) -> Self {
+                Self::$val(val)
+            }
+        })*
+
+        /// TODO: docs
         #[derive(
             Copy,
             Clone,
@@ -103,8 +114,6 @@ hir! {
     pub(crate) struct Hir {
         /// Action definitions.
         pub actions: Arena<ActionId, ActionDef>,
-        /// Arguments for action definitions
-        pub action_args: Arena<ActionArgId, ActionArg>,
         /// Command definitions.
         pub cmds: Arena<CmdId, CmdDef>,
         /// Fields within command definitions
@@ -123,12 +132,8 @@ hir! {
         pub fact_vals: Arena<FactValId, FactVal>,
         /// Finish function definitions
         pub finish_funcs: Arena<FinishFuncId, FinishFuncDef>,
-        /// Arguments for finish function definitions
-        pub finish_func_args: Arena<FinishFuncArgId, FinishFuncArg>,
         /// Regular function definitions
         pub funcs: Arena<FuncId, FuncDef>,
-        /// Arguments for function definitions
-        pub func_args: Arena<FuncArgId, FuncArg>,
         /// Global constant definitions
         pub global_lets: Arena<GlobalId, GlobalLetDef>,
         /// Structure type definitions
@@ -143,6 +148,10 @@ hir! {
         pub idents: Arena<IdentId, Ident>,
         /// Statement blocks (collections of statements)
         pub blocks: Arena<BlockId, Block>,
+        /// Function/action bodies.
+        pub bodies: Arena<BodyId, Body>,
+        /// Function/action parameters.
+        pub params: Arena<ParamId, Param>,
         /// Type definitions and references
         pub types: Arena<VTypeId, VType>,
         /// FFI import statements from the policy
@@ -151,8 +160,6 @@ hir! {
         pub ffi_modules: Arena<FfiModuleId, FfiModuleDef>,
         /// FFI function definitions
         pub ffi_funcs: Arena<FfiFuncId, FfiFuncDef>,
-        /// FFI function arguments
-        pub ffi_func_args: Arena<FfiFuncArgId, FfiFuncArg>,
         /// FFI struct definitions
         pub ffi_structs: Arena<FfiStructId, FfiStructDef>,
         /// FFI struct fields.
@@ -162,74 +169,47 @@ hir! {
     }
 }
 
-/// A span representing a range in the source text.
-#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct Span {
-    /// The start position in the source text (in bytes).
-    pub start: usize,
-    /// The end position in the source text (in bytes).
-    pub end: usize,
-}
-
-impl Span {
-    /// Creates a new span with the given start and end
-    /// positions.
-    pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(start <= end, "{start} {end}");
-
-        Self { start, end }
+impl Node<'_> {
+    pub fn ident(&self) -> Option<IdentId> {
+        let ident = match self {
+            Self::ActionDef(ActionDef { ident, .. })
+            | Self::CmdDef(CmdDef { ident, .. })
+            | Self::EffectDef(EffectDef { ident, .. })
+            | Self::EnumDef(EnumDef { ident, .. })
+            | Self::FactDef(FactDef { ident, .. })
+            | Self::FinishFuncDef(FinishFuncDef { ident, .. })
+            | Self::FuncDef(FuncDef { ident, .. })
+            | Self::GlobalLetDef(GlobalLetDef { ident, .. })
+            | Self::StructDef(StructDef { ident, .. })
+            | Self::FfiImportDef(FfiImportDef { ident, .. })
+            | Self::FfiModuleDef(FfiModuleDef { ident, .. })
+            | Self::FfiFuncDef(FfiFuncDef { ident, .. })
+            | Self::FfiStructDef(FfiStructDef { ident, .. })
+            | Self::FfiEnumDef(FfiEnumDef { ident, .. }) => *ident,
+            Self::CmdField(node) => match &node.kind {
+                CmdFieldKind::Field { ident, .. } | CmdFieldKind::StructRef(ident) => *ident,
+            },
+            Self::EffectField(node) => match &node.kind {
+                EffectFieldKind::Field { ident, .. } | EffectFieldKind::StructRef(ident) => *ident,
+            },
+            Self::StructField(node) => match &node.kind {
+                StructFieldKind::Field { ident, .. } | StructFieldKind::StructRef(ident) => *ident,
+            },
+            Self::FfiStructField(node) => match &node.kind {
+                FfiStructFieldKind::Field { ident, .. } | FfiStructFieldKind::StructRef(ident) => {
+                    *ident
+                }
+            },
+            Self::FactKey(FactKey { ident, .. })
+            | Self::FactVal(FactVal { ident, .. })
+            | Self::Param(Param { ident, .. }) => *ident,
+            Self::Ident(Ident { id, .. }) => *id,
+            Self::Block(_) | Self::Body(_) | Self::Expr(_) | Self::Stmt(_) | Self::VType(_) => {
+                return None;
+            }
+        };
+        Some(ident)
     }
-
-    /// Creates a span where start and end positions are the
-    /// same.
-    pub fn point(pos: usize) -> Self {
-        Self::new(pos, pos)
-    }
-
-    /// Merges the two spans.
-    pub fn merge(self, rhs: Self) -> Self {
-        Self::new(self.start.min(rhs.start), self.end.max(rhs.end))
-    }
-
-    /// Reports whether `start == end`.
-    pub fn is_empty(self) -> bool {
-        self.start == self.end
-    }
-
-    /// Converts the span into a [`Range`].
-    pub fn into_range(self) -> Range<usize> {
-        self.start..self.end
-    }
-}
-
-impl From<Span> for Range<usize> {
-    fn from(span: Span) -> Self {
-        span.start..span.end
-    }
-}
-
-impl From<aranya_policy_module::Span<'_>> for Span {
-    fn from(span: aranya_policy_module::Span<'_>) -> Self {
-        Self::new(span.start(), span.end())
-    }
-}
-
-impl fmt::Debug for Span {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}..{}", self.start, self.end)
-    }
-}
-
-/// Generates an ID type for a HIR node.
-macro_rules! make_node_id {
-    ($(#[$meta:meta])* $vis:vis struct $name:ident; $($rest:tt)*) => {
-        $crate::arena::new_key_type! {
-            $(#[$meta])*
-            $vis struct $name;
-        }
-        make_node_id!($($rest)*);
-    };
-    () => {};
 }
 
 /// Generates a HIR node.
@@ -240,7 +220,60 @@ macro_rules! make_node_id {
 /// - Consistent derive attributes (Clone, Debug, Eq, PartialEe,
 ///   etc.)
 macro_rules! hir_node {
+    // With `ident`.
     (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            pub id: $id:ident,
+            pub ident: IdentId,
+            $(
+                $(#[$field_meta:meta])*
+                pub $field:ident: $ty:ty
+            ),* $(,)?
+        }
+    ) => {
+        hir_node! { @inner
+            $(#[$meta])*
+            $vis struct $name {
+                pub id: $id,
+                pub ident: IdentId,
+                $(
+                    $(#[$field_meta])*
+                    pub $field: $ty
+                ),*
+            }
+        }
+        impl Named for $name {
+            fn ident(&self) -> IdentId {
+                self.ident
+            }
+        }
+    };
+
+    // Without `ident`.
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            pub id: $id:ident,
+            $(
+                $(#[$field_meta:meta])*
+                pub $field:ident: $ty:ty
+            ),* $(,)?
+        }
+    ) => {
+        hir_node! { @inner
+            $(#[$meta])*
+            $vis struct $name {
+                pub id: $id,
+                $(
+                    $(#[$field_meta])*
+                    pub $field: $ty
+                ),*
+            }
+        }
+    };
+
+    (@inner
         $(#[$meta:meta])*
         $vis:vis struct $name:ident {
             pub id: $id:ident,
@@ -262,17 +295,49 @@ macro_rules! hir_node {
                 pub $field: $ty
             ),*
         }
-        make_node_id! {
+
+        $crate::arena::new_key_type! {
             /// Uniquely identifies a
             #[doc = concat!("`", stringify!($name), "`")]
             $vis struct $id;
         }
+
+        impl HirNode for $name {
+            type Id = $id;
+
+            fn id(&self) -> Self::Id {
+                self.id
+            }
+        }
+
+        impl Spanned for $name {
+            fn span(&self) -> Span {
+                self.span
+            }
+        }
+
         impl From<$name> for Span {
             fn from(node: $name) -> Self {
                 node.span
             }
         }
     };
+}
+
+/// Implemented by all HIR nodes.
+pub(crate) trait HirNode: Spanned {
+    /// The node's ID.
+    type Id: Key;
+
+    /// Returns the node's ID.
+    fn id(&self) -> Self::Id;
+}
+
+impl<T: HirNode> HirNode for &T {
+    type Id = T::Id;
+    fn id(&self) -> Self::Id {
+        (*self).id()
+    }
 }
 
 /// Generates a HIR "helper" type. That is, a type that is used
@@ -299,28 +364,34 @@ macro_rules! hir_type {
 }
 
 hir_node! {
-    /// An action definition.
-    pub(crate) struct ActionDef {
-        pub id: ActionId,
+    pub(crate) struct Param {
+        pub id: ParamId,
+        /// The identifier of the parameter.
         pub ident: IdentId,
-        pub sig: ActionSig,
-        /// The body of the action.
-        pub block: BlockId,
-    }
-}
-
-hir_type! {
-    pub(crate) struct ActionSig {
-        pub args: Vec<ActionArgId>,
+        /// The type of the parameter.
+        pub ty: VTypeId,
     }
 }
 
 hir_node! {
-    /// An argument to an action.
-    pub(crate) struct ActionArg {
-        pub id: ActionArgId,
+    pub(crate) struct Body {
+        pub id: BodyId,
+        /// Function or action parameters.
+        pub params: Vec<ParamId>,
+        /// The statements in the body.
+        pub stmts: Vec<StmtId>,
+        /// `true` it any of the statements in the body contain
+        /// a [`ReturnStmt`].
+        pub returns: bool,
+    }
+}
+
+hir_node! {
+    /// An action definition.
+    pub(crate) struct ActionDef {
+        pub id: ActionId,
         pub ident: IdentId,
-        pub ty: VTypeId,
+        pub body: BodyId,
     }
 }
 
@@ -814,25 +885,7 @@ hir_node! {
     pub(crate) struct FinishFuncDef {
         pub id: FinishFuncId,
         pub ident: IdentId,
-        pub sig: FinishFuncSig,
-        /// The body of the finish function.
-        pub block: BlockId,
-    }
-}
-
-hir_type! {
-    /// A finish function signature.
-    pub(crate) struct FinishFuncSig {
-        pub args: Vec<FinishFuncArgId>,
-    }
-}
-
-hir_node! {
-    /// A finish function argument
-    pub(crate) struct FinishFuncArg {
-        pub id: FinishFuncArgId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub body: BodyId,
     }
 }
 
@@ -843,26 +896,8 @@ hir_node! {
     pub(crate) struct FuncDef {
         pub id: FuncId,
         pub ident: IdentId,
-        pub sig: FuncSig,
-        /// The body of the function.
-        pub block: BlockId,
-    }
-}
-
-hir_type! {
-    /// A function signature.
-    pub(crate) struct FuncSig {
-        pub args: Vec<FuncArgId>,
         pub result: VTypeId,
-    }
-}
-
-hir_node! {
-    /// A function argument
-    pub(crate) struct FuncArg {
-        pub id: FuncArgId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
+        pub body: BodyId,
     }
 }
 
@@ -1130,6 +1165,44 @@ hir_node! {
     }
 }
 
+/// Implemented by types that have a name (identifier).
+pub(crate) trait Named {
+    fn ident(&self) -> IdentId;
+}
+
+impl<T: Named> Named for &T {
+    fn ident(&self) -> IdentId {
+        (*self).ident()
+    }
+}
+
+/// Marker trait for HIR nodes that represent global symbols.
+///
+/// Global symbols are top-level items that can be referenced
+/// from anywhere in the program (e.g., actions, structs, enums).
+///
+/// NOTE: This list must be kept in sync with the types in
+/// `for_each_top_level_item` macro in `visit.rs`.
+pub(crate) trait GlobalSymbol: HirNode + Named {}
+
+impl<T: GlobalSymbol> GlobalSymbol for &T {}
+
+// Implement for all the top-level types
+// Keep this list in sync with for_each_top_level_item macro in visit.rs
+impl GlobalSymbol for ActionDef {}
+impl GlobalSymbol for CmdDef {}
+impl GlobalSymbol for EffectDef {}
+impl GlobalSymbol for EnumDef {}
+impl GlobalSymbol for FactDef {}
+impl GlobalSymbol for FfiEnumDef {}
+impl GlobalSymbol for FfiImportDef {}
+impl GlobalSymbol for FfiModuleDef {}
+impl GlobalSymbol for FfiStructDef {}
+impl GlobalSymbol for FinishFuncDef {}
+impl GlobalSymbol for FuncDef {}
+impl GlobalSymbol for GlobalLetDef {}
+impl GlobalSymbol for StructDef {}
+
 hir_type! {
     /// A ternary [`if`] expression.
     ///
@@ -1230,17 +1303,8 @@ hir_node! {
 
 hir_type! {
     pub(crate) struct FfiFuncSig {
-        pub args: Vec<FfiFuncArgId>,
+        pub args: Vec<ParamId>,
         pub result: VTypeId,
-    }
-}
-
-hir_node! {
-    /// An FFI function argument.
-    pub(crate) struct FfiFuncArg {
-        pub id: FfiFuncArgId,
-        pub ident: IdentId,
-        pub ty: VTypeId,
     }
 }
 
@@ -1278,5 +1342,74 @@ hir_node! {
         pub id: FfiEnumId,
         pub ident: IdentId,
         pub variants: Vec<IdentId>,
+    }
+}
+
+/// A span representing a range in the source text.
+#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct Span {
+    /// The start position in the source text (in bytes).
+    pub start: usize,
+    /// The end position in the source text (in bytes).
+    pub end: usize,
+}
+
+impl Span {
+    /// Creates a new span with the given start and end
+    /// positions.
+    pub fn new(start: usize, end: usize) -> Self {
+        debug_assert!(start <= end, "{start} {end}");
+
+        Self { start, end }
+    }
+
+    /// Creates a span where start and end positions are the
+    /// same.
+    pub fn point(pos: usize) -> Self {
+        Self::new(pos, pos)
+    }
+
+    /// Merges the two spans.
+    pub fn merge(self, rhs: Self) -> Self {
+        Self::new(self.start.min(rhs.start), self.end.max(rhs.end))
+    }
+
+    /// Reports whether `start == end`.
+    pub fn is_empty(self) -> bool {
+        self.start == self.end
+    }
+
+    /// Converts the span into a [`Range`].
+    pub fn into_range(self) -> Range<usize> {
+        self.start..self.end
+    }
+}
+
+impl From<Span> for Range<usize> {
+    fn from(span: Span) -> Self {
+        span.start..span.end
+    }
+}
+
+impl From<aranya_policy_module::Span<'_>> for Span {
+    fn from(span: aranya_policy_module::Span<'_>) -> Self {
+        Self::new(span.start(), span.end())
+    }
+}
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}..{}", self.start, self.end)
+    }
+}
+
+/// Implemented by types that have a span.
+pub(crate) trait Spanned {
+    fn span(&self) -> Span;
+}
+
+impl<T: Spanned> Spanned for &T {
+    fn span(&self) -> Span {
+        (*self).span()
     }
 }

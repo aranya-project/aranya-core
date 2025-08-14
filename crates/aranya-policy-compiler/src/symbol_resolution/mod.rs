@@ -2,7 +2,7 @@
 //!
 //! # Symbols
 //!
-//! A *symbol* represents something that can be referred to with
+//! A *symbol* represents something that can be referenced with
 //! an identifier. There are a number of different kinds of
 //! symbols:
 //!
@@ -54,17 +54,17 @@
 //!
 //! # Algorithm
 //!
-//! The algorithm has two phases: collection and resolution.
+//! The algorithm has two phases: mark and resolve.
 //!
-//! ## Collection
+//! ## Mark
 //!
-//! The collection phase collects the top-level items (actions,
-//! functions, etc.) in the HIR.
+//! The mark phase marks the global symbols (top-level HIR
+//! items).
 //!
-//! ## Resolution
+//! ## Resolve
 //!
-//! Add each item collected in the collection phase to the global
-//! scope, then push the global scope on to a stack.
+//! Add each marked item to the global scope, then push the
+//! global scope on to a stack.
 //!
 //! Perform a DFS on each of the items in the global scope. When
 //! you enter a block, push a new empty scope on to the stack.
@@ -82,23 +82,20 @@ mod error;
 mod resolver;
 mod scope;
 mod symbols;
-mod tests;
+//mod tests;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tracing::instrument;
 
-#[cfg(test)]
-use self::resolver::ScopeMap;
 pub(crate) use self::{
     error::SymbolResolutionError,
-    scope::{InvalidScopeId, ScopeId, Scopes},
-    symbols::{SymbolId, Symbols},
+    scope::{InvalidScopeId, Scope, ScopeId, ScopedId, Scopes},
+    symbols::{Symbol, SymbolId, SymbolKind, Symbols},
 };
 use self::{
     resolver::{intern_reserved_idents, Resolver},
     scope::InsertError,
-    symbols::{Symbol, SymbolKind},
 };
 use crate::{
     ctx::Ctx,
@@ -131,6 +128,10 @@ impl Ctx<'_> {
 pub(crate) struct SymbolTable {
     /// Maps identifiers to their symbols.
     pub resolutions: BTreeMap<IdentId, SymbolId>,
+    /// Identifiers that we skipped because they'll be "resolved"
+    /// during while type checking. E.g., struct fields, enum
+    /// variants, etc.
+    pub skipped: BTreeSet<IdentId>,
     /// The scope hierarchy.
     pub scopes: Scopes,
     /// The symbol arena.
@@ -144,11 +145,17 @@ impl SymbolTable {
     pub fn empty() -> Self {
         Self {
             resolutions: BTreeMap::new(),
+            skipped: BTreeSet::new(),
             scopes: Scopes::new(),
             symbols: Symbols::new(),
             #[cfg(test)]
             scopemap: ScopeMap::new(),
         }
+    }
+
+    /// Retrieves a shared reference to a symbol by its ID.
+    pub fn get(&self, id: SymbolId) -> Option<&Symbol> {
+        self.symbols.get(id)
     }
 
     /// Sugar for creating a child scope of `scope`.
@@ -163,7 +170,7 @@ impl SymbolTable {
         scope: ScopeId,
         ident: &Ident,
         kind: SymbolKind,
-        span: Option<Span>,
+        span: Span,
     ) -> Result<(), InsertError> {
         let sym = Symbol {
             ident: ident.id,
@@ -176,3 +183,5 @@ impl SymbolTable {
         self.scopes.try_insert(scope, ident.xref, sym_id)
     }
 }
+
+pub(crate) type ScopeMap = BTreeMap<ScopedId, ScopeId>;

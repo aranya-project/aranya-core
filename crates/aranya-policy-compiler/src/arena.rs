@@ -7,15 +7,38 @@ use std::{
     slice,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+/// Uniquely identifies an item in an [`Arena`].
+///
+/// See [`new_key_type!`].
 pub(crate) trait Key:
-    Copy + Clone + fmt::Debug + Eq + PartialEq + Hash + Sized + 'static
+    Copy
+    + Clone
+    + fmt::Debug
+    + fmt::Display
+    + Eq
+    + PartialEq
+    + Ord
+    + PartialOrd
+    + Hash
+    + Sized
+    + Serialize
+    + DeserializeOwned
+    + 'static
 {
+    #[doc(hidden)]
     fn to_usize(self) -> usize;
+
+    #[doc(hidden)]
     fn from_usize(id: usize) -> Self;
 }
 
+/// A collection of items that are deallocated together.
+///
+/// Each item is assigned a unique key when inserted into the
+/// arena. The key implements [`Ord`] such that the first key is
+/// ordered before the second, the second before the third, etc.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Arena<K, V> {
     items: Vec<V>,
@@ -35,10 +58,15 @@ impl<K, V> Arena<K, V>
 where
     K: Key,
 {
+    /// Adds an item to the arena and returns its unique key.
     pub fn insert(&mut self, item: V) -> K {
         self.insert_with_key(|_| item)
     }
 
+    /// Same as [`insert`][Self::insert], but passed the key to
+    /// `f`.
+    ///
+    /// This is useful for items that contain their own key.
     pub fn insert_with_key<F>(&mut self, f: F) -> K
     where
         F: FnOnce(K) -> V,
@@ -49,20 +77,24 @@ where
         K::from_usize(id)
     }
 
-    pub fn contains(&self, id: K) -> bool {
-        self.get(id).is_some()
+    /// Reports whether the arena contains an item.
+    pub fn contains(&self, key: K) -> bool {
+        self.get(key).is_some()
     }
 
-    pub fn get(&self, id: K) -> Option<&V> {
-        self.items.get(id.to_usize())
+    /// Retrieves a shared reference to an item.
+    pub fn get(&self, key: K) -> Option<&V> {
+        self.items.get(key.to_usize())
     }
 
-    pub fn get_mut(&mut self, id: K) -> Option<&mut V> {
-        self.items.get_mut(id.to_usize())
+    /// Retrieves an exclusive reference to an item.
+    pub fn get_mut(&mut self, key: K) -> Option<&mut V> {
+        self.items.get_mut(key.to_usize())
     }
 
-    pub fn iter(&self) -> ArenaIter<'_, K, V> {
-        ArenaIter {
+    /// Returns an itereator over the items in the arena.
+    pub fn iter(&self) -> Iter<'_, K, V> {
+        Iter {
             iter: self.items.iter().enumerate(),
             _marker: PhantomData,
         }
@@ -91,19 +123,20 @@ where
     K: Key,
 {
     type Item = (K, &'a V);
-    type IntoIter = ArenaIter<'a, K, V>;
+    type IntoIter = Iter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-pub(crate) struct ArenaIter<'a, K, V> {
+/// An iterator over the items in an [`Arena`].
+pub(crate) struct Iter<'a, K, V> {
     iter: Enumerate<slice::Iter<'a, V>>,
     _marker: PhantomData<fn() -> K>,
 }
 
-impl<'a, K, V> Iterator for ArenaIter<'a, K, V>
+impl<'a, K, V> Iterator for Iter<'a, K, V>
 where
     K: Key,
 {
@@ -139,7 +172,7 @@ where
     }
 }
 
-impl<K, V> ExactSizeIterator for ArenaIter<'_, K, V>
+impl<K, V> ExactSizeIterator for Iter<'_, K, V>
 where
     K: Key,
 {
@@ -149,8 +182,9 @@ where
     }
 }
 
-impl<K, V> FusedIterator for ArenaIter<'_, K, V> where K: Key {}
+impl<K, V> FusedIterator for Iter<'_, K, V> where K: Key {}
 
+/// Creates a new key type for use in an [`Arena`].
 macro_rules! new_key_type {
     (
         $(#[$meta:meta])*
