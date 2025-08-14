@@ -1497,7 +1497,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
     let this_bytes: Vec<u8> = {
         let ctx = dummy_ctx_seal(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_seal(name.clone(), &this_struct)?.success();
+        rs.call_seal(name.clone(), this_struct.clone())?.success();
         let result = rs.consume_return()?;
         let mut envelope: Struct = result.try_into()?;
         let payload = envelope
