@@ -657,7 +657,7 @@ impl<'a> CompileState<'a> {
             ExprKind::Optional(o) => match o {
                 None => {
                     self.append_instruction(Instruction::Const(Value::None));
-                    Typeish::Definitely(NullableVType::Null)
+                    Typeish::Known(NullableVType::Null)
                 }
                 Some(v) => self
                     .compile_expression(v)?
@@ -762,7 +762,7 @@ impl<'a> CompileState<'a> {
                         }
                     }
 
-                    let Typeish::Definitely(NullableVType::Type(
+                    let Typeish::Known(NullableVType::Type(
                         struct_type @ VType {
                             kind: TypeKind::Struct(_),
                             ..
@@ -841,7 +841,7 @@ impl<'a> CompileState<'a> {
                     if self.is_debug {
                         warn!("{err}");
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                        Typeish::Indeterminate
+                        Typeish::Never
                     } else {
                         return Err(err);
                     }
@@ -892,7 +892,8 @@ impl<'a> CompileState<'a> {
                     f.identifier.name.clone(),
                 )));
                 if self.stub_ffi {
-                    Typeish::Indeterminate
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                    Typeish::Never
                 } else {
                     // find module by name
                     let (module_id, module) = self
@@ -1084,13 +1085,41 @@ impl<'a> CompileState<'a> {
                 .map_err(|e| self.err(e))?
             }
             ExprKind::And(a, b) | ExprKind::Or(a, b) => {
+                // `a && b` becomes `if a { b } else { false }`
+                // `a || b` becomes `if a { true } else { b }`
+
                 let left_type = self.compile_expression(a)?;
-                let right_type = self.compile_expression(b)?;
-                self.append_instruction(match &expression.kind {
-                    ExprKind::And(_, _) => Instruction::And,
-                    ExprKind::Or(_, _) => Instruction::Or,
+                let right_type;
+
+                let mid = self.anonymous_label();
+                let end = self.anonymous_label();
+
+                match &expression.kind {
+                    ExprKind::And(_, _) => {
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            mid.clone(),
+                        )));
+
+                        self.append_instruction(Instruction::Const(Value::Bool(false)));
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+
+                        self.define_label(mid, self.wp)?;
+                        right_type = self.compile_expression(b)?;
+                    }
+                    ExprKind::Or(_, _) => {
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            mid.clone(),
+                        )));
+                        right_type = self.compile_expression(b)?;
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+
+                        self.define_label(mid, self.wp)?;
+                        self.append_instruction(Instruction::Const(Value::Bool(true)));
+                    }
                     _ => unreachable!(),
-                });
+                };
+
+                self.define_label(end, self.wp)?;
 
                 self.unify_pair_as(
                     left_type,
@@ -1162,35 +1191,16 @@ impl<'a> CompileState<'a> {
                 })
             }
             ExprKind::GreaterThanOrEqual(a, b) | ExprKind::LessThanOrEqual(a, b) => {
+                // `a >= b` becomes `!(a < b)`. This relies on total ordering, which integers meet.
+
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;
-                // At this point we will have the values for a and b on the stack.
-                // a b
-                // Duplicate one below top to copy a to the top
-                // a b a
-                self.append_instruction(Instruction::Dup(1));
-                // Ditto for b
-                // a b a b
-                self.append_instruction(Instruction::Dup(1));
-                // Test for equivalence of a and b - we'll call this c
-                // a b c
-                self.append_instruction(Instruction::Eq);
-                // Swap a and c
-                // c b a
-                self.append_instruction(Instruction::Swap(2));
-                // Swap a and b
-                // c a b
-                self.append_instruction(Instruction::Swap(1));
-                // Then execute the other comparison on a and b - we'll call this d
-                // c d
                 self.append_instruction(match &expression.kind {
-                    ExprKind::GreaterThanOrEqual(_, _) => Instruction::Gt,
-                    ExprKind::LessThanOrEqual(_, _) => Instruction::Lt,
+                    ExprKind::GreaterThanOrEqual(_, _) => Instruction::Lt,
+                    ExprKind::LessThanOrEqual(_, _) => Instruction::Gt,
                     _ => unreachable!(),
                 });
-                // Now OR those two binary results together - call this e
-                // e
-                self.append_instruction(Instruction::Or);
+                self.append_instruction(Instruction::Not);
 
                 self.unify_pair_as(
                     left_type,
@@ -1210,15 +1220,11 @@ impl<'a> CompileState<'a> {
                 })
             }
             ExprKind::Negative(e) => {
-                // Evaluate the expression
-                let inner_type = self.compile_expression(e)?;
-
                 // Push a 0 to subtract from
                 self.append_instruction(Instruction::Const(Value::Int(0)));
 
-                // Swap e and 0
-                // 0 e
-                self.append_instruction(Instruction::Swap(1));
+                // Evaluate the expression
+                let inner_type = self.compile_expression(e)?;
 
                 // Subtract
                 self.append_instruction(Instruction::Sub);
@@ -1600,7 +1606,7 @@ impl<'a> CompileState<'a> {
 
                     self.verify_fact_against_schema(&s.fact, true)?;
                     self.compile_fact_literal(&s.fact)?;
-                    self.append_instruction(Instruction::Dup(0));
+                    self.append_instruction(Instruction::Dup);
 
                     // Verify the 'to' fact literal
                     let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
@@ -2031,7 +2037,7 @@ impl<'a> CompileState<'a> {
         // evaluate the expression
         let inner_type = self.compile_expression(e)?;
         // Duplicate value for testing
-        self.append_instruction(Instruction::Dup(0));
+        self.append_instruction(Instruction::Dup);
         // Push a None to compare against
         self.append_instruction(Instruction::Const(Value::None));
         // Is the value not equal to None?
@@ -2429,7 +2435,7 @@ impl<'a> CompileState<'a> {
                 MatchPattern::Values(values) => {
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
-                        self.append_instruction(Instruction::Dup(0));
+                        self.append_instruction(Instruction::Dup);
                         if !value.is_literal() {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
                                 "match pattern {n} is not a literal expression",

@@ -43,18 +43,11 @@ impl KeyBundle {
         macro_rules! gen_key {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id()?;
-                let wrapped =
-                    eng.wrap(sk)
-                        .context(concat!("unable to wrap `", stringify!($key), "`"))?;
-
-                store.try_insert(id.into(), wrapped).context(concat!(
+                store.insert_key(eng, sk).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
                     "`"
-                ))?;
-
-                id
+                ))?
             }};
         }
         Ok(Self {
@@ -71,12 +64,12 @@ impl KeyBundle {
     {
         Ok(PublicKeys {
             ident_pk: store
-                .get_key::<_, IdentityKey<E::CS>>(eng, self.device_id.into())
+                .get_key::<_, IdentityKey<E::CS>>(eng, self.device_id)
                 .context("unable to load `IdentityKey`")?
                 .context("unable to find `IdentityKey`")?
                 .public()?,
             sign_pk: store
-                .get_key::<_, SigningKey<E::CS>>(eng, self.sign_id.into())
+                .get_key::<_, SigningKey<E::CS>>(eng, self.sign_id)
                 .context("unable to load `SigningKey`")?
                 .context("unable to find `SigningKey`")?
                 .public()?,
@@ -96,18 +89,11 @@ impl MinKeyBundle {
         macro_rules! gen_key {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id().expect("device ID should be valid");
-                let wrapped =
-                    eng.wrap(sk)
-                        .context(concat!("unable to wrap `", stringify!($key), "`"))?;
-
-                store.try_insert(id.into(), wrapped).context(concat!(
+                store.insert_key(eng, sk).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
                     "`"
-                ))?;
-
-                id
+                ))?
             }};
         }
         Ok(Self {

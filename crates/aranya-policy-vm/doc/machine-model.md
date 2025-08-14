@@ -44,9 +44,8 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 | `const(v)`   | `( -- v )`         | push a value onto the stack
 | `def`        | `( v s -- )`       | define a local value by name
 | `get`        | `( s -- v )`       | get a value by name
-| `swap(d)`    | `( v .. w -- w .. v )` | swap value at depth d with the top of the stack (only valid for d > 0)
-|`dup(d)`    | `( v .. -- v .. v )` | duplicate the item at depth d onto the top of the stack
-|`pop`         | `( v -- )`         | remove a value from the top of the stack
+| `dup`        | `( v -- v v )` | duplicate the item at the top of the stack
+| `pop`        | `( v -- )`         | remove a value from the top of the stack
 
 ## control flow
 ||||
@@ -67,8 +66,6 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`add`          | `( x y -- x+y )`     | add `x` to `y`
 |`sub`          | `( x y -- x-y )`     | subtract `y` from `x`
 |`not`          | `( a -- !a )`        | logical negation of a
-|`and`          | `( a b -- a&&b )`    | true if `a` and `b` are non-zero, else false
-|`or`           | `( a b -- a||b )`    | true if `a` or `b` are non-zero, else false
 |`gt`           | `( a b -- a&gt;b )`  | true if `a` is greater than `b`, else false
 |`lt`           | `( a b -- a&lt;b )`  | true if `a` is less than `b`, else false
 |`eq`           | `( a b -- a=b )`     | true if `a` is equal to `b`, else false
@@ -100,7 +97,7 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`query`        | `( f -- s )`         | execute a fact query
 |`exists`       | `( f -- b )`         | determine whether or not the fact exists
 |`fact_count`   | `( x f -- y )`       | count facts (up to a limit) matching a given query
-|`id`           | `( z -- i )`         | get the `id` of a command  
+|`id`           | `( z -- i )`         | get the `id` of a command
 |`author.id`    | `( z -- i )`         | get the `id` of the author of a command
 
 # Examples

@@ -173,42 +173,33 @@ impl IdentifierTypeStack {
     }
 }
 
-/// This is a calculated type, which may be indeterminate if we don't have all the
-/// information we need to calculate it.
+/// A calculated type, which may be `Never`.
 ///
 /// [`PartialEq`] and [`Eq`] are intentionally not derived, as naive equality doesn't make
 /// sense here. Use one of the helper methods such as [`Self::unify`] or pattern matching.
-//
-// TODO(chip): This _should_
-// eventually go away as every expression should be well-defined by the language. But we're
-// not there yet.
 #[must_use]
 #[derive(Debug, Clone)]
 pub enum Typeish {
-    /// A definitely known type.
-    Definitely(NullableVType),
-    /// A known type unified with unknown type.
+    /// A known type.
+    Known(NullableVType),
+    /// The bottom type, which cannot be instantiated.
     ///
-    /// This lets us type check more expressions while indicating that a runtime type check would
-    /// be needed before blindly trusting this type.
-    Probably(NullableVType),
-    /// An unknown type.
-    Indeterminate,
+    /// This signifies a panic, currently from `todo()` or stubbed FFI.
+    Never,
 }
 
 impl Typeish {
-    /// Is this an instance of this type or an Indeterminate value? Indeterminate types
-    /// always match.
+    /// Is this an instance of this type or a `Never` value?
     pub fn fits_type(&self, ot: &VType) -> bool {
         match self {
-            Self::Definitely(t) | Self::Probably(t) => t.fits_type(ot),
-            Self::Indeterminate => true,
+            Self::Known(t) => t.fits_type(ot),
+            Self::Never => true,
         }
     }
 
     /// Checks this [`Typeish`] against an expected [`VType`].
     ///
-    /// If `self` is `Indeterminate`, it will be "upgraded" to `Probably`.
+    /// If `self` is `Never`, it will become the expected type.
     /// Otherwise, it will keep its value if the inner type matches the target,
     /// or error out otherwise.
     pub fn check_type(
@@ -217,21 +208,24 @@ impl Typeish {
         errmsg: &'static str,
     ) -> Result<Self, TypeUnifyError> {
         match self {
-            Self::Definitely(ref ty) | Self::Probably(ref ty) if ty.fits_type(&target_type) => {
-                Ok(self)
+            Self::Never => Ok(Self::Known(NullableVType::Type(target_type))),
+            Self::Known(ty) => {
+                if ty.fits_type(&target_type) {
+                    Ok(Self::Known(ty))
+                } else {
+                    Err(TypeUnifyError {
+                        left: ty,
+                        right: NullableVType::Type(target_type),
+                        ctx: errmsg,
+                    })
+                }
             }
-            Self::Indeterminate => Ok(Self::Probably(NullableVType::Type(target_type))),
-            Self::Definitely(ty) | Self::Probably(ty) => Err(TypeUnifyError {
-                left: ty,
-                right: NullableVType::Type(target_type),
-                ctx: errmsg,
-            }),
         }
     }
 
-    /// Create a definitely known type.
+    /// Create a known type.
     pub fn known(vtype: VType) -> Self {
-        Self::Definitely(NullableVType::Type(vtype))
+        Self::Known(NullableVType::Type(vtype))
     }
 
     /// Map over a type, preserving indeterminism.
@@ -240,9 +234,8 @@ impl Typeish {
         F: FnOnce(NullableVType) -> NullableVType,
     {
         match self {
-            Self::Definitely(t) => Self::Definitely(f(t)),
-            Self::Probably(t) => Self::Probably(f(t)),
-            Self::Indeterminate => Self::Indeterminate,
+            Self::Known(t) => Self::Known(f(t)),
+            Self::Never => Self::Never,
         }
     }
 
@@ -252,31 +245,18 @@ impl Typeish {
         F: FnOnce(NullableVType) -> Result<NullableVType, R>,
     {
         Ok(match self {
-            Self::Definitely(t) => Self::Definitely(f(t)?),
-            Self::Probably(t) => Self::Probably(f(t)?),
-            Self::Indeterminate => Self::Indeterminate,
+            Self::Known(t) => Self::Known(f(t)?),
+            Self::Never => Self::Never,
         })
     }
 
-    /// Tries to unify two types, propagating uncertainty from either type.
+    /// Tries to unify two types.
     pub fn unify(self, other: Self) -> Result<Self, TypeUnifyError> {
         Ok(match (self, other) {
-            // Two Indeterminate are Indeterminate
-            (Self::Indeterminate, Self::Indeterminate) => Self::Indeterminate,
-
-            // Indeterminate downgrades the other type to Probably
-            (Self::Indeterminate, Self::Probably(t) | Self::Definitely(t))
-            | (Self::Probably(t) | Self::Definitely(t), Self::Indeterminate) => Self::Probably(t),
-
-            // Probably downgrades Definitely to Probably. The types must unify.
-            (Self::Probably(left), Self::Probably(right))
-            | (Self::Probably(left), Self::Definitely(right))
-            | (Self::Definitely(left), Self::Probably(right)) => Self::Probably(left.unify(right)?),
-
-            // The types must unify.
-            (Self::Definitely(left), Self::Definitely(right)) => {
-                Self::Definitely(left.unify(right)?)
-            }
+            (Self::Never, Self::Never) => Self::Never,
+            (Self::Never, Self::Known(t)) => Self::Known(t),
+            (Self::Known(t), Self::Never) => Self::Known(t),
+            (Self::Known(left), Self::Known(right)) => Self::Known(left.unify(right)?),
         })
     }
 }
@@ -284,9 +264,8 @@ impl Typeish {
 impl Display for Typeish {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Typeish::Definitely(t) => t.fmt(f),
-            Typeish::Probably(t) => write!(f, "probably {t}"),
-            Typeish::Indeterminate => f.write_str("unknown"),
+            Typeish::Known(t) => t.fmt(f),
+            Typeish::Never => f.write_str("never"),
         }
     }
 }
