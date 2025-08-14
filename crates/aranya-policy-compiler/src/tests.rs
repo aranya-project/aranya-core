@@ -1938,12 +1938,29 @@ fn test_type_errors() {
 }
 
 #[test]
-fn test_struct_composition_errors() {
+fn test_struct_composition() {
     struct Case {
         t: &'static str,
-        e: &'static str,
+        e: Option<&'static str>,
     }
-    let cases = [
+
+    let valid_cases = [Case {
+        t: r#"
+                struct Bar { x int, y bool }
+                function baz(b struct Bar) struct Bar {
+                    let other = todo()
+                    let new_bar = Bar {
+                        y: b.y,
+                        ...other
+                    }
+
+                    return new_bar
+                }
+            "#,
+        e: None,
+    }];
+
+    let invalid_cases = [
         Case {
             t: r#"
                 struct Foo { x int, y bool }
@@ -1957,7 +1974,7 @@ fn test_struct_composition_errors() {
                     return new_foo
                 }
             "#,
-            e: "Struct Bar must be a subset of Struct Foo",
+            e: Some("Struct Bar must be a subset of Struct Foo"),
         },
         Case {
             t: r#"
@@ -1974,7 +1991,7 @@ fn test_struct_composition_errors() {
                     return new_foo
                 }
             "#,
-            e: "Struct Thud and Struct Bar have at least 1 field with the same name",
+            e: Some("Struct Thud and Struct Bar have at least 1 field with the same name"),
         },
         Case {
             t: r#"
@@ -1989,7 +2006,9 @@ fn test_struct_composition_errors() {
                     return new_foo
                 }
             "#,
-            e: "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions",
+            e: Some(
+                "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions",
+            ),
         },
         Case {
             t: r#"
@@ -2003,11 +2022,15 @@ fn test_struct_composition_errors() {
                     return new_foo
                 }
             "#,
-            e: "not defined: x",
+            e: Some("not defined: x"),
         },
     ];
 
-    for (i, c) in cases.iter().enumerate() {
+    for c in valid_cases {
+        let _ = compile_pass(c.t);
+    }
+
+    for (i, c) in invalid_cases.iter().enumerate() {
         let err = compile_fail(c.t);
         match compile_fail(c.t) {
             CompileErrorType::DuplicateSourceFields(_, _) => {}
@@ -2021,7 +2044,7 @@ fn test_struct_composition_errors() {
             }
         }
 
-        assert_eq!(err.to_string(), c.e);
+        assert_eq!(err.to_string(), c.e.expect("Failure case"));
     }
 }
 
