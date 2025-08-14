@@ -1,6 +1,6 @@
 use std::fmt;
 
-use aranya_policy_ast::{Expression, Identifier};
+use aranya_policy_ast::{self as ast, Identifier};
 use aranya_policy_module::CodeMap;
 use buggy::Bug;
 
@@ -25,7 +25,7 @@ pub enum CompileErrorType {
     InvalidStatement(StatementContext),
     /// Invalid expression - the expression does not make sense in context.
     #[error("invalid expression: {0:?}")]
-    InvalidExpression(Expression),
+    InvalidExpression(ast::Expression),
     /// Invalid type
     #[error("invalid type: {0}")]
     InvalidType(String),

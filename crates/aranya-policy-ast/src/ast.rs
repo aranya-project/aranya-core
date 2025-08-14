@@ -9,9 +9,9 @@ use crate::{Identifier, Text};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
     /// The start position in the source text
-    pub start: usize,
+    start: usize,
     /// The end position in the source text
-    pub end: usize,
+    end: usize,
 }
 
 impl Span {
@@ -19,41 +19,61 @@ impl Span {
     pub fn new(start: usize, end: usize) -> Self {
         debug_assert!(
             start <= end,
-            "Invalid span: start ({}) must be <= end ({})",
+            "invalid span: start ({}) must be <= end ({})",
             start,
             end
         );
         Span { start, end }
     }
 
-    /// Check if this span contains another span
+    /// Creates an empty span.
+    pub fn empty() -> Self {
+        Self::new(0, 0)
+    }
+
+    /// Returns the start position.
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Returns the end position.
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    /// Reports whether `self` contains `other`.
     pub fn contains(&self, other: &Span) -> bool {
         self.start <= other.start && other.end <= self.end
     }
 
-    /// Merge two spans into one encompassing both
-    /// Takes the minimum start and maximum end to handle any ordering
+    /// Merges two spans into a single span.
     pub fn merge(&self, other: &Span) -> Span {
-        Span::new(self.start.min(other.start), self.end.max(other.end))
+        Self::new(self.start.min(other.start), self.end.max(other.end))
     }
 
-    /// Get the length of the span
+    /// Returns the length of the span
     pub fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
 
-    /// Check if span is empty (zero-width)
+    /// Reports whether the span is empty.
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
 
     /// Create a span for a single position (zero-width)
     pub fn point(pos: usize) -> Self {
-        Span::new(pos, pos)
+        Self::new(pos, pos)
     }
 }
 
-/// An identifier with source location information
+impl Default for Span {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+/// An identifier.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Ident {
     /// The identifier name
@@ -63,7 +83,7 @@ pub struct Ident {
 }
 
 impl Ident {
-    /// Create a new identifier with span
+    /// Creates a new identifier.
     pub fn new(name: Identifier, span: Span) -> Self {
         Ident { name, span }
     }
@@ -80,6 +100,15 @@ impl Deref for Ident {
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.name.fmt(f)
+    }
+}
+
+impl<T> PartialEq<T> for Ident
+where
+    T: AsRef<str> + ?Sized,
+{
+    fn eq(&self, other: &T) -> bool {
+        self.name == other.as_ref()
     }
 }
 
@@ -174,7 +203,7 @@ impl fmt::Display for VType {
     }
 }
 
-/// The kind of type
+/// The kind of a [`VType`].
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TypeKind {
     /// A character (UTF-8) string
@@ -363,13 +392,13 @@ pub struct Expression {
 }
 
 impl Expression {
-    /// Create a new expression with span
+    /// Creates a new expression.
     pub fn new(kind: ExprKind, span: Span) -> Self {
         Expression { kind, span }
     }
 }
 
-/// The kind of expression
+/// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExprKind {
     /// A 64-bit signed integer
@@ -491,7 +520,7 @@ pub struct MatchStatement {
     pub arms: Vec<MatchArm>,
 }
 
-/// Match expression
+/// Match statement expression
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchExpression {
     /// Value to match against
@@ -516,7 +545,7 @@ pub struct MatchExpressionArm {
     pub pattern: MatchPattern,
     /// Expression
     pub expression: Expression,
-    /// Span of this arm
+    /// The source location of this match arm
     pub span: Span,
 }
 
@@ -583,13 +612,13 @@ pub struct Statement {
 }
 
 impl Statement {
-    /// Create a new statement with span
+    /// Creates a new statement.
     pub fn new(kind: StmtKind, span: Span) -> Self {
         Statement { kind, span }
     }
 }
 
-/// The kind of statement
+/// The kind of [`Statement`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum StmtKind {
     /// A [LetStatement]

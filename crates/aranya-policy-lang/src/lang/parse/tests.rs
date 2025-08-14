@@ -2,13 +2,13 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
+use aranya_policy_ast::{ident, text, ExprKind, Ident, Identifier, Span, StmtKind, TypeKind};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use pest::{error::Error as PestError, iterators::Pair, Parser};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
-    parse_policy_str,
+    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
+    Version,
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
@@ -16,56 +16,56 @@ use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 fn vtype(kind: TypeKind) -> ast::VType {
     ast::VType {
         kind,
-        span: Span { start: 0, end: 0 },
+        span: Span::new(0, 0),
     }
 }
 
 fn vtype_span(kind: TypeKind, start: usize, end: usize) -> ast::VType {
     ast::VType {
         kind,
-        span: Span { start, end },
+        span: Span::new(start, end),
     }
 }
 
 fn expr(kind: ExprKind) -> Expression {
     Expression {
         kind,
-        span: Span { start: 0, end: 0 },
+        span: Span::new(0, 0),
     }
 }
 
 fn expr_span(kind: ExprKind, start: usize, end: usize) -> Expression {
     Expression {
         kind,
-        span: Span { start, end },
+        span: Span::new(start, end),
     }
 }
 
 fn stmt(kind: StmtKind) -> ast::Statement {
     ast::Statement {
         kind,
-        span: Span { start: 0, end: 0 },
+        span: Span::new(0, 0),
     }
 }
 
 fn stmt_span(kind: StmtKind, start: usize, end: usize) -> ast::Statement {
     ast::Statement {
         kind,
-        span: Span { start, end },
+        span: Span::new(start, end),
     }
 }
 
 fn ident_with_span(name: &str) -> Ident {
     Ident {
         name: name.parse().unwrap(),
-        span: Span { start: 0, end: 0 },
+        span: Span::new(0, 0),
     }
 }
 
 fn ident_span(name: &str, start: usize, end: usize) -> Ident {
     Ident {
         name: name.parse().unwrap(),
-        span: Span { start, end },
+        span: Span::new(start, end),
     }
 }
 
@@ -650,7 +650,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             create Next[]=>{}
         }
 
-        
+
         // ephemeral commands and actions
 
         ephemeral command C {
@@ -683,10 +683,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     field_type: vtype_span(TypeKind::Bool, 173, 177),
                 },
             ],
-            span: Span {
-                start: 145,
-                end: 177
-            },
+            span: Span::new(145, 177),
         }]
     );
     assert_eq!(
@@ -730,20 +727,14 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         315
                     ),
                 ],
-                span: Span {
-                    start: 188,
-                    end: 315
-                },
+                span: Span::new(188, 315),
             },
             ast::ActionDefinition {
                 persistence: ast::Persistence::Ephemeral,
                 identifier: identifier("a"),
                 arguments: vec![],
                 statements: vec![],
-                span: Span {
-                    start: 2339,
-                    end: 2339
-                },
+                span: Span::new(2339, 2339),
             }
         ]
     );
@@ -763,10 +754,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     dynamic: false,
                 }),
             ],
-            span: Span {
-                start: 326,
-                end: 391
-            },
+            span: Span::new(326, 391),
         }]
     );
     assert_eq!(
@@ -1302,10 +1290,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         1962
                     ),
                 ],
-                span: Span {
-                    start: 406,
-                    end: 1962
-                },
+                span: Span::new(406, 1962),
             },
             ast::CommandDefinition {
                 persistence: ast::Persistence::Ephemeral,
@@ -1319,10 +1304,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 seal: vec![],
                 open: vec![],
                 recall: vec![],
-                span: Span {
-                    start: 2241,
-                    end: 2305
-                },
+                span: Span::new(2241, 2305),
             }
         ]
     );
@@ -1371,10 +1353,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     2099
                 ),
             ],
-            span: Span {
-                start: 1996,
-                end: 2099
-            },
+            span: Span::new(1996, 2099),
         }]
     );
     assert_eq!(
@@ -1396,10 +1375,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 2152,
                 2169
             )],
-            span: Span {
-                start: 2110,
-                end: 2169
-            },
+            span: Span::new(2110, 2169),
         }]
     );
 
@@ -1454,14 +1430,14 @@ fn parse_policy_immutable_facts() -> Result<(), ParseError> {
                 identifier: identifier("A"),
                 key: vec![],
                 value: vec![],
-                span: Span { start: 9, end: 9 },
+                span: Span::new(9, 9),
             },
             ast::FactDefinition {
                 immutable: true,
                 identifier: identifier("B"),
                 key: vec![],
                 value: vec![],
-                span: Span { start: 30, end: 30 },
+                span: Span::new(30, 30),
             }
         ]
     );
@@ -1545,7 +1521,7 @@ fn parse_struct() {
                 identifier: ident_span("x", 25, 30),
                 field_type: vtype_span(TypeKind::Int, 27, 30),
             })],
-            span: Span { start: 0, end: 30 },
+            span: Span::new(0, 30),
         }]
     );
     assert_eq!(
@@ -1585,10 +1561,7 @@ fn parse_struct() {
                 108,
                 138
             )],
-            span: Span {
-                start: 50,
-                end: 138
-            },
+            span: Span::new(50, 138),
         }]
     );
 }
@@ -1636,23 +1609,23 @@ fn parse_enum_definition() {
         vec![ast::EnumDefinition {
             identifier: Ident {
                 name: "Color".parse().unwrap(),
-                span: Span { start: 0, end: 76 }
+                span: Span::new(0, 76)
             },
             variants: vec![
                 Ident {
                     name: "Red".parse().unwrap(),
-                    span: Span { start: 0, end: 76 }
+                    span: Span::new(0, 76)
                 },
                 Ident {
                     name: "Green".parse().unwrap(),
-                    span: Span { start: 0, end: 76 }
+                    span: Span::new(0, 76)
                 },
                 Ident {
                     name: "Blue".parse().unwrap(),
-                    span: Span { start: 0, end: 76 }
+                    span: Span::new(0, 76)
                 }
             ],
-            span: Span { start: 0, end: 76 }
+            span: Span::new(0, 76)
         }]
     );
 }
@@ -1725,12 +1698,12 @@ fn parse_ffi_structs_enums() {
                         field_type: vtype_span(TypeKind::Bool, 44, 48)
                     })
                 ],
-                span: Span { start: 0, end: 48 },
+                span: Span::new(0, 48),
             },
             ast::StructDefinition {
                 identifier: identifier("B"),
                 items: vec![],
-                span: Span { start: 68, end: 68 },
+                span: Span::new(68, 68),
             }
         ],
     );
@@ -1744,10 +1717,7 @@ fn parse_ffi_structs_enums() {
                 ident_span("White", 89, 120),
                 ident_span("Blue", 89, 120)
             ],
-            span: Span {
-                start: 89,
-                end: 120
-            },
+            span: Span::new(89, 120),
         }]
     );
 }
@@ -1812,7 +1782,7 @@ fn parse_seal_open() {
                 116,
                 149
             )],
-            span: Span { start: 0, end: 149 },
+            span: Span::new(0, 149),
         }]
     );
 }
@@ -1867,7 +1837,7 @@ fn parse_serialize_deserialize() {
                 122,
                 163
             )],
-            span: Span { start: 0, end: 163 },
+            span: Span::new(0, 163),
         }]
     );
 }
@@ -1947,17 +1917,17 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
             ast::GlobalLetStatement {
                 identifier: identifier("x"),
                 expression: expr_span(ExprKind::Int(42), 17, 19),
-                span: Span { start: 9, end: 19 },
+                span: Span::new(9, 19),
             },
             ast::GlobalLetStatement {
                 identifier: identifier("y"),
                 expression: expr_span(ExprKind::String(text!("hello")), 36, 43),
-                span: Span { start: 28, end: 43 },
+                span: Span::new(28, 43),
             },
             ast::GlobalLetStatement {
                 identifier: identifier("z"),
                 expression: expr_span(ExprKind::Bool(true), 60, 64),
-                span: Span { start: 52, end: 64 },
+                span: Span::new(52, 64),
             },
         ]
     );
@@ -2041,10 +2011,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                     282
                 ),
             ],
-            span: Span {
-                start: 74,
-                end: 282
-            },
+            span: Span::new(74, 282),
         }]
     );
     Ok(())
@@ -2151,7 +2118,7 @@ fn test_action_call() -> anyhow::Result<()> {
                 50,
                 63
             )],
-            span: Span { start: 26, end: 69 },
+            span: Span::new(26, 69),
         }
     );
 
@@ -2300,18 +2267,12 @@ fn parse_match_expression() {
                                     80,
                                     156
                                 ),
-                                span: Span {
-                                    start: 75,
-                                    end: 173
-                                }
+                                span: Span::new(75, 173)
                             },
                             ast::MatchExpressionArm {
                                 pattern: MatchPattern::Default,
                                 expression: expr_span(ExprKind::Bool(false), 178, 183),
-                                span: Span {
-                                    start: 173,
-                                    end: 196
-                                }
+                                span: Span::new(173, 196)
                             }
                         ]
                     })),

@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,17 +11,17 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
-    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
+    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
     MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Statement, StmtKind,
-    StructItem, TypeKind, VType, ident,
+    StructItem, TypeKind, VType,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{Bug, BugExt, bug};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -220,11 +220,11 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(FieldDefinition {
                             identifier: Ident {
                                 name: field.identifier.name.clone(),
-                                span: Span { start: 0, end: 0 },
+                                span: Span::empty(),
                             },
                             field_type: VType {
                                 kind: field.field_type.kind.clone(),
-                                span: Span { start: 0, end: 0 },
+                                span: Span::empty(),
                             },
                         });
                     } else {
@@ -250,11 +250,11 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(FieldDefinition {
                             identifier: Ident {
                                 name: field.identifier.name.clone(),
-                                span: Span { start: 0, end: 0 },
+                                span: Span::empty(),
                             },
                             field_type: VType {
                                 kind: field.field_type.kind.clone(),
-                                span: Span { start: 0, end: 0 },
+                                span: Span::empty(),
                             },
                         });
                     }
@@ -321,7 +321,7 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(_) => Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(function_def.identifier.to_string()),
-                function_def.span.start,
+                function_def.span.start(),
                 self.m.codemap.as_ref(),
             )),
         }
@@ -347,7 +347,7 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(_) => Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(function_def.identifier.to_string()),
-                function_def.span.start,
+                function_def.span.start(),
                 self.m.codemap.as_ref(),
             )),
         }
@@ -375,17 +375,18 @@ impl<'a> CompileState<'a> {
 
     /// Maps the current write pointer to a text range supplied by a span
     fn map_range(&mut self, span: Span) -> Result<(), CompileError> {
-        self.last_locator = span.start;
+        self.last_locator = span.start();
         if let Some(codemap) = &mut self.m.codemap {
             codemap
-                .map_instruction_range(self.wp, span.start)
+                .map_instruction_range(self.wp, span.start())
                 .map_err(|_| {
                     self.err_loc(
                         CompileErrorType::Unknown(format!(
                             "could not map address {} to text range {}",
-                            self.wp, span.start
+                            self.wp,
+                            span.start()
                         )),
-                        span.start,
+                        span.start(),
                     )
                 })
         } else {
@@ -1412,7 +1413,7 @@ impl<'a> CompileState<'a> {
                 ) => {
                     self.compile_match_statement_or_expression(
                         LanguageContext::Statement(s),
-                        statement.span.start,
+                        statement.span.start(),
                     )?;
                 }
                 (
@@ -1518,7 +1519,7 @@ impl<'a> CompileState<'a> {
                             CompileErrorType::Unknown(
                                 "`finish` must be the last statement in the block".to_owned(),
                             ),
-                            statement.span.start,
+                            statement.span.start(),
                         ));
                     }
                     // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
@@ -1576,7 +1577,7 @@ impl<'a> CompileState<'a> {
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot create fact with bind values",
                             )),
-                            statement.span.start,
+                            statement.span.start(),
                         ));
                     }
 
@@ -1615,7 +1616,7 @@ impl<'a> CompileState<'a> {
                                     CompileErrorType::BadArgument(String::from(
                                         "Cannot update fact to a bind value",
                                     )),
-                                    statement.span.start,
+                                    statement.span.start(),
                                 ));
                             }
                             FactField::Expression(e) => {
@@ -1678,7 +1679,7 @@ impl<'a> CompileState<'a> {
                         .ok_or_else(|| {
                             self.err_loc(
                                 CompileErrorType::NotDefined(f.identifier.to_string()),
-                                statement.span.start,
+                                statement.span.start(),
                             )
                         })?;
                     // Check that this function is the right color -
@@ -1687,7 +1688,7 @@ impl<'a> CompileState<'a> {
                     if let FunctionColor::Pure(_) = signature.color {
                         return Err(self.err_loc(
                             CompileErrorType::InvalidCallColor(InvalidCallColor::Pure),
-                            statement.span.start,
+                            statement.span.start(),
                         ));
                     }
                     // For now all we can do is check that the argument
@@ -1702,7 +1703,7 @@ impl<'a> CompileState<'a> {
                                 f.arguments.len(),
                                 signature.args.len()
                             )),
-                            statement.span.start,
+                            statement.span.start(),
                         ));
                     }
                     self.compile_function_call(f, true)?;
@@ -1716,7 +1717,7 @@ impl<'a> CompileState<'a> {
                     else {
                         return Err(CompileError::from_locator(
                             CompileErrorType::NotDefined(fc.identifier.name.to_string()),
-                            statement.span.start,
+                            statement.span.start(),
                             self.m.codemap.as_ref(),
                         ));
                     };
@@ -1729,7 +1730,7 @@ impl<'a> CompileState<'a> {
                                 fc.arguments.len(),
                                 action_def.arguments.len()
                             )),
-                            statement.span.start,
+                            statement.span.start(),
                             self.m.codemap.as_ref(),
                         ));
                     }
@@ -1744,7 +1745,7 @@ impl<'a> CompileState<'a> {
                                     expected_arg.identifier.name,
                                     DisplayType(&expected_arg.field_type)
                                 )),
-                                statement.span.start,
+                                statement.span.start(),
                                 self.m.codemap.as_ref(),
                             ));
                         }
@@ -1782,7 +1783,7 @@ impl<'a> CompileState<'a> {
                 (_, _) => {
                     return Err(self.err_loc(
                         CompileErrorType::InvalidStatement(context),
-                        statement.span.start,
+                        statement.span.start(),
                     ));
                 }
             }
@@ -1848,14 +1849,14 @@ impl<'a> CompileState<'a> {
         {
             return Err(self.err_loc(
                 CompileErrorType::NotDefined(function_def.identifier.to_string()),
-                function_def.span.start,
+                function_def.span.start(),
             ));
         }
 
         if let Some(name) = find_duplicate(&function_def.arguments, |a| &a.identifier.name) {
             return Err(self.err_loc(
                 CompileErrorType::AlreadyDefined(name.to_string()),
-                function_def.span.start,
+                function_def.span.start(),
             ));
         }
 
@@ -1870,7 +1871,7 @@ impl<'a> CompileState<'a> {
 
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, function_def.span.start));
+            return Err(self.err_loc(CompileErrorType::NoReturn, function_def.span.start()));
         }
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1954,7 +1955,7 @@ impl<'a> CompileState<'a> {
         if let Some(name) = find_duplicate(&action_def.arguments, |a| &a.identifier.name) {
             return Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(name.to_string()),
-                action_def.span.start,
+                action_def.span.start(),
                 self.m.codemap.as_ref(),
             ));
         }
@@ -2059,7 +2060,7 @@ impl<'a> CompileState<'a> {
                 ident!("this"),
                 Typeish::known(VType {
                     kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::new(0, 0),
+                    span: Span::empty(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2068,7 +2069,7 @@ impl<'a> CompileState<'a> {
                 ident!("envelope"),
                 Typeish::known(VType {
                     kind: TypeKind::Struct(ident!("Envelope")),
-                    span: Span::new(0, 0),
+                    span: Span::empty(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2095,7 +2096,7 @@ impl<'a> CompileState<'a> {
                 ident!("this"),
                 Typeish::known(VType {
                     kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::new(0, 0),
+                    span: Span::empty(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2104,7 +2105,7 @@ impl<'a> CompileState<'a> {
                 ident!("envelope"),
                 Typeish::known(VType {
                     kind: TypeKind::Struct(ident!("Envelope")),
-                    span: Span::new(0, 0),
+                    span: Span::empty(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2134,7 +2135,7 @@ impl<'a> CompileState<'a> {
             arguments: vec![],
             return_type: VType {
                 kind: TypeKind::Struct(ident!("Envelope")),
-                span: Span::new(0, 0),
+                span: Span::empty(),
             },
             statements: vec![],
             span: command.span,
@@ -2158,7 +2159,7 @@ impl<'a> CompileState<'a> {
                 ident!("this"),
                 Typeish::known(VType {
                     kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::new(0, 0),
+                    span: Span::empty(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2193,7 +2194,7 @@ impl<'a> CompileState<'a> {
             arguments: vec![],
             return_type: VType {
                 kind: TypeKind::Struct(command.identifier.clone()),
-                span: Span::new(0, 0),
+                span: Span::empty(),
             },
             statements: vec![],
             span: command.span,
@@ -2215,7 +2216,7 @@ impl<'a> CompileState<'a> {
                 ident!("envelope"),
                 Typeish::known(VType {
                     kind: TypeKind::Struct(ident!("Envelope")),
-                    span: Span::new(0, 0),
+                    span: Span::empty(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2240,8 +2241,8 @@ impl<'a> CompileState<'a> {
 
         self.compile_command_policy(command_def)?;
         self.compile_command_recall(command_def)?;
-        self.compile_command_seal(command_def, command_def.span.start)?;
-        self.compile_command_open(command_def, command_def.span.start)?;
+        self.compile_command_seal(command_def, command_def.span.start())?;
+        self.compile_command_open(command_def, command_def.span.start())?;
 
         // attributes
         let mut attr_values = BTreeMap::new();
@@ -2284,7 +2285,7 @@ impl<'a> CompileState<'a> {
                     let field_type = if has_struct_refs {
                         VType {
                             kind: f.field_type.kind.clone(),
-                            span: Span { start: 0, end: 0 },
+                            span: Span::empty(),
                         }
                     } else {
                         f.field_type.clone()
@@ -2299,7 +2300,7 @@ impl<'a> CompileState<'a> {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
                             kind: fd.field_type.kind.clone(),
-                            span: Span { start: 0, end: 0 },
+                            span: Span::empty(),
                         };
                         map.insert(fd.identifier.name.clone(), field_type);
                     }
@@ -2562,7 +2563,7 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .map(|a| {
                         StructItem::Field(FieldDefinition {
-                            identifier: Ident::new(a.name.clone(), Span::new(0, 0)),
+                            identifier: Ident::new(a.name.clone(), Span::empty()),
                             field_type: VType::from(&a.vtype),
                         })
                     })

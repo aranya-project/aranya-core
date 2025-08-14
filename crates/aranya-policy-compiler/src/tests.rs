@@ -2,14 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
+use aranya_policy_ast::{self as ast, ident, text, FieldDefinition, TypeKind, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Label, LabelType, Module, ModuleData, Value,
     ffi::{self, ModuleSchema},
+    Label, LabelType, Module, ModuleData, Value,
 };
 
-use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+use crate::{validate::validate, CompileErrorType, Compiler, InvalidCallColor};
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -207,18 +207,14 @@ fn test_seal_open_command() {
     let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    assert!(
-        module
-            .labels
-            .iter()
-            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal))
-    );
-    assert!(
-        module
-            .labels
-            .iter()
-            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen))
-    );
+    assert!(module
+        .labels
+        .iter()
+        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal)));
+    assert!(module
+        .labels
+        .iter()
+        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen)));
 }
 
 #[test]
@@ -389,21 +385,21 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
             ident!("a"),
             VType {
                 kind: TypeKind::Int,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         ),
         (
             ident!("b"),
             VType {
                 kind: TypeKind::String,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         ),
         (
             ident!("c"),
             VType {
                 kind: TypeKind::Bool,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         ),
     ]);
@@ -518,21 +514,21 @@ fn test_autodefine_struct() {
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("a"),
-                span: ast::Span { start: 18, end: 23 },
+                span: ast::Span::new(18, 23),
             },
             field_type: VType {
                 kind: TypeKind::Int,
-                span: ast::Span { start: 20, end: 23 },
+                span: ast::Span::new(20, 23),
             },
         },
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("b"),
-                span: ast::Span { start: 27, end: 32 },
+                span: ast::Span::new(27, 32),
             },
             field_type: VType {
                 kind: TypeKind::Int,
-                span: ast::Span { start: 29, end: 32 },
+                span: ast::Span::new(29, 32),
             },
         },
     ];
@@ -595,21 +591,21 @@ fn test_struct_field_insertion() {
                 FieldDefinition {
                     identifier: ast::Ident {
                         name: ident!("a"),
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                     field_type: VType {
                         kind: TypeKind::Int,
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                 },
                 FieldDefinition {
                     identifier: ast::Ident {
                         name: ident!("b"),
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                     field_type: VType {
                         kind: TypeKind::String,
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                 },
             ],
@@ -624,31 +620,31 @@ fn test_struct_field_insertion() {
                 FieldDefinition {
                     identifier: ast::Ident {
                         name: ident!("a"),
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                     field_type: VType {
                         kind: TypeKind::Int,
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                 },
                 FieldDefinition {
                     identifier: ast::Ident {
                         name: ident!("b"),
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                     field_type: VType {
                         kind: TypeKind::String,
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                 },
                 FieldDefinition {
                     identifier: ast::Ident {
                         name: ident!("c"),
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                     field_type: VType {
                         kind: TypeKind::Bool,
-                        span: ast::Span { start: 0, end: 0 },
+                        span: ast::Span::new(0, 0),
                     },
                 },
             ],
@@ -681,21 +677,21 @@ fn test_effect_with_field_insertion() {
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("b"),
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
             field_type: VType {
                 kind: TypeKind::Bool,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         },
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("s"),
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
             field_type: VType {
                 kind: TypeKind::String,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         },
     ];
@@ -706,31 +702,31 @@ fn test_effect_with_field_insertion() {
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("i"),
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
             field_type: VType {
                 kind: TypeKind::Int,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         },
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("b"),
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
             field_type: VType {
                 kind: TypeKind::Bool,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         },
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("s"),
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
             field_type: VType {
                 kind: TypeKind::String,
-                span: ast::Span { start: 0, end: 0 },
+                span: ast::Span::new(0, 0),
             },
         },
     ];
@@ -2395,7 +2391,7 @@ fn test_function_used_before_definition() {
         function pow(x int, n int) int {
             if n == 0 {
                 // x^0 == x
-                return 1 
+                return 1
             }
             if n == 1 {
                 // x^1 = x

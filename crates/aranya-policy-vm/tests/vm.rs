@@ -10,9 +10,9 @@ use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
+    ident, text, ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
     MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
-    RunState, SealContext, Stack, Struct, Value, ident, text,
+    RunState, SealContext, Stack, Struct, Value,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -146,11 +146,11 @@ fn test_structs() -> anyhow::Result<()> {
         Some(&vec![ast::FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("x"),
-                span: ast::Span { start: 34, end: 39 }
+                span: ast::Span::new(34, 39)
             },
             field_type: ast::VType {
                 kind: ast::TypeKind::Int,
-                span: ast::Span { start: 36, end: 39 }
+                span: ast::Span::new(36, 39)
             }
         }])
     );
