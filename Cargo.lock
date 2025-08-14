@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-codegen"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-macro"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "aranya-capi-codegen",
  "proc-macro2",
