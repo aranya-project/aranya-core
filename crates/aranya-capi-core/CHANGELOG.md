@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.4.2...aranya-capi-core-v0.4.3) - 2025-08-14
+
+### Other
+
+- change error! to debug! in convert_err ([#359](https://github.com/aranya-project/aranya-core/pull/359))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.4.2](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.4.1...aranya-capi-core-v0.4.2) - 2025-06-12
 
 ### Other
