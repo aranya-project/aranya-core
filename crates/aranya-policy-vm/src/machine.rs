@@ -13,7 +13,7 @@ use core::{
 };
 
 use aranya_crypto::Id;
-use aranya_policy_ast::{self as ast, Identifier, ident};
+use aranya_policy_ast::{self as ast, ident, Identifier};
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
@@ -23,13 +23,13 @@ use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]
-use crate::bench::{Stopwatch, bench_aggregate};
+use crate::bench::{bench_aggregate, Stopwatch};
 use crate::{
-    CommandContext, OpenContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
     stack::Stack,
+    CommandContext, OpenContext, SealContext,
 };
 
 const STACK_SIZE: usize = 100;

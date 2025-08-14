@@ -2,7 +2,7 @@
 extern crate alloc;
 use alloc::boxed::Box;
 
-use aranya_policy_ast::{Identifier, TypeKind, VType};
+use aranya_policy_ast::{Identifier, Span, TypeKind, VType};
 
 /// The type of a value
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,9 +44,6 @@ impl Type<'_> {
 
 impl From<&Type<'_>> for VType {
     fn from(value: &Type<'_>) -> Self {
-        use aranya_policy_ast::Span;
-        // Create a dummy span for FFI-generated types
-        let span = Span::new(0, 0);
         let kind = match value {
             Type::String => TypeKind::String,
             Type::Bytes => TypeKind::Bytes,
@@ -57,7 +54,10 @@ impl From<&Type<'_>> for VType {
             Type::Enum(e) => TypeKind::Enum(e.clone()),
             Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
         };
-        VType { kind, span }
+        VType {
+            kind,
+            span: Span::empty(),
+        }
     }
 }
 

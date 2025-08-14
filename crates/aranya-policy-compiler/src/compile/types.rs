@@ -1,12 +1,12 @@
 use std::{
     borrow::Cow,
-    collections::{HashMap, hash_map},
+    collections::{hash_map, HashMap},
     fmt::{self, Display},
 };
 
 use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
-use crate::{CompileErrorType, compile::CompileState};
+use crate::{compile::CompileState, CompileErrorType};
 
 /// Compare two TypeKinds for equality, ignoring spans in nested VTypes
 fn type_kinds_equal(a: &TypeKind, b: &TypeKind) -> bool {

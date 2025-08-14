@@ -1,20 +1,23 @@
 use std::{collections::HashSet, fs::File, io::Write};
 
 use aranya_policy_lang::{
-    ast::{EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType},
+    ast::{
+        EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, TypeKind,
+        VType,
+    },
     lang,
 };
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, format_ident, quote, quote_spanned};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
-    Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
-    PatType, Path, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_quote,
     spanned::Spanned,
+    Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
+    PatType, Path, ReturnType, Token,
 };
 
-use crate::attr::{Attr, Symbol, get_lit_str};
+use crate::attr::{get_lit_str, Attr, Symbol};
 
 // TODO(eric): allow `#[ffi_export("foo")]` as an alternative to
 // `#[ffi_export(name = "foo")]`?
@@ -729,20 +732,20 @@ impl ToTokens for VTypeTokens<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let vm = self.vm;
         let item = match &self.vtype.kind {
-            aranya_policy_lang::ast::TypeKind::String => quote!(String),
-            aranya_policy_lang::ast::TypeKind::Bytes => quote!(Bytes),
-            aranya_policy_lang::ast::TypeKind::Int => quote!(Int),
-            aranya_policy_lang::ast::TypeKind::Bool => quote!(Bool),
-            aranya_policy_lang::ast::TypeKind::Id => quote!(Id),
-            aranya_policy_lang::ast::TypeKind::Struct(name) => {
+            TypeKind::String => quote!(String),
+            TypeKind::Bytes => quote!(Bytes),
+            TypeKind::Int => quote!(Int),
+            TypeKind::Bool => quote!(Bool),
+            TypeKind::Id => quote!(Id),
+            TypeKind::Struct(name) => {
                 let name = name.as_str();
                 quote!(Struct(#name))
             }
-            aranya_policy_lang::ast::TypeKind::Enum(name) => {
+            TypeKind::Enum(name) => {
                 let name = name.as_str();
                 quote!(Enum(#name))
             }
-            aranya_policy_lang::ast::TypeKind::Optional(vtype) => {
+            TypeKind::Optional(vtype) => {
                 let vtype = VTypeTokens::new(vtype, vm);
                 quote!(Optional(&#vm::ffi::Type::#vtype))
             }
@@ -777,20 +780,20 @@ impl ToTokens for TypeTokens<'_> {
         let crypto = self.crypto;
         let vm = self.vm;
         let item = match &self.vtype.kind {
-            aranya_policy_lang::ast::TypeKind::String => quote!(#vm::Text),
-            aranya_policy_lang::ast::TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
-            aranya_policy_lang::ast::TypeKind::Int => quote!(i64),
-            aranya_policy_lang::ast::TypeKind::Bool => quote!(bool),
-            aranya_policy_lang::ast::TypeKind::Id => quote!(#crypto::Id),
-            aranya_policy_lang::ast::TypeKind::Struct(name) => {
+            TypeKind::String => quote!(#vm::Text),
+            TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
+            TypeKind::Int => quote!(i64),
+            TypeKind::Bool => quote!(bool),
+            TypeKind::Id => quote!(#crypto::Id),
+            TypeKind::Struct(name) => {
                 let ident = format_ident!("{name}");
                 quote!(#ident)
             }
-            aranya_policy_lang::ast::TypeKind::Enum(name) => {
+            TypeKind::Enum(name) => {
                 let ident = format_ident!("{name}");
                 quote!(#ident)
             }
-            aranya_policy_lang::ast::TypeKind::Optional(vtype) => {
+            TypeKind::Optional(vtype) => {
                 let vtype = TypeTokens::new(vtype, alloc, crypto, vm);
                 quote!(::core::option::Option<#vtype>)
             }

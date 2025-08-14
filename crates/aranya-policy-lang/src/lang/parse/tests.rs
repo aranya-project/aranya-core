@@ -2,35 +2,20 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
+use aranya_policy_ast::{ident, text, ExprKind, Ident, Span, StmtKind, TypeKind};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use pest::{error::Error as PestError, iterators::Pair, Parser};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
-    parse_policy_str,
+    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
+    Version,
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
-
-// Helper functions for tests - create types with dummy spans
-fn vtype(kind: TypeKind) -> ast::VType {
-    ast::VType {
-        kind,
-        span: Span::new(0, 0),
-    }
-}
 
 fn vtype_span(kind: TypeKind, start: usize, end: usize) -> ast::VType {
     ast::VType {
         kind,
         span: Span::new(start, end),
-    }
-}
-
-fn expr(kind: ExprKind) -> Expression {
-    Expression {
-        kind,
-        span: Span::new(0, 0),
     }
 }
 
@@ -41,24 +26,10 @@ fn expr_span(kind: ExprKind, start: usize, end: usize) -> Expression {
     }
 }
 
-fn stmt(kind: StmtKind) -> ast::Statement {
-    ast::Statement {
-        kind,
-        span: Span::new(0, 0),
-    }
-}
-
 fn stmt_span(kind: StmtKind, start: usize, end: usize) -> ast::Statement {
     ast::Statement {
         kind,
         span: Span::new(start, end),
-    }
-}
-
-fn ident_with_span(name: &str) -> Ident {
-    Ident {
-        name: name.parse().unwrap(),
-        span: Span::new(0, 0),
     }
 }
 
@@ -67,17 +38,6 @@ fn ident_span(name: &str, start: usize, end: usize) -> Ident {
         name: name.parse().unwrap(),
         span: Span::new(start, end),
     }
-}
-
-fn identifier(name: &str) -> Ident {
-    Ident {
-        name: name.parse().unwrap(),
-        span: Span::new(0, 0),
-    }
-}
-
-fn map_identifier(name: &str) -> Identifier {
-    name.parse().unwrap()
 }
 
 #[test]

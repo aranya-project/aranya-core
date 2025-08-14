@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,17 +11,17 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
-    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
+    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
     MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Statement, StmtKind,
-    StructItem, TypeKind, VType, ident,
+    StructItem, TypeKind, VType,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{Bug, BugExt, bug};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -197,7 +197,6 @@ impl<'a> CompileState<'a> {
             return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
         }
 
-        // Check if this struct uses any field insertions
         let has_struct_refs = items
             .iter()
             .any(|item| matches!(item, StructItem::StructRef(_)));
@@ -215,7 +214,7 @@ impl<'a> CompileState<'a> {
                             field.identifier.to_string(),
                         )));
                     }
-                    // If the struct uses field insertions, normalize all spans for consistency
+                    // TODO(eric): Use `Span::empty()`?
                     if has_struct_refs {
                         field_definitions.push(FieldDefinition {
                             identifier: Ident {
@@ -245,8 +244,7 @@ impl<'a> CompileState<'a> {
                                 field.identifier.to_string(),
                             )));
                         }
-                        // When merging fields from another struct, reset spans to zero
-                        // since the original source location isn't meaningful
+                        // TODO(eric): Use `Span::empty()`?
                         field_definitions.push(FieldDefinition {
                             identifier: Ident {
                                 name: field.identifier.name.clone(),
@@ -305,26 +303,24 @@ impl<'a> CompileState<'a> {
     /// [FunctionSignature].
     fn define_function_signature(
         &mut self,
-        function_def: &'a ast::FunctionDefinition,
+        function_node: &'a ast::FunctionDefinition,
     ) -> Result<&FunctionSignature, CompileError> {
-        match self
-            .function_signatures
-            .entry(&function_def.identifier.name)
-        {
+        let def = function_node;
+        match self.function_signatures.entry(&def.identifier.name) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: function_def
+                    args: def
                         .arguments
                         .iter()
                         .map(|a| (a.identifier.name.clone(), a.field_type.clone()))
                         .collect(),
-                    color: FunctionColor::Pure(function_def.return_type.clone()),
+                    color: FunctionColor::Pure(def.return_type.clone()),
                 };
                 Ok(e.insert(signature))
             }
             Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(function_def.identifier.to_string()),
-                function_def.span.start(),
+                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
+                def.span.start(),
                 self.m.codemap.as_ref(),
             )),
         }
@@ -334,15 +330,13 @@ impl<'a> CompileState<'a> {
     /// into a [FunctionSignature].
     fn define_finish_function_signature(
         &mut self,
-        function_def: &'a ast::FinishFunctionDefinition,
+        function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<&FunctionSignature, CompileError> {
-        match self
-            .function_signatures
-            .entry(&function_def.identifier.name)
-        {
+        let def = function_node;
+        match self.function_signatures.entry(&def.identifier.name) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: function_def
+                    args: def
                         .arguments
                         .iter()
                         .map(|a| (a.identifier.name.clone(), a.field_type.clone()))
@@ -352,8 +346,8 @@ impl<'a> CompileState<'a> {
                 Ok(e.insert(signature))
             }
             Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(function_def.identifier.to_string()),
-                function_def.span.start(),
+                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
+                def.span.start(),
                 self.m.codemap.as_ref(),
             )),
         }
@@ -1843,45 +1837,45 @@ impl<'a> CompileState<'a> {
     /// Compile a function
     fn compile_function(
         &mut self,
-        function_def: &'a ast::FunctionDefinition,
+        function_node: &'a ast::FunctionDefinition,
     ) -> Result<(), CompileError> {
         self.define_label(
-            Label::new(function_def.identifier.name.clone(), LabelType::Function),
+            Label::new(function_node.identifier.name.clone(), LabelType::Function),
             self.wp,
         )?;
-        self.map_range(function_def.span)?;
+        self.map_range(function_node.span)?;
 
         // The signature should have already been added inside
         // `compile`.
         if !self
             .function_signatures
-            .contains_key(&function_def.identifier.name)
+            .contains_key(&function_node.identifier.name)
         {
             return Err(self.err_loc(
-                CompileErrorType::NotDefined(function_def.identifier.to_string()),
-                function_def.span.start(),
+                CompileErrorType::NotDefined(function_node.identifier.to_string()),
+                function_node.span.start(),
             ));
         }
 
-        if let Some(name) = find_duplicate(&function_def.arguments, |a| &a.identifier.name) {
+        if let Some(identifier) = find_duplicate(&function_node.arguments, |a| &a.identifier.name) {
             return Err(self.err_loc(
-                CompileErrorType::AlreadyDefined(name.to_string()),
-                function_def.span.start(),
+                CompileErrorType::AlreadyDefined(identifier.to_string()),
+                function_node.span.start(),
             ));
         }
 
         self.identifier_types.enter_function();
-        for arg in function_def.arguments.iter().rev() {
+        for arg in function_node.arguments.iter().rev() {
             self.ensure_type_is_defined(&arg.field_type)?;
             self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
         }
         let from = self.wp;
-        self.ensure_type_is_defined(&function_def.return_type)?;
-        self.compile_statements(&function_def.statements, Scope::Same)?;
+        self.ensure_type_is_defined(&function_node.return_type)?;
+        self.compile_statements(&function_node.statements, Scope::Same)?;
 
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, function_def.span.start()));
+            return Err(self.err_loc(CompileErrorType::NoReturn, function_node.span.start()));
         }
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1893,18 +1887,18 @@ impl<'a> CompileState<'a> {
     /// Compile a finish function
     fn compile_finish_function(
         &mut self,
-        function_def: &'a ast::FinishFunctionDefinition,
+        function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
         self.define_label(
-            Label::new_temp(function_def.identifier.name.clone()),
+            Label::new_temp(function_node.identifier.name.clone()),
             self.wp,
         )?;
-        self.map_range(function_def.span)?;
+        self.map_range(function_node.span)?;
         self.identifier_types.enter_function();
-        for arg in function_def.arguments.iter().rev() {
+        for arg in function_node.arguments.iter().rev() {
             self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
         }
-        self.compile_statements(&function_def.statements, Scope::Same)?;
+        self.compile_statements(&function_node.statements, Scope::Same)?;
         // Finish functions cannot have return statements, so we add a return instruction
         // manually.
         self.append_instruction(Instruction::Return);
@@ -1956,38 +1950,42 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile an action function
-    fn compile_action(&mut self, action_def: &ast::ActionDefinition) -> Result<(), CompileError> {
+    fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         self.identifier_types.enter_function();
         self.define_label(
-            Label::new(action_def.identifier.name.clone(), LabelType::Action),
+            Label::new(action_node.identifier.name.clone(), LabelType::Action),
             self.wp,
         )?;
-        self.map_range(action_def.span)?;
+        self.map_range(action_node.span)?;
 
         // check for duplicate args
-        if let Some(name) = find_duplicate(&action_def.arguments, |a| &a.identifier.name) {
+        if let Some(identifier) = find_duplicate(&action_node.arguments, |a| &a.identifier.name) {
             return Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(name.to_string()),
-                action_def.span.start(),
+                CompileErrorType::AlreadyDefined(identifier.to_string()),
+                action_node.span.start(),
                 self.m.codemap.as_ref(),
             ));
         }
 
-        for arg in action_def.arguments.iter().rev() {
+        for arg in action_node.arguments.iter().rev() {
             self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
         }
 
-        self.compile_statements(&action_def.statements, Scope::Same)?;
+        self.compile_statements(&action_node.statements, Scope::Same)?;
         self.append_instruction(Instruction::Return);
         self.identifier_types.exit_function();
 
-        match self.m.action_defs.entry(action_def.identifier.name.clone()) {
+        match self
+            .m
+            .action_defs
+            .entry(action_node.identifier.name.clone())
+        {
             Entry::Vacant(e) => {
-                e.insert(action_def.arguments.clone());
+                e.insert(action_node.arguments.clone());
             }
             Entry::Occupied(_) => {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
-                    action_def.identifier.to_string(),
+                    action_node.identifier.to_string(),
                 )));
             }
         }
@@ -2248,18 +2246,19 @@ impl<'a> CompileState<'a> {
     /// Compile a command policy block
     fn compile_command(
         &mut self,
-        command_def: &ast::CommandDefinition,
+        command_node: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.map_range(command_def.span)?;
+        let command = command_node;
+        self.map_range(command.span)?;
 
-        self.compile_command_policy(command_def)?;
-        self.compile_command_recall(command_def)?;
-        self.compile_command_seal(command_def, command_def.span.start())?;
-        self.compile_command_open(command_def, command_def.span.start())?;
+        self.compile_command_policy(command)?;
+        self.compile_command_recall(command)?;
+        self.compile_command_seal(command, command.span.start())?;
+        self.compile_command_open(command, command.span.start())?;
 
         // attributes
         let mut attr_values = BTreeMap::new();
-        for (name, value_expr) in &command_def.attributes {
+        for (name, value_expr) in &command.attributes {
             match attr_values.entry(name.clone()) {
                 Entry::Vacant(e) => {
                     let value = self.expression_value(value_expr).ok_or_else(|| {
@@ -2275,30 +2274,25 @@ impl<'a> CompileState<'a> {
         if !attr_values.is_empty() {
             self.m
                 .command_attributes
-                .insert(command_def.identifier.name.clone(), attr_values);
+                .insert(command.identifier.name.clone(), attr_values);
         }
 
         // fields
-        if self
-            .m
-            .command_defs
-            .contains_key(&command_def.identifier.name)
-        {
+        if self.m.command_defs.contains_key(&command.identifier.name) {
             return Err(self.err(CompileErrorType::AlreadyDefined(
-                command_def.identifier.to_string(),
+                command.identifier.to_string(),
             )));
         }
-        // Check if this command uses any field insertions
-        let has_struct_refs = command_def
+        let has_struct_refs = command
             .fields
             .iter()
             .any(|item| matches!(item, StructItem::StructRef(_)));
 
         let mut map = BTreeMap::new();
-        for si in &command_def.fields {
+        for si in &command.fields {
             match si {
                 StructItem::Field(f) => {
-                    // If the command uses field insertions, normalize all spans for consistency
+                    // TODO(eric): Use `Span::empty()`?
                     let field_type = if has_struct_refs {
                         VType {
                             kind: f.field_type.kind.clone(),
@@ -2326,7 +2320,7 @@ impl<'a> CompileState<'a> {
         }
         self.m
             .command_defs
-            .insert(command_def.identifier.name.clone(), map);
+            .insert(command.identifier.name.clone(), map);
 
         Ok(())
     }
@@ -2661,16 +2655,18 @@ impl<'a> CompileState<'a> {
             ExprKind::Int(v) => Some(Value::Int(*v)),
             ExprKind::Bool(v) => Some(Value::Bool(*v)),
             ExprKind::String(v) => Some(Value::String(v.clone())),
-            ExprKind::NamedStruct(ns) => Some(Value::Struct(Struct {
-                name: ns.identifier.name.clone(),
-                fields: {
-                    let mut value_fields = BTreeMap::new();
-                    for (value, expr) in &ns.fields {
-                        value_fields.insert(value.name.clone(), self.expression_value(expr)?);
-                    }
-                    value_fields
-                },
-            })),
+            ExprKind::NamedStruct(NamedStruct { identifier, fields }) => {
+                Some(Value::Struct(Struct {
+                    name: identifier.name.clone(),
+                    fields: {
+                        let mut value_fields = BTreeMap::new();
+                        for (value, expr) in fields {
+                            value_fields.insert(value.name.clone(), self.expression_value(expr)?);
+                        }
+                        value_fields
+                    },
+                }))
+            }
             ExprKind::EnumReference(e) => self.enum_value(e).ok(),
             _ => None,
         }
@@ -2729,7 +2725,8 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
-        // TODO: Extract ranges from AST nodes with spans instead of using empty vector
+        // TODO(eric): What shouls we use for the codemap's
+        // ranges?
         let codemap = CodeMap::new(&self.policy.text, vec![]);
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
