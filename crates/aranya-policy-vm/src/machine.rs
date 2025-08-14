@@ -517,29 +517,8 @@ where
                 let value = self.scope.get(&key)?;
                 self.ipush(value)?;
             }
-            Instruction::Swap(d) => {
-                if d == 0 {
-                    return Err(self.err(MachineErrorType::InvalidInstruction));
-                }
-                let index1 = self
-                    .stack
-                    .len()
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let index2 = index1
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                self.stack.0.swap(index1, index2);
-            }
-            Instruction::Dup(d) => {
-                let index = self
-                    .stack
-                    .len()
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let v = self.stack.0[index].clone();
+            Instruction::Dup => {
+                let v = self.stack.peek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -617,16 +596,6 @@ where
                     Instruction::Sub => a
                         .checked_sub(b)
                         .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
-                    _ => unreachable!(),
-                };
-                self.ipush(r)?;
-            }
-            Instruction::And | Instruction::Or => {
-                let a = self.ipop()?;
-                let b = self.ipop()?;
-                let r = match instruction {
-                    Instruction::And => a && b,
-                    Instruction::Or => a || b,
                     _ => unreachable!(),
                 };
                 self.ipush(r)?;
