@@ -213,7 +213,7 @@ impl Value {
     /// let value = Value::Int(1);
     /// let int_type = VType {
     ///     kind: TypeKind::Int,
-    ///     span: Span { start: 0, end: 0 }
+    ///     span: Span::empty(),
     /// };
     ///
     /// assert!(value.fits_type(&int_type));
