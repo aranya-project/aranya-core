@@ -144,8 +144,14 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x"),
-            field_type: ast::VType::Int
+            identifier: ast::Ident {
+                name: ident!("x"),
+                span: ast::Span { start: 34, end: 39 }
+            },
+            field_type: ast::VType {
+                kind: ast::TypeKind::Int,
+                span: ast::Span { start: 36, end: 39 }
+            }
         }])
     );
 

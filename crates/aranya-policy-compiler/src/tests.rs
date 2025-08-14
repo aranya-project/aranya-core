@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
+use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Label, LabelType, Module, ModuleData, Value,
@@ -385,9 +385,27 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     let ModuleData::V0(module) = module.data;
 
     let want = BTreeMap::from([
-        (ident!("a"), VType::Int),
-        (ident!("b"), VType::String),
-        (ident!("c"), VType::Bool),
+        (
+            ident!("a"),
+            VType {
+                kind: TypeKind::Int,
+                span: ast::Span { start: 0, end: 0 },
+            },
+        ),
+        (
+            ident!("b"),
+            VType {
+                kind: TypeKind::String,
+                span: ast::Span { start: 0, end: 0 },
+            },
+        ),
+        (
+            ident!("c"),
+            VType {
+                kind: TypeKind::Bool,
+                span: ast::Span { start: 0, end: 0 },
+            },
+        ),
     ]);
     let got = module.command_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
@@ -498,12 +516,24 @@ fn test_autodefine_struct() {
 
     let want = vec![
         FieldDefinition {
-            identifier: ident!("a"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("a"),
+                span: ast::Span { start: 18, end: 23 },
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span { start: 20, end: 23 },
+            },
         },
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span { start: 27, end: 32 },
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span { start: 29, end: 32 },
+            },
         },
     ];
     let got = module.struct_defs.get("Foo").unwrap();
@@ -563,12 +593,24 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
+                    identifier: ast::Ident {
+                        name: ident!("a"),
+                        span: ast::Span { start: 0, end: 0 },
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Int,
+                        span: ast::Span { start: 0, end: 0 },
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
+                    identifier: ast::Ident {
+                        name: ident!("b"),
+                        span: ast::Span { start: 0, end: 0 },
+                    },
+                    field_type: VType {
+                        kind: TypeKind::String,
+                        span: ast::Span { start: 0, end: 0 },
+                    },
                 },
             ],
         ),
@@ -580,16 +622,34 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
+                    identifier: ast::Ident {
+                        name: ident!("a"),
+                        span: ast::Span { start: 0, end: 0 },
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Int,
+                        span: ast::Span { start: 0, end: 0 },
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
+                    identifier: ast::Ident {
+                        name: ident!("b"),
+                        span: ast::Span { start: 0, end: 0 },
+                    },
+                    field_type: VType {
+                        kind: TypeKind::String,
+                        span: ast::Span { start: 0, end: 0 },
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("c"),
-                    field_type: VType::Bool,
+                    identifier: ast::Ident {
+                        name: ident!("c"),
+                        span: ast::Span { start: 0, end: 0 },
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Bool,
+                        span: ast::Span { start: 0, end: 0 },
+                    },
                 },
             ],
         ),
@@ -619,12 +679,24 @@ fn test_effect_with_field_insertion() {
 
     let foo_want = vec![
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span { start: 0, end: 0 },
+            },
+            field_type: VType {
+                kind: TypeKind::Bool,
+                span: ast::Span { start: 0, end: 0 },
+            },
         },
         FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
+            identifier: ast::Ident {
+                name: ident!("s"),
+                span: ast::Span { start: 0, end: 0 },
+            },
+            field_type: VType {
+                kind: TypeKind::String,
+                span: ast::Span { start: 0, end: 0 },
+            },
         },
     ];
     let foo_got = module.struct_defs.get("Foo").unwrap();
@@ -632,16 +704,34 @@ fn test_effect_with_field_insertion() {
 
     let baz_want = vec![
         FieldDefinition {
-            identifier: ident!("i"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("i"),
+                span: ast::Span { start: 0, end: 0 },
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span { start: 0, end: 0 },
+            },
         },
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span { start: 0, end: 0 },
+            },
+            field_type: VType {
+                kind: TypeKind::Bool,
+                span: ast::Span { start: 0, end: 0 },
+            },
         },
         FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
+            identifier: ast::Ident {
+                name: ident!("s"),
+                span: ast::Span { start: 0, end: 0 },
+            },
+            field_type: VType {
+                kind: TypeKind::String,
+                span: ast::Span { start: 0, end: 0 },
+            },
         },
     ];
     let baz_got = module.struct_defs.get("Baz").unwrap();

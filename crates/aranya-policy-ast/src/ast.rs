@@ -5,6 +5,84 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{Identifier, Text};
 
+/// A span representing a range in source text
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Span {
+    /// The start position in the source text
+    pub start: usize,
+    /// The end position in the source text
+    pub end: usize,
+}
+
+impl Span {
+    /// Create a new span
+    pub fn new(start: usize, end: usize) -> Self {
+        debug_assert!(
+            start <= end,
+            "Invalid span: start ({}) must be <= end ({})",
+            start,
+            end
+        );
+        Span { start, end }
+    }
+
+    /// Check if this span contains another span
+    pub fn contains(&self, other: &Span) -> bool {
+        self.start <= other.start && other.end <= self.end
+    }
+
+    /// Merge two spans into one encompassing both
+    /// Takes the minimum start and maximum end to handle any ordering
+    pub fn merge(&self, other: &Span) -> Span {
+        Span::new(self.start.min(other.start), self.end.max(other.end))
+    }
+
+    /// Get the length of the span
+    pub fn len(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Check if span is empty (zero-width)
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+
+    /// Create a span for a single position (zero-width)
+    pub fn point(pos: usize) -> Self {
+        Span::new(pos, pos)
+    }
+}
+
+/// An identifier with source location information
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Ident {
+    /// The identifier name
+    pub name: Identifier,
+    /// The source location of this identifier
+    pub span: Span,
+}
+
+impl Ident {
+    /// Create a new identifier with span
+    pub fn new(name: Identifier, span: Span) -> Self {
+        Ident { name, span }
+    }
+}
+
+impl Deref for Ident {
+    type Target = Identifier;
+
+    fn deref(&self) -> &Self::Target {
+        &self.name
+    }
+}
+
+impl fmt::Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -48,30 +126,6 @@ impl fmt::Display for Version {
     }
 }
 
-/// An AST node with location information
-#[derive(Debug, Clone, PartialEq)]
-pub struct AstNode<T> {
-    /// The AST element contained within
-    pub inner: T,
-    /// The locator for where this AST element occurred in the source text
-    pub locator: usize,
-}
-
-impl<T> AstNode<T> {
-    /// Create a new `AstNode` from a node and locator
-    pub fn new(inner: T, locator: usize) -> AstNode<T> {
-        AstNode { inner, locator }
-    }
-}
-
-impl<T> Deref for AstNode<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
 /// Persistence mode for commands and actions
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Persistence {
@@ -100,7 +154,29 @@ impl Default for Persistence {
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum VType {
+pub struct VType {
+    /// The type kind
+    pub kind: TypeKind,
+    /// The source location of this type
+    pub span: Span,
+}
+
+impl VType {
+    /// Create a new type with span
+    pub fn new(kind: TypeKind, span: Span) -> Self {
+        VType { kind, span }
+    }
+}
+
+impl fmt::Display for VType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+/// The kind of type
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TypeKind {
     /// A character (UTF-8) string
     String,
     /// A byte string
@@ -119,7 +195,7 @@ pub enum VType {
     Optional(Box<VType>),
 }
 
-impl fmt::Display for VType {
+impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::String => write!(f, "string"),
@@ -141,7 +217,7 @@ impl fmt::Display for VType {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     /// the field's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// the field's type
     pub field_type: VType,
 }
@@ -152,22 +228,11 @@ pub struct FieldDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectFieldDefinition {
     /// the field's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// the field's type
     pub field_type: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
-}
-
-/// Convert from EffectFieldDefinition to FieldDefinition, losing the
-/// dynamic information.
-impl From<&EffectFieldDefinition> for FieldDefinition {
-    fn from(value: &EffectFieldDefinition) -> Self {
-        FieldDefinition {
-            identifier: value.identifier.clone(),
-            field_type: value.field_type.clone(),
-        }
-    }
 }
 
 /// Value part of a key/value pair for a fact field.
@@ -185,11 +250,11 @@ pub enum FactField {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// values for the fields of the fact key
-    pub key_fields: Vec<(Identifier, FactField)>,
+    pub key_fields: Vec<(Ident, FactField)>,
     /// values for the fields of the fact value, which can be absent
-    pub value_fields: Option<Vec<(Identifier, FactField)>>,
+    pub value_fields: Option<Vec<(Ident, FactField)>>,
 }
 
 /// A function call with a list of arguments.
@@ -198,7 +263,7 @@ pub struct FactLiteral {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
@@ -207,27 +272,29 @@ pub struct FunctionCall {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields, which are pairs of identifiers and expressions
-    pub fields: Vec<(Identifier, Expression)>,
+    pub fields: Vec<(Ident, Expression)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// list of possible values
-    pub variants: Vec<Identifier>,
+    pub variants: Vec<Ident>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
 /// A reference to an enumeration, e.g. `Color::Red`.
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumReference {
     /// enum name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// name of value inside enum
-    pub value: Identifier,
+    pub value: Ident,
 }
 
 /// How many facts to expect when counting
@@ -279,16 +346,32 @@ pub enum InternalFunction {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForeignFunctionCall {
     /// the function's module name
-    pub module: Identifier,
+    pub module: Ident,
     /// the function's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
 
 /// All of the things which can be in an expression.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
+pub struct Expression {
+    /// The expression kind
+    pub kind: ExprKind,
+    /// The source location of this expression
+    pub span: Span,
+}
+
+impl Expression {
+    /// Create a new expression with span
+    pub fn new(kind: ExprKind, span: Span) -> Self {
+        Expression { kind, span }
+    }
+}
+
+/// The kind of expression
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprKind {
     /// A 64-bit signed integer
     Int(i64),
     /// A text string
@@ -318,7 +401,7 @@ pub enum Expression {
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
     /// expr.expr`
-    Dot(Box<Expression>, Identifier),
+    Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
     Equal(Box<Expression>, Box<Expression>),
     /// `expr` != `expr`
@@ -342,9 +425,9 @@ pub enum Expression {
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
-    Block(Vec<AstNode<Statement>>, Box<Expression>),
+    Block(Vec<Statement>, Box<Expression>),
     /// A substruct expression
-    Substruct(Box<Expression>, Identifier),
+    Substruct(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
 }
@@ -394,7 +477,7 @@ pub struct MatchArm {
     // exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
 }
 
 /// Match a value and execute one possibility out of many
@@ -408,13 +491,13 @@ pub struct MatchStatement {
     pub arms: Vec<MatchArm>,
 }
 
-/// Match statement expression
+/// Match expression
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchExpression {
     /// Value to match against
     pub scrutinee: Expression,
     /// Match arms
-    pub arms: Vec<AstNode<MatchExpressionArm>>,
+    pub arms: Vec<MatchExpressionArm>,
 }
 
 /// A container for a statement or expression
@@ -433,15 +516,17 @@ pub struct MatchExpressionArm {
     pub pattern: MatchPattern,
     /// Expression
     pub expression: Expression,
+    /// Span of this arm
+    pub span: Span,
 }
 
 /// Test a series of conditions and execute the statements for the first true condition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfStatement {
     /// Each `if` and `else if` branch.
-    pub branches: Vec<(Expression, Vec<AstNode<Statement>>)>,
+    pub branches: Vec<(Expression, Vec<Statement>)>,
     /// The `else` branch, if present.
-    pub fallback: Option<Vec<AstNode<Statement>>>,
+    pub fallback: Option<Vec<Statement>>,
 }
 
 /// Iterate over the results of a query, and execute some statements for each one.
@@ -452,7 +537,7 @@ pub struct MapStatement {
     /// Identifier of container struct
     pub identifier: Identifier,
     /// Statements to execute for each fact
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
 }
 
 /// Create a fact
@@ -468,7 +553,7 @@ pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
     /// The value fields are updated to these values
-    pub to: Vec<(Identifier, FactField)>,
+    pub to: Vec<(Ident, FactField)>,
 }
 
 /// Delete a fact
@@ -490,7 +575,23 @@ pub struct ReturnStatement {
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Statement {
+pub struct Statement {
+    /// The statement kind
+    pub kind: StmtKind,
+    /// The source location of this statement
+    pub span: Span,
+}
+
+impl Statement {
+    /// Create a new statement with span
+    pub fn new(kind: StmtKind, span: Span) -> Self {
+        Statement { kind, span }
+    }
+}
+
+/// The kind of statement
+#[derive(Debug, Clone, PartialEq)]
+pub enum StmtKind {
     /// A [LetStatement]
     Let(LetStatement),
     /// A [CheckStatement]
@@ -501,7 +602,7 @@ pub enum Statement {
     If(IfStatement),
     /// A `finish` block containing [Statement]s
     /// Valid only in policy blocks
-    Finish(Vec<AstNode<Statement>>),
+    Finish(Vec<Statement>),
     /// Map over a fact result set
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
@@ -536,6 +637,8 @@ pub struct FactDefinition {
     pub key: Vec<FieldDefinition>,
     /// Types for all of the value fields
     pub value: Vec<FieldDefinition>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// An action definition
@@ -548,7 +651,9 @@ pub struct ActionDefinition {
     /// The arguments to the action
     pub arguments: Vec<FieldDefinition>,
     /// The statements executed when the action is called
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// An effect definition
@@ -558,6 +663,8 @@ pub struct EffectDefinition {
     pub identifier: Identifier,
     /// The fields of the effect and their types
     pub items: Vec<StructItem<EffectFieldDefinition>>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// A struct definition
@@ -567,6 +674,8 @@ pub struct StructDefinition {
     pub identifier: Identifier,
     /// The fields of the struct and their types
     pub items: Vec<StructItem<FieldDefinition>>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// Struct field or insertion reference
@@ -600,13 +709,15 @@ pub struct CommandDefinition {
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
     /// Statements for sealing the command into an envelope
-    pub seal: Vec<AstNode<Statement>>,
+    pub seal: Vec<Statement>,
     /// Statements for opening the command envelope
-    pub open: Vec<AstNode<Statement>>,
+    pub open: Vec<Statement>,
     /// The policy rule statements for this command
-    pub policy: Vec<AstNode<Statement>>,
+    pub policy: Vec<Statement>,
     /// The recall rule statements for this command
-    pub recall: Vec<AstNode<Statement>>,
+    pub recall: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// A function definition
@@ -619,7 +730,9 @@ pub struct FunctionDefinition {
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// A finish function definition. This is slightly different than a
@@ -632,7 +745,9 @@ pub struct FinishFunctionDefinition {
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The finish block statements
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
 /// A globally scopped let statement
@@ -642,10 +757,9 @@ pub struct GlobalLetStatement {
     pub identifier: Identifier,
     /// The variable's value
     pub expression: Expression,
+    /// The source location of this statement
+    pub span: Span,
 }
-
-/// A list of (position, size) pairs for text ranges
-pub type TextRanges = Vec<(usize, usize)>;
 
 /// The policy AST root
 ///
@@ -657,28 +771,25 @@ pub struct Policy {
     /// FFI imports
     pub ffi_imports: Vec<Identifier>,
     /// The policy's fact definitions.
-    pub facts: Vec<AstNode<FactDefinition>>,
+    pub facts: Vec<FactDefinition>,
     /// The policy's action definitions.
-    pub actions: Vec<AstNode<ActionDefinition>>,
+    pub actions: Vec<ActionDefinition>,
     /// The policy's effect definitions.
-    pub effects: Vec<AstNode<EffectDefinition>>,
+    pub effects: Vec<EffectDefinition>,
     /// The policy's struct definitions.
-    pub structs: Vec<AstNode<StructDefinition>>,
+    pub structs: Vec<StructDefinition>,
     /// The policy's enum definitions.
-    pub enums: Vec<AstNode<EnumDefinition>>,
+    pub enums: Vec<EnumDefinition>,
     /// The policy's command definitions.
-    pub commands: Vec<AstNode<CommandDefinition>>,
+    pub commands: Vec<CommandDefinition>,
     /// The policy's function definitions.
-    pub functions: Vec<AstNode<FunctionDefinition>>,
+    pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.
-    pub finish_functions: Vec<AstNode<FinishFunctionDefinition>>,
+    pub finish_functions: Vec<FinishFunctionDefinition>,
     /// The policy's global let statements.
-    pub global_lets: Vec<AstNode<GlobalLetStatement>>,
+    pub global_lets: Vec<GlobalLetStatement>,
     /// The source text
     pub text: String,
-    /// Text ranges for various nodes (start, end)
-    /// Start is also the locator
-    pub ranges: TextRanges,
 }
 
 impl Policy {
@@ -689,5 +800,106 @@ impl Policy {
             text: text.to_owned(),
             ..Default::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_span_new_validation() {
+        // Valid span
+        let span = Span::new(0, 10);
+        assert_eq!(span.start, 0);
+        assert_eq!(span.end, 10);
+
+        // Equal start and end (empty span)
+        let empty = Span::new(5, 5);
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid span")]
+    #[cfg(debug_assertions)]
+    fn test_span_new_invalid() {
+        // This should panic in debug mode
+        Span::new(10, 5);
+    }
+
+    #[test]
+    fn test_span_contains() {
+        let outer = Span::new(0, 100);
+        let inner = Span::new(10, 20);
+        let overlapping = Span::new(50, 150);
+
+        assert!(outer.contains(&inner));
+        assert!(!inner.contains(&outer));
+        assert!(!outer.contains(&overlapping));
+
+        // Test edge cases
+        let same = Span::new(10, 20);
+        assert!(same.contains(&same));
+
+        let point = Span::point(15);
+        assert!(outer.contains(&point));
+        assert!(!point.contains(&outer));
+    }
+
+    #[test]
+    fn test_span_merge() {
+        let span1 = Span::new(10, 20);
+        let span2 = Span::new(30, 40);
+        let merged = span1.merge(&span2);
+
+        assert_eq!(merged.start, 10);
+        assert_eq!(merged.end, 40);
+
+        // Test merge with overlapping spans
+        let span3 = Span::new(15, 35);
+        let merged2 = span1.merge(&span3);
+        assert_eq!(merged2.start, 10);
+        assert_eq!(merged2.end, 35);
+
+        // Test merge order doesn't matter
+        let merged3 = span2.merge(&span1);
+        assert_eq!(merged3, merged);
+
+        // Test merging with self
+        let self_merge = span1.merge(&span1);
+        assert_eq!(self_merge, span1);
+
+        // Test merging points
+        let point1 = Span::point(5);
+        let point2 = Span::point(50);
+        let point_merge = point1.merge(&point2);
+        assert_eq!(point_merge.start, 5);
+        assert_eq!(point_merge.end, 50);
+    }
+
+    #[test]
+    fn test_span_len() {
+        assert_eq!(Span::new(0, 10).len(), 10);
+        assert_eq!(Span::new(5, 5).len(), 0);
+        assert_eq!(Span::new(100, 150).len(), 50);
+
+        // Test with point span
+        assert_eq!(Span::point(42).len(), 0);
+    }
+
+    #[test]
+    fn test_span_is_empty() {
+        assert!(!Span::new(0, 10).is_empty());
+        assert!(Span::new(5, 5).is_empty());
+        assert!(Span::point(100).is_empty());
+    }
+
+    #[test]
+    fn test_span_point() {
+        let point = Span::point(42);
+        assert_eq!(point.start, 42);
+        assert_eq!(point.end, 42);
+        assert!(point.is_empty());
+        assert_eq!(point.len(), 0);
     }
 }

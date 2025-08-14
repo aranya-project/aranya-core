@@ -154,14 +154,37 @@ pub trait TryAsMut<T: ?Sized> {
 impl Value {
     /// Get the [`VType`], if possible.
     pub fn vtype(&self) -> Option<VType> {
+        use aranya_policy_ast::{Span, TypeKind};
+        let span = Span::new(0, 0);
         match self {
-            Value::Int(_) => Some(VType::Int),
-            Value::Bool(_) => Some(VType::Bool),
-            Value::String(_) => Some(VType::String),
-            Value::Bytes(_) => Some(VType::Bytes),
-            Value::Id(_) => Some(VType::Id),
-            Value::Enum(name, _) => Some(VType::Enum(name.to_owned())),
-            Value::Struct(s) => Some(VType::Struct(s.name.clone())),
+            Value::Int(_) => Some(VType {
+                kind: TypeKind::Int,
+                span,
+            }),
+            Value::Bool(_) => Some(VType {
+                kind: TypeKind::Bool,
+                span,
+            }),
+            Value::String(_) => Some(VType {
+                kind: TypeKind::String,
+                span,
+            }),
+            Value::Bytes(_) => Some(VType {
+                kind: TypeKind::Bytes,
+                span,
+            }),
+            Value::Id(_) => Some(VType {
+                kind: TypeKind::Id,
+                span,
+            }),
+            Value::Enum(name, _) => Some(VType {
+                kind: TypeKind::Enum(name.to_owned()),
+                span,
+            }),
+            Value::Struct(s) => Some(VType {
+                kind: TypeKind::Struct(s.name.clone()),
+                span,
+            }),
             _ => None,
         }
     }
@@ -184,20 +207,24 @@ impl Value {
 
     /// Checks to see if a [`Value`] matches some [`VType`]
     /// ```
-    /// use aranya_policy_ast::VType;
+    /// use aranya_policy_ast::{VType, TypeKind, Span};
     /// use aranya_policy_module::Value;
     ///
     /// let value = Value::Int(1);
+    /// let int_type = VType {
+    ///     kind: TypeKind::Int,
+    ///     span: Span { start: 0, end: 0 }
+    /// };
     ///
-    /// assert!(value.fits_type(&VType::Int));
+    /// assert!(value.fits_type(&int_type));
     /// ```
     pub fn fits_type(&self, expected_type: &VType) -> bool {
-        match (self.vtype(), expected_type) {
-            (None, VType::Optional(_)) => true,
+        use aranya_policy_ast::TypeKind;
+        match (self.vtype(), &expected_type.kind) {
+            (None, TypeKind::Optional(_)) => true,
             (None, _) => false,
-            (Some(VType::Optional(_)), _) => unreachable!(),
-            (Some(left), VType::Optional(inner)) => left == **inner,
-            (Some(left), right) => left == *right,
+            (Some(vtype), TypeKind::Optional(inner)) => vtype.kind == inner.kind,
+            (Some(vtype), kind) => vtype.kind == *kind,
         }
     }
 }
@@ -541,12 +568,29 @@ impl HashableValue {
     /// Get the ast:::Vtype. Unlike the Value version, this cannot
     /// fail.
     pub fn vtype(&self) -> VType {
+        use aranya_policy_ast::{Span, TypeKind};
+        let span = Span::new(0, 0);
         match self {
-            HashableValue::Int(_) => VType::Int,
-            HashableValue::Bool(_) => VType::Bool,
-            HashableValue::String(_) => VType::String,
-            HashableValue::Id(_) => VType::Id,
-            HashableValue::Enum(id, _) => VType::Enum(id.clone()),
+            HashableValue::Int(_) => VType {
+                kind: TypeKind::Int,
+                span,
+            },
+            HashableValue::Bool(_) => VType {
+                kind: TypeKind::Bool,
+                span,
+            },
+            HashableValue::String(_) => VType {
+                kind: TypeKind::String,
+                span,
+            },
+            HashableValue::Id(_) => VType {
+                kind: TypeKind::Id,
+                span,
+            },
+            HashableValue::Enum(id, _) => VType {
+                kind: TypeKind::Enum(id.clone()),
+                span,
+            },
         }
     }
 }

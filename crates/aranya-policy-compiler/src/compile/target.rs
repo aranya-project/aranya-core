@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, FieldDefinition, Identifier, VType};
 use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
 use ast::FactDefinition;
 use indexmap::IndexMap;
@@ -19,15 +19,15 @@ pub struct CompileTarget {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, Vec<FieldDefinition>>,
     /// Command definitions (`fields`)
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, VType>>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
     pub effects: BTreeSet<Identifier>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, Vec<FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Command attributes

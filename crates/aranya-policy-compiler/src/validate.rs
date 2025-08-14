@@ -14,13 +14,12 @@ pub fn validate(module: &Module) -> bool {
         let mut predefined_names = vec![];
         match l.ltype {
             LabelType::Action => {
-                let mut function_args = m
+                let mut function_args: Vec<Identifier> = m
                     .action_defs
                     .get(&l.name)
                     .expect("no action")
                     .iter()
-                    .map(|fd| &fd.identifier)
-                    .cloned()
+                    .map(|fd| fd.identifier.name.clone())
                     .collect();
                 predefined_names.append(&mut function_args);
             }

@@ -70,7 +70,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let token = pairs.next().context("No tokens")?;
 
             let pratt = get_pratt_parser();
-            let mut p = ChunkParser::new(0, &pratt);
+            let mut p = ChunkParser::new(0, &pratt, s.len());
             let ast = p.parse_expression(token)?;
 
             Ok(format!("{:#?}", ast))
