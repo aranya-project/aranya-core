@@ -11,7 +11,7 @@ use core::{fmt, ops::Deref};
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Address, Command, CommandId, PolicyId, Prior};
+use crate::{Address, Command, CmdId, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
@@ -87,7 +87,7 @@ pub enum StorageError {
     #[error("not a merge command")]
     NotMerge,
     #[error("command with id {0} not found")]
-    NoSuchId(CommandId),
+    NoSuchId(CmdId),
     #[error("policy mismatch")]
     PolicyMismatch,
     #[error("cannot write an empty perspective")]
@@ -195,8 +195,8 @@ pub trait Storage {
         Ok(None)
     }
 
-    /// Returns the CommandId of the command at the location.
-    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError>;
+    /// Returns the CmdId of the command at the location.
+    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError>;
 
     /// Returns a linear perspective at the given location.
     fn get_linear_perspective(
@@ -367,7 +367,7 @@ pub trait Perspective: FactPerspective {
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
-    fn includes(&self, id: CommandId) -> bool;
+    fn includes(&self, id: CmdId) -> bool;
 
     /// Returns the head address in the perspective, if it exists
     fn head_address(&self) -> Result<Prior<Address>, Bug>;

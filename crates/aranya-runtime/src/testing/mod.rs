@@ -12,13 +12,13 @@ use alloc::{
     string::{String, ToString},
 };
 
-/// Derives a [`CommandId`] from some data.
-pub fn hash_for_testing_only(data: &[u8]) -> crate::CommandId {
+/// Derives a [`CmdId`] from some data.
+pub fn hash_for_testing_only(data: &[u8]) -> crate::CmdId {
     use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash, rust::Sha256};
     Sha256::hash(data).into_array().into()
 }
 
-pub fn short_b58(id: crate::CommandId) -> String {
+pub fn short_b58(id: crate::CmdId) -> String {
     #![allow(clippy::arithmetic_side_effects)]
     let b58 = id.to_string();
     let trimmed = b58.trim_start_matches('1');

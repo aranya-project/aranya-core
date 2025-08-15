@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Address, Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys,
+    Address, Checkpoint, Command, CmdId, Fact, FactIndex, FactPerspective, GraphId, Keys,
     Location, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
     Storage, StorageError, StorageProvider,
 };
@@ -87,7 +87,7 @@ struct SegmentRepr {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CommandData {
-    id: CommandId,
+    id: CmdId,
     priority: Priority,
     policy: Option<Bytes>,
     data: Bytes,
@@ -95,7 +95,7 @@ struct CommandData {
 }
 
 pub struct LinearCommand<'a> {
-    id: &'a CommandId,
+    id: &'a CmdId,
     parent: Prior<Address>,
     priority: Priority,
     policy: Option<&'a [u8]>,
@@ -397,7 +397,7 @@ impl<F: Write> Storage for LinearStorage<F> {
     type Segment = LinearSegment<F::ReadOnly>;
     type FactIndex = LinearFactIndex<F::ReadOnly>;
 
-    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError> {
+    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError> {
         let seg = self.get_segment(location)?;
         let cmd = seg
             .get_command(location)
@@ -1102,7 +1102,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         Ok(self.commands.len())
     }
 
-    fn includes(&self, id: CommandId) -> bool {
+    fn includes(&self, id: CmdId) -> bool {
         self.commands.iter().any(|cmd| cmd.id == id)
     }
 
@@ -1123,7 +1123,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
     }
 }
 
-impl From<Prior<Address>> for Prior<CommandId> {
+impl From<Prior<Address>> for Prior<CmdId> {
     fn from(p: Prior<Address>) -> Self {
         match p {
             Prior::None => Prior::None,
@@ -1138,7 +1138,7 @@ impl Command for LinearCommand<'_> {
         self.priority.clone()
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         *self.id
     }
 

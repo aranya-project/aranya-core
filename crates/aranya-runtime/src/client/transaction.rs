@@ -5,7 +5,7 @@ use buggy::{BugExt, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
+    Address, ClientError, Command, CmdId, CommandRecall, Engine, EngineError, GraphId,
     Location, MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable,
     Segment, Sink, Storage, StorageError, StorageProvider,
 };
@@ -22,7 +22,7 @@ pub struct Transaction<SP: StorageProvider, E> {
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
-    phead: Option<CommandId>,
+    phead: Option<CmdId>,
     /// Written but not committed heads
     heads: BTreeMap<Address, Location>,
     /// Tag for associated engine
@@ -461,7 +461,7 @@ mod test {
     struct SeqPolicy;
 
     struct SeqCommand {
-        id: CommandId,
+        id: CmdId,
         prior: Prior<Address>,
         finalize: bool,
         data: Box<str>,
@@ -550,7 +550,7 @@ mod test {
     }
 
     impl SeqCommand {
-        fn new(id: CommandId, prior: Prior<Address>, max_cut: usize) -> Self {
+        fn new(id: CmdId, prior: Prior<Address>, max_cut: usize) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
@@ -561,7 +561,7 @@ mod test {
             }
         }
 
-        fn finalize(id: CommandId, prev: Address, max_cut: usize) -> Self {
+        fn finalize(id: CmdId, prev: Address, max_cut: usize) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
@@ -591,7 +591,7 @@ mod test {
             }
         }
 
-        fn id(&self) -> CommandId {
+        fn id(&self) -> CmdId {
             self.id
         }
 
@@ -630,13 +630,13 @@ mod test {
     struct GraphBuilder<SP: StorageProvider> {
         client: ClientState<SeqEngine, SP>,
         trx: Transaction<SP, SeqEngine>,
-        max_cuts: HashMap<CommandId, usize>,
+        max_cuts: HashMap<CmdId, usize>,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
         pub fn init(
             mut client: ClientState<SeqEngine, SP>,
-            ids: &[CommandId],
+            ids: &[CmdId],
         ) -> Result<Self, ClientError> {
             let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
             let mut prior: Prior<Address> = Prior::None;
@@ -659,14 +659,14 @@ mod test {
             })
         }
 
-        fn get_addr(&self, id: CommandId) -> Address {
+        fn get_addr(&self, id: CmdId) -> Address {
             Address {
                 id,
                 max_cut: self.max_cuts[&id],
             }
         }
 
-        pub fn line(&mut self, prev: CommandId, ids: &[CommandId]) -> Result<(), ClientError> {
+        pub fn line(&mut self, prev: CmdId, ids: &[CmdId]) -> Result<(), ClientError> {
             let mut prev = self.get_addr(prev);
             for &id in ids {
                 let max_cut = prev.max_cut.checked_add(1).unwrap();
@@ -683,7 +683,7 @@ mod test {
             Ok(())
         }
 
-        pub fn finalize(&mut self, prev: CommandId, id: CommandId) -> Result<(), ClientError> {
+        pub fn finalize(&mut self, prev: CmdId, id: CmdId) -> Result<(), ClientError> {
             let prev = self.get_addr(prev);
             let max_cut = prev.max_cut.checked_add(1).unwrap();
             let cmd = SeqCommand::finalize(id, prev, max_cut);
@@ -699,8 +699,8 @@ mod test {
 
         pub fn merge(
             &mut self,
-            (left, right): (CommandId, CommandId),
-            ids: &[CommandId],
+            (left, right): (CmdId, CmdId),
+            ids: &[CmdId],
         ) -> Result<(), ClientError> {
             let prior = Prior::Merge(self.get_addr(left), self.get_addr(right));
             let mergecmd = SeqCommand::new(ids[0], prior, prior.next_max_cut().unwrap());

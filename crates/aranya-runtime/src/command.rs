@@ -1,9 +1,8 @@
+pub use aranya_crypto::policy::CmdId;
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
-
-pub type CommandId = aranya_crypto::policy::CmdId;
 
 /// Identify how the client will sort the associated [`Command`].
 // Note: Order of variants affects derived Ord: Merge is least and Init is greatest.
@@ -37,7 +36,7 @@ pub trait Command {
     fn priority(&self) -> Priority;
 
     /// Uniquely identifies the serialized command.
-    fn id(&self) -> CommandId;
+    fn id(&self) -> CmdId;
 
     /// Return this command's parents, or address(s) that immediately
     /// precede(s) this.
@@ -76,7 +75,7 @@ impl<C: Command> Command for &C {
         (*self).priority()
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         (*self).id()
     }
 
@@ -108,7 +107,7 @@ impl<C: Command> Command for &C {
 /// The command id identifies the command you're searching for and the
 /// max_cut allows that command to be found efficiently.
 pub struct Address {
-    pub id: CommandId,
+    pub id: CmdId,
     pub max_cut: usize,
 }
 

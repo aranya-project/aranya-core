@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
+    Address, Command, CmdId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
     MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
     testing::hash_for_testing_only,
 };
@@ -40,7 +40,7 @@ pub enum WireProtocol {
 
 #[derive(Debug, Clone)]
 pub struct TestProtocol<'a> {
-    id: CommandId,
+    id: CmdId,
     command: WireProtocol,
     data: &'a [u8],
 }
@@ -54,7 +54,7 @@ impl Command for TestProtocol<'_> {
         }
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         self.id
     }
 
@@ -305,7 +305,7 @@ impl Policy for TestPolicy {
     ) -> Result<(), EngineError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
-                id: CommandId::default(),
+                id: CmdId::default(),
                 max_cut: 0,
             },
             Prior::Single(id) => id,

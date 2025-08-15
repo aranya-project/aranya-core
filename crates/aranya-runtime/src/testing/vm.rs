@@ -10,7 +10,7 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CommandId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
+    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
     VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     engine::{Engine, EngineError, PolicyId, Sink},
     ser_keys,
@@ -583,7 +583,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     cs1.action(storage_id, &mut sink, vm_action!(create_action(1)))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
-    assert_ne!(sink.last().command, CommandId::default());
+    assert_ne!(sink.last().command, CmdId::default());
     assert!(!sink.last().recalled);
     sink.clear();
 

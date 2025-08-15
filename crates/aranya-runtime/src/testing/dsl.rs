@@ -66,7 +66,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CommandId, EngineError,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CmdId, EngineError,
     GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
     StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
@@ -828,7 +828,7 @@ where
 }
 
 /// Walk the graph and yield all visited IDs.
-fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
+fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
     let mut visited = BTreeSet::new();
     let mut stack = vec![storage.get_head().unwrap()];
     let mut segment = None;

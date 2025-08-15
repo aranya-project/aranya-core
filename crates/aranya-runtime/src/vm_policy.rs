@@ -129,7 +129,7 @@ use tracing::{error, info, instrument};
 
 use crate::{
     CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
-    command::{Command, CommandId},
+    command::{Command, CmdId},
     engine::{EngineError, NullSink, Policy, Sink},
 };
 
@@ -453,7 +453,7 @@ pub struct VmEffect {
     /// The fields of the effect.
     pub fields: Vec<KVPair>,
     /// The command ID that produced this effect
-    pub command: CommandId,
+    pub command: CmdId,
     /// Was this produced from a recall block?
     pub recalled: bool,
 }
@@ -519,7 +519,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 } => (
                     Some((
                         Envelope {
-                            parent_id: CommandId::default(),
+                            parent_id: CmdId::default(),
                             author_id,
                             command_id: command.id(),
                             payload: Cow::Borrowed(serialized_fields),
@@ -578,7 +578,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 name: kind.clone(),
                 id: command.id().into_id().into(),
                 author: author_id,
-                version: CommandId::default().into(),
+                version: CmdId::default().into(),
             });
             self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
         }
