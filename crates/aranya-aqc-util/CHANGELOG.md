@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.6.0...aranya-aqc-util-v0.7.0) - 2025-08-04
+
+### Other
+
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.5.0...aranya-aqc-util-v0.6.0) - 2025-06-18
 
 ### Other
