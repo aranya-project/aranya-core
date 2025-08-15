@@ -464,6 +464,41 @@ fn test_fact_query() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_invalid_update() -> anyhow::Result<()> {
+    let policy = parse_policy_str(POLICY_INVALID_UPDATE.trim(), Version::V2)?;
+
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let mut machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+
+    {
+        let name = ident!("Set");
+        let ctx = dummy_ctx_policy(name.clone());
+        let self_struct = Struct::new(name.clone(), [KVPair::new_int(ident!("a"), 10)]);
+        machine
+            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+            .success();
+
+        let name = ident!("Increment");
+        let ctx = dummy_ctx_policy(name.clone());
+        let self_struct = Struct::new(name.clone(), &[]);
+        let err = machine
+            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)
+            .unwrap_err();
+
+        assert!(matches!(err.err_type, MachineErrorType::InvalidFact(_)));
+    }
+
+    let fk = (ident!("Foo"), vec![]);
+    let fv = vec![FactValue::new(ident!("x"), Value::Int(10))];
+    assert_eq!(io.borrow().facts[&fk], fv);
+
+    Ok(())
+}
+
+#[test]
 fn test_fact_exists() -> anyhow::Result<()> {
     let text = r#"
     enum Bool {
