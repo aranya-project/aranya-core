@@ -19,7 +19,7 @@ use tracing::warn;
 use yoke::{Yoke, Yokeable};
 
 use crate::{
-    Address, Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
+    Address, Checkpoint, ClientError, ClientState, Command, CmdId, CommandRecall, Engine, Fact,
     FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
     Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
 };
@@ -160,7 +160,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 struct SessionCommand<'a> {
     storage_id: GraphId,
     priority: u32, // Priority::Basic
-    id: CommandId,
+    id: CmdId,
     parent: Address, // Prior::Single
     #[serde(borrow)]
     data: &'a [u8],
@@ -171,7 +171,7 @@ impl Command for SessionCommand<'_> {
         Priority::Basic(self.priority)
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         self.id
     }
 
@@ -414,7 +414,7 @@ where
         Ok(0)
     }
 
-    fn includes(&self, _id: CommandId) -> bool {
+    fn includes(&self, _id: CmdId) -> bool {
         debug_assert!(false, "only used in transactions");
 
         false

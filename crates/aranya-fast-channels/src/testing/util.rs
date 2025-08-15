@@ -11,7 +11,7 @@ use std::{
 };
 
 use aranya_crypto::{
-    CipherSuite, EncryptionKey, Engine, Id, IdentityKey,
+    CipherSuite, EncryptionKey, Engine, IdentityKey,
     afc::{BidiChannel, BidiKeys, BidiSecrets, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
@@ -27,6 +27,7 @@ use aranya_crypto::{
         typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
     },
     default::{DefaultCipherSuite, DefaultEngine},
+    policy::CmdId,
     test_util::TestCs,
 };
 
@@ -326,7 +327,7 @@ where
 
         let (author_keys, peer_keys) = {
             let author_cfg = BidiChannel {
-                parent_cmd_id: Id::random(eng),
+                parent_cmd_id: CmdId::random(eng),
                 our_sk: &author.enc_sk,
                 our_id: author.ident_sk.public().unwrap().id().unwrap(),
                 their_pk: &peer.enc_sk.public().unwrap(),
@@ -379,7 +380,7 @@ where
 
         let (seal_key, open_key) = {
             let seal_cfg = UniChannel {
-                parent_cmd_id: Id::random(eng),
+                parent_cmd_id: CmdId::random(eng),
                 our_sk: &seal.enc_sk,
                 their_pk: &open.enc_sk.public().unwrap(),
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),

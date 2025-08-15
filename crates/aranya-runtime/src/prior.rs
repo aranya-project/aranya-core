@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Refer to immediately prior commands in a graph, usually via `Prior<CommandId>` or `Prior<Location>`.
+/// Refer to immediately prior commands in a graph, usually via `Prior<CmdId>` or `Prior<Location>`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Prior<T> {
     /// No parents (init command)

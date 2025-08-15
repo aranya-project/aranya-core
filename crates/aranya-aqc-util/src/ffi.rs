@@ -9,20 +9,18 @@ use alloc::vec::Vec;
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    policy,
+    policy::{self, CmdId, LabelId},
 };
 use aranya_policy_vm::{
-    CommandContext, MachineError, MachineErrorType, MachineIOError, Text, Typed, Value,
-    ValueConversionError,
-    ffi::{Type, ffi},
+    CommandContext, MachineError, MachineErrorType, MachineIOError, Text, ffi::ffi,
 };
 use buggy::Bug;
 use spin::Mutex;
 
-use crate::shared::{LabelId, decode_enc_pk};
+use crate::shared::decode_enc_pk;
 
 /// Wraps `tracing::error` to always use the `aqc-ffi` target.
 macro_rules! error {
@@ -108,7 +106,7 @@ function create_bidi_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: CmdId,
         our_enc_key_id: EncryptionKeyId,
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
@@ -130,7 +128,7 @@ function create_bidi_channel(
             our_id,
             their_pk,
             their_id,
-            label: label_id.into(),
+            label: label_id,
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
@@ -162,7 +160,7 @@ function create_uni_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
         seal_id: DeviceId,
@@ -184,7 +182,7 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label: label_id.into(),
+            label: label_id,
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
@@ -212,13 +210,13 @@ function label_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        cmd_id: Id,
+        cmd_id: CmdId,
         name: Text,
     ) -> Result<LabelId, Infallible> {
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::label_id::<E::CS>(cmd_id.into(), &name, policy_id)
+        let id = policy::label_id::<E::CS>(cmd_id, &name, policy_id)
             .into_id()
             .into();
         Ok(id)
@@ -279,24 +277,5 @@ impl From<Bug> for FfiError {
     #[inline]
     fn from(bug: Bug) -> Self {
         Self::Bug(bug)
-    }
-}
-
-impl Typed for LabelId {
-    const TYPE: Type<'static> = Type::Id;
-}
-
-impl TryFrom<Value> for LabelId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let id: Id = value.try_into()?;
-        Ok(LabelId::from(id))
-    }
-}
-
-impl From<LabelId> for Value {
-    fn from(id: LabelId) -> Value {
-        Value::Id(id.into())
     }
 }

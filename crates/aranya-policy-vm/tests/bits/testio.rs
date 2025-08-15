@@ -6,8 +6,9 @@ use std::{
 };
 
 use aranya_crypto::{
-    Id, Rng,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    policy::CmdId,
 };
 use aranya_policy_ast::Identifier;
 use aranya_policy_vm::{
@@ -118,7 +119,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        _command: Id,
+        _command: CmdId,
         _recalled: bool,
     ) {
         let mut fields: Vec<_> = fields.into_iter().collect();

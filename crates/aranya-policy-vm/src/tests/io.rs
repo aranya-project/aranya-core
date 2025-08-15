@@ -3,8 +3,9 @@ use alloc::collections::{BTreeMap, btree_map};
 use core::{cell::RefCell, fmt, ops::DerefMut};
 
 use aranya_crypto::{
-    Id, Rng,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    policy::CmdId,
 };
 use aranya_policy_ast::Identifier;
 
@@ -111,7 +112,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        _command: Id,
+        _command: CmdId,
         _recalled: bool,
     ) {
         let mut fields: Vec<_> = fields.into_iter().collect();

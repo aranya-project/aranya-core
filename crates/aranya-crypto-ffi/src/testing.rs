@@ -8,6 +8,7 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     Csprng, DeviceId, Engine, Id, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
+    policy::CmdId,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
@@ -78,7 +79,7 @@ where
 {
     const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
         name: ident!("dummy"),
-        head_id: Id::default(),
+        head_id: CmdId::default(),
     });
 
     const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
@@ -116,9 +117,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command.clone(),
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect("`crypto::verify` should not fail");
@@ -164,9 +165,9 @@ where
             &Self::OPEN_CTX,
             &mut eng,
             pk,
-            Id::default(),
+            CmdId::default(),
             command,
-            command_id,
+            command_id.into(),
             signature,
         )
         .expect_err("`crypto::verify` should fail");
@@ -209,9 +210,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -227,7 +228,7 @@ where
     pub fn test_verify_reject_different_cmd_name(mut eng: E, mut store: S) {
         const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
             name: ident!("foo"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
@@ -264,9 +265,9 @@ where
                 &OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -296,7 +297,7 @@ where
 
         let seal_ctx = CommandContext::Seal(SealContext {
             name: ident!("dummy"),
-            head_id: Id::random(&mut eng),
+            head_id: CmdId::random(&mut eng),
         });
         let Signed {
             signature,
@@ -318,9 +319,9 @@ where
                 &open_ctx,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -367,9 +368,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -398,20 +399,20 @@ where
         for ctx in &[
             CommandContext::Action(ActionContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: CmdId::default(),
             }),
             CommandContext::Open(OpenContext {
                 name: ident!("dummy"),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
@@ -460,21 +461,21 @@ where
         for ctx in &[
             CommandContext::Action(ActionContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: CmdId::default(),
             }),
             CommandContext::Seal(SealContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: CmdId::default(),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
@@ -484,9 +485,9 @@ where
                     ctx,
                     &mut eng,
                     pk.clone(),
-                    Id::default(),
+                    CmdId::default(),
                     command.clone(),
-                    command_id,
+                    command_id.into(),
                     signature.clone(),
                 )
                 .expect_err("`crypto::verify` should fail");

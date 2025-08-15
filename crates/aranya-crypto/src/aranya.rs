@@ -21,9 +21,8 @@ use crate::{
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
     hpke::{self, Mode},
-    id::Id,
     misc::{SigData, kem_key, signing_key},
-    policy::{self, Cmd, CmdId},
+    policy::{self, Cmd, CmdId, GroupId},
 };
 
 /// A signature created by a signing key.
@@ -241,8 +240,8 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
+    ///     policy::CmdId,
     ///     Cmd,
-    ///     Id,
     ///     Rng,
     ///     SigningKey,
     /// };
@@ -251,7 +250,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///
     /// let data = b"... some command data ...";
     /// let name = "AddDevice";
-    /// let parent_id = &Id::random(&mut Rng);
+    /// let parent_id = &CmdId::random(&mut Rng);
     ///
     /// let good_cmd = Cmd { data, name, parent_id };
     /// let (sig, _) = sk.sign_cmd(good_cmd)
@@ -270,7 +269,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_id_cmd = Cmd {
     ///     data,
     ///     name,
-    ///     parent_id: &Id::random(&mut Rng),
+    ///     parent_id: &CmdId::random(&mut Rng),
     /// };
     /// sk.public().expect("signing key should be valid").verify_cmd(wrong_id_cmd, &sig)
     ///     .expect_err("should fail");
@@ -278,7 +277,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_sig_cmd = Cmd {
     ///     data: b"different",
     ///     name: "signature",
-    ///     parent_id: &Id::random(&mut Rng),
+    ///     parent_id: &CmdId::random(&mut Rng),
     /// };
     /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd)
     ///     .expect("should not fail");
@@ -336,7 +335,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         &self,
         enc: &Encap<CS>,
         ciphertext: EncryptedGroupKey<CS>,
-        group: Id,
+        group: GroupId,
     ) -> Result<GroupKey<CS>, Error> {
         let EncryptedGroupKey {
             mut ciphertext,
@@ -362,7 +361,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
 struct GroupKeyInfo {
     /// Always "GroupKey-v1".
     domain: [u8; 11],
-    group: Id,
+    group: GroupId,
 }
 
 impl<CS: CipherSuite> EncryptionPublicKey<CS> {
@@ -373,7 +372,7 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
         &self,
         rng: &mut R,
         key: &GroupKey<CS>,
-        group: Id,
+        group: GroupId,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
         // info = concat(
         //     "GroupKey-v1",

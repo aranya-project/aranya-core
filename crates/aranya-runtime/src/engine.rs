@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address,
-    command::{Command, CommandId},
+    command::{Command, CmdId},
     storage::{FactPerspective, Perspective},
 };
 
@@ -104,8 +104,8 @@ impl MergeIds {
     }
 }
 
-impl From<MergeIds> for (CommandId, CommandId) {
-    /// Convert [`MergeIds`] into an ordered pair of [`CommandId`]s.
+impl From<MergeIds> for (CmdId, CmdId) {
+    /// Convert [`MergeIds`] into an ordered pair of [`CmdId`]s.
     fn from(value: MergeIds) -> Self {
         (value.left.id, value.right.id)
     }
