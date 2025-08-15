@@ -2054,7 +2054,7 @@ fn test_struct_composition_global_let_and_command_attributes() {
         struct Foo {
             x int,
             y int
-        }
+        }  
 
         let foo = Foo { x: 10, y: 20 }
         let foo2 = Foo { x: 1000, ...foo }

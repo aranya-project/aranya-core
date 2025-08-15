@@ -2517,6 +2517,8 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Add field to resolved struct from source.
+
+                // Foo {x: 0, ...bar } -> Foo -> {x: 0, y: bar.y }
                 resolved_struct.fields.push((
                     src_field_defn.identifier.clone(),
                     Expression::Dot(
