@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 use core::convert::Infallible;
 
-use aranya_crypto::DeviceId;
+use aranya_crypto::{DeviceId, policy::CmdId};
 use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
 use buggy::{BugExt, bug};
 
@@ -41,7 +41,7 @@ impl TestFfiEnvelope {
     ) -> Result<Envelope, MachineError> {
         #[derive(serde::Serialize)]
         struct HashedFields<'a> {
-            parent_id: CommandId,
+            parent_id: CmdId,
             author_id: DeviceId,
             payload: &'a [u8],
         }
@@ -50,7 +50,7 @@ impl TestFfiEnvelope {
             bug!("envelope::do_seal called outside seal context");
         };
 
-        let parent_id = ctx.head_id.into();
+        let parent_id = ctx.head_id;
         let author_id = self.device;
 
         let data = postcard::to_allocvec(&HashedFields {

@@ -83,7 +83,7 @@ where
 {
     const CTX: CommandContext = CommandContext::Policy(PolicyContext {
         name: ident!("dummy"),
-        id: Id::default(),
+        id: CmdId::default(),
         author: DeviceId::default(),
         version: Id::default(),
     });
@@ -136,7 +136,7 @@ where
         let ffi = Ffi::new(store);
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
         let ctx = &Self::CTX;
 
@@ -183,7 +183,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let mut ciphertext = ffi
@@ -232,7 +232,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let ciphertext = ffi
@@ -248,7 +248,7 @@ where
 
         let ctx = CommandContext::Policy(PolicyContext {
             name: ident!("different_name"),
-            id: Id::default(),
+            id: CmdId::default(),
             author: DeviceId::default(),
             version: Id::default(),
         });
@@ -287,7 +287,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::random(&mut eng),
+            head_id: CmdId::random(&mut eng),
         });
 
         let ciphertext = ffi
@@ -337,7 +337,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let ciphertext = ffi

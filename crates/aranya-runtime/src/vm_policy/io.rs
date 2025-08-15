@@ -6,7 +6,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::{Id, policy::CmdId};
 use aranya_policy_vm::{
     CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
@@ -133,7 +133,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        command: Id,
+        command: CmdId,
         recalled: bool,
     ) {
         let fields: Vec<_> = fields.into_iter().collect();
@@ -143,7 +143,7 @@ where
             .consume(VmEffect {
                 name,
                 fields,
-                command: command.into(),
+                command: command.into_id().into(),
                 recalled,
             });
     }

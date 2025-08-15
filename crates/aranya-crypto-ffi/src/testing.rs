@@ -79,7 +79,7 @@ where
 {
     const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
         name: ident!("dummy"),
-        head_id: Id::default(),
+        head_id: CmdId::default(),
     });
 
     const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
@@ -228,7 +228,7 @@ where
     pub fn test_verify_reject_different_cmd_name(mut eng: E, mut store: S) {
         const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
             name: ident!("foo"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
@@ -297,7 +297,7 @@ where
 
         let seal_ctx = CommandContext::Seal(SealContext {
             name: ident!("dummy"),
-            head_id: Id::random(&mut eng),
+            head_id: CmdId::random(&mut eng),
         });
         let Signed {
             signature,
@@ -399,20 +399,20 @@ where
         for ctx in &[
             CommandContext::Action(ActionContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: CmdId::default(),
             }),
             CommandContext::Open(OpenContext {
                 name: ident!("dummy"),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
@@ -461,21 +461,21 @@ where
         for ctx in &[
             CommandContext::Action(ActionContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: CmdId::default(),
             }),
             CommandContext::Seal(SealContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: CmdId::default(),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: CmdId::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),

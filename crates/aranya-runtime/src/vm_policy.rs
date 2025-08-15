@@ -576,7 +576,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 .collect();
             let ctx = CommandContext::Policy(PolicyContext {
                 name: kind.clone(),
-                id: command.id().into(),
+                id: command.id().into_id().into(),
                 author: author_id,
                 version: CommandId::default().into(),
             });
@@ -607,7 +607,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent.id.into(),
+            head_id: ctx_parent.id.into_id().into(),
         });
         {
             let mut rs = self.machine.create_run_state(&io, ctx);
@@ -710,7 +710,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        rs.update_context_with_new_head(new_command.id().into())?;
+                        rs.update_context_with_new_head(new_command.id().into_id().into())?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {

@@ -131,7 +131,7 @@ function sign(
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,
             name: ctx.name.as_str(),
-            parent_id: &ctx.head_id.into(),
+            parent_id: &ctx.head_id,
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),

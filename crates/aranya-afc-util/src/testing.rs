@@ -395,7 +395,7 @@ where
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     // This is called via FFI.
@@ -501,7 +501,7 @@ where
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     // This is called via FFI.
@@ -609,7 +609,7 @@ where
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     // This is called via FFI.

@@ -233,7 +233,7 @@ function encrypt_message(
 
         let ctx = Context {
             label: label.as_str(),
-            parent: ctx.head_id.into(),
+            parent: ctx.head_id,
             author_sign_pk: &our_sign_pk,
         };
         let mut ciphertext = {

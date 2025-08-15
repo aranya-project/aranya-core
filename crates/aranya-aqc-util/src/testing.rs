@@ -382,7 +382,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     // This is called via FFI.
@@ -471,7 +471,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniSendOnlyChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     // This is called via FFI.
@@ -562,7 +562,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniRecvOnlyChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     // This is called via FFI.
@@ -656,7 +656,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
             let parent_cmd_id = CmdId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
-                head_id: parent_cmd_id.into_id(),
+                head_id: parent_cmd_id,
             });
 
             // This is called via FFI.
@@ -754,7 +754,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id.into_id(),
+        head_id: parent_cmd_id,
     });
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
@@ -868,7 +868,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
             let parent_cmd_id = CmdId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
-                head_id: parent_cmd_id.into_id(),
+                head_id: parent_cmd_id,
             });
 
             // This is called via FFI.
