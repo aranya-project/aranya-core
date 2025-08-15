@@ -4,9 +4,11 @@ use std::{
 };
 
 use aranya_policy_ast::{self as ast, Identifier};
-use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
+use aranya_policy_module::{
+    ActionDef, CodeMap, CommandDef, EnumDef, Instruction, Label, Module, ModuleData, ModuleV0,
+    StructDef, Value,
+};
 use ast::FactDefinition;
-use indexmap::IndexMap;
 
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
@@ -19,19 +21,17 @@ pub struct CompileTarget {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, ActionDef>,
     /// Command definitions (`fields`)
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: BTreeMap<Identifier, CommandDef>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
     pub effects: BTreeSet<Identifier>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, StructDef>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
+    pub enum_defs: BTreeMap<Identifier, EnumDef>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -50,7 +50,6 @@ impl CompileTarget {
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -58,13 +57,6 @@ impl CompileTarget {
 
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
-        // Convert enum defs IndexMap into BTreeMap.
-        let enum_defs = self
-            .enum_defs
-            .into_iter()
-            .map(|(k, v)| (k, v.into_iter().collect()))
-            .collect::<BTreeMap<_, _>>();
-
         Module {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
@@ -73,8 +65,7 @@ impl CompileTarget {
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
-                enum_defs,
-                command_attributes: self.command_attributes,
+                enum_defs: self.enum_defs,
                 codemap: self.codemap,
                 globals: self.globals,
             }),
