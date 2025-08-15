@@ -446,7 +446,11 @@ mod test {
     use test_log::test;
 
     use super::*;
-    use crate::{ClientState, Keys, MergeIds, Priority, memory::MemStorageProvider};
+    use crate::{
+        ClientState, Keys, MergeIds, Priority,
+        memory::MemStorageProvider,
+        testing::{hash_for_testing_only, short_b58},
+    };
 
     struct SeqEngine;
 
@@ -532,7 +536,7 @@ mod test {
         ) -> Result<Self::Command<'a>, EngineError> {
             let (left, right): (Address, Address) = ids.into();
             let parents = [*left.id.as_array(), *right.id.as_array()];
-            let id = CommandId::hash_for_testing_only(parents.as_flattened());
+            let id = hash_for_testing_only(parents.as_flattened());
 
             Ok(SeqCommand::new(
                 id,
@@ -547,7 +551,7 @@ mod test {
 
     impl SeqCommand {
         fn new(id: CommandId, prior: Prior<Address>, max_cut: usize) -> Self {
-            let data = id.short_b58().into_boxed_str();
+            let data = short_b58(id).into_boxed_str();
             Self {
                 id,
                 prior,
@@ -558,7 +562,7 @@ mod test {
         }
 
         fn finalize(id: CommandId, prev: Address, max_cut: usize) -> Self {
-            let data = id.short_b58().into_boxed_str();
+            let data = short_b58(id).into_boxed_str();
             Self {
                 id,
                 prior: Prior::Single(prev),

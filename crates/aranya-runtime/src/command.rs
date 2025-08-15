@@ -1,40 +1,9 @@
-use alloc::{
-    format,
-    string::{String, ToString},
-};
-
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
 
-aranya_crypto::custom_id! {
-    /// An ID constructed as a cryptographic hash of a serialized [`Command`].
-    pub struct CommandId;
-}
-
-impl CommandId {
-    /// Derives a [`CommandId`] from some data.
-    #[cfg(feature = "testing")]
-    pub fn hash_for_testing_only(data: &[u8]) -> Self {
-        use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash, rust::Sha256};
-        Sha256::hash(data).into_array().into()
-    }
-
-    pub fn short_b58(&self) -> String {
-        #![allow(clippy::arithmetic_side_effects)]
-        let b58 = self.to_string();
-        let trimmed = b58.trim_start_matches('1');
-        let len = trimmed.len();
-        if len == 0 {
-            "1".into()
-        } else if len > 8 {
-            format!("..{}", &trimmed[len - 6..])
-        } else {
-            trimmed.into()
-        }
-    }
-}
+pub type CommandId = aranya_crypto::policy::CmdId;
 
 /// Identify how the client will sort the associated [`Command`].
 // Note: Order of variants affects derived Ord: Merge is least and Init is greatest.

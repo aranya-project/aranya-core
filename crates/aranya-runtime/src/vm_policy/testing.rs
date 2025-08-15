@@ -7,7 +7,7 @@ use aranya_crypto::{DeviceId, policy::CmdId};
 use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
 use buggy::{BugExt, bug};
 
-use crate::CommandId;
+use crate::testing::hash_for_testing_only;
 
 pub struct TestFfiEnvelope {
     pub device: DeviceId,
@@ -60,7 +60,7 @@ impl TestFfiEnvelope {
         })
         .assume("can serialize `HashedFields`")?;
 
-        let command_id = CommandId::hash_for_testing_only(&data);
+        let command_id = hash_for_testing_only(&data);
 
         Ok(Envelope {
             parent_id: parent_id.into(),
