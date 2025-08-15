@@ -533,8 +533,14 @@ impl<'a> CompileState<'a> {
         let fact_def = self.get_fact_def(&f.identifier)?.clone();
 
         self.append_instruction(Instruction::FactNew(f.identifier.clone()));
+        let mut bind_found = false;
         for (k, v) in &f.key_fields {
             if let FactField::Expression(e) = v {
+                if bind_found {
+                    return Err(self.err(CompileErrorType::InvalidFactLiteral(
+                        "leading bind values not allowed".to_string(),
+                    )));
+                }
                 let def_field_type = &fact_def
                     .get_key_field(k)
                     .ok_or_else(|| {
@@ -553,6 +559,7 @@ impl<'a> CompileState<'a> {
                 }
             } else {
                 // Skip bind values
+                bind_found = true;
                 continue;
             }
             self.append_instruction(Instruction::FactKeySet(k.clone()));
