@@ -68,9 +68,6 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError>;
 
-    /// Publish a command
-    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>);
-
     /// Create an effect
     fn effect(
         &mut self,
