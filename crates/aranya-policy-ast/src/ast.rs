@@ -210,6 +210,8 @@ pub struct NamedStruct {
     pub identifier: Identifier,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Identifier, Expression)>,
+    /// sources is a list of identifiers used in struct composition
+    pub sources: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

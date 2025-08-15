@@ -29,6 +29,8 @@ mod internal {
     pub struct PolicyParser;
 }
 
+type FieldsAndSources = (Vec<(Identifier, Expression)>, Vec<Identifier>);
+
 // Each of the rules in policy.pest becomes an enumerable value here
 // The core parser for policy documents
 pub use internal::{PolicyParser, Rule};
@@ -324,8 +326,12 @@ impl ChunkParser<'_> {
         let identifier = pc.consume_identifier()?;
 
         // key/expression pairs follow the identifier
-        let fields = self.parse_kv_literal_fields(pc.into_inner())?;
-        Ok(ast::NamedStruct { identifier, fields })
+        let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
+        Ok(ast::NamedStruct {
+            identifier,
+            fields,
+            sources,
+        })
     }
 
     fn parse_function_call(
@@ -750,25 +756,33 @@ impl ChunkParser<'_> {
         )))
     }
 
-    /// Parses a list of Rule::struct_literal_field items into (String,
-    /// Expression) pairs.
-    ///
-    /// This is used any place where something looks like a struct literal -
-    /// fact key/values, publish, and effects.
-    fn parse_kv_literal_fields(
+    /// Parses a list of Rule::struct_data items into lists of (String,
+    /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
+    fn parse_struct_data(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(Identifier, Expression)>, ParseError> {
-        let mut out = vec![];
+    ) -> Result<FieldsAndSources, ParseError> {
+        let mut field_expressions = vec![];
+        let mut sources = vec![];
 
         for field in fields {
+            let rule_kind = field.as_rule();
             let pc = descend(field);
-            let identifier = pc.consume_identifier()?;
-            let expression = pc.consume_expression(self)?;
-            out.push((identifier, expression));
+            match rule_kind {
+                Rule::struct_literal_field => {
+                    let identifier = pc.consume_identifier()?;
+                    let expression = pc.consume_expression(self)?;
+                    field_expressions.push((identifier, expression));
+                }
+                Rule::struct_composition => {
+                    let identifier = pc.consume_identifier()?;
+                    sources.push(identifier);
+                }
+                _ => return Err(pc.location_error()),
+            }
         }
 
-        Ok(out)
+        Ok((field_expressions, sources))
     }
 
     fn parse_fact_literal_fields(
