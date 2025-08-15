@@ -142,9 +142,9 @@ fn test_new_envelope() {
         .new_envelope(
             SEAL_CTX,
             &mut eng,
-            env.parent_id,
-            env.author_id,
-            env.command_id,
+            env.parent_id.into(),
+            env.author_id.into(),
+            env.command_id.into(),
             env.signature.clone(),
             env.payload.clone(),
         )

@@ -7,7 +7,9 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
-    KeyStoreExt as _, OpenError, SigningKey, subtle::ConstantTimeEq,
+    KeyStoreExt as _, OpenError, SigningKey,
+    policy::{CmdId, GroupId},
+    subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -154,7 +156,7 @@ where
             )
             .expect("should be able to encrypt message");
         let got = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect("should be able to decrypt message");
         assert_eq!(got, WANT);
     }
@@ -198,7 +200,7 @@ where
         ciphertext[0] = ciphertext[0].wrapping_add(1);
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt tampered with message");
         assert_eq!(err.kind(), ErrorKind::Crypto);
 
@@ -251,7 +253,7 @@ where
             version: Id::default(),
         });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different command name",
             );
@@ -300,7 +302,7 @@ where
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different parent command ID",
             );
@@ -350,7 +352,7 @@ where
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
@@ -382,7 +384,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -445,7 +447,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -494,7 +496,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -539,12 +541,12 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
-        let wrong_group_id = Id::random(&mut eng);
+        let wrong_group_id = GroupId::random(&mut eng);
         let err = ffi
             .open_group_key(
                 ctx,

@@ -4,8 +4,8 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    Cmd, Engine, Id, KeyStore, KeyStoreExt as _, Signature, SigningKey, SigningKeyId, VerifyingKey,
-    subtle::ConstantTimeEq,
+    Cmd, Engine, KeyStore, KeyStoreExt as _, Signature, SigningKey, SigningKeyId, VerifyingKey,
+    policy::CmdId, subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
@@ -131,7 +131,7 @@ function sign(
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,
             name: ctx.name.as_str(),
-            parent_id: &ctx.head_id,
+            parent_id: &ctx.head_id.into(),
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
@@ -155,9 +155,9 @@ function verify(
         ctx: &CommandContext,
         _eng: &mut E,
         author_sign_pk: Vec<u8>,
-        parent_id: Id,
+        parent_id: CmdId,
         command_bytes: Vec<u8>,
-        command_id: Id,
+        command_id: CmdId,
         signature: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
         let CommandContext::Open(ctx) = ctx else {
@@ -173,7 +173,7 @@ function verify(
             parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
-        if bool::from(id.ct_eq(&command_id.into())) {
+        if bool::from(id.ct_eq(&command_id)) {
             Ok(command_bytes)
         } else {
             Err(InvalidCmdId(()).into())

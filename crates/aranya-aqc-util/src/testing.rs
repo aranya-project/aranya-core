@@ -22,6 +22,7 @@ use aranya_crypto::{
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},
+    policy::{CmdId, LabelId},
 };
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
@@ -31,7 +32,6 @@ use crate::{
     handler::{
         BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
     },
-    shared::LabelId,
 };
 
 /// Encodes a [`EncryptionPublicKey`].
@@ -379,10 +379,10 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -468,10 +468,10 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniSendOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -559,10 +559,10 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let mut peer = T::new(); // send only
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniRecvOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -653,10 +653,10 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
-            let parent_cmd_id = Id::random(&mut Rng);
+            let parent_cmd_id = CmdId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
-                head_id: parent_cmd_id,
+                head_id: parent_cmd_id.into_id(),
             });
 
             // This is called via FFI.
@@ -751,10 +751,10 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
@@ -865,10 +865,10 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .iter()
         .enumerate()
         .map(|(i, peer)| {
-            let parent_cmd_id = Id::random(&mut Rng);
+            let parent_cmd_id = CmdId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
-                head_id: parent_cmd_id,
+                head_id: parent_cmd_id.into_id(),
             });
 
             // This is called via FFI.

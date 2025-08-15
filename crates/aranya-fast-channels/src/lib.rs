@@ -122,7 +122,7 @@
 //! const TOP_SECRET: Label = Label::new(12);
 //!
 //! let ch1 = BidiChannel {
-//!     parent_cmd_id: Id::random(&mut eng),
+//!     parent_cmd_id: CmdId::random(&mut eng),
 //!     our_sk: &device1_enc_sk,
 //!     our_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,

@@ -6,7 +6,10 @@ use core::convert::Infallible;
 use aranya_crypto::{
     Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
     GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, SigningKeyId,
-    VerifyingKey, custom_id, engine::Engine, policy, zeroize::Zeroizing,
+    VerifyingKey, custom_id,
+    engine::Engine,
+    policy::{self, CmdId, GroupId},
+    zeroize::Zeroizing,
 };
 use aranya_policy_vm::{
     CommandContext, Text, Typed, Value, ValueConversionError,
@@ -136,7 +139,7 @@ function seal_group_key(
         eng: &mut E,
         wrapped_group_key: Vec<u8>,
         peer_enc_pk: Vec<u8>,
-        group_id: Id,
+        group_id: GroupId,
     ) -> Result<SealedGroupKey, Error> {
         let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
@@ -164,7 +167,7 @@ function open_group_key(
         eng: &mut E,
         sealed_group_key: SealedGroupKey,
         our_enc_sk_id: EncryptionKeyId,
-        group_id: Id,
+        group_id: GroupId,
     ) -> Result<StoredGroupKey, Error> {
         let sk: EncryptionKey<E::CS> = self
             .store
@@ -230,7 +233,7 @@ function encrypt_message(
 
         let ctx = Context {
             label: label.as_str(),
-            parent: ctx.head_id,
+            parent: ctx.head_id.into(),
             author_sign_pk: &our_sign_pk,
         };
         let mut ciphertext = {
@@ -257,7 +260,7 @@ function decrypt_message(
         &self,
         ctx: &CommandContext,
         eng: &mut E,
-        parent_id: Id,
+        parent_id: CmdId,
         ciphertext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         author_sign_pk: Vec<u8>,
@@ -297,7 +300,7 @@ function compute_change_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        new_cmd_id: Id,
+        new_cmd_id: CmdId,
         current_change_id: Id,
     ) -> Result<Id, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
@@ -318,13 +321,13 @@ function label_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        cmd_id: Id,
+        cmd_id: CmdId,
         name: Text,
     ) -> Result<RoleId, Infallible> {
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::role_id::<E::CS>(cmd_id.into(), &name, policy_id)
+        let id = policy::role_id::<E::CS>(cmd_id, &name, policy_id)
             .into_id()
             .into();
         Ok(id)

@@ -8,6 +8,7 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     Csprng, DeviceId, Engine, Id, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
+    policy::CmdId,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
@@ -116,9 +117,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command.clone(),
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect("`crypto::verify` should not fail");
@@ -164,9 +165,9 @@ where
             &Self::OPEN_CTX,
             &mut eng,
             pk,
-            Id::default(),
+            CmdId::default(),
             command,
-            command_id,
+            command_id.into(),
             signature,
         )
         .expect_err("`crypto::verify` should fail");
@@ -209,9 +210,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -264,9 +265,9 @@ where
                 &OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -318,9 +319,9 @@ where
                 &open_ctx,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -367,9 +368,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.into(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -484,9 +485,9 @@ where
                     ctx,
                     &mut eng,
                     pk.clone(),
-                    Id::default(),
+                    CmdId::default(),
                     command.clone(),
-                    command_id,
+                    command_id.into(),
                     signature.clone(),
                 )
                 .expect_err("`crypto::verify` should fail");
