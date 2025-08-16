@@ -506,7 +506,8 @@ where
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new(), ());
+        let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new(), (), u64::MAX);
+
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*storage_id);

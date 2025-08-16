@@ -1,0 +1,112 @@
+[
+  {
+    "SetupClientsAndGraph": {
+      "clients": 2,
+      "graph": 0,
+      "policy": 0
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 100
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 0,
+      "graph": 0,
+      "key": 0,
+      "value": 1,
+      "repeat": 100
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 2
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": 2,
+      "max_syncs": 1,
+      "max_bytes": 500
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 15
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": 15,
+      "max_syncs": 1,
+      "max_bytes": 2800
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 12
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": 12,
+      "max_syncs": 1,
+      "max_bytes": 3100
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 32
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": 32,
+      "max_syncs": 1,
+      "max_bytes": 6200
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 39
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": 39,
+      "max_syncs": 1,
+      "max_bytes": 22000
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "graph": 0,
+      "equal": true
+    }
+  }
+]
