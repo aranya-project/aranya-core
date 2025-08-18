@@ -4,9 +4,9 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
-    GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, SigningKeyId,
-    VerifyingKey, custom_id,
+    Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
+    SigningKey, SigningKeyId, VerifyingKey, custom_id,
     engine::Engine,
     policy::{self, CmdId, GroupId},
     zeroize::Zeroizing,
@@ -68,9 +68,9 @@ function derive_enc_key_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         enc_pk: Vec<u8>,
-    ) -> Result<Id, Error> {
+    ) -> Result<EncryptionKeyId, Error> {
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
-        Ok(pk.id()?.into())
+        Ok(pk.id()?)
     }
 
     /// Returns the ID of an encoded [`VerifyingKey`].
@@ -85,9 +85,9 @@ function derive_sign_key_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         sign_pk: Vec<u8>,
-    ) -> Result<Id, Error> {
+    ) -> Result<SigningKeyId, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
-        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into())
+        Ok(pk.id().map_err(aranya_crypto::Error::from)?)
     }
 
     /// Returns the ID of an encoded [`IdentityVerifyingKey`].
@@ -102,9 +102,9 @@ function derive_device_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         ident_pk: Vec<u8>,
-    ) -> Result<Id, Error> {
+    ) -> Result<DeviceId, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
-        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into())
+        Ok(pk.id().map_err(aranya_crypto::Error::from)?)
     }
 
     /// Generates a random [`GroupKey`].
