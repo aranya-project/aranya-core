@@ -482,11 +482,13 @@ where
                 for f in fields {
                     match s.fields.get(&f.identifier.name) {
                         Some(v) => {
-                            if v.vtype() != Some(f.field_type.kind.clone()) {
+                            if !v.fits_type(&f.field_type) {
                                 return Err(mk_err());
                             }
                         }
-                        None => return Err(mk_err()),
+                        None => {
+                            return Err(mk_err());
+                        }
                     }
                 }
 
