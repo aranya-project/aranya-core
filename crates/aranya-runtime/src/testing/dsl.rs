@@ -113,6 +113,7 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
             storage_id: _,
             address: _,
         } => unimplemented!(),
+        SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
 }

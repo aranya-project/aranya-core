@@ -387,6 +387,10 @@ where
                 }
                 0
             }
+            SyncType::Hello(_) => {
+                // Hello messages are fire-and-forget, no response needed
+                0
+            }
         };
         Ok(len)
     }
