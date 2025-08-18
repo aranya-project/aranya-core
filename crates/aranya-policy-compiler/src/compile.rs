@@ -1426,6 +1426,15 @@ impl<'a> CompileState<'a> {
                         );
                     }
 
+                    if s.fact.key_fields.iter().any(|f| f.1 == FactField::Bind) {
+                        return Err(self.err_loc(
+                            CompileErrorType::BadArgument(String::from(
+                                "Cannot update fact with wildcard keys",
+                            )),
+                            statement.locator,
+                        ));
+                    }
+
                     self.verify_fact_against_schema(&s.fact, true)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup);
@@ -1469,6 +1478,15 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Update);
                 }
                 (ast::Statement::Delete(s), StatementContext::Finish) => {
+                    if s.fact.key_fields.iter().any(|f| f.1 == FactField::Bind) {
+                        return Err(self.err_loc(
+                            CompileErrorType::BadArgument(String::from(
+                                "Cannot delete fact with wildcard keys",
+                            )),
+                            statement.locator,
+                        ));
+                    }
+
                     self.verify_fact_against_schema(&s.fact, false)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Delete);
