@@ -37,27 +37,13 @@ use crate::{
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
 /// use aranya_crypto::{
+///     CipherSuite, Csprng, EncryptionKey, Engine, Id, IdentityKey, Rng,
 ///     aqc::{
-///         CipherSuiteId,
-///         UniAuthorSecret,
-///         UniChannel,
-///         UniRecvPsk,
-///         UniPeerEncap,
-///         UniSendPsk,
-///         UniSecrets,
-///         UniSecret,
+///         CipherSuiteId, UniAuthorSecret, UniChannel, UniPeerEncap, UniRecvPsk, UniSecret,
+///         UniSecrets, UniSendPsk,
 ///     },
-///     CipherSuite,
-///     Csprng,
-///     default::{
-///         DefaultCipherSuite,
-///         DefaultEngine,
-///     },
-///     Engine,
-///     IdentityKey,
-///     EncryptionKey,
+///     default::{DefaultCipherSuite, DefaultEngine},
 ///     policy::{CmdId, LabelId},
-///     Rng,
 ///     subtle::ConstantTimeEq as _,
 /// };
 ///
@@ -68,10 +54,14 @@ use crate::{
 /// let label = LabelId::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
+/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device1 ID should be valid");
 ///
 /// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device2 ID should be valid");
+/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device2 ID should be valid");
 ///
 /// // device1 creates the channel keys and sends the encapsulation
 /// // to device2...
@@ -79,13 +69,15 @@ use crate::{
 ///     psk_length_in_bytes: 32,
 ///     parent_cmd_id,
 ///     our_sk: &device1_sk,
-///     their_pk: &device2_sk.public().expect("receiver encryption key should be valid"),
+///     their_pk: &device2_sk
+///         .public()
+///         .expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
 /// };
-/// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
-///     .expect("unable to create `UniSecrets`");
+/// let UniSecrets { author, peer } =
+///     UniSecrets::new(&mut eng, &device1_ch).expect("unable to create `UniSecrets`");
 /// let device1_psk = UniSecret::from_author_secret(&device1_ch, author)
 ///     .expect("unable to derive `UniSecret` from author secrets")
 ///     .generate_send_only_psk(CipherSuiteId::TlsAes128GcmSha256)
@@ -97,7 +89,9 @@ use crate::{
 ///     psk_length_in_bytes: 32,
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
-///     their_pk: &device1_sk.public().expect("receiver encryption key should be valid"),
+///     their_pk: &device1_sk
+///         .public()
+///         .expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
@@ -108,7 +102,11 @@ use crate::{
 ///     .expect("unable to generate `UniRecvPsk`");
 ///
 /// assert_eq!(device1_psk.identity(), device2_psk.identity());
-/// assert!(bool::from(device1_psk.raw_secret_bytes().ct_eq(device2_psk.raw_secret_bytes())));
+/// assert!(bool::from(
+///     device1_psk
+///         .raw_secret_bytes()
+///         .ct_eq(device2_psk.raw_secret_bytes())
+/// ));
 /// # }
 /// ```
 #[derive_where(Debug)]

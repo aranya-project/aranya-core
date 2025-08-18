@@ -107,40 +107,47 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     Context,
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
+    ///     Context, GroupKey, Rng, SigningKey,
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     ///     policy::CmdId,
-    ///     GroupKey,
-    ///     Rng,
-    ///     SigningKey,
     /// };
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
     /// const PARENT: CmdId = CmdId::default();
-    /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
+    /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng)
+    ///     .public()
+    ///     .expect("signing key should be valid");
     ///
     /// let key = GroupKey::new(&mut Rng);
     ///
     /// let ciphertext = {
     ///     let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
-    ///     key.seal(&mut Rng, &mut dst, MESSAGE, Context{
-    ///         label: LABEL,
-    ///         parent: PARENT,
-    ///         author_sign_pk: &author,
-    ///     }).expect("should not fail");
+    ///     key.seal(
+    ///         &mut Rng,
+    ///         &mut dst,
+    ///         MESSAGE,
+    ///         Context {
+    ///             label: LABEL,
+    ///             parent: PARENT,
+    ///             author_sign_pk: &author,
+    ///         },
+    ///     )
+    ///     .expect("should not fail");
     ///     dst
     /// };
     /// let plaintext = {
     ///     let mut dst = vec![0u8; ciphertext.len() - key.overhead()];
-    ///     key.open(&mut dst, &ciphertext, Context{
-    ///         label: LABEL,
-    ///         parent: PARENT,
-    ///         author_sign_pk: &author,
-    ///     }).expect("should not fail");
+    ///     key.open(
+    ///         &mut dst,
+    ///         &ciphertext,
+    ///         Context {
+    ///             label: LABEL,
+    ///             parent: PARENT,
+    ///             author_sign_pk: &author,
+    ///         },
+    ///     )
+    ///     .expect("should not fail");
     ///     dst
     /// };
     /// assert_eq!(&plaintext, MESSAGE);
