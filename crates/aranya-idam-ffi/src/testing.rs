@@ -6,7 +6,7 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
+    BaseId, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, IdentityKey, KeyStore,
     KeyStoreExt as _, OpenError, SigningKey,
     id::IdExt as _,
     policy::{CmdId, GroupId},
@@ -85,7 +85,7 @@ where
         name: ident!("dummy"),
         id: CmdId::default(),
         author: DeviceId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     });
 
     /// Test that we can unwrap `GroupKey`s.
@@ -250,7 +250,7 @@ where
             name: ident!("different_name"),
             id: CmdId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         let err = ffi
             .decrypt_message(&ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)

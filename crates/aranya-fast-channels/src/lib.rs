@@ -37,7 +37,7 @@
 //! # #[cfg(all(feature = "posix", not(feature = "trng")))]
 //! # {
 //! use aranya_crypto::{
-//!     Csprng, EncryptionKey, Engine, Id, IdentityKey, Random, Rng,
+//!     BaseId, Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
 //!     afc::{BidiChannel, BidiKeys, BidiSecrets, RawOpenKey, RawSealKey},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},

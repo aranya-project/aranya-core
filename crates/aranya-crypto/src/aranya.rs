@@ -240,7 +240,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     Cmd, Id, Rng, SigningKey,
+    ///     BaseId, Cmd, Rng, SigningKey,
     ///     default::{DefaultCipherSuite, DefaultEngine},
     ///     id::IdExt as _,
     ///     policy::CmdId,
