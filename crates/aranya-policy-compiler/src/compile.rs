@@ -2731,8 +2731,6 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
-        // TODO(eric): What shouls we use for the codemap's
-        // ranges?
         let codemap = CodeMap::new(&self.policy.text, vec![]);
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {

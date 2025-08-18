@@ -208,7 +208,7 @@ impl Value {
 
     /// Checks to see if a [`Value`] matches some [`VType`]
     /// ```
-    /// use aranya_policy_ast::{VType, TypeKind, Span};
+    /// use aranya_policy_ast::{Span, TypeKind, VType};
     /// use aranya_policy_module::Value;
     ///
     /// let value = Value::Int(1);

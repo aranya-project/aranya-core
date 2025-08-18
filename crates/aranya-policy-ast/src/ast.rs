@@ -1,16 +1,19 @@
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref, str::FromStr};
+use core::{
+    fmt,
+    ops::{Bound, Deref, Range, RangeBounds},
+    str::FromStr,
+};
 
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{Identifier, Text};
 
-/// A span representing a range in source text
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// A range in the source text.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
-    /// The start position in the source text
+    // [start, end)
     start: usize,
-    /// The end position in the source text
     end: usize,
 }
 
@@ -42,28 +45,26 @@ impl Span {
     }
 
     /// Reports whether `self` contains `other`.
-    pub fn contains(&self, other: &Span) -> bool {
-        self.start <= other.start && other.end <= self.end
+    pub fn contains<U>(&self, other: U) -> bool
+    where
+        U: RangeBounds<usize>,
+    {
+        self.intersect(&other.to_bounds()) == other.to_bounds() && !other.is_empty()
     }
 
     /// Merges two spans into a single span.
-    pub fn merge(&self, other: &Span) -> Span {
+    pub fn merge(&self, other: Span) -> Span {
         Self::new(self.start.min(other.start), self.end.max(other.end))
     }
 
-    /// Returns the length of the span
+    /// Returns the length of the span.
     pub fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
 
     /// Reports whether the span is empty.
     pub fn is_empty(&self) -> bool {
-        self.start == self.end
-    }
-
-    /// Create a span for a single position (zero-width)
-    pub fn point(pos: usize) -> Self {
-        Self::new(pos, pos)
+        self.start >= self.end
     }
 }
 
@@ -72,6 +73,111 @@ impl Default for Span {
         Self::empty()
     }
 }
+
+impl RangeBounds<usize> for Span {
+    fn start_bound(&self) -> Bound<&usize> {
+        Bound::Included(&self.start)
+    }
+
+    fn end_bound(&self) -> Bound<&usize> {
+        Bound::Excluded(&self.end)
+    }
+}
+
+impl RangeBounds<usize> for &Span {
+    fn start_bound(&self) -> Bound<&usize> {
+        (**self).start_bound()
+    }
+
+    fn end_bound(&self) -> Bound<&usize> {
+        (**self).end_bound()
+    }
+}
+
+impl From<Range<usize>> for Span {
+    fn from(range: Range<usize>) -> Self {
+        Span::new(range.start, range.end)
+    }
+}
+
+impl From<Span> for Range<usize> {
+    fn from(span: Span) -> Self {
+        span.start..span.end
+    }
+}
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Range::from(*self).fmt(f)
+    }
+}
+
+/// Extension trait for [`RangeBounds`].
+///
+/// Similar to the +nightly `IntoBounds`.
+trait RangeBoundsExt<T>: RangeBounds<T> {
+    /// Returns the (start, end) bounds.
+    fn to_bounds(&self) -> (Bound<&T>, Bound<&T>) {
+        (self.start_bound(), self.end_bound())
+    }
+
+    /// Reports whether `self` is the empty range.
+    fn is_empty(&self) -> bool
+    where
+        T: PartialOrd,
+    {
+        use Bound::*;
+        !match (self.start_bound(), self.end_bound()) {
+            (Unbounded, _) | (_, Unbounded) => true,
+            (Included(start), Excluded(end))
+            | (Excluded(start), Included(end))
+            | (Excluded(start), Excluded(end)) => start < end,
+            (Included(start), Included(end)) => start <= end,
+        }
+    }
+
+    /// Returns the intersection of `self` and `other`.
+    fn intersect<'a, U>(&'a self, other: &'a U) -> (Bound<&'a T>, Bound<&'a T>)
+    where
+        Self: Sized,
+        U: RangeBounds<T>,
+        T: Ord,
+    {
+        use Bound::*;
+
+        let (self_start, self_end) = self.to_bounds();
+        let (other_start, other_end) = other.to_bounds();
+
+        let start = match (self_start, other_start) {
+            (Included(a), Included(b)) => Included(Ord::max(a, b)),
+            (Excluded(a), Excluded(b)) => Excluded(Ord::max(a, b)),
+            (Unbounded, Unbounded) => Unbounded,
+            (x, Unbounded) | (Unbounded, x) => x,
+            (Included(i), Excluded(e)) | (Excluded(e), Included(i)) => {
+                if i > e {
+                    Included(i)
+                } else {
+                    Excluded(e)
+                }
+            }
+        };
+        let end = match (self_end, other_end) {
+            (Included(a), Included(b)) => Included(Ord::min(a, b)),
+            (Excluded(a), Excluded(b)) => Excluded(Ord::min(a, b)),
+            (Unbounded, Unbounded) => Unbounded,
+            (x, Unbounded) | (Unbounded, x) => x,
+            (Included(i), Excluded(e)) | (Excluded(e), Included(i)) => {
+                if i < e {
+                    Included(i)
+                } else {
+                    Excluded(e)
+                }
+            }
+        };
+        (start, end)
+    }
+}
+impl<R, T> RangeBoundsExt<T> for R where R: RangeBounds<T> {}
 
 /// An identifier.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -836,16 +942,10 @@ impl Policy {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_span_new_validation() {
-        // Valid span
-        let span = Span::new(0, 10);
-        assert_eq!(span.start, 0);
-        assert_eq!(span.end, 10);
-
-        // Equal start and end (empty span)
-        let empty = Span::new(5, 5);
-        assert!(empty.is_empty());
+    macro_rules! span {
+        ($start:expr, $end:expr) => {
+            Span::new($start, $end)
+        };
     }
 
     #[test]
@@ -853,82 +953,144 @@ mod tests {
     #[cfg(debug_assertions)]
     fn test_span_new_invalid() {
         // This should panic in debug mode
-        Span::new(10, 5);
+        span!(10, 5);
     }
 
     #[test]
     fn test_span_contains() {
-        let outer = Span::new(0, 100);
-        let inner = Span::new(10, 20);
-        let overlapping = Span::new(50, 150);
+        let test_cases = [
+            (span!(10, 20), 12..18, true),                 // inner range contained
+            (span!(10, 20), 5..25, false),                 // outer range not contained
+            (span!(10, 20), 15..25, false),                // overlapping range not contained
+            (span!(10, 20), 5..15, false),                 // partial overlap not contained
+            (span!(10, 20), 10..20, true),                 // span contains itself
+            (span!(10, 20), 10..19, true),                 // starts at boundary, ends before
+            (span!(10, 20), 11..20, true),                 // ends at boundary (excluded)
+            (span!(10, 20), 10..20, true),                 // exact same range
+            (span!(10, 20), 15..15, false),                // empty range inside span
+            (span!(10, 20), 10..10, false),                // empty range at start
+            (span!(10, 20), 20..20, false),                // empty range at end (excluded)
+            (span!(10, 10), 10..10, false), // empty span contains empty range at same position
+            (span!(0, usize::MAX), 0..100, true), // max span contains regular range
+            (span!(0, usize::MAX), 0..(usize::MAX), true), // max span contains almost-max range
+        ];
+        for (i, (span, other, want)) in test_cases.iter().enumerate() {
+            let got = span.contains(other.clone());
+            assert_eq!(got, *want, "#{i}: contains({span:?}, {other:?})");
+        }
 
-        assert!(outer.contains(&inner));
-        assert!(!inner.contains(&outer));
-        assert!(!outer.contains(&overlapping));
+        let inclusive_cases = [
+            (span!(10, 20), 12..=17, true),  // inclusive range contained
+            (span!(10, 20), 10..=19, true),  // inclusive range at boundaries
+            (span!(10, 20), 10..=20, false), // inclusive range extends to excluded end
+            (span!(10, 20), 15..=25, false), // inclusive range extends beyond
+            (span!(10, 11), 10..=10, true),  // single-element inclusive range
+        ];
+        for (i, (span, other, want)) in inclusive_cases.iter().enumerate() {
+            let got = span.contains(other.clone());
+            assert_eq!(got, *want, "#{i}: contains({span:?}, {other:?})");
+        }
 
-        // Test edge cases
-        let same = Span::new(10, 20);
-        assert!(same.contains(&same));
+        let range_full_cases = [
+            (span!(10, 20), false),        // regular span can't contain unbounded range
+            (span!(0, usize::MAX), false), // even max span can't contain unbounded range
+            (Span::empty(), false),        // empty span can't contain unbounded range
+        ];
+        for (i, (span, want)) in range_full_cases.iter().enumerate() {
+            let got = span.contains(..);
+            assert_eq!(got, *want, "#{i}: contains({span:?}, ..)");
+        }
 
-        let point = Span::point(15);
-        assert!(outer.contains(&point));
-        assert!(!point.contains(&outer));
+        let range_from_cases = [
+            (span!(10, 20), 15, false),         // unbounded end not contained
+            (span!(10, 20), 10, false),         // starts at boundary, unbounded end
+            (span!(10, 20), 0, false),          // starts before, unbounded end
+            (span!(10, 20), 25, false),         // starts after, unbounded end
+            (span!(0, usize::MAX), 100, false), // even max span can't contain unbounded end
+            (span!(0, usize::MAX), 0, false),   // max span starting at 0, unbounded end
+        ];
+        for (i, (span, start, want)) in range_from_cases.iter().enumerate() {
+            let got = span.contains(*start..);
+            assert_eq!(got, *want, "#{i}: contains({span:?}, {start}..)");
+        }
+
+        let range_to_cases = [
+            (span!(10, 20), 15, false),                // unbounded start not contained
+            (span!(10, 20), 20, false),                // unbounded start, ends at boundary
+            (span!(10, 20), 25, false),                // unbounded start, ends after
+            (span!(10, 20), 5, false),                 // unbounded start, ends before
+            (span!(0, usize::MAX), 100, false), // even max span can't contain unbounded start
+            (span!(0, usize::MAX), usize::MAX, false), // max span ending at max, unbounded start
+        ];
+        for (i, (span, end, want)) in range_to_cases.iter().enumerate() {
+            let got = span.contains(..*end);
+            assert_eq!(got, *want, "#{i}: contains({span:?}, ..{end})");
+        }
+
+        let range_to_inclusive_cases = [
+            (span!(10, 20), 15, false),         // unbounded start not contained
+            (span!(10, 20), 19, false),         // unbounded start, ends at last valid
+            (span!(10, 20), 20, false),         // unbounded start, ends at boundary
+            (span!(10, 20), 25, false),         // unbounded start, ends after
+            (span!(0, usize::MAX), 100, false), // even max span can't contain unbounded start
+            (span!(0, usize::MAX), usize::MAX - 1, false), // max span, unbounded start
+        ];
+        for (i, (span, end, want)) in range_to_inclusive_cases.iter().enumerate() {
+            let got = span.contains(..=*end);
+            assert_eq!(got, *want, "#{i}: contains({span:?}, ..={end})");
+        }
     }
 
     #[test]
     fn test_span_merge() {
-        let span1 = Span::new(10, 20);
-        let span2 = Span::new(30, 40);
-        let merged = span1.merge(&span2);
-
-        assert_eq!(merged.start, 10);
-        assert_eq!(merged.end, 40);
-
-        // Test merge with overlapping spans
-        let span3 = Span::new(15, 35);
-        let merged2 = span1.merge(&span3);
-        assert_eq!(merged2.start, 10);
-        assert_eq!(merged2.end, 35);
-
-        // Test merge order doesn't matter
-        let merged3 = span2.merge(&span1);
-        assert_eq!(merged3, merged);
-
-        // Test merging with self
-        let self_merge = span1.merge(&span1);
-        assert_eq!(self_merge, span1);
-
-        // Test merging points
-        let point1 = Span::point(5);
-        let point2 = Span::point(50);
-        let point_merge = point1.merge(&point2);
-        assert_eq!(point_merge.start, 5);
-        assert_eq!(point_merge.end, 50);
+        let test_cases = [
+            (span!(10, 20), span!(30, 40), span!(10, 40)), // non-overlapping spans
+            (span!(10, 20), span!(15, 35), span!(10, 35)), // overlapping spans
+            (span!(30, 40), span!(10, 20), span!(10, 40)), // merge order doesn't matter
+            (span!(10, 20), span!(10, 20), span!(10, 20)), // merging with self
+            (span!(0, 10), span!(5, 15), span!(0, 15)),    // partial overlap
+            (span!(10, 20), span!(5, 12), span!(5, 20)),   // left extension
+            (span!(10, 20), span!(18, 25), span!(10, 25)), // right extension
+            (span!(15, 25), span!(10, 30), span!(10, 30)), // fully contained by other
+            (span!(10, 30), span!(15, 25), span!(10, 30)), // fully contains other
+            (Span::empty(), span!(10, 20), span!(0, 20)),  // empty with non-empty
+            (span!(0, usize::MAX), span!(100, 200), span!(0, usize::MAX)), // max span with regular span
+        ];
+        for (i, (lhs, rhs, want)) in test_cases.iter().enumerate() {
+            let got = lhs.merge(*rhs);
+            assert_eq!(got, *want, "#{i}: merge({lhs:?}, {rhs:?})");
+        }
     }
 
     #[test]
     fn test_span_len() {
-        assert_eq!(Span::new(0, 10).len(), 10);
-        assert_eq!(Span::new(5, 5).len(), 0);
-        assert_eq!(Span::new(100, 150).len(), 50);
-
-        // Test with point span
-        assert_eq!(Span::point(42).len(), 0);
+        let test_cases = [
+            (span!(0, 10), 10),                     // regular span length
+            (span!(5, 5), 0),                       // empty span length
+            (span!(100, 150), 50),                  // larger span length
+            (Span::empty(), 0),                     // empty() span length
+            (span!(0, 1), 1),                       // single unit span
+            (span!(usize::MAX - 1, usize::MAX), 1), // max boundary span
+        ];
+        for (i, (span, want)) in test_cases.iter().enumerate() {
+            let got = span.len();
+            assert_eq!(got, *want, "#{i}: len({span:?})");
+        }
     }
 
     #[test]
     fn test_span_is_empty() {
-        assert!(!Span::new(0, 10).is_empty());
-        assert!(Span::new(5, 5).is_empty());
-        assert!(Span::point(100).is_empty());
-    }
-
-    #[test]
-    fn test_span_point() {
-        let point = Span::point(42);
-        assert_eq!(point.start, 42);
-        assert_eq!(point.end, 42);
-        assert!(point.is_empty());
-        assert_eq!(point.len(), 0);
+        let test_cases = [
+            (span!(0, 10), false),                      // regular span is not empty
+            (span!(0, 0), true),                        // zero-length span is empty
+            (Span::empty(), true),                      // empty() span is empty
+            (span!(5, 5), true),                        // same start/end span is empty
+            (span!(1, 2), false),                       // single unit span is not empty
+            (span!(usize::MAX - 1, usize::MAX), false), // max boundary span is not empty
+        ];
+        for (i, (span, want)) in test_cases.iter().enumerate() {
+            let got = span.is_empty();
+            assert_eq!(got, *want, "#{i}: is_empty({span:?})");
+        }
     }
 }
