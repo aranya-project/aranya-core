@@ -57,15 +57,15 @@
 //!         RawOpenKey,
 //!         RawSealKey,
 //!     },
+//!     dangerous::spideroak_crypto::rust::HkdfSha256,
+//!     default::{DefaultCipherSuite, DefaultEngine},
+//!     policy::CmdId,
 //!     Csprng,
 //!     EncryptionKey,
 //!     Engine,
-//!     Id,
 //!     IdentityKey,
 //!     Random,
 //!     Rng,
-//!     dangerous::spideroak_crypto::rust::HkdfSha256,
-//!     default::{DefaultCipherSuite, DefaultEngine},
 //! };
 //!
 //! type E = DefaultEngine;
