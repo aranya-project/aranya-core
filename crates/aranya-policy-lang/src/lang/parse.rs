@@ -1,26 +1,26 @@
 use std::cell::RefCell;
 
 use aranya_policy_ast::{
-    self as ast, ident, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
+    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, Identifier, IfStatement, InternalFunction,
     LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
     MatchStatement, NamedStruct, ReturnStatement, Span as AstSpan, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version,
+    TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt;
 use pest::{
+    Parser, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
-    Parser, Span,
 };
 
 mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{extract_policy, parse_policy_document, ChunkOffset};
+pub use markdown::{ChunkOffset, extract_policy, parse_policy_document};
 
 mod keywords;
 use keywords::KEYWORDS;

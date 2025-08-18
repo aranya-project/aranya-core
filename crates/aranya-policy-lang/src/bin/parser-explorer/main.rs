@@ -1,12 +1,12 @@
 use std::{
     fs::OpenOptions,
-    io::{stdin, BufRead, BufReader, Read},
+    io::{BufRead, BufReader, Read, stdin},
     process::ExitCode,
 };
 
 use anyhow::Context;
 use aranya_policy_lang::lang::{
-    extract_policy, get_pratt_parser, parse_policy_str, ChunkParser, PolicyParser, Rule, Version,
+    ChunkParser, PolicyParser, Rule, Version, extract_policy, get_pratt_parser, parse_policy_str,
 };
 use clap::{Parser, ValueEnum};
 use pest::Parser as PestParser;
