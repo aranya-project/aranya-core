@@ -2021,7 +2021,13 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.name.clone(), Typeish::known(vt))
+            .add_global(
+                identifier.name.clone(),
+                Typeish::known(VType {
+                    kind: vt,
+                    span: Span::empty(),
+                }),
+            )
             .map_err(|e| self.err(e))?;
 
         Ok(())

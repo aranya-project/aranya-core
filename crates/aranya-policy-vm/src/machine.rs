@@ -50,7 +50,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
             return false;
         };
 
-        if key.value.vtype().kind != key_value.field_type.kind {
+        if key.value.vtype() != key_value.field_type.kind {
             return false;
         }
     }
@@ -69,7 +69,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(value_type) = value.value.vtype() else {
             return false;
         };
-        if value_type.kind != schema_value.field_type.kind {
+        if value_type != schema_value.field_type.kind {
             return false;
         }
     }
@@ -481,8 +481,8 @@ where
                 // types.
                 for f in fields {
                     match s.fields.get(&f.identifier.name) {
-                        Some(f) => {
-                            if f.vtype() != f.vtype() {
+                        Some(v) => {
+                            if v.vtype() != Some(f.field_type.kind.clone()) {
                                 return Err(mk_err());
                             }
                         }

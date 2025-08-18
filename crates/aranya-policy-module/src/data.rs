@@ -5,7 +5,7 @@ use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
 use aranya_crypto::{DeviceId, EncryptionKeyId, SigningKeyId};
-use aranya_policy_ast::{Identifier, Text, VType};
+use aranya_policy_ast::{Identifier, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
 use super::ffi::Type;
@@ -153,39 +153,16 @@ pub trait TryAsMut<T: ?Sized> {
 }
 
 impl Value {
-    /// Get the [`VType`], if possible.
-    pub fn vtype(&self) -> Option<VType> {
-        use aranya_policy_ast::{Span, TypeKind};
-        let span = Span::new(0, 0);
+    /// Get the [`TypeKind`], if possible.
+    pub fn vtype(&self) -> Option<TypeKind> {
         match self {
-            Value::Int(_) => Some(VType {
-                kind: TypeKind::Int,
-                span,
-            }),
-            Value::Bool(_) => Some(VType {
-                kind: TypeKind::Bool,
-                span,
-            }),
-            Value::String(_) => Some(VType {
-                kind: TypeKind::String,
-                span,
-            }),
-            Value::Bytes(_) => Some(VType {
-                kind: TypeKind::Bytes,
-                span,
-            }),
-            Value::Id(_) => Some(VType {
-                kind: TypeKind::Id,
-                span,
-            }),
-            Value::Enum(name, _) => Some(VType {
-                kind: TypeKind::Enum(name.to_owned()),
-                span,
-            }),
-            Value::Struct(s) => Some(VType {
-                kind: TypeKind::Struct(s.name.clone()),
-                span,
-            }),
+            Value::Int(_) => Some(TypeKind::Int),
+            Value::Bool(_) => Some(TypeKind::Bool),
+            Value::String(_) => Some(TypeKind::String),
+            Value::Bytes(_) => Some(TypeKind::Bytes),
+            Value::Id(_) => Some(TypeKind::Id),
+            Value::Enum(name, _) => Some(TypeKind::Enum(name.to_owned())),
+            Value::Struct(s) => Some(TypeKind::Struct(s.name.clone())),
             _ => None,
         }
     }
@@ -224,8 +201,8 @@ impl Value {
         match (self.vtype(), &expected_type.kind) {
             (None, TypeKind::Optional(_)) => true,
             (None, _) => false,
-            (Some(vtype), TypeKind::Optional(inner)) => vtype.kind == inner.kind,
-            (Some(vtype), kind) => vtype.kind == *kind,
+            (Some(vtype), TypeKind::Optional(inner)) => vtype == inner.kind,
+            (Some(vtype), kind) => vtype == *kind,
         }
     }
 }
@@ -588,32 +565,16 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Get the ast:::Vtype. Unlike the Value version, this cannot
+    /// Get the [`TypeKind`]. Unlike the Value version, this cannot
     /// fail.
-    pub fn vtype(&self) -> VType {
-        use aranya_policy_ast::{Span, TypeKind};
-        let span = Span::new(0, 0);
+    pub fn vtype(&self) -> TypeKind {
+        use aranya_policy_ast::TypeKind;
         match self {
-            HashableValue::Int(_) => VType {
-                kind: TypeKind::Int,
-                span,
-            },
-            HashableValue::Bool(_) => VType {
-                kind: TypeKind::Bool,
-                span,
-            },
-            HashableValue::String(_) => VType {
-                kind: TypeKind::String,
-                span,
-            },
-            HashableValue::Id(_) => VType {
-                kind: TypeKind::Id,
-                span,
-            },
-            HashableValue::Enum(id, _) => VType {
-                kind: TypeKind::Enum(id.clone()),
-                span,
-            },
+            HashableValue::Int(_) => TypeKind::Int,
+            HashableValue::Bool(_) => TypeKind::Bool,
+            HashableValue::String(_) => TypeKind::String,
+            HashableValue::Id(_) => TypeKind::Id,
+            HashableValue::Enum(id, _) => TypeKind::Enum(id.clone()),
         }
     }
 }
