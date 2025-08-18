@@ -213,21 +213,9 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     apq::{
-    ///         Sender,
-    ///         SenderSecretKey,
-    ///         SenderSigningKey,
-    ///         Topic,
-    ///         TopicKey,
-    ///         Version,
-    ///     },
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
-    ///     Id,
-    ///     Rng,
-    ///     DeviceId,
+    ///     DeviceId, Id, Rng,
+    ///     apq::{Sender, SenderSecretKey, SenderSigningKey, Topic, TopicKey, Version},
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
     /// const VERSION: Version = Version::new(1);
@@ -236,35 +224,25 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///
     /// let ident = Sender {
     ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng)
-    ///         .public().expect("sender encryption key should be valid"),
+    ///         .public()
+    ///         .expect("sender encryption key should be valid"),
     ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng)
-    ///         .public().expect("sender signing key should be valid"),
+    ///         .public()
+    ///         .expect("sender signing key should be valid"),
     /// };
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
-    ///     .expect("should not fail");
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic).expect("should not fail");
     ///
     /// let ciphertext = {
     ///     let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
-    ///     key.seal_message(
-    ///         &mut Rng,
-    ///         &mut dst,
-    ///         MESSAGE,
-    ///         VERSION,
-    ///         &topic,
-    ///         &ident,
-    ///     ).expect("should not fail");
+    ///     key.seal_message(&mut Rng, &mut dst, MESSAGE, VERSION, &topic, &ident)
+    ///         .expect("should not fail");
     ///     dst
     /// };
     /// let plaintext = {
     ///     let mut dst = vec![0u8; ciphertext.len() - key.overhead()];
-    ///     key.open_message(
-    ///         &mut dst,
-    ///         &ciphertext,
-    ///         VERSION,
-    ///         &topic,
-    ///         &ident,
-    ///     ).expect("should not fail");
+    ///     key.open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
+    ///         .expect("should not fail");
     ///     dst
     /// };
     /// assert_eq!(&plaintext, MESSAGE);
@@ -406,12 +384,9 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     apq::{SenderSigningKey, Topic, Version},
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
     ///     Rng,
+    ///     apq::{SenderSigningKey, Topic, Version},
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
     /// const VERSION: Version = Version::new(1);
@@ -420,19 +395,26 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///
     /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
-    /// let sig = sk.sign(VERSION, &topic, RECORD)
+    /// let sig = sk.sign(VERSION, &topic, RECORD).expect("should not fail");
+    ///
+    /// sk.public()
+    ///     .expect("sender signing key should be valid")
+    ///     .verify(VERSION, &topic, RECORD, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &sig)
-    ///     .expect("should not fail");
-    ///
-    /// sk.public().expect("sender signing key should be valid").verify(Version::new(2), &topic, RECORD, &sig)
+    /// sk.public()
+    ///     .expect("sender signing key should be valid")
+    ///     .verify(Version::new(2), &topic, RECORD, &sig)
     ///     .expect_err("should fail: wrong version");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
+    /// sk.public()
+    ///     .expect("sender signing key should be valid")
+    ///     .verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
     ///     .expect_err("should fail: wrong topic");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, b"wrong", &sig)
+    /// sk.public()
+    ///     .expect("sender signing key should be valid")
+    ///     .verify(VERSION, &topic, b"wrong", &sig)
     ///     .expect_err("should fail: wrong record");
     ///
     /// let wrong_sig = sk
@@ -442,7 +424,9 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///         b"encoded record",
     ///     )
     ///     .expect("should not fail");
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &wrong_sig)
+    /// sk.public()
+    ///     .expect("sender signing key should be valid")
+    ///     .verify(VERSION, &topic, RECORD, &wrong_sig)
     ///     .expect_err("should fail: wrong signature");
     /// # }
     /// ```
@@ -589,20 +573,9 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     apq::{
-    ///         ReceiverSecretKey,
-    ///         SenderSecretKey,
-    ///         Topic,
-    ///         TopicKey,
-    ///         Version,
-    ///     },
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
-    ///     Id,
-    ///     Rng,
-    ///     DeviceId,
+    ///     DeviceId, Id, Rng,
+    ///     apq::{ReceiverSecretKey, SenderSecretKey, Topic, TopicKey, Version},
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
     /// const VERSION: Version = Version::new(1);
@@ -611,46 +584,39 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng);
     /// let send_pk = send_sk.public().expect("sender public key should be valid");
     /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
-    /// let recv_pk = recv_sk.public().expect("receiver public key should be valid");
+    /// let recv_pk = recv_sk
+    ///     .public()
+    ///     .expect("receiver public key should be valid");
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
-    ///     .expect("should not fail");
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic).expect("should not fail");
     ///
     /// // The sender encrypts...
-    /// let (enc, mut ciphertext) = recv_pk.seal_topic_key(
-    ///     &mut Rng,
-    ///     VERSION,
-    ///     &topic,
-    ///     &send_sk,
-    ///     &key,
-    /// ).expect("should not fail");
+    /// let (enc, mut ciphertext) = recv_pk
+    ///     .seal_topic_key(&mut Rng, VERSION, &topic, &send_sk, &key)
+    ///     .expect("should not fail");
     /// // ...and the receiver decrypts.
-    /// let got = recv_sk.open_topic_key(
-    ///     VERSION,
-    ///     &topic,
-    ///     &send_pk,
-    ///     &enc,
-    ///     &ciphertext,
-    /// ).expect("should not fail");
+    /// let got = recv_sk
+    ///     .open_topic_key(VERSION, &topic, &send_pk, &enc, &ciphertext)
+    ///     .expect("should not fail");
     /// assert_eq!(got.id(), key.id());
     ///
     /// // Wrong version.
-    /// recv_sk.open_topic_key(
-    ///     Version::new(2),
-    ///     &topic,
-    ///     &send_pk,
-    ///     &enc,
-    ///     &ciphertext,
-    /// ).err().expect("should fail: wrong version");
+    /// recv_sk
+    ///     .open_topic_key(Version::new(2), &topic, &send_pk, &enc, &ciphertext)
+    ///     .err()
+    ///     .expect("should fail: wrong version");
     ///
     /// // Wrong topic.
-    /// recv_sk.open_topic_key(
-    ///     VERSION,
-    ///     &Topic::new("WrongTopic"),
-    ///     &send_pk,
-    ///     &enc,
-    ///     &ciphertext,
-    /// ).err().expect("should fail: wrong topic");
+    /// recv_sk
+    ///     .open_topic_key(
+    ///         VERSION,
+    ///         &Topic::new("WrongTopic"),
+    ///         &send_pk,
+    ///         &enc,
+    ///         &ciphertext,
+    ///     )
+    ///     .err()
+    ///     .expect("should fail: wrong topic");
     /// # }
     /// ```
     pub fn seal_topic_key<R: Csprng>(

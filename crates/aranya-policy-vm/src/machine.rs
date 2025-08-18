@@ -1168,14 +1168,14 @@ where
     pub fn call_seal(
         &mut self,
         name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
     ) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
-        self.ipush(this_data.to_owned())?;
+        self.ipush(this_data)?;
         self.run()
     }
 

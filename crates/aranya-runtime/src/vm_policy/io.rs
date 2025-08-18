@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
@@ -51,12 +51,9 @@ where
 pub struct VmPolicyIO<'o, P, S, E, FFI> {
     facts: &'o RefCell<&'o mut P>,
     sink: &'o RefCell<&'o mut S>,
-    publish_stack: Vec<(Identifier, Vec<KVPair>)>,
     engine: &'o Mutex<E>,
     ffis: &'o [FFI],
 }
-
-pub type FfiList<'a, E> = &'a mut [&'a mut dyn FfiCallable<E>];
 
 impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
@@ -70,15 +67,9 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
         VmPolicyIO {
             facts,
             sink,
-            publish_stack: vec![],
             engine,
             ffis,
         }
-    }
-
-    /// Consumes the `VmPolicyIO` object and produces the publish stack.
-    pub fn into_publish_stack(self) -> Vec<(Identifier, Vec<KVPair>)> {
-        self.publish_stack
     }
 }
 
@@ -136,11 +127,6 @@ where
                 MachineIOError::Internal
             })?;
         Ok(VmFactCursor { iter })
-    }
-
-    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
-        let fields: Vec<_> = fields.into_iter().collect();
-        self.publish_stack.push((name, fields));
     }
 
     fn effect(
