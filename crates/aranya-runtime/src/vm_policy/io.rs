@@ -143,7 +143,7 @@ where
             .consume(VmEffect {
                 name,
                 fields,
-                command: command.into_id().into(),
+                command,
                 recalled,
             });
     }

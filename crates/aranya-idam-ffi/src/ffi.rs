@@ -6,15 +6,12 @@ use core::convert::Infallible;
 use aranya_crypto::{
     Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
     EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
-    SigningKey, SigningKeyId, VerifyingKey, custom_id,
+    SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
-    policy::{self, CmdId, GroupId},
+    policy::{self, CmdId, GroupId, RoleId},
     zeroize::Zeroizing,
 };
-use aranya_policy_vm::{
-    CommandContext, Text, Typed, Value, ValueConversionError,
-    ffi::{Type, ffi},
-};
+use aranya_policy_vm::{CommandContext, Text, ffi::ffi};
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
 
@@ -327,33 +324,7 @@ function label_id(
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::role_id::<E::CS>(cmd_id, &name, policy_id)
-            .into_id()
-            .into();
+        let id = policy::role_id::<E::CS>(cmd_id, &name, policy_id);
         Ok(id)
-    }
-}
-
-custom_id! {
-    /// Uniquely identifies a role.
-    pub struct RoleId;
-}
-
-impl Typed for RoleId {
-    const TYPE: Type<'static> = Type::Id;
-}
-
-impl TryFrom<Value> for RoleId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let id: Id = value.try_into()?;
-        Ok(RoleId::from(id))
-    }
-}
-
-impl From<RoleId> for Value {
-    fn from(id: RoleId) -> Value {
-        Value::Id(id.into())
     }
 }

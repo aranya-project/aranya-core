@@ -6,7 +6,7 @@ use core::fmt::{self, Display};
 pub use aranya_crypto::Id;
 use aranya_crypto::{
     DeviceId, EncryptionKeyId, SigningKeyId,
-    policy::{CmdId, GroupId, LabelId},
+    policy::{CmdId, GroupId, LabelId, RoleId},
 };
 use aranya_policy_ast::{Identifier, Text, VType};
 use serde::{Deserialize, Serialize};
@@ -812,3 +812,4 @@ id_impls!(SigningKeyId);
 id_impls!(CmdId);
 id_impls!(LabelId);
 id_impls!(GroupId);
+id_impls!(RoleId);

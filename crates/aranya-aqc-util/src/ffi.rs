@@ -216,9 +216,7 @@ function label_id(
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::label_id::<E::CS>(cmd_id, &name, policy_id)
-            .into_id()
-            .into();
+        let id = policy::label_id::<E::CS>(cmd_id, &name, policy_id);
         Ok(id)
     }
 }
