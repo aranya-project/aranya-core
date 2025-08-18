@@ -140,7 +140,7 @@ function create_bidi_channel(
         Ok(AqcBidiChannel {
             channel_id: peer.id().into_id(),
             peer_encap: peer.as_bytes().to_vec(),
-            author_secrets_id: author_secrets_id.into(),
+            author_secrets_id: author_secrets_id.into_id(),
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
@@ -194,7 +194,7 @@ function create_uni_channel(
         Ok(AqcUniChannel {
             channel_id: peer.id().into_id(),
             peer_encap: peer.as_bytes().to_vec(),
-            author_secrets_id: author_secrets_id.into(),
+            author_secrets_id: author_secrets_id.into_id(),
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
