@@ -990,7 +990,7 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::Cast(rhs_ident.clone()));
 
-                Typeish::Definitely(NullableVType::Type(VType::Struct(rhs_ident.clone())))
+                Typeish::known(VType::Struct(rhs_ident.clone()))
             }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;

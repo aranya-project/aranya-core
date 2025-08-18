@@ -2449,46 +2449,40 @@ fn test_struct_conversion() -> anyhow::Result<()> {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&io, ctx);
-    let _ = call_action(&mut rs, &io, ident!("test"), iter::empty::<Value>())?;
+    let mut published = Vec::new();
+    let _ = call_action(
+        &mut rs,
+        &mut published,
+        ident!("test"),
+        iter::empty::<Value>(),
+    )?;
     assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Bar"),
-            vec![
-                KVPair::new(ident!("x"), Value::Int(42)),
-                KVPair::new(ident!("y"), Value::String(text!("abc"))),
-            ]
-        )
+        published[0],
+        vm_struct!(Bar {
+            x: Value::Int(42),
+            y: Value::String(text!("abc")),
+        })
     );
     assert_eq!(
-        io.borrow().publish_stack[1],
-        (
-            ident!("Bar"),
-            vec![
-                KVPair::new(ident!("x"), Value::Int(1)),
-                KVPair::new(ident!("y"), Value::String(text!("b"))),
-            ]
-        )
+        published[1],
+        vm_struct!(Bar {
+            x: Value::Int(1),
+            y: Value::String(text!("b")),
+        })
     );
     assert_eq!(
-        io.borrow().publish_stack[2],
-        (
-            ident!("Bar"),
-            vec![
-                KVPair::new(ident!("x"), Value::Int(5)),
-                KVPair::new(ident!("y"), Value::String(text!("def"))),
-            ]
-        )
+        published[2],
+        vm_struct!(Bar {
+            x: Value::Int(5),
+            y: Value::String(text!("def")),
+        })
     );
     assert_eq!(
-        io.borrow().publish_stack[3],
-        (
-            ident!("Bar"),
-            vec![
-                KVPair::new(ident!("x"), Value::Int(100)),
-                KVPair::new(ident!("y"), Value::String(text!("xyz"))),
-            ]
-        )
+        published[3],
+        vm_struct!(Bar {
+            x: Value::Int(100),
+            y: Value::String(text!("xyz")),
+        })
     );
     Ok(())
 }
