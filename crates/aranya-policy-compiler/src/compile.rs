@@ -2471,8 +2471,8 @@ impl<'a> CompileState<'a> {
                     ))));
                 }
                 Typeish::Never => {
-                    // Never-typed expressions panic at runtime, making this code
-                    // unreachable. Skip to continue type checking.
+                    // Never-typed expressions panic at runtime, making this struct composition
+                    // operation unreachable. Skip to continue type checking.
                     continue;
                 }
             };
