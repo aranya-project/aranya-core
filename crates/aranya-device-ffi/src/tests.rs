@@ -3,6 +3,7 @@
 use aranya_crypto::{
     DeviceId, Id,
     default::{DefaultEngine, Rng},
+    id::IdExt as _,
     policy::CmdId,
 };
 use aranya_policy_vm::{
