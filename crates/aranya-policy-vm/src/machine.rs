@@ -952,36 +952,12 @@ where
                 match value {
                     Value::Struct(s) => {
                         // make sure identifier is a valid struct name
-                        let rhs_struct =
-                            self.machine.struct_defs.get(&identifier).ok_or_else(|| {
-                                self.err(MachineErrorType::NotDefined(alloc::format!(
-                                    "struct `{}`",
-                                    identifier
-                                )))
-                            })?;
-
-                        // Check that all required fields exist and have matching types
-                        for field in rhs_struct {
-                            let field_name = &field.identifier;
-                            let field_type = &field.field_type;
-
-                            // Check if the source struct has this field
-                            let value = s.fields.get(field_name).ok_or_else(|| {
-                                self.err(MachineErrorType::Unknown(alloc::format!(
-                                    "cannot cast to `struct {}`: missing field `{}`",
-                                    identifier,
-                                    field_name
-                                )))
-                            })?;
-
-                            // Check if the type matches
-                            if !value.fits_type(field_type) {
-                                return Err(self.err(MachineErrorType::Unknown(alloc::format!(
-                                    "cannot cast to `struct {}`: field `{}` has wrong type (expected `{}`, found `{}`)",
-                                    identifier, field_name, field_type, value.type_name()
-                                ))));
-                            }
-                        }
+                        self.machine.struct_defs.get(&identifier).ok_or_else(|| {
+                            self.err(MachineErrorType::NotDefined(alloc::format!(
+                                "struct `{}`",
+                                identifier
+                            )))
+                        })?;
 
                         // replace value on stack with clone, under new name
                         let mut s = s;
