@@ -775,11 +775,7 @@ where
                         .values
                         .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
 
-                    if !replaced_fact_values
-                        .iter()
-                        .zip(fact_from.values)
-                        .all(|(v1, v2)| *v1 == v2)
-                    {
+                    if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
                         return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
                     }
                 }

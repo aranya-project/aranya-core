@@ -465,35 +465,43 @@ fn test_fact_query() -> anyhow::Result<()> {
 
 #[test]
 fn test_invalid_update() -> anyhow::Result<()> {
-    let policy = parse_policy_str(POLICY_INVALID_UPDATE.trim(), Version::V2)?;
+    fn run(initial_value: i64) -> anyhow::Result<ExitReason> {
+        let policy = parse_policy_str(POLICY_TEST_UPDATE.trim(), Version::V2)?;
 
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
-    let io = RefCell::new(TestIO::new());
+        let module = Compiler::new(&policy)
+            .ffi_modules(TestIO::FFI_SCHEMAS)
+            .compile()?;
+        let mut machine = Machine::from_module(module)?;
+        let io = RefCell::new(TestIO::new());
 
-    {
-        let name = ident!("Set");
-        let ctx = dummy_ctx_policy(name.clone());
-        let self_struct = Struct::new(name.clone(), [KVPair::new_int(ident!("a"), 10)]);
-        machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
-            .success();
+        let exit = {
+            let name = ident!("Set");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct =
+                Struct::new(name.clone(), [KVPair::new_int(ident!("a"), initial_value)]);
+            machine
+                .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+                .success();
 
-        let name = ident!("Increment");
-        let ctx = dummy_ctx_policy(name.clone());
-        let self_struct = Struct::new(name.clone(), &[]);
-        let err = machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)
-            .unwrap_err();
+            let name = ident!("Increment");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct = Struct::new(name.clone(), &[]);
+            machine.call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+        };
 
-        assert!(matches!(err.err_type, MachineErrorType::InvalidFact(_)));
+        let fk = (ident!("Foo"), vec![]);
+        let fv = vec![FactValue::new(ident!("x"), Value::Int(initial_value + 1))];
+        assert_eq!(io.borrow().facts[&fk], fv);
+
+        Ok(exit)
     }
 
-    let fk = (ident!("Foo"), vec![]);
-    let fv = vec![FactValue::new(ident!("x"), Value::Int(10))];
-    assert_eq!(io.borrow().facts[&fk], fv);
+    // Incrementing from '0' is valid
+    assert_eq!(run(0).unwrap(), ExitReason::Normal);
+
+    // Incrementing from a value other than '0' is invalid
+    let err = run(10).unwrap_err().downcast::<MachineError>()?;
+    assert_eq!(err.err_type, MachineErrorType::InvalidFact(ident!("Foo")));
 
     Ok(())
 }

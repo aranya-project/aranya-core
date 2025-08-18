@@ -83,7 +83,7 @@ command Increment {
 }
 "#;
 
-pub const POLICY_INVALID_UPDATE: &str = r#"
+pub const POLICY_TEST_UPDATE: &str = r#"
 fact Foo[]=>{x int}
 
 command Set {
