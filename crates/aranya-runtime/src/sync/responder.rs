@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     StorageError, SyncType,
-    command::{Address, Command, CmdId},
+    command::{Address, CmdId, Command},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
 };
 

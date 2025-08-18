@@ -66,8 +66,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CmdId, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command, EngineError, GraphId,
+    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
     StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestEngine, TestSink},

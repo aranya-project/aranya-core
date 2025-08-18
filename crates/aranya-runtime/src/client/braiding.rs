@@ -154,9 +154,7 @@ pub(super) fn braid<S: Storage>(
 mod strand_heap {
     use alloc::collections::BinaryHeap;
 
-    use crate::{
-        ClientError, Command, CmdId, Location, Priority, Segment, Storage, StorageError,
-    };
+    use crate::{ClientError, CmdId, Command, Location, Priority, Segment, Storage, StorageError};
 
     pub struct Strand<S> {
         key: (Priority, CmdId),

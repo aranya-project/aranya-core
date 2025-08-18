@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, Command, CmdId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
+    Address, CmdId, Command, CommandRecall, Engine, EngineError, FactPerspective, Keys,
     MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
     testing::hash_for_testing_only,
 };

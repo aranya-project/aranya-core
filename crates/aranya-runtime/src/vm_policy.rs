@@ -129,7 +129,7 @@ use tracing::{error, info, instrument};
 
 use crate::{
     CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
-    command::{Command, CmdId},
+    command::{CmdId, Command},
     engine::{EngineError, NullSink, Policy, Sink},
 };
 

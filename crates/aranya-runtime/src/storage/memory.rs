@@ -5,9 +5,9 @@ use buggy::{Bug, BugExt, bug};
 use vec1::Vec1;
 
 use crate::{
-    Address, Checkpoint, Command, CmdId, Fact, FactIndex, FactPerspective, GraphId, Keys,
-    Location, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    Storage, StorageError, StorageProvider,
+    Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
+    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    StorageError, StorageProvider,
 };
 
 #[derive(Debug)]

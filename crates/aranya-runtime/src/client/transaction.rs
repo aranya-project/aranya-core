@@ -5,9 +5,9 @@ use buggy::{BugExt, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, Command, CmdId, CommandRecall, Engine, EngineError, GraphId,
-    Location, MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable,
-    Segment, Sink, Storage, StorageError, StorageProvider,
+    Address, ClientError, CmdId, Command, CommandRecall, Engine, EngineError, GraphId, Location,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
+    Storage, StorageError, StorageProvider,
 };
 
 /// Transaction used to receive many commands at once.

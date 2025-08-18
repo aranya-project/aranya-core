@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address,
-    command::{Command, CmdId},
+    command::{CmdId, Command},
     storage::{FactPerspective, Perspective},
 };
 

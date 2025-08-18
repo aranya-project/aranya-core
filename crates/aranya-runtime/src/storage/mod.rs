@@ -11,7 +11,7 @@ use core::{fmt, ops::Deref};
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Address, Command, CmdId, PolicyId, Prior};
+use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{Command, CmdId, Priority},
+    command::{CmdId, Command, Priority},
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
 

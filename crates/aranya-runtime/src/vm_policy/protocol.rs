@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{Command, CmdId, Priority},
+    command::{CmdId, Command, Priority},
 };
 
 /// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.

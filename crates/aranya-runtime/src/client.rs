@@ -1,8 +1,8 @@
 use buggy::{Bug, BugExt};
 
 use crate::{
-    Address, Command, CmdId, Engine, EngineError, GraphId, PeerCache, Perspective, Policy,
-    Sink, Storage, StorageError, StorageProvider,
+    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective, Policy, Sink,
+    Storage, StorageError, StorageProvider,
 };
 
 mod braiding;

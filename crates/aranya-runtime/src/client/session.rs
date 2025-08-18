@@ -19,7 +19,7 @@ use tracing::warn;
 use yoke::{Yoke, Yokeable};
 
 use crate::{
-    Address, Checkpoint, ClientError, ClientState, Command, CmdId, CommandRecall, Engine, Fact,
+    Address, Checkpoint, ClientError, ClientState, CmdId, Command, CommandRecall, Engine, Fact,
     FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
     Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
 };
