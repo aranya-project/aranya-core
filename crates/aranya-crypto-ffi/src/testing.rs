@@ -27,8 +27,7 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
-///
+/// use aranya_crypto::{Rng, default::DefaultEngine, keystore::memstore::MemStore};
 /// use aranya_crypto_ffi::run_tests;
 ///
 /// run_tests!(default_engine, || -> (DefaultEngine<_, _>, MemStore) {

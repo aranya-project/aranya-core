@@ -694,7 +694,8 @@ impl CStr {
 ///         buf.write_all(b" world");
 ///         buf.write_all(b"!");
 ///         Ok::<(), ()>(())
-///     }).is_ok()
+///     })
+///     .is_ok()
 /// }
 ///
 /// // Retrieve the number of elements we want to write.
