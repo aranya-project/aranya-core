@@ -442,6 +442,7 @@ fn get_policy<'a, E: Engine>(
 mod test {
     use std::collections::HashMap;
 
+    use aranya_crypto::id::{Id, IdTag};
     use buggy::Bug;
     use test_log::test;
 
@@ -638,7 +639,7 @@ mod test {
             mut client: ClientState<SeqEngine, SP>,
             ids: &[CmdId],
         ) -> Result<Self, ClientError> {
-            let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
+            let mut trx = Transaction::new(GraphId::cast(ids[0]));
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {
@@ -763,11 +764,8 @@ mod test {
         }
     }
 
-    fn mkid<T>(x: &str) -> T
-    where
-        aranya_crypto::BaseId: Into<T>,
-    {
-        x.parse::<aranya_crypto::BaseId>().unwrap().into()
+    fn mkid<Tag: IdTag>(x: &str) -> Id<Tag> {
+        x.parse().unwrap()
     }
 
     /// See tests for usage.
