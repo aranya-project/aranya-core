@@ -65,12 +65,7 @@
 /// use core::{convert::Infallible, marker::PhantomData};
 ///
 /// use aranya_crypto::Engine;
-/// use aranya_policy_vm::{
-///     CommandContext,
-///     ffi::ffi,
-///     MachineError,
-///     MachineErrorType,
-/// };
+/// use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, ffi::ffi};
 ///
 /// #[derive(Copy, Clone, Debug)]
 /// struct Overflow;
