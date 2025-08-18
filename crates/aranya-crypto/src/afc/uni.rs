@@ -35,7 +35,7 @@ use crate::{
 /// use core::borrow::{Borrow, BorrowMut};
 ///
 /// use aranya_crypto::{
-///     CipherSuite, Csprng, EncryptionKey, Engine, Id, IdentityKey, Rng,
+///     BaseId, CipherSuite, Csprng, EncryptionKey, Engine, IdentityKey, Rng,
 ///     afc::{
 ///         AuthData, OpenKey, SealKey, UniAuthorSecret, UniChannel, UniOpenKey, UniPeerEncap,
 ///         UniSealKey, UniSecrets,

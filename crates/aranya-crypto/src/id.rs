@@ -1,4 +1,4 @@
-//! [`Id`]s and generation of [`custom_id`] types.
+//! IDs and generation of [`custom_id`] types.
 
 #![forbid(unsafe_code)]
 
@@ -12,7 +12,7 @@ use crate::{CipherSuite, CipherSuiteExt};
 
 /// Extension trait for IDs.
 pub trait IdExt: Sized {
-    /// Derives an [`Id`] from the hash of some data.
+    /// Derives an ID from the hash of some data.
     fn new<'a, CS: CipherSuite>(
         tag: &'static [u8],
         context: impl IntoIterator<Item = &'a [u8]>,
@@ -26,7 +26,7 @@ impl<I> IdExt for I
 where
     [u8; 32]: Into<I>,
 {
-    /// Derives an [`Id`] from the hash of some data.
+    /// Derives an ID from the hash of some data.
     fn new<'a, CS: CipherSuite>(
         tag: &'static [u8],
         data: impl IntoIterator<Item = &'a [u8]>,
@@ -60,7 +60,7 @@ pub trait Identified {
         + PartialOrd
         + serde::Serialize
         + serde::de::DeserializeOwned
-        + Into<Id>;
+        + Into<BaseId>;
 
     /// Uniquely identifies the object.
     fn id(&self) -> Result<Self::Id, IdError>;
