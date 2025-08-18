@@ -118,7 +118,7 @@ impl<CS: CipherSuite> PskSeed<CS> {
                 // [hkdf]: https://eprint.iacr.org/2010/264.pdf]
                 let id = CS::labeled_expand(SEED_DOMAIN, &self.prk, b"id", [])
                     .assume("should be able to generate PSK seed ID")?;
-                Ok(PskSeedId(id))
+                Ok(PskSeedId::from_bytes(id))
             })
             .as_ref()
     }

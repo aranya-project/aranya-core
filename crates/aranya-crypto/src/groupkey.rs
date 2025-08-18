@@ -77,7 +77,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
                 let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(GroupKeyId)
+                    .map(GroupKeyId::from_bytes)
             })
             .clone()
     }

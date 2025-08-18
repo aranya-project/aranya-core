@@ -8,7 +8,7 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     Csprng, DeviceId, Engine, Id, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
-    policy::CmdId,
+    id::IdExt as _, policy::CmdId,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,

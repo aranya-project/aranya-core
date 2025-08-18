@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, iter};
 
 use buggy::BugExt;
 use derive_where::derive_where;
@@ -18,7 +18,7 @@ use crate::{
     engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{Id, IdError, custom_id},
+    id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
     policy::CmdId,
 };
@@ -34,12 +34,13 @@ use crate::{
 /// use core::borrow::{Borrow, BorrowMut};
 ///
 /// use aranya_crypto::{
-///     CipherSuite, Csprng, EncryptionKey, Engine, IdentityKey, Rng,
+///     CipherSuite, Csprng, EncryptionKey, Engine, Id, IdentityKey, Rng,
 ///     afc::{
 ///         AuthData, BidiAuthorSecret, BidiChannel, BidiKeys, BidiPeerEncap, BidiSecrets, OpenKey,
 ///         SealKey,
 ///     },
 ///     default::{DefaultCipherSuite, DefaultEngine},
+///     id::IdExt as _,
 ///     policy::CmdId,
 /// };
 ///
@@ -238,9 +239,9 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        *self
-            .id
-            .get_or_init(|| BidiChannelId(Id::new::<CS>(self.as_bytes(), b"BidiChannelId")))
+        *self.id.get_or_init(|| {
+            BidiChannelId::new::<CS>(b"BidiChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

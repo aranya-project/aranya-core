@@ -20,7 +20,6 @@ use crate::{
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant},
 };
-
 /// A file system backed [`KeyStore`].
 pub struct Store {
     root: OwnedFd,

@@ -6,7 +6,7 @@ use std::{
 };
 
 use aranya_crypto::{
-    Rng, custom_id,
+    Rng,
     dangerous::spideroak_crypto::{
         aead::Aead,
         csprng::Random,
@@ -19,6 +19,7 @@ use aranya_crypto::{
         signer::PkError,
     },
 };
+use aranya_id::custom_id;
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
@@ -154,6 +155,7 @@ struct AuthData<'a> {
 impl Hsm {
     fn signer_key_id(pk: &VerifyingKey) -> KeyId {
         let id = tuple_hash::<Sha256, _>(["HSM-v1".as_bytes(), "Ed25519".as_bytes(), &pk.export()])
+            .into_array()
             .into_array()
             .into();
         KeyId(id)

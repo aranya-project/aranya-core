@@ -239,6 +239,7 @@ name = "aranya-crypto"
 version = "0.9.0"
 dependencies = [
  "aranya-crypto",
+ "aranya-id",
  "buggy",
  "byteorder",
  "cfg-if",
@@ -247,12 +248,9 @@ dependencies = [
  "criterion",
  "derive-where",
  "postcard",
- "proptest",
- "proptest-derive",
  "rand 0.8.5",
  "rustix",
  "serde",
- "serde_json",
  "sha3-utils",
  "siphasher",
  "spideroak-base58",
@@ -313,6 +311,20 @@ dependencies = [
  "serde",
  "serial_test",
  "thiserror 2.0.7",
+]
+
+[[package]]
+name = "aranya-id"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "proptest",
+ "serde",
+ "serde_json",
+ "spideroak-base58",
+ "subtle",
+ "zerocopy 0.8.25",
+ "zerocopy-derive 0.8.25",
 ]
 
 [[package]]
@@ -566,6 +578,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "spideroak-base58",
  "spin 0.10.0",
  "tempfile",
  "test-log",
