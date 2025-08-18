@@ -1,4 +1,4 @@
-use core::{cell::OnceCell, fmt};
+use core::{cell::OnceCell, fmt, iter};
 
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     hpke::{self, Mode},
-    id::{Id, IdError, custom_id},
+    id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
     policy::{CmdId, LabelId},
     tls::CipherSuiteId,
@@ -43,6 +43,7 @@ use crate::{
 ///         UniSecrets, UniSendPsk,
 ///     },
 ///     default::{DefaultCipherSuite, DefaultEngine},
+///     id::IdExt as _,
 ///     policy::{CmdId, LabelId},
 ///     subtle::ConstantTimeEq as _,
 /// };
@@ -194,9 +195,9 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        *self
-            .id
-            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"AqcUniChannelId")))
+        *self.id.get_or_init(|| {
+            UniChannelId::new::<CS>(b"AqcUniChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

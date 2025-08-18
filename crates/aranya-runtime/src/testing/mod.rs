@@ -17,7 +17,7 @@ use crate::CmdId;
 /// Derives a [`CmdId`] from some data.
 pub fn hash_for_testing_only(data: &[u8]) -> CmdId {
     use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash, rust::Sha256};
-    Sha256::hash(data).into_array().into()
+    Sha256::hash(data).into_array().into_array().into()
 }
 
 pub fn short_b58(id: CmdId) -> String {
