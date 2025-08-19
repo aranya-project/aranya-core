@@ -318,13 +318,12 @@ impl<T: TestImpl> Device<T> {
 /// # Example
 ///
 /// ```rust
-///
-/// use aranya_fast_channels::memory::State;
-/// use aranya_afc_util::testing::{test_all, MemStore, TestImpl, Device};
+/// use aranya_afc_util::testing::{Device, MemStore, TestImpl, test_all};
 /// use aranya_crypto::{
-///     default::{DefaultCipherSuite, DefaultEngine},
 ///     Rng,
+///     default::{DefaultCipherSuite, DefaultEngine},
 /// };
+/// use aranya_fast_channels::memory::State;
 ///
 /// struct DefaultImpl;
 ///
