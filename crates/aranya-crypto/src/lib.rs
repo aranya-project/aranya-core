@@ -33,7 +33,6 @@
 //! in the cipher suite's identifier for domain separation and
 //! contextual binding purposes. Among other things, this helps
 //! prevent cross-version attacks.
-//!
 // TODO: Once the idam_crypto doc gets open sourced this link should be updated. <https://github.com/aranya-project/aranya-docs/issues/17>
 //! [IDAM crypto]: <https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/idam-crypto-apis/src/idam_crypto.md>
 

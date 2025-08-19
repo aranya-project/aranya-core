@@ -51,6 +51,17 @@ fn dummy_envelope() -> Struct {
     }
 }
 
+macro_rules! vm_struct {
+    ($ident:ident { $( $field:ident : $val:expr ),* $(,)? }) => {
+        Struct {
+            name: ident!(stringify!($ident)),
+            fields: [ $(
+                (ident!(stringify!($field)), Value::from($val))
+            ),* ].into()
+        }
+    };
+}
+
 // Data types
 
 #[test]
@@ -72,6 +83,7 @@ fn test_bytes() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -83,7 +95,7 @@ fn test_bytes() -> anyhow::Result<()> {
 
         call_action(
             &mut rs,
-            &io,
+            &mut published,
             name.clone(),
             [Value::Id(Id::default()), Value::Bytes(vec![0, 255, 42])],
         )?
@@ -91,18 +103,11 @@ fn test_bytes() -> anyhow::Result<()> {
     }
 
     assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Foo"),
-            vec![
-                KVPair::new(ident!("id_field"), Value::Id(Id::default())),
-                KVPair::new(ident!("x"), Value::Bytes(vec![0, 255, 42]))
-            ]
-        )
-    );
-    assert_eq!(
-        format!("{}", io.borrow().publish_stack[0].1[0]),
-        format!("id_field: {}", Id::default().to_string())
+        published,
+        [vm_struct!(Foo {
+            id_field: Id::default(),
+            x: vec![0, 255, 42],
+        })]
     );
 
     Ok(())
@@ -136,6 +141,7 @@ fn test_structs() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -155,7 +161,7 @@ fn test_structs() -> anyhow::Result<()> {
         let mut rs = machine.create_run_state(&io, ctx);
         call_action(
             &mut rs,
-            &io,
+            &mut published,
             name.clone(),
             [Value::Id(Id::default()), Value::Int(3)],
         )?
@@ -163,20 +169,11 @@ fn test_structs() -> anyhow::Result<()> {
     }
 
     assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Foo"),
-            vec![
-                KVPair::new(
-                    ident!("bar"),
-                    Value::Struct(Struct::new(
-                        ident!("Bar"),
-                        [KVPair::new(ident!("x"), Value::Int(3))]
-                    ))
-                ),
-                KVPair::new(ident!("id_field"), Value::Id(Id::default())),
-            ]
-        )
+        published,
+        [vm_struct!(Foo {
+            bar: vm_struct!(Bar { x: 3 }),
+            id_field: Id::default(),
+        })]
     );
 
     Ok(())
@@ -194,21 +191,13 @@ fn test_action() -> anyhow::Result<()> {
         .compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
 
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, name.clone(), [Value::from(3)])?.success();
+    call_action(&mut rs, &mut published, name.clone(), [Value::from(3)])?.success();
 
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Foo"),
-            vec![
-                KVPair::new(ident!("a"), Value::Int(3)),
-                KVPair::new(ident!("b"), Value::Int(4))
-            ]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Foo { a: 3, b: 4 })]);
 
     Ok(())
 }
@@ -266,32 +255,25 @@ fn test_action_call_action() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile().expect("should compile");
     let machine = Machine::from_module(module).expect("should create machine");
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
 
     let action_name = ident!("bar");
     let ctx = dummy_ctx_policy(action_name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, action_name.clone(), Vec::<i64>::new())?.success();
+    call_action(
+        &mut rs,
+        &mut published,
+        action_name.clone(),
+        Vec::<i64>::new(),
+    )?
+    .success();
 
-    assert_eq!(io.borrow().publish_stack.len(), 2);
     assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Foo"),
-            vec![
-                KVPair::new(ident!("a"), Value::Int(4)),
-                KVPair::new(ident!("b"), Value::Int(4))
-            ]
-        )
-    );
-    assert_eq!(
-        io.borrow().publish_stack[1],
-        (
-            ident!("Foo"),
-            vec![
-                KVPair::new(ident!("a"), Value::Int(3)),
-                KVPair::new(ident!("b"), Value::Int(4))
-            ]
-        )
+        published,
+        [
+            vm_struct!(Foo { a: 4, b: 4 }),
+            vm_struct!(Foo { a: 3, b: 4 })
+        ]
     );
 
     Ok(())
@@ -405,60 +387,6 @@ fn test_command_invalid_this() {
             MachineErrorType::invalid_type("int", "Bool", "invalid function argument")
         );
     }
-}
-
-#[test]
-#[ignore = "TODO: needs real seal/open but is probably redundant"]
-fn test_seal() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
-    let name = ident!("Foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-    let ctx = dummy_ctx_seal(name.clone());
-    let io = RefCell::new(TestIO::new());
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    let this_data = Struct {
-        name: ident!("Bar"),
-        fields: vec![(ident!("a"), Value::Int(3)), (ident!("b"), Value::Int(4))]
-            .into_iter()
-            .collect(),
-    };
-    rs.call_seal(name.clone(), &this_data)
-        .expect("Could not call command policy")
-        .success();
-
-    let stack_vec = rs.stack.into_vec();
-    assert_eq!(stack_vec[0], Value::None);
-
-    Ok(())
-}
-
-#[test]
-#[ignore = "TODO: needs real seal/open but is probably redundant"]
-fn test_open() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
-    let name = ident!("Foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-    let ctx = dummy_ctx_open(name.clone());
-    let io = RefCell::new(TestIO::new());
-    let mut rs = machine.create_run_state(&io, ctx);
-
-    rs.call_open(name.clone(), dummy_envelope())
-        .expect("Could not call command policy")
-        .success();
-
-    let stack_vec = rs.stack.into_vec();
-    assert_eq!(stack_vec[0], Value::None);
-
-    Ok(())
 }
 
 // Fact manipulation
@@ -578,6 +506,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
     let policy = parse_policy_str(text.trim(), Version::V2)?;
 
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -595,7 +524,13 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let name = ident!("testExists");
         let ctx = dummy_ctx_action(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        call_action(&mut rs, &io, name.clone(), iter::empty::<Value>())?.success();
+        call_action(
+            &mut rs,
+            &mut published,
+            name.clone(),
+            iter::empty::<Value>(),
+        )?
+        .success();
     }
 
     Ok(())
@@ -1080,20 +1015,13 @@ fn test_if_branches() -> anyhow::Result<()> {
 
     for i in 0i64..4 {
         let io = RefCell::new(TestIO::new());
+        let mut published = Vec::new();
         let mut rs = machine.create_run_state(&io, ctx.to_owned());
-        call_action(&mut rs, &io, name.clone(), [i])?.success();
+        call_action(&mut rs, &mut published, name.clone(), [i])?.success();
         drop(rs);
 
-        assert_eq!(
-            io.borrow().publish_stack,
-            [(
-                ident!("Result"),
-                vec![KVPair::new(
-                    ident!("s"),
-                    Value::String(i.to_string().try_into().unwrap())
-                )]
-            )],
-        );
+        let s = Value::String(i.to_string().try_into().unwrap());
+        assert_eq!(published, [vm_struct!(Result { s: s })]);
     }
 
     Ok(())
@@ -1104,22 +1032,16 @@ fn test_match_first() -> anyhow::Result<()> {
     let name = ident!("foo");
     let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let mut rs = machine.create_run_state(&io, ctx);
 
-    call_action(&mut rs, &io, name.clone(), [5])?.success();
+    call_action(&mut rs, &mut published, name.clone(), [5])?.success();
     drop(rs);
 
-    assert_eq!(io.borrow().publish_stack.len(), 1);
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![KVPair::new(ident!("x"), Value::Int(5)),]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Result { x: 5 })]);
 
     Ok(())
 }
@@ -1131,20 +1053,14 @@ fn test_match_second() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
 
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, name.clone(), [6])?.success();
+    call_action(&mut rs, &mut published, name.clone(), [6])?.success();
     drop(rs);
 
-    assert_eq!(io.borrow().publish_stack.len(), 1);
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![KVPair::new(ident!("x"), Value::Int(6)),]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Result { x: 6 })]);
 
     Ok(())
 }
@@ -1191,19 +1107,20 @@ fn test_match_alternation() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let action_name = ident!("foo");
     let ctx = dummy_ctx_action(action_name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, action_name.clone(), [Value::Int(6)])?.success();
+    call_action(
+        &mut rs,
+        &mut published,
+        action_name.clone(),
+        [Value::Int(6)],
+    )?
+    .success();
     drop(rs);
 
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![KVPair::new(ident!("x"), Value::Int(6)),]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Result { x: 6 })]);
     Ok(())
 }
 
@@ -1234,19 +1151,13 @@ fn test_match_default() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, name.clone(), [Value::Int(6)])?.success();
+    call_action(&mut rs, &mut published, name.clone(), [Value::Int(6)])?.success();
     drop(rs);
 
-    assert_eq!(io.borrow().publish_stack.len(), 1);
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![KVPair::new(ident!("x"), Value::Int(0)),]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Result { x: 0 })]);
 
     Ok(())
 }
@@ -1299,20 +1210,15 @@ fn test_match_expression() -> anyhow::Result<()> {
         .compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let name = ident!("foo");
     let mut rs = machine.create_run_state(&io, dummy_ctx_action(name.clone()));
 
     let expectations = vec![(0, 1), (1, 0), (2, 0)];
     for (arg, expected) in expectations {
-        call_action(&mut rs, &io, name.clone(), [Value::Int(arg)])?.success();
-        assert_eq!(
-            io.borrow().publish_stack[0],
-            (
-                ident!("F"),
-                vec![KVPair::new(ident!("x"), Value::Int(expected))]
-            )
-        );
-        io.borrow_mut().publish_stack.clear();
+        call_action(&mut rs, &mut published, name.clone(), [Value::Int(arg)])?.success();
+        assert_eq!(published, [vm_struct!(F { x: expected })],);
+        published.clear();
     }
     Ok(())
 }
@@ -1324,21 +1230,15 @@ fn test_is_some_statement() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
 
     // Test with a value that is not None
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, name.clone(), [Value::Int(10)])?.success();
+    call_action(&mut rs, &mut published, name.clone(), [Value::Int(10)])?.success();
     drop(rs);
 
-    assert_eq!(io.borrow().publish_stack.len(), 1);
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![KVPair::new(ident!("x"), Value::Int(10))]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Result { x: 10 })],);
 
     Ok(())
 }
@@ -1350,15 +1250,15 @@ fn test_is_none_statement() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
 
     // Test with a None value
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, name.clone(), [Value::None])?.success();
+    call_action(&mut rs, &mut published, name.clone(), [Value::None])?.success();
     drop(rs);
 
-    assert_eq!(io.borrow().publish_stack.len(), 1);
-    assert_eq!(io.borrow().publish_stack[0], (ident!("Empty"), vec![]));
+    assert_eq!(published, [vm_struct!(Empty {})],);
 
     Ok(())
 }
@@ -1477,6 +1377,7 @@ fn test_pure_function() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -1486,16 +1387,10 @@ fn test_pure_function() -> anyhow::Result<()> {
         let name = ident!("foo");
         let ctx = dummy_ctx_action(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        call_action(&mut rs, &io, name.clone(), [3])?.success();
+        call_action(&mut rs, &mut published, name.clone(), [3])?.success();
     }
 
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![KVPair::new(ident!("x"), Value::Int(4)),]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Result { x: 4 })],);
 
     Ok(())
 }
@@ -1602,7 +1497,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
     let this_bytes: Vec<u8> = {
         let ctx = dummy_ctx_seal(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_seal(name.clone(), &this_struct)?.success();
+        rs.call_seal(name.clone(), this_struct.clone())?.success();
         let result = rs.consume_return()?;
         let mut envelope: Struct = result.try_into()?;
         let payload = envelope
@@ -1901,6 +1796,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -1935,38 +1831,28 @@ fn test_global_let_statements() -> anyhow::Result<()> {
     let name = ident!("foo");
     let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &io, name.clone(), iter::empty::<Value>())?.success();
+    call_action(
+        &mut rs,
+        &mut published,
+        name.clone(),
+        iter::empty::<Value>(),
+    )?
+    .success();
     drop(rs);
 
     // Check if the published struct is correct
-    assert_eq!(io.borrow().publish_stack.len(), 1);
     assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Result"),
-            vec![
-                KVPair::new(ident!("a"), Value::Int(43)),
-                KVPair::new(ident!("b"), Value::String(text!("hello world"))),
-                KVPair::new(ident!("c"), Value::Bool(false)),
-                KVPair::new(
-                    ident!("d"),
-                    Value::Struct(Struct {
-                        name: ident!("Bar"),
-                        fields: BTreeMap::from([
-                            (
-                                ident!("a"),
-                                Value::Struct(Struct {
-                                    name: ident!("Far"),
-                                    fields: BTreeMap::from([(ident!("a"), Value::Int(3))]),
-                                }),
-                            ),
-                            (ident!("b"), Value::String(text!("y"))),
-                            (ident!("c"), Value::Bool(false)),
-                        ]),
-                    }),
-                ),
-            ]
-        )
+        published,
+        [vm_struct!(Result {
+            a: 43,
+            b: text!("hello world"),
+            c: false,
+            d: vm_struct!(Bar {
+                a: vm_struct!(Far { a: 3 }),
+                b: text!("y"),
+                c: false,
+            }),
+        })]
     );
 
     Ok(())
@@ -2005,12 +1891,13 @@ fn test_enum_reference() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let name = ident!("test");
     let ctx = dummy_ctx_policy(name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
     call_action(
         &mut rs,
-        &io,
+        &mut published,
         name.clone(),
         [machine
             .parse_enum("Drink::Coffee")
@@ -2020,20 +1907,14 @@ fn test_enum_reference() -> anyhow::Result<()> {
 
     drop(rs);
 
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Sip"),
-            vec![KVPair::new(ident!("a"), Value::from(text!("mmm")))]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Sip { a: text!("mmm") })],);
 
     Ok(())
 }
 
 fn call_action<M, Args>(
     rs: &mut RunState<'_, M>,
-    io: &RefCell<M>,
+    published: &mut Vec<Struct>,
     name: Identifier,
     args: Args,
 ) -> Result<ExitReason, MachineError>
@@ -2046,11 +1927,7 @@ where
     while let ExitReason::Yield = er {
         // usually, we would seal the command and add it to the IO
         let command_struct: Struct = rs.stack.pop()?;
-        let fields = command_struct
-            .fields
-            .into_iter()
-            .map(|(k, v)| KVPair::new(k, v));
-        io.borrow_mut().publish(command_struct.name, fields);
+        published.push(command_struct);
         er = rs.run()?;
     }
     Ok(er)
@@ -2209,6 +2086,7 @@ fn test_map() -> anyhow::Result<()> {
         .compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
 
     // Empty results. Run test without creating facts.
     {
@@ -2216,11 +2094,18 @@ fn test_map() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let prev_stack_depth = rs.stack.len();
-        call_action(&mut rs, &io, name.clone(), iter::empty::<Value>())?.success();
+        call_action(
+            &mut rs,
+            &mut published,
+            name.clone(),
+            iter::empty::<Value>(),
+        )?
+        .success();
 
         // Make sure we didn't leave any trailing values on the stack
         let stack = rs.stack.into_vec();
         assert_eq!(stack.len(), prev_stack_depth);
+        assert!(published.is_empty());
     }
 
     // Test with some data
@@ -2240,7 +2125,13 @@ fn test_map() -> anyhow::Result<()> {
             let ctx = dummy_ctx_action(name.clone());
             let mut rs = machine.create_run_state(&io, ctx);
             let prev_stack_depth = rs.stack.len();
-            call_action(&mut rs, &io, name.clone(), iter::empty::<Value>())?.success();
+            call_action(
+                &mut rs,
+                &mut published,
+                name.clone(),
+                iter::empty::<Value>(),
+            )?
+            .success();
 
             // Make sure we didn't leave any trailing values on the stack
             let stack = rs.stack.into_vec();
@@ -2248,11 +2139,8 @@ fn test_map() -> anyhow::Result<()> {
         }
 
         // Assert we iterated as many times as expected, and with the correct results each time.
-        assert_eq!(io.borrow().publish_stack.len(), 3);
-        for (i, value) in [1, 2, 3].into_iter().enumerate() {
-            let kv = &io.borrow().publish_stack[i].1;
-            assert_eq!(*kv[0].value(), Value::Int(value));
-        }
+        let expected = [1, 2, 3].map(|value| vm_struct!(Process { value: value }));
+        assert_eq!(published, expected);
     }
     Ok(())
 }
@@ -2279,6 +2167,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -2323,7 +2212,8 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             let action_args = args.iter().map(KVPair::value).cloned();
 
             assert_eq!(
-                call_action(&mut rs, &io, name.clone(), action_args).map_err(|e| e.err_type),
+                call_action(&mut rs, &mut published, name.clone(), action_args)
+                    .map_err(|e| e.err_type),
                 expected
             );
         }
@@ -2381,6 +2271,7 @@ fn test_block_expression() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(policy_text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -2389,16 +2280,10 @@ fn test_block_expression() -> anyhow::Result<()> {
     let args: [Value; 0] = [];
     let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
-    let r = call_action(&mut rs, &io, name.clone(), args)?;
+    let r = call_action(&mut rs, &mut published, name.clone(), args)?;
     assert_eq!(r, ExitReason::Normal);
 
-    assert_eq!(
-        io.borrow_mut().publish_stack.last(),
-        Some(&(
-            ident!("TestCommand"),
-            vec![KVPair::new(ident!("x"), Value::Int(12))]
-        ))
-    );
+    assert_eq!(published, [vm_struct!(TestCommand { x: 12 })]);
 
     Ok(())
 }
@@ -2427,12 +2312,13 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
     let action_name = ident!("baz");
     let ctx = dummy_ctx_action(action_name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
     call_action(
         &mut rs,
-        &io,
+        &mut published,
         action_name.clone(),
         [Value::Struct(Struct::new(
             ident!("Bar"),
@@ -2446,105 +2332,89 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
     .success();
     drop(rs);
 
-    assert_eq!(
-        io.borrow().publish_stack[0],
-        (
-            ident!("Foo"),
-            vec![
-                KVPair::new(ident!("x"), Value::Int(30)),
-                KVPair::new(ident!("y"), Value::Bool(false)),
-            ]
-        )
-    );
+    assert_eq!(published, [vm_struct!(Foo { x: 30, y: false })]);
     Ok(())
 }
 
 #[test]
-#[ignore = "TODO: rewrite to use deserialize so we have an Indeterminate struct as lhs of substruct"]
-fn test_substruct_errors() -> anyhow::Result<()> {
-    let cases = [
-        (
-            r#"
-                command Foo {
-                    fields {
-                        x int,
-                        y bool,
-                        z string,
-                    }
-                    seal { return todo() }
-                    open { return todo() }
-                }
-                struct Bar {
-                    x int,
-                    y bool,
-                }
-                action baz(source struct Bar) {
-                    let definitely_source = if true {
-                        :source
-                    } else {
-                        :todo()
-                    }
-
-                    // Foo is not a subset of Bar
-                    publish definitely_source substruct Foo
-                }
-            "#,
-            ident!("baz"),
-            Err(MachineErrorType::InvalidStructMember(ident!("z"))),
-            [Value::Struct(Struct::new(
-                ident!("Bar"),
-                [
-                    (ident!("x"), Value::Int(30)),
-                    (ident!("y"), Value::Bool(false)),
-                ],
-            ))],
-        ),
-        (
-            r#"
-                command Foo {
-                    fields {
-                        x string
-                    }
-                    seal { return todo() }
-                    open { return todo() }
-                }
-                struct Bar {
-                    x int,
-                }
-                action baz(source struct Bar) {
-                    let definitely_source = if true {
-                        :source
-                    } else {
-                        :todo()
-                    }
-
-                    // Foo.x and Bar.x have different types
-                    publish definitely_source substruct Foo
-                }
-            "#,
-            ident!("baz"),
-            Err(MachineErrorType::InvalidStructMember(ident!("x"))),
-            [Value::Struct(Struct::new(
-                ident!("Bar"),
-                [(ident!("x"), Value::Int(30))],
-            ))],
-        ),
-    ];
-
-    for (policy_str, action_name, expected, action_args) in cases {
-        let policy = parse_policy_str(policy_str, Version::V2)?;
-        let module = Compiler::new(&policy).compile()?;
-        let machine = Machine::from_module(module)?;
+fn test_boolean_operators() {
+    fn check(expr: &str) {
+        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
+            .expect("parse");
+        let module = Compiler::new(&policy).compile().expect("compile");
+        let machine = Machine::from_module(module).expect("machine");
         let io = RefCell::new(TestIO::new());
-        let ctx = dummy_ctx_action(action_name.clone());
+        let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&io, ctx);
-
-        assert_eq!(
-            rs.call_action(action_name.clone(), action_args)
-                .map_err(|e| e.err_type),
-            expected
-        )
+        let exit = rs
+            .call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs");
+        assert_eq!(exit, ExitReason::Normal);
+        assert!(rs.stack.is_empty());
     }
 
-    Ok(())
+    check("true && true");
+    check("!(true && false)");
+    check("!(false && true)");
+    check("!(false && false)");
+
+    check("!(false || false)");
+    check("true || false");
+    check("false || true");
+    check("true || true");
+}
+
+#[test]
+fn test_boolean_short_circuit() {
+    fn run(expr: &str) -> ExitReason {
+        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
+            .expect("parse");
+        let module = Compiler::new(&policy)
+            .debug(true)
+            .compile()
+            .expect("compile");
+        let machine = Machine::from_module(module).expect("machine");
+        let io = RefCell::new(TestIO::new());
+        let ctx = dummy_ctx_action(ident!("f"));
+        let mut rs = machine.create_run_state(&io, ctx);
+
+        let exit = rs
+            .call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs");
+        assert!(rs.stack.is_empty());
+        exit
+    }
+
+    assert_eq!(run("true && todo()"), ExitReason::Panic);
+    assert_eq!(run("false && todo()"), ExitReason::Check);
+    assert_eq!(run("true || todo()"), ExitReason::Normal);
+    assert_eq!(run("false || todo()"), ExitReason::Panic);
+}
+
+#[test]
+fn test_comparison_operators() {
+    fn check(expr: &str) {
+        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
+            .expect("parse");
+        let module = Compiler::new(&policy).compile().expect("compile");
+        let machine = Machine::from_module(module).expect("machine");
+        let io = RefCell::new(TestIO::new());
+        let ctx = dummy_ctx_action(ident!("f"));
+        let mut rs = machine.create_run_state(&io, ctx);
+        let exit = rs
+            .call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs");
+        assert_eq!(exit, ExitReason::Normal);
+        assert!(rs.stack.is_empty());
+    }
+
+    check("1 < 2");
+    check("1 <= 2");
+    check("!(1 > 2)");
+    check("!(1 >= 2)");
+
+    check("2 > 1");
+    check("2 >= 1");
+    check("!(2 < 1)");
+    check("!(2 <= 1)");
 }
