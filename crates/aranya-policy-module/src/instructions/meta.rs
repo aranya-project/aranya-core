@@ -4,7 +4,17 @@ use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 /// Compiler Tracer metadata
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Meta {
     /// A variable has been defined
     Let(Identifier),
