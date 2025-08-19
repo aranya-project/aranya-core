@@ -12,7 +12,7 @@ pub(crate) struct Ast<'ast> {
 }
 
 /// Creates an index of the AST.
-pub(crate) fn index<'ast>(ast: Ast<'ast>) -> Index<'ast> {
+pub(crate) fn index<'ast>(ast: &Ast<'ast>) -> Index<'ast> {
     macro_rules! collect {
         ($($field:expr),+ $(,)?) => {{
             let mut items = SlotMap::with_key();
@@ -34,7 +34,7 @@ pub(crate) fn index<'ast>(ast: Ast<'ast>) -> Index<'ast> {
         &ast.functions,
         &ast.global_lets,
         &ast.structs,
-        schemas,
+        *schemas,
     };
     Index { items }
 }

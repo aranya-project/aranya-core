@@ -1,5 +1,7 @@
 //! Compiler errors and diagnostics.
 
+#![expect(clippy::unwrap_used, clippy::panic, clippy::panic_in_result_fn)]
+
 use std::{
     borrow::Cow,
     cell::RefCell,
@@ -45,7 +47,7 @@ impl EmissionGuarantee for () {
 /// Used with [`Result`] to indicate that an error has been
 /// reported and compilation can stop.
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) struct ErrorGuaranteed(());
+pub struct ErrorGuaranteed(());
 
 impl ErrorGuaranteed {
     /// Aborts the process with a fatal error.
@@ -106,7 +108,6 @@ impl EmissionGuarantee for BugAbort {
 /// ```
 pub(crate) trait Diagnostic<'a, G: EmissionGuarantee = ErrorGuaranteed>: fmt::Debug {
     /// Converts the error into a [`Diag`].
-    #[must_use]
     fn into_diag(self, ctx: &'a DiagCtx, severity: Severity) -> Diag<'a, G>;
 }
 
@@ -169,14 +170,12 @@ impl<'a, G: EmissionGuarantee> Diag<'a, G> {
     }
 
     /// Sets the diagnostic's span.
-    #[must_use]
     pub fn with_span(mut self, span: impl Into<MultiSpan>) -> Self {
         self.span = span.into();
         self
     }
 
     /// Adds a note to the diagnostic.
-    #[must_use]
     pub fn with_note(mut self, msg: impl Into<DiagMsg>) -> Self {
         self.deref_mut().notes.push(msg.into().into_owned());
         self
@@ -235,7 +234,7 @@ pub(crate) struct DiagInner {
 
 /// Diagnostic context for the compiler.
 #[derive(Clone, Debug)]
-pub(crate) struct DiagCtx {
+pub struct DiagCtx {
     file: SimpleFile<Cow<'static, str>, String>,
     errs: RefCell<Vec<ErrorGuaranteed>>,
 }
@@ -263,7 +262,7 @@ impl DiagCtx {
 
     fn emit(&self, inner: DiagInner) -> ErrorGuaranteed {
         let writer = StandardStream::stderr(ColorChoice::Auto);
-        let ref mut stderr = writer.lock();
+        let stderr = &mut writer.lock();
 
         let mut diag = diagnostic::Diagnostic {
             severity: inner.severity,
@@ -315,7 +314,7 @@ impl DiagCtx {
             if !frag.last().is_some_and(|v| v.is_ascii_whitespace()) {
                 break;
             }
-            span.end -= 1;
+            span.end = span.end.saturating_sub(1);
         }
         span
     }

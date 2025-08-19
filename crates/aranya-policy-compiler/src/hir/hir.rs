@@ -1,3 +1,5 @@
+#![expect(clippy::enum_variant_names)]
+
 use std::{
     fmt,
     hash::Hash,
@@ -5,7 +7,7 @@ use std::{
 };
 
 use aranya_policy_ast as ast;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     arena::{Arena, Key},
@@ -13,11 +15,11 @@ use crate::{
 };
 
 typed_interner! {
-    pub(crate) struct IdentInterner(ast::Identifier) => IdentRef;
+    pub struct IdentInterner(ast::Identifier) => IdentRef;
 }
 
 typed_interner! {
-    pub(crate) struct TextInterner(ast::Text) => TextRef;
+    pub struct TextInterner(ast::Text) => TextRef;
 }
 
 macro_rules! hir {
@@ -111,7 +113,7 @@ hir! {
     /// definitions in arena-allocated collections indexed by
     /// typed IDs.
     #[derive(Clone, Default, Debug, Serialize, Deserialize)]
-    pub(crate) struct Hir {
+    pub struct Hir {
         /// Action definitions.
         pub actions: Arena<ActionId, ActionDef>,
         /// Command definitions.
@@ -325,7 +327,7 @@ macro_rules! hir_node {
 }
 
 /// Implemented by all HIR nodes.
-pub(crate) trait HirNode: Spanned {
+pub trait HirNode: Spanned {
     /// The node's ID.
     type Id: Key;
 
@@ -364,7 +366,7 @@ macro_rules! hir_type {
 }
 
 hir_node! {
-    pub(crate) struct Param {
+    pub struct Param {
         pub id: ParamId,
         /// The identifier of the parameter.
         pub ident: IdentId,
@@ -374,7 +376,7 @@ hir_node! {
 }
 
 hir_node! {
-    pub(crate) struct Body {
+    pub struct Body {
         pub id: BodyId,
         /// Function or action parameters.
         pub params: Vec<ParamId>,
@@ -388,7 +390,7 @@ hir_node! {
 
 hir_node! {
     /// An action definition.
-    pub(crate) struct ActionDef {
+    pub struct ActionDef {
         pub id: ActionId,
         pub ident: IdentId,
         pub body: BodyId,
@@ -397,7 +399,7 @@ hir_node! {
 
 hir_node! {
     /// A block is a collection of statements.
-    pub(crate) struct Block {
+    pub struct Block {
         pub id: BlockId,
         pub stmts: Vec<StmtId>,
         pub expr: Option<ExprId>,
@@ -409,7 +411,7 @@ hir_node! {
 
 hir_node! {
     /// A command definition.
-    pub(crate) struct CmdDef {
+    pub struct CmdDef {
         pub id: CmdId,
         pub ident: IdentId,
         pub fields: Vec<CmdFieldId>,
@@ -422,7 +424,7 @@ hir_node! {
 
 hir_node! {
     /// A field in a command`s fields block.
-    pub(crate) struct CmdField {
+    pub struct CmdField {
         pub id: CmdFieldId,
         pub kind: CmdFieldKind,
     }
@@ -430,7 +432,7 @@ hir_node! {
 
 hir_type! {
     /// The kind of a command field.
-    pub(crate) enum CmdFieldKind {
+    pub enum CmdFieldKind {
         /// A regular field with an identifier and type.
         Field { ident: IdentId, ty: VTypeId },
         /// A reference to another struct whose fields should be
@@ -440,7 +442,7 @@ hir_type! {
 }
 
 hir_type! {
-    pub(crate) struct FieldDef {
+    pub struct FieldDef {
         pub ident: IdentId,
         pub ty: VTypeId,
     }
@@ -448,7 +450,7 @@ hir_type! {
 
 hir_node! {
     /// An effect definition.
-    pub(crate) struct EffectDef {
+    pub struct EffectDef {
         pub id: EffectId,
         pub ident: IdentId,
         pub items: Vec<EffectFieldId>,
@@ -457,7 +459,7 @@ hir_node! {
 
 hir_node! {
     /// An effect field.
-    pub(crate) struct EffectField {
+    pub struct EffectField {
         pub id: EffectFieldId,
         pub kind: EffectFieldKind,
     }
@@ -465,7 +467,7 @@ hir_node! {
 
 hir_type! {
     /// The kind of an effect field.
-    pub(crate) enum EffectFieldKind {
+    pub enum EffectFieldKind {
         /// A regular field with an identifier and type.
         Field { ident: IdentId, ty: VTypeId },
         /// A reference to another struct whose fields should be
@@ -478,7 +480,7 @@ hir_node! {
     /// An [enum] definition.
     ///
     /// [enum]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#enumerations
-    pub(crate) struct EnumDef {
+    pub struct EnumDef {
         pub id: EnumId,
         pub ident: IdentId,
         pub variants: Vec<IdentId>,
@@ -487,7 +489,7 @@ hir_node! {
 
 hir_node! {
     /// An expression.
-    pub(crate) struct Expr {
+    pub struct Expr {
         pub id: ExprId,
         pub kind: ExprKind,
         /// An expression is pure iff it has no side effects.
@@ -514,7 +516,7 @@ hir_node! {
 hir_type! {
     /// Is this pure?
     #[derive(Copy, Default)]
-    pub(crate) enum Pure {
+    pub enum Pure {
         Yes,
         No,
         /// We don't have enough information to determine its
@@ -543,13 +545,13 @@ impl BitAndAssign for Pure {
 
 hir_type! {
     /// A literal.
-    pub(crate) struct Lit {
+    pub struct Lit {
         pub kind: LitKind,
     }
 }
 
 hir_type! {
-    pub(crate) enum LitKind {
+    pub enum LitKind {
         /// A 64-bit signed integer literal.
         Int(i64),
         /// A text string literal.
@@ -579,7 +581,7 @@ hir_type! {
 
 hir_type! {
     /// An expression.
-    pub(crate) enum ExprKind {
+    pub enum ExprKind {
         /// A literal.
         Lit(Lit),
         /// A VM intrinsic.
@@ -641,7 +643,7 @@ hir_type! {
 hir_type! {
     /// A binary opeation.
     #[derive(Copy)]
-    pub(crate) enum BinOp {
+    pub enum BinOp {
         /// A binary [add] expression.
         ///
         /// [add]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#binary-operators
@@ -688,7 +690,7 @@ hir_type! {
 hir_type! {
     /// A unary operation.
     #[derive(Copy)]
-    pub(crate) enum UnaryOp {
+    pub enum UnaryOp {
         /// A unary [negation] operation.
         ///
         /// [negation]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#prefix-operators
@@ -714,7 +716,7 @@ hir_type! {
 
 hir_type! {
     /// `match` used as an expression.
-    pub(crate) struct MatchExpr {
+    pub struct MatchExpr {
         pub scrutinee: ExprId,
         pub arms: Vec<MatchExprArm>,
     }
@@ -722,7 +724,7 @@ hir_type! {
 
 hir_type! {
     /// An arm in a [`MatchExpr`].
-    pub(crate) struct MatchExprArm {
+    pub struct MatchExprArm {
         pub pattern: MatchPattern,
         pub expr: ExprId,
     }
@@ -731,7 +733,7 @@ hir_type! {
 hir_type! {
     /// A named struct.
     // TODO(eric): Rename this `StructExpr`?
-    pub(crate) struct NamedStruct {
+    pub struct NamedStruct {
         pub ident: IdentId,
         pub fields: Vec<StructFieldExpr>,
     }
@@ -739,7 +741,8 @@ hir_type! {
 
 hir_type! {
     /// A field expression.
-    pub(crate) struct StructFieldExpr {
+    #[derive(Copy)]
+    pub struct StructFieldExpr {
         pub ident: IdentId,
         pub expr: ExprId,
     }
@@ -747,11 +750,11 @@ hir_type! {
 
 hir_type! {
     /// An intrinsic implemented by the VM.
-    pub(crate) enum Intrinsic {
+    pub enum Intrinsic {
         /// A [`query`] expression.
         ///
         /// [`query`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#query
-        Query( FactLiteral),
+        Query(FactLiteral),
         /// One of the [`count_up_to`], `at_least`, `at_most`, or
         /// `exactly` expressions.
         ///
@@ -763,17 +766,17 @@ hir_type! {
         /// A `serialize` expression.
         ///
         /// [`serialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
-        Serialize( ExprId),
+        Serialize(ExprId),
         /// A `deserialize` expression.
         ///
         /// [`deserialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
-        Deserialize( ExprId),
+        Deserialize(ExprId),
     }
 }
 
 hir_type! {
     /// How many facts to expect when counting
-    pub(crate) enum FactCountType {
+    pub enum FactCountType {
         /// Up to
         UpTo,
         /// At least
@@ -788,7 +791,7 @@ hir_type! {
 hir_type! {
     /// A named struct literal.
     // TODO(eric): rename to FactLit
-    pub(crate) struct FactLiteral {
+    pub struct FactLiteral {
         pub ident: IdentId,
         pub keys: Vec<FactFieldExpr>,
         pub vals: Vec<FactFieldExpr>,
@@ -802,7 +805,7 @@ hir_type! {
     /// query Foo[x: 42]=>{y: true}
     ///           ^^^^^    ^^^^^^^
     /// ```
-    pub(crate) struct FactFieldExpr {
+    pub struct FactFieldExpr {
         pub ident: IdentId,
         pub expr: FactField,
     }
@@ -812,7 +815,7 @@ hir_type! {
     /// Either an expression or "?".
     // TODO(eric): Rename this `FactFieldExprKind`.
     #[derive(Copy)]
-    pub(crate) enum FactField {
+    pub enum FactField {
         Expr(ExprId),
         Bind,
     }
@@ -820,14 +823,14 @@ hir_type! {
 
 hir_type! {
     /// A function call.
-    pub(crate) struct FunctionCall {
+    pub struct FunctionCall {
         pub ident: IdentId,
         pub args: Vec<ExprId>,
     }
 }
 
 hir_type! {
-    pub(crate) struct ForeignFunctionCall {
+    pub struct ForeignFunctionCall {
         pub module: IdentId,
         pub ident: IdentId,
         pub args: Vec<ExprId>,
@@ -841,7 +844,7 @@ hir_type! {
     /// let x = MyEnum::Variant;
     ///         ^^^^^^^^^^^^^^^
     /// ```
-    pub(crate) struct EnumRef {
+    pub struct EnumRef {
         /// The enum's identifier.
         pub ident: IdentId,
         /// The enum's variant.
@@ -852,7 +855,7 @@ hir_type! {
 
 hir_node! {
     /// A fact definition.
-    pub(crate) struct FactDef {
+    pub struct FactDef {
         pub id: FactId,
         pub ident: IdentId,
         pub keys: Vec<FactKeyId>,
@@ -862,7 +865,7 @@ hir_node! {
 
 hir_node! {
     /// A fact key.
-    pub(crate) struct FactKey {
+    pub struct FactKey {
         pub id: FactKeyId,
         pub ident: IdentId,
         pub ty: VTypeId,
@@ -871,7 +874,7 @@ hir_node! {
 
 hir_node! {
     /// A fact value.
-    pub(crate) struct FactVal {
+    pub struct FactVal {
         pub id: FactValId,
         pub ident: IdentId,
         pub ty: VTypeId,
@@ -882,7 +885,7 @@ hir_node! {
     /// A [finish function] definition.
     ///
     /// [finish function]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#functions
-    pub(crate) struct FinishFuncDef {
+    pub struct FinishFuncDef {
         pub id: FinishFuncId,
         pub ident: IdentId,
         pub body: BodyId,
@@ -893,7 +896,7 @@ hir_node! {
     /// A [function] definition.
     ///
     /// [function]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#functions
-    pub(crate) struct FuncDef {
+    pub struct FuncDef {
         pub id: FuncId,
         pub ident: IdentId,
         pub result: VTypeId,
@@ -903,7 +906,7 @@ hir_node! {
 
 hir_node! {
     /// A global let definition.
-    pub(crate) struct GlobalLetDef {
+    pub struct GlobalLetDef {
         pub id: GlobalId,
         pub ident: IdentId,
         pub expr: ExprId,
@@ -912,7 +915,7 @@ hir_node! {
 
 hir_node! {
     /// A statement.
-    pub(crate) struct Stmt {
+    pub struct Stmt {
         pub id: StmtId,
         pub kind: StmtKind,
         /// `true` if this statement could return.
@@ -925,7 +928,7 @@ hir_node! {
 
 hir_type! {
     /// The kind of a statement.
-    pub(crate) enum StmtKind {
+    pub enum StmtKind {
         Let(LetStmt),
         Check(CheckStmt),
         Match(MatchStmt),
@@ -954,7 +957,7 @@ hir_type! {
     /// ```
     ///
     /// [let]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#let
-    pub(crate) struct LetStmt {
+    pub struct LetStmt {
         pub ident: IdentId,
         pub expr: ExprId,
     }
@@ -969,7 +972,7 @@ hir_type! {
     /// ```
     ///
     /// [check]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#check
-    pub(crate) struct CheckStmt {
+    pub struct CheckStmt {
         pub expr: ExprId,
     }
 }
@@ -978,7 +981,7 @@ hir_type! {
     /// A [match] statement.
     ///
     /// [match]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#match
-    pub(crate) struct MatchStmt {
+    pub struct MatchStmt {
         pub expr: ExprId,
         pub arms: Vec<MatchArm>,
     }
@@ -986,7 +989,7 @@ hir_type! {
 
 hir_type! {
     /// A match statement arm.
-    pub(crate) struct MatchArm {
+    pub struct MatchArm {
         pub pattern: MatchPattern,
         pub block: BlockId,
     }
@@ -994,7 +997,7 @@ hir_type! {
 
 hir_type! {
     /// A match arm pattern.
-    pub(crate) enum MatchPattern {
+    pub enum MatchPattern {
         Default,
         Values(Vec<ExprId>),
     }
@@ -1002,7 +1005,7 @@ hir_type! {
 
 hir_type! {
     /// An if statement.
-    pub(crate) struct IfStmt {
+    pub struct IfStmt {
         pub branches: Vec<IfBranch>,
         pub else_block: Option<BlockId>,
     }
@@ -1010,7 +1013,7 @@ hir_type! {
 
 hir_type! {
     /// An if statement branch.
-    pub(crate) struct IfBranch {
+    pub struct IfBranch {
         pub expr: ExprId,
         pub block: BlockId,
     }
@@ -1018,7 +1021,7 @@ hir_type! {
 
 hir_type! {
     /// A map statement.
-    pub(crate) struct MapStmt {
+    pub struct MapStmt {
         pub fact: FactLiteral,
         pub ident: IdentId,
         pub block: BlockId,
@@ -1027,14 +1030,14 @@ hir_type! {
 
 hir_type! {
     /// A return statement.
-    pub(crate) struct ReturnStmt {
+    pub struct ReturnStmt {
         pub expr: ExprId,
     }
 }
 
 hir_type! {
     /// Calling an action.
-    pub(crate) struct ActionCall {
+    pub struct ActionCall {
         pub ident: IdentId,
         pub args: Vec<ExprId>,
     }
@@ -1044,7 +1047,7 @@ hir_type! {
     /// A [publish] statement.
     ///
     /// [publish]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#publish
-    pub(crate) struct Publish {
+    pub struct Publish {
         pub expr: ExprId,
     }
 }
@@ -1053,7 +1056,7 @@ hir_type! {
     /// A [create] statement.
     ///
     /// [create]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#create
-    pub(crate) struct Create {
+    pub struct Create {
         pub fact: FactLiteral,
     }
 }
@@ -1062,7 +1065,7 @@ hir_type! {
     /// An [update] statement.
     ///
     /// [update]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#update
-    pub(crate) struct Update {
+    pub struct Update {
         pub fact: FactLiteral,
         pub to: Vec<FactFieldExpr>,
     }
@@ -1072,7 +1075,7 @@ hir_type! {
     /// A [delete] statement.
     ///
     /// [delete]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#delete
-    pub(crate) struct Delete {
+    pub struct Delete {
         pub fact: FactLiteral,
     }
 }
@@ -1081,14 +1084,14 @@ hir_type! {
     /// An [emit] statement.
     ///
     /// [emit]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#emit
-    pub(crate) struct Emit {
+    pub struct Emit {
         pub expr: ExprId,
     }
 }
 
 hir_type! {
     /// A debug assert statement.
-    pub(crate) struct DebugAssert {
+    pub struct DebugAssert {
         pub expr: ExprId,
     }
 }
@@ -1097,7 +1100,7 @@ hir_node! {
     /// A [struct] definition.
     ///
     /// [struct]: https://github.com/aranya-project/aranya-docs/blob/1ecf718ca179a431db724a4ada45129d96edcbf2/docs/policy-v1.md#structs
-    pub(crate) struct StructDef {
+    pub struct StructDef {
         pub id: StructId,
         pub ident: IdentId,
         pub items: Vec<StructFieldId>,
@@ -1106,7 +1109,7 @@ hir_node! {
 
 hir_node! {
     /// A struct field.
-    pub(crate) struct StructField {
+    pub struct StructField {
         pub id: StructFieldId,
         pub kind: StructFieldKind,
     }
@@ -1114,7 +1117,7 @@ hir_node! {
 
 hir_type! {
     /// The kind of a struct field.
-    pub(crate) enum StructFieldKind {
+    pub enum StructFieldKind {
         /// A regular field with an identifier and type.
         Field { ident: IdentId, ty: VTypeId },
         /// A reference to another struct whose fields should be
@@ -1158,7 +1161,7 @@ hir_node! {
     /// 5. `x` (usage)
     ///
     /// [`Identifier`]: [ast::Identifier]
-    pub(crate) struct Ident {
+    pub struct Ident {
         pub id: IdentId,
         /// The interned identifier.
         pub xref: IdentRef,
@@ -1166,7 +1169,7 @@ hir_node! {
 }
 
 /// Implemented by types that have a name (identifier).
-pub(crate) trait Named {
+pub trait Named {
     fn ident(&self) -> IdentId;
 }
 
@@ -1183,7 +1186,7 @@ impl<T: Named> Named for &T {
 ///
 /// NOTE: This list must be kept in sync with the types in
 /// `for_each_top_level_item` macro in `visit.rs`.
-pub(crate) trait GlobalSymbol: HirNode + Named {}
+pub trait GlobalSymbol: HirNode + Named {}
 
 impl<T: GlobalSymbol> GlobalSymbol for &T {}
 
@@ -1207,7 +1210,7 @@ hir_type! {
     /// A ternary [`if`] expression.
     ///
     /// [`if`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if
-    pub(crate) struct Ternary {
+    pub struct Ternary {
         /// The condition being evaluated.
         pub cond: ExprId,
         /// The result when `cond` is true.
@@ -1219,14 +1222,14 @@ hir_type! {
 
 hir_node! {
     /// The type of a value (variable, argument, field, etc.).
-    pub(crate) struct VType {
+    pub struct VType {
         pub id: VTypeId,
         pub kind: VTypeKind,
     }
 }
 
 hir_type! {
-    pub(crate) enum VTypeKind {
+    pub enum VTypeKind {
         /// A UTF-8 [string].
         ///
         /// It cannot contain null bytes.
@@ -1275,7 +1278,7 @@ hir_type! {
 
 hir_node! {
     /// An FFI import statement (e.g., `use crypto`).
-    pub(crate) struct FfiImportDef {
+    pub struct FfiImportDef {
         pub id: FfiImportId,
         pub ident: IdentId,
     }
@@ -1283,7 +1286,7 @@ hir_node! {
 
 hir_node! {
     /// An FFI module definition.
-    pub(crate) struct FfiModuleDef {
+    pub struct FfiModuleDef {
         pub id: FfiModuleId,
         pub ident: IdentId,
         pub funcs: Vec<FfiFuncId>,
@@ -1294,7 +1297,7 @@ hir_node! {
 
 hir_node! {
     /// An FFI function definition.
-    pub(crate) struct FfiFuncDef {
+    pub struct FfiFuncDef {
         pub id: FfiFuncId,
         pub ident: IdentId,
         pub sig: FfiFuncSig,
@@ -1302,7 +1305,7 @@ hir_node! {
 }
 
 hir_type! {
-    pub(crate) struct FfiFuncSig {
+    pub struct FfiFuncSig {
         pub args: Vec<ParamId>,
         pub result: VTypeId,
     }
@@ -1310,7 +1313,7 @@ hir_type! {
 
 hir_node! {
     /// An FFI struct definition.
-    pub(crate) struct FfiStructDef {
+    pub struct FfiStructDef {
         pub id: FfiStructId,
         pub ident: IdentId,
         pub fields: Vec<FfiStructFieldId>,
@@ -1319,7 +1322,7 @@ hir_node! {
 
 hir_node! {
     /// An FFI struct field.
-    pub(crate) struct FfiStructField {
+    pub struct FfiStructField {
         pub id: FfiStructFieldId,
         pub kind: FfiStructFieldKind,
     }
@@ -1327,7 +1330,7 @@ hir_node! {
 
 hir_type! {
     /// The kind of an FFI struct field.
-    pub(crate) enum FfiStructFieldKind {
+    pub enum FfiStructFieldKind {
         /// A regular field with an identifier and type.
         Field { ident: IdentId, ty: VTypeId },
         /// A reference to another struct whose fields should be
@@ -1338,7 +1341,7 @@ hir_type! {
 
 hir_node! {
     /// An FFI enum definition.
-    pub(crate) struct FfiEnumDef {
+    pub struct FfiEnumDef {
         pub id: FfiEnumId,
         pub ident: IdentId,
         pub variants: Vec<IdentId>,
@@ -1404,7 +1407,7 @@ impl fmt::Debug for Span {
 }
 
 /// Implemented by types that have a span.
-pub(crate) trait Spanned {
+pub trait Spanned {
     fn span(&self) -> Span;
 }
 

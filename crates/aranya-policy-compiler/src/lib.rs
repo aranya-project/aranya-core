@@ -9,6 +9,7 @@ mod ctx;
 mod depgraph;
 mod diag;
 mod intern;
+mod pass;
 //mod typecheck;
 //mod mir;
 //pub mod ir;

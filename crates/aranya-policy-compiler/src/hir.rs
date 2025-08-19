@@ -32,32 +32,43 @@
 //! [`if/else if/else`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if-else-if-else
 //! [AST]: https://docs.rs/aranya-policy-ast/latest/aranya_policy_ast/struct.Policy.html
 
-#![allow(dead_code)]
 #![allow(clippy::module_inception)]
 
 mod hir;
 mod lower;
-//mod normalize;
-//mod snapshot_tests;
+//mod normalize; TODO
+//mod snapshot_tests; TODO
 pub(crate) mod visit;
 
-pub(crate) use crate::hir::hir::*;
+use std::ops::Index;
+
+pub(crate) use self::hir::*;
+use self::lower::LowerCtx;
 use crate::{
-    ast::{self, Ast},
+    ast,
     ctx::Ctx,
-    hir::lower::LowerCtx,
+    diag::ErrorGuaranteed,
+    pass::{Pass, View},
 };
 
 pub(crate) mod types {
     pub(crate) use crate::hir::*;
 }
 
-impl Ctx<'_> {
-    pub fn lower_hir(&mut self, ast: Ast<'_>) {
+#[derive(Copy, Clone, Debug)]
+pub struct HirLowerPass;
+
+impl Pass for HirLowerPass {
+    const NAME: &'static str = "hir_lower";
+    type Deps = ();
+    type Output = Hir;
+    type View<'cx> = HirView<'cx>;
+
+    fn run(cx: Ctx<'_>, _deps: ()) -> Result<Self::Output, ErrorGuaranteed> {
+        let ast = &cx.inner.ast;
         let mut ctx = LowerCtx {
+            ctx: cx,
             hir: Hir::default(),
-            idents: &mut self.idents,
-            text: &mut self.text,
             codemap: ast.codemap,
             last_span: Span::default(),
         };
@@ -65,6 +76,47 @@ impl Ctx<'_> {
         for (_, item) in index {
             ctx.lower_item(&item);
         }
-        self.hir = ctx.hir;
+        Ok(ctx.hir)
+    }
+}
+
+impl<'cx> Ctx<'cx> {
+    /// Get the HIR lower pass.
+    pub fn hir(self) -> Result<HirView<'cx>, ErrorGuaranteed> {
+        let hir = self.get::<HirLowerPass>()?;
+        Ok(HirView::new(self, hir))
+    }
+}
+
+/// A view of the HIR.
+#[derive(Copy, Clone, Debug)]
+pub struct HirView<'cx> {
+    _cx: Ctx<'cx>,
+    hir: &'cx Hir,
+}
+
+impl<'cx> HirView<'cx> {
+    /// Retrieves the HIR.
+    pub fn hir(&self) -> &'cx Hir {
+        self.hir
+    }
+
+    /// Retrieves a HIR node.
+    pub fn lookup<Id, T>(&self, id: Id) -> &'cx T
+    where
+        Hir: Index<Id, Output = T>,
+    {
+        self.hir().index(id)
+    }
+
+    /// Retrieves a HIR node.
+    pub fn lookup_node(&self, id: NodeId) -> Node<'cx> {
+        self.hir().lookup(id)
+    }
+}
+
+impl<'cx> View<'cx, Hir> for HirView<'cx> {
+    fn new(_cx: Ctx<'cx>, data: &'cx Hir) -> Self {
+        Self { _cx, hir: data }
     }
 }

@@ -747,7 +747,7 @@ impl Normalizer {
             }
 
             new_stmts.push(stmt_id);
-            i += 1;
+            i = i.saturating_add(1);
         }
 
         if new_stmts != stmts {

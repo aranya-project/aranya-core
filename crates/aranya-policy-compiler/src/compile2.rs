@@ -8,7 +8,8 @@ use aranya_policy_module::{
 use crate::{
     ast::Ast,
     compile::{CompileError, Compiler},
-    ctx::Ctx,
+    ctx::{Ctx, InnerCtx, Session},
+    diag::DiagCtx,
 };
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
@@ -20,18 +21,16 @@ impl Compiler<'_> {
 
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
 
-        let mut ctx = Ctx::new(&self.policy.text, "<unknown>");
-        ctx.lower_hir(Ast {
-            ast: &self.policy,
-            schemas: &self.ffi_modules,
+        let sess = Session {
+            dcx: DiagCtx::new(&self.policy.text, "TODO"),
+        };
+        let ast = Ast {
+            ast: self.policy,
+            schemas: self.ffi_modules,
             codemap: &codemap,
-        });
-        if let Err(err) = ctx.resolve_symbols() {
-            err.raise_fatal();
-        }
-        if let Err(err) = ctx.build_dep_graph() {
-            err.raise_fatal();
-        }
+        };
+        let inner = InnerCtx::new(&sess, ast);
+        let mut _ctx = Ctx { inner: &inner };
 
         let mut cg = Codegen {
             prog: Vec::new(),

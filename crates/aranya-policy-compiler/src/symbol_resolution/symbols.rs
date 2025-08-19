@@ -13,7 +13,7 @@ use crate::{
 
 /// A collection of [`Symbols`].
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Symbols {
+pub struct Symbols {
     symbols: Arena<SymbolId, Symbol>,
 }
 
@@ -60,7 +60,7 @@ impl<'a> IntoIterator for &'a Symbols {
 
 /// A symbol in the symbol table.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Symbol {
+pub struct Symbol {
     pub ident: IdentId,
     pub kind: SymbolKind,
     /// A back reference to the scope that the symbol was defined
@@ -77,7 +77,7 @@ pub(crate) struct Symbol {
 
 arena::new_key_type! {
     /// Uniquely identifies a [`Symbol`] in a [`Symbols`].
-    pub(crate) struct SymbolId;
+    pub struct SymbolId;
 }
 
 macro_rules! impl_sym_kind {
@@ -108,7 +108,7 @@ macro_rules! impl_sym_kind {
 impl_sym_kind! {
     /// A symbol in the symbol table.
     #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-    pub(crate) enum SymbolKind {
+    pub enum SymbolKind {
         Action(ActionId),
         Cmd(CmdId),
         Effect(EffectId),

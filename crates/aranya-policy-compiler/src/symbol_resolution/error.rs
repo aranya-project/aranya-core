@@ -3,7 +3,7 @@
 use aranya_policy_ast as ast;
 use buggy::Bug;
 
-use super::scope::{DuplicateSymbolId, ScopeId};
+use super::scope::DuplicateSymbolId;
 use crate::{
     diag::{Diag, DiagCtx, Diagnostic, EmissionGuarantee, Severity},
     hir::{IdentId, Span},

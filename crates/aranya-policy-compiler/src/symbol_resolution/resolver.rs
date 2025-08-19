@@ -1,68 +1,62 @@
-use std::{
-    fmt, mem,
-    ops::{ControlFlow, Index},
-};
+#![expect(clippy::unwrap_used)]
 
-use aranya_policy_ast::{self as ast, ident};
+use std::{fmt, mem, ops::ControlFlow};
+
+use aranya_policy_ast as ast;
 use tracing::{instrument, trace};
 
 use super::{
-    Result, ScopeMap, SymbolTable,
     error::SymbolResolutionError,
     scope::{InsertError, ScopeId, ScopedId},
     symbols::{Symbol, SymbolId, SymbolKind},
+    Result, ScopeMap, SymbolTable,
 };
 use crate::{
+    ctx::Ctx,
     diag::{
         Diag, DiagCtx, DiagMsg, Diagnostic, EmissionGuarantee, ErrorGuaranteed, MultiSpan,
         OptionExt, ResultExt, Severity,
     },
     hir::{
+        visit::{self, Visitor},
         ActionCall, Block, BlockId, Body, CmdDef, CmdFieldKind, EffectFieldKind, EnumDef, EnumRef,
         Expr, ExprKind, ForeignFunctionCall, FunctionCall, GlobalLetDef, GlobalSymbol, Hir,
-        HirNode, Ident, IdentId, IdentInterner, IdentRef, LetStmt, Named, Param, Span, Stmt,
-        StmtKind, StructFieldKind, VType, VTypeKind,
-        visit::{self, Visitor},
+        HirView, Ident, IdentId, IdentRef, LetStmt, Param, Span, Stmt, StmtKind, StructFieldKind,
+        VType, VTypeKind,
     },
 };
 
-pub(super) fn intern_reserved_idents(idents: &mut IdentInterner) -> Vec<IdentRef> {
-    [ident!("this"), ident!("envelope"), ident!("id")]
-        .into_iter()
-        .map(|ident| idents.intern(ident))
-        .collect::<Vec<_>>()
-}
-
-/// Walks [`Hir`] and builds the symbol table.
+/// Builds the symbol table.
 #[derive(Debug)]
-pub(super) struct Resolver<'hir> {
-    pub dcx: &'hir DiagCtx,
-    /// The HIR being resolved.
-    pub hir: &'hir Hir,
+pub(super) struct Resolver<'cx> {
+    pub ctx: Ctx<'cx>,
+    pub hir: HirView<'cx>,
     /// The table being built.
     pub table: SymbolTable,
-    /// Interned identifiers.
-    pub idents: &'hir IdentInterner,
     /// Reserved identifiers.
     pub reserved_idents: Vec<IdentRef>,
 }
 
-impl Resolver<'_> {
+impl<'ctx> Resolver<'ctx> {
+    fn dcx(&self) -> &'ctx DiagCtx {
+        self.ctx.dcx()
+    }
+
     /// Creates a symbol table from the given HIR.
     pub(super) fn resolve(mut self) -> Result<SymbolTable, ErrorGuaranteed> {
         let scopes = self.mark()?;
         self.resolve_refs(scopes)?;
 
         // Make sure that we resolved all identifiers.
-        for (id, ident) in &self.hir.idents {
+        for (id, ident) in &self.hir.hir().idents {
             let mut spans = Vec::new();
             if !self.table.resolutions.contains_key(&id) && !self.table.skipped.contains(&id) {
-                let msg = self.idents.get(ident.xref).unwrap().to_string();
+                let msg = self.ctx.get_ident(ident.xref).to_string();
                 spans.push((ident.span, DiagMsg::from(msg)));
             }
             if !spans.is_empty() {
                 let span = MultiSpan::from(spans);
-                self.dcx.emit_span_bug(span, "missed identifiers")
+                self.dcx().emit_span_bug(span, "missed identifiers")
             }
         }
 
@@ -73,20 +67,18 @@ impl Resolver<'_> {
     #[instrument(skip(self))]
     fn mark(&mut self) -> Result<ScopeMap, ErrorGuaranteed> {
         let mut visitor = Mark {
-            dcx: self.dcx,
+            ctx: self.ctx,
             hir: self.hir,
             table: &mut self.table,
             scopes: ScopeMap::new(),
-            idents: &self.idents,
             max_errs: 10,
             num_errs: 0,
         };
         visitor.visit_all();
 
-        if let Some(err) = self.dcx.has_errors() {
-            Err(err)
-        } else {
-            Ok(visitor.scopes)
+        match self.ctx.dcx().has_errors() {
+            Some(err) => Err(err),
+            None => Ok(visitor.scopes),
         }
     }
 
@@ -97,9 +89,8 @@ impl Resolver<'_> {
     #[instrument(skip_all)]
     fn resolve_refs(&mut self, scopes: ScopeMap) -> Result<(), ErrorGuaranteed> {
         let mut visitor = ResolveIdents {
-            dcx: self.dcx,
+            ctx: self.ctx,
             hir: self.hir,
-            idents: self.idents,
             table: &mut self.table,
             scope: ScopeId::GLOBAL,
             scopes,
@@ -114,7 +105,7 @@ impl Resolver<'_> {
             self.table.scopemap = mem::take(&mut visitor.scopes);
         }
 
-        if let Some(err) = self.dcx.has_errors() {
+        if let Some(err) = self.dcx().has_errors() {
             Err(err)
         } else {
             Ok(())
@@ -125,11 +116,10 @@ impl Resolver<'_> {
 /// Marks top-level items (i.e., global symbols) and adds them to
 /// the symbol table.
 #[derive(Debug)]
-struct Mark<'a> {
-    dcx: &'a DiagCtx,
-    hir: &'a Hir,
-    idents: &'a IdentInterner,
-    table: &'a mut SymbolTable,
+struct Mark<'ctx> {
+    ctx: Ctx<'ctx>,
+    hir: HirView<'ctx>,
+    table: &'ctx mut SymbolTable,
     scopes: ScopeMap,
     /// The maximum number of errors we collect before failing.
     max_errs: usize,
@@ -137,7 +127,11 @@ struct Mark<'a> {
     num_errs: usize,
 }
 
-impl Mark<'_> {
+impl<'ctx> Mark<'ctx> {
+    fn dcx(&self) -> &'ctx DiagCtx {
+        self.ctx.dcx()
+    }
+
     /// Checks the result of an operation.
     ///
     /// If we've seen `self.max_errs` failed operations, exit
@@ -147,7 +141,7 @@ impl Mark<'_> {
         if result.is_ok() {
             return ControlFlow::Continue(());
         }
-        self.num_errs += 1;
+        self.num_errs = self.num_errs.saturating_add(1);
         if self.num_errs >= self.max_errs {
             ControlFlow::Break(())
         } else {
@@ -162,12 +156,12 @@ impl Mark<'_> {
         T: GlobalSymbol,
         SymbolKind: From<T::Id>,
     {
-        let ident = self.hir.index(node.ident());
+        let ident = self.hir.lookup(node.ident());
         let span = node.span();
         let kind = SymbolKind::from(node.id());
 
         trace!(
-            ident = %self.idents.get(ident.xref).unwrap(),
+            ident = %self.ctx.get_ident(ident.xref),
             ?kind,
             ?span,
             "adding global",
@@ -175,15 +169,15 @@ impl Mark<'_> {
 
         let result = match self.table.add_symbol(ScopeId::GLOBAL, ident, kind, span) {
             Ok(()) => Ok(()),
-            Err(InsertError::Bug(err)) => self.dcx.emit_bug_diag(err),
+            Err(InsertError::Bug(err)) => self.dcx().emit_bug_diag(err),
             Err(InsertError::InvalidScopeId(_)) => {
-                self.dcx.emit_bug("scope should always be valid")
+                self.dcx().emit_bug("scope should always be valid")
             }
             Err(InsertError::Duplicate(id)) => {
                 let id = self.table.symbols.get(id).unwrap().ident;
-                let prev = self.hir.index(id).span;
-                Err(self.dcx.emit_err_diag(AlreadyDefinedError {
-                    ident: self.idents.get(ident.xref).unwrap().clone(),
+                let prev = self.hir.lookup(id).span;
+                Err(self.dcx().emit_err_diag(AlreadyDefinedError {
+                    ident: self.ctx.get_ident(ident.xref).clone(),
                     span,
                     prev,
                 }))
@@ -202,11 +196,11 @@ macro_rules! mark {
     };
 }
 
-impl<'a: 'hir, 'hir> Visitor<'hir> for Mark<'a> {
+impl<'ctx: 'hir, 'hir> Visitor<'hir> for Mark<'ctx> {
     type Result = ControlFlow<()>;
 
     fn hir(&self) -> &'hir Hir {
-        self.hir
+        self.hir.hir()
     }
 
     visit::for_each_top_level_item!(mark);
@@ -214,15 +208,13 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for Mark<'a> {
 
 /// Resolves identifier usages.
 #[derive(Debug)]
-struct ResolveIdents<'a> {
-    dcx: &'a DiagCtx,
-    hir: &'a Hir,
-    /// Interned identifiers.
-    idents: &'a IdentInterner,
+struct ResolveIdents<'cx> {
+    ctx: Ctx<'cx>,
+    hir: HirView<'cx>,
     /// The table that we're building.
-    table: &'a mut SymbolTable,
+    table: &'cx mut SymbolTable,
     /// Languge reserved identifiers.
-    reserved_idents: &'a [IdentRef],
+    reserved_idents: &'cx [IdentRef],
     /// The current scope.
     scope: ScopeId,
     scopes: ScopeMap,
@@ -232,7 +224,11 @@ struct ResolveIdents<'a> {
     num_errs: usize,
 }
 
-impl ResolveIdents<'_> {
+impl<'ctx> ResolveIdents<'ctx> {
+    fn dcx(&self) -> &'ctx DiagCtx {
+        self.ctx.dcx()
+    }
+
     /// Checks the result of an operation.
     ///
     /// If we've seen `self.max_errs` failed operations, exit
@@ -242,7 +238,7 @@ impl ResolveIdents<'_> {
         if result.is_ok() {
             return ControlFlow::Continue(());
         }
-        self.num_errs += 1;
+        self.num_errs = self.num_errs.saturating_add(1);
         if self.num_errs >= self.max_errs {
             ControlFlow::Break(())
         } else {
@@ -278,7 +274,7 @@ impl ResolveIdents<'_> {
         let scope = self
             .table
             .create_child_scope(self.scope)
-            .unwrap_or_bug(&self.dcx, "`self.scope` should always be valid");
+            .unwrap_or_bug(self.dcx(), "`self.scope` should always be valid");
         self.scopes.insert(id, scope);
         trace!(%scope, "created child scope");
         scope
@@ -290,7 +286,7 @@ impl ResolveIdents<'_> {
         *self
             .scopes
             .get(&id)
-            .unwrap_or_bug(&self.dcx, format!("unknown scope for `{id}`"))
+            .unwrap_or_bug(self.dcx(), format!("unknown scope for `{id}`"))
     }
 
     /// Retrieves a symbol from the global scope.
@@ -303,18 +299,18 @@ impl ResolveIdents<'_> {
     /// collected, so it emits an ICE if the symbol is not found.
     #[instrument(skip(self))]
     fn get_global(&mut self, id: IdentId) -> &Symbol {
-        let &Ident { id, xref, span, .. } = self.hir.index(id);
+        let &Ident { id, xref, span, .. } = self.hir.lookup(id);
 
-        trace!(ident = %self.idents.get(xref).unwrap());
+        trace!(ident = %self.ctx.get_ident(xref));
 
         let sym_id = match self.table.scopes.get_sym(ScopeId::GLOBAL, xref) {
             Ok(Some(id)) => id,
-            Ok(None) => self.dcx.emit_bug_diag(UndefinedError {
-                ident: self.idents.get(xref).unwrap().clone(),
+            Ok(None) => self.dcx().emit_bug_diag(UndefinedError {
+                ident: self.ctx.get_ident(xref).clone(),
                 span,
                 kind: IdentKind::Def,
             }),
-            Err(err) => self.dcx.emit_bug(err),
+            Err(err) => self.dcx().emit_bug(err),
         };
 
         if let Some(got) = self.table.resolutions.get(&id) {
@@ -323,7 +319,7 @@ impl ResolveIdents<'_> {
 
         match self.table.symbols.get(sym_id) {
             Some(sym) => sym,
-            None => self.dcx.emit_bug("global symbol should exist"),
+            None => self.dcx().emit_bug("global symbol should exist"),
         }
     }
 
@@ -338,22 +334,22 @@ impl ResolveIdents<'_> {
         span: Span,
         block: Option<BlockId>,
     ) -> ControlFlow<()> {
-        let ident = self.hir.index(ident);
+        let ident = self.hir.lookup(ident);
 
-        trace!(ident = %self.idents.get(ident.xref).unwrap());
+        trace!(ident = %self.ctx.get_ident(ident.xref));
 
         let kind = SymbolKind::LocalVar(block);
         let result = match self.table.add_symbol(self.scope, ident, kind, span) {
             Ok(()) => Ok(()),
-            Err(InsertError::Bug(err)) => self.dcx.emit_bug_diag(err),
+            Err(InsertError::Bug(err)) => self.dcx().emit_bug_diag(err),
             Err(InsertError::InvalidScopeId(_)) => {
-                self.dcx.emit_bug("scope should always be valid")
+                self.dcx().emit_bug("scope should always be valid")
             }
             Err(InsertError::Duplicate(id)) => {
                 let id = self.table.symbols.get(id).unwrap().ident;
-                let prev = self.hir.index(id).span;
-                Err(self.dcx.emit_err_diag(AlreadyDefinedError {
-                    ident: self.idents.get(ident.xref).unwrap().clone(),
+                let prev = self.hir.lookup(id).span;
+                Err(self.dcx().emit_err_diag(AlreadyDefinedError {
+                    ident: self.ctx.get_ident(ident.xref).clone(),
                     span,
                     prev,
                 }))
@@ -367,8 +363,8 @@ impl ResolveIdents<'_> {
     fn skip_ident(&mut self, ident: IdentId) {
         trace!(
             ident = %{
-                let ident = self.hir.index(ident);
-                self.idents.get(ident.xref).unwrap()
+                let ident = self.hir.lookup(ident);
+                self.ctx.get_ident(ident.xref)
             },
             "skipping ident",
         );
@@ -381,7 +377,7 @@ impl ResolveIdents<'_> {
     /// `ident` must be a *usage*, not a *definition*.
     #[instrument(skip_all, fields(scope = %self.scope, %id, %kind))]
     fn resolve_ident_by_id(&mut self, id: IdentId, kind: IdentKind) -> ControlFlow<()> {
-        let ident = self.hir.index(id);
+        let ident = self.hir.lookup(id);
         self.resolve_ident(ident, kind)
     }
 
@@ -393,7 +389,7 @@ impl ResolveIdents<'_> {
         scope = %self.scope,
         id = %ident.id,
         xref = %ident.xref,
-        ident = %self.idents.get(ident.xref).unwrap(),
+        ident = %self.ctx.get_ident(ident.xref),
         %kind,
     ))]
     fn resolve_ident(&mut self, ident: &Ident, kind: IdentKind) -> ControlFlow<()> {
@@ -409,8 +405,8 @@ impl ResolveIdents<'_> {
         trace!("resolving ident");
 
         if self.reserved_idents.contains(&ident.xref) {
-            return Err(self.dcx.emit_err_diag(SymbolResolutionError::Reserved {
-                ident: self.idents.get(ident.xref).unwrap().clone(),
+            return Err(self.dcx().emit_err_diag(SymbolResolutionError::Reserved {
+                ident: self.ctx.get_ident(ident.xref).clone(),
                 span: ident.span,
                 reserved_for: "language builtins",
             }));
@@ -420,10 +416,10 @@ impl ResolveIdents<'_> {
             .table
             .scopes
             .get_sym(self.scope, ident.xref)
-            .map_err(|err| self.dcx.emit_bug(err))?
+            .map_err(|err| self.dcx().emit_bug(err))?
             .ok_or_else(|| {
-                self.dcx.emit_err_diag(UndefinedError {
-                    ident: self.idents.get(ident.xref).unwrap().clone(),
+                self.dcx().emit_err_diag(UndefinedError {
+                    ident: self.ctx.get_ident(ident.xref).clone(),
                     span: ident.span,
                     kind,
                 })
@@ -440,7 +436,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
     type Result = ControlFlow<()>;
 
     fn hir(&self) -> &'hir Hir {
-        self.hir
+        self.hir.hir()
     }
 
     // TODO(eric): Delete this?
@@ -454,7 +450,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
         match kind {
             CmdFieldKind::Field { ident, ty } => {
                 self.skip_ident(*ident);
-                self.visit_vtype(self.hir.index(*ty))
+                self.visit_vtype(self.hir.lookup(*ty))
             }
             CmdFieldKind::StructRef(ident) => self.resolve_ident_by_id(*ident, IdentKind::Struct),
         }
@@ -465,7 +461,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
         match kind {
             EffectFieldKind::Field { ident, ty } => {
                 self.skip_ident(*ident);
-                self.visit_vtype(self.hir.index(*ty))
+                self.visit_vtype(self.hir.lookup(*ty))
             }
             EffectFieldKind::StructRef(ident) => {
                 self.resolve_ident_by_id(*ident, IdentKind::Struct)
@@ -492,7 +488,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
         match kind {
             StructFieldKind::Field { ident, ty } => {
                 self.skip_ident(*ident);
-                self.visit_vtype(self.hir.index(*ty))
+                self.visit_vtype(self.hir.lookup(*ty))
             }
             StructFieldKind::StructRef(ident) => {
                 self.resolve_ident_by_id(*ident, IdentKind::Struct)
@@ -524,7 +520,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
             ty,
         } = param;
         self.add_local_var(*ident, *span, None)?;
-        self.visit_vtype(self.hir.index(*ty))
+        self.visit_vtype(self.hir.lookup(*ty))
     }
 
     #[instrument(skip_all, fields(id = %stmt.id))]
@@ -545,7 +541,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
                 //    let y = {
                 //        : y + 1
                 //    }
-                let expr = self.hir.index(*expr);
+                let expr = self.hir.lookup(*expr);
                 self.visit_expr(expr)?;
 
                 let block = match &expr.kind {
@@ -557,14 +553,14 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
             StmtKind::ActionCall(ActionCall { ident, args }) => {
                 self.resolve_ident_by_id(*ident, IdentKind::Action)?;
                 for &id in args {
-                    self.visit_expr(self.hir.index(id))?;
+                    self.visit_expr(self.hir.lookup(id))?;
                 }
                 ControlFlow::Continue(())
             }
             StmtKind::FunctionCall(FunctionCall { ident, args }) => {
                 self.resolve_ident_by_id(*ident, IdentKind::Fn)?;
                 for &id in args {
-                    self.visit_expr(self.hir.index(id))?;
+                    self.visit_expr(self.hir.lookup(id))?;
                 }
                 ControlFlow::Continue(())
             }
@@ -588,7 +584,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
                 ControlFlow::Continue(())
             }
             ExprKind::Dot(expr, field) => {
-                self.visit_expr(self.hir.index(*expr))?;
+                self.visit_expr(self.hir.lookup(*expr))?;
                 self.skip_ident(*field);
                 ControlFlow::Continue(())
             }
@@ -614,7 +610,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
                     ..
                 } = self.get_global(*module)
                 else {
-                    self.dcx.emit_bug("symbol should be an FFI module")
+                    self.dcx().emit_bug("symbol should be an FFI module")
                 };
                 let scope = self.lookup_scope(id);
                 self.with_scope(scope, |this| {
@@ -622,7 +618,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
                 })?;
 
                 for &id in args {
-                    let expr = &self.hir.exprs[id];
+                    let expr = self.hir.lookup(id);
                     self.visit_expr(expr)?;
                 }
                 ControlFlow::Continue(())
@@ -632,14 +628,14 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
                 // we'd resolve the terminating expr *outside*
                 // the block scope, which is incorrect.
                 self.with_child_scope(*block, |this| {
-                    visit::walk_block(this, this.hir.index(*block))?;
-                    visit::walk_expr(this, this.hir.index(*expr))
+                    visit::walk_block(this, this.hir.lookup(*block))?;
+                    visit::walk_expr(this, this.hir.lookup(*expr))
                 })
             }
             ExprKind::FunctionCall(FunctionCall { ident, args }) => {
                 self.resolve_ident_by_id(*ident, IdentKind::Fn)?;
                 for &id in args {
-                    let expr = &self.hir.exprs[id];
+                    let expr = self.hir.lookup(id);
                     self.visit_expr(expr)?;
                 }
                 ControlFlow::Continue(())

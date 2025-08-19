@@ -1,151 +1,168 @@
-use std::{collections::BTreeMap, fmt, hash::Hash};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    hash::{Hash, Hasher},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    arena::new_key_type,
-    hir::{IdentId, IdentRef, Span},
+    hir::{ExprId, IdentId, IdentRef, Span, VTypeId},
+    intern::typed_interner,
     symbol_resolution::SymbolId,
 };
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub(crate) struct Type {
-    pub id: TypeId,
-    pub kind: TypeKind,
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub(crate) enum Type {
+    Builtin(TypeBuiltin),
+    Struct(TypeStruct),
+    Enum(TypeEnum),
+    Optional(TypeOptional),
 }
 
-impl Type {
-    pub fn new(id: TypeId, kind: TypeKind) -> Self {
-        Self { id, kind }
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Builtin(ty) => write!(f, "{ty}"),
+            Self::Struct(ty) => write!(f, "struct({ty:?})"),
+            Self::Enum(ty) => write!(f, "enum({ty:?})"),
+            Self::Optional(ty) => write!(f, "optional({ty:?})"),
+        }
     }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self.kind, TypeKind::Int)
-    }
-
-    pub fn is_boolean(&self) -> bool {
-        matches!(self.kind, TypeKind::Bool)
-    }
-
-    pub fn is_optional(&self) -> bool {
-        matches!(self.kind, TypeKind::Optional(_))
-    }
-}
-
-new_key_type! {
-    pub(crate) struct TypeId;
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub(crate) enum TypeKind {
+pub(crate) enum TypeBuiltin {
     String,
     Bytes,
     Int,
     Bool,
     Id,
-    Struct(SymbolId),
-    Enum(SymbolId),
-    Fact(SymbolId),
-    Optional(TypeId),
-    
-    /// Type variable for inference
-    TypeVar(TypeVarId),
-    
-    /// Unknown type (used during inference)
-    Unknown,
-    
-    /// Error type (used when type checking fails)
-    Error,
 }
 
-impl TypeKind {
-    pub fn is_primitive(&self) -> bool {
-        matches!(
-            self,
-            TypeKind::String | TypeKind::Bytes | TypeKind::Int | TypeKind::Bool | TypeKind::Id
-        )
-    }
-}
-
-impl fmt::Display for TypeKind {
+impl fmt::Display for TypeBuiltin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TypeKind::String => write!(f, "string"),
-            TypeKind::Bytes => write!(f, "bytes"),
-            TypeKind::Int => write!(f, "int"),
-            TypeKind::Bool => write!(f, "bool"),
-            TypeKind::Id => write!(f, "id"),
-            TypeKind::Struct(id) => write!(f, "struct({:?})", id),
-            TypeKind::Enum(id) => write!(f, "enum({:?})", id),
-            TypeKind::Fact(id) => write!(f, "fact({:?})", id),
-            TypeKind::Optional(ty) => write!(f, "optional({:?})", ty),
-            TypeKind::TypeVar(id) => write!(f, "?{}", id.0),
-            TypeKind::Unknown => write!(f, "unknown"),
-            TypeKind::Error => write!(f, "error"),
+            Self::String => write!(f, "string"),
+            Self::Bytes => write!(f, "bytes"),
+            Self::Int => write!(f, "int"),
+            Self::Bool => write!(f, "bool"),
+            Self::Id => write!(f, "id"),
         }
     }
 }
 
-new_key_type! {
-    pub(crate) struct TypeVarId;
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct TypeStruct {
+    pub symbol: SymbolId,
+    pub fields: Vec<StructField>,
 }
 
-/// Type environment for managing type information during checking
-#[derive(Clone, Debug, Default)]
+impl Eq for TypeStruct {}
+impl PartialEq for TypeStruct {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            symbol: self_symbol,
+            fields: _,
+        } = self;
+        let Self {
+            symbol: other_symbol,
+            fields: _,
+        } = other;
+        self_symbol == other_symbol
+    }
+}
+
+impl Hash for TypeStruct {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub(crate) struct StructField {
+    pub ident: IdentId,
+    pub xref: IdentRef,
+    pub ty: TypeRef,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct TypeEnum {
+    pub symbol: SymbolId,
+    pub variants: Vec<EnumVariant>,
+}
+
+impl Eq for TypeEnum {}
+impl PartialEq for TypeEnum {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            symbol: self_symbol,
+            variants: _,
+        } = self;
+        let Self {
+            symbol: other_symbol,
+            variants: _,
+        } = other;
+        self_symbol == other_symbol
+    }
+}
+
+impl Hash for TypeEnum {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub(crate) struct EnumVariant {
+    pub ident: IdentId,
+    pub xref: IdentRef,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub(crate) struct TypeOptional {
+    pub ty: Option<TypeRef>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct TypeEnv {
-    /// Maps identifiers to their types
-    pub bindings: BTreeMap<IdentId, Type>,
-    
-    /// Type variable substitutions for inference
-    pub substitutions: BTreeMap<TypeVarId, Type>,
-    
-    /// Parent environment for nested scopes
-    pub parent: Option<Box<TypeEnv>>,
+    pub types: TypeInterner,
+    pub symbols: BTreeMap<SymbolId, TypeRef>,
+    pub exprs: BTreeMap<ExprId, TypeRef>,
+    pub vtypes: BTreeMap<VTypeId, TypeRef>,
 }
 
 impl TypeEnv {
     pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_parent(parent: TypeEnv) -> Self {
         Self {
-            bindings: BTreeMap::new(),
-            substitutions: BTreeMap::new(),
-            parent: Some(Box::new(parent)),
+            types: TypeInterner::new(),
+            symbols: BTreeMap::new(),
+            exprs: BTreeMap::new(),
+            vtypes: BTreeMap::new(),
         }
     }
 
-    pub fn bind(&mut self, id: IdentId, ty: Type) {
-        self.bindings.insert(id, ty);
+    pub fn new_builtin(&mut self, ty: TypeBuiltin) -> TypeRef {
+        self.types.intern(Type::Builtin(ty))
     }
 
-    pub fn lookup(&self, id: IdentId) -> Option<Type> {
-        self.bindings
-            .get(&id)
-            .copied()
-            .or_else(|| self.parent.as_ref().and_then(|p| p.lookup(id)))
+    pub fn new_none(&mut self) -> TypeRef {
+        self.types.intern(Type::Optional(TypeOptional { ty: None }))
     }
 
-    pub fn substitute(&mut self, var: TypeVarId, ty: Type) {
-        self.substitutions.insert(var, ty);
+    pub fn new_struct(&mut self, ty: TypeStruct) -> TypeRef {
+        self.types.intern(Type::Struct(ty))
     }
+}
 
-    pub fn resolve_type(&self, ty: Type) -> Type {
-        match ty.kind {
-            TypeKind::TypeVar(var) => self
-                .substitutions
-                .get(&var)
-                .map(|t| self.resolve_type(*t))
-                .unwrap_or(ty),
-            TypeKind::Optional(_inner_id) => {
-                // For Optional types, we'd need to resolve the inner type
-                // This requires access to the type arena which we'll handle in check.rs
-                ty
-            }
-            _ => ty,
-        }
+impl Default for TypeEnv {
+    fn default() -> Self {
+        Self::new()
     }
+}
+
+typed_interner! {
+    pub(crate) struct TypeInterner(Type) => TypeRef;
 }
 
 /// Type checking error
@@ -169,25 +186,38 @@ impl TypeError {
     }
 
     pub fn undefined_field(struct_name: IdentRef, field: IdentRef, span: Span) -> Self {
-        Self::new(
-            TypeErrorKind::UndefinedField {
-                struct_name,
-                field,
-            },
-            span,
-        )
+        Self::new(TypeErrorKind::UndefinedField { struct_name, field }, span)
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum TypeErrorKind {
-    TypeMismatch { expected: Type, found: Type },
+    TypeMismatch {
+        expected: Type,
+        found: Type,
+    },
     UndefinedIdentifier(IdentRef),
-    UndefinedField { struct_name: IdentRef, field: IdentRef },
-    UndefinedEnumVariant { enum_name: IdentRef, variant: IdentRef },
-    ArgumentCountMismatch { expected: usize, found: usize },
-    InvalidUnaryOp { op: String, ty: Type },
-    InvalidBinaryOp { op: String, left: Type, right: Type },
+    UndefinedField {
+        struct_name: IdentRef,
+        field: IdentRef,
+    },
+    UndefinedEnumVariant {
+        enum_name: IdentRef,
+        variant: IdentRef,
+    },
+    ArgumentCountMismatch {
+        expected: usize,
+        found: usize,
+    },
+    InvalidUnaryOp {
+        op: String,
+        ty: Type,
+    },
+    InvalidBinaryOp {
+        op: String,
+        left: Type,
+        right: Type,
+    },
     NotAFunction(IdentRef),
     NotAStruct(Type),
     NotAnEnum(Type),
@@ -197,14 +227,21 @@ pub(crate) enum TypeErrorKind {
     MissingReturnType,
     UnexpectedReturn,
     IncompatibleMatchArms,
-    IncompatibleBranches { then_ty: Type, else_ty: Type },
+    IncompatibleBranches {
+        then_ty: Type,
+        else_ty: Type,
+    },
 }
 
 impl fmt::Display for TypeErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TypeErrorKind::TypeMismatch { expected, found } => {
-                write!(f, "type mismatch: expected {:?}, found {:?}", expected.kind, found.kind)
+                write!(
+                    f,
+                    "type mismatch: expected {:?}, found {:?}",
+                    expected.kind, found.kind
+                )
             }
             TypeErrorKind::UndefinedIdentifier(ident) => {
                 write!(f, "undefined identifier: {:?}", ident)
@@ -216,7 +253,11 @@ impl fmt::Display for TypeErrorKind {
                 write!(f, "undefined variant {:?} in enum {:?}", variant, enum_name)
             }
             TypeErrorKind::ArgumentCountMismatch { expected, found } => {
-                write!(f, "argument count mismatch: expected {}, found {}", expected, found)
+                write!(
+                    f,
+                    "argument count mismatch: expected {}, found {}",
+                    expected, found
+                )
             }
             TypeErrorKind::InvalidUnaryOp { op, ty } => {
                 write!(f, "invalid unary operation {} on type {:?}", op, ty.kind)

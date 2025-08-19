@@ -1,3 +1,5 @@
+#![expect(clippy::unwrap_used)]
+
 use std::{
     collections::{
         btree_map::{BTreeMap, Entry},
@@ -19,7 +21,7 @@ use crate::{
 
 /// A program scope (global or block).
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Scope {
+pub struct Scope {
     /// Uniquely identifies this scope.
     // TODO(eric): Do we need this field?
     pub id: ScopeId,
@@ -31,7 +33,7 @@ pub(crate) struct Scope {
 
 arena::new_key_type! {
     /// Uniquely identifies a [`Scope`].
-    pub(crate) struct ScopeId;
+    pub struct ScopeId;
 }
 
 impl ScopeId {
@@ -41,7 +43,7 @@ impl ScopeId {
 
 /// A collection of [`Scope`]s.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Scopes {
+pub struct Scopes {
     pub(super) scopes: Arena<ScopeId, Scope>,
 }
 
@@ -351,7 +353,7 @@ impl_scoped_id! {
     ///
     /// It's used by [`Scopes`] to more easily look up a thing's
     /// scope.
-    pub(crate) enum ScopedId {
+    pub enum ScopedId {
         Action(ActionId),
         Block(BlockId),
         Body(BodyId),

@@ -7,12 +7,12 @@ use std::{
     slice,
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// Uniquely identifies an item in an [`Arena`].
 ///
 /// See [`new_key_type!`].
-pub(crate) trait Key:
+pub trait Key:
     Copy
     + Clone
     + fmt::Debug
@@ -40,7 +40,7 @@ pub(crate) trait Key:
 /// arena. The key implements [`Ord`] such that the first key is
 /// ordered before the second, the second before the third, etc.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Arena<K, V> {
+pub struct Arena<K, V> {
     items: Vec<V>,
     _marker: PhantomData<fn() -> K>,
 }
@@ -75,6 +75,16 @@ where
         let item = f(K::from_usize(id));
         self.items.push(item);
         K::from_usize(id)
+    }
+
+    /// Returns the number of items in the arena.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if the arena contains no items.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 
     /// Reports whether the arena contains an item.
@@ -131,7 +141,7 @@ where
 }
 
 /// An iterator over the items in an [`Arena`].
-pub(crate) struct Iter<'a, K, V> {
+pub struct Iter<'a, K, V> {
     iter: Enumerate<slice::Iter<'a, V>>,
     _marker: PhantomData<fn() -> K>,
 }
@@ -226,3 +236,95 @@ macro_rules! new_key_type {
     };
 }
 pub(crate) use new_key_type;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Create a test key type for testing
+    new_key_type! {
+        struct TestKey;
+    }
+
+    #[test]
+    fn test_arena_new() {
+        let arena = Arena::<TestKey, String>::new();
+        assert_eq!(arena.len(), 0);
+        assert!(arena.is_empty());
+    }
+
+    #[test]
+    fn test_arena_insert_and_len() {
+        let mut arena = Arena::<TestKey, String>::new();
+
+        // Initially empty
+        assert_eq!(arena.len(), 0);
+        assert!(arena.is_empty());
+
+        // Insert first item
+        let key1 = arena.insert("hello".to_string());
+        assert_eq!(arena.len(), 1);
+        assert!(!arena.is_empty());
+
+        // Insert second item
+        let key2 = arena.insert("world".to_string());
+        assert_eq!(arena.len(), 2);
+        assert!(!arena.is_empty());
+
+        // Insert third item
+        let key3 = arena.insert("test".to_string());
+        assert_eq!(arena.len(), 3);
+        assert!(!arena.is_empty());
+
+        // Verify keys are sequential
+        assert_eq!(key1.0, 0);
+        assert_eq!(key2.0, 1);
+        assert_eq!(key3.0, 2);
+    }
+
+    #[test]
+    fn test_arena_get() {
+        let mut arena = Arena::<TestKey, i32>::new();
+
+        let key1 = arena.insert(42);
+        let key2 = arena.insert(100);
+
+        assert_eq!(arena.get(key1), Some(&42));
+        assert_eq!(arena.get(key2), Some(&100));
+        assert_eq!(arena.get(TestKey::from_usize(999)), None);
+    }
+
+    #[test]
+    fn test_arena_contains() {
+        let mut arena = Arena::<TestKey, String>::new();
+
+        let key = arena.insert("test".to_string());
+
+        assert!(arena.contains(key));
+        assert!(!arena.contains(TestKey::from_usize(999)));
+    }
+
+    #[test]
+    fn test_arena_iter() {
+        let mut arena = Arena::<TestKey, i32>::new();
+
+        let key1 = arena.insert(10);
+        let key2 = arena.insert(20);
+        let key3 = arena.insert(30);
+
+        let items: Vec<_> = arena.iter().collect();
+        assert_eq!(items.len(), 3);
+
+        // Verify items are in order
+        assert_eq!(items[0], (key1, &10));
+        assert_eq!(items[1], (key2, &20));
+        assert_eq!(items[2], (key3, &30));
+    }
+
+    #[test]
+    fn test_arena_default() {
+        let arena = Arena::<TestKey, String>::default();
+        assert_eq!(arena.len(), 0);
+        assert!(arena.is_empty());
+    }
+}

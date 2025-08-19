@@ -86,46 +86,27 @@ mod symbols;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use tracing::instrument;
+use aranya_policy_ast::ident;
 
 pub(crate) use self::{
     error::SymbolResolutionError,
-    scope::{InvalidScopeId, Scope, ScopeId, ScopedId, Scopes},
+    scope::{InvalidScopeId, ScopeId, ScopedId, Scopes},
     symbols::{Symbol, SymbolId, SymbolKind, Symbols},
 };
-use self::{
-    resolver::{intern_reserved_idents, Resolver},
-    scope::InsertError,
-};
+use self::{resolver::Resolver, scope::InsertError};
 use crate::{
+    arena::Iter,
     ctx::Ctx,
-    diag::ErrorGuaranteed,
-    hir::{Ident, IdentId, Span},
+    diag::{ErrorGuaranteed, OptionExt},
+    hir::{HirLowerPass, Ident, IdentId, Span},
+    pass::{DepsRefs, Pass, View},
 };
 
 pub(crate) type Result<T, E = SymbolResolutionError> = std::result::Result<T, E>;
 
-impl Ctx<'_> {
-    /// Resolves symbols in the HIR.
-    #[instrument(skip(self))]
-    pub fn resolve_symbols(&mut self) -> Result<(), ErrorGuaranteed> {
-        intern_reserved_idents(&mut self.idents);
-
-        let res = Resolver {
-            dcx: &self.dcx,
-            hir: &self.hir,
-            table: SymbolTable::empty(),
-            reserved_idents: Vec::new(),
-            idents: &self.idents,
-        };
-        self.symbols = res.resolve()?;
-        Ok(())
-    }
-}
-
 /// Symbol resolution information.
 #[derive(Clone, Debug)]
-pub(crate) struct SymbolTable {
+pub struct SymbolTable {
     /// Maps identifiers to their symbols.
     pub resolutions: BTreeMap<IdentId, SymbolId>,
     /// Identifiers that we skipped because they'll be "resolved"
@@ -185,3 +166,88 @@ impl SymbolTable {
 }
 
 pub(crate) type ScopeMap = BTreeMap<ScopedId, ScopeId>;
+
+#[derive(Copy, Clone, Debug)]
+pub struct SymbolsPass;
+
+impl Pass for SymbolsPass {
+    const NAME: &'static str = "symbols";
+    type Output = SymbolTable;
+    type View<'cx> = SymbolsView<'cx>;
+    type Deps = (HirLowerPass,);
+
+    fn run(cx: Ctx<'_>, (hir,): DepsRefs<'_, Self>) -> Result<SymbolTable, ErrorGuaranteed> {
+        let reserved_idents = [ident!("this"), ident!("envelope"), ident!("id")]
+            .into_iter()
+            .map(|ident| cx.intern_ident(ident))
+            .collect::<Vec<_>>();
+        let res = Resolver {
+            ctx: cx,
+            hir,
+            table: SymbolTable::empty(),
+            reserved_idents,
+        };
+        res.resolve()
+    }
+}
+
+impl<'cx> Ctx<'cx> {
+    pub fn symbols(self) -> Result<SymbolsView<'cx>, ErrorGuaranteed> {
+        let table = self.get::<SymbolsPass>()?;
+        Ok(SymbolsView::new(self, table))
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct SymbolsView<'cx> {
+    cx: Ctx<'cx>,
+    table: &'cx SymbolTable,
+}
+
+impl<'cx> SymbolsView<'cx> {
+    /// Returns the symbol table.
+    pub fn table(&self) -> &'cx SymbolTable {
+        self.table
+    }
+
+    /// Resolve an identifier to a symbol ID.
+    pub fn resolve(&self, id: IdentId) -> SymbolId {
+        self.table
+            .resolutions
+            .get(&id)
+            .copied()
+            .unwrap_or_bug(self.cx.dcx(), "ident must be resolved")
+    }
+
+    /// Get a symbol by ID.
+    pub fn get(&self, id: SymbolId) -> &'cx Symbol {
+        self.table
+            .symbols
+            .get(id)
+            .unwrap_or_bug(self.cx.dcx(), "symbol must exist")
+    }
+
+    /// Check if an identifier was skipped during resolution.
+    pub fn is_skipped(&self, id: IdentId) -> bool {
+        self.table.skipped.contains(&id)
+    }
+
+    pub fn iter(&self) -> Iter<'cx, SymbolId, Symbol> {
+        self.table.symbols.iter()
+    }
+}
+
+impl<'cx> View<'cx, SymbolTable> for SymbolsView<'cx> {
+    fn new(cx: Ctx<'cx>, data: &'cx SymbolTable) -> Self {
+        Self { cx, table: data }
+    }
+}
+
+impl<'cx> IntoIterator for SymbolsView<'cx> {
+    type Item = (SymbolId, &'cx Symbol);
+    type IntoIter = Iter<'cx, SymbolId, Symbol>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}

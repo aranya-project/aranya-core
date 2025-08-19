@@ -14,22 +14,20 @@ use super::{
         FactCountType, FactDef, FactField, FactFieldExpr, FactKey, FactKeyId, FactLiteral, FactVal,
         FactValId, FfiEnumDef, FfiFuncDef, FfiFuncSig, FfiImportDef, FfiModuleDef, FfiStructDef,
         FfiStructField, FfiStructFieldId, FfiStructFieldKind, FieldDef, FinishFuncDef,
-        ForeignFunctionCall, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId,
-        IdentInterner, IfBranch, IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm,
-        MatchExpr, MatchExprArm, MatchPattern, MatchStmt, NamedStruct, Param, ParamId, Publish,
-        Pure, ReturnStmt, Span, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr,
-        StructFieldId, StructFieldKind, Ternary, TextInterner, UnaryOp, Update, VType, VTypeId,
-        VTypeKind,
+        ForeignFunctionCall, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch,
+        IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm, MatchExpr, MatchExprArm,
+        MatchPattern, MatchStmt, NamedStruct, Param, ParamId, Publish, Pure, ReturnStmt, Span,
+        Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr, StructFieldId,
+        StructFieldKind, Ternary, UnaryOp, Update, VType, VTypeId, VTypeKind,
     },
     visit::{self, Visitor},
 };
-use crate::ast::Item;
+use crate::{ast::Item, ctx::Ctx};
 
 #[derive(Debug)]
 pub(crate) struct LowerCtx<'ctx> {
+    pub ctx: Ctx<'ctx>,
     pub hir: Hir,
-    pub idents: &'ctx mut IdentInterner,
-    pub text: &'ctx mut TextInterner,
     /// Used for looking up spans.
     pub codemap: &'ctx CodeMap,
     /// The last span encountered during lowering.
@@ -85,7 +83,7 @@ impl LowerCtx<'_> {
 
     /// Lowers an [`ast::Identifier`].
     fn lower_ident(&mut self, ident: &ast::Identifier) -> IdentId {
-        let ident = self.idents.intern(ident.clone());
+        let ident = self.ctx.intern_ident(ident.clone());
         self.hir.idents.insert_with_key(|id| Ident {
             id,
             span: self.last_span,
@@ -119,7 +117,7 @@ impl LowerCtx<'_> {
                 kind: LitKind::Int(*v),
             }),
             ast::Expression::String(v) => {
-                let text = self.text.intern(v.clone());
+                let text = self.ctx.intern_text(v.clone());
                 ExprKind::Lit(Lit {
                     kind: LitKind::String(text),
                 })

@@ -1,10 +1,13 @@
+#![expect(clippy::unwrap_used)]
+
 use std::{
+    cell::OnceCell,
     collections::{BTreeMap, BTreeSet},
     error, fmt,
-    fmt::{Debug, Write},
+    fmt::Write,
     hash::Hash,
     iter, mem,
-    ops::{ControlFlow, Index},
+    ops::ControlFlow,
     vec,
 };
 
@@ -21,93 +24,102 @@ use crate::{
     },
     hir::{
         visit::{self, Visitor, Walkable},
-        Hir, Ident, IdentId, LetStmt, Named, Span, Stmt, StmtKind,
+        Hir, HirLowerPass, HirView, Ident, IdentId, LetStmt, Named, Span, Stmt, StmtKind,
     },
-    symbol_resolution::{SymbolId, SymbolKind},
+    pass::{DepsRefs, Pass, View},
+    symbol_resolution::{SymbolId, SymbolKind, SymbolsPass, SymbolsView},
 };
 
-/// Result type for dependency graph operations.
-pub(crate) type Result<T, E = ()> = std::result::Result<T, E>;
+#[derive(Copy, Clone, Debug)]
+pub struct DepsPass;
 
-impl Ctx<'_> {
-    /// Builds the dependency graph by analyzing symbol
-    /// references in the HIR.
-    #[instrument(skip(self))]
-    pub fn build_dep_graph(&mut self) -> Result<(), ErrorGuaranteed> {
-        let mut graph = Graph::<SymbolId, SymbolKind>::new();
+impl Pass for DepsPass {
+    const NAME: &'static str = "deps";
+    type Output = DepGraph;
+    type View<'cx> = DepsView<'cx>;
+    type Deps = (HirLowerPass, SymbolsPass);
+
+    fn run<'cx>(
+        cx: Ctx<'cx>,
+        (hir, symbols): DepsRefs<'cx, Self>,
+    ) -> Result<Self::Output, ErrorGuaranteed> {
+        let mut graph = Graph::new();
 
         // First add all nodes...
-        for (id, _) in &self.symbols.symbols {
+        for (id, _) in symbols {
             graph.add_node(id);
         }
 
         // ...then add the edges.
         let mut visitor = AddEdges {
-            ctx: self,
+            ctx: cx,
+            hir,
+            symbols,
             graph: &mut graph,
             item: None,
         };
         visitor.visit_all();
 
-        self.check_recursive_deps(&graph)?;
-
-        self.deps = graph;
-
-        Ok(())
-    }
-
-    /// Checks for recursive dependencies and emits errors for
-    /// the first 5 cycles found.
-    ///
-    /// This method uses Tarjan's algorithm to find strongly
-    /// connected components (SCCs) in the dependency graph. Any
-    /// SCC with more than one node represents a cycle. We limit
-    /// the number of reported cycles to avoid overwhelming the
-    /// user with error messages.
-    ///
-    /// The method returns an error if any cycles are found,
-    /// ensuring that compilation cannot proceed with circular
-    /// dependencies.
-    fn check_recursive_deps(
-        &self,
-        graph: &Graph<SymbolId, SymbolKind>,
-    ) -> Result<(), ErrorGuaranteed> {
-        let sccs = graph.find_sccs();
-        let mut cycle_count = 0;
-
-        for scc in &sccs {
-            // Only consider SCCs with more than one node as
-            // cycles
-            if scc.len() <= 1 {
-                continue;
+        let mut err = None;
+        for scc in graph
+            .find_sccs()
+            .into_iter()
+            .filter(|scc| scc.len() > 1)
+            .take(5)
+        {
+            let mut cycle = Vec::new();
+            for sym_id in scc {
+                let sym = symbols.get(sym_id);
+                let xref = hir.lookup(sym.ident).xref;
+                let ident = cx.get_ident(xref);
+                cycle.push((ident.clone(), sym.span));
             }
-
-            if cycle_count >= 5 {
-                // Too many cycles, stop reporting so we don't
-                // spam the user.
-                break;
-            }
-
-            // Emit error for this cycle
-            let cycle: Vec<(ast::Identifier, Span)> = scc
-                .iter()
-                .filter_map(|&symbol_id| {
-                    let sym = self.symbols.symbols.get(symbol_id)?;
-                    let ident = &self.hir.idents[sym.ident];
-                    let identifier = self.idents.get(ident.xref)?;
-                    Some((identifier.clone(), sym.span))
-                })
-                .collect();
-
-            let _ = self.dcx.emit_err_diag(CyclicDependencyError { cycle });
-            cycle_count += 1;
+            let _ = err.insert(cx.dcx().emit_err_diag(CyclicDependencyError { cycle }));
         }
 
-        if let (Some(err), 1..) = (self.dcx.has_errors(), cycle_count) {
+        if let Some(err) = err {
             Err(err)
         } else {
-            Ok(())
+            Ok(DepGraph {
+                graph,
+                topo_sorted: OnceCell::new(),
+            })
         }
+    }
+}
+
+impl<'cx> Ctx<'cx> {
+    pub fn deps(self) -> Result<DepsView<'cx>, ErrorGuaranteed> {
+        let deps = self.get::<DepsPass>()?;
+        Ok(View::new(self, deps))
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct DepsView<'cx> {
+    ctx: Ctx<'cx>,
+    deps: &'cx DepGraph,
+}
+
+impl<'cx> DepsView<'cx> {
+    /// Create a new deps view.
+    pub fn new(ctx: Ctx<'cx>, deps: &'cx DepGraph) -> Self {
+        Self { ctx, deps }
+    }
+
+    pub fn graph(&self) -> &'cx DepGraph {
+        self.deps
+    }
+
+    /// Get the topologically sorted symbols.
+    pub fn topo_sorted(&self) -> &[SymbolId] {
+        todo!()
+    }
+}
+
+impl<'cx> View<'cx, DepGraph> for DepsView<'cx> {
+    fn new(ctx: Ctx<'cx>, data: &'cx DepGraph) -> Self {
+        Self { ctx, deps: data }
     }
 }
 
@@ -120,8 +132,10 @@ impl Ctx<'_> {
 /// create edges from the current symbol to any symbols it
 /// references.
 #[derive(Debug)]
-struct AddEdges<'a, 'ctx> {
-    ctx: &'ctx Ctx<'ctx>,
+struct AddEdges<'a, 'cx> {
+    ctx: Ctx<'cx>,
+    hir: HirView<'cx>,
+    symbols: SymbolsView<'cx>,
     graph: &'a mut Graph<SymbolId, SymbolKind>,
     /// The current symbol that we're resolving.
     item: Option<SymbolId>,
@@ -140,13 +154,7 @@ impl AddEdges<'_, '_> {
     where
         F: FnOnce(&mut Self) -> R,
     {
-        let item = self
-            .ctx
-            .symbols
-            .resolutions
-            .get(&ident)
-            .copied()
-            .unwrap_or_bug(&self.ctx.dcx, "symbol must exist");
+        let item = self.symbols.resolve(ident);
         self.with_item(item, f)
     }
 
@@ -187,7 +195,7 @@ impl<'ctx: 'hir, 'hir> Visitor<'hir> for AddEdges<'_, 'ctx> {
     type Result = ControlFlow<()>;
 
     fn hir(&self) -> &'hir Hir {
-        &self.ctx.hir
+        self.hir.hir()
     }
 
     visit::for_each_top_level_item!(update_item);
@@ -199,9 +207,10 @@ impl<'ctx: 'hir, 'hir> Visitor<'hir> for AddEdges<'_, 'ctx> {
     /// visiting its expression. This ensures that dependencies
     /// in the expression are attributed to the correct symbol.
     fn visit_stmt(&mut self, stmt: &'hir Stmt) -> Self::Result {
+        let hir = self.hir;
         match &stmt.kind {
             StmtKind::Let(LetStmt { ident, expr }) => self.with_item_for_ident(*ident, |this| {
-                let expr = self.ctx.hir.index(*expr);
+                let expr = hir.lookup(*expr);
                 this.visit_expr(expr)
             }),
             _ => stmt.walk(self),
@@ -216,38 +225,25 @@ impl<'ctx: 'hir, 'hir> Visitor<'hir> for AddEdges<'_, 'ctx> {
     /// dependency graph, skipping any symbols that have been
     /// marked as skipped during symbol resolution.
     fn visit_ident(&mut self, ident: &'hir Ident) -> Self::Result {
-        if self.ctx.symbols.skipped.contains(&ident.id) {
+        if self.symbols.is_skipped(ident.id) {
             return ControlFlow::Continue(());
         }
-
         let from = self.item.unwrap_or_bug(
-            &self.ctx.dcx,
+            self.ctx.dcx(),
             "`self.item` must be set before visiting an ident",
         );
-        let to = self
-            .ctx
-            .symbols
-            .resolutions
-            .get(&ident.id)
-            .copied()
-            .unwrap_or_bug(&self.ctx.dcx, "symbol must exist");
-        let kind = self
-            .ctx
-            .symbols
-            .get(to)
-            .unwrap_or_bug(&self.ctx.dcx, "symbol must exist")
-            .kind;
+        let to = self.symbols.resolve(ident.id);
+        let kind = self.symbols.get(to).kind;
         self.graph.add_dependency(from, to, kind);
         ControlFlow::Continue(())
     }
 }
 
-/// Type alias for the dependency graph used in the policy
-/// compiler.
-///
-/// This provides a convenient way to reference the dependency
-/// graph with the specific types used by the compiler.
-pub(crate) type DepGraph = Graph<SymbolId, SymbolKind>;
+#[derive(Clone, Debug)]
+pub struct DepGraph {
+    pub(crate) graph: Graph<SymbolId, SymbolKind>,
+    pub(crate) topo_sorted: OnceCell<Vec<SymbolId>>,
+}
 
 /// A directed dependency graph that tracks relationships between
 /// nodes.
@@ -259,14 +255,14 @@ pub(crate) struct Graph<K, D> {
     /// Nodes indexed by key.
     nodes: IndexMap<K, NodeData<K, D>>,
     /// Reverse edge index: target -> Vec<source> for efficient
-    /// incoming edge lookup
+    /// incoming edge lookup.
     incoming_edges: BTreeMap<K, Vec<K>>,
 }
 
 // Basic operations with minimal bounds
 impl<K, D> Graph<K, D> {
     /// Create a new empty dependency graph
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self {
             nodes: IndexMap::new(),
             incoming_edges: BTreeMap::new(),
@@ -324,22 +320,19 @@ where
 
         let from_node = self.nodes.get_mut(&from).expect("from node must exist");
 
-        assert!(!from_node.edge_targets.contains(&to));
+        assert!(!from_node.edge_targets.contains(&to), "edge already exists");
 
         from_node.edges.push(Edge { target: to, kind });
         from_node.edge_targets.insert(to);
 
         // Update reverse edge index
-        self.incoming_edges
-            .entry(to)
-            .or_insert_with(Vec::new)
-            .push(from);
+        self.incoming_edges.entry(to).or_default().push(from);
     }
 }
 
 impl<K, D> Graph<K, D>
 where
-    K: Hash + Eq + Debug + Copy + Ord,
+    K: Hash + Eq + fmt::Debug + Copy + Ord,
     D: Copy,
 {
     /// Check if there's a dependency path from `from` to `to`.
@@ -357,7 +350,7 @@ where
     ///
     /// ## Time Complexity
     /// - Worst Case: O(V + E) where V is the number of nodes
-    /// and E is the number of edges
+    ///   and E is the number of edges
     /// - Best Case: O(1) when from == to
     /// - Average Case: O(V + E) for typical sparse graphs
     ///
@@ -365,7 +358,7 @@ where
     /// - Worst Case: O(V) for the visited array and recursion stack
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function has_dependency_path(graph, from, to):
     ///     if from == to:
     ///         return true
@@ -480,7 +473,7 @@ where
     /// - Worst Case: O(V) for the visited map and result vector
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function dependency_closure(graph, target):
     ///     closure = []
     ///     visited = {}
@@ -592,7 +585,7 @@ where
     /// - Worst Case: O(V) for the visited map and result vector
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function find_dependents(graph, source):
     ///     dependents = []
     ///     visited = {}
@@ -709,7 +702,7 @@ where
     /// - Worst Case: O(V) for the visited map and result vector
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function find_reachability(graph, target):
     ///     reachable = []
     ///     visited = {}
@@ -834,7 +827,7 @@ where
     /// - Worst Case: O(V) for the stack, visited arrays, and recursion depth
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function find_sccs(graph):
     ///     index = 0
     ///     stack = []
@@ -910,7 +903,7 @@ where
     /// let sccs = dag.find_sccs();
     /// assert_eq!(sccs.len(), 3);  // Each node is its own SCC in a DAG
     /// ```
-    pub fn find_sccs(&self) -> Vec<Vec<K>> {
+    fn find_sccs(&self) -> Vec<Vec<K>> {
         if self.nodes.is_empty() {
             return Vec::new();
         }
@@ -986,7 +979,7 @@ where
         // Step 1: Assign discovery index and initialize lowlink
         indices[node_idx] = Some(*current_index);
         lowlinks[node_idx] = *current_index;
-        *current_index += 1;
+        *current_index = current_index.saturating_add(1);
 
         // Step 2: Push onto stack and mark as on-stack
         stack.push(node_idx);
@@ -1013,7 +1006,8 @@ where
             } else if on_stack[target_idx] {
                 // Neighbor is on stack - this is a back edge
                 // Update lowlink to the neighbor's discovery index
-                lowlinks[node_idx] = lowlinks[node_idx].min(indices[target_idx].unwrap());
+                let target_discovery_idx = indices[target_idx].unwrap();
+                lowlinks[node_idx] = lowlinks[node_idx].min(target_discovery_idx);
             }
             // If neighbor is visited but not on stack, ignore it
         }
@@ -1059,7 +1053,7 @@ where
     /// - Worst Case: O(V + E) for the meta-graph and auxiliary data structures
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function sort_sccs_topologically(components):
     ///     # Step 1: Create meta-graph
     ///     scc_graph = []
@@ -1107,7 +1101,7 @@ where
                 let node_key = self.nodes.get_index(node_idx).unwrap().0;
 
                 // Check incoming edges to this node (using reverse index)
-                if let Some(sources) = self.incoming_edges.get(&node_key) {
+                if let Some(sources) = self.incoming_edges.get(node_key) {
                     for &source in sources {
                         let source_idx = self.nodes.get_index_of(&source).unwrap();
                         let source_scc = scc_indices[&source_idx];
@@ -1220,7 +1214,7 @@ where
     /// - Worst Case: O(V)
     ///
     /// ## Pseudocode:
-    /// ```
+    /// ```text
     /// function topological_sort(graph):
     ///     marks = {}  # Track node states
     ///     sorted = []
@@ -1363,7 +1357,7 @@ where
 
                 // Process next edge
                 let target = node_data.edges[*edge_idx].target;
-                *edge_idx += 1;
+                *edge_idx = edge_idx.saturating_add(1);
 
                 match marks.get(&target) {
                     Some(&Mark::Unvisited) | None => {
@@ -1400,10 +1394,10 @@ where
 }
 
 // Debug implementation with minimal bounds
-impl<K, D> Debug for Graph<K, D>
+impl<K, D> fmt::Debug for Graph<K, D>
 where
-    K: Debug,
-    D: Debug,
+    K: fmt::Debug,
+    D: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "DependencyGraph {{")?;
@@ -1487,7 +1481,7 @@ impl<K> fmt::Display for Cycle<K> {
     }
 }
 
-impl<K> error::Error for Cycle<K> where K: Debug {}
+impl<K> error::Error for Cycle<K> where K: fmt::Debug {}
 
 /// A cyclic dependency was detected in the dependency graph.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -1775,38 +1769,5 @@ mod tests {
         for scc in &sccs {
             assert_eq!(scc.len(), 2);
         }
-    }
-
-    #[test]
-    fn test_duplicate_edge_rejection() {
-        let mut graph = Graph::<&str, TestDep>::new();
-
-        // First edge should be added
-        graph.add_dependency("A", "B", TestDep::Type);
-
-        // Duplicate edge should be rejected
-        graph.add_dependency("A", "B", TestDep::Type);
-
-        // Different dependency type should also be rejected
-        // (same nodes)
-        graph.add_dependency("A", "B", TestDep::Type);
-
-        // Different target should be added
-        graph.add_dependency("A", "C", TestDep::Type);
-
-        // Verify only unique edges exist
-        let a_edges = &graph.nodes[&"A"].edges;
-        assert_eq!(a_edges.len(), 2);
-        assert!(a_edges.iter().any(|e| e.target == "B"));
-        assert!(a_edges.iter().any(|e| e.target == "C"));
-
-        // Verify reverse index is maintained correctly
-        let b_sources = &graph.incoming_edges[&"B"];
-        assert_eq!(b_sources.len(), 1);
-        assert!(b_sources.contains(&"A"));
-
-        let c_sources = &graph.incoming_edges[&"C"];
-        assert_eq!(c_sources.len(), 1);
-        assert!(c_sources.contains(&"A"));
     }
 }

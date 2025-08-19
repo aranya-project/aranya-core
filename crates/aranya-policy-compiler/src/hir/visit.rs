@@ -77,6 +77,7 @@ pub(crate) trait Visitor<'hir>: Sized {
     type Result: VisitorResult;
 
     /// Returns the HIR being visited.
+    /// TODO(eric): Have this return `View<'hir>` instead.
     fn hir(&self) -> &'hir Hir;
 
     /// Visits all the top-level items.
@@ -328,47 +329,6 @@ macro_rules! for_each_top_level_item {
 }
 pub(crate) use for_each_top_level_item;
 
-/// Invokes `callback` for each item that has an identifier
-/// (i.e., implements [`Named`][crate::hir::Named]).
-///
-/// `callback` must be a macro with the following signature:
-///
-/// ```ignore
-/// macro_rules! example_callback {
-///     ($visit:ident => $ty:ty) => { ... };
-/// }
-/// ```
-macro_rules! for_each_named_item {
-    ($callback:ident) => {
-        $crate::hir::visit::for_each_named_item!(@apply $callback,
-            visit_action, ActionDef;
-            visit_cmd, CmdDef;
-            visit_effect_def, EffectDef;
-            visit_enum_def, EnumDef;
-            visit_named_struct_lit, NamedStruct;
-            visit_named_struct_lit_field, StructFieldExpr;
-            visit_fact_lit, FactLiteral;
-            visit_fact_lit_key, FactFieldExpr;
-            visit_fact_lit_val, FactFieldExpr;
-            visit_fact_def, FactDef;
-            visit_fact_key, FactKey;
-            visit_fact_val, FactVal;
-            visit_finish_func_def, FinishFuncDef;
-            visit_func_def, FuncDef;
-            visit_global_def, GlobalLetDef;
-            visit_struct_def, StructDef;
-            visit_ffi_import_def, FfiImportDef;
-            visit_ffi_module, FfiModuleDef;
-            visit_ffi_func, FfiFuncDef;
-            visit_ffi_struct, FfiStructDef;
-            visit_ffi_enum, FfiEnumDef;
-        );
-    };
-    (@apply $callback:ident, $($visit:ident, $ty:ident);* $(;)?) => {
-        $( $callback!($visit => $crate::hir::$ty); )*
-    };
-}
-pub(crate) use for_each_named_item;
 
 /// The result from a [`Visitor`] method.
 pub(crate) trait VisitorResult {
