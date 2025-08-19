@@ -1031,9 +1031,55 @@ fn test_should_not_allow_bind_value_in_fact_creation() {
 }
 
 #[test]
+fn test_should_not_allow_bind_key_in_fact_delete() {
+    let text = r#"
+        fact F[i int] => {}
+        command C {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    delete F[i:?]
+                }
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("Cannot delete fact with wildcard keys".to_owned())
+    );
+}
+
+#[test]
 fn test_should_not_allow_bind_key_in_fact_update() {
     let text = r#"
-        fact F[i int] => {s string}
+        fact F[i int] => {}
+        command C {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    update F[i:?] => {} to {}
+                }
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("Cannot update fact with wildcard keys".to_owned())
+    );
+}
+
+#[test]
+fn test_should_not_allow_bind_value_in_fact_update() {
+    let text = r#"
+        fact F[] => {s string}
 
         command CreateBindValue {
             fields {}
@@ -1041,8 +1087,7 @@ fn test_should_not_allow_bind_key_in_fact_update() {
             open { return todo() }
             policy {
                 finish {
-                    create F[i:1] => {s: ""}
-                    update F[i:?] => {s: ""} to {s: ?}
+                    update F[] => {s: ""} to {s: ?}
                 }
             }
         }
@@ -2488,8 +2533,8 @@ fn test_validate_publish() {
         concat(
             r#"
             action f() {
-                if true { 
-                    publish Foo { a: 0 } 
+                if true {
+                    publish Foo { a: 0 }
                 }
             }
         "#,
@@ -2498,11 +2543,11 @@ fn test_validate_publish() {
             r#"
             action g() {
                 if true {
-                } 
+                }
                 else if false {
-                } 
+                }
                 else {
-                    publish Foo { a: 0 } 
+                    publish Foo { a: 0 }
                 }
             }
         "#,
@@ -2816,7 +2861,7 @@ fn test_function_used_before_definition() {
         function pow(x int, n int) int {
             if n == 0 {
                 // x^0 == x
-                return 1 
+                return 1
             }
             if n == 1 {
                 // x^1 = x
