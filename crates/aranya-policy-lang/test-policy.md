@@ -2,22 +2,17 @@
 policy-version: 2
 ---
 ```policy
-command Result {
-    fields {
-        x int
-    }
+struct Foo {
+    a int,
+    b string,
 }
 
-action foo() {
-    let x = 6
+struct Bar {
+    b string,
+    a int,
+}
 
-    match x {
-        5 => {
-            publish Result { x: x }
-        }
-        6 => {
-            publish Result { x: x }
-        }
-    }
+function convert() struct Bar {
+    return Foo { a: 1, b: "test" } as Bar
 }
 ```

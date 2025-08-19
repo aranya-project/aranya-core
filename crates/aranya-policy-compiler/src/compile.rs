@@ -3,7 +3,8 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -412,6 +413,9 @@ impl<'a> CompileState<'a> {
                 s.identifier
             ))));
         };
+
+        let s = self.evaluate_sources(s, &struct_def)?;
+
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for (field_name, e) in &s.fields {
             let def_field_type = &struct_def
@@ -953,6 +957,44 @@ impl<'a> CompileState<'a> {
                 }
 
                 result_type
+            }
+            Expression::Cast(lhs, rhs_ident) => {
+                // NOTE this is implemented only for structs
+
+                // make sure other struct is defined
+                let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
+                    self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
+                })?;
+
+                let lhs_type = self.compile_expression(lhs)?;
+                _ = lhs_type.try_map(|t| match t {
+                    NullableVType::Type(VType::Struct(lhs_struct_name)) => {
+                        let lhs_fields =
+                            self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
+                                self.err(CompileErrorType::NotDefined(format!(
+                                    "struct {lhs_struct_name}"
+                                )))
+                            })?;
+
+                        // Check that both structs have the same field names and types (though not necessarily in the same order)
+                        if lhs_fields.len() != rhs_fields.len()
+                            || !lhs_fields.iter().all(|f| rhs_fields.contains(f))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidCast(
+                                lhs_struct_name,
+                                rhs_ident.clone(),
+                            )));
+                        }
+                        Ok(NullableVType::Type(VType::Struct(rhs_ident.clone())))
+                    }
+                    _ => Err(self.err(CompileErrorType::InvalidType(
+                        "Expression to the left of `as` is not a struct".to_string(),
+                    ))),
+                })?;
+
+                self.append_instruction(Instruction::Cast(rhs_ident.clone()));
+
+                Typeish::known(VType::Struct(rhs_ident.clone()))
             }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -1793,9 +1835,7 @@ impl<'a> CompileState<'a> {
         let identifier = &global_let.inner.identifier;
         let expression = &global_let.inner.expression;
 
-        let value = self
-            .expression_value(expression)
-            .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(expression.clone())))?;
+        let value = self.expression_value(expression)?;
         let vt = value.vtype().expect("global let expression has weird type");
 
         match self.m.globals.entry(identifier.clone()) {
@@ -2025,9 +2065,7 @@ impl<'a> CompileState<'a> {
         for (name, value_expr) in &command.attributes {
             match attr_values.entry(name.clone()) {
                 Entry::Vacant(e) => {
-                    let value = self.expression_value(value_expr).ok_or_else(|| {
-                        self.err(CompileErrorType::InvalidExpression(value_expr.clone()))
-                    })?;
+                    let value = self.expression_value(value_expr)?;
                     e.insert(value);
                 }
                 Entry::Occupied(_) => {
@@ -2275,13 +2313,13 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
+        for struct_def in &self.policy.structs {
+            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
+        }
+
         // Compile global let statements
         for global_let in &self.policy.global_lets {
             self.compile_global_let(global_let)?;
-        }
-
-        for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
         }
 
         for effect in &self.policy.effects {
@@ -2384,27 +2422,152 @@ impl<'a> CompileState<'a> {
     }
 
     /// Get expression value, e.g. Expression::Int => Value::Int
-    fn expression_value(&self, e: &Expression) -> Option<Value> {
+    fn expression_value(&self, e: &Expression) -> Result<Value, CompileError> {
         match e {
-            Expression::Int(v) => Some(Value::Int(*v)),
-            Expression::Bool(v) => Some(Value::Bool(*v)),
-            Expression::String(v) => Some(Value::String(v.clone())),
-            Expression::NamedStruct(NamedStruct {
-                identifier: identfier,
-                fields,
-            }) => Some(Value::Struct(Struct {
-                name: identfier.clone(),
-                fields: {
-                    let mut value_fields = BTreeMap::new();
-                    for (value, expr) in fields {
-                        value_fields.insert(value.clone(), self.expression_value(expr)?);
-                    }
-                    value_fields
-                },
-            })),
-            Expression::EnumReference(e) => self.enum_value(e).ok(),
-            _ => None,
+            Expression::Int(v) => Ok(Value::Int(*v)),
+            Expression::Bool(v) => Ok(Value::Bool(*v)),
+            Expression::String(v) => Ok(Value::String(v.clone())),
+            Expression::NamedStruct(struct_ast) => {
+                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier).cloned()
+                else {
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{}` not defined",
+                        struct_ast.identifier
+                    ))));
+                };
+
+                let struct_ast = self.evaluate_sources(struct_ast, &struct_def)?;
+
+                let NamedStruct {
+                    identifier, fields, ..
+                } = struct_ast.as_ref();
+
+                Ok(Value::Struct(Struct {
+                    name: identifier.clone(),
+                    fields: {
+                        let mut value_fields = BTreeMap::new();
+                        for field in fields {
+                            value_fields.insert(field.0.clone(), self.expression_value(&field.1)?);
+                        }
+                        value_fields
+                    },
+                }))
+            }
+            Expression::EnumReference(e) => self.enum_value(e),
+            Expression::Dot(expr, field_ident) => match **expr {
+                Expression::Identifier(ref struct_ident) => self
+                    .m
+                    .globals
+                    .get(struct_ident)
+                    .and_then(|val| match val {
+                        Value::Struct(Struct { fields, .. }) => fields.get(field_ident).cloned(),
+                        _ => None,
+                    })
+                    .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(e.clone()))),
+                _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
+            },
+            _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
         }
+    }
+
+    fn evaluate_sources<'s>(
+        &self,
+        base_struct: &'s NamedStruct,
+        base_struct_defns: &[FieldDefinition],
+    ) -> Result<Cow<'s, NamedStruct>, CompileError> {
+        // If there are no sources, no evaluation is needed.
+        if base_struct.sources.is_empty() {
+            return Ok(Cow::Borrowed(base_struct));
+        }
+
+        // If the struct is already full, there ought to be no sources.
+        if base_struct.fields.len() == base_struct_defns.len() {
+            return Err(self.err(CompileErrorType::NoOpStructComp));
+        }
+
+        let base_fields: HashSet<&str> = base_struct
+            .fields
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        let mut resolved_struct = base_struct.clone();
+        let mut seen = HashMap::new();
+
+        for src_var_name in &base_struct.sources {
+            // Look up source's type. It should be a struct.
+            let src_type = self
+                .identifier_types
+                .get(src_var_name)
+                .map_err(|err| self.err(err))?;
+
+            let src_struct_type_name = match src_type {
+                Typeish::Known(NullableVType::Type(VType::Struct(type_name))) => type_name,
+                // Known type, but not a struct
+                Typeish::Known(other_type) => {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Expected `{src_var_name}` to be a struct, but it's a(n) {other_type}",
+                    ))));
+                }
+                Typeish::Never => {
+                    // Never-typed expressions panic at runtime, making this struct composition
+                    // operation unreachable. Skip to continue type checking.
+                    continue;
+                }
+            };
+            let src_field_defns = self
+                .m
+                .struct_defs
+                .get(&src_struct_type_name)
+                .assume("identifier with a struct type has that struct already defined")
+                .map_err(|err| self.err(err.into()))?;
+
+            for src_field_defn in src_field_defns {
+                // Don't resolve fields already in the base struct.
+                if base_fields.contains(src_field_defn.identifier.as_str()) {
+                    continue;
+                }
+
+                // Ensure we haven't already resolved this field from another source.
+                if let Some(other) =
+                    seen.insert(&src_field_defn.identifier, src_struct_type_name.clone())
+                {
+                    return Err(self.err(CompileErrorType::DuplicateSourceFields(
+                        src_struct_type_name,
+                        other,
+                    )));
+                }
+
+                // Ensure this field has the right type.
+                let base_struct_defn = base_struct_defns
+                    .iter()
+                    .find(|b_defn| b_defn.identifier == src_field_defn.identifier)
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::SourceStructNotSubsetOfBase(
+                            src_struct_type_name.clone(),
+                            base_struct.identifier.clone(),
+                        ))
+                    })?;
+                if base_struct_defn.field_type != src_field_defn.field_type {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Expected field `{}` of `{}` to be a `{}`",
+                        &src_field_defn.identifier, src_var_name, base_struct_defn.field_type
+                    ))));
+                }
+
+                // Add field to resolved struct from source.
+
+                // Foo {x: 0, ...bar } -> Foo -> {x: 0, y: bar.y }
+                resolved_struct.fields.push((
+                    src_field_defn.identifier.clone(),
+                    Expression::Dot(
+                        Box::new(Expression::Identifier(src_var_name.clone())),
+                        src_field_defn.identifier.clone(),
+                    ),
+                ));
+            }
+        }
+
+        Ok(Cow::Owned(resolved_struct))
     }
 }
 
