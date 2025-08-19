@@ -52,7 +52,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Does not search `self.perspective`, which should be written out beforehand.
     fn locate(
         &self,
-        storage: &mut SP::Storage,
+        storage: &SP::Storage,
         address: Address,
     ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
@@ -72,7 +72,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     pub(super) fn commit(
         &mut self,
         provider: &mut SP,
-        engine: &mut E,
+        engine: &E,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<(), ClientError> {
         let storage = provider.get_storage(self.storage_id)?;
@@ -209,7 +209,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     fn add_single(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
-        engine: &mut E,
+        engine: &E,
         sink: &mut impl Sink<E::Effect>,
         command: &impl Command,
         parent: Address,
@@ -238,7 +238,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     fn add_merge(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
-        engine: &mut E,
+        engine: &E,
         sink: &mut impl Sink<E::Effect>,
         command: &impl Command,
         left: Address,
@@ -324,7 +324,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     }
 
     fn init<'sp>(
-        &mut self,
+        &self,
         command: &impl Command,
         engine: &mut E,
         provider: &'sp mut SP,

@@ -308,9 +308,10 @@ where
         let prior = self.session.base_facts.query_prefix(name, prefix)?;
         let current = Yoke::<PrefixIter<'static>, _>::attach_to_cart(
             Arc::clone(&self.session.current_facts),
-            |map| match map.get(name) {
-                Some(facts) => PrefixIter::new(facts, prefix.iter().cloned().collect()),
-                None => PrefixIter::default(),
+            |map| {
+                map.get(name).map_or_else(PrefixIter::default, |facts| {
+                    PrefixIter::new(facts, prefix.iter().cloned().collect())
+                })
             },
         );
         Ok(QueryIterator::new(prior, YokeIter::new(current)))

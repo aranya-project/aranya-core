@@ -27,7 +27,7 @@ use spideroak_crypto::{
     typenum::U32,
 };
 
-pub(crate) use crate::ciphersuite::ext::CipherSuiteExt;
+pub use crate::ciphersuite::ext::CipherSuiteExt;
 pub use crate::ciphersuite::ext::Oids;
 
 /// A marker trait for AEADs.

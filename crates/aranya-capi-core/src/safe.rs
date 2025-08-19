@@ -293,7 +293,7 @@ impl<T: Typed + Default> InitDefault for Safe<T> {
 
 impl<T: Typed> Drop for Safe<T> {
     fn drop(&mut self) {
-        tracing::debug!(addr = ptr::from_mut::<Safe<T>>(self) as usize, "dropping");
+        tracing::debug!(addr = ptr::from_mut::<Self>(self) as usize, "dropping");
         debug_assert_eq!(self.id, T::TYPE_ID);
 
         if !self.is_valid() {

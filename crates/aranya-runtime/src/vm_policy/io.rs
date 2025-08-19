@@ -66,7 +66,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
         sink: &'o RefCell<&'o mut S>,
         engine: &'o Mutex<E>,
         ffis: &'o [FFI],
-    ) -> VmPolicyIO<'o, P, S, E, FFI> {
+    ) -> Self {
         VmPolicyIO {
             facts,
             sink,
@@ -181,7 +181,7 @@ where
 
 // pub(crate) for testing
 /// Serializes an iterator of [`FactKey`]s into [`Keys`] for storage.
-pub(crate) fn ser_keys(keys: impl IntoIterator<Item = FactKey>) -> Keys {
+pub fn ser_keys(keys: impl IntoIterator<Item = FactKey>) -> Keys {
     keys.into_iter().map(|key| ser_key(&key)).collect()
 }
 
@@ -208,13 +208,13 @@ enum KeyType {
 }
 
 impl KeyType {
-    fn from_u8(val: u8) -> Option<KeyType> {
+    fn from_u8(val: u8) -> Option<Self> {
         Some(match val {
-            0 => KeyType::Int,
-            1 => KeyType::Bool,
-            2 => KeyType::String,
-            3 => KeyType::Id,
-            4 => KeyType::Enum,
+            0 => Self::Int,
+            1 => Self::Bool,
+            2 => Self::String,
+            3 => Self::Id,
+            4 => Self::Enum,
             _ => return None,
         })
     }

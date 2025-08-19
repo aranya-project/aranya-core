@@ -224,7 +224,7 @@ fn collect_idents(ctx: &mut Ctx, nodes: &[Node]) -> IdentMap {
 
 /// Maps old identifiers to the prefixes identifiers.
 #[derive(Debug)]
-pub(super) struct IdentMap(pub BiHashMap<OldIdent, NewIdent>);
+pub struct IdentMap(pub BiHashMap<OldIdent, NewIdent>);
 
 impl IdentMap {
     pub(super) fn get_new(&self, old: &OldIdent) -> Option<&NewIdent> {
@@ -248,5 +248,5 @@ impl IdentMap {
     }
 }
 
-pub(super) type OldIdent = Ident;
-pub(super) type NewIdent = Ident;
+pub type OldIdent = Ident;
+pub type NewIdent = Ident;

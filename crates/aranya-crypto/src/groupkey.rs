@@ -49,7 +49,7 @@ impl<CS> Clone for GroupKey<CS> {
 
 impl<CS: CipherSuite> GroupKey<CS> {
     /// Creates a new, random `GroupKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<CS> {
+    pub fn new<R: Csprng>(rng: &mut R) -> Self {
         Self::from_seed(Random::random(rng))
     }
 

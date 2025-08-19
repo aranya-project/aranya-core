@@ -241,7 +241,7 @@ function label_id(
 
 /// An error returned by [`Ffi`].
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum FfiError {
+pub enum FfiError {
     /// The [`aranya_crypto`] crate failed.
     #[error("crypto error: {0}")]
     Crypto(#[from] aranya_crypto::Error),
@@ -305,12 +305,12 @@ impl TryFrom<Value> for LabelId {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let id: Id = value.try_into()?;
-        Ok(LabelId::from(id))
+        Ok(Self::from(id))
     }
 }
 
 impl From<LabelId> for Value {
-    fn from(id: LabelId) -> Value {
-        Value::Id(id.into())
+    fn from(id: LabelId) -> Self {
+        Self::Id(id.into())
     }
 }

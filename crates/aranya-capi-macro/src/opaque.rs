@@ -4,7 +4,7 @@ use quote::quote;
 use syn::{Attribute, Error, Item, Path, parse::Result, parse_quote};
 use tracing::info;
 
-pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
+pub fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     info!("parsing `#[capi::opaque(...)]` attribute");
 
     let Opaque {

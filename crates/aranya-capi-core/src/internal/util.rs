@@ -44,10 +44,7 @@ impl Addr {
 
     /// Creates an [`Addr`] from an optional [`OwnedPtr`].
     pub fn from_opt_owned_ptr<T>(ptr: &Option<OwnedPtr<T>>) -> Self {
-        match ptr {
-            Some(ptr) => Self::from_ptr(ptr),
-            None => Self(0),
-        }
+        ptr.as_ref().map_or(Self(0), |ptr| Self::from_ptr(ptr))
     }
 }
 

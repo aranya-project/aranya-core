@@ -7,7 +7,7 @@ use buggy::Bug;
 use crate::compile::StatementContext;
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidCallColor {
     /// The call is a pure function
     #[error("pure function not allowed in finish context")]
@@ -18,7 +18,7 @@ pub enum InvalidCallColor {
 }
 
 /// Errors that can occur during compilation.
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum CompileErrorType {
     /// Invalid statement - a statement was used in an invalid context.
     #[error("invalid statement in {0} context")]
@@ -96,8 +96,8 @@ struct CompileErrorImpl {
 
 impl CompileError {
     /// Creates a `CompileError`.
-    pub(crate) fn new(err_type: CompileErrorType) -> CompileError {
-        CompileError(Box::new(CompileErrorImpl {
+    pub(crate) fn new(err_type: CompileErrorType) -> Self {
+        Self(Box::new(CompileErrorImpl {
             err_type,
             source: None,
         }))
@@ -107,7 +107,7 @@ impl CompileError {
         err_type: CompileErrorType,
         locator: usize,
         codemap: Option<&CodeMap>,
-    ) -> CompileError {
+    ) -> Self {
         let source = codemap.and_then(|codemap| {
             codemap
                 .span_from_locator(locator)
@@ -118,7 +118,7 @@ impl CompileError {
                 })
         });
 
-        CompileError(Box::new(CompileErrorImpl { err_type, source }))
+        Self(Box::new(CompileErrorImpl { err_type, source }))
     }
 
     pub fn err_type(self) -> CompileErrorType {
@@ -146,6 +146,6 @@ impl core::error::Error for CompileError {}
 
 impl From<Bug> for CompileError {
     fn from(bug: Bug) -> Self {
-        CompileError::new(CompileErrorType::Bug(bug))
+        Self::new(CompileErrorType::Bug(bug))
     }
 }

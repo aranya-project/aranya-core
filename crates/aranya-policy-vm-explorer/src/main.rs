@@ -120,7 +120,7 @@ struct MachExpIO {
 
 impl MachExpIO {
     fn new() -> Self {
-        MachExpIO {
+        Self {
             facts: HashMap::new(),
             commands: vec![],
             effects: vec![],
@@ -141,7 +141,7 @@ impl Iterator for MachExpQueryIterator {
         self.iter
             .next()
             .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
-            .map(|((_, k), v)| Ok((k.clone(), v.clone())))
+            .map(|((_, k), v)| Ok((k, v)))
     }
 }
 
@@ -274,7 +274,7 @@ fn main() -> anyhow::Result<()> {
             if let Some(action) = &args.action {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
-                    name: name.clone(),
+                    name,
                     head_id: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
@@ -283,7 +283,7 @@ fn main() -> anyhow::Result<()> {
             } else if let Some(command) = args.command {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
-                    name: name.clone(),
+                    name,
                     id: Id::default(),
                     author: Id::default().into(),
                     version: Id::default(),
@@ -304,7 +304,7 @@ fn main() -> anyhow::Result<()> {
                     name: command.clone(),
                     fields,
                 };
-                rs.setup_command(command.clone(), LabelType::CommandPolicy, &self_data)?;
+                rs.setup_command(command, LabelType::CommandPolicy, &self_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }

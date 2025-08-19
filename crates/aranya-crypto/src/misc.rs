@@ -11,7 +11,7 @@ use spideroak_crypto::{
 use crate::ciphersuite::{CipherSuite, Oids};
 
 // Shorthand for lots::of::turbo::fish.
-pub(crate) type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signature as Signature<
+pub type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signature as Signature<
     <CS as CipherSuite>::Signer,
 >>::Data;
 
@@ -394,7 +394,7 @@ macro_rules! sk_misc {
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
                         let id = $crate::id::Id::new::<CS>(
                             ::core::borrow::Borrow::borrow(&pk),
-                            $context.as_bytes(),
+                            b"AQC Uni Author Secret",
                         );
                         Ok($id(id))
                     })
@@ -594,7 +594,7 @@ pub(crate) use pk_misc;
 // the future.
 #[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) enum ExportedDataType {
+pub enum ExportedDataType {
     EncryptionPublicKey,
     IdentityVerifyingKey,
     ReceiverPublicKey,
@@ -606,7 +606,7 @@ pub(crate) enum ExportedDataType {
 /// Non-secret exported from an `Engine`.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ExportedData<CS, T>
+pub struct ExportedData<CS, T>
 where
     CS: CipherSuite,
 {
@@ -642,7 +642,7 @@ where
 }
 
 /// An owned [`PublicKey`] for deserializing.
-pub(crate) struct SerdeOwnedKey<K>(pub(crate) K);
+pub struct SerdeOwnedKey<K>(pub(crate) K);
 
 impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -673,12 +673,12 @@ impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
             }
         }
         let pk = deserializer.deserialize_bytes(PkVisitor::<K>(PhantomData))?;
-        Ok(SerdeOwnedKey(pk))
+        Ok(Self(pk))
     }
 }
 
 /// A borrowed [`PublicKey`] for serializing.
-pub(crate) struct SerdeBorrowedKey<'a, K>(&'a K);
+pub struct SerdeBorrowedKey<'a, K>(&'a K);
 
 impl<K: PublicKey> Serialize for SerdeBorrowedKey<'_, K> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

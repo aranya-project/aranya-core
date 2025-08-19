@@ -22,7 +22,7 @@ pub struct PeerCache {
 
 impl PeerCache {
     pub fn new() -> Self {
-        PeerCache { heads: Vec::new() }
+        Self { heads: Vec::new() }
     }
 
     pub fn heads(&self) -> &[Address] {
@@ -161,7 +161,7 @@ pub struct SyncResponder<A> {
 impl<A: Serialize + Clone> SyncResponder<A> {
     /// Create a new [`SyncResponder`].
     pub fn new(server_address: A) -> Self {
-        SyncResponder {
+        Self {
             session_id: None,
             storage_id: None,
             state: SyncResponderState::New,
@@ -216,7 +216,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                         response_cache.add_command(storage, *command, cmd_loc)?;
                     }
                 }
-                self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage)?;
 
                 self.get_next(target, provider)?
             }
@@ -395,7 +395,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 return Err(e.into());
             }
         };
-        self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage)?;
         let (commands, command_data, index) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

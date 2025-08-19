@@ -19,7 +19,7 @@ impl From<strand_heap::ParallelFinalize> for ClientError {
 /// the merge command created using left and right and know that you
 /// won't be jumping into a branch.
 pub(super) fn last_common_ancestor<S: Storage>(
-    storage: &mut S,
+    storage: &S,
     left: Location,
     right: Location,
 ) -> Result<(Location, usize), ClientError> {
@@ -166,7 +166,7 @@ mod strand_heap {
 
     impl<S: Segment> Strand<S> {
         pub fn new(
-            storage: &mut impl Storage<Segment = S>,
+            storage: &impl Storage<Segment = S>,
             location: Location,
             cached_segment: Option<S>,
         ) -> Result<Self, ClientError> {
@@ -179,7 +179,7 @@ mod strand_heap {
                 (cmd.priority(), cmd.id())
             };
 
-            Ok(Strand {
+            Ok(Self {
                 key,
                 next: location,
                 segment,

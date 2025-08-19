@@ -4,7 +4,7 @@ use syn::{ItemEnum, ext::IdentExt as _};
 
 use crate::common::get_derive;
 
-pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+pub fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let enumeration: ItemEnum = syn::parse2(item)?;
 
     let ident = &enumeration.ident;

@@ -147,9 +147,9 @@ impl Prior<Address> {
     /// Returns the max cut for the command that is after this prior.
     pub fn next_max_cut(&self) -> Result<usize, Bug> {
         Ok(match self {
-            Prior::None => 1,
-            Prior::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
-            Prior::Merge(l, r) => l
+            Self::None => 1,
+            Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
+            Self::Merge(l, r) => l
                 .max_cut
                 .max(r.max_cut)
                 .checked_add(1)

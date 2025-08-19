@@ -31,7 +31,7 @@ mod kw {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum Type {
+pub enum Type {
     /// `CBytes`.
     CBytes(CBytes),
     /// `CStr`.
@@ -85,7 +85,7 @@ impl Type {
     /// Converts `self` to `*mut self`.
     pub(crate) fn into_mut_ptr(self) -> Self {
         let span = Span::call_site();
-        Type::Ptr(Box::new(Ptr {
+        Self::Ptr(Box::new(Ptr {
             star_token: Token![*](span),
             const_token: None,
             mutability: Some(Token![mut](span)),
@@ -118,7 +118,7 @@ impl Type {
             Self::CStr(_) => Cow::Borrowed(self),
             Self::FnPtr(_f) => todo!(),
             Self::MaybeUninit(uninit) => do_match!(MaybeUninit, uninit),
-            Self::Named(_) => Cow::Owned(Type::unknown()),
+            Self::Named(_) => Cow::Owned(Self::unknown()),
             Self::Option(opt) => do_match!(Option, opt),
             Self::OwnedPtr(ptr) => do_match!(OwnedPtr, ptr),
             Self::Ptr(ptr) => do_match!(Ptr, ptr),
@@ -483,7 +483,7 @@ impl ToTokens for Type {
 
 /// `CBytes`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CBytes {
+pub struct CBytes {
     pub ident: kw::CBytes,
 }
 
@@ -527,7 +527,7 @@ impl ToTokens for CBytes {
 
 /// `CStr`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CStr {
+pub struct CStr {
     pub ident: kw::CStr,
 }
 
@@ -573,7 +573,7 @@ impl ToTokens for CStr {
 ///
 /// It is only allowed when used as the inner type for [`Opt`].
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FnPtr {
+pub struct FnPtr {
     pub unsafety: Option<Token![unsafe]>,
     pub abi: Abi,
     pub fn_token: Token![fn],
@@ -633,7 +633,7 @@ impl ToTokens for FnPtr {
 
 /// An argument for a [`FnPtr`].
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FnPtrArg {
+pub struct FnPtrArg {
     pub attrs: Vec<Attribute>,
     pub name: Option<(Ident, Token![:])>,
     pub ty: Type,
@@ -750,7 +750,7 @@ impl fmt::Display for ReturnType {
 
 /// `MaybeUninit<T>`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct MaybeUninit {
+pub struct MaybeUninit {
     pub ident: kw::MaybeUninit,
     pub lt_token: Token![<],
     /// The `T` in `MaybeUninit<T>`.
@@ -830,7 +830,7 @@ impl ToTokens for MaybeUninit {
 
 /// Some other named type.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Named {
+pub struct Named {
     pub qself: Option<QSelf>,
     pub path: Path,
 }
@@ -911,7 +911,7 @@ pub struct QSelf {
 
 /// `Option<T>`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Opt {
+pub struct Opt {
     pub ident: kw::Option,
     pub lt_token: Token![<],
     /// The `T` in `Option<T>`.
@@ -982,7 +982,7 @@ impl ToTokens for Opt {
 
 /// `OwnedPtr<T>`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct OwnedPtr {
+pub struct OwnedPtr {
     pub ident: kw::OwnedPtr,
     pub lt_token: Token![<],
     /// The `T` in `OwnedPtr<T>`.
@@ -1048,7 +1048,7 @@ impl ToTokens for OwnedPtr {
 
 /// Either `*const T` or `*mut T`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Ptr {
+pub struct Ptr {
     pub star_token: Token![*],
     pub const_token: Option<Token![const]>,
     pub mutability: Option<Token![mut]>,
@@ -1079,7 +1079,7 @@ impl ToTokens for Ptr {
 
 /// Either `&T` or `&mut T`, but `T` cannot be `[U]`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Ref {
+pub struct Ref {
     pub and_token: Token![&],
     pub lifetime: Option<Lifetime>,
     pub mutability: Option<Token![mut]>,
@@ -1120,7 +1120,7 @@ impl ToTokens for Ref {
 
 /// `Result<T, E>`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ResultType {
+pub struct ResultType {
     pub ident: kw::Result,
     pub lt_token: Token![<],
     pub ok: Type,
@@ -1223,7 +1223,7 @@ impl ToTokens for ResultType {
 
 /// `Safe<T>`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Safe {
+pub struct Safe {
     pub ident: kw::Safe,
     pub lt_token: Token![<],
     /// The `T` in `Safe<T>`.
@@ -1292,7 +1292,7 @@ impl ToTokens for Safe {
 
 /// `u8`, `f32`, etc.
 #[derive(Clone, Debug)]
-pub(crate) struct Scalar {
+pub struct Scalar {
     pub ty: ScalarType,
     pub span: Span,
 }
@@ -1366,7 +1366,7 @@ impl ToTokens for Scalar {
     strum::IntoStaticStr,
 )]
 #[strum(serialize_all = "snake_case")]
-pub(crate) enum ScalarType {
+pub enum ScalarType {
     U8,
     U16,
     U32,
@@ -1387,7 +1387,7 @@ pub(crate) enum ScalarType {
 
 /// `[T]`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Slice {
+pub struct Slice {
     pub bracket_token: Bracket,
     /// The `T` in `&[T]`.
     pub elem: Type,
@@ -1415,7 +1415,7 @@ impl ToTokens for Slice {
 
 /// `str`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Str {
+pub struct Str {
     pub ident: kw::str,
 }
 
@@ -1459,7 +1459,7 @@ impl ToTokens for Str {
 
 /// `()`
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct Unit {
+pub struct Unit {
     pub paren_token: Paren,
 }
 
@@ -1498,7 +1498,7 @@ impl ToTokens for Unit {
 
 /// `Writer<T>`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Writer {
+pub struct Writer {
     pub ident: kw::Writer,
     pub lt_token: Token![<],
     /// The `T` in `Writer<T>`.

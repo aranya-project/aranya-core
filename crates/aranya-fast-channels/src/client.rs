@@ -27,7 +27,7 @@ pub struct Client<S> {
 impl<S> Client<S> {
     /// Create a [`Client`].
     pub const fn new(state: S) -> Self {
-        Client { state }
+        Self { state }
     }
 
     /// Returns the current state.
@@ -132,7 +132,7 @@ impl<S: AfcState> Client<S> {
     /// Initializes `header` and invokes `f` with the key for
     /// `id`.
     fn do_seal<F>(
-        &mut self,
+        &self,
         id: ChannelId,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,

@@ -176,7 +176,7 @@ impl Deref for Text {
 impl<T> AsRef<T> for Text
 where
     T: ?Sized,
-    <Text as Deref>::Target: AsRef<T>,
+    <Self as Deref>::Target: AsRef<T>,
 {
     fn as_ref(&self) -> &T {
         self.deref().as_ref()

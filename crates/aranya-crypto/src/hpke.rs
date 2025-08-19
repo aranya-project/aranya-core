@@ -3,7 +3,7 @@
 // Use the same names as in `spideroak-crypto`.
 #![allow(non_snake_case)]
 
-pub(crate) use spideroak_crypto::hpke::Mode;
+pub use spideroak_crypto::hpke::Mode;
 use spideroak_crypto::{
     hpke::{self, HpkeError},
     kem::Kem,
@@ -44,7 +44,7 @@ where
 /// Same as [`setup_send`][hpe::Hpke::setup_send], but augments
 /// `info` with [`CipherSuite::OIDS`].
 #[allow(clippy::type_complexity)]
-pub(crate) fn setup_send<'a, CS, R>(
+pub fn setup_send<'a, CS, R>(
     rng: &mut R,
     mode: Mode<'_, &DecapKey<CS>>,
     pkR: &EncapKey<CS>,
@@ -62,7 +62,7 @@ where
 /// but augments `info` with [`CipherSuite::OIDS`].
 #[cfg(any(feature = "afc", feature = "aqc"))]
 #[allow(clippy::type_complexity)]
-pub(crate) fn setup_send_deterministically<'a, CS>(
+pub fn setup_send_deterministically<'a, CS>(
     mode: Mode<'_, &DecapKey<CS>>,
     pkR: &EncapKey<CS>,
     info: impl IntoIterator<Item = &'a [u8]>,
@@ -76,7 +76,7 @@ where
 
 /// Same as [`setup_recv`][hpe::Hpke::setup_recv], but augments
 /// `info` with [`CipherSuite::OIDS`].
-pub(crate) fn setup_recv<'a, CS>(
+pub fn setup_recv<'a, CS>(
     mode: Mode<'_, &EncapKey<CS>>,
     enc: &Encap<CS>,
     skR: &DecapKey<CS>,

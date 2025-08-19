@@ -6,7 +6,7 @@ use tracing::{error, instrument};
 
 /// Code generation context.
 #[derive(Debug)]
-pub(crate) struct Ctx {
+pub struct Ctx {
     /// The `#capi` in `extern aranya_capi_core as #capi`.
     pub capi: Ident,
     /// Path to `aranya_capi_core::internal::conv`.
@@ -66,7 +66,7 @@ impl Ctx {
 ///
 /// [`cxx`]: https://github.com/dtolnay/cxx/blob/afd4aa3f3d4e5d5e9a3a41d09df3408f5f86a469/syntax/report.rs
 #[derive(Debug, Default)]
-pub(crate) struct Errors(Vec<Error>);
+pub struct Errors(Vec<Error>);
 
 impl Errors {
     #[instrument(skip_all)]

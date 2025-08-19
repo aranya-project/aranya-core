@@ -22,7 +22,7 @@ use crate::attr::{Attr, Symbol, get_lit_str};
 // TODO(eric): allow `#[ffi_export("foo")]` as an alternative to
 // `#[ffi_export(name = "foo")]`?
 
-pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+pub fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let FfiAttr {
         module,
         structs,
@@ -685,7 +685,7 @@ impl Func {
             ReturnType::Default => {
                 return Err(Error::new(item.span(), "Rust function cannot return `()`"));
             }
-            ReturnType::Type(..) => vtype.clone(),
+            ReturnType::Type(..) => vtype,
         };
 
         Ok(Some(Self {

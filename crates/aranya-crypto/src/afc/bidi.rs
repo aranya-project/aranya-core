@@ -202,7 +202,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub(crate) struct Info {
+pub struct Info {
     domain: [u8; 14],
     parent_cmd_id: Id,
     their_id: DeviceId,
@@ -315,7 +315,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(BidiSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the bidirectional channel.

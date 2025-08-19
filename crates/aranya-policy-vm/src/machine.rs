@@ -101,7 +101,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
 /// These are expected states entered after executing instructions, as opposed to MachineErrors,
 /// which are produced by invalid instructions or data.
 #[must_use]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MachineStatus {
     /// Execution will proceed as normal to the next instruction
     Executing,
@@ -112,8 +112,8 @@ pub enum MachineStatus {
 impl Display for MachineStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MachineStatus::Executing => write!(f, "Executing"),
-            MachineStatus::Exited(reason) => write!(f, "Exited: {reason}"),
+            Self::Executing => write!(f, "Executing"),
+            Self::Exited(reason) => write!(f, "Exited: {reason}"),
         }
     }
 }
@@ -153,7 +153,7 @@ impl Machine {
     where
         I: IntoIterator<Item = Instruction>,
     {
-        Machine {
+        Self {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
             action_defs: BTreeMap::new(),
@@ -169,7 +169,7 @@ impl Machine {
 
     /// Creates an empty `Machine` with a given codemap. Used by the compiler.
     pub fn from_codemap(codemap: CodeMap) -> Self {
-        Machine {
+        Self {
             progmem: vec![],
             labels: BTreeMap::new(),
             action_defs: BTreeMap::new(),
@@ -340,7 +340,7 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> RunState<'a, M> {
+    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> Self {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
@@ -647,7 +647,7 @@ where
                             let b_type = b.type_name();
                             return Err(self.err(MachineErrorType::invalid_type(
                                 "Int, Int",
-                                alloc::format!("{a_type}, {b_type}").to_owned(),
+                                alloc::format!("{a_type}, {b_type}"),
                                 "Greater-than comparison",
                             )));
                         }

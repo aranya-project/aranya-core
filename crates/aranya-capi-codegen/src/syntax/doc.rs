@@ -10,7 +10,7 @@ use syn::LitStr;
 
 /// A collection of `#[doc]` attributes.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub(crate) struct Doc {
+pub struct Doc {
     pub hidden: bool,
     fragments: Vec<LitStr>,
 }
@@ -18,7 +18,7 @@ pub(crate) struct Doc {
 impl Doc {
     /// Creates an empty `Doc`.
     pub const fn new() -> Self {
-        Doc {
+        Self {
             hidden: false,
             fragments: Vec::new(),
         }

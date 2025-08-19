@@ -10,7 +10,7 @@ use syn::{
 
 /// An attribute name,
 #[derive(Copy, Clone)]
-pub(crate) struct Symbol(pub(crate) &'static str);
+pub struct Symbol(pub(crate) &'static str);
 
 impl PartialEq<Symbol> for Ident {
     fn eq(&self, word: &Symbol) -> bool {
@@ -43,7 +43,7 @@ impl fmt::Display for Symbol {
 }
 
 /// An attribute.
-pub(crate) struct Attr<T> {
+pub struct Attr<T> {
     name: Symbol,
     tokens: TokenStream,
     value: Option<T>,
@@ -80,7 +80,7 @@ impl<T> Attr<T> {
     }
 }
 
-pub(crate) fn get_lit_str(name: Symbol, meta: &ParseNestedMeta<'_>) -> syn::Result<LitStr> {
+pub fn get_lit_str(name: Symbol, meta: &ParseNestedMeta<'_>) -> syn::Result<LitStr> {
     get_lit_str2(name, name, meta)
 }
 

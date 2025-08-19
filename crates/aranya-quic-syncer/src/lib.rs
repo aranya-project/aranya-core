@@ -175,12 +175,12 @@ where
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
         server_addr: SocketAddr,
-    ) -> Result<Syncer<EN, SP, S>, QuicSyncError> {
+    ) -> Result<Self, QuicSyncError> {
         let client = Client::builder()
             .with_tls(cert)?
             .with_io("0.0.0.0:0")?
             .start()?;
-        Ok(Syncer {
+        Ok(Self {
             quic_client: client,
             remote_heads: BTreeMap::new(),
             sender,
@@ -344,8 +344,11 @@ where
                 ) {
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(address).or_default();
-                        let mut client = self.client_state.lock().await;
-                        client.update_heads(storage_id, commands, response_cache)?;
+                        self.client_state.lock().await.update_heads(
+                            storage_id,
+                            commands,
+                            response_cache,
+                        )?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
                     Err(_) => {
@@ -373,10 +376,9 @@ where
                             let response_cache = self.remote_heads.entry(address).or_default();
                             let mut client = self.client_state.lock().await;
                             let mut trx = client.transaction(storage_id);
-                            let mut sink_guard = self.sink.lock().await;
-                            let sink = &mut *sink_guard;
-                            client.add_commands(&mut trx, sink, &cmds)?;
-                            client.commit(&mut trx, sink)?;
+                            let mut sink = self.sink.lock().await;
+                            client.add_commands(&mut trx, &mut *sink, &cmds)?;
+                            client.commit(&mut trx, &mut *sink)?;
                             let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
                                 cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
                             client.update_heads(storage_id, addresses, response_cache)?;

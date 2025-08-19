@@ -36,31 +36,29 @@ impl From<(usize, usize)> for Location {
     }
 }
 
-impl AsRef<Location> for Location {
-    fn as_ref(&self) -> &Location {
+impl AsRef<Self> for Location {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
 
 impl Location {
-    pub fn new(segment: usize, command: usize) -> Location {
-        Location { segment, command }
+    pub fn new(segment: usize, command: usize) -> Self {
+        Self { segment, command }
     }
 
     /// If this is not the first command in a segment, return a location
     /// pointing to the previous command.
     #[must_use]
     pub fn previous(mut self) -> Option<Self> {
-        if let Some(n) = usize::checked_sub(self.command, 1) {
+        usize::checked_sub(self.command, 1).and_then(|n| {
             self.command = n;
             Some(self)
-        } else {
-            None
-        }
+        })
     }
 
     /// Returns true if other location is in the same segment.
-    pub fn same_segment(self, other: Location) -> bool {
+    pub fn same_segment(self, other: Self) -> bool {
         self.segment == other.segment
     }
 }

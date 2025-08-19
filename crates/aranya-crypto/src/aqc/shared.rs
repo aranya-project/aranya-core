@@ -18,7 +18,7 @@ use crate::ciphersuite::CipherSuite;
 
 /// The root key material for a channel.
 #[derive_where(Clone)]
-pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
+pub struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 impl<CS: CipherSuite> RootChannelKey<CS> {
     pub(super) fn new(sk: <CS::Kem as Kem>::DecapKey) -> Self {
@@ -123,8 +123,8 @@ impl<CS: CipherSuite> SendOrRecvCtx<CS> {
         T: Expand,
     {
         match self {
-            SendOrRecvCtx::Send(ctx) => ctx.export(context),
-            SendOrRecvCtx::Recv(ctx) => ctx.export(context),
+            Self::Send(ctx) => ctx.export(context),
+            Self::Recv(ctx) => ctx.export(context),
         }
     }
 }

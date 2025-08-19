@@ -11,16 +11,16 @@ use ast::VType;
 use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeError(Cow<'static, str>);
 
 impl TypeError {
-    pub(super) fn new(msg: &'static str) -> TypeError {
-        TypeError(Cow::from(msg))
+    pub(super) fn new(msg: &'static str) -> Self {
+        Self(Cow::from(msg))
     }
 
-    pub(super) fn new_owned(msg: String) -> TypeError {
-        TypeError(Cow::from(msg))
+    pub(super) fn new_owned(msg: String) -> Self {
+        Self(Cow::from(msg))
     }
 }
 
@@ -32,7 +32,7 @@ impl Display for TypeError {
 
 impl From<TypeError> for CompileErrorType {
     fn from(value: TypeError) -> Self {
-        CompileErrorType::InvalidType(value.0.into_owned())
+        Self::InvalidType(value.0.into_owned())
     }
 }
 
@@ -56,7 +56,7 @@ impl Display for TypeUnifyError {
 // TODO: Remove and force callers to make better error.
 impl From<TypeUnifyError> for CompileErrorType {
     fn from(err: TypeUnifyError) -> Self {
-        CompileErrorType::InvalidType(err.to_string())
+        Self::InvalidType(err.to_string())
     }
 }
 
@@ -269,9 +269,9 @@ impl Typeish {
 impl Display for Typeish {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Typeish::Definitely(t) => t.fmt(f),
-            Typeish::Probably(t) => write!(f, "probably {t}"),
-            Typeish::Indeterminate => f.write_str("unknown"),
+            Self::Definitely(t) => t.fmt(f),
+            Self::Probably(t) => write!(f, "probably {t}"),
+            Self::Indeterminate => f.write_str("unknown"),
         }
     }
 }
@@ -293,14 +293,12 @@ impl NullableVType {
     }
 
     /// Equal types will unify, and null will unify with any optional.
-    fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
+    fn unify(self, rhs: Self) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
-            (t @ NullableVType::Type(VType::Optional(_)), NullableVType::Null)
-            | (NullableVType::Null, t @ NullableVType::Type(VType::Optional(_))) => Ok(t),
-            (NullableVType::Type(left), NullableVType::Type(right)) if left == right => {
-                Ok(NullableVType::Type(left))
-            }
-            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
+            (t @ Self::Type(VType::Optional(_)), Self::Null)
+            | (Self::Null, t @ Self::Type(VType::Optional(_))) => Ok(t),
+            (Self::Type(left), Self::Type(right)) if left == right => Ok(Self::Type(left)),
+            (Self::Null, Self::Null) => Ok(Self::Null),
             (left, right) => Err(TypeUnifyError {
                 left,
                 right,

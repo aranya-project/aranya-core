@@ -4,7 +4,7 @@ use syn::{ItemStruct, ext::IdentExt as _, spanned::Spanned};
 
 use crate::common::get_derive;
 
-pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+pub fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let strukt: ItemStruct = syn::parse2(item)?;
 
     let ident = &strukt.ident;

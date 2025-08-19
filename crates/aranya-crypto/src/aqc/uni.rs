@@ -155,7 +155,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub(crate) struct Info {
+pub struct Info {
     /// Always "AqcUniPsk-v1".
     domain: [u8; 12],
     psk_length_in_bytes: U16<BE>,
@@ -269,7 +269,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(UniSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the unirectional channel.

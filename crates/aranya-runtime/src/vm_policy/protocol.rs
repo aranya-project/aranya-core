@@ -62,8 +62,8 @@ impl<'a> VmProtocol<'a> {
         id: CommandId,
         unpacked: VmProtocolData<'a>,
         priority: Priority,
-    ) -> VmProtocol<'a> {
-        VmProtocol {
+    ) -> Self {
+        Self {
             data,
             id,
             unpacked,

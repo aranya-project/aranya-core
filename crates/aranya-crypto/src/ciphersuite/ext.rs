@@ -22,7 +22,7 @@ use crate::ciphersuite::CipherSuite;
 ///
 /// Its primary purpose is to provide convenience methods that
 /// include the OIDs of the cipher suite's algorithms.
-pub(crate) trait CipherSuiteExt: CipherSuite {
+pub trait CipherSuiteExt: CipherSuite {
     /// Computes the following hash:
     ///
     /// ```text
@@ -135,8 +135,8 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
     }
 }
 
-pub(crate) type Digest<CS> = hash::Digest<<<CS as CipherSuite>::Hash as hash::Hash>::DigestSize>;
-pub(crate) type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as kdf::Kdf>::PrkSize>;
+pub type Digest<CS> = hash::Digest<<<CS as CipherSuite>::Hash as hash::Hash>::DigestSize>;
+pub type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as kdf::Kdf>::PrkSize>;
 
 /// The OIDs used by a [`CipherSuite`].
 #[derive_where(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
@@ -190,7 +190,7 @@ where
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        const { Oids::<CS>::all() }.iter().copied()
+        const { Self::all() }.iter().copied()
     }
 }
 
@@ -199,7 +199,7 @@ where
 ///
 /// [TupleHash]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
 #[derive_where(Copy, Clone, Debug)]
-pub(crate) struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
+pub struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
 
 impl<CS: CipherSuite + ?Sized> EncodedOids<CS> {
     const ITEMS: [&'static [u8]; 12] = {

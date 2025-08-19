@@ -15,9 +15,9 @@ impl<T> Prior<T> {
     /// Converts from `&Prior<T>` to `Prior<&T>`.
     pub fn as_ref(&self) -> Prior<&T> {
         match self {
-            Prior::None => Prior::None,
-            Prior::Single(x) => Prior::Single(x),
-            Prior::Merge(x, y) => Prior::Merge(x, y),
+            Self::None => Prior::None,
+            Self::Single(x) => Prior::Single(x),
+            Self::Merge(x, y) => Prior::Merge(x, y),
         }
     }
 }
@@ -26,9 +26,9 @@ impl<T: Clone> Prior<&T> {
     /// Maps an `Prior<&T>` to an `Prior<T>` by cloning the contents.
     pub fn cloned(self) -> Prior<T> {
         match self {
-            Prior::None => Prior::None,
-            Prior::Single(x) => Prior::Single(x.clone()),
-            Prior::Merge(x, y) => Prior::Merge(x.clone(), y.clone()),
+            Self::None => Prior::None,
+            Self::Single(x) => Prior::Single(x.clone()),
+            Self::Merge(x, y) => Prior::Merge(x.clone(), y.clone()),
         }
     }
 }

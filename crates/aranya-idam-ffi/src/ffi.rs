@@ -346,12 +346,12 @@ impl TryFrom<Value> for RoleId {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let id: Id = value.try_into()?;
-        Ok(RoleId::from(id))
+        Ok(Self::from(id))
     }
 }
 
 impl From<RoleId> for Value {
-    fn from(id: RoleId) -> Value {
-        Value::Id(id.into())
+    fn from(id: RoleId) -> Self {
+        Self::Id(id.into())
     }
 }

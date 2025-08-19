@@ -278,7 +278,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 impl<W: Write> LinearStorage<W> {
     fn get_skip(
         &self,
-        segment: <LinearStorage<W> as Storage>::Segment,
+        segment: <Self as Storage>::Segment,
         max_cut: usize,
     ) -> Result<Option<(Location, usize)>, StorageError> {
         let mut head = segment;
@@ -420,13 +420,13 @@ impl<F: Write> Storage for LinearStorage<F> {
                 reader: self.writer.readonly(),
             }
         } else {
-            let prior = match segment.facts()?.repr.prior {
-                Some(offset) => FactPerspectivePrior::FactIndex {
+            let prior = segment.facts()?.repr.prior.map_or_else(
+                || FactPerspectivePrior::None,
+                |offset| FactPerspectivePrior::FactIndex {
                     offset,
                     reader: self.writer.readonly(),
                 },
-                None => FactPerspectivePrior::None,
-            };
+            );
             let mut facts = LinearFactPerspective::new(prior);
             for data in &segment.repr.commands[..=parent.command] {
                 facts.apply_updates(&data.updates);
@@ -480,13 +480,13 @@ impl<F: Write> Storage for LinearStorage<F> {
             ));
         }
 
-        let prior = match segment.facts()?.repr.prior {
-            Some(offset) => FactPerspectivePrior::FactIndex {
+        let prior = segment.facts()?.repr.prior.map_or_else(
+            || FactPerspectivePrior::None,
+            |offset| FactPerspectivePrior::FactIndex {
                 offset,
                 reader: self.writer.readonly(),
             },
-            None => FactPerspectivePrior::None,
-        };
+        );
         let mut facts = LinearFactPerspective::new(prior);
         for data in &segment.repr.commands[..=location.command] {
             facts.apply_updates(&data.updates);
@@ -1126,9 +1126,9 @@ impl<R: Read> Perspective for LinearPerspective<R> {
 impl From<Prior<Address>> for Prior<CommandId> {
     fn from(p: Prior<Address>) -> Self {
         match p {
-            Prior::None => Prior::None,
-            Prior::Single(l) => Prior::Single(l.id),
-            Prior::Merge(l, r) => Prior::Merge(l.id, r.id),
+            Prior::None => Self::None,
+            Prior::Single(l) => Self::Single(l.id),
+            Prior::Merge(l, r) => Self::Merge(l.id, r.id),
         }
     }
 }

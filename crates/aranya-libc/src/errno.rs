@@ -5,7 +5,7 @@ pub fn errno() -> Errno {
     Errno::new()
 }
 
-pub(crate) fn clear_errno() {
+pub fn clear_errno() {
     ::errno::set_errno(::errno::Errno(0));
 }
 
@@ -15,9 +15,9 @@ pub struct Errno(::errno::Errno);
 
 impl Errno {
     /// `EINTR`.
-    pub const EINTR: Errno = Errno(::errno::Errno(libc::EINTR));
+    pub const EINTR: Self = Self(::errno::Errno(libc::EINTR));
     /// `ENOENT`.
-    pub const ENOENT: Errno = Errno(::errno::Errno(libc::ENOENT));
+    pub const ENOENT: Self = Self(::errno::Errno(libc::ENOENT));
 
     /// Returns `Errno`.
     fn new() -> Self {

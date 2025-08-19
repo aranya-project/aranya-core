@@ -24,7 +24,7 @@ impl MemCommand {
     fn from_cmd<C: Command>(command: &C, max_cut: usize) -> Self {
         let policy = command.policy().map(Box::from);
 
-        MemCommand {
+        Self {
             priority: command.priority(),
             id: command.id(),
             parent: command.parent(),
@@ -67,8 +67,8 @@ pub struct MemStorageProvider {
 }
 
 impl MemStorageProvider {
-    pub const fn new() -> MemStorageProvider {
-        MemStorageProvider {
+    pub const fn new() -> Self {
+        Self {
             storage: BTreeMap::new(),
         }
     }
@@ -472,7 +472,7 @@ impl Deref for MemSegment {
 
 impl From<MemSegmentInner> for MemSegment {
     fn from(segment: MemSegmentInner) -> Self {
-        MemSegment(Arc::new(segment))
+        Self(Arc::new(segment))
     }
 }
 
@@ -611,7 +611,7 @@ pub struct MemFactPerspective {
 }
 
 impl MemFactPerspective {
-    fn new(prior_facts: FactPerspectivePrior) -> MemFactPerspective {
+    fn new(prior_facts: FactPerspectivePrior) -> Self {
         Self {
             map: NamedFactMap::new(),
             prior: prior_facts,

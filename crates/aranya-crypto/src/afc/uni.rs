@@ -177,7 +177,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub(crate) struct Info {
+pub struct Info {
     domain: [u8; 12],
     parent_cmd_id: Id,
     seal_id: DeviceId,
@@ -284,7 +284,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(UniSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the unirectional channel.

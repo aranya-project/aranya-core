@@ -13,7 +13,7 @@ use crate::ciphersuite::CipherSuite;
 
 /// The root key material for a channel.
 #[derive_where(Clone)]
-pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
+pub struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 impl<CS: CipherSuite> RootChannelKey<CS> {
     pub(super) fn new(sk: <CS::Kem as Kem>::DecapKey) -> Self {

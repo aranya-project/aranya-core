@@ -102,7 +102,7 @@ impl io::Read for Reader {
         let items = self.shared.items.lock();
         let bytes = items
             .get(offset)
-            .ok_or(StorageError::SegmentOutOfBounds(Location::new(offset, 0)))?;
+            .ok_or_else(|| StorageError::SegmentOutOfBounds(Location::new(offset, 0)))?;
         postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
     }
 }

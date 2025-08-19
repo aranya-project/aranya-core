@@ -168,7 +168,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub(crate) struct Info {
+pub struct Info {
     /// Always "AqcBidiPsk-v1".
     domain: [u8; 13],
     psk_length_in_bytes: U16<BE>,
@@ -290,7 +290,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(BidiSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the bidirectional channel.

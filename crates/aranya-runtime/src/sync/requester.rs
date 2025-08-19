@@ -305,7 +305,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
-    fn end_session(&mut self, target: &mut [u8]) -> Result<(usize, usize), SyncError> {
+    fn end_session(&self, target: &mut [u8]) -> Result<(usize, usize), SyncError> {
         Ok((
             Self::write(
                 target,
@@ -347,7 +347,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     fn get_commands(
         &self,
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &PeerCache,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 

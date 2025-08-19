@@ -161,7 +161,7 @@ pub struct TestSink {
 
 impl TestSink {
     pub fn new() -> Self {
-        TestSink { expect: Vec::new() }
+        Self { expect: Vec::new() }
     }
 
     pub fn add_expectation(&mut self, expect: VmEffectData) {
@@ -274,7 +274,7 @@ impl TestEngine {
             })],
         )
         .expect("Could not load policy");
-        TestEngine { policy }
+        Self { policy }
     }
 }
 

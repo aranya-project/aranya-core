@@ -182,7 +182,7 @@ function create_uni_channel(
 
 /// An error returned by [`Ffi`].
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum FfiError {
+pub enum FfiError {
     /// The [`aranya_crypto`] crate failed.
     #[error("crypto error: {0}")]
     Crypto(#[from] aranya_crypto::Error),
@@ -239,7 +239,7 @@ impl From<Bug> for FfiError {
 
 /// An AFC label.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct Label(u32);
+pub struct Label(u32);
 
 impl From<Label> for aranya_fast_channels::Label {
     fn from(label: Label) -> Self {
@@ -262,7 +262,7 @@ impl TryFrom<Value> for Label {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let x: i64 = value.try_into()?;
-        Ok(Label(
+        Ok(Self(
             // TODO(eric): better errors
             u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,
         ))

@@ -52,7 +52,7 @@ struct FunctionSignature {
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StatementContext {
     /// An action
     Action(ast::ActionDefinition),
@@ -69,11 +69,11 @@ pub enum StatementContext {
 impl fmt::Display for StatementContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StatementContext::Action(_) => write!(f, "action"),
-            StatementContext::CommandPolicy(_) => write!(f, "command policy block"),
-            StatementContext::CommandRecall(_) => write!(f, "command recall block"),
-            StatementContext::PureFunction(_) => write!(f, "pure function"),
-            StatementContext::Finish => write!(f, "finish block/function"),
+            Self::Action(_) => write!(f, "action"),
+            Self::CommandPolicy(_) => write!(f, "command policy block"),
+            Self::CommandRecall(_) => write!(f, "command recall block"),
+            Self::PureFunction(_) => write!(f, "pure function"),
+            Self::Finish => write!(f, "finish block/function"),
         }
     }
 }
@@ -371,7 +371,7 @@ impl<'a> CompileState<'a> {
     // been borrowed &mut in resolve_targets() below.
     fn resolve_target(
         target: &mut Target,
-        labels: &mut BTreeMap<Label, usize>,
+        labels: &BTreeMap<Label, usize>,
     ) -> Result<(), CompileError> {
         match target.clone() {
             Target::Unresolved(s) => {
@@ -1159,7 +1159,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Check if finish blocks only use appropriate expressions
-    fn check_finish_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
+    fn check_finish_expression(&self, expression: &Expression) -> Result<(), CompileError> {
         match expression {
             Expression::Int(_)
             | Expression::String(_)

@@ -14,7 +14,7 @@ use syn::{
 };
 use tracing::info;
 
-pub(super) fn derive(item: TokenStream) -> Result<TokenStream> {
+pub fn derive(item: TokenStream) -> Result<TokenStream> {
     info!("deriving `ErrorCode`");
 
     let item = syn::parse2::<ItemEnum>(item)?;

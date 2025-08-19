@@ -11,7 +11,7 @@ pub trait Metrics {
     fn update(&mut self, name: &'static str, metric: Metric) -> Result<(), Self::Error>;
 }
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Metric {
     Count(u64),
     Duration(Duration),

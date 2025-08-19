@@ -68,7 +68,7 @@ pub(crate) fn parse_items(ctx: &Ctx, items: Vec<Item>) -> Vec<Node> {
 
 /// An AST node.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Node {
+pub enum Node {
     /// A type alias.
     Alias(Alias),
     /// An enumeration.
@@ -197,7 +197,7 @@ attrs_impl! {
 
 /// A `type = ...` definition.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Alias {
+pub struct Alias {
     pub doc: Doc,
     pub derives: Derives,
     pub ext_error: Option<ExtError>,
@@ -274,7 +274,7 @@ impl ToTokens for Alias {
 
 /// A `struct` definition.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Struct {
+pub struct Struct {
     pub doc: Doc,
     pub derives: Derives,
     pub repr: Repr,
@@ -369,7 +369,7 @@ impl ToTokens for Struct {
 
 /// [`Struct`] fields.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Fields {
+pub enum Fields {
     /// `Foo { ... }`.
     Named(FieldsNamed),
     /// `Bar( ... )`.
@@ -465,7 +465,7 @@ impl ToTokens for Fields {
 
 /// Named [`Struct`] or [`Union`] fields.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FieldsNamed {
+pub struct FieldsNamed {
     pub brace_token: Brace,
     pub named: Punctuated<Field, Token![,]>,
 }
@@ -496,7 +496,7 @@ impl ToTokens for FieldsNamed {
 
 /// Unnamed [`Struct`] fields.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FieldsUnnamed {
+pub struct FieldsUnnamed {
     pub paren_token: Paren,
     pub unnamed: Punctuated<Field, Token![,]>,
 }
@@ -527,7 +527,7 @@ impl ToTokens for FieldsUnnamed {
 
 /// A [`Struct`] or [`Union`] field.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Field {
+pub struct Field {
     pub doc: Doc,
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
@@ -643,7 +643,7 @@ impl ToTokens for Field {
 ///
 /// Enums must be unit-only with a specified `#[repr(...)]`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Enum {
+pub struct Enum {
     pub doc: Doc,
     pub derives: Derives,
     pub repr: Repr,
@@ -759,7 +759,7 @@ impl ToTokens for Enum {
 
 /// An [`Enum`] variant.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Variant {
+pub struct Variant {
     pub doc: Doc,
     pub attrs: Vec<Attribute>,
     pub ident: Ident,
@@ -838,7 +838,7 @@ impl ToTokens for Variant {
 
 /// Either a [`RustFn`] or [`FfiFn`].
 #[derive(Clone, Debug)]
-pub(crate) enum Fn {
+pub enum Fn {
     Rust(RustFn),
     Ffi(FfiFn),
 }
@@ -866,7 +866,7 @@ impl From<RustFn> for Fn {
 
 /// A freestanding FFI `fn`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FfiFn {
+pub struct FfiFn {
     pub doc: Doc,
     pub no_mangle: Option<NoMangle>,
     /// Other attrs.
@@ -938,7 +938,7 @@ impl ToTokens for FfiFn {
 
 /// A [`FfiFn`] signature.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FfiFnSig {
+pub struct FfiFnSig {
     pub unsafety: Option<Token![unsafe]>,
     pub abi: Abi,
     pub fn_token: Token![fn],
@@ -1004,7 +1004,7 @@ impl ToTokens for FfiFnSig {
 
 /// A freestanding Rust `fn`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct RustFn {
+pub struct RustFn {
     pub doc: Doc,
     // TODO(eric): Get rid of this. It's a hack used by the
     // expand passes.
@@ -1081,7 +1081,7 @@ impl ToTokens for RustFn {
 
 /// A [`Fn`] signature.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct RustFnSig {
+pub struct RustFnSig {
     pub unsafety: Option<Token![unsafe]>,
     pub abi: Option<Abi>,
     pub fn_token: Token![fn],
@@ -1130,7 +1130,7 @@ impl ToTokens for RustFnSig {
 
 /// A [`Fn`] argument.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FnArg {
+pub struct FnArg {
     pub attrs: Vec<Attribute>,
     pub name: Ident,
     pub colon_token: Token![:],
@@ -1179,9 +1179,7 @@ impl FnArg {
         let attrs = attrs::parse(
             ctx,
             attrs,
-            Parser {
-                ..Default::default()
-            },
+            Default::default(),
         );
 
         // TODO(eric): What about mut, ref, etc?
@@ -1222,7 +1220,7 @@ impl ToTokens for FnArg {
 
 /// A `union` definition.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Union {
+pub struct Union {
     pub doc: Doc,
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
@@ -1321,10 +1319,10 @@ impl ToTokens for Lifetimes {
 // TODO(eric): move these iters somewhere else
 
 /// See [`punctuated::Iter`].
-pub(crate) type Iter<'a, T> = punctuated::Iter<'a, T>;
+pub type Iter<'a, T> = punctuated::Iter<'a, T>;
 
 /// See [`punctuated::IterMut`].
-pub(crate) struct IterMut<'a, T>(Option<punctuated::IterMut<'a, T>>);
+pub struct IterMut<'a, T>(Option<punctuated::IterMut<'a, T>>);
 
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = <punctuated::IterMut<'a, T> as Iterator>::Item;
@@ -1357,7 +1355,7 @@ impl<T> ExactSizeIterator for IterMut<'_, T> {
 }
 
 /// See [`punctuated::IntoIter`].
-pub(crate) type IntoIter<T> = punctuated::IntoIter<T>;
+pub type IntoIter<T> = punctuated::IntoIter<T>;
 
 // TODO
 /*

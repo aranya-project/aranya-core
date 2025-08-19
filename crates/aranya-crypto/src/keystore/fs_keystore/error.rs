@@ -8,7 +8,7 @@ use crate::keystore::{self, ErrorKind};
 
 #[derive(Copy, Clone, Debug, thiserror::Error)]
 #[error("unexpected EOF")]
-pub(crate) struct UnexpectedEof;
+pub struct UnexpectedEof;
 
 /// An error returned by [`super::Store`].
 #[derive(Debug)]

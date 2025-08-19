@@ -97,7 +97,7 @@ impl IdentExt for Ident {
         format_ident!("{}{}", self, suffix, span = self.span())
     }
 
-    fn to_snake_case(&self) -> Ident {
+    fn to_snake_case(&self) -> Self {
         let mut new = String::new();
         let mut in_word = false;
         for c in self.to_string().chars() {
@@ -111,10 +111,10 @@ impl IdentExt for Ident {
                 new.push(c);
             }
         }
-        Ident::new(&new, self.span())
+        Self::new(&new, self.span())
     }
 
-    fn to_screaming_snake_case(&self) -> Ident {
+    fn to_screaming_snake_case(&self) -> Self {
         let mut new = String::new();
         let mut in_word = false;
         for c in self.to_string().chars() {
@@ -126,7 +126,7 @@ impl IdentExt for Ident {
             }
             new.extend(c.to_uppercase());
         }
-        Ident::new(&new, self.span())
+        Self::new(&new, self.span())
     }
 }
 

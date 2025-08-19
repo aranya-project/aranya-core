@@ -4,7 +4,7 @@
 
 #[cfg(not(feature = "core_intrinsics"))]
 #[cold]
-pub(crate) fn cold() {}
+pub fn cold() {}
 
 #[cfg(not(feature = "core_intrinsics"))]
 macro_rules! likely {
@@ -102,7 +102,7 @@ pub trait Residual<O> {
 }
 
 #[cfg(not(feature = "try_find"))]
-pub(crate) trait TryFind: Iterator {
+pub trait TryFind: Iterator {
     fn try_find<F, R>(
         &mut self,
         f: F,

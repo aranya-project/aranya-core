@@ -6,7 +6,7 @@ use core::num::NonZeroUsize;
 pub struct InvalidText(pub(crate) InvalidTextRepr);
 
 #[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum InvalidTextRepr {
+pub enum InvalidTextRepr {
     /// Text contained nul byte.
     #[error("text contained nul byte at index {index}")]
     ContainsNul {
@@ -21,7 +21,7 @@ pub(crate) enum InvalidTextRepr {
 pub struct InvalidIdentifier(pub(crate) InvalidIdentifierRepr);
 
 #[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum InvalidIdentifierRepr {
+pub enum InvalidIdentifierRepr {
     /// Identifier must start with alphabetic character.
     #[error("identifier must not be empty")]
     NotEmpty,

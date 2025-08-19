@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{FnArg, Ident, ItemTrait, Pat, Signature, TraitItem, spanned::Spanned};
 
-pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+pub fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let act: ItemTrait = syn::parse2(item)?;
 
     let ident = &act.ident;

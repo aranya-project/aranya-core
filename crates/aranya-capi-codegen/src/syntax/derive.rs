@@ -11,7 +11,7 @@ use crate::ctx::Ctx;
 
 /// The `#[derive(...)]` attribute.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub(crate) struct Derives(Vec<Derive>);
+pub struct Derives(Vec<Derive>);
 
 impl Derives {
     /// Creates an empty `Derives`.
@@ -60,7 +60,7 @@ impl ToTokens for Derives {
 
 /// The `#[derive(...)]` attribute.
 #[derive(Clone, Debug)]
-pub(crate) struct Derive {
+pub struct Derive {
     pub what: DeriveTrait,
     pub span: Span,
 }
@@ -113,7 +113,7 @@ impl ToTokens for Derive {
 
 /// A trait being derived.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
-pub(crate) enum DeriveTrait {
+pub enum DeriveTrait {
     /// Derive `fn foo_init(...)`.
     Init,
     /// Derive `fn foo_cleanup(...)`.

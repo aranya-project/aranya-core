@@ -19,7 +19,7 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout};
     Deserialize,
 )]
 #[non_exhaustive]
-pub(crate) enum Version {
+pub enum Version {
     Tls13 = u16::to_be(0x0304),
 }
 

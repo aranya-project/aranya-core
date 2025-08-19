@@ -42,7 +42,7 @@ impl Seq {
 }
 
 impl From<Seq> for u64 {
-    fn from(seq: Seq) -> u64 {
+    fn from(seq: Seq) -> Self {
         seq.to_u64()
     }
 }

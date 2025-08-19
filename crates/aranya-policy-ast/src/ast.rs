@@ -12,7 +12,7 @@ use crate::{Identifier, Text};
 pub struct InvalidVersion;
 
 /// Policy language version
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Version {
     /// Version 1, the initial version of the "new" policy
     /// language.
@@ -31,8 +31,8 @@ impl FromStr for Version {
     #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "1" => Ok(Version::V1),
-            "2" => Ok(Version::V2),
+            "1" => Ok(Self::V1),
+            "2" => Ok(Self::V2),
             _ => Err(InvalidVersion),
         }
     }
@@ -49,7 +49,7 @@ impl fmt::Display for Version {
 }
 
 /// An AST node with location information
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstNode<T> {
     /// The AST element contained within
     pub inner: T,
@@ -59,8 +59,8 @@ pub struct AstNode<T> {
 
 impl<T> AstNode<T> {
     /// Create a new `AstNode` from a node and locator
-    pub fn new(inner: T, locator: usize) -> AstNode<T> {
-        AstNode { inner, locator }
+    pub fn new(inner: T, locator: usize) -> Self {
+        Self { inner, locator }
     }
 }
 
@@ -149,7 +149,7 @@ pub struct FieldDefinition {
 /// An identifier and its type and dynamic effect marker
 ///
 /// A variant used exclusively for Effects
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectFieldDefinition {
     /// the field's name
     pub identifier: Identifier,
@@ -163,7 +163,7 @@ pub struct EffectFieldDefinition {
 /// dynamic information.
 impl From<&EffectFieldDefinition> for FieldDefinition {
     fn from(value: &EffectFieldDefinition) -> Self {
-        FieldDefinition {
+        Self {
             identifier: value.identifier.clone(),
             field_type: value.field_type.clone(),
         }
@@ -171,7 +171,7 @@ impl From<&EffectFieldDefinition> for FieldDefinition {
 }
 
 /// Value part of a key/value pair for a fact field.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FactField {
     /// Expression
     Expression(Expression),
@@ -182,7 +182,7 @@ pub enum FactField {
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FactLiteral {
     /// the fact's name
     pub identifier: Identifier,
@@ -195,7 +195,7 @@ pub struct FactLiteral {
 /// A function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionCall {
     /// the function's name
     pub identifier: Identifier,
@@ -204,7 +204,7 @@ pub struct FunctionCall {
 }
 
 /// A named struct literal
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
     pub identifier: Identifier,
@@ -212,7 +212,7 @@ pub struct NamedStruct {
     pub fields: Vec<(Identifier, Expression)>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
@@ -221,7 +221,7 @@ pub struct EnumDefinition {
     pub variants: Vec<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// A reference to an enumeration, e.g. `Color::Red`.
 pub struct EnumReference {
     /// enum name
@@ -231,7 +231,7 @@ pub struct EnumReference {
 }
 
 /// How many facts to expect when counting
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FactCountType {
     /// Up to
     UpTo,
@@ -255,7 +255,7 @@ impl fmt::Display for FactCountType {
 }
 
 /// Expression atoms with special rules or effects.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternalFunction {
     /// A `query` expression
     Query(FactLiteral),
@@ -276,7 +276,7 @@ pub enum InternalFunction {
 /// A foreign function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Identifier,
@@ -287,7 +287,7 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     /// A 64-bit signed integer
     Int(i64),
@@ -351,7 +351,7 @@ pub enum Expression {
 
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FunctionDecl {
     /// The identifier of the function
     pub identifier: Identifier,
@@ -362,7 +362,7 @@ pub struct FunctionDecl {
 }
 
 /// Define a variable with an expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetStatement {
     /// The variable's name
     pub identifier: Identifier,
@@ -371,14 +371,14 @@ pub struct LetStatement {
 }
 
 /// Check that a boolean expression is true, and fail otherwise
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
 }
 
 /// Match arm pattern
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchPattern {
     /// No values, default case
     Default,
@@ -387,7 +387,7 @@ pub enum MatchPattern {
 }
 
 /// One arm of a match statement
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchArm {
     /// The values to check against. Matches any value if the option is None.
     // TODO(chip): Restrict this to only literal values so we can do
@@ -400,7 +400,7 @@ pub struct MatchArm {
 /// Match a value and execute one possibility out of many
 ///
 /// Match arms are tested in order.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchStatement {
     /// The value to match against
     pub expression: Expression,
@@ -409,7 +409,7 @@ pub struct MatchStatement {
 }
 
 /// Match statement expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchExpression {
     /// Value to match against
     pub scrutinee: Expression,
@@ -418,7 +418,7 @@ pub struct MatchExpression {
 }
 
 /// A container for a statement or expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LanguageContext<A, B> {
     /// statement
     Statement(A),
@@ -427,7 +427,7 @@ pub enum LanguageContext<A, B> {
 }
 
 /// Match arm expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
@@ -436,7 +436,7 @@ pub struct MatchExpressionArm {
 }
 
 /// Test a series of conditions and execute the statements for the first true condition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IfStatement {
     /// Each `if` and `else if` branch.
     pub branches: Vec<(Expression, Vec<AstNode<Statement>>)>,
@@ -445,7 +445,7 @@ pub struct IfStatement {
 }
 
 /// Iterate over the results of a query, and execute some statements for each one.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
@@ -456,14 +456,14 @@ pub struct MapStatement {
 }
 
 /// Create a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateStatement {
     /// The fact to create
     pub fact: FactLiteral,
 }
 
 /// Update a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
@@ -472,7 +472,7 @@ pub struct UpdateStatement {
 }
 
 /// Delete a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteStatement {
     /// The fact to delete
     pub fact: FactLiteral,
@@ -481,7 +481,7 @@ pub struct DeleteStatement {
 /// Return from a function
 ///
 /// Only valid within functions.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReturnStatement {
     /// The value to return
     pub expression: Expression,
@@ -489,7 +489,7 @@ pub struct ReturnStatement {
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     /// A [LetStatement]
     Let(LetStatement),
@@ -539,7 +539,7 @@ pub struct FactDefinition {
 }
 
 /// An action definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActionDefinition {
     /// The persistence mode of the action
     pub persistence: Persistence,
@@ -552,7 +552,7 @@ pub struct ActionDefinition {
 }
 
 /// An effect definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectDefinition {
     /// The name of the effect
     pub identifier: Identifier,
@@ -561,7 +561,7 @@ pub struct EffectDefinition {
 }
 
 /// A struct definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructDefinition {
     /// The name of the struct
     pub identifier: Identifier,
@@ -570,7 +570,7 @@ pub struct StructDefinition {
 }
 
 /// Struct field or insertion reference
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
@@ -582,14 +582,14 @@ impl<T> StructItem<T> {
     /// Get the field definition from this struct item
     pub fn field(&self) -> Option<&T> {
         match self {
-            StructItem::Field(f) => Some(f),
-            StructItem::StructRef(_) => None,
+            Self::Field(f) => Some(f),
+            Self::StructRef(_) => None,
         }
     }
 }
 
 /// A command definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandDefinition {
     /// The persistence mode of the command
     pub persistence: Persistence,
@@ -610,7 +610,7 @@ pub struct CommandDefinition {
 }
 
 /// A function definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionDefinition {
     /// The name of the function
     pub identifier: Identifier,
@@ -625,7 +625,7 @@ pub struct FunctionDefinition {
 /// A finish function definition. This is slightly different than a
 /// regular function since it cannot return values and can only
 /// execute finish block statements.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
     pub identifier: Identifier,
@@ -636,7 +636,7 @@ pub struct FinishFunctionDefinition {
 }
 
 /// A globally scopped let statement
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalLetStatement {
     /// The variable's name
     pub identifier: Identifier,
@@ -650,7 +650,7 @@ pub type TextRanges = Vec<(usize, usize)>;
 /// The policy AST root
 ///
 /// This contains all of the definitions that comprise a policy.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Policy {
     /// The policy version.
     pub version: Version,
@@ -683,8 +683,8 @@ pub struct Policy {
 
 impl Policy {
     /// Create a new `Policy` with the given source text.
-    pub fn new(version: Version, text: &str) -> Policy {
-        Policy {
+    pub fn new(version: Version, text: &str) -> Self {
+        Self {
             version,
             text: text.to_owned(),
             ..Default::default()

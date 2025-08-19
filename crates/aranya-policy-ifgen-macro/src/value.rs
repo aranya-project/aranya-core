@@ -4,7 +4,7 @@ use syn::{Fields, Item, ItemEnum, ItemStruct, ext::IdentExt as _, spanned::Spann
 
 use crate::common::get_derive;
 
-pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+pub fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     match syn::parse2(item)? {
         Item::Struct(strukt) => handle_struct(strukt),
         Item::Enum(enumeration) => handle_enum(enumeration),
