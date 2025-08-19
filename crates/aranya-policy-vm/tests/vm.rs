@@ -2522,3 +2522,71 @@ fn test_comparison_operators() {
     check("!(2 < 1)");
     check("!(2 <= 1)");
 }
+
+#[test]
+fn test_struct_conversion() -> anyhow::Result<()> {
+    let policy = r#"
+        struct Foo { y string, x int }
+
+        command Bar {
+            fields { x int, y string }
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        function new_foo(x int, y string) struct Foo {
+            return Foo { y:y, x: x }
+        }
+
+        action test() {
+            let foo = Foo { y: "abc", x: 42 }
+            publish foo as Bar // var reference
+            publish Foo { y: "b", x: 1 } as Bar // struct literal
+            publish new_foo(5, "def") as Bar // function return value
+            publish Bar { x: 100, y: "xyz" } as Bar
+        }
+        "#;
+
+    let policy = parse_policy_str(policy, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(ident!("test"));
+    let mut rs = machine.create_run_state(&io, ctx);
+    let mut published = Vec::new();
+    let _ = call_action(
+        &mut rs,
+        &mut published,
+        ident!("test"),
+        iter::empty::<Value>(),
+    )?;
+    assert_eq!(
+        published[0],
+        vm_struct!(Bar {
+            x: Value::Int(42),
+            y: Value::String(text!("abc")),
+        })
+    );
+    assert_eq!(
+        published[1],
+        vm_struct!(Bar {
+            x: Value::Int(1),
+            y: Value::String(text!("b")),
+        })
+    );
+    assert_eq!(
+        published[2],
+        vm_struct!(Bar {
+            x: Value::Int(5),
+            y: Value::String(text!("def")),
+        })
+    );
+    assert_eq!(
+        published[3],
+        vm_struct!(Bar {
+            x: Value::Int(100),
+            y: Value::String(text!("xyz")),
+        })
+    );
+    Ok(())
+}

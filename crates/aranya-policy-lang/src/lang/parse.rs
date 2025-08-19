@@ -590,7 +590,15 @@ impl ChunkParser<'_> {
                         format!("Expression `{:?}` to the right of the substruct operator must be an identifier", e),
                         Some(op.as_span()),
                     )),
-                }
+                },
+                Rule::cast => match rhs? {
+                    Expression::Identifier(s) => Ok(Expression::Cast(Box::new(lhs?), s)),
+                    e => Err(ParseError::new(
+                        ParseErrorKind::InvalidSubstruct,
+                        format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
+                        Some(op.as_span()),
+                    )),
+                },
                 _ => Err(ParseError::new(
                     ParseErrorKind::Expression,
                     format!("bad infix: {:?}", op.as_rule()),
@@ -1693,12 +1701,13 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | Priority | Op |
 /// |----------|----|
 /// | 1        | `.` |
-/// | 2        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
-/// | 3        | `%` |
-/// | 4        | `+`, `-` (infix) |
-/// | 5        | `>`, `<`, `>=`, `<=`, `is` |
-/// | 6        | `==`, `!=` |
-/// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 2        | `substruct`, `as` (infix) |
+/// | 3        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
+/// | 4        | `%` |
+/// | 5        | `+`, `-` (infix) |
+/// | 6        | `>`, `<`, `>=`, `<=`, `is` |
+/// | 7        | `==`, `!=` |
+/// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
 pub fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
@@ -1713,7 +1722,7 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::prefix(Rule::not)
             | Op::prefix(Rule::unwrap)
             | Op::prefix(Rule::check_unwrap))
-        .op(Op::infix(Rule::substruct, Assoc::Left))
+        .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
 }
 

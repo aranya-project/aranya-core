@@ -958,6 +958,44 @@ impl<'a> CompileState<'a> {
 
                 result_type
             }
+            Expression::Cast(lhs, rhs_ident) => {
+                // NOTE this is implemented only for structs
+
+                // make sure other struct is defined
+                let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
+                    self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
+                })?;
+
+                let lhs_type = self.compile_expression(lhs)?;
+                _ = lhs_type.try_map(|t| match t {
+                    NullableVType::Type(VType::Struct(lhs_struct_name)) => {
+                        let lhs_fields =
+                            self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
+                                self.err(CompileErrorType::NotDefined(format!(
+                                    "struct {lhs_struct_name}"
+                                )))
+                            })?;
+
+                        // Check that both structs have the same field names and types (though not necessarily in the same order)
+                        if lhs_fields.len() != rhs_fields.len()
+                            || !lhs_fields.iter().all(|f| rhs_fields.contains(f))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidCast(
+                                lhs_struct_name,
+                                rhs_ident.clone(),
+                            )));
+                        }
+                        Ok(NullableVType::Type(VType::Struct(rhs_ident.clone())))
+                    }
+                    _ => Err(self.err(CompileErrorType::InvalidType(
+                        "Expression to the left of `as` is not a struct".to_string(),
+                    ))),
+                })?;
+
+                self.append_instruction(Instruction::Cast(rhs_ident.clone()));
+
+                Typeish::known(VType::Struct(rhs_ident.clone()))
+            }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;
