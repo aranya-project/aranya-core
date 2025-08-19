@@ -754,8 +754,8 @@ where
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
-                let fact_from: Fact = self.ipop()?;
-                let replaced_fact = {
+                let mut fact_from: Fact = self.ipop()?;
+                let mut replaced_fact = {
                     let mut iter = self
                         .io
                         .try_borrow()
@@ -765,6 +765,21 @@ where
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
                 };
+
+                if !fact_from.values.is_empty() {
+                    let replaced_fact_values = &mut replaced_fact.1;
+
+                    replaced_fact_values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                    fact_from
+                        .values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+
+                    if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
+                        return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
+                    }
+                }
+
                 self.io
                     .try_borrow_mut()
                     .assume("should be able to borrow io")?

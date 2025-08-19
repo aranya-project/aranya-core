@@ -83,6 +83,37 @@ command Increment {
 }
 "#;
 
+pub const POLICY_TEST_UPDATE: &str = r#"
+fact Foo[]=>{x int}
+
+command Set {
+    fields {
+        a int,
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        let x = this.a
+        finish {
+            create Foo[]=>{x: x}
+        }
+    }
+}
+
+command Increment {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        let r = unwrap query Foo[]=>{x: ?}
+        let new_x = r.x + 1
+        finish {
+            update Foo[]=>{x: 0} to {x: new_x}
+        }
+    }
+}
+"#;
+
 pub const POLICY_MATCH: &str = r#"
     command Result {
         fields {
