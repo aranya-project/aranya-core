@@ -69,6 +69,7 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`gt`           | `( a b -- a&gt;b )`  | true if `a` is greater than `b`, else false
 |`lt`           | `( a b -- a&lt;b )`  | true if `a` is less than `b`, else false
 |`eq`           | `( a b -- a=b )`     | true if `a` is equal to `b`, else false
+|`as`           | `foo as Bar`         | replaces the foo value at the top of the stack with a new instance of Bar |
 
 ## facts
 ||||
