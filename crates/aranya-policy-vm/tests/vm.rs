@@ -2380,6 +2380,67 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_struct_composition() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Foo {
+            fields {
+                x int,
+                y bool,
+                z string,
+            }
+            seal { return todo() }
+            open { return todo() }
+        }
+        struct Bar {
+            x int,
+            y bool,
+            z string,
+        }
+        action baz(source struct Bar, x int) {
+            publish Foo { x: x, ...source }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
+    let action_name = ident!("baz");
+    let ctx = dummy_ctx_action(action_name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    call_action(
+        &mut rs,
+        &mut published,
+        action_name,
+        [
+            Value::Struct(Struct::new(
+                ident!("Bar"),
+                [
+                    (ident!("x"), Value::Int(30)),
+                    (ident!("y"), Value::Bool(false)),
+                    (ident!("z"), Value::String(text!("lorem"))),
+                ],
+            )),
+            Value::Int(10),
+        ],
+    )?
+    .success();
+    drop(rs);
+
+    let lorem = Value::String(text!("lorem"));
+
+    assert_eq!(
+        published,
+        [vm_struct!(Foo {
+            x: 10,
+            y: false,
+            z: lorem,
+        })]
+    );
+    Ok(())
+}
+
+#[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
         let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
