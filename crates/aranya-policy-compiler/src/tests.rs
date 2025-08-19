@@ -1988,12 +1988,10 @@ fn test_duplicate_definitions() {
                     let x = 4
                     if (b) {
                         let x = 4
+                        return x
                     } else {
-                        let x = 4
+                        return x
                     }
-                    let x = 4
-
-                    return x
                 }
             "#,
             e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
@@ -2003,12 +2001,11 @@ fn test_duplicate_definitions() {
                 function f(b bool) int {
                     let x = 4
                     if (b) {
-                        let x = 4
+                        return x
                     } else {
                         let x = 4
+                        return x
                     }
-
-                    return x
                 }
             "#,
             e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
