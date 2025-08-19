@@ -2129,10 +2129,23 @@ fn test_duplicate_definitions() {
     let cases = [
         Case {
             t: r#"
+                function f() int {
+                    let x = {
+                        let x = 1
+                        : x
+                    }
+
+                    return x
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
-                        2 => { let z = 4 }
+                        2 => { let x = 4 }
                     }
                     return false
                 }
@@ -2141,40 +2154,84 @@ fn test_duplicate_definitions() {
         },
         Case {
             t: r#"
+                function f(y int) bool {
+                    if y == 0 {
+                        let x = 3
+                    }
+                    else {
+                        let x = 4
+                    }
+
+                    return false
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f() bool {
-                    // this will fail at runtime but is allowed by the
-                    // compiler because they are the same type
                     let x = 3
                     let x = 4
                     return false
                 }
             "#,
-            e: None,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
                 function f() bool {
-                    // this is allowed because todo() is indeterminate
                     let x = 3
                     let x = todo()
                     return false
                 }
             "#,
-            e: None,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
                 function f() bool {
-                    // this, however, fails because they are definitely
-                    // different types
                     let x = 3
                     let x = "foo"
                     return false
                 }
-        "#,
-            e: Some(CompileErrorType::InvalidType(
-                "type mismatch: int != string".to_string(),
-            )),
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                action foo(n int) {
+                    let n = n
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('n'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        let x = 4
+                        return x
+                    } else {
+                        return x
+                    }
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        return x
+                    } else {
+                        let x = 4
+                        return x
+                    }
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
     ];
 
