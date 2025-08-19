@@ -1906,6 +1906,19 @@ fn test_duplicate_definitions() {
     let cases = [
         Case {
             t: r#"
+                function f() int {
+                    let x = {
+                        let x = 1
+                        : x
+                    }
+
+                    return x
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
@@ -1968,6 +1981,37 @@ fn test_duplicate_definitions() {
                 }
             "#,
             e: Some(CompileErrorType::AlreadyDefined(String::from('n'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        let x = 4
+                    } else {
+                        let x = 4
+                    }
+                    let x = 4
+
+                    return x
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        let x = 4
+                    } else {
+                        let x = 4
+                    }
+
+                    return x
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
     ];
 
