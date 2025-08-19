@@ -44,6 +44,7 @@ impl<'a> TraceAnalyzerBuilder<'a> {
 
 impl<'a> TraceAnalyzerBuilder<'a> {
     /// Add an [`Analyzer`] implementation.
+    #[must_use]
     pub fn add_analyzer<A>(mut self, mut tracer: A) -> TraceAnalyzerBuilder<'a>
     where
         A: Analyzer + 'static,
@@ -165,7 +166,7 @@ impl TraceAnalyzer<'_> {
                             message: s,
                         });
                     }
-                    _ => (),
+                    AnalyzerStatus::Ok => (),
                 }
             }
 

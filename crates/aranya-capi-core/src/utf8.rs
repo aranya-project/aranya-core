@@ -124,5 +124,5 @@ impl Default for Utf8Str {
 }
 
 impl Typed for Utf8Str {
-    const TYPE_ID: TypeId = TypeId::new(0xfcf564a);
+    const TYPE_ID: TypeId = TypeId::new(0x0FCF564A);
 }

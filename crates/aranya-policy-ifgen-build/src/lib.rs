@@ -19,7 +19,7 @@ pub fn generate(input: impl AsRef<Path>, output: impl AsRef<Path>) -> Result<()>
 }
 
 fn generate_(input: &Path, output: &Path) -> Result<()> {
-    let policy_source = fs::read_to_string(input).with_context(|| format!("reading {input:?}"))?;
+    let policy_source = fs::read_to_string(input).with_context(|| format!("reading {}", input.display()))?;
     let policy_ast = parse_policy_document(&policy_source)?;
     let target = Compiler::new(&policy_ast)
         .debug(true)
@@ -27,7 +27,7 @@ fn generate_(input: &Path, output: &Path) -> Result<()> {
         .compile_to_target()?;
     let rust_code = generate_code(&target);
 
-    fs::write(output, rust_code).with_context(|| format!("writing to {output:?}"))?;
+    fs::write(output, rust_code).with_context(|| format!("writing to {}", output.display()))?;
 
     Ok(())
 }

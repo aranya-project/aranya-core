@@ -59,7 +59,7 @@ impl Target {
     pub fn resolved(&self) -> Option<usize> {
         match self {
             Target::Resolved(i) => Some(*i),
-            _ => None,
+            Target::Unresolved(_) => None,
         }
     }
 }

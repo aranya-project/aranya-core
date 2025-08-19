@@ -85,14 +85,15 @@ impl Errors {
     /// `Err` otherwise.
     fn propagate(&mut self) -> Result<()> {
         let mut iter = self.0.drain(..);
-        let mut all = match iter.next() {
-            Some(err) => err,
-            None => return Ok(()),
-        };
-        for err in iter {
-            all.combine(err);
+        match iter.next() {
+            Some(mut all) => {
+                for err in iter {
+                    all.combine(err);
+                }
+                Err(all)
+            }
+            None => Ok(()),
         }
-        Err(all)
     }
 
     #[cfg(test)]

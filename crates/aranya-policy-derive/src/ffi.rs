@@ -2,7 +2,8 @@ use std::{collections::HashSet, fs::File, io::Write};
 
 use aranya_policy_lang::{
     ast::{
-        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType,
+        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, Identifier, StructDefinition,
+        StructItem, VType,
     },
     lang,
 };
@@ -169,7 +170,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
     let enum_defs = enums.iter().map(|d| {
         let name = d.inner.identifier.as_str();
-        let variants = d.inner.variants.iter().map(|v| v.as_str());
+        let variants = d.inner.variants.iter().map(Identifier::as_str);
         quote! {
             #vm::ffi::Enum {
                 name: #vm::ident!(#name),
@@ -247,7 +248,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         //    __some_func,
         //    __another_func,
         //    ...
-        let variants = funcs.iter().map(|f| f.variant()).collect::<Vec<_>>();
+        let variants = funcs.iter().map(Func::variant).collect::<Vec<_>>();
 
         // The `__Func` variants mapped from `usize`:
         //    const __some_func = Self::some_func as usize;
@@ -599,9 +600,8 @@ struct Func {
 
 impl Func {
     fn from_ast(item: &mut ImplItemFn) -> syn::Result<Option<Self>> {
-        let attr = match FfiExportAttr::new(item.span(), &mut item.attrs)? {
-            Some(v) => v,
-            None => return Ok(None),
+        let Some(attr) = FfiExportAttr::new(item.span(), &mut item.attrs)? else {
+            return Ok(None);
         };
         let name = item.sig.ident.clone();
 
@@ -623,17 +623,14 @@ impl Func {
         // first non-self argument isn't `&CommandContext` and
         // second argument isn't `&mut E`.
         let num_skip = if is_method { 3 } else { 2 };
-        let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
-            Some(n) => n,
-            None => {
-                return Err(Error::new_spanned(
-                    &item.sig,
-                    format!(
-                        "too few function arguments: {} < {num_skip}",
-                        item.sig.inputs.len()
-                    ),
-                ));
-            }
+        let Some(num_args) = item.sig.inputs.len().checked_sub(num_skip) else {
+            return Err(Error::new_spanned(
+                &item.sig,
+                format!(
+                    "too few function arguments: {} < {num_skip}",
+                    item.sig.inputs.len()
+                ),
+            ));
         };
         let num_def_args = attr.def.arguments.len();
         if num_args != num_def_args {
@@ -662,7 +659,7 @@ impl Func {
                     };
 
                     // arg name should match definition
-                    if !ident.to_string().starts_with("_") && *ident != def.identifier {
+                    if !ident.to_string().starts_with('_') && *ident != def.identifier {
                         return Err(Error::new_spanned(
                             ident,
                             format!(
@@ -688,7 +685,7 @@ impl Func {
             ReturnType::Default => {
                 return Err(Error::new(item.span(), "Rust function cannot return `()`"));
             }
-            _ => vtype.clone(),
+            ReturnType::Type(..) => vtype.clone(),
         };
 
         Ok(Some(Self {

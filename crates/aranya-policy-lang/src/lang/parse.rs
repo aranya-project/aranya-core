@@ -1664,7 +1664,6 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
             Rule::enum_definition => {
                 enums.push(p.parse_enum_definition(s)?);
             }
-            Rule::EOI => break,
             _ => break,
         }
     }

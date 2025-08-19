@@ -403,7 +403,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                         }
                     }
 
-                    current = next.clone();
+                    current.clone_from(&next);
                 }
             }
         }

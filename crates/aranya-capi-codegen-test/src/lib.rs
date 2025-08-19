@@ -66,7 +66,7 @@ impl ExtError {
 }
 
 impl Typed for ExtError {
-    const TYPE_ID: TypeId = TypeId::new(0xa2a040);
+    const TYPE_ID: TypeId = TypeId::new(0x00A2A040);
 }
 
 impl ExtendedError for ExtError {

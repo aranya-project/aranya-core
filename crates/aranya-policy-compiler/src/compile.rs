@@ -550,11 +550,8 @@ impl<'a> CompileState<'a> {
                         f.identifier, k, def_field_type
                     ))));
                 }
-            } else {
-                // Skip bind values
-                continue;
+                self.append_instruction(Instruction::FactKeySet(k.clone()));
             }
-            self.append_instruction(Instruction::FactKeySet(k.clone()));
         }
         if let Some(value_fields) = &f.value_fields {
             for (k, v) in value_fields {
@@ -575,11 +572,8 @@ impl<'a> CompileState<'a> {
                             f.identifier, k, def_field_type
                         ))));
                     }
-                } else {
-                    // Skip bind values
-                    continue;
+                    self.append_instruction(Instruction::FactValueSet(k.clone()));
                 }
-                self.append_instruction(Instruction::FactValueSet(k.clone()));
             }
         }
         Ok(())
@@ -1124,7 +1118,7 @@ impl<'a> CompileState<'a> {
                         NullableVType::Type(VType::Optional(_)) | NullableVType::Null => {
                             Ok(NullableVType::Type(VType::Bool))
                         }
-                        _ => Err(TypeError::new(
+                        NullableVType::Type(_) => Err(TypeError::new(
                             "`is` must operate on an optional expression",
                         )),
                     })
@@ -1830,7 +1824,7 @@ impl<'a> CompileState<'a> {
             .try_map(|nty| match nty {
                 NullableVType::Type(VType::Optional(t)) => Ok(NullableVType::Type(*t)),
                 NullableVType::Null => Err(TypeError::new("Cannot unwrap None")),
-                _ => Err(TypeError::new("Cannot unwrap non-option expression")),
+                NullableVType::Type(_) => Err(TypeError::new("Cannot unwrap non-option expression")),
             })
             .map_err(|err| self.err(err.into()))
     }
@@ -2416,6 +2410,7 @@ pub struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     /// Creates a new an instance of [`Compiler`] which compiles into a [`Module`]
+    #[must_use]
     pub fn new(policy: &'a AstPolicy) -> Self {
         Self {
             policy,
@@ -2426,17 +2421,20 @@ impl<'a> Compiler<'a> {
     }
 
     /// Sets the FFI modules
+    #[must_use]
     pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
         self.ffi_modules = ffi_modules;
         self
     }
 
     /// Enables or disables debug mode
+    #[must_use]
     pub fn debug(mut self, is_debug: bool) -> Self {
         self.is_debug = is_debug;
         self
     }
 
+    #[must_use]
     pub fn stub_ffi(mut self, flag: bool) -> Self {
         self.stub_ffi = flag;
         self

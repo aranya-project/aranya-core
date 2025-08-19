@@ -914,8 +914,8 @@ where
                     Some(result) => {
                         let (k, v) = result?;
                         let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut k.into_iter().map(|e| e.into()).collect());
-                        fields.append(&mut v.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut k.into_iter().map(Into::into).collect());
+                        fields.append(&mut v.into_iter().map(Into::into).collect());
                         let s = Struct::new(ident.clone(), fields);
                         self.scope.set(ident, Value::Struct(s))?;
                         self.ipush(Value::Bool(false))?;
@@ -1010,13 +1010,10 @@ where
                 self.stopwatch.stop();
             }
 
-            match result {
-                MachineStatus::Executing => continue,
-                MachineStatus::Exited(reason) => {
-                    #[cfg(feature = "bench")]
-                    bench_aggregate(&mut self.stopwatch);
-                    return Ok(reason);
-                }
+            if let MachineStatus::Exited(reason) = result {
+                #[cfg(feature = "bench")]
+                bench_aggregate(&mut self.stopwatch);
+                return Ok(reason);
             };
         }
     }

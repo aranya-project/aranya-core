@@ -60,7 +60,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let policy = parse_policy_str(&policy_text, version)?;
             match args.check_mode {
                 true => Ok(String::from("policy is valid")),
-                false => Ok(format!("{:#?}", policy)),
+                false => Ok(format!("{policy:#?}")),
             }
         }
         Mode::Expression => {

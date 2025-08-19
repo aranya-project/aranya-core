@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write};
+use std::{cell::RefCell, fs::File, io::Write};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -62,7 +62,7 @@ fn generate(cfg: Config, items: Vec<Item>) -> Result<TokenStream, BuildError> {
         defs: cfg.defs,
         hidden: format_ident!("__hidden"),
         imports: format_ident!("__imports"),
-        errs: Default::default(),
+        errs: RefCell::default(),
     };
     let ast = Ast::parse(&mut ctx, items)?;
     ctx.propagate()?;

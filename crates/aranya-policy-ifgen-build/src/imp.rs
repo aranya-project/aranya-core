@@ -128,11 +128,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
         VType::Int => quote! { i64 },
         VType::Bool => quote! { bool },
         VType::Id => quote! { Id },
-        VType::Struct(st) => {
-            let ident = mk_ident(st);
-            quote! { #ident }
-        }
-        VType::Enum(st) => {
+        VType::Struct(st) | VType::Enum(st) => {
             let ident = mk_ident(st);
             quote! { #ident }
         }
