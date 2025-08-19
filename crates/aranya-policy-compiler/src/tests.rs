@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Label, LabelType, Module, ModuleData, Value,
+    Label, LabelType, Module, ModuleData, Struct, Value,
     ffi::{self, ModuleSchema},
 };
 
@@ -1289,6 +1289,22 @@ fn test_match_arm_should_be_limited_to_literals() {
             }
         }
         "#,
+        r#"
+            struct Foo {
+                x int,
+                y string,
+            }
+            struct Bar {
+                y string
+            }
+            action foo(x struct Foo) {
+                let b = Bar { y: "y" }
+                match x {
+                    Foo { x: 10, ...b } => {}
+                    _ => {}
+                }
+            }
+        "#,
     ];
 
     for text in policies {
@@ -1885,6 +1901,57 @@ fn test_type_errors() {
         },
         Case {
             t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected field `x` of `b` to be a `int`",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(b bool) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `b` to be a struct, but it's a(n) bool",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let maybe_bar = if true {
+                        :Some(b)
+                    } else {
+                        :None
+                    }
+                    
+
+                    let new_foo = Foo {
+                        y: true,
+                        ...maybe_bar
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `maybe_bar` to be a struct, but it's a(n) optional struct Bar",
+        },
+        Case {
+            t: r#"
                 struct Baz {
                     y int,
                 }
@@ -1913,6 +1980,162 @@ fn test_type_errors() {
         };
         assert_eq!(s, c.e);
     }
+}
+
+#[test]
+fn test_struct_composition() {
+    struct Case {
+        t: &'static str,
+        e: Option<&'static str>,
+    }
+
+    let valid_cases = [Case {
+        t: r#"
+                struct Bar { x int, y bool }
+                function baz(b struct Bar) struct Bar {
+                    let other = todo()
+                    let new_bar = Bar {
+                        y: b.y,
+                        ...other
+                    }
+
+                    return new_bar
+                }
+            "#,
+        e: None,
+    }];
+
+    let invalid_cases = [
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string}
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some("Struct Bar must be a subset of Struct Foo"),
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool }
+                struct Thud { x int }
+                function baz(b struct Bar, t struct Thud) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b,
+                        ...t
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some("Struct Thud and Struct Bar have at least 1 field with the same name"),
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(f struct Foo) struct Foo {
+                    let new_foo = Foo {
+                        x: 3,
+                        y: true,
+                        ...f
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some(
+                "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions",
+            ),
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+
+                function baz() struct Foo {
+                    let new_foo = Foo {
+                        ...x
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some("not defined: x"),
+        },
+    ];
+
+    for c in valid_cases {
+        let _ = compile_pass(c.t);
+    }
+
+    for (i, c) in invalid_cases.iter().enumerate() {
+        let err = compile_fail(c.t);
+        match compile_fail(c.t) {
+            CompileErrorType::DuplicateSourceFields(_, _) => {}
+            CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
+            CompileErrorType::NotDefined(_) => {}
+            CompileErrorType::NoOpStructComp => {}
+            err => {
+                panic!(
+                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, NoOpStructComp, or NotDefined for case {i}: {err:?} ({err})"
+                );
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e.expect("Failure case"));
+    }
+}
+
+#[test]
+fn test_struct_composition_global_let_and_command_attributes() {
+    let policy_str = r#"
+        struct Foo {
+            x int,
+            y int
+        }  
+
+        let foo = Foo { x: 10, y: 20 }
+        let foo2 = Foo { x: 1000, ...foo }
+
+        command Bar {
+            attributes {
+                foo_attr: Foo { ...foo2 },
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let ModuleData::V0(mod_data) = compile_pass(policy_str).data;
+
+    let expected = Value::Struct(Struct {
+        name: ident!("Foo"),
+        fields: BTreeMap::from([
+            (ident!("x"), Value::Int(1000)),
+            (ident!("y"), Value::Int(20)),
+        ]),
+    });
+
+    assert_eq!(*mod_data.globals.get("foo2").unwrap(), expected);
+    assert_eq!(
+        *mod_data
+            .command_attributes
+            .get("Bar")
+            .unwrap()
+            .get("foo_attr")
+            .unwrap(),
+        expected
+    );
 }
 
 #[test]
@@ -2425,6 +2648,121 @@ fn test_substruct_errors() {
         assert_eq!(err.to_string(), c.e);
     }
 }
+
+#[test]
+fn test_struct_conversion_errors() {
+    let cases = [
+        (
+            "RHS not defined",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Bar".to_string()),
+        ),
+        (
+            "types don't match",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a bool, b string }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
+        ),
+        (
+            "field names don't match",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a bool, s string }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
+        ),
+        (
+            "different number of fields",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a int, b string, c bool }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
+        ),
+    ];
+
+    for (msg, text, expected) in cases {
+        let err = compile_fail(text);
+        println!("Test case: {msg}");
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_struct_conversion() {
+    let cases = [
+        (
+            "struct to struct",
+            r#"
+            struct Foo {
+                a int,
+                b string,
+            }
+
+            struct Bar {
+                b string,
+                a int,
+            }
+
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+        "#,
+        ),
+        (
+            "struct to command",
+            r#"
+            struct Foo {
+                a int,
+                b string,
+            }
+            command Bar {
+                fields {
+                    a int,
+                    b string,
+                }
+                seal { return todo() }
+                open { return todo() }
+            }
+            action convert() {
+                let bar = Foo { a: 1, b: "test" } as Bar
+                publish bar
+            }
+        "#,
+        ),
+        (
+            "cast to self - noop",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Foo
+            }
+            "#,
+        ),
+    ];
+
+    for (msg, text) in cases {
+        println!("Test case: {msg}");
+        compile_pass(text);
+    }
+}
+
 #[test]
 fn if_expression_block() {
     let text = r#"
