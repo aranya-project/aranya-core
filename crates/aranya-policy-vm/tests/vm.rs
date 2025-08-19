@@ -464,6 +464,49 @@ fn test_fact_query() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_invalid_update() -> anyhow::Result<()> {
+    fn run(initial_value: i64) -> anyhow::Result<ExitReason> {
+        let policy = parse_policy_str(POLICY_TEST_UPDATE.trim(), Version::V2)?;
+
+        let module = Compiler::new(&policy)
+            .ffi_modules(TestIO::FFI_SCHEMAS)
+            .compile()?;
+        let mut machine = Machine::from_module(module)?;
+        let io = RefCell::new(TestIO::new());
+
+        let exit = {
+            let name = ident!("Set");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct =
+                Struct::new(name.clone(), [KVPair::new_int(ident!("a"), initial_value)]);
+            machine
+                .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+                .success();
+
+            let name = ident!("Increment");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct = Struct::new(name.clone(), &[]);
+            machine.call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+        };
+
+        let fk = (ident!("Foo"), vec![]);
+        let fv = vec![FactValue::new(ident!("x"), Value::Int(initial_value + 1))];
+        assert_eq!(io.borrow().facts[&fk], fv);
+
+        Ok(exit)
+    }
+
+    // Incrementing from '0' is valid
+    assert_eq!(run(0).unwrap(), ExitReason::Normal);
+
+    // Incrementing from a value other than '0' is invalid
+    let err = run(10).unwrap_err().downcast::<MachineError>()?;
+    assert_eq!(err.err_type, MachineErrorType::InvalidFact(ident!("Foo")));
+
+    Ok(())
+}
+
+#[test]
 fn test_fact_exists() -> anyhow::Result<()> {
     let text = r#"
     enum Bool {
