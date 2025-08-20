@@ -105,6 +105,30 @@ command Create {
     }
 }
 
+ephemeral action create_action_ephemeral(v int) {
+    publish CreateEphemeral {
+        key_a: 1,
+        value: v,
+    }
+}
+
+ephemeral command CreateEphemeral {
+    fields {
+        key_a int,
+        value int,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        finish {
+            create Stuff[a: this.key_a]=>{x: this.value}
+            emit StuffHappened{a: this.key_a, x: this.value}
+        }
+    }
+}
+
 // The `increment` action takes a value and passes it to the `Increment` command.
 // For simplicity sake, the fact key is hard coded in all our examples.
 action increment(v int) {
@@ -117,6 +141,34 @@ action increment(v int) {
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
 command Increment {
+    fields {
+        key_a int,
+        value int,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
+        let new_x = stuff.x + this.value
+        check new_x < 25
+
+        finish {
+            update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x}
+        }
+    }
+}
+
+ephemeral action increment_ephemeral(v int) {
+    publish IncrementEphemeral {
+        key_a: 1,
+        value: v,
+    }
+}
+
+ephemeral command IncrementEphemeral {
     fields {
         key_a int,
         value int,
@@ -169,7 +221,7 @@ command Decrement {
 }
 
 // `get_stuff` calls the `GetStuff` command with the hardcoded test key.
-action get_stuff() {
+ephemeral action get_stuff() {
     publish GetStuff {
         key_a: 1,
     }
@@ -179,7 +231,29 @@ action get_stuff() {
 // returns it in a `StuffHappened` effect. As pointed out elsewhere, there is
 // absolutely nothing stopping us from using this command in an on-graph or
 // ephemeral context. We chose to use it strictly in the ephemeral context.
-command GetStuff {
+ephemeral command GetStuff {
+    fields {
+        key_a int,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        finish {
+            emit StuffHappened{a: this.key_a, x: stuff.x}
+        }
+    }
+}
+
+action get_stuff_on_graph() {
+    publish GetStuffOnGraph {
+        key_a: 1,
+    }
+}
+
+command GetStuffOnGraph {
     fields {
         key_a int,
     }
@@ -197,7 +271,7 @@ command GetStuff {
 
 // The `create_greeting` action calls the command `CreateGreeting`. Passing in
 // the hardcoded greeting key and the message value.
-action create_greeting(v string) {
+ephemeral action create_greeting(v string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
@@ -206,7 +280,7 @@ action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-command CreateGreeting {
+ephemeral command CreateGreeting {
     fields {
         key string,
         value string,
@@ -227,7 +301,7 @@ command CreateGreeting {
 
 // The `verify_hello` action calls the command `VerifyGreeting` that will verify
 // the Message fact contains "hello".
-action verify_hello() {
+ephemeral action verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",
@@ -238,7 +312,7 @@ action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-command VerifyGreeting {
+ephemeral command VerifyGreeting {
     fields {
         key string,
         value string,
@@ -260,6 +334,32 @@ command VerifyGreeting {
         }
     }
 }
+
+action verify_hello_on_graph() {
+    publish VerifyGreetingOnGraph {
+        key: "greeting",
+        value: "hello",
+    }
+}
+
+command VerifyGreetingOnGraph {
+    fields {
+        key string,
+        value string,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        check greeting.value == this.value
+        finish {
+            emit Success{value: true}
+        }
+    }
+}
+
 
 // `store_session_data` will call StoreSessionData with a command name
 // and byte value.

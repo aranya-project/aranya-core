@@ -6,8 +6,8 @@ use buggy::{BugExt, bug};
 use super::braiding;
 use crate::{
     Address, ClientError, CmdId, Command, CommandRecall, Engine, EngineError, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider,
+    MAX_COMMAND_LENGTH, MergeIds, Persistence, Perspective, Policy, PolicyId, Prior, Revertable,
+    Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 /// Transaction used to receive many commands at once.
@@ -222,7 +222,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(command, perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            command,
+            perspective,
+            sink,
+            Persistence::Persistent,
+            CommandRecall::None,
+        ) {
             perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
@@ -351,7 +357,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Get an empty perspective and run the init command.
         let mut perspective = provider.new_perspective(policy_id);
         sink.begin();
-        if let Err(e) = policy.call_rule(command, &mut perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            command,
+            &mut perspective,
+            sink,
+            Persistence::Persistent,
+            CommandRecall::None,
+        ) {
             sink.rollback();
             // We don't need to revert perspective since we just drop it.
             return Err(e.into());
@@ -394,6 +406,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
             &command,
             &mut braid_perspective,
             sink,
+            Persistence::Persistent,
             CommandRecall::OnCheck,
         );
 
@@ -447,7 +460,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MergeIds, Priority,
+        ClientState, Keys, MergeIds, Persistence, Priority,
         memory::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -495,6 +508,7 @@ mod test {
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
+            _persistence: Persistence,
             _recall: CommandRecall,
         ) -> Result<(), EngineError> {
             assert!(
@@ -525,6 +539,7 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
+            _persistence: Persistence,
         ) -> Result<(), EngineError> {
             unimplemented!()
         }

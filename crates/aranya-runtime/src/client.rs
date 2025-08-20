@@ -91,7 +91,12 @@ where
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
         policy
-            .call_action(action, &mut perspective, sink)
+            .call_action(
+                action,
+                &mut perspective,
+                sink,
+                crate::Persistence::Persistent,
+            )
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
 
@@ -176,7 +181,12 @@ where
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(action, &mut perspective, sink) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            sink,
+            crate::Persistence::Persistent,
+        ) {
             Ok(_) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
