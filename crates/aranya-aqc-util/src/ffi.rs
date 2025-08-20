@@ -241,7 +241,7 @@ function label_id(
 
 /// An error returned by [`Ffi`].
 #[derive(Debug, thiserror::Error)]
-pub enum FfiError {
+pub(crate) enum FfiError {
     /// The [`aranya_crypto`] crate failed.
     #[error("crypto error: {0}")]
     Crypto(#[from] aranya_crypto::Error),

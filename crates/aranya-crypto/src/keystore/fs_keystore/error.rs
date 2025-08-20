@@ -9,7 +9,7 @@ use crate::keystore::{self, ErrorKind};
 /// Error thrown if we run out of data in a keystore entry.
 #[derive(Copy, Clone, Debug, thiserror::Error)]
 #[error("unexpected EOF")]
-pub struct UnexpectedEof;
+pub(crate) struct UnexpectedEof;
 
 /// An error returned by [`super::Store`].
 #[derive(Debug)]

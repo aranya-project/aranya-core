@@ -203,7 +203,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 /// A bidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct BidiInfo {
+pub(crate) struct BidiInfo {
     domain: [u8; 14],
     parent_cmd_id: Id,
     their_id: DeviceId,

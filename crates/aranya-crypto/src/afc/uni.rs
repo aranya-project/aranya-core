@@ -178,7 +178,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 /// A unidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct UniInfo {
+pub(crate) struct UniInfo {
     domain: [u8; 12],
     parent_cmd_id: Id,
     seal_id: DeviceId,

@@ -90,7 +90,7 @@ impl Header {
 packed! {
     /// The "header" appended to data messages.
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    pub struct DataHeader {
+    pub(crate) struct DataHeader {
         /// The channel label.
         pub label: Label,
         /// The ciphertext's sequence number.

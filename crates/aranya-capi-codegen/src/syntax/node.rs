@@ -1176,7 +1176,7 @@ impl FnArg {
             ));
         };
 
-        let attrs = attrs::parse(ctx, attrs, Default::default());
+        let attrs = attrs::parse(ctx, attrs, Parser::default());
 
         // TODO(eric): What about mut, ref, etc?
         let Pat::Ident(PatIdent { ident, .. }) = *pat else {

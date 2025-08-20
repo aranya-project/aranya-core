@@ -156,7 +156,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 /// A unidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct UniInfo {
+pub(crate) struct UniInfo {
     /// Always "AqcUniPsk-v1".
     domain: [u8; 12],
     psk_length_in_bytes: U16<BE>,

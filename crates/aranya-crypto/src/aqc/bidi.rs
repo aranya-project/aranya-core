@@ -169,7 +169,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 /// A bidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct BidiInfo {
+pub(crate) struct BidiInfo {
     /// Always "AqcBidiPsk-v1".
     domain: [u8; 13],
     psk_length_in_bytes: U16<BE>,
