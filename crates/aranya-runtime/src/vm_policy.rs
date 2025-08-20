@@ -632,21 +632,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             error!("should have command struct: {e}");
                             EngineError::InternalError
                         })?;
+                        let command_name = command_struct.name.clone();
 
-                        let fields = command_struct
-                            .fields
-                            .iter()
-                            .map(|(k, v)| KVPair::new(k.clone(), v.clone()));
-                        io.try_borrow_mut()
-                            .assume("should be able to borrow io")?
-                            .publish(command_struct.name.clone(), fields);
-
-                        let seal_ctx = rs
-                            .get_context()
-                            .seal_from_action(command_struct.name.clone())?;
+                        let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal
-                            .call_seal(command_struct.name.clone(), &command_struct)
+                            .call_seal(command_name.clone(), command_struct)
                             .map_err(|e| {
                                 error!("Cannot seal command: {}", e);
                                 EngineError::Panic
@@ -679,7 +670,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         };
 
                         let priority = if parent.is_some() {
-                            self.get_command_priority(&command_struct.name).into()
+                            self.get_command_priority(&command_name).into()
                         } else {
                             Priority::Init
                         };
@@ -689,14 +680,14 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                 // TODO(chip): where does the policy value come from?
                                 policy: 0u64.to_le_bytes(),
                                 author_id: envelope.author_id,
-                                kind: command_struct.name.clone(),
+                                kind: command_name.clone(),
                                 serialized_fields: &envelope.payload,
                                 signature: &envelope.signature,
                             },
                             Some(parent) => VmProtocolData::Basic {
                                 author_id: envelope.author_id,
                                 parent,
-                                kind: command_struct.name.clone(),
+                                kind: command_name.clone(),
                                 serialized_fields: &envelope.payload,
                                 signature: &envelope.signature,
                             },

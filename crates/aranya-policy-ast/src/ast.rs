@@ -210,6 +210,8 @@ pub struct NamedStruct {
     pub identifier: Identifier,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Identifier, Expression)>,
+    /// sources is a list of identifiers used in struct composition
+    pub sources: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -345,6 +347,8 @@ pub enum Expression {
     Block(Vec<AstNode<Statement>>, Box<Expression>),
     /// A substruct expression
     Substruct(Box<Expression>, Identifier),
+    /// Type cast expression
+    Cast(Box<Expression>, Identifier),
     /// Match expression
     Match(Box<MatchExpression>),
 }

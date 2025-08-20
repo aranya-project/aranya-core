@@ -511,29 +511,8 @@ where
                 let value = self.scope.get(&key)?;
                 self.ipush(value)?;
             }
-            Instruction::Swap(d) => {
-                if d == 0 {
-                    return Err(self.err(MachineErrorType::InvalidInstruction));
-                }
-                let index1 = self
-                    .stack
-                    .len()
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let index2 = index1
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                self.stack.0.swap(index1, index2);
-            }
-            Instruction::Dup(d) => {
-                let index = self
-                    .stack
-                    .len()
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let v = self.stack.0[index].clone();
+            Instruction::Dup => {
+                let v = self.stack.peek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -611,16 +590,6 @@ where
                     Instruction::Sub => a
                         .checked_sub(b)
                         .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
-                    _ => unreachable!(),
-                };
-                self.ipush(r)?;
-            }
-            Instruction::And | Instruction::Or => {
-                let a = self.ipop()?;
-                let b = self.ipop()?;
-                let r = match instruction {
-                    Instruction::And => a && b,
-                    Instruction::Or => a || b,
                     _ => unreachable!(),
                 };
                 self.ipush(r)?;
@@ -775,8 +744,8 @@ where
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
-                let fact_from: Fact = self.ipop()?;
-                let replaced_fact = {
+                let mut fact_from: Fact = self.ipop()?;
+                let mut replaced_fact = {
                     let mut iter = self
                         .io
                         .try_borrow()
@@ -786,6 +755,21 @@ where
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
                 };
+
+                if !fact_from.values.is_empty() {
+                    let replaced_fact_values = &mut replaced_fact.1;
+
+                    replaced_fact_values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                    fact_from
+                        .values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+
+                    if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
+                        return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
+                    }
+                }
+
                 self.io
                     .try_borrow_mut()
                     .assume("should be able to borrow io")?
@@ -968,6 +952,53 @@ where
                 self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
+            Instruction::Cast(identifier) => {
+                let value = self.ipop_value()?;
+                match value {
+                    Value::Struct(s) => {
+                        // make sure identifier is a valid struct name
+                        let rhs_struct =
+                            self.machine.struct_defs.get(&identifier).ok_or_else(|| {
+                                self.err(MachineErrorType::NotDefined(alloc::format!(
+                                    "struct `{}`",
+                                    identifier
+                                )))
+                            })?;
+
+                        // Check that all required fields exist and have matching types
+                        for (field_name, field_type) in &rhs_struct.fields {
+                            // Check if the source struct has this field
+                            let value = s.fields.get(field_name).ok_or_else(|| {
+                                self.err(MachineErrorType::Unknown(alloc::format!(
+                                    "cannot cast to `struct {}`: missing field `{}`",
+                                    identifier,
+                                    field_name
+                                )))
+                            })?;
+
+                            // Check if the type matches
+                            if !value.fits_type(field_type) {
+                                return Err(self.err(MachineErrorType::Unknown(alloc::format!(
+                                    "cannot cast to `struct {}`: field `{}` has wrong type (expected `{}`, found `{}`)",
+                                    identifier, field_name, field_type, value.type_name()
+                                ))));
+                            }
+                        }
+
+                        // replace value on stack with clone, under new name
+                        let mut s = s;
+                        s.name = identifier.clone();
+                        self.ipush(Value::Struct(s))?;
+                    }
+                    _ => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Struct",
+                            value.type_name(),
+                            "Cast LHS",
+                        )));
+                    }
+                }
+            }
         }
 
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
@@ -1182,14 +1213,14 @@ where
     pub fn call_seal(
         &mut self,
         name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
     ) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
-        self.ipush(this_data.to_owned())?;
+        self.ipush(this_data)?;
         self.run()
     }
 

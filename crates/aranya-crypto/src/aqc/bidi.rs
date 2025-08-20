@@ -34,26 +34,12 @@ use crate::{
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
 /// use aranya_crypto::{
+///     CipherSuite, Csprng, EncryptionKey, Engine, Id, IdentityKey, Rng,
 ///     aqc::{
-///         BidiAuthorSecret,
-///         BidiChannel,
-///         BidiPeerEncap,
-///         BidiPsk,
-///         BidiSecrets,
-///         BidiSecret,
+///         BidiAuthorSecret, BidiChannel, BidiPeerEncap, BidiPsk, BidiSecret, BidiSecrets,
 ///         CipherSuiteId,
 ///     },
-///     CipherSuite,
-///     Csprng,
-///     default::{
-///         DefaultCipherSuite,
-///         DefaultEngine,
-///     },
-///     Engine,
-///     Id,
-///     IdentityKey,
-///     EncryptionKey,
-///     Rng,
+///     default::{DefaultCipherSuite, DefaultEngine},
 ///     subtle::ConstantTimeEq,
 /// };
 ///
@@ -64,10 +50,14 @@ use crate::{
 /// let label = Id::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
+/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device1 ID should be valid");
 ///
 /// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device2 ID should be valid");
+/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device2 ID should be valid");
 ///
 /// // device1 creates the channel keys and sends the encapsulation
 /// // to device2...
@@ -76,12 +66,14 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &device1_sk,
 ///     our_id: device1_id,
-///     their_pk: &device2_sk.public().expect("receiver encryption public key should be valid"),
+///     their_pk: &device2_sk
+///         .public()
+///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device2_id,
 ///     label,
 /// };
-/// let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &device1_ch)
-///     .expect("unable to create `BidiSecrets`");
+/// let BidiSecrets { author, peer } =
+///     BidiSecrets::new(&mut eng, &device1_ch).expect("unable to create `BidiSecrets`");
 /// let device1_psk = BidiSecret::from_author_secret(&device1_ch, author)
 ///     .expect("unable to derive `BidiSecret` from author secrets")
 ///     .generate_psk(CipherSuiteId::TlsAes128GcmSha256)
@@ -94,7 +86,8 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
 ///     our_id: device2_id,
-///     their_pk: &device1_sk.public()
+///     their_pk: &device1_sk
+///         .public()
 ///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device1_id,
 ///     label,
@@ -105,7 +98,11 @@ use crate::{
 ///     .expect("unable to generate `BidiPsk`");
 ///
 /// assert_eq!(device1_psk.identity(), device2_psk.identity());
-/// assert!(bool::from(device1_psk.raw_secret_bytes().ct_eq(device2_psk.raw_secret_bytes())));
+/// assert!(bool::from(
+///     device1_psk
+///         .raw_secret_bytes()
+///         .ct_eq(device2_psk.raw_secret_bytes())
+/// ));
 /// # }
 /// ```
 pub struct BidiChannel<'a, CS: CipherSuite> {
@@ -449,6 +446,7 @@ impl<CS: CipherSuite> BidiPsk<CS> {
 }
 
 /// Uniquely identifies a [`BidiPsk`].
+#[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct BidiPskId {
     id: BidiChannelId,
