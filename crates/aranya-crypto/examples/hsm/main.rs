@@ -94,7 +94,7 @@ impl RawSecretWrap<Self> for HsmEngine {
     where
         T: UnwrappedKey<Self>,
     {
-        let id = (*id).into();
+        let id = *id.as_ref();
         let alg_id = secret.alg_id();
         let plaintext: RawSecretBytes<Self> = match secret {
             RawSecret::Aead(sk) => RawSecretBytes::Aead(sk.try_export_secret()?),
@@ -241,14 +241,16 @@ pub struct WrappedKeyId(KeyIdImpl);
 
 impl fmt::Display for WrappedKeyId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.into_id())
+        write!(f, "{}", self.as_ref())
     }
 }
 
-impl From<WrappedKeyId> for BaseId {
-    #[inline]
-    fn from(id: WrappedKeyId) -> Self {
-        id.0.into_id()
+impl AsRef<BaseId> for WrappedKeyId {
+    fn as_ref(&self) -> &BaseId {
+        match &self.0 {
+            KeyIdImpl::Internal(id) => id.as_ref(),
+            KeyIdImpl::External(id) => id,
+        }
     }
 }
 
@@ -256,15 +258,6 @@ impl From<WrappedKeyId> for BaseId {
 enum KeyIdImpl {
     Internal(KeyId),
     External(BaseId),
-}
-
-impl KeyIdImpl {
-    fn into_id(self) -> BaseId {
-        match self {
-            Self::Internal(id) => id.into(),
-            Self::External(id) => id,
-        }
-    }
 }
 
 impl From<HsmError> for SignerError {
