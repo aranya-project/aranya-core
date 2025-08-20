@@ -136,6 +136,10 @@ action init(nonce int, sign_pk bytes) {
 }
 
 command Init {
+    attributes {
+        init: true,
+    }
+
     fields {
         nonce int,
         sign_pk bytes,
@@ -193,6 +197,10 @@ action add_device_keys(ident_pk bytes, sign_pk bytes) {
 }
 
 command AddDeviceKeys {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         ident_pk bytes,
         sign_pk bytes,
@@ -264,6 +272,10 @@ action create_action(v int) {
 }
 
 command Create {
+    attributes {
+        priority: 0,
+    }
+
     // Local variables for command
     fields {
         key_a int,
@@ -289,6 +301,10 @@ action increment(v int) {
 }
 
 command Increment {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -317,6 +333,10 @@ action decrement(v int) {
 }
 
 command Decrement {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
