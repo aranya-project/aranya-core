@@ -51,9 +51,9 @@ impl Location {
     /// pointing to the previous command.
     #[must_use]
     pub fn previous(mut self) -> Option<Self> {
-        usize::checked_sub(self.command, 1).and_then(|n| {
+        usize::checked_sub(self.command, 1).map(|n| {
             self.command = n;
-            Some(self)
+            self
         })
     }
 

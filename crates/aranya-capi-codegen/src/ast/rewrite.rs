@@ -200,7 +200,7 @@ impl Ast {
     /// Rewrite idents in `#[doc = "..."]`s, among other things.
     #[instrument(skip_all)]
     pub(super) fn rewrite_docs(&mut self, ctx: &mut Ctx) {
-        fn rewrite_docs(ctx: &mut Ctx, docs: &mut Doc, ac: &AhoCorasick, idents: &IdentMap) {
+        fn rewrite_docs(ctx: &Ctx, docs: &mut Doc, ac: &AhoCorasick, idents: &IdentMap) {
             for doc in docs {
                 let old = doc.value();
                 let mut new = String::new();
@@ -241,7 +241,7 @@ impl Ast {
             .build(self.idents.old_values().map(|v| format!("[`{v}`]")))
             .unwrap();
 
-        fn rewrite_node(ctx: &mut Ctx, ac: &AhoCorasick, node: &mut Node, idents: &IdentMap) {
+        fn rewrite_node(ctx: &Ctx, ac: &AhoCorasick, node: &mut Node, idents: &IdentMap) {
             match node {
                 Node::Alias(a) => rewrite_docs(ctx, &mut a.doc, ac, idents),
                 Node::Enum(e) => rewrite_docs(ctx, &mut e.doc, ac, idents),

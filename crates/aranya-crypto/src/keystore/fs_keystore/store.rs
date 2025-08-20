@@ -53,12 +53,13 @@ impl Store {
                 // depending on whether its `std` feature is
                 // enabled, so we have to handle both cases.
                 let raw = &err.raw_os_error() as &dyn Any;
-                let err = if let Some(raw) = raw.downcast_ref::<i32>() {
-                    Some(*raw)
-                } else {
-                    raw.downcast_ref::<Option<i32>>().copied().flatten()
-                }
-                .assume("should have a raw OS error")?;
+                let err = raw
+                    .downcast_ref::<i32>()
+                    .map_or_else(
+                        || raw.downcast_ref::<Option<i32>>().copied().flatten(),
+                        |raw| Some(*raw),
+                    )
+                    .assume("should have a raw OS error")?;
                 return Err(Errno::from_raw_os_error(err).into());
             }
         };

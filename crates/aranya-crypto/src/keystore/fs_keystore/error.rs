@@ -6,6 +6,7 @@ use rustix::io::Errno;
 
 use crate::keystore::{self, ErrorKind};
 
+/// Error thrown if we run out of data in a keystore entry.
 #[derive(Copy, Clone, Debug, thiserror::Error)]
 #[error("unexpected EOF")]
 pub struct UnexpectedEof;
@@ -109,6 +110,7 @@ enum Repr {
 
 impl Repr {
     fn new(err: &dyn core::any::Any) -> Self {
+        #[allow(clippy::option_if_let_else)]
         if let Some(err) = err.downcast_ref::<UnexpectedEof>() {
             Self::UnexpectedEof(*err)
         } else if let Some(err) = err.downcast_ref::<Errno>() {

@@ -132,17 +132,12 @@ impl CodeMap {
 
     /// Retrieve the [Span] from the given locator
     pub fn span_from_locator(&self, locator: usize) -> Result<Span<'_>, RangeError> {
-        match self.ranges.binary_search_by(|(s, _)| s.cmp(&locator)) {
-            Ok(idx) => {
+        self.ranges
+            .binary_search_by(|(s, _)| s.cmp(&locator))
+            .map_or(Err(RangeError), |idx| {
                 let (start, end) = self.ranges[idx];
-                if let Some(span) = Span::new(&self.text, start, end) {
-                    Ok(span)
-                } else {
-                    Err(RangeError)
-                }
-            }
-            Err(_) => Err(RangeError),
-        }
+                Span::new(&self.text, start, end).ok_or(RangeError)
+            })
     }
 
     /// Retrieve the locator for the given instruction pointer

@@ -516,7 +516,7 @@ impl Parse for FfiAttr {
 
         let module = module
             .get()
-            .ok_or(Error::new(input.span(), "missing `{MODULE}` argument"))?;
+            .ok_or_else(|| Error::new(input.span(), "missing `{MODULE}` argument"))?;
         Ok(Self {
             module,
             structs: struct_defs.get().unwrap_or_default(),
@@ -577,7 +577,7 @@ impl FfiExportAttr {
 
         let def = def
             .get()
-            .ok_or(Error::new(span, "missing `def` argument in attribute"))?;
+            .ok_or_else(|| Error::new(span, "missing `def` argument in attribute"))?;
 
         Ok(Some(Self { def }))
     }

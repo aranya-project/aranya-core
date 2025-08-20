@@ -1176,11 +1176,7 @@ impl FnArg {
             ));
         };
 
-        let attrs = attrs::parse(
-            ctx,
-            attrs,
-            Default::default(),
-        );
+        let attrs = attrs::parse(ctx, attrs, Default::default());
 
         // TODO(eric): What about mut, ref, etc?
         let Pat::Ident(PatIdent { ident, .. }) = *pat else {
@@ -1332,10 +1328,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        match &self.0 {
-            Some(v) => v.size_hint(),
-            None => (0, Some(0)),
-        }
+        self.0.as_ref().map_or((0, Some(0)), |v| v.size_hint())
     }
 }
 
@@ -1347,10 +1340,7 @@ impl<T> DoubleEndedIterator for IterMut<'_, T> {
 
 impl<T> ExactSizeIterator for IterMut<'_, T> {
     fn len(&self) -> usize {
-        match self.0.as_ref() {
-            Some(v) => v.len(),
-            None => 0,
-        }
+        self.0.as_ref().map_or(0, |v| v.len())
     }
 }
 

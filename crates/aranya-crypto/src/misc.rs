@@ -394,7 +394,7 @@ macro_rules! sk_misc {
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
                         let id = $crate::id::Id::new::<CS>(
                             ::core::borrow::Borrow::borrow(&pk),
-                            b"AQC Uni Author Secret",
+                            $context.as_bytes(),
                         );
                         Ok($id(id))
                     })

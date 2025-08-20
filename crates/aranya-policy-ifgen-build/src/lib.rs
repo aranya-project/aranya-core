@@ -19,7 +19,8 @@ pub fn generate(input: impl AsRef<Path>, output: impl AsRef<Path>) -> Result<()>
 }
 
 fn generate_(input: &Path, output: &Path) -> Result<()> {
-    let policy_source = fs::read_to_string(input).with_context(|| format!("reading {}", input.display()))?;
+    let policy_source =
+        fs::read_to_string(input).with_context(|| format!("reading {}", input.display()))?;
     let policy_ast = parse_policy_document(&policy_source)?;
     let target = Compiler::new(&policy_ast)
         .debug(true)

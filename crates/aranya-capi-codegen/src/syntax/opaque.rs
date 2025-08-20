@@ -67,14 +67,12 @@ impl Opaque {
             }
         }
 
-        let size = size.get().ok_or(Error::new(
-            input.span(),
-            format!("missing `{SIZE}` argument"),
-        ))?;
-        let align = align.get().ok_or(Error::new(
-            input.span(),
-            format!("missing `{ALIGN}` argument"),
-        ))?;
+        let size = size
+            .get()
+            .ok_or_else(|| Error::new(input.span(), format!("missing `{SIZE}` argument")))?;
+        let align = align
+            .get()
+            .ok_or_else(|| Error::new(input.span(), format!("missing `{ALIGN}` argument")))?;
         let capi = capi.get().or_else(|| ctx.map(|ctx| ctx.capi.clone()));
         let generated = generated.get().is_some_and(|a| a.value);
         Ok(Self {

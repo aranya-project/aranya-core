@@ -158,7 +158,7 @@ where
             )
             .expect("should be able to encrypt message");
         let got = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &eng, Id::default(), ciphertext, wrapped, pk)
             .expect("should be able to decrypt message");
         assert_eq!(got, WANT);
     }
@@ -206,7 +206,7 @@ where
         ciphertext[0] = ciphertext[0].wrapping_add(1);
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt tampered with message");
         assert_eq!(err.kind(), ErrorKind::Crypto);
 
@@ -262,7 +262,7 @@ where
             version: Id::default(),
         });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different command name",
             );
@@ -314,7 +314,7 @@ where
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different parent command ID",
             );
@@ -369,7 +369,7 @@ where
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(

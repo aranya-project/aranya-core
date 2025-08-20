@@ -257,7 +257,7 @@ function decrypt_message(
     pub(crate) fn decrypt_message<E: Engine>(
         &self,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         parent_id: Id,
         ciphertext: Vec<u8>,
         wrapped_group_key: Vec<u8>,

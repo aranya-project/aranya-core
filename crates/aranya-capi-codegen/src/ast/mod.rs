@@ -165,7 +165,7 @@ impl Ast {
     }
 
     /// Finds new identifiers.
-    fn find_new_idents(&mut self, ctx: &mut Ctx) {
+    fn find_new_idents(&mut self, ctx: &Ctx) {
         for node in &self.nodes {
             let (old, new) = match node {
                 n @ (Node::Alias(_) | Node::Enum(_) | Node::Struct(_) | Node::Union(_)) => {
@@ -192,7 +192,7 @@ impl Ast {
 }
 
 /// Collects all top-level identifiers.
-fn collect_idents(ctx: &mut Ctx, nodes: &[Node]) -> IdentMap {
+fn collect_idents(ctx: &Ctx, nodes: &[Node]) -> IdentMap {
     let idents = nodes
         .iter()
         .filter_map(|node| match node {

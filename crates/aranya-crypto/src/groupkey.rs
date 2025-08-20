@@ -157,9 +157,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
             let required = self
                 .overhead()
                 .checked_add(plaintext.len())
-                .ok_or(Error::Bug(Bug::new(
-                    "overhead + plaintext length must not wrap",
-                )))?;
+                .ok_or_else(|| Error::Bug(Bug::new("overhead + plaintext length must not wrap")))?;
             return Err(Error::Seal(SealError::BufferTooSmall(BufferTooSmallError(
                 Some(required),
             ))));

@@ -1741,7 +1741,7 @@ mod tests {
             (parse_quote!(Result<i128, E>), result!(scalar!(I128), E())),
             (parse_quote!(Result<isize, E>), result!(scalar!(Isize), E())),
         ];
-        let mut ctx = Ctx {
+        let ctx = Ctx {
             capi: parse_quote!(aranya_capi_core),
             conv: parse_quote!(aranya_capi_core::internal::conv),
             util: parse_quote!(aranya_capi_core::internal::util),

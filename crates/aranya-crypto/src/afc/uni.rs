@@ -157,7 +157,7 @@ pub struct UniChannel<'a, CS: CipherSuite> {
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
-    pub(crate) const fn info(&self) -> Info {
+    pub(crate) const fn info(&self) -> UniInfo {
         // info = concat(
         //     "AfcUniKey-v1",
         //     parent_cmd_id,
@@ -165,7 +165,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     open_id,
         //     i2osp(label, 4),
         // )
-        Info {
+        UniInfo {
             domain: *b"AfcUniKey-v1",
             parent_cmd_id: self.parent_cmd_id,
             seal_id: self.seal_id,
@@ -175,9 +175,10 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
     }
 }
 
+/// A unidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct Info {
+pub struct UniInfo {
     domain: [u8; 12],
     parent_cmd_id: Id,
     seal_id: DeviceId,
@@ -191,7 +192,7 @@ pub struct UniAuthorSecret<CS: CipherSuite> {
     id: OnceCell<Result<UniAuthorSecretId, IdError>>,
 }
 
-sk_misc!(UniAuthorSecret, UniAuthorSecretId, "AFC Uni Author Secret");
+sk_misc!(UniAuthorSecret, UniAuthorSecretId, b"AFC Uni Author Secret");
 
 unwrapped! {
     name: UniAuthorSecret;

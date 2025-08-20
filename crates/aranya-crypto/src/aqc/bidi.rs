@@ -131,7 +131,7 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
     /// The author's `info` parameter.
-    pub(crate) const fn author_info(&self) -> Info {
+    pub(crate) const fn author_info(&self) -> BidiInfo {
         // info = concat(
         //     "AqcBidiPsk-v1",
         //     iso2p(psk_length_in_bytes, 2),
@@ -140,7 +140,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         //     peer_id,
         //     label_id,
         // )
-        Info {
+        BidiInfo {
             domain: *b"AqcBidiPsk-v1",
             psk_length_in_bytes: U16::new(self.psk_length_in_bytes),
             parent_cmd_id: self.parent_cmd_id,
@@ -151,11 +151,11 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
     }
 
     /// The peer's `info` parameter.
-    pub(crate) const fn peer_info(&self) -> Info {
+    pub(crate) const fn peer_info(&self) -> BidiInfo {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        Info {
+        BidiInfo {
             domain: *b"AqcBidiPsk-v1",
             psk_length_in_bytes: U16::new(self.psk_length_in_bytes),
             parent_cmd_id: self.parent_cmd_id,
@@ -166,9 +166,10 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
     }
 }
 
+/// A bidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct Info {
+pub struct BidiInfo {
     /// Always "AqcBidiPsk-v1".
     domain: [u8; 13],
     psk_length_in_bytes: U16<BE>,
@@ -187,7 +188,7 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
 sk_misc!(
     BidiAuthorSecret,
     BidiAuthorSecretId,
-    "AQC Bidi Author Secret"
+    b"AQC Bidi Author Secret"
 );
 
 unwrapped! {

@@ -168,7 +168,7 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
     /// The author's `info` parameter.
-    pub(crate) const fn author_info(&self) -> Info {
+    pub(crate) const fn author_info(&self) -> BidiInfo {
         // info = concat(
         //     "AfcBidiKeys-v1",
         //     parent_cmd_id,
@@ -176,7 +176,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         //     our_id,
         //     i2osp(label, 4),
         // )
-        Info {
+        BidiInfo {
             domain: *b"AfcBidiKeys-v1",
             parent_cmd_id: self.parent_cmd_id,
             their_id: self.their_id,
@@ -186,11 +186,11 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
     }
 
     /// The peer's `info` parameter.
-    pub(crate) const fn peer_info(&self) -> Info {
+    pub(crate) const fn peer_info(&self) -> BidiInfo {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        Info {
+        BidiInfo {
             domain: *b"AfcBidiKeys-v1",
             parent_cmd_id: self.parent_cmd_id,
             their_id: self.our_id,
@@ -200,9 +200,10 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
     }
 }
 
+/// A bidirectional channel author's info.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
-pub struct Info {
+pub struct BidiInfo {
     domain: [u8; 14],
     parent_cmd_id: Id,
     their_id: DeviceId,
@@ -219,7 +220,7 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
 sk_misc!(
     BidiAuthorSecret,
     BidiAuthorSecretId,
-    "AFC Bidi Author Secret"
+    b"AFC Bidi Author Secret"
 );
 
 unwrapped! {

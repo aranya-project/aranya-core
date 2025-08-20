@@ -113,7 +113,7 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<(), ClientError> {
-        trx.commit(&mut self.provider, &mut self.engine, sink)?;
+        trx.commit(&mut self.provider, &self.engine, sink)?;
         Ok(())
     }
 

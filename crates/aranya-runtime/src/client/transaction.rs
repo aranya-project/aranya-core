@@ -599,7 +599,7 @@ mod test {
             // We don't actually need any policy bytes, but the
             // transaction/storage requires it on init commands.
             match self.prior {
-                Prior::None { .. } => Some(b""),
+                Prior::None => Some(b""),
                 _ => None,
             }
         }
@@ -753,7 +753,7 @@ mod test {
         pub fn commit(&mut self) -> Result<(), ClientError> {
             self.trx.commit(
                 &mut self.client.provider,
-                &mut self.client.engine,
+                &self.client.engine,
                 &mut NullSink,
             )
         }

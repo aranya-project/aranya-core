@@ -24,7 +24,7 @@ use crate::{
 
 impl Ast {
     /// An AST pass that expands nodes.
-    pub(super) fn expand_nodes(&mut self, ctx: &mut Ctx) {
+    pub(super) fn expand_nodes(&mut self, ctx: &Ctx) {
         for node in mem::take(&mut self.nodes) {
             if let Err(err) = self.expand_node(ctx, node) {
                 ctx.push(err);
@@ -299,9 +299,7 @@ impl Ast {
         });
 
         // TODO: Migrate error type handling to new format.
-        if is_error {
-            self.add_node(enum_);
-        } else {
+        if !is_error {
             // TODO: Derives proper?
             let wrapper: ItemStruct = parse_quote! {
                 #[cfg(not(cbindgen))]
@@ -312,8 +310,8 @@ impl Ast {
             self.add_node::<ItemStruct>(wrapper);
 
             enum_.attrs.insert(0, parse_quote! { #[cfg(cbindgen)] });
-            self.add_node(enum_);
         }
+        self.add_node(enum_);
 
         Ok(())
     }
@@ -805,13 +803,9 @@ impl Ast {
             Some({
                 let ext_err_ty = &ctx.ext_err_ty;
                 // TODO
-                let _underlying_ext_err_ty = {
-                    if let Some(ident) = ext_err_ty.get_ident() {
-                        quote!(self::#ident)
-                    } else {
-                        quote!(#ext_err_ty)
-                    }
-                };
+                let _underlying_ext_err_ty = ext_err_ty
+                    .get_ident()
+                    .map_or_else(|| quote!(#ext_err_ty), |ident| quote!(self::#ident));
                 let ext_err = format_ident!("__ext_err");
                 let name = f.sig.ident.with_prefix(&ctx.fn_prefix).with_suffix("_ext");
 

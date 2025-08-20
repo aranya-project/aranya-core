@@ -382,17 +382,10 @@ where
             .as_ref()?
             .span_from_instruction(self.pc)
             .ok();
-        if let Some(span) = source_span {
+        source_span.map(|span| {
             let (row, col) = span.start_linecol();
-            Some(alloc::format!(
-                "at row {} col {}:\n\t{}",
-                row,
-                col,
-                span.as_str()
-            ))
-        } else {
-            None
-        }
+            alloc::format!("at row {row} col {col}:\n\t{}", span.as_str())
+        })
     }
 
     /// Internal function to produce a MachineError with location

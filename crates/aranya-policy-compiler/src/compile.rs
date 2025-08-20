@@ -391,7 +391,7 @@ impl<'a> CompileState<'a> {
         for ref mut instr in &mut self.m.progmem {
             match instr {
                 Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
-                    Self::resolve_target(t, &mut self.m.labels)?;
+                    Self::resolve_target(t, &self.m.labels)?;
                 }
                 _ => (),
             }
@@ -1824,7 +1824,9 @@ impl<'a> CompileState<'a> {
             .try_map(|nty| match nty {
                 NullableVType::Type(VType::Optional(t)) => Ok(NullableVType::Type(*t)),
                 NullableVType::Null => Err(TypeError::new("Cannot unwrap None")),
-                NullableVType::Type(_) => Err(TypeError::new("Cannot unwrap non-option expression")),
+                NullableVType::Type(_) => {
+                    Err(TypeError::new("Cannot unwrap non-option expression"))
+                }
             })
             .map_err(|err| self.err(err.into()))
     }

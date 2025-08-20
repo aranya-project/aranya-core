@@ -445,7 +445,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &PeerCache,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,

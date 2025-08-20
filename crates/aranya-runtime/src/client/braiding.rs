@@ -87,7 +87,7 @@ pub(super) fn last_common_ancestor<S: Storage>(
 
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
 pub(super) fn braid<S: Storage>(
-    storage: &mut S,
+    storage: &S,
     left: Location,
     right: Location,
 ) -> Result<Vec<Location>, ClientError> {

@@ -110,7 +110,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -118,7 +118,7 @@ where
         let got = ffi
             .verify(
                 &Self::OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command.clone(),
@@ -157,7 +157,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -172,7 +172,7 @@ where
         // could be a failure because `sig` is malformed.
         ffi.verify(
             &Self::OPEN_CTX,
-            &mut eng,
+            &eng,
             pk,
             Id::default(),
             command,
@@ -210,7 +210,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -223,7 +223,7 @@ where
         let err = ffi
             .verify(
                 &Self::OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -275,7 +275,7 @@ where
         } = ffi
             .sign(
                 &SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -284,7 +284,7 @@ where
         let err = ffi
             .verify(
                 &OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -332,7 +332,7 @@ where
         } = ffi
             .sign(
                 &seal_ctx,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -344,7 +344,7 @@ where
         let err = ffi
             .verify(
                 &open_ctx,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -391,7 +391,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -399,7 +399,7 @@ where
         let err = ffi
             .verify(
                 &Self::OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -459,7 +459,7 @@ where
             let err = ffi
                 .sign(
                     ctx,
-                    &mut eng,
+                    &eng,
                     sk.id().expect("signing key ID should be valid").into_id(),
                     command.clone(),
                 )
@@ -497,7 +497,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -528,7 +528,7 @@ where
             let err = ffi
                 .verify(
                     ctx,
-                    &mut eng,
+                    &eng,
                     pk.clone(),
                     Id::default(),
                     command.clone(),

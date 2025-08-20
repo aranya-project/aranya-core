@@ -26,14 +26,8 @@ impl Expression {
     /// Is this a literal expression?
     pub fn is_literal(&self) -> bool {
         match self {
-            Self::Int(_)
-            | Self::String(_)
-            | Self::Bool(_)
-            | Self::EnumReference(_) => true,
-            Self::Optional(o) => match o {
-                Some(e) => e.is_literal(),
-                None => true,
-            },
+            Self::Int(_) | Self::String(_) | Self::Bool(_) | Self::EnumReference(_) => true,
+            Self::Optional(o) => o.as_ref().is_none_or(|e| e.is_literal()),
             Self::NamedStruct(s) => s.fields.iter().all(|(_, e)| e.is_literal()),
             _ => false,
         }

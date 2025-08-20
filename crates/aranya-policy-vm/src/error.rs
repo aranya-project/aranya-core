@@ -123,9 +123,7 @@ impl From<ValueConversionError> for MachineErrorType {
             ValueConversionError::InvalidType { want, got, msg } => {
                 Self::InvalidType { want, got, msg }
             }
-            ValueConversionError::InvalidStructMember(s) => {
-                Self::InvalidStructMember(s)
-            }
+            ValueConversionError::InvalidStructMember(s) => Self::InvalidStructMember(s),
             ValueConversionError::OutOfRange => Self::InvalidType {
                 want: "Int".to_owned(),
                 got: "Int".to_owned(),

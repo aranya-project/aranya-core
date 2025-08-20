@@ -379,6 +379,7 @@ where
                             let mut sink = self.sink.lock().await;
                             client.add_commands(&mut trx, &mut *sink, &cmds)?;
                             client.commit(&mut trx, &mut *sink)?;
+                            drop(sink);
                             let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
                                 cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
                             client.update_heads(storage_id, addresses, response_cache)?;

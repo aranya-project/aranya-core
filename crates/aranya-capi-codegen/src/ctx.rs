@@ -57,7 +57,7 @@ impl Ctx {
 
     /// Combines the errors, returning `Ok` if there are none or
     /// `Err` otherwise.
-    pub fn propagate(&mut self) -> Result<()> {
+    pub fn propagate(&self) -> Result<()> {
         self.errs.borrow_mut().propagate()
     }
 }
@@ -85,15 +85,12 @@ impl Errors {
     /// `Err` otherwise.
     fn propagate(&mut self) -> Result<()> {
         let mut iter = self.0.drain(..);
-        match iter.next() {
-            Some(mut all) => {
-                for err in iter {
-                    all.combine(err);
-                }
-                Err(all)
+        iter.next().map_or(Ok(()), |mut all| {
+            for err in iter {
+                all.combine(err);
             }
-            None => Ok(()),
-        }
+            Err(all)
+        })
     }
 
     #[cfg(test)]
