@@ -122,7 +122,7 @@ use core::{borrow::Borrow, cell::RefCell, fmt};
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, PolicyContext, RunState, Stack, Struct, Value,
-    ast::{Identifier, Persistence},
+    ast::{self, Identifier},
 };
 use buggy::{BugExt, bug};
 use spin::Mutex;
@@ -230,10 +230,10 @@ fn get_command_priorities(
     for (name, def) in &machine.command_defs {
         let attrs = PriorityAttrs::load(name.as_str(), def)?;
         match def.persistence {
-            Persistence::Persistent => {
+            ast::Persistence::Persistent => {
                 priority_map.insert(name.clone(), get_command_priority(name, &attrs)?);
             }
-            Persistence::Ephemeral => {
+            ast::Persistence::Ephemeral => {
                 if attrs != PriorityAttrs::default() {
                     return Err(AttributeError(
                         "ephemeral command must not have priority".into(),
@@ -664,25 +664,13 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<(), EngineError> {
         let VmAction { name, args } = action;
 
-        {
-            use aranya_policy_vm::ast::Persistence as P2;
+        let def = self
+            .machine
+            .action_defs
+            .get(&name)
+            .ok_or(EngineError::InternalError)?;
 
-            use crate::Persistence as P1;
-
-            let actual = self
-                .machine
-                .action_defs
-                .get(&name)
-                .ok_or(EngineError::InternalError)?
-                .persistence;
-            match (persistence, actual) {
-                (P1::Persistent, P2::Persistent) | (P1::Ephemeral, P2::Ephemeral) => {}
-                _ => {
-                    error!("expected {name} to be {persistence} but it was {actual}");
-                    return Err(EngineError::InternalError);
-                }
-            }
-        }
+        match_persistence(name.as_str(), persistence, def.persistence)?;
 
         let parent = match facts.head_address()? {
             Prior::None => None,
@@ -878,9 +866,9 @@ impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
 fn match_persistence(
     name: &str,
     expected: crate::Persistence,
-    actual: aranya_policy_vm::ast::Persistence,
+    actual: ast::Persistence,
 ) -> Result<(), EngineError> {
-    use aranya_policy_vm::ast::Persistence as P2;
+    use ast::Persistence as P2;
 
     use crate::Persistence as P1;
 
