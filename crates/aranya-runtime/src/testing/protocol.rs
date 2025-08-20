@@ -8,7 +8,8 @@ use tracing::{error, trace};
 
 use crate::{
     Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
+    MAX_COMMAND_LENGTH, MergeIds, Persistence, Perspective, Policy, PolicyId, Prior, Priority,
+    Sink, alloc,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -275,6 +276,7 @@ impl Policy for TestPolicy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
+        _persistence: Persistence,
         _recall: CommandRecall,
     ) -> Result<(), EngineError> {
         let policy_command: WireProtocol = postcard::from_bytes(command.bytes())
@@ -301,7 +303,7 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        _persistence: crate::Persistence,
+        _persistence: Persistence,
     ) -> Result<(), EngineError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {

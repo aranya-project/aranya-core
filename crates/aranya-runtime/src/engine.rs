@@ -147,6 +147,7 @@ pub trait Policy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence: Persistence,
         recall: CommandRecall,
     ) -> Result<(), EngineError>;
 
