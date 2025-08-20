@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.11.0...aranya-runtime-v0.12.0) - 2025-08-19
+
+### Other
+
+- update `yoke@0.8.0` ([#325](https://github.com/aranya-project/aranya-core/pull/325))
+- fix syncing with multiple messages ([#345](https://github.com/aranya-project/aranya-core/pull/345))
+- Format code in doc comments ([#341](https://github.com/aranya-project/aranya-core/pull/341))
+- remove unused method `MachineIO::publish` ([#367](https://github.com/aranya-project/aranya-core/pull/367))
+- improve type checking of None and Indeterminate ([#321](https://github.com/aranya-project/aranya-core/pull/321))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.10.0...aranya-runtime-v0.11.0) - 2025-06-18
 
 ### Other

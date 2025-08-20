@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.8.0...aranya-crypto-v0.9.0) - 2025-08-19
+
+### Other
+
+- Format code in doc comments ([#341](https://github.com/aranya-project/aranya-core/pull/341))
+- improve keystore typed ID usage ([#361](https://github.com/aranya-project/aranya-core/pull/361))
+- impl `Display` for keystore error kind ([#346](https://github.com/aranya-project/aranya-core/pull/346))
+- make PSK IDs `repr(C)` ([#353](https://github.com/aranya-project/aranya-core/pull/353))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+- do not use `stringify!(...)` as context for generating IDs ([#307](https://github.com/aranya-project/aranya-core/pull/307))
+
 ## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.1...aranya-crypto-v0.8.0) - 2025-06-18
 
 ### Other

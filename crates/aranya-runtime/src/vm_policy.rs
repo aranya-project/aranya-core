@@ -553,6 +553,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence: crate::Persistence,
         recall: CommandRecall,
     ) -> Result<(), EngineError> {
         let unpacked: VmProtocolData<'_> = postcard::from_bytes(command.bytes()).map_err(|e| {
@@ -630,6 +631,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         }
 
         if let Some((envelope, kind, author_id)) = command_info {
+            let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
+                error!("unknown command {kind}");
+                EngineError::InternalError
+            })?;
+            match_persistence(kind.as_str(), persistence, def.persistence)?;
+
             let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
             let fields: Vec<KVPair> = command_struct
                 .fields
@@ -658,9 +665,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let VmAction { name, args } = action;
 
         {
-            use aranya_policy_module::ast::Persistence as P2;
+            use aranya_policy_vm::ast::Persistence as P2;
 
             use crate::Persistence as P1;
+
             let actual = self
                 .machine
                 .action_defs
@@ -783,6 +791,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             &new_command,
                             *RefCell::borrow_mut(Rc::borrow(&facts)),
                             *RefCell::borrow_mut(Rc::borrow(&sink)),
+                            persistence,
                             CommandRecall::None,
                         )?;
                         RefCell::borrow_mut(Rc::borrow(&facts))
@@ -863,6 +872,24 @@ struct DebugViaDisplay<T>(T);
 impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+fn match_persistence(
+    name: &str,
+    expected: crate::Persistence,
+    actual: aranya_policy_vm::ast::Persistence,
+) -> Result<(), EngineError> {
+    use aranya_policy_vm::ast::Persistence as P2;
+
+    use crate::Persistence as P1;
+
+    match (expected, actual) {
+        (P1::Persistent, P2::Persistent) | (P1::Ephemeral, P2::Ephemeral) => Ok(()),
+        _ => {
+            error!("expected {name} to be {expected} but it is defined as {actual}");
+            Err(EngineError::InternalError)
+        }
     }
 }
 
