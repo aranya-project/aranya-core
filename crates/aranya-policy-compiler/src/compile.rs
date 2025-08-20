@@ -32,7 +32,7 @@ use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
-use crate::compile::types::NullableVType;
+use crate::{compile::types::NullableVType, target::ActionDef};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -1834,7 +1834,10 @@ impl<'a> CompileState<'a> {
 
         match self.m.action_defs.entry(action_node.identifier.clone()) {
             Entry::Vacant(e) => {
-                e.insert(action_node.arguments.clone());
+                e.insert(ActionDef {
+                    persistence: action_node.persistence,
+                    params: action_node.arguments.clone(),
+                });
             }
             Entry::Occupied(_) => {
                 return Err(self.err(CompileErrorType::AlreadyDefined(

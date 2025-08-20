@@ -2,14 +2,17 @@
 #![allow(clippy::duplicated_attributes)]
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
+#![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
-    macros::{actions, effect, effects, value},
+    macros::{action, actions, effect, effects, value},
     ClientError, Id, Value, Text,
 };
+pub struct Persistent;
+pub struct Ephemeral;
 /// Players policy struct.
 #[value]
 pub struct Players {
@@ -51,9 +54,30 @@ pub struct GameUpdate {
     pub X: i64,
     pub Y: i64,
 }
-/// Implements all supported policy actions.
-#[actions]
-pub trait ActorExt {
-    fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
-    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
+#[actions(interface = Persistent)]
+pub enum PersistentAction {
+    MakeMove(MakeMove),
+    StartGame(StartGame),
+}
+#[actions(interface = Ephemeral)]
+pub enum EphemeralAction {
+    Temporary(Temporary),
+}
+/// MakeMove policy action.
+#[action(interface = Persistent)]
+pub struct MakeMove {
+    pub gameID: Id,
+    pub x: i64,
+    pub y: i64,
+}
+/// StartGame policy action.
+#[action(interface = Persistent)]
+pub struct StartGame {
+    pub players: Players,
+}
+/// Temporary policy action.
+#[action(interface = Ephemeral)]
+pub struct Temporary {
+    pub n: i64,
+    pub s: Text,
 }
