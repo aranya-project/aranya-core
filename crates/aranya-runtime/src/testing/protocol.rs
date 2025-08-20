@@ -301,6 +301,7 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        _persistence: crate::Persistence,
     ) -> Result<(), EngineError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {

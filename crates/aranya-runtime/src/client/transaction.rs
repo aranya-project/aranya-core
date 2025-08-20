@@ -521,6 +521,7 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
+            _persistence: crate::Persistence,
         ) -> Result<(), EngineError> {
             unimplemented!()
         }

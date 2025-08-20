@@ -592,8 +592,28 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence: crate::Persistence,
     ) -> Result<(), EngineError> {
         let VmAction { name, args } = action;
+
+        {
+            use aranya_policy_module::ast::Persistence as P2;
+
+            use crate::Persistence as P1;
+            let actual = self
+                .machine
+                .action_defs
+                .get(&name)
+                .ok_or(EngineError::InternalError)?
+                .persistence;
+            match (persistence, actual) {
+                (P1::Persistent, P2::Persistent) | (P1::Ephemeral, P2::Ephemeral) => {}
+                _ => {
+                    error!("expected {name} to be {persistence} but it was {actual}");
+                    return Err(EngineError::InternalError);
+                }
+            }
+        }
 
         let parent = match facts.head_address()? {
             Prior::None => None,

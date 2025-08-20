@@ -3,6 +3,8 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+use core::fmt;
+
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
@@ -156,6 +158,7 @@ pub trait Policy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence: Persistence,
     ) -> Result<(), EngineError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -165,4 +168,19 @@ pub trait Policy {
         target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, EngineError>;
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum Persistence {
+    Persistent,
+    Ephemeral,
+}
+
+impl fmt::Display for Persistence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Persistent => "persistent",
+            Self::Ephemeral => "ephemeral",
+        })
+    }
 }

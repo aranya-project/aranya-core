@@ -99,7 +99,12 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         effect_sink.begin();
 
         // Try to perform action.
-        match policy.call_action(action, &mut perspective, effect_sink) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            effect_sink,
+            crate::Persistence::Ephemeral,
+        ) {
             Ok(_) => {
                 // Success, commit effects
                 effect_sink.commit();
