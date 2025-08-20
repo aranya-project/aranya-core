@@ -446,6 +446,13 @@ impl<'a> CompileState<'a> {
 
         let s = self.evaluate_sources(s, &struct_def)?;
 
+        // Check for duplicate fields in the struct literal
+        if let Some(duplicate_field) = find_duplicate(&s.fields, |(name, _)| name) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(
+                duplicate_field.to_string(),
+            )));
+        }
+
         self.append_instruction(Instruction::StructNew(s.identifier.name.clone()));
         for (field_name, e) in &s.fields {
             let def_field_type = &struct_def
