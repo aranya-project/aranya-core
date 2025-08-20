@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.11.0...aranya-policy-compiler-v0.12.0) - 2025-08-19
+
+### Other
+
+- limit key wildcards ([#375](https://github.com/aranya-project/aranya-core/pull/375))
+- Check for duplicate identifiers in current scope ([#348](https://github.com/aranya-project/aranya-core/pull/348))
+- Close #193: Allow a struct to be cast to another struct with the same schema ([#261](https://github.com/aranya-project/aranya-core/pull/261))
+- Add struct composition ([#116](https://github.com/aranya-project/aranya-core/pull/116))
+- remove `Typeish::Probably` and use `Never` type ([#347](https://github.com/aranya-project/aranya-core/pull/347))
+- short circuit for boolean operators ([#349](https://github.com/aranya-project/aranya-core/pull/349))
+- Add ActionAnalyzer ([#352](https://github.com/aranya-project/aranya-core/pull/352))
+- Add `ephemeral` keyword to actions and commands and enforce ephemeral/persistent rules at compile time. ([#338](https://github.com/aranya-project/aranya-core/pull/338))
+- improve type checking of None and Indeterminate ([#321](https://github.com/aranya-project/aranya-core/pull/321))
+- permit function use before definition ([#337](https://github.com/aranya-project/aranya-core/pull/337))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+- determine type for command serialization and deserialization ([#323](https://github.com/aranya-project/aranya-core/pull/323))
+- use compile target to handle struct composition ([#235](https://github.com/aranya-project/aranya-core/pull/235))
+- Close #186: Implement struct field insertion. ([#192](https://github.com/aranya-project/aranya-core/pull/192))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.10.0...aranya-policy-compiler-v0.11.0) - 2025-06-18
 
 ### Other
