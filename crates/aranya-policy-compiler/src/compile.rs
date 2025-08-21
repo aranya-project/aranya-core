@@ -4,7 +4,7 @@ mod types;
 
 use std::{
     borrow::Cow,
-    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -12,17 +12,17 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
-    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
+    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
     MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned, Statement, StmtKind,
-    StructItem, TypeKind, VType,
+    StructItem, TypeKind, VType, ident,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
-    Target, Value,
+    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
+    ffi::ModuleSchema,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{bug, Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -523,13 +523,7 @@ impl<'a> CompileState<'a> {
         }
 
         match &fact.value_fields {
-            Some(values) => self.verify_fact_values(
-                &values
-                    .iter()
-                    .map(|(i, v)| (i.name.clone(), v.clone()))
-                    .collect::<Vec<_>>(),
-                fact_def,
-            )?,
+            Some(values) => self.verify_fact_values(&values, fact_def)?,
             None => {
                 if require_value {
                     return Err(self.err(CompileErrorType::InvalidFactLiteral(
@@ -544,7 +538,7 @@ impl<'a> CompileState<'a> {
 
     fn verify_fact_values(
         &self,
-        values: &[(Identifier, FactField)],
+        values: &[(Ident, FactField)],
         fact_def: &FactDefinition,
     ) -> Result<(), CompileError> {
         // value block must have the same number of values as the schema
@@ -558,7 +552,7 @@ impl<'a> CompileState<'a> {
 
         // Ensure values exist in schema, and have matching types
         for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
-            if lit_value.0 != schema_value.identifier.name.as_str() {
+            if lit_value.0.name != schema_value.identifier.name {
                 return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
                     "Expected value {}, got {}",
                     schema_value.identifier, lit_value.0
@@ -1115,7 +1109,9 @@ impl<'a> CompileState<'a> {
 
                         // Check that both structs have the same field names and types (though not necessarily in the same order)
                         if lhs_fields.len() != rhs_fields.len()
-                            || !lhs_fields.iter().all(|f| rhs_fields.contains(f))
+                            || !lhs_fields
+                                .iter()
+                                .all(|f| rhs_fields.iter().any(|v| f.matches(v)))
                         {
                             return Err(self.err(CompileErrorType::InvalidCast(
                                 lhs_struct_name.name,
@@ -1554,10 +1550,10 @@ impl<'a> CompileState<'a> {
                                     .policy
                                     .commands
                                     .iter()
-                                    .find(|c| c.identifier == *ident)
+                                    .find(|c| c.identifier.name == ident.name)
                                     .assume("command must be defined")?
                                     .persistence;
-                                if &action.persistence != command_persistence {
+                                if !action.persistence.matches(&command_persistence) {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
                                         action.persistence,
@@ -1579,6 +1575,8 @@ impl<'a> CompileState<'a> {
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&fd.return_type) {
+                        println!("et = {et:?}");
+                        println!("rt = {:?}", fd.return_type);
                         return Err(self.err(CompileErrorType::InvalidType(format!(
                             "Return value of `{}()` must be {}",
                             fd.identifier,
@@ -1698,13 +1696,7 @@ impl<'a> CompileState<'a> {
 
                     // Verify the 'to' fact literal
                     let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
-                    self.verify_fact_values(
-                        &s.to
-                            .iter()
-                            .map(|(i, v)| (i.name.clone(), v.clone()))
-                            .collect::<Vec<_>>(),
-                        &fact_def,
-                    )?;
+                    self.verify_fact_values(&s.to, &fact_def)?;
 
                     for (k, v) in &s.to {
                         match v {
@@ -2680,10 +2672,6 @@ impl<'a> CompileState<'a> {
             self.compile_global_let(global_let)?;
         }
 
-        for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
-        }
-
         for effect in &self.policy.effects {
             let fields: Vec<StructItem<FieldDefinition>> = effect
                 .items
@@ -2902,6 +2890,8 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Ensure we haven't already resolved this field from another source.
+                println!("cand = {:?}", src_field_defn.identifier.name);
+                println!("seen = {seen:?}");
                 if let Some(other) = seen.insert(
                     &src_field_defn.identifier.name,
                     src_struct_type_name.clone(),
@@ -2911,18 +2901,23 @@ impl<'a> CompileState<'a> {
                         other.name,
                     )));
                 }
+                println!("seen = {seen:?}");
+                println!();
 
                 // Ensure this field has the right type.
                 let base_struct_defn = base_struct_defns
                     .iter()
-                    .find(|b_defn| b_defn.identifier == src_field_defn.identifier)
+                    .find(|b_defn| b_defn.identifier.name == src_field_defn.identifier.name)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::SourceStructNotSubsetOfBase(
                             src_struct_type_name.name.clone(),
                             base_struct.identifier.name.clone(),
                         ))
                     })?;
-                if base_struct_defn.field_type != src_field_defn.field_type {
+                if !base_struct_defn
+                    .field_type
+                    .matches(&src_field_defn.field_type)
+                {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
                         "Expected field `{}` of `{}` to be a `{}`",
                         &src_field_defn.identifier, src_var_name, base_struct_defn.field_type
@@ -2938,11 +2933,11 @@ impl<'a> CompileState<'a> {
                         kind: ExprKind::Dot(
                             Box::new(Expression {
                                 kind: ExprKind::Identifier(src_var_name.clone()),
-                                span: Span::default(),
+                                span: src_var_name.span,
                             }),
                             src_field_defn.identifier.clone(),
                         ),
-                        span: Span::default(), // TODO
+                        span: src_field_defn.identifier.span,
                     },
                 ));
             }

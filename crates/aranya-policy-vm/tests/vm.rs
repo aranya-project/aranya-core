@@ -152,7 +152,7 @@ fn test_structs() -> anyhow::Result<()> {
         Some(&vec![ast::FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("x"),
-                span: ast::Span::new(34, 39)
+                span: ast::Span::new(34, 35)
             },
             field_type: ast::VType {
                 kind: ast::TypeKind::Int,
@@ -2539,7 +2539,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
         }
-        
+
         function new_foo(x int, y string) struct Foo {
             return Foo { y:y, x: x }
         }

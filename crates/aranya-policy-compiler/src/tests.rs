@@ -518,7 +518,7 @@ fn test_autodefine_struct() {
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("a"),
-                span: ast::Span::new(18, 23),
+                span: ast::Span::new(18, 19),
             },
             field_type: VType {
                 kind: TypeKind::Int,
@@ -528,7 +528,7 @@ fn test_autodefine_struct() {
         FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("b"),
-                span: ast::Span::new(27, 32),
+                span: ast::Span::new(27, 28),
             },
             field_type: VType {
                 kind: TypeKind::Int,
@@ -2044,7 +2044,7 @@ fn test_type_errors() {
                     } else {
                         :None
                     }
-                    
+
 
                     let new_foo = Foo {
                         y: true,
@@ -2195,7 +2195,7 @@ fn test_struct_composition() {
             }
         }
 
-        assert_eq!(err.to_string(), c.e.expect("Failure case"));
+        assert_eq!(err.to_string(), c.e.expect("Failure case"), "#{i}");
     }
 }
 
@@ -2205,7 +2205,7 @@ fn test_struct_composition_global_let_and_command_attributes() {
         struct Foo {
             x int,
             y int
-        }  
+        }
 
         let foo = Foo { x: 10, y: 20 }
         let foo2 = Foo { x: 1000, ...foo }
@@ -2860,10 +2860,10 @@ fn test_struct_conversion_errors() {
         ),
     ];
 
-    for (msg, text, expected) in cases {
+    for (i, (msg, text, expected)) in cases.into_iter().enumerate() {
         let err = compile_fail(text);
         println!("Test case: {msg}");
-        assert_eq!(err, expected);
+        assert_eq!(err, expected, "#{i}");
     }
 }
 

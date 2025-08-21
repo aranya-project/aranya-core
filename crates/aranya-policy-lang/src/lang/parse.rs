@@ -1,19 +1,19 @@
 use std::{cell::RefCell, fmt};
 
 use aranya_policy_ast::{
-    self as ast, ident, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
+    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
     NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version,
+    UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt;
 use pest::{
+    Parser, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
-    Parser, Span,
 };
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{extract_policy, parse_policy_document, ChunkOffset};
+pub use markdown::{ChunkOffset, extract_policy, parse_policy_document};
 
 mod keywords;
 use keywords::KEYWORDS;
@@ -112,7 +112,7 @@ impl<'a> PairContext<'a> {
         self.pairs.into_inner()
     }
 
-    /// Consumes the next Pair and returns it as an Ident with proper span
+    /// Consumes the next Pair and returns it as an [`Ident`].
     fn consume_ident(&self, parser: &ChunkParser<'_>) -> Result<Ident, ParseError> {
         let token = self.consume_of_type(Rule::identifier)?;
         parser.parse_ident(token)
@@ -198,6 +198,7 @@ impl ChunkParser<'_> {
     /// Parse an identifier with span
     fn parse_ident(&self, token: Pair<'_, Rule>) -> Result<Ident, ParseError> {
         assert_eq!(token.as_rule(), Rule::identifier);
+
         let span = self.to_ast_span(token.as_span())?;
         let identifier = token.as_str();
 
@@ -499,27 +500,27 @@ impl ChunkParser<'_> {
                             ))
                         }
                     };
-                    Ok(Expression{kind:ExprKind::Optional(opt_expr),span})
+                    Ok(Expression { kind: ExprKind::Optional(opt_expr), span })
                 }
                 Rule::named_struct_literal => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ns = self.parse_named_struct_literal(primary)?;
-                    Ok(Expression{kind:ExprKind::NamedStruct(ns),span})
+                    Ok(Expression { kind: ExprKind::NamedStruct(ns), span })
                 }
                 Rule::function_call => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let fc = self.parse_function_call(primary)?;
-                    Ok(Expression{kind:ExprKind::FunctionCall(fc),span})
+                    Ok(Expression { kind: ExprKind::FunctionCall(fc), span })
                 }
                 Rule::foreign_function_call => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ffc = self.parse_foreign_function_call(primary)?;
-                    Ok(Expression{kind:ExprKind::ForeignFunctionCall(ffc),span})
+                    Ok(Expression { kind: ExprKind::ForeignFunctionCall(ffc), span })
                 }
                 Rule::enum_reference => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let er = self.parse_enum_reference(primary)?;
-                    Ok(Expression{kind:ExprKind::EnumReference(er),span})
+                    Ok(Expression { kind: ExprKind::EnumReference(er), span })
                 }
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
@@ -532,9 +533,10 @@ impl ChunkParser<'_> {
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::InternalFunction(InternalFunction::Query(
-                        fact_literal,
-                    )), span})
+                    Ok(Expression {
+                        kind: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
+                        span,
+                    })
                 }
                 Rule::exists => {
                     let mut pairs = primary.clone().into_inner();
@@ -547,9 +549,10 @@ impl ChunkParser<'_> {
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::InternalFunction(InternalFunction::Exists(
-                        fact_literal,
-                    )), span})
+                    Ok(Expression{
+                        kind: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
+                        span,
+                    })
                 }
                 Rule::count_up_to => {
                     let span = self.to_ast_span(primary.as_span())?;
@@ -595,15 +598,16 @@ impl ChunkParser<'_> {
                     })?;
                     let inner = self.parse_expression(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::InternalFunction(
-                        InternalFunction::Deserialize(Box::new(inner)),
-                    ), span})
+                    Ok(Expression {
+                        kind: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(inner))),
+                        span,
+                    })
                 }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{
+                    Ok(Expression {
                         kind: ExprKind::Identifier(Ident {
-                            name:ident!("this"),
+                            name: ident!("this"),
                             span,
                         }),
                         span,
@@ -684,33 +688,35 @@ impl ChunkParser<'_> {
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::dot => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
-                        _ => {
-                            return Err(ParseError::new(
-                                ParseErrorKind::InvalidMember,
-                                format!("Expected identifier after dot, got {:?}", rhs.kind),
-                                Some(op.as_span()),
-                            ))
-                        }
+                        _ => return Err(ParseError::new(
+                            ParseErrorKind::InvalidMember,
+                            format!("Expected identifier after dot, got {:?}", rhs.kind),
+                            Some(op.as_span()),
+                        ))
                     },
                     Rule::substruct => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
-                        _ => {
-                            return Err(ParseError::new(
-                                ParseErrorKind::InvalidSubstruct,
-                                format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
-                                Some(op.as_span()),
-                            ))
-                        }
-                    },
-                    _ => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Expression,
-                            format!("bad infix: {:?}", op.as_rule()),
+                        _ => return Err(ParseError::new(
+                            ParseErrorKind::InvalidSubstruct,
+                            format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
                             Some(op.as_span()),
                         ))
-                    }
+                    },
+                    Rule::cast => match &rhs.kind {
+                        ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
+                        e => return Err(ParseError::new(
+                            ParseErrorKind::InvalidSubstruct,
+                            format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
+                            Some(op.as_span()),
+                        )),
+                    },
+                    _ => return Err(ParseError::new(
+                        ParseErrorKind::Expression,
+                        format!("bad infix: {:?}", op.as_rule()),
+                        Some(op.as_span()),
+                    )),
                 };
-                Ok(Expression{kind,span:combined_span})
+                Ok(Expression{ kind, span: combined_span })
             })
             .map_postfix(|lhs, op| {
                 let lhs = lhs?;
@@ -731,23 +737,19 @@ impl ChunkParser<'_> {
                         let some = match token.as_rule() {
                             Rule::some => true,
                             Rule::none => false,
-                            _ => {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    format!("not none or some after is: {:?}", token.as_rule()),
-                                    Some(token.as_span()),
-                                ))
-                            }
+                            _ => return Err(ParseError::new(
+                                ParseErrorKind::Unknown,
+                                format!("not none or some after is: {:?}", token.as_rule()),
+                                Some(token.as_span()),
+                            ))
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
-                    _ => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Expression,
-                            format!("bad postfix: {:?}", op.as_rule()),
-                            Some(op_pest_span),
-                        ))
-                    }
+                    _ => return Err(ParseError::new(
+                        ParseErrorKind::Expression,
+                        format!("bad postfix: {:?}", op.as_rule()),
+                        Some(op_pest_span),
+                    )),
                 };
                 Ok(Expression{kind, span: combined_span})
             })

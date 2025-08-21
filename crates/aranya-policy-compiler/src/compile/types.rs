@@ -8,23 +8,6 @@ use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
 use crate::{CompileErrorType, compile::CompileState};
 
-/// Compare two TypeKinds for equality, ignoring spans in nested VTypes
-fn type_kinds_equal(a: &TypeKind, b: &TypeKind) -> bool {
-    match (a, b) {
-        (TypeKind::String, TypeKind::String) => true,
-        (TypeKind::Bytes, TypeKind::Bytes) => true,
-        (TypeKind::Int, TypeKind::Int) => true,
-        (TypeKind::Bool, TypeKind::Bool) => true,
-        (TypeKind::Id, TypeKind::Id) => true,
-        (TypeKind::Struct(a_name), TypeKind::Struct(b_name)) => a_name == b_name,
-        (TypeKind::Enum(a_name), TypeKind::Enum(b_name)) => a_name == b_name,
-        (TypeKind::Optional(a_inner), TypeKind::Optional(b_inner)) => {
-            type_kinds_equal(&a_inner.kind, &b_inner.kind)
-        }
-        _ => false,
-    }
-}
-
 /// Describes the nature of a type error
 #[derive(Debug, PartialEq)]
 pub struct TypeError(Cow<'static, str>);
@@ -281,7 +264,7 @@ impl NullableVType {
     /// Returns whether the type matches. Null will match any optional.
     pub fn fits_type(&self, ot: &VType) -> bool {
         match self {
-            Self::Type(vtype) => type_kinds_equal(&vtype.kind, &ot.kind),
+            Self::Type(vtype) => vtype.matches(ot),
             Self::Null => matches!(ot.kind, TypeKind::Optional(_)),
         }
     }
@@ -299,9 +282,7 @@ impl NullableVType {
             {
                 Ok(t.clone())
             }
-            (NullableVType::Type(left), NullableVType::Type(right))
-                if type_kinds_equal(&left.kind, &right.kind) =>
-            {
+            (NullableVType::Type(left), NullableVType::Type(right)) if left.matches(&right) => {
                 Ok(NullableVType::Type(left))
             }
             (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),

@@ -3,13 +3,13 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ident, text, ExprKind, Ident, Identifier, Span, StmtKind, TypeKind};
+use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
 use ast::Expression;
-use pest::{error::Error as PestError, iterators::Pair, Parser};
+use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
-    Version,
+    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
+    parse_policy_str,
 };
 use crate::lang::{ChunkParser, ParseErrorKind};
 
@@ -751,9 +751,9 @@ fn parse_struct_with_field_insertion() {
         }
         "#,
         vec![
-            ast::StructItem::StructRef(ident!("Foo").at(27..30)),
+            ast::StructItem::StructRef(ident!("Foo").at(55..58)),
             ast::StructItem::Field(ast::FieldDefinition {
-                identifier: ident!("y").at(72..77),
+                identifier: ident!("y").at(72..73),
                 field_type: TypeKind::Int.at(74..77),
             }),
         ],
@@ -864,20 +864,26 @@ fn parse_serialize_deserialize() {
             fields: vec![],
             policy: vec![],
             recall: vec![],
-            seal: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(Box::new(
-                    ExprKind::Identifier(ident!("this").at(66..70)).at(66..70)
-                )))
-                .at(56..71)
-            })
-            .at(49..84)],
-            open: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
-                    Box::new(ExprKind::Identifier(ident!("envelope").at(141..149)).at(141..149))
-                ))
-                .at(129..150)
-            })
-            .at(122..163)],
+            seal: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
+                        Box::new(ExprKind::Identifier(ident!("this").at(66..70)).at(66..70))
+                    ))
+                    .at(56..71)
+                })
+                .at(49..84)
+            ],
+            open: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
+                        Box::new(
+                            ExprKind::Identifier(ident!("envelope").at(141..149)).at(141..149)
+                        )
+                    ))
+                    .at(129..150)
+                })
+                .at(122..163)
+            ],
             span: Span::new(0, 174),
         }]
     );

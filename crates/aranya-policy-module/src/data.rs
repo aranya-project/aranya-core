@@ -207,8 +207,8 @@ impl Value {
         match (self.vtype(), &expected_type.kind) {
             (None, TypeKind::Optional(_)) => true,
             (None, _) => false,
-            (Some(vtype), TypeKind::Optional(inner)) => vtype == inner.kind,
-            (Some(vtype), kind) => vtype == *kind,
+            (Some(vtype), TypeKind::Optional(inner)) => vtype.matches(&inner.kind),
+            (Some(vtype), kind) => vtype.matches(kind),
         }
     }
 }

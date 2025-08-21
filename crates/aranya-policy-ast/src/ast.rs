@@ -3,7 +3,7 @@ use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{span::spanned, Identifier, Span, Spanned, Text};
+use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -12,6 +12,14 @@ pub struct Ident {
     pub name: Identifier,
     /// The source location of this identifier
     pub span: Span,
+}
+
+impl Ident {
+    /// Reports whether the identifiers are the same, ignoring
+    /// spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
 }
 
 impl Deref for Ident {
@@ -49,17 +57,24 @@ impl Spanned for Ident {
 #[error("invalid version string")]
 pub struct InvalidVersion;
 
-/// Policy language version
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Version {
-    /// Version 1, the initial version of the "new" policy
-    /// language.
-    #[deprecated]
-    V1,
-    /// Version 2, the second version of the policy language
-    #[default]
-    V2,
+mod version {
+    #![allow(deprecated)] // for serde
+
+    use super::*;
+
+    /// Policy language version
+    #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+    pub enum Version {
+        /// Version 1, the initial version of the "new" policy
+        /// language.
+        #[deprecated]
+        V1,
+        /// Version 2, the second version of the policy language
+        #[default]
+        V2,
+    }
 }
+pub use version::Version;
 
 // This supports the command-line tools, allowing automatic
 // conversion between string arguments and the enum.
@@ -95,21 +110,30 @@ pub enum Persistence {
     Ephemeral(Span),
 }
 
-impl fmt::Display for Persistence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Persistent => write!(f, "persistent"),
-            Self::Ephemeral(_) => write!(f, "ephemeral"),
+impl Persistence {
+    /// Reports whether both persistence modes are the same,
+    /// ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Persistent, Self::Persistent) | (Self::Ephemeral(_), Self::Ephemeral(_)) => true,
+            _ => false,
         }
     }
-}
 
-impl Persistence {
     /// Returns the span of the persistence mode, if available.
     pub fn span(&self) -> Option<Span> {
         match self {
             Self::Persistent => None,
             Self::Ephemeral(span) => Some(*span),
+        }
+    }
+}
+
+impl fmt::Display for Persistence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Persistent => write!(f, "persistent"),
+            Self::Ephemeral(_) => write!(f, "ephemeral"),
         }
     }
 }
@@ -126,9 +150,9 @@ pub struct VType {
 }
 
 impl VType {
-    /// Create a new type with span
-    pub fn new(kind: TypeKind, span: Span) -> Self {
-        VType { kind, span }
+    /// Reports whether the types are the same, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        self.kind.matches(&other.kind)
     }
 }
 
@@ -165,6 +189,23 @@ pub enum TypeKind {
     Optional(Box<VType>),
 }
 
+impl TypeKind {
+    /// Reports whether the kinds are the same, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String, Self::String)
+            | (Self::Bytes, Self::Bytes)
+            | (Self::Int, Self::Int)
+            | (Self::Bool, Self::Bool)
+            | (Self::Id, Self::Id) => true,
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.matches(rhs),
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -192,6 +233,14 @@ pub struct FieldDefinition {
     /// the field's type
     pub field_type: VType,
 }
+}
+
+impl FieldDefinition {
+    /// Reports whether the field definitions are the same,
+    /// ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        self.identifier.matches(&other.identifier) && self.field_type.matches(&other.field_type)
+    }
 }
 
 /// An identifier and its type and dynamic effect marker
