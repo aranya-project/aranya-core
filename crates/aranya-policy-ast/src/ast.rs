@@ -3,7 +3,7 @@ use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{span::spanned, Identifier, Span, Spanned, Text};
+use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

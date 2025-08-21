@@ -523,7 +523,7 @@ impl<'a> CompileState<'a> {
         }
 
         match &fact.value_fields {
-            Some(values) => self.verify_fact_values(&values, fact_def)?,
+            Some(values) => self.verify_fact_values(values, fact_def)?,
             None => {
                 if require_value {
                     return Err(self.err(CompileErrorType::InvalidFactLiteral(
@@ -1553,7 +1553,7 @@ impl<'a> CompileState<'a> {
                                     .find(|c| c.identifier.name == ident.name)
                                     .assume("command must be defined")?
                                     .persistence;
-                                if !action.persistence.matches(&command_persistence) {
+                                if !action.persistence.matches(command_persistence) {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
                                         action.persistence,
