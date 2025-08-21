@@ -5,7 +5,7 @@ use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
 use aranya_crypto::{DeviceId, EncryptionKeyId, SigningKeyId};
-use aranya_policy_ast::{Identifier, Text, TypeKind, VType};
+use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
 use super::ffi::Type;
@@ -161,8 +161,14 @@ impl Value {
             Value::String(_) => Some(TypeKind::String),
             Value::Bytes(_) => Some(TypeKind::Bytes),
             Value::Id(_) => Some(TypeKind::Id),
-            Value::Enum(name, _) => Some(TypeKind::Enum(name.to_owned())),
-            Value::Struct(s) => Some(TypeKind::Struct(s.name.clone())),
+            Value::Enum(name, _) => Some(TypeKind::Enum(Ident {
+                name: name.to_owned(),
+                span: Span::default(),
+            })),
+            Value::Struct(s) => Some(TypeKind::Struct(Ident {
+                name: s.name.clone(),
+                span: Span::default(),
+            })),
             _ => None,
         }
     }
@@ -574,7 +580,10 @@ impl HashableValue {
             HashableValue::Bool(_) => TypeKind::Bool,
             HashableValue::String(_) => TypeKind::String,
             HashableValue::Id(_) => TypeKind::Id,
-            HashableValue::Enum(id, _) => TypeKind::Enum(id.clone()),
+            HashableValue::Enum(id, _) => TypeKind::Enum(Ident {
+                name: id.clone(),
+                span: Span::default(),
+            }),
         }
     }
 }

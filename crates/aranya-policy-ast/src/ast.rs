@@ -9,6 +9,12 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{Identifier, Text};
 
+/// A trait for types that can provide a source span.
+pub trait Spanned {
+    /// Returns a span covering the contents of the item.
+    fn span(&self) -> Span;
+}
+
 /// A range in the source text.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
@@ -218,6 +224,12 @@ where
     }
 }
 
+impl Spanned for Ident {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -263,14 +275,29 @@ impl fmt::Display for Version {
 
 /// Persistence mode for commands and actions
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Persistence {
+pub struct Persistence {
+    /// The type of persistence.
+    pub kind: PersistenceKind,
+    /// The source location of this type
+    pub span: Span,
+}
+
+impl Spanned for Persistence {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// Persistence mode for commands and actions
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum PersistenceKind {
     /// Persisted on-graph (default behavior)
     Persistent,
     /// Not persisted on-graph (ephemeral)
     Ephemeral,
 }
 
-impl fmt::Display for Persistence {
+impl fmt::Display for PersistenceKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Persistent => write!(f, "persistent"),
@@ -279,7 +306,7 @@ impl fmt::Display for Persistence {
     }
 }
 
-impl Default for Persistence {
+impl Default for PersistenceKind {
     fn default() -> Self {
         Self::Persistent
     }
@@ -309,6 +336,12 @@ impl fmt::Display for VType {
     }
 }
 
+impl Spanned for VType {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// The kind of a [`VType`].
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TypeKind {
@@ -323,9 +356,9 @@ pub enum TypeKind {
     /// A unique identifier
     Id,
     /// A named struct
-    Struct(Identifier),
+    Struct(Ident),
     /// Named enumeration
-    Enum(Identifier),
+    Enum(Ident),
     /// An optional type of some other type
     Optional(Box<VType>),
 }
@@ -376,7 +409,16 @@ pub enum FactField {
     /// Expression
     Expression(Expression),
     /// Bind value, e.g. "?"
-    Bind,
+    Bind(Span),
+}
+
+impl Spanned for FactField {
+    fn span(&self) -> Span {
+        match self {
+            Self::Expression(expr) => expr.span(),
+            Self::Bind(span) => *span,
+        }
+    }
 }
 
 /// A fact and its key/value field values.
@@ -499,10 +541,9 @@ pub struct Expression {
     pub span: Span,
 }
 
-impl Expression {
-    /// Creates a new expression.
-    pub fn new(kind: ExprKind, span: Span) -> Self {
-        Expression { kind, span }
+impl Spanned for Expression {
+    fn span(&self) -> Span {
+        self.span
     }
 }
 
@@ -526,7 +567,7 @@ pub enum ExprKind {
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
     /// A variable identifier
-    Identifier(Identifier),
+    Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
     /// `expr + expr`
@@ -841,7 +882,7 @@ pub enum StructItem<T> {
     /// Field definition
     Field(T),
     /// Named struct from whose fields to add to the current struct
-    StructRef(Identifier),
+    StructRef(Ident),
 }
 
 impl<T> StructItem<T> {
@@ -860,7 +901,7 @@ pub struct CommandDefinition {
     /// The persistence mode of the command
     pub persistence: Persistence,
     /// Optional attributes
-    pub attributes: Vec<(Identifier, Expression)>,
+    pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
     pub identifier: Ident,
     /// The fields of the command and their types
@@ -926,7 +967,7 @@ pub struct Policy {
     /// The policy version.
     pub version: Version,
     /// FFI imports
-    pub ffi_imports: Vec<Identifier>,
+    pub ffi_imports: Vec<Ident>,
     /// The policy's fact definitions.
     pub facts: Vec<FactDefinition>,
     /// The policy's action definitions.

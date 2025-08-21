@@ -1,12 +1,12 @@
 use std::{
     borrow::Cow,
-    collections::{HashMap, hash_map},
+    collections::{hash_map, HashMap},
     fmt::{self, Display},
 };
 
 use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
-use crate::{CompileErrorType, compile::CompileState};
+use crate::{compile::CompileState, CompileErrorType};
 
 /// Compare two TypeKinds for equality, ignoring spans in nested VTypes
 fn type_kinds_equal(a: &TypeKind, b: &TypeKind) -> bool {
@@ -346,7 +346,7 @@ impl CompileState<'_> {
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, TypeError> {
         if self.m.struct_defs.contains_key(&s.identifier.name) {
             Ok(VType {
-                kind: TypeKind::Struct(s.identifier.name.clone()),
+                kind: TypeKind::Struct(s.identifier.clone()),
                 span: s.identifier.span,
             })
         } else {
@@ -362,7 +362,7 @@ impl CompileState<'_> {
     pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, TypeError> {
         if self.m.fact_defs.contains_key(&f.identifier.name) {
             Ok(VType {
-                kind: TypeKind::Struct(f.identifier.name.clone()),
+                kind: TypeKind::Struct(f.identifier.clone()),
                 span: f.identifier.span,
             })
         } else {

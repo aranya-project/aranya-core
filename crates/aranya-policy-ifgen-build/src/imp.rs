@@ -130,11 +130,11 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
         TypeKind::Bool => quote! { bool },
         TypeKind::Id => quote! { Id },
         TypeKind::Struct(st) => {
-            let ident = mk_ident(st);
+            let ident = mk_ident(&st.name);
             quote! { #ident }
         }
         TypeKind::Enum(st) => {
-            let ident = mk_ident(st);
+            let ident = mk_ident(&st.name);
             quote! { #ident }
         }
         TypeKind::Optional(opt) => {

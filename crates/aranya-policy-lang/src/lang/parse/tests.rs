@@ -2,13 +2,13 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ident, text, ExprKind, Ident, Identifier, Span, StmtKind, TypeKind};
+use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{error::Error as PestError, iterators::Pair, Parser};
+use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
-    Version,
+    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
+    parse_policy_str,
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
@@ -782,28 +782,35 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         arms: vec![
                             ast::MatchArm {
                                 pattern: MatchPattern::Values(vec![ExprKind::Int(0).at(764..765)]),
-                                statements: vec![StmtKind::Check(ast::CheckStatement {
-                                    expression: ExprKind::FunctionCall(ast::FunctionCall {
-                                        identifier: ident!("positive").at(801..822),
-                                        arguments: vec![ExprKind::Optional(Some(Box::new(
-                                            ExprKind::Identifier(ident!("new_x")).at(815..820)
-                                        )))
-                                        .at(810..821)],
+                                statements: vec![
+                                    StmtKind::Check(ast::CheckStatement {
+                                        expression: ExprKind::FunctionCall(ast::FunctionCall {
+                                            identifier: ident!("positive").at(801..822),
+                                            arguments: vec![
+                                                ExprKind::Optional(Some(Box::new(
+                                                    ExprKind::Identifier(ident!("new_x"))
+                                                        .at(815..820)
+                                                )))
+                                                .at(810..821)
+                                            ],
+                                        })
+                                        .at(801..822)
                                     })
-                                    .at(801..822)
-                                })
-                                .at(795..843)],
+                                    .at(795..843)
+                                ],
                             },
                             ast::MatchArm {
                                 pattern: MatchPattern::Values(vec![ExprKind::Int(1).at(865..866)]),
-                                statements: vec![StmtKind::Check(ast::CheckStatement {
-                                    expression: ExprKind::FunctionCall(ast::FunctionCall {
-                                        identifier: ident!("positive").at(902..916),
-                                        arguments: vec![ExprKind::Optional(None).at(911..915)],
+                                statements: vec![
+                                    StmtKind::Check(ast::CheckStatement {
+                                        expression: ExprKind::FunctionCall(ast::FunctionCall {
+                                            identifier: ident!("positive").at(902..916),
+                                            arguments: vec![ExprKind::Optional(None).at(911..915)],
+                                        })
+                                        .at(902..916)
                                     })
-                                    .at(902..916)
-                                })
-                                .at(896..937)],
+                                    .at(896..937)
+                                ],
                             },
                             ast::MatchArm {
                                 pattern: MatchPattern::Default,
@@ -819,14 +826,18 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 Box::new(ExprKind::Int(3).at(1032..1033))
                             )
                             .at(1027..1033),
-                            vec![StmtKind::Check(ast::CheckStatement {
-                                expression: ExprKind::LessThan(
-                                    Box::new(ExprKind::Identifier(ident!("new_x")).at(1062..1067)),
-                                    Box::new(ExprKind::Int(10).at(1070..1072))
-                                )
-                                .at(1062..1072)
-                            })
-                            .at(1056..1089)],
+                            vec![
+                                StmtKind::Check(ast::CheckStatement {
+                                    expression: ExprKind::LessThan(
+                                        Box::new(
+                                            ExprKind::Identifier(ident!("new_x")).at(1062..1067)
+                                        ),
+                                        Box::new(ExprKind::Int(10).at(1070..1072))
+                                    )
+                                    .at(1062..1072)
+                                })
+                                .at(1056..1089)
+                            ],
                         )],
                         fallback: None
                     })
@@ -929,7 +940,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                             module: ident!("envelope").at(1519..1549),
                             identifier: ident!("command_id").at(1529..1549),
-                            arguments: vec![ExprKind::Identifier(ident!("envelope")).at(1540..1548)]
+                            arguments: vec![
+                                ExprKind::Identifier(ident!("envelope")).at(1540..1548)
+                            ]
                         })
                         .at(1519..1549),
                     })
@@ -939,7 +952,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
                             module: ident!("envelope").at(1579..1608),
                             identifier: ident!("author_id").at(1589..1608),
-                            arguments: vec![ExprKind::Identifier(ident!("envelope")).at(1599..1607)]
+                            arguments: vec![
+                                ExprKind::Identifier(ident!("envelope")).at(1599..1607)
+                            ]
                         })
                         .at(1579..1608),
                     })
@@ -1092,14 +1107,16 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 identifier: ident!("x").at(2131..2136),
                 field_type: TypeKind::Int.at(2133..2136),
             }],
-            statements: vec![StmtKind::Create(ast::CreateStatement {
-                fact: ast::FactLiteral {
-                    identifier: ident!("Next").at(2159..2169),
-                    key_fields: vec![],
-                    value_fields: Some(vec![]),
-                },
-            })
-            .at(2152..2169)],
+            statements: vec![
+                StmtKind::Create(ast::CreateStatement {
+                    fact: ast::FactLiteral {
+                        identifier: ident!("Next").at(2159..2169),
+                        key_fields: vec![],
+                        value_fields: Some(vec![]),
+                    },
+                })
+                .at(2152..2169)
+            ],
             span: Span::new(2110, 2179),
         }]
     );
@@ -1249,21 +1266,23 @@ fn parse_struct() {
                 field_type: TypeKind::Struct(ident!("Foo")).at(71..81),
             }],
             return_type: TypeKind::Struct(ident!("Bar")).at(83..93),
-            statements: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::NamedStruct(ast::NamedStruct {
-                    identifier: ident!("Bar").at(115..129),
-                    fields: vec![(
-                        ident!("y").at(120..128),
-                        ExprKind::Dot(
-                            Box::new(ExprKind::Identifier(ident!("foo")).at(123..126)),
-                            ident!("x").at(127..128)
-                        )
-                        .at(123..128)
-                    )],
+            statements: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::NamedStruct(ast::NamedStruct {
+                        identifier: ident!("Bar").at(115..129),
+                        fields: vec![(
+                            ident!("y").at(120..128),
+                            ExprKind::Dot(
+                                Box::new(ExprKind::Identifier(ident!("foo")).at(123..126)),
+                                ident!("x").at(127..128)
+                            )
+                            .at(123..128)
+                        )],
+                    })
+                    .at(115..129)
                 })
-                .at(115..129)
-            })
-            .at(108..138)],
+                .at(108..138)
+            ],
             span: Span::new(50, 139),
         }]
     );
@@ -1476,22 +1495,26 @@ fn parse_seal_open() {
             fields: vec![],
             policy: vec![],
             recall: vec![],
-            seal: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::FunctionCall(ast::FunctionCall {
-                    identifier: ident!("bar").at(56..65),
-                    arguments: vec![ExprKind::Identifier(ident!("this")).at(60..64)]
+            seal: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::FunctionCall(ast::FunctionCall {
+                        identifier: ident!("bar").at(56..65),
+                        arguments: vec![ExprKind::Identifier(ident!("this")).at(60..64)]
+                    })
+                    .at(56..65)
                 })
-                .at(56..65)
-            })
-            .at(49..78)],
-            open: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::FunctionCall(ast::FunctionCall {
-                    identifier: ident!("baz").at(123..136),
-                    arguments: vec![ExprKind::Identifier(ident!("envelope")).at(127..135)]
+                .at(49..78)
+            ],
+            open: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::FunctionCall(ast::FunctionCall {
+                        identifier: ident!("baz").at(123..136),
+                        arguments: vec![ExprKind::Identifier(ident!("envelope")).at(127..135)]
+                    })
+                    .at(123..136)
                 })
-                .at(123..136)
-            })
-            .at(116..149)],
+                .at(116..149)
+            ],
             span: Span::new(0, 160),
         }]
     );
@@ -1521,20 +1544,24 @@ fn parse_serialize_deserialize() {
             fields: vec![],
             policy: vec![],
             recall: vec![],
-            seal: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(Box::new(
-                    ExprKind::Identifier(ident!("this")).at(66..70)
-                )))
-                .at(56..71)
-            })
-            .at(49..84)],
-            open: vec![StmtKind::Return(ast::ReturnStatement {
-                expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
-                    Box::new(ExprKind::Identifier(ident!("envelope")).at(141..149))
-                ))
-                .at(129..150)
-            })
-            .at(122..163)],
+            seal: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
+                        Box::new(ExprKind::Identifier(ident!("this")).at(66..70))
+                    ))
+                    .at(56..71)
+                })
+                .at(49..84)
+            ],
+            open: vec![
+                StmtKind::Return(ast::ReturnStatement {
+                    expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
+                        Box::new(ExprKind::Identifier(ident!("envelope")).at(141..149))
+                    ))
+                    .at(129..150)
+                })
+                .at(122..163)
+            ],
             span: Span::new(0, 174),
         }]
     );
@@ -1784,11 +1811,13 @@ fn test_action_call() -> anyhow::Result<()> {
             persistence: ast::Persistence::Persistent,
             identifier: ident!("pong").at(33..37),
             arguments: vec![],
-            statements: vec![StmtKind::ActionCall(ast::FunctionCall {
-                identifier: ident!("ping").at(57..63),
-                arguments: vec![]
-            })
-            .at(50..63)],
+            statements: vec![
+                StmtKind::ActionCall(ast::FunctionCall {
+                    identifier: ident!("ping").at(57..63),
+                    arguments: vec![]
+                })
+                .at(50..63)
+            ],
             span: Span::new(26, 69),
         }
     );
@@ -1809,19 +1838,21 @@ fn test_map_statement() {
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
     assert_eq!(
         policy.actions[0].statements,
-        vec![StmtKind::Map(ast::MapStatement {
-            fact: ast::FactLiteral {
-                identifier: ident!("Foo").at(73..82),
-                key_fields: vec![(
-                    ident!("i").at(77..80),
-                    FactField::Expression(ExprKind::Int(1).at(79..80))
-                )],
-                value_fields: None,
-            },
-            identifier: ident!("f").at(85..86),
-            statements: vec![]
-        })
-        .at(69..102)]
+        vec![
+            StmtKind::Map(ast::MapStatement {
+                fact: ast::FactLiteral {
+                    identifier: ident!("Foo").at(73..82),
+                    key_fields: vec![(
+                        ident!("i").at(77..80),
+                        FactField::Expression(ExprKind::Int(1).at(79..80))
+                    )],
+                    value_fields: None,
+                },
+                identifier: ident!("f").at(85..86),
+                statements: vec![]
+            })
+            .at(69..102)
+        ]
     );
 }
 
@@ -1840,32 +1871,34 @@ fn test_block_expression() {
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
     assert_eq!(
         policy.actions[0].statements,
-        vec![StmtKind::Let(ast::LetStatement {
-            identifier: ident!("x").at(32..33),
-            expression: ExprKind::Block(
-                vec![
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("a").at(54..55),
-                        expression: ExprKind::Int(3).at(58..59)
-                    })
-                    .at(50..72),
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("b").at(76..77),
-                        expression: ExprKind::Int(4).at(80..81)
-                    })
-                    .at(72..94),
-                ],
-                Box::new(
-                    ExprKind::Add(
-                        Box::new(ExprKind::Identifier(ident!("a")).at(96..97)),
-                        Box::new(ExprKind::Identifier(ident!("b")).at(100..101))
+        vec![
+            StmtKind::Let(ast::LetStatement {
+                identifier: ident!("x").at(32..33),
+                expression: ExprKind::Block(
+                    vec![
+                        StmtKind::Let(ast::LetStatement {
+                            identifier: ident!("a").at(54..55),
+                            expression: ExprKind::Int(3).at(58..59)
+                        })
+                        .at(50..72),
+                        StmtKind::Let(ast::LetStatement {
+                            identifier: ident!("b").at(76..77),
+                            expression: ExprKind::Int(4).at(80..81)
+                        })
+                        .at(72..94),
+                    ],
+                    Box::new(
+                        ExprKind::Add(
+                            Box::new(ExprKind::Identifier(ident!("a")).at(96..97)),
+                            Box::new(ExprKind::Identifier(ident!("b")).at(100..101))
+                        )
+                        .at(96..101)
                     )
-                    .at(96..101)
                 )
-            )
-            .at(36..111)
-        })
-        .at(28..116)]
+                .at(36..111)
+            })
+            .at(28..116)
+        ]
     );
 }
 
@@ -1886,34 +1919,38 @@ fn parse_match_expression() {
     let policy = parse_policy_str(src, Version::V2).expect("should parse");
     assert_eq!(
         policy.actions[0].statements,
-        vec![StmtKind::Let(ast::LetStatement {
-            identifier: ident!("x").at(45..46),
-            expression: ExprKind::Match(Box::new(ast::MatchExpression {
-                scrutinee: ExprKind::Identifier(ident!("n")).at(55..56),
-                arms: vec![
-                    ast::MatchExpressionArm {
-                        pattern: MatchPattern::Values(vec![ExprKind::Int(0).at(75..76)]),
-                        expression: ExprKind::Block(
-                            vec![StmtKind::Let(ast::LetStatement {
-                                identifier: ident!("x").at(106..107),
-                                expression: ExprKind::Bool(true).at(110..114)
-                            })
-                            .at(102..135)],
-                            Box::new(ExprKind::Identifier(ident!("x")).at(137..138))
-                        )
-                        .at(80..156),
-                        span: Span::new(75, 173)
-                    },
-                    ast::MatchExpressionArm {
-                        pattern: MatchPattern::Default,
-                        expression: ExprKind::Bool(false).at(178..183),
-                        span: Span::new(173, 196)
-                    }
-                ]
-            }))
-            .at(49..197)
-        })
-        .at(41..206)]
+        vec![
+            StmtKind::Let(ast::LetStatement {
+                identifier: ident!("x").at(45..46),
+                expression: ExprKind::Match(Box::new(ast::MatchExpression {
+                    scrutinee: ExprKind::Identifier(ident!("n")).at(55..56),
+                    arms: vec![
+                        ast::MatchExpressionArm {
+                            pattern: MatchPattern::Values(vec![ExprKind::Int(0).at(75..76)]),
+                            expression: ExprKind::Block(
+                                vec![
+                                    StmtKind::Let(ast::LetStatement {
+                                        identifier: ident!("x").at(106..107),
+                                        expression: ExprKind::Bool(true).at(110..114)
+                                    })
+                                    .at(102..135)
+                                ],
+                                Box::new(ExprKind::Identifier(ident!("x")).at(137..138))
+                            )
+                            .at(80..156),
+                            span: Span::new(75, 173)
+                        },
+                        ast::MatchExpressionArm {
+                            pattern: MatchPattern::Default,
+                            expression: ExprKind::Bool(false).at(178..183),
+                            span: Span::new(173, 196)
+                        }
+                    ]
+                }))
+                .at(49..197)
+            })
+            .at(41..206)
+        ]
     );
 }
 

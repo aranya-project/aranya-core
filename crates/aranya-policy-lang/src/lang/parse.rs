@@ -3,10 +3,10 @@ use std::cell::RefCell;
 use aranya_policy_ast::{
     self as ast, ident, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, Identifier, IfStatement, InternalFunction,
-    LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
-    MatchPatternKind, MatchStatement, NamedStruct, ReturnStatement, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version,
+    ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
+    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchPatternKind,
+    MatchStatement, NamedStruct, Persistence, PersistenceKind, ReturnStatement, Statement,
+    StmtKind, Text, TypeKind, UpdateStatement, VType, Version,
 };
 use buggy::BugExt;
 use pest::{
@@ -33,7 +33,7 @@ mod internal {
     pub struct PolicyParser;
 }
 
-type FieldsAndSources = (Vec<(Identifier, Expression)>, Vec<Identifier>);
+type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
 
 // Each of the rules in policy.pest becomes an enumerable value here
 // The core parser for policy documents
@@ -109,25 +109,6 @@ impl<'a> PairContext<'a> {
     /// Destroys the span context.
     fn into_inner(self) -> Pairs<'a, Rule> {
         self.pairs.into_inner()
-    }
-
-    /// Consumes the next Pair out of this context and returns it as a
-    /// string that is the identifier if it doesn't collide with a keyword.
-    fn consume_identifier(&self) -> Result<Identifier, ParseError> {
-        let token = self.consume_of_type(Rule::identifier)?;
-        let identifier = token.as_str();
-
-        if KEYWORDS.contains(&identifier) {
-            return Err(ParseError::new(
-                ParseErrorKind::ReservedIdentifier,
-                identifier.to_string(),
-                Some(token.as_span()),
-            ));
-        }
-
-        Ok(identifier
-            .parse()
-            .assume("grammar produces valid identifiers")?)
     }
 
     /// Consumes the next Pair and returns it as an Ident with proper span
@@ -244,12 +225,12 @@ impl ChunkParser<'_> {
             Rule::id_t => TypeKind::Id,
             Rule::struct_t => {
                 let pc = descend(token);
-                let name = pc.consume_identifier()?;
+                let name = pc.consume_ident(self)?;
                 TypeKind::Struct(name)
             }
             Rule::enum_t => {
                 let pc = descend(token);
-                let name = pc.consume_identifier()?;
+                let name = pc.consume_ident(self)?;
                 TypeKind::Enum(name)
             }
             Rule::optional_t => {
@@ -277,10 +258,8 @@ impl ChunkParser<'_> {
 
     /// Parse a Rule::field_definition token into a FieldDef.
     fn parse_field_definition(&self, field: Pair<'_, Rule>) -> Result<FieldDefinition, ParseError> {
-        let span = self.to_ast_span(field.as_span())?;
         let pc = descend(field);
-        let identifier_name = pc.consume_identifier()?;
-        let identifier = Ident::new(identifier_name, span);
+        let identifier = pc.consume_ident(self)?;
         let field_type = self.parse_type(pc.pairs.borrow_mut().next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Unknown,
@@ -299,9 +278,8 @@ impl ChunkParser<'_> {
         &self,
         field: Pair<'_, Rule>,
     ) -> Result<EffectFieldDefinition, ParseError> {
-        let span = self.to_ast_span(field.as_span())?;
         let pc = descend(field);
-        let identifier = pc.consume_identifier()?;
+        let identifier = pc.consume_ident(self)?;
         let field_type = pc.consume_type(self)?;
 
         let token = pc.next();
@@ -309,7 +287,7 @@ impl ChunkParser<'_> {
         let dynamic = token.is_some();
 
         Ok(EffectFieldDefinition {
-            identifier: Ident::new(identifier, span),
+            identifier,
             field_type,
             dynamic,
         })
@@ -384,9 +362,7 @@ impl ChunkParser<'_> {
         named_struct: Pair<'_, Rule>,
     ) -> Result<NamedStruct, ParseError> {
         let pc = descend(named_struct.clone());
-        let identifier_str = pc.consume_identifier()?;
-        let identifier_span = self.to_ast_span(named_struct.as_span())?;
-        let identifier = Ident::new(identifier_str, identifier_span);
+        let identifier = pc.consume_ident(self)?;
 
         // key/expression pairs follow the identifier
         let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
@@ -399,9 +375,7 @@ impl ChunkParser<'_> {
 
     fn parse_function_call(&self, call: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
         let pc = descend(call.clone());
-        let identifier_str = pc.consume_identifier()?;
-        let identifier_span = self.to_ast_span(call.as_span())?;
-        let identifier = Ident::new(identifier_str, identifier_span);
+        let identifier = pc.consume_ident(self)?;
 
         // all following tokens are function arguments
         let mut arguments = vec![];
@@ -420,9 +394,7 @@ impl ChunkParser<'_> {
         call: Pair<'_, Rule>,
     ) -> Result<ForeignFunctionCall, ParseError> {
         let pc = descend(call.clone());
-        let module_str = pc.consume_identifier()?;
-        let module_span = self.to_ast_span(call.as_span())?;
-        let module = Ident::new(module_str, module_span);
+        let module = pc.consume_ident(self)?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
 
         let function = self.parse_function_call(function_call)?;
@@ -462,12 +434,12 @@ impl ChunkParser<'_> {
                         )
                     })?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::Int(n), span))
+                    Ok(Expression{kind:ExprKind::Int(n), span})
                 }
                 Rule::string_literal => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let s = Self::parse_string_literal(primary)?;
-                    Ok(Expression::new(ExprKind::String(s), span))
+                    Ok(Expression{kind:ExprKind::String(s), span})
                 }
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
@@ -481,11 +453,11 @@ impl ChunkParser<'_> {
                     match token.as_rule() {
                         Rule::btrue => {
                             let span = self.to_ast_span(primary.as_span())?;
-                            Ok(Expression::new(ExprKind::Bool(true), span))
+                            Ok(Expression{kind:ExprKind::Bool(true), span})
                         }
                         Rule::bfalse => {
                             let span = self.to_ast_span(primary.as_span())?;
-                            Ok(Expression::new(ExprKind::Bool(false), span))
+                            Ok(Expression{kind:ExprKind::Bool(false), span})
                         }
                         t => Err(ParseError::new(
                             ParseErrorKind::Unknown,
@@ -525,27 +497,27 @@ impl ChunkParser<'_> {
                             ))
                         }
                     };
-                    Ok(Expression::new(ExprKind::Optional(opt_expr), span))
+                    Ok(Expression{kind:ExprKind::Optional(opt_expr),span})
                 }
                 Rule::named_struct_literal => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ns = self.parse_named_struct_literal(primary)?;
-                    Ok(Expression::new(ExprKind::NamedStruct(ns), span))
+                    Ok(Expression{kind:ExprKind::NamedStruct(ns),span})
                 }
                 Rule::function_call => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let fc = self.parse_function_call(primary)?;
-                    Ok(Expression::new(ExprKind::FunctionCall(fc), span))
+                    Ok(Expression{kind:ExprKind::FunctionCall(fc),span})
                 }
                 Rule::foreign_function_call => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ffc = self.parse_foreign_function_call(primary)?;
-                    Ok(Expression::new(ExprKind::ForeignFunctionCall(ffc), span))
+                    Ok(Expression{kind:ExprKind::ForeignFunctionCall(ffc),span})
                 }
                 Rule::enum_reference => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let er = self.parse_enum_reference(primary)?;
-                    Ok(Expression::new(ExprKind::EnumReference(er), span))
+                    Ok(Expression{kind:ExprKind::EnumReference(er),span})
                 }
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
@@ -558,9 +530,9 @@ impl ChunkParser<'_> {
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::InternalFunction(InternalFunction::Query(
+                    Ok(Expression{kind:ExprKind::InternalFunction(InternalFunction::Query(
                         fact_literal,
-                    )), span))
+                    )), span})
                 }
                 Rule::exists => {
                     let mut pairs = primary.clone().into_inner();
@@ -573,9 +545,9 @@ impl ChunkParser<'_> {
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::InternalFunction(InternalFunction::Exists(
+                    Ok(Expression{kind:ExprKind::InternalFunction(InternalFunction::Exists(
                         fact_literal,
-                    )), span))
+                    )), span})
                 }
                 Rule::count_up_to => self.parse_counting_fn(primary, ast::FactCountType::UpTo),
                 Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast),
@@ -594,9 +566,9 @@ impl ChunkParser<'_> {
                     })?;
                     let inner = self.parse_expression(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::InternalFunction(
+                    Ok(Expression{kind:ExprKind::InternalFunction(
                         InternalFunction::Serialize(Box::new(inner)),
-                    ), span))
+                    ), span})
                 }
                 Rule::deserialize => {
                     let mut pairs = primary.clone().into_inner();
@@ -609,22 +581,25 @@ impl ChunkParser<'_> {
                     })?;
                     let inner = self.parse_expression(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::InternalFunction(
+                    Ok(Expression{kind:ExprKind::InternalFunction(
                         InternalFunction::Deserialize(Box::new(inner)),
-                    ), span))
+                    ), span})
                 }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::Identifier(ident!("this")), span))
+                    Ok(Expression{kind:ExprKind::Identifier(Ident{
+                        name:ident!("this"),
+                        span,
+                    }),span})
                 }
                 Rule::todo => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression::new(ExprKind::InternalFunction(InternalFunction::Todo), span))
+                    Ok(Expression{kind:ExprKind::InternalFunction(InternalFunction::Todo),span})
                 }
                 Rule::identifier => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    let ident = remain(primary).consume_identifier()?;
-                    Ok(Expression::new(ExprKind::Identifier(ident), span))
+                    let ident = remain(primary).consume_ident(self)?;
+                    Ok(Expression{kind:ExprKind::Identifier(ident),span})
                 }
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
@@ -666,7 +641,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 };
-                Ok(Expression::new(kind, combined_span))
+                Ok(Expression{kind,span:combined_span})
             })
             .map_infix(|lhs, op, rhs| {
                 let lhs = lhs?;
@@ -685,7 +660,7 @@ impl ChunkParser<'_> {
                     Rule::greater_than_or_equal => ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::dot => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), Ident::new(s.clone(), rhs.span)),
+                        ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
                         _ => {
                             return Err(ParseError::new(
                                 ParseErrorKind::InvalidMember,
@@ -695,7 +670,7 @@ impl ChunkParser<'_> {
                         }
                     },
                     Rule::substruct => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), Ident::new(s.clone(), rhs.span)),
+                        ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
                         _ => {
                             return Err(ParseError::new(
                                 ParseErrorKind::InvalidSubstruct,
@@ -712,7 +687,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 };
-                Ok(Expression::new(kind, combined_span))
+                Ok(Expression{kind,span:combined_span})
             })
             .map_postfix(|lhs, op| {
                 let lhs = lhs?;
@@ -751,7 +726,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 };
-                Ok(Expression::new(kind, combined_span))
+                Ok(Expression{kind,span:combined_span})
             })
             .parse(pairs)
     }
@@ -763,10 +738,10 @@ impl ChunkParser<'_> {
         let inner_expr = pc.consume_expression(self)?;
         let span = self.to_ast_span(expr.as_span())?;
         let stmt_vec = statement_list;
-        Ok(Expression::new(
-            ExprKind::Block(stmt_vec, Box::new(inner_expr)),
+        Ok(Expression {
+            kind: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
             span,
-        ))
+        })
     }
 
     fn parse_match_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
@@ -813,10 +788,10 @@ impl ChunkParser<'_> {
             });
         }
 
-        Ok(Expression::new(
-            ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
+        Ok(Expression {
+            kind: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
             span,
-        ))
+        })
     }
 
     fn parse_counting_fn(
@@ -848,10 +823,10 @@ impl ChunkParser<'_> {
         })?;
         let fact = self.parse_fact_literal(token)?;
         let span = self.to_ast_span(statement.as_span())?;
-        Ok(Expression::new(
-            ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
+        Ok(Expression {
+            kind: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
             span,
-        ))
+        })
     }
 
     fn parse_if_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
@@ -884,14 +859,14 @@ impl ChunkParser<'_> {
         let else_expr = self.parse_block_expression(token)?;
 
         let span = self.to_ast_span(expr.as_span())?;
-        Ok(Expression::new(
-            ExprKind::InternalFunction(InternalFunction::If(
+        Ok(Expression {
+            kind: ExprKind::InternalFunction(InternalFunction::If(
                 Box::new(condition),
                 Box::new(then_expr),
                 Box::new(else_expr),
             )),
             span,
-        ))
+        })
     }
 
     /// Parses a list of Rule::struct_data items into lists of (String,
@@ -905,12 +880,12 @@ impl ChunkParser<'_> {
             let pc = descend(field);
             match rule_kind {
                 Rule::struct_literal_field => {
-                    let identifier = pc.consume_identifier()?;
+                    let identifier = pc.consume_ident(self)?;
                     let expression = pc.consume_expression(self)?;
                     field_expressions.push((identifier, expression));
                 }
                 Rule::struct_composition => {
-                    let identifier = pc.consume_identifier()?;
+                    let identifier = pc.consume_ident(self)?;
                     sources.push(identifier);
                 }
                 _ => return Err(pc.location_error()),
@@ -920,39 +895,20 @@ impl ChunkParser<'_> {
         Ok((field_expressions, sources))
     }
 
-    /// New version that returns new types with spans
-    fn parse_kv_literal_fields_new(
-        &self,
-        fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(Ident, Expression)>, ParseError> {
-        let mut out = vec![];
-
-        for field in fields {
-            let pc = descend(field.clone());
-            let identifier_str = pc.consume_identifier()?;
-            let field_span = self.to_ast_span(field.as_span())?;
-            let identifier = Ident::new(identifier_str, field_span);
-            let expression = pc.consume_expression(self)?;
-            out.push((identifier, expression));
-        }
-
-        Ok(out)
-    }
-
     fn parse_fact_literal_fields(
         &self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(Identifier, FactField)>, ParseError> {
+    ) -> Result<Vec<(Ident, FactField)>, ParseError> {
         let mut out = vec![];
 
         for field in fields {
             let pc = descend(field);
-            let identifier = pc.consume_identifier()?;
+            let identifier = pc.consume_ident(self)?;
 
             let token = pc.consume()?;
             let field = match token.as_rule() {
                 Rule::expression => FactField::Expression(self.parse_expression(token)?),
-                Rule::bind => FactField::Bind,
+                Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
@@ -976,14 +932,12 @@ impl ChunkParser<'_> {
 
         for field in fields {
             let pc = descend(field.clone());
-            let identifier_str = pc.consume_identifier()?;
-            let span = self.to_ast_span(field.as_span())?;
-            let identifier = Ident::new(identifier_str, span);
+            let identifier = pc.consume_ident(self)?;
 
             let token = pc.consume()?;
             let field_value = match token.as_rule() {
                 Rule::expression => FactField::Expression(self.parse_expression(token)?),
-                Rule::bind => FactField::Bind,
+                Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
@@ -1020,9 +974,7 @@ impl ChunkParser<'_> {
     /// Parse a Rule::fact_literal into a FactLiteral.
     fn parse_fact_literal(&self, fact: Pair<'_, Rule>) -> Result<FactLiteral, ParseError> {
         let pc = descend(fact.clone());
-        let identifier_str = pc.consume_identifier()?;
-        let span = self.to_ast_span(fact.as_span())?;
-        let identifier = Ident::new(identifier_str, span);
+        let identifier = pc.consume_ident(self)?;
 
         let token = pc.consume_of_type(Rule::fact_literal_key)?;
         let key_fields = self.parse_fact_literal_fields_new(token.into_inner())?;
@@ -1150,14 +1102,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::fact_literal_value)?;
         let to = self.parse_fact_literal_fields(token.into_inner())?;
 
-        let to_with_idents = to
-            .into_iter()
-            .map(|(ident, value)| (Ident::new(ident, fact.identifier.span), value))
-            .collect();
-        Ok(UpdateStatement {
-            fact,
-            to: to_with_idents,
-        })
+        Ok(UpdateStatement { fact, to })
     }
 
     /// Parse a Rule::delete_statement into a DeleteStatement.
@@ -1260,10 +1205,9 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_use_definition(&self, field: Pair<'_, Rule>) -> Result<Identifier, ParseError> {
+    fn parse_use_definition(&self, field: Pair<'_, Rule>) -> Result<Ident, ParseError> {
         let pc = descend(field);
-        let identifier = pc.consume_identifier()?;
-        Ok(identifier)
+        pc.consume_ident(self)
     }
 
     /// Parse a Rule::fact_definition into a FactDefinition.
@@ -1313,11 +1257,17 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
-        let persistence = pc
-            .consume_optional(Rule::ephemeral_modifier)
-            .map_or(ast::Persistence::Persistent, |_| {
-                ast::Persistence::Ephemeral
-            });
+        let persistence = {
+            let pair = pc.consume_optional(Rule::ephemeral_modifier);
+            let (kind, span) = match &pair {
+                None => (PersistenceKind::Persistent, span),
+                Some(pair) => (
+                    PersistenceKind::Ephemeral,
+                    self.to_ast_span(pair.as_span())?,
+                ),
+            };
+            Persistence { kind, span }
+        };
         let identifier = pc.consume_ident(self)?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
@@ -1357,7 +1307,7 @@ impl ChunkParser<'_> {
                     self.parse_effect_field_definition(field)?,
                 )),
                 Rule::field_insertion => {
-                    let ident = descend(field).consume_identifier()?;
+                    let ident = descend(field).consume_ident(self)?;
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
@@ -1396,7 +1346,7 @@ impl ChunkParser<'_> {
                     items.push(ast::StructItem::Field(self.parse_field_definition(field)?))
                 }
                 Rule::field_insertion => {
-                    let ident = descend(field).consume_identifier()?;
+                    let ident = descend(field).consume_ident(self)?;
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
@@ -1421,16 +1371,16 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
-        let identifier = pc.consume_identifier()?;
-        let mut variants = Vec::<Identifier>::new();
+        let identifier = pc.consume_ident(self)?;
+        let mut variants = Vec::new();
         for value in pc.into_inner() {
-            let value = remain(value).consume_identifier()?;
+            let value = remain(value).consume_ident(self)?;
             variants.push(value);
         }
 
         Ok(EnumDefinition {
-            identifier: Ident::new(identifier, span),
-            variants: variants.into_iter().map(|v| Ident::new(v, span)).collect(),
+            identifier,
+            variants,
             span,
         })
     }
@@ -1439,12 +1389,8 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
         let pc = descend(item.clone());
-        let identifier_str = pc.consume_identifier()?;
-        let value_str = pc.consume_identifier()?;
-
-        let span = self.to_ast_span(item.as_span())?;
-        let identifier = Ident::new(identifier_str, span);
-        let value = Ident::new(value_str, span);
+        let identifier = pc.consume_ident(self)?;
+        let value = pc.consume_ident(self)?;
 
         Ok(EnumReference { identifier, value })
     }
@@ -1459,11 +1405,17 @@ impl ChunkParser<'_> {
         let span = self.to_ast_span(item.as_span())?;
 
         let pc = descend(item);
-        let persistence = pc
-            .consume_optional(Rule::ephemeral_modifier)
-            .map_or(ast::Persistence::Persistent, |_| {
-                ast::Persistence::Ephemeral
-            });
+        let persistence = {
+            let pair = pc.consume_optional(Rule::ephemeral_modifier);
+            let (kind, span) = match &pair {
+                None => (PersistenceKind::Persistent, span),
+                Some(pair) => (
+                    PersistenceKind::Ephemeral,
+                    self.to_ast_span(pair.as_span())?,
+                ),
+            };
+            Persistence { kind, span }
+        };
         let identifier = pc.consume_ident(self)?;
 
         let mut attributes = vec![];
@@ -1478,7 +1430,7 @@ impl ChunkParser<'_> {
                     let pairs = token.into_inner();
                     for field in pairs {
                         let pc = descend(field);
-                        let identifier = pc.consume_identifier()?;
+                        let identifier = pc.consume_ident(self)?;
                         let expr = pc.consume_expression(self)?;
                         attributes.push((identifier, expr));
                     }
@@ -1493,7 +1445,7 @@ impl ChunkParser<'_> {
                                 ));
                             }
                             Rule::field_insertion => {
-                                let ident = descend(field).consume_identifier()?;
+                                let ident = descend(field).consume_ident(self)?;
                                 fields.push(ast::StructItem::StructRef(ident));
                             }
                             _ => {

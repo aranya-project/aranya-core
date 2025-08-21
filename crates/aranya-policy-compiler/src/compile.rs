@@ -14,8 +14,8 @@ use std::{
 use aranya_policy_ast::{
     self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
     FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
-    MatchExpression, MatchPattern, MatchPatternKind, MatchStatement, NamedStruct, Span, Statement,
-    StmtKind, StructItem, TypeKind, VType,
+    MatchExpression, MatchPattern, MatchPatternKind, MatchStatement, NamedStruct, Span, Spanned,
+    Statement, StmtKind, StructItem, TypeKind, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -191,10 +191,10 @@ impl<'a> CompileState<'a> {
     /// Insert a struct definition while preventing duplicates of the struct name and fields
     pub fn define_struct(
         &mut self,
-        identifier: Identifier,
+        identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if self.m.struct_defs.contains_key(&identifier) {
+        if self.m.struct_defs.contains_key(&identifier.name) {
             return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
         }
 
@@ -215,16 +215,16 @@ impl<'a> CompileState<'a> {
                             field.identifier.to_string(),
                         )));
                     }
-                    // TODO(eric): Use `Span::empty()`?
+                    // TODO(eric): Use `Span::default()`?
                     if has_struct_refs {
                         field_definitions.push(FieldDefinition {
                             identifier: Ident {
                                 name: field.identifier.name.clone(),
-                                span: Span::empty(),
+                                span: Span::default(),
                             },
                             field_type: VType {
                                 kind: field.field_type.kind.clone(),
-                                span: Span::empty(),
+                                span: Span::default(),
                             },
                         });
                     } else {
@@ -233,7 +233,7 @@ impl<'a> CompileState<'a> {
                 }
                 StructItem::StructRef(ident) => {
                     let other =
-                        self.m.struct_defs.get(ident).ok_or_else(|| {
+                        self.m.struct_defs.get(&ident.name).ok_or_else(|| {
                             self.err(CompileErrorType::NotDefined(ident.to_string()))
                         })?;
                     for field in other {
@@ -245,15 +245,15 @@ impl<'a> CompileState<'a> {
                                 field.identifier.to_string(),
                             )));
                         }
-                        // TODO(eric): Use `Span::empty()`?
+                        // TODO(eric): Use `Span::default()`?
                         field_definitions.push(FieldDefinition {
                             identifier: Ident {
                                 name: field.identifier.name.clone(),
-                                span: Span::empty(),
+                                span: Span::default(),
                             },
                             field_type: VType {
                                 kind: field.field_type.kind.clone(),
-                                span: Span::empty(),
+                                span: Span::default(),
                             },
                         });
                     }
@@ -261,7 +261,9 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m.struct_defs.insert(identifier, field_definitions);
+        self.m
+            .struct_defs
+            .insert(identifier.name, field_definitions);
         Ok(())
     }
 
@@ -891,7 +893,12 @@ impl<'a> CompileState<'a> {
             }
             ExprKind::ForeignFunctionCall(f) => {
                 // If the policy hasn't imported this module, don't allow using it
-                if !self.policy.ffi_imports.contains(&f.module.name) {
+                if !self
+                    .policy
+                    .ffi_imports
+                    .iter()
+                    .any(|m| m.name == f.module.name)
+                {
                     return Err(CompileError::from_locator(
                         CompileErrorType::NotDefined(f.module.name.to_string()),
                         self.last_locator,
@@ -972,8 +979,8 @@ impl<'a> CompileState<'a> {
                     )))
                 })?;
 
-                self.append_instruction(Instruction::Meta(Meta::Get(i.clone())));
-                self.append_instruction(Instruction::Get(i.clone()));
+                self.append_instruction(Instruction::Meta(Meta::Get(i.name.clone())));
+                self.append_instruction(Instruction::Get(i.name.clone()));
 
                 t
             }
@@ -981,7 +988,7 @@ impl<'a> CompileState<'a> {
                 let value = self.enum_value(e)?;
                 self.append_instruction(Instruction::Const(value));
                 Typeish::known(VType {
-                    kind: TypeKind::Enum(e.identifier.name.clone()),
+                    kind: TypeKind::Enum(e.identifier.clone()),
                     span: expression.span,
                 })
             }
@@ -1031,7 +1038,8 @@ impl<'a> CompileState<'a> {
                             kind: TypeKind::Struct(lhs_struct_name),
                             ..
                         }) => {
-                            let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name)
+                            let Some(lhs_field_defns) =
+                                self.m.struct_defs.get(&lhs_struct_name.name)
                             else {
                                 return Err(CompileErrorType::NotDefined(format!(
                                     "Struct `{lhs_struct_name}` is not defined",
@@ -1047,11 +1055,11 @@ impl<'a> CompileState<'a> {
                             }) {
                                 return Err(CompileErrorType::InvalidSubstruct(
                                     sub.name.clone(),
-                                    lhs_struct_name,
+                                    lhs_struct_name.name,
                                 ));
                             }
                             Ok(NullableVType::Type(VType {
-                                kind: TypeKind::Struct(sub.name.clone()),
+                                kind: TypeKind::Struct(sub.clone()),
                                 span: expression.span,
                             }))
                         }
@@ -1080,39 +1088,56 @@ impl<'a> CompileState<'a> {
                 // NOTE this is implemented only for structs
 
                 // make sure other struct is defined
-                let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
-                    self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
-                })?;
+                let rhs_fields = self
+                    .m
+                    .struct_defs
+                    .get(&rhs_ident.name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
+                    })?;
 
                 let lhs_type = self.compile_expression(lhs)?;
                 _ = lhs_type.try_map(|t| match t {
-                    NullableVType::Type(VType::Struct(lhs_struct_name)) => {
+                    NullableVType::Type(VType {
+                        kind: TypeKind::Struct(lhs_struct_name),
+                        ..
+                    }) => {
                         let lhs_fields =
-                            self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
-                                self.err(CompileErrorType::NotDefined(format!(
-                                    "struct {lhs_struct_name}"
-                                )))
-                            })?;
+                            self.m
+                                .struct_defs
+                                .get(&lhs_struct_name.name)
+                                .ok_or_else(|| {
+                                    self.err(CompileErrorType::NotDefined(format!(
+                                        "struct {lhs_struct_name}"
+                                    )))
+                                })?;
 
                         // Check that both structs have the same field names and types (though not necessarily in the same order)
                         if lhs_fields.len() != rhs_fields.len()
                             || !lhs_fields.iter().all(|f| rhs_fields.contains(f))
                         {
                             return Err(self.err(CompileErrorType::InvalidCast(
-                                lhs_struct_name,
-                                rhs_ident.clone(),
+                                lhs_struct_name.name,
+                                rhs_ident.name.clone(),
                             )));
                         }
-                        Ok(NullableVType::Type(VType::Struct(rhs_ident.clone())))
+                        Ok(NullableVType::Type(VType {
+                            kind: TypeKind::Struct(rhs_ident.clone()),
+                            span: rhs_ident.span(),
+                        }))
                     }
                     _ => Err(self.err(CompileErrorType::InvalidType(
                         "Expression to the left of `as` is not a struct".to_string(),
                     ))),
                 })?;
 
-                self.append_instruction(Instruction::Cast(rhs_ident.clone()));
+                self.append_instruction(Instruction::Cast(rhs_ident.name.clone()));
 
-                Typeish::known(VType::Struct(rhs_ident.clone()))
+                Typeish::known(VType {
+                    kind: TypeKind::Struct(rhs_ident.clone()),
+                    span: rhs_ident.span(),
+                })
             }
             ExprKind::Add(a, b) | ExprKind::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -1532,12 +1557,12 @@ impl<'a> CompileState<'a> {
                                     .find(|c| c.identifier == *ident)
                                     .assume("command must be defined")?
                                     .persistence;
-                                if &action.persistence != command_persistence {
+                                if action.persistence.kind != command_persistence.kind {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
-                                        action.persistence,
+                                        action.persistence.kind,
                                         action.identifier,
-                                        command_persistence,
+                                        command_persistence.kind,
                                         ident
                                     )));
                                 }
@@ -1594,7 +1619,7 @@ impl<'a> CompileState<'a> {
                         .add(
                             map_stmt.identifier.name.clone(),
                             Typeish::known(VType {
-                                kind: TypeKind::Struct(map_stmt.fact.identifier.name.clone()),
+                                kind: TypeKind::Struct(map_stmt.fact.identifier.clone()),
                                 span: map_stmt.fact.identifier.span,
                             }),
                         )
@@ -1627,11 +1652,11 @@ impl<'a> CompileState<'a> {
                     if s.fact
                         .key_fields
                         .iter()
-                        .any(|f| matches!(f.1, FactField::Bind))
+                        .any(|f| matches!(f.1, FactField::Bind(_)))
                         || s.fact
                             .value_fields
                             .as_ref()
-                            .is_some_and(|v| v.iter().any(|f| matches!(f.1, FactField::Bind)))
+                            .is_some_and(|v| v.iter().any(|f| matches!(f.1, FactField::Bind(_))))
                     {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
@@ -1654,12 +1679,16 @@ impl<'a> CompileState<'a> {
                         );
                     }
 
-                    if s.fact.key_fields.iter().any(|f| f.1 == FactField::Bind) {
+                    if s.fact
+                        .key_fields
+                        .iter()
+                        .any(|f| matches!(f.1, FactField::Bind(_)))
+                    {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot update fact with wildcard keys",
                             )),
-                            statement.locator,
+                            statement.span.start(),
                         ));
                     }
 
@@ -1679,13 +1708,13 @@ impl<'a> CompileState<'a> {
 
                     for (k, v) in &s.to {
                         match v {
-                            FactField::Bind => {
+                            FactField::Bind(span) => {
                                 // Cannot bind in the set statement
                                 return Err(self.err_loc(
                                     CompileErrorType::BadArgument(String::from(
                                         "Cannot update fact to a bind value",
                                     )),
-                                    statement.span.start(),
+                                    span.start(),
                                 ));
                             }
                             FactField::Expression(e) => {
@@ -1715,12 +1744,16 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Update);
                 }
                 (StmtKind::Delete(s), StatementContext::Finish) => {
-                    if s.fact.key_fields.iter().any(|f| f.1 == FactField::Bind) {
+                    if s.fact
+                        .key_fields
+                        .iter()
+                        .any(|f| matches!(f.1, FactField::Bind(_)))
+                    {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot delete fact with wildcard keys",
                             )),
-                            statement.locator,
+                            statement.span.start(),
                         ));
                     }
 
@@ -1887,7 +1920,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Struct(name),
                 ..
             } => {
-                if name != "Envelope" && !self.m.struct_defs.contains_key(name) {
+                if name != "Envelope" && !self.m.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
@@ -1895,7 +1928,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Enum(name),
                 ..
             } => {
-                if !self.m.enum_defs.contains_key(name) {
+                if !self.m.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
@@ -2091,7 +2124,7 @@ impl<'a> CompileState<'a> {
                 identifier.name.clone(),
                 Typeish::known(VType {
                     kind: vt,
-                    span: Span::empty(),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2148,8 +2181,8 @@ impl<'a> CompileState<'a> {
             .add(
                 ident!("this"),
                 Typeish::known(VType {
-                    kind: TypeKind::Struct(command.identifier.name.clone()),
-                    span: Span::empty(),
+                    kind: TypeKind::Struct(command.identifier.clone()),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2157,8 +2190,11 @@ impl<'a> CompileState<'a> {
             .add(
                 ident!("envelope"),
                 Typeish::known(VType {
-                    kind: TypeKind::Struct(ident!("Envelope")),
-                    span: Span::empty(),
+                    kind: TypeKind::Struct(Ident {
+                        name: ident!("Envelope"),
+                        span: Span::default(),
+                    }),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2184,8 +2220,8 @@ impl<'a> CompileState<'a> {
             .add(
                 ident!("this"),
                 Typeish::known(VType {
-                    kind: TypeKind::Struct(command.identifier.name.clone()),
-                    span: Span::empty(),
+                    kind: TypeKind::Struct(command.identifier.clone()),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2193,8 +2229,11 @@ impl<'a> CompileState<'a> {
             .add(
                 ident!("envelope"),
                 Typeish::known(VType {
-                    kind: TypeKind::Struct(ident!("Envelope")),
-                    span: Span::empty(),
+                    kind: TypeKind::Struct(Ident {
+                        name: ident!("Envelope"),
+                        span: Span::default(),
+                    }),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2220,11 +2259,14 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the seal block
         let seal_function_definition = ast::FunctionDefinition {
-            identifier: Ident::new(ident!("seal"), Span::empty()),
+            identifier: Ident::new(ident!("seal"), Span::default()),
             arguments: vec![],
             return_type: VType {
-                kind: TypeKind::Struct(ident!("Envelope")),
-                span: Span::empty(),
+                kind: TypeKind::Struct(Ident {
+                    name: ident!("Envelope"),
+                    span: Span::default(),
+                }),
+                span: Span::default(),
             },
             statements: vec![],
             span: command.span,
@@ -2247,8 +2289,8 @@ impl<'a> CompileState<'a> {
             .add(
                 ident!("this"),
                 Typeish::known(VType {
-                    kind: TypeKind::Struct(command.identifier.name.clone()),
-                    span: Span::empty(),
+                    kind: TypeKind::Struct(command.identifier.clone()),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2279,11 +2321,11 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the open block
         let open_function_definition = ast::FunctionDefinition {
-            identifier: Ident::new(ident!("open"), Span::empty()),
+            identifier: Ident::new(ident!("open"), Span::default()),
             arguments: vec![],
             return_type: VType {
-                kind: TypeKind::Struct(command.identifier.name.clone()),
-                span: Span::empty(),
+                kind: TypeKind::Struct(command.identifier.clone()),
+                span: Span::default(),
             },
             statements: vec![],
             span: command.span,
@@ -2304,8 +2346,11 @@ impl<'a> CompileState<'a> {
             .add(
                 ident!("envelope"),
                 Typeish::known(VType {
-                    kind: TypeKind::Struct(ident!("Envelope")),
-                    span: Span::empty(),
+                    kind: TypeKind::Struct(Ident {
+                        name: ident!("Envelope"),
+                        span: Span::default(),
+                    }),
+                    span: Span::default(),
                 }),
             )
             .map_err(|e| self.err(e))?;
@@ -2337,7 +2382,7 @@ impl<'a> CompileState<'a> {
         // attributes
         let mut attr_values = BTreeMap::new();
         for (name, value_expr) in &command.attributes {
-            match attr_values.entry(name.clone()) {
+            match attr_values.entry(name.name.clone()) {
                 Entry::Vacant(e) => {
                     let value = self.expression_value(value_expr)?;
                     e.insert(value);
@@ -2368,11 +2413,11 @@ impl<'a> CompileState<'a> {
         for si in &command.fields {
             match si {
                 StructItem::Field(f) => {
-                    // TODO(eric): Use `Span::empty()`?
+                    // TODO(eric): Use `Span::default()`?
                     let field_type = if has_struct_refs {
                         VType {
                             kind: f.field_type.kind.clone(),
-                            span: Span::empty(),
+                            span: Span::default(),
                         }
                     } else {
                         f.field_type.clone()
@@ -2380,14 +2425,14 @@ impl<'a> CompileState<'a> {
                     map.insert(f.identifier.name.clone(), field_type);
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self.m.struct_defs.get(ref_name).ok_or_else(|| {
+                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(ref_name.to_string()))
                     })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
                             kind: fd.field_type.kind.clone(),
-                            span: Span::empty(),
+                            span: Span::default(),
                         };
                         map.insert(fd.identifier.name.clone(), field_type);
                     }
@@ -2618,7 +2663,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
         for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
+            self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
         }
 
         // Compile global let statements
@@ -2627,7 +2672,7 @@ impl<'a> CompileState<'a> {
         }
 
         for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.identifier.name.clone(), &struct_def.items)?;
+            self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
         }
 
         for effect in &self.policy.effects {
@@ -2642,7 +2687,7 @@ impl<'a> CompileState<'a> {
                     StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                 })
                 .collect();
-            self.define_struct(effect.identifier.name.clone(), &fields)?;
+            self.define_struct(effect.identifier.clone(), &fields)?;
             self.m.effects.insert(effect.identifier.name.clone());
         }
 
@@ -2654,12 +2699,16 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .map(|a| {
                         StructItem::Field(FieldDefinition {
-                            identifier: Ident::new(a.name.clone(), Span::empty()),
+                            identifier: Ident::new(a.name.clone(), Span::default()),
                             field_type: VType::from(&a.vtype),
                         })
                     })
                     .collect();
-                self.define_struct(s.name.to_owned(), &fields)?;
+                let ident = Ident {
+                    name: s.name.to_owned(),
+                    span: Span::default(),
+                };
+                self.define_struct(ident, &fields)?;
             }
         }
 
@@ -2678,13 +2727,13 @@ impl<'a> CompileState<'a> {
                 .map(StructItem::Field)
                 .collect();
 
-            self.define_struct(fact.identifier.name.clone(), &fields)?;
+            self.define_struct(fact.identifier.clone(), &fields)?;
             self.define_fact(fact)?;
         }
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(command.identifier.name.clone(), &command.fields)?;
+            self.define_struct(command.identifier.clone(), &command.fields)?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be
@@ -2730,26 +2779,27 @@ impl<'a> CompileState<'a> {
     }
 
     /// Get expression value, e.g. ExprKind::Int => Value::Int
-    fn expression_value(&self, e: &Expression) -> Option<Value> {
+    fn expression_value(&self, e: &Expression) -> Result<Value, CompileError> {
         match &e.kind {
-            ExprKind::Int(v) => Some(Value::Int(*v)),
-            ExprKind::Bool(v) => Some(Value::Bool(*v)),
-            ExprKind::String(v) => Some(Value::String(v.clone())),
-            ExprKind::NamedStruct(NamedStruct {
-                identifier,
-                fields,
-                sources,
-            }) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier).cloned()
+            ExprKind::Int(v) => Ok(Value::Int(*v)),
+            ExprKind::Bool(v) => Ok(Value::Bool(*v)),
+            ExprKind::String(v) => Ok(Value::String(v.clone())),
+            ExprKind::NamedStruct(struct_ast) => {
+                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name).cloned()
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
-                        struct_ast.identifier
+                        struct_ast.identifier.name,
                     ))));
                 };
 
                 let struct_ast = self.evaluate_sources(struct_ast, &struct_def)?;
-                Some(Value::Struct(Struct {
+
+                let NamedStruct {
+                    identifier, fields, ..
+                } = struct_ast.as_ref();
+
+                Ok(Value::Struct(Struct {
                     name: identifier.name.clone(),
                     fields: {
                         let mut value_fields = BTreeMap::new();
@@ -2761,13 +2811,15 @@ impl<'a> CompileState<'a> {
                 }))
             }
             ExprKind::EnumReference(e) => self.enum_value(e),
-            ExprKind::Dot(expr, field_ident) => match **expr {
-                Expression::Identifier(ref struct_ident) => self
+            ExprKind::Dot(expr, field_ident) => match &expr.kind {
+                ExprKind::Identifier(struct_ident) => self
                     .m
                     .globals
-                    .get(struct_ident)
+                    .get(&struct_ident.name)
                     .and_then(|val| match val {
-                        Value::Struct(Struct { fields, .. }) => fields.get(field_ident).cloned(),
+                        Value::Struct(Struct { fields, .. }) => {
+                            fields.get(&field_ident.name).cloned()
+                        }
                         _ => None,
                     })
                     .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(e.clone()))),
@@ -2808,7 +2860,10 @@ impl<'a> CompileState<'a> {
                 .map_err(|err| self.err(err))?;
 
             let src_struct_type_name = match src_type {
-                Typeish::Known(NullableVType::Type(VType::Struct(type_name))) => type_name,
+                Typeish::Known(NullableVType::Type(VType {
+                    kind: TypeKind::Struct(type_name),
+                    ..
+                })) => type_name,
                 // Known type, but not a struct
                 Typeish::Known(other_type) => {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
@@ -2824,7 +2879,7 @@ impl<'a> CompileState<'a> {
             let src_field_defns = self
                 .m
                 .struct_defs
-                .get(&src_struct_type_name)
+                .get(&src_struct_type_name.name)
                 .assume("identifier with a struct type has that struct already defined")
                 .map_err(|err| self.err(err.into()))?;
 
@@ -2835,12 +2890,13 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Ensure we haven't already resolved this field from another source.
-                if let Some(other) =
-                    seen.insert(&src_field_defn.identifier, src_struct_type_name.clone())
-                {
+                if let Some(other) = seen.insert(
+                    &src_field_defn.identifier.name,
+                    src_struct_type_name.clone(),
+                ) {
                     return Err(self.err(CompileErrorType::DuplicateSourceFields(
-                        src_struct_type_name,
-                        other,
+                        src_struct_type_name.name,
+                        other.name,
                     )));
                 }
 
@@ -2850,8 +2906,8 @@ impl<'a> CompileState<'a> {
                     .find(|b_defn| b_defn.identifier == src_field_defn.identifier)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::SourceStructNotSubsetOfBase(
-                            src_struct_type_name.clone(),
-                            base_struct.identifier.clone(),
+                            src_struct_type_name.name.clone(),
+                            base_struct.identifier.name.clone(),
                         ))
                     })?;
                 if base_struct_defn.field_type != src_field_defn.field_type {
@@ -2866,10 +2922,16 @@ impl<'a> CompileState<'a> {
                 // Foo {x: 0, ...bar } -> Foo -> {x: 0, y: bar.y }
                 resolved_struct.fields.push((
                     src_field_defn.identifier.clone(),
-                    Expression::Dot(
-                        Box::new(Expression::Identifier(src_var_name.clone())),
-                        src_field_defn.identifier.clone(),
-                    ),
+                    Expression {
+                        kind: ExprKind::Dot(
+                            Box::new(Expression {
+                                kind: ExprKind::Identifier(src_var_name.clone()),
+                                span: Span::default(),
+                            }),
+                            src_field_defn.identifier.clone(),
+                        ),
+                        span: Span::default(), // TODO
+                    },
                 ));
             }
         }
