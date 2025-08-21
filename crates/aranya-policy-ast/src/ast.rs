@@ -3,7 +3,7 @@ use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Span, Spanned, Text, span::spanned};
+use crate::{span::spanned, Identifier, Span, Spanned, Text};
 
 /// An identifier.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -60,7 +60,7 @@ pub struct InvalidVersion;
 mod version {
     #![allow(deprecated)] // for serde
 
-    use super::*;
+    use super::{Deserialize, Serialize};
 
     /// Policy language version
     #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -114,10 +114,10 @@ impl Persistence {
     /// Reports whether both persistence modes are the same,
     /// ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Persistent, Self::Persistent) | (Self::Ephemeral(_), Self::Ephemeral(_)) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (Self::Persistent, Self::Persistent) | (Self::Ephemeral(_), Self::Ephemeral(_))
+        )
     }
 
     /// Returns the span of the persistence mode, if available.
