@@ -1,12 +1,12 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, fmt};
 
 use aranya_policy_ast::{
     self as ast, ident, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, PersistenceKind, ReturnStatement, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version,
+    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
+    UpdateStatement, VType, Version,
 };
 use buggy::BugExt;
 use pest::{
@@ -15,6 +15,7 @@ use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
     Parser, Span,
 };
+use serde::{Deserialize, Serialize};
 
 mod error;
 mod markdown;
@@ -146,6 +147,7 @@ fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
 }
 
 /// Context information for partial parsing of a chunk of source
+#[derive(Clone)]
 pub struct ChunkParser<'a> {
     offset: usize,
     pratt: &'a PrattParser<Rule>,
@@ -210,7 +212,7 @@ impl ChunkParser<'_> {
         let name = identifier
             .parse()
             .assume("grammar produces valid identifiers")?;
-        Ok(Ident::new(name, span))
+        Ok(Ident { name, span })
     }
 
     /// Parse a type token (one of the types under Rule::vtype) into a
@@ -1203,7 +1205,7 @@ impl ChunkParser<'_> {
                     ));
                 }
             };
-            statements.push(Statement::new(kind, span));
+            statements.push(Statement { kind, span });
         }
 
         Ok(statements)
@@ -1276,16 +1278,9 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
-        let persistence = {
-            let pair = pc.consume_optional(Rule::ephemeral_modifier);
-            let (kind, span) = match &pair {
-                None => (PersistenceKind::Persistent, span),
-                Some(pair) => (
-                    PersistenceKind::Ephemeral,
-                    self.to_ast_span(pair.as_span())?,
-                ),
-            };
-            Persistence { kind, span }
+        let persistence = match pc.consume_optional(Rule::ephemeral_modifier) {
+            Some(pair) => Persistence::Ephemeral(self.to_ast_span(pair.as_span())?),
+            None => Persistence::Persistent,
         };
         let identifier = pc.consume_ident(self)?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
@@ -1424,16 +1419,9 @@ impl ChunkParser<'_> {
         let span = self.to_ast_span(item.as_span())?;
 
         let pc = descend(item);
-        let persistence = {
-            let pair = pc.consume_optional(Rule::ephemeral_modifier);
-            let (kind, span) = match &pair {
-                None => (PersistenceKind::Persistent, span),
-                Some(pair) => (
-                    PersistenceKind::Ephemeral,
-                    self.to_ast_span(pair.as_span())?,
-                ),
-            };
-            Persistence { kind, span }
+        let persistence = match pc.consume_optional(Rule::ephemeral_modifier) {
+            Some(pair) => Persistence::Ephemeral(self.to_ast_span(pair.as_span())?),
+            None => Persistence::Persistent,
         };
         let identifier = pc.consume_ident(self)?;
 
@@ -1611,6 +1599,15 @@ impl ChunkParser<'_> {
     }
 }
 
+impl fmt::Debug for ChunkParser<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ChunkParser")
+            .field("offset", &self.offset)
+            .field("source_len", &self.source_len)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Parse a policy document string into an [Policy](ast::Policy) object.
 ///
 /// The version parameter asserts that the code conforms to that
@@ -1730,6 +1727,9 @@ fn parse_policy_chunk_inner(
 
 /// Parse a function or finish function declaration for the FFI
 pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
+    let pratt = get_pratt_parser();
+    let parser = ChunkParser::new(0, &pratt, data.len());
+
     let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
     let decl = def.next().ok_or_else(|| {
         ParseError::new(
@@ -1747,26 +1747,10 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     ));
 
     let pc = descend(decl.clone());
-    let identifier_token = pc.consume_of_type(Rule::identifier)?;
-    let identifier_str = identifier_token.as_str();
-    // Helper to convert pest span to AST span with offset 0
-    let to_ast_span = |pest_span: Span<'_>| -> Result<ast::Span, ParseError> {
-        let start = pest_span.start();
-        let end = pest_span.end();
-        Ok(ast::Span::new(start, end))
-    };
-    let identifier_span = to_ast_span(identifier_token.as_span())?;
-    let identifier = Ident::new(
-        identifier_str
-            .parse()
-            .assume("grammar produces valid identifiers")?,
-        identifier_span,
-    );
+    let identifier = pc.consume_ident(&parser)?;
 
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
-    let pratt = get_pratt_parser();
-    let parser = ChunkParser::new(0, &pratt, data.len());
     for field in token.into_inner() {
         arguments.push(parser.parse_field_definition(field)?);
     }
@@ -1787,6 +1771,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
 }
 
 /// A series of Struct or Enum definitions for the FFI
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FfiTypes {
     pub structs: Vec<ast::StructDefinition>,
     pub enums: Vec<EnumDefinition>,

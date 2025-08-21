@@ -4,7 +4,7 @@ mod types;
 
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -12,17 +12,17 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
-    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
-    MatchExpression, MatchPattern, MatchPatternKind, MatchStatement, NamedStruct, Span, Spanned,
-    Statement, StmtKind, StructItem, TypeKind, VType, ident,
+    self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
+    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned, Statement, StmtKind,
+    StructItem, TypeKind, VType,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{Bug, BugExt, bug};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -724,9 +724,9 @@ impl<'a> CompileState<'a> {
                     self.compile_counting_function(cmp_type, *n, fact)?;
 
                     match cmp_type {
-                        FactCountType::UpTo => Typeish::known(VType {
+                        FactCountType::UpTo(span) => Typeish::known(VType {
                             kind: TypeKind::Int,
-                            span: expression.span,
+                            span: *span,
                         }),
                         _ => Typeish::known(VType {
                             kind: TypeKind::Bool,
@@ -850,7 +850,7 @@ impl<'a> CompileState<'a> {
 
                     result_type
                 }
-                ast::InternalFunction::Todo => {
+                ast::InternalFunction::Todo(_) => {
                     let err = self.err(CompileErrorType::TodoFound);
                     if self.is_debug {
                         warn!("{err}");
@@ -1557,12 +1557,12 @@ impl<'a> CompileState<'a> {
                                     .find(|c| c.identifier == *ident)
                                     .assume("command must be defined")?
                                     .persistence;
-                                if action.persistence.kind != command_persistence.kind {
+                                if &action.persistence != command_persistence {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
-                                        action.persistence.kind,
+                                        action.persistence,
                                         action.identifier,
-                                        command_persistence.kind,
+                                        command_persistence,
                                         ident
                                     )));
                                 }
@@ -2259,7 +2259,10 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the seal block
         let seal_function_definition = ast::FunctionDefinition {
-            identifier: Ident::new(ident!("seal"), Span::default()),
+            identifier: Ident {
+                name: ident!("seal"),
+                span: Span::default(),
+            },
             arguments: vec![],
             return_type: VType {
                 kind: TypeKind::Struct(Ident {
@@ -2321,7 +2324,10 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the open block
         let open_function_definition = ast::FunctionDefinition {
-            identifier: Ident::new(ident!("open"), Span::default()),
+            identifier: Ident {
+                name: ident!("open"),
+                span: Span::default(),
+            },
             arguments: vec![],
             return_type: VType {
                 kind: TypeKind::Struct(command.identifier.clone()),
@@ -2460,14 +2466,14 @@ impl<'a> CompileState<'a> {
         self.verify_fact_against_schema(fact, false)?;
         self.compile_fact_literal(fact)?;
         match cmp_type {
-            FactCountType::UpTo => self.append_instruction(Instruction::FactCount(limit)),
-            FactCountType::AtLeast => {
+            FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(limit)),
+            FactCountType::AtLeast(_) => {
                 self.append_instruction(Instruction::FactCount(limit));
                 self.append_instruction(Instruction::Const(Value::Int(limit)));
                 self.append_instruction(Instruction::Lt);
                 self.append_instruction(Instruction::Not);
             }
-            FactCountType::AtMost => {
+            FactCountType::AtMost(_) => {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
@@ -2475,7 +2481,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Gt);
                 self.append_instruction(Instruction::Not);
             }
-            FactCountType::Exactly => {
+            FactCountType::Exactly(_) => {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
@@ -2502,9 +2508,9 @@ impl<'a> CompileState<'a> {
         // NOTE We don't check for zero arms, because that's enforced by the parser.
         let all_values = patterns
             .iter()
-            .flat_map(|pattern| match &pattern.kind {
-                MatchPatternKind::Values(values) => values.as_slice(),
-                MatchPatternKind::Default => &[],
+            .flat_map(|pattern| match pattern {
+                MatchPattern::Values(values) => values.as_slice(),
+                MatchPattern::Default(_) => &[],
             })
             .collect::<Vec<&Expression>>();
         // Check for duplicates by comparing expression kinds, not including spans
@@ -2521,7 +2527,7 @@ impl<'a> CompileState<'a> {
         // find duplicate default arms
         let default_count = patterns
             .iter()
-            .filter(|p| matches!(p.kind, MatchPatternKind::Default))
+            .filter(|p| matches!(p, MatchPattern::Default(_)))
             .count();
         if default_count > 1 {
             return Err(self.err_loc(
@@ -2546,8 +2552,8 @@ impl<'a> CompileState<'a> {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
-            match &pattern.kind {
-                MatchPatternKind::Values(values) => {
+            match pattern {
+                MatchPattern::Values(values) => {
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
                         self.append_instruction(Instruction::Dup);
@@ -2574,7 +2580,7 @@ impl<'a> CompileState<'a> {
                         )));
                     }
                 }
-                MatchPatternKind::Default => {
+                MatchPattern::Default(_) => {
                     self.append_instruction(Instruction::Jump(Target::Unresolved(
                         arm_label.clone(),
                     )));
@@ -2590,7 +2596,10 @@ impl<'a> CompileState<'a> {
         }
 
         // if no match, and no default case, panic
-        if !patterns.iter().any(|p| p.kind == MatchPatternKind::Default) {
+        if !patterns
+            .iter()
+            .any(|p| matches!(p, MatchPattern::Default(_)))
+        {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 
@@ -2699,7 +2708,10 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .map(|a| {
                         StructItem::Field(FieldDefinition {
-                            identifier: Ident::new(a.name.clone(), Span::default()),
+                            identifier: Ident {
+                                name: a.name.clone(),
+                                span: Span::default(),
+                            },
                             field_type: VType::from(&a.vtype),
                         })
                     })

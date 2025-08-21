@@ -3,9 +3,10 @@ use std::fmt::Display;
 use aranya_policy_ast::Version;
 use buggy::Bug;
 use pest::{
-    Span,
     error::{Error as PestError, LineColLocation},
+    Span,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
 
@@ -13,7 +14,7 @@ use crate::lang::parse::Rule;
 ///
 /// If the case contains a String, it is a message describing the item
 /// affected or a general error message.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
@@ -73,7 +74,7 @@ impl Display for ParseErrorKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
     pub message: String,

@@ -1,16 +1,17 @@
+#![cfg(test)]
 #![allow(clippy::panic)]
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
-use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern, MatchPatternKind};
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use aranya_policy_ast::{ident, text, ExprKind, Ident, Identifier, Span, StmtKind, TypeKind};
+use ast::Expression;
+use pest::{error::Error as PestError, iterators::Pair, Parser};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
-    parse_policy_str,
+    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
+    Version,
 };
-use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
+use crate::lang::{ChunkParser, ParseErrorKind};
 
 trait SpannedAt {
     type Type;
@@ -235,26 +236,7 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
     let p = ChunkParser::new(0, &pratt, source.len());
     let expr_pair = pairs.next().unwrap();
     let expr_parsed = p.parse_expression(expr_pair)?;
-    assert_eq!(
-        expr_parsed,
-        ExprKind::Unwrap(Box::new(
-            ExprKind::FunctionCall(ast::FunctionCall {
-                identifier: ident!("call").at(7..33),
-                arguments: vec![
-                    ExprKind::Add(
-                        Box::new(ExprKind::Int(3).at(12..13)),
-                        Box::new(ExprKind::Int(7).at(16..17))
-                    )
-                    .at(12..17),
-                    ExprKind::Negative(Box::new(ExprKind::Identifier(ident!("b")).at(20..21)))
-                        .at(19..21),
-                    ExprKind::String(text!("foo\x7b")).at(23..32),
-                ]
-            })
-            .at(7..33)
-        ))
-        .at(0..33)
-    );
+    insta::assert_json_snapshot!(expr_parsed);
     Ok(())
 }
 
@@ -420,29 +402,14 @@ fn parse_effect() -> Result<(), PestError<Rule>> {
 
 #[test]
 fn test_parse_effect_with_field_insertion() {
-    let cases = [(
-        r#"struct Foo { x int }
+    let text = r#"struct Foo { x int }
         effect Bar {
             +Foo,
             y int
         }
-        "#,
-        vec![
-            ast::StructItem::StructRef(ident!("Foo")),
-            ast::StructItem::Field(ast::EffectFieldDefinition {
-                identifier: ident!("y").at(72..86),
-                field_type: TypeKind::Int.at(74..77),
-                dynamic: false,
-            }),
-        ],
-    )];
-    for (case, expected) in cases {
-        let policy = parse_policy_str(case, Version::V2).expect("should parse");
-        assert_eq!(
-            policy.effects[0].items, expected,
-            "case: {case:?} => {expected:?}"
-        );
-    }
+        "#;
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -634,492 +601,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
 
-    assert_eq!(
-        policy.facts,
-        vec![ast::FactDefinition {
-            immutable: false,
-            identifier: ident!("F").at(150..151),
-            key: vec![ast::FieldDefinition {
-                identifier: ident!("v").at(152..160),
-                field_type: TypeKind::String.at(154..160),
-            }],
-            value: vec![
-                ast::FieldDefinition {
-                    identifier: ident!("x").at(164..169),
-                    field_type: TypeKind::Int.at(166..169),
-                },
-                ast::FieldDefinition {
-                    identifier: ident!("y").at(171..177),
-                    field_type: TypeKind::Bool.at(173..177),
-                },
-            ],
-            span: Span::new(145, 178),
-        }]
-    );
-    assert_eq!(
-        policy.actions,
-        vec![
-            ast::ActionDefinition {
-                persistence: ast::Persistence::Persistent,
-                identifier: ident!("add").at(195..198),
-                arguments: vec![
-                    ast::FieldDefinition {
-                        identifier: ident!("x").at(199..204),
-                        field_type: TypeKind::Int.at(201..204),
-                    },
-                    ast::FieldDefinition {
-                        identifier: ident!("y").at(206..211),
-                        field_type: TypeKind::Int.at(208..211),
-                    },
-                ],
-                statements: vec![
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("obj").at(231..234),
-                        expression: ExprKind::NamedStruct(ast::NamedStruct {
-                            identifier: ident!("Add").at(237..282),
-                            fields: vec![(
-                                ident!("count").at(259..267),
-                                ExprKind::Identifier(ident!("x")).at(266..267)
-                            )],
-                        })
-                        .at(237..282)
-                    })
-                    .at(227..295),
-                    StmtKind::Publish(ExprKind::Identifier(ident!("obj")).at(303..306))
-                        .at(295..315),
-                ],
-                span: Span::new(188, 316),
-            },
-            ast::ActionDefinition {
-                persistence: ast::Persistence::Ephemeral,
-                identifier: ident!("a").at(2348..2349),
-                arguments: vec![],
-                statements: vec![],
-                span: Span::new(2331, 2354),
-            }
-        ]
-    );
-    assert_eq!(
-        policy.effects,
-        vec![ast::EffectDefinition {
-            identifier: ident!("Added").at(333..338),
-            items: vec![
-                ast::StructItem::Field(ast::EffectFieldDefinition {
-                    identifier: ident!("x").at(353..366),
-                    field_type: TypeKind::Int.at(355..358),
-                    dynamic: true,
-                }),
-                ast::StructItem::Field(ast::EffectFieldDefinition {
-                    identifier: ident!("y").at(380..385),
-                    field_type: TypeKind::Int.at(382..385),
-                    dynamic: false,
-                }),
-            ],
-            span: Span::new(326, 396),
-        }]
-    );
-    assert_eq!(
-        policy.commands,
-        vec![
-            ast::CommandDefinition {
-                persistence: ast::Persistence::Persistent,
-                attributes: vec![],
-                identifier: ident!("Add").at(414..417),
-                fields: vec![ast::StructItem::Field(ast::FieldDefinition {
-                    identifier: ident!("count").at(457..466),
-                    field_type: TypeKind::Int.at(463..466),
-                })],
-                seal: vec![],
-                open: vec![],
-                policy: vec![
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("envelope_id").at(523..534),
-                        expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
-                            module: ident!("envelope").at(537..567),
-                            identifier: ident!("command_id").at(547..567),
-                            arguments: vec![ExprKind::Identifier(ident!("envelope")).at(558..566)]
-                        })
-                        .at(537..567),
-                    })
-                    .at(519..584),
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("author").at(588..594),
-                        expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
-                            module: ident!("envelope").at(597..626),
-                            identifier: ident!("author_id").at(607..626),
-                            arguments: vec![ExprKind::Identifier(ident!("envelope")).at(617..625)]
-                        })
-                        .at(597..626),
-                    })
-                    .at(584..643),
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("new_x").at(647..652),
-                        expression: ExprKind::Add(
-                            Box::new(ExprKind::Identifier(ident!("x")).at(655..656)),
-                            Box::new(ExprKind::Identifier(ident!("count")).at(659..664))
-                        )
-                        .at(655..664)
-                    })
-                    .at(643..681),
-                    StmtKind::Check(ast::CheckStatement {
-                        expression: ExprKind::InternalFunction(ast::InternalFunction::Exists(
-                            ast::FactLiteral {
-                                identifier: ident!("TestFact").at(694..717),
-                                key_fields: vec![(
-                                    ident!("v").at(703..712),
-                                    FactField::Expression(
-                                        ExprKind::String(text!("test")).at(706..712)
-                                    )
-                                )],
-                                value_fields: Some(vec![]),
-                            }
-                        ))
-                        .at(687..717)
-                    })
-                    .at(681..734),
-                    StmtKind::Match(ast::MatchStatement {
-                        expression: ExprKind::Identifier(ident!("x")).at(740..741),
-                        arms: vec![
-                            ast::MatchArm {
-                                pattern: MatchPattern::Values(vec![ExprKind::Int(0).at(764..765)]),
-                                statements: vec![
-                                    StmtKind::Check(ast::CheckStatement {
-                                        expression: ExprKind::FunctionCall(ast::FunctionCall {
-                                            identifier: ident!("positive").at(801..822),
-                                            arguments: vec![
-                                                ExprKind::Optional(Some(Box::new(
-                                                    ExprKind::Identifier(ident!("new_x"))
-                                                        .at(815..820)
-                                                )))
-                                                .at(810..821)
-                                            ],
-                                        })
-                                        .at(801..822)
-                                    })
-                                    .at(795..843)
-                                ],
-                            },
-                            ast::MatchArm {
-                                pattern: MatchPattern::Values(vec![ExprKind::Int(1).at(865..866)]),
-                                statements: vec![
-                                    StmtKind::Check(ast::CheckStatement {
-                                        expression: ExprKind::FunctionCall(ast::FunctionCall {
-                                            identifier: ident!("positive").at(902..916),
-                                            arguments: vec![ExprKind::Optional(None).at(911..915)],
-                                        })
-                                        .at(902..916)
-                                    })
-                                    .at(896..937)
-                                ],
-                            },
-                            ast::MatchArm {
-                                pattern: MatchPattern::Default,
-                                statements: vec![],
-                            },
-                        ],
-                    })
-                    .at(734..1006),
-                    StmtKind::If(ast::IfStatement {
-                        branches: vec![(
-                            ExprKind::Equal(
-                                Box::new(ExprKind::Identifier(ident!("x")).at(1027..1028)),
-                                Box::new(ExprKind::Int(3).at(1032..1033))
-                            )
-                            .at(1027..1033),
-                            vec![
-                                StmtKind::Check(ast::CheckStatement {
-                                    expression: ExprKind::LessThan(
-                                        Box::new(
-                                            ExprKind::Identifier(ident!("new_x")).at(1062..1067)
-                                        ),
-                                        Box::new(ExprKind::Int(10).at(1070..1072))
-                                    )
-                                    .at(1062..1072)
-                                })
-                                .at(1056..1089)
-                            ],
-                        )],
-                        fallback: None
-                    })
-                    .at(1024..1108),
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("a").at(1112..1113),
-                        expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
-                            module: ident!("foo").at(1116..1132),
-                            identifier: ident!("ext_func").at(1121..1132),
-                            arguments: vec![ExprKind::Identifier(ident!("x")).at(1130..1131)]
-                        })
-                        .at(1116..1132)
-                    })
-                    .at(1108..1150),
-                    StmtKind::Finish(vec![
-                        StmtKind::Create(ast::CreateStatement {
-                            fact: ast::FactLiteral {
-                                identifier: ident!("F").at(1186..1214),
-                                key_fields: vec![(
-                                    ident!("v").at(1188..1198),
-                                    FactField::Expression(
-                                        ExprKind::String(text!("hello")).at(1191..1198)
-                                    )
-                                )],
-                                value_fields: Some(vec![
-                                    (
-                                        ident!("x").at(1202..1206),
-                                        FactField::Expression(
-                                            ExprKind::Identifier(ident!("x")).at(1205..1206)
-                                        )
-                                    ),
-                                    (
-                                        ident!("y").at(1208..1213),
-                                        FactField::Expression(
-                                            ExprKind::Negative(Box::new(
-                                                ExprKind::Identifier(ident!("x")).at(1212..1213)
-                                            ))
-                                            .at(1211..1213)
-                                        )
-                                    ),
-                                ]),
-                            },
-                        })
-                        .at(1179..1214),
-                        StmtKind::Update(ast::UpdateStatement {
-                            fact: ast::FactLiteral {
-                                identifier: ident!("F").at(1242..1253),
-                                key_fields: vec![],
-                                value_fields: Some(vec![(
-                                    ident!("x").at(1248..1252),
-                                    FactField::Expression(
-                                        ExprKind::Identifier(ident!("x")).at(1251..1252)
-                                    )
-                                )]),
-                            },
-                            to: vec![(
-                                ident!("x").at(1242..1253),
-                                FactField::Expression(
-                                    ExprKind::Identifier(ident!("new_x")).at(1261..1266)
-                                )
-                            )],
-                        })
-                        .at(1235..1267),
-                        StmtKind::Delete(ast::DeleteStatement {
-                            fact: ast::FactLiteral {
-                                identifier: ident!("F").at(1295..1329),
-                                key_fields: vec![(
-                                    ident!("v").at(1297..1307),
-                                    FactField::Expression(
-                                        ExprKind::String(text!("hello")).at(1300..1307)
-                                    )
-                                )],
-                                value_fields: None,
-                            },
-                        })
-                        .at(1288..1329),
-                        StmtKind::Emit(
-                            ExprKind::NamedStruct(ast::NamedStruct {
-                                identifier: ident!("Added").at(1334..1431),
-                                fields: vec![
-                                    (
-                                        ident!("x").at(1366..1374),
-                                        ExprKind::Identifier(ident!("new_x")).at(1369..1374)
-                                    ),
-                                    (
-                                        ident!("y").at(1400..1408),
-                                        ExprKind::Identifier(ident!("count")).at(1403..1408)
-                                    ),
-                                ],
-                            })
-                            .at(1334..1431)
-                        )
-                        .at(1329..1448),
-                    ])
-                    .at(1150..1449),
-                ],
-                recall: vec![
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("envelope_id").at(1505..1516),
-                        expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
-                            module: ident!("envelope").at(1519..1549),
-                            identifier: ident!("command_id").at(1529..1549),
-                            arguments: vec![
-                                ExprKind::Identifier(ident!("envelope")).at(1540..1548)
-                            ]
-                        })
-                        .at(1519..1549),
-                    })
-                    .at(1501..1566),
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("author").at(1570..1576),
-                        expression: ExprKind::ForeignFunctionCall(ForeignFunctionCall {
-                            module: ident!("envelope").at(1579..1608),
-                            identifier: ident!("author_id").at(1589..1608),
-                            arguments: vec![
-                                ExprKind::Identifier(ident!("envelope")).at(1599..1607)
-                            ]
-                        })
-                        .at(1579..1608),
-                    })
-                    .at(1566..1625),
-                    StmtKind::Let(ast::LetStatement {
-                        identifier: ident!("new_x").at(1629..1634),
-                        expression: ExprKind::Add(
-                            Box::new(ExprKind::Identifier(ident!("x")).at(1637..1638)),
-                            Box::new(ExprKind::Identifier(ident!("count")).at(1641..1646))
-                        )
-                        .at(1637..1646),
-                    })
-                    .at(1625..1663),
-                    StmtKind::Finish(vec![
-                        StmtKind::Create(ast::CreateStatement {
-                            fact: ast::FactLiteral {
-                                identifier: ident!("F").at(1699..1727),
-                                key_fields: vec![(
-                                    ident!("v").at(1701..1711),
-                                    FactField::Expression(
-                                        ExprKind::String(text!("hello")).at(1704..1711)
-                                    )
-                                )],
-                                value_fields: Some(vec![
-                                    (
-                                        ident!("x").at(1715..1719),
-                                        FactField::Expression(
-                                            ExprKind::Identifier(ident!("x")).at(1718..1719)
-                                        ),
-                                    ),
-                                    (
-                                        ident!("y").at(1721..1726),
-                                        FactField::Expression(
-                                            ExprKind::Negative(Box::new(
-                                                ExprKind::Identifier(ident!("x")).at(1725..1726)
-                                            ))
-                                            .at(1724..1726)
-                                        )
-                                    ),
-                                ]),
-                            },
-                        })
-                        .at(1692..1727),
-                        StmtKind::Update(ast::UpdateStatement {
-                            fact: ast::FactLiteral {
-                                identifier: ident!("F").at(1755..1766),
-                                key_fields: vec![],
-                                value_fields: Some(vec![(
-                                    ident!("x").at(1761..1765),
-                                    FactField::Expression(
-                                        ExprKind::Identifier(ident!("x")).at(1764..1765)
-                                    )
-                                )]),
-                            },
-                            to: vec![(
-                                ident!("x").at(1755..1766),
-                                FactField::Expression(
-                                    ExprKind::Identifier(ident!("new_x")).at(1774..1779)
-                                )
-                            )],
-                        })
-                        .at(1748..1780),
-                        StmtKind::Delete(ast::DeleteStatement {
-                            fact: ast::FactLiteral {
-                                identifier: ident!("F").at(1808..1842),
-                                key_fields: vec![(
-                                    ident!("v").at(1810..1820),
-                                    FactField::Expression(
-                                        ExprKind::String(text!("hello")).at(1813..1820)
-                                    )
-                                )],
-                                value_fields: None,
-                            },
-                        })
-                        .at(1801..1842),
-                        StmtKind::Emit(
-                            ExprKind::NamedStruct(ast::NamedStruct {
-                                identifier: ident!("Added").at(1847..1944),
-                                fields: vec![
-                                    (
-                                        ident!("x").at(1879..1887),
-                                        ExprKind::Identifier(ident!("new_x")).at(1882..1887)
-                                    ),
-                                    (
-                                        ident!("y").at(1913..1921),
-                                        ExprKind::Identifier(ident!("count")).at(1916..1921)
-                                    ),
-                                ],
-                            })
-                            .at(1847..1944)
-                        )
-                        .at(1842..1961),
-                    ])
-                    .at(1663..1962),
-                ],
-                span: Span::new(406, 1986),
-            },
-            ast::CommandDefinition {
-                persistence: ast::Persistence::Ephemeral,
-                attributes: vec![],
-                identifier: ident!("C").at(2251..2252),
-                fields: vec![ast::StructItem::Field(ast::FieldDefinition {
-                    identifier: ident!("x").at(2292..2297),
-                    field_type: TypeKind::Int.at(2294..2297),
-                })],
-                policy: vec![],
-                seal: vec![],
-                open: vec![],
-                recall: vec![],
-                span: Span::new(2233, 2321),
-            }
-        ]
-    );
-    assert_eq!(
-        policy.functions,
-        vec![ast::FunctionDefinition {
-            identifier: ident!("positive").at(2005..2013),
-            arguments: vec![ast::FieldDefinition {
-                identifier: ident!("v").at(2014..2028),
-                field_type: TypeKind::Optional(Box::new(TypeKind::Int.at(2025..2028)))
-                    .at(2016..2028),
-            }],
-            return_type: TypeKind::Bool.at(2030..2034),
-            statements: vec![
-                StmtKind::Let(ast::LetStatement {
-                    identifier: ident!("x").at(2053..2054),
-                    expression: ExprKind::Unwrap(Box::new(
-                        ExprKind::Identifier(ident!("v")).at(2064..2065)
-                    ))
-                    .at(2057..2065),
-                })
-                .at(2049..2078),
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::GreaterThan(
-                        Box::new(ExprKind::Identifier(ident!("x")).at(2085..2086)),
-                        Box::new(ExprKind::Int(0).at(2089..2090))
-                    )
-                    .at(2085..2090),
-                })
-                .at(2078..2099),
-            ],
-            span: Span::new(1996, 2100),
-        }]
-    );
-    assert_eq!(
-        policy.finish_functions,
-        vec![ast::FinishFunctionDefinition {
-            identifier: ident!("next").at(2126..2130),
-            arguments: vec![ast::FieldDefinition {
-                identifier: ident!("x").at(2131..2136),
-                field_type: TypeKind::Int.at(2133..2136),
-            }],
-            statements: vec![
-                StmtKind::Create(ast::CreateStatement {
-                    fact: ast::FactLiteral {
-                        identifier: ident!("Next").at(2159..2169),
-                        key_fields: vec![],
-                        value_fields: Some(vec![]),
-                    },
-                })
-                .at(2152..2169)
-            ],
-            span: Span::new(2110, 2179),
-        }]
-    );
+    insta::assert_json_snapshot!(policy);
 
     Ok(())
 }
@@ -1139,6 +621,7 @@ fn parse_tictactoe() {
     };
 
     let policy = parse_policy_document(&text).unwrap_or_else(|e| panic!("{e}"));
+    insta::assert_json_snapshot!(policy);
     assert_eq!(policy.facts.len(), 4);
     assert_eq!(policy.actions.len(), 2);
     assert_eq!(policy.actions.len(), 2);
@@ -1155,25 +638,7 @@ fn parse_policy_immutable_facts() -> Result<(), ParseError> {
     "#;
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
-    assert_eq!(
-        policy.facts,
-        vec![
-            ast::FactDefinition {
-                immutable: false,
-                identifier: ident!("A").at(14..15),
-                key: vec![],
-                value: vec![],
-                span: Span::new(9, 21),
-            },
-            ast::FactDefinition {
-                immutable: true,
-                identifier: ident!("B").at(45..46),
-                key: vec![],
-                value: vec![],
-                span: Span::new(30, 52),
-            }
-        ]
-    );
+    insta::assert_json_snapshot!(policy);
 
     Ok(())
 }
@@ -1246,46 +711,7 @@ fn parse_struct() {
     .trim();
 
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(
-        policy.structs,
-        vec![ast::StructDefinition {
-            identifier: ident!("Foo").at(7..10),
-            items: vec![ast::StructItem::Field(ast::FieldDefinition {
-                identifier: ident!("x").at(25..30),
-                field_type: TypeKind::Int.at(27..30),
-            })],
-            span: Span::new(0, 40),
-        }]
-    );
-    assert_eq!(
-        policy.functions,
-        vec![ast::FunctionDefinition {
-            identifier: ident!("convert").at(59..66),
-            arguments: vec![ast::FieldDefinition {
-                identifier: ident!("foo").at(67..81),
-                field_type: TypeKind::Struct(ident!("Foo")).at(71..81),
-            }],
-            return_type: TypeKind::Struct(ident!("Bar")).at(83..93),
-            statements: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::NamedStruct(ast::NamedStruct {
-                        identifier: ident!("Bar").at(115..129),
-                        fields: vec![(
-                            ident!("y").at(120..128),
-                            ExprKind::Dot(
-                                Box::new(ExprKind::Identifier(ident!("foo")).at(123..126)),
-                                ident!("x").at(127..128)
-                            )
-                            .at(123..128)
-                        )],
-                    })
-                    .at(115..129)
-                })
-                .at(108..138)
-            ],
-            span: Span::new(50, 139),
-        }]
-    );
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -1325,7 +751,7 @@ fn parse_struct_with_field_insertion() {
         }
         "#,
         vec![
-            ast::StructItem::StructRef(ident!("Foo")),
+            ast::StructItem::StructRef(ident!("Foo").at(27..30)),
             ast::StructItem::Field(ast::FieldDefinition {
                 identifier: ident!("y").at(72..77),
                 field_type: TypeKind::Int.at(74..77),
@@ -1353,30 +779,7 @@ fn parse_enum_definition() {
     .trim();
 
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(
-        policy.enums,
-        vec![ast::EnumDefinition {
-            identifier: Ident {
-                name: "Color".parse().unwrap(),
-                span: Span::new(0, 76)
-            },
-            variants: vec![
-                Ident {
-                    name: "Red".parse().unwrap(),
-                    span: Span::new(0, 76)
-                },
-                Ident {
-                    name: "Green".parse().unwrap(),
-                    span: Span::new(0, 76)
-                },
-                Ident {
-                    name: "Blue".parse().unwrap(),
-                    span: Span::new(0, 76)
-                }
-            ],
-            span: Span::new(0, 76)
-        }]
-    );
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -1399,23 +802,7 @@ fn parse_enum_reference() -> Result<(), PestError<Rule>> {
 fn parse_ffi_decl() {
     let text = "function foo(x int, y struct bar) bool";
     let decl = super::parse_ffi_decl(text).expect("parse");
-    assert_eq!(
-        decl,
-        ast::FunctionDecl {
-            identifier: ident!("foo").at(9..12),
-            arguments: vec![
-                ast::FieldDefinition {
-                    identifier: ident!("x").at(13..18),
-                    field_type: TypeKind::Int.at(15..18),
-                },
-                ast::FieldDefinition {
-                    identifier: ident!("y").at(20..32),
-                    field_type: TypeKind::Struct(ident!("bar")).at(22..32),
-                }
-            ],
-            return_type: Some(TypeKind::Bool.at(34..38))
-        }
-    )
+    insta::assert_json_snapshot!(decl);
 }
 
 #[test]
@@ -1431,44 +818,8 @@ fn parse_ffi_structs_enums() {
         enum Color { Red, White, Blue }
     "#
     .trim();
-    let FfiTypes { structs, enums } = super::parse_ffi_structs_enums(text).expect("parse");
-    assert_eq!(
-        structs,
-        vec![
-            ast::StructDefinition {
-                identifier: ident!("A").at(7..8),
-                items: vec![
-                    ast::StructItem::Field(ast::FieldDefinition {
-                        identifier: ident!("x").at(23..28),
-                        field_type: TypeKind::Int.at(25..28)
-                    }),
-                    ast::StructItem::Field(ast::FieldDefinition {
-                        identifier: ident!("y").at(42..48),
-                        field_type: TypeKind::Bool.at(44..48)
-                    })
-                ],
-                span: Span::new(0, 58),
-            },
-            ast::StructDefinition {
-                identifier: ident!("B").at(75..76),
-                items: vec![],
-                span: Span::new(68, 79),
-            }
-        ],
-    );
-
-    assert_eq!(
-        enums,
-        vec![ast::EnumDefinition {
-            identifier: ident!("Color").at(89..120),
-            variants: vec![
-                ident!("Red").at(89..120),
-                ident!("White").at(89..120),
-                ident!("Blue").at(89..120)
-            ],
-            span: Span::new(89, 120),
-        }]
-    );
+    let types = super::parse_ffi_structs_enums(text).expect("parse");
+    insta::assert_json_snapshot!(types);
 }
 
 #[test]
@@ -1486,38 +837,7 @@ fn parse_seal_open() {
     "#
     .trim();
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(
-        policy.commands,
-        vec![ast::CommandDefinition {
-            persistence: ast::Persistence::Persistent,
-            attributes: vec![],
-            identifier: ident!("Foo").at(8..11),
-            fields: vec![],
-            policy: vec![],
-            recall: vec![],
-            seal: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::FunctionCall(ast::FunctionCall {
-                        identifier: ident!("bar").at(56..65),
-                        arguments: vec![ExprKind::Identifier(ident!("this")).at(60..64)]
-                    })
-                    .at(56..65)
-                })
-                .at(49..78)
-            ],
-            open: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::FunctionCall(ast::FunctionCall {
-                        identifier: ident!("baz").at(123..136),
-                        arguments: vec![ExprKind::Identifier(ident!("envelope")).at(127..135)]
-                    })
-                    .at(123..136)
-                })
-                .at(116..149)
-            ],
-            span: Span::new(0, 160),
-        }]
-    );
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -1544,24 +864,20 @@ fn parse_serialize_deserialize() {
             fields: vec![],
             policy: vec![],
             recall: vec![],
-            seal: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
-                        Box::new(ExprKind::Identifier(ident!("this")).at(66..70))
-                    ))
-                    .at(56..71)
-                })
-                .at(49..84)
-            ],
-            open: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
-                        Box::new(ExprKind::Identifier(ident!("envelope")).at(141..149))
-                    ))
-                    .at(129..150)
-                })
-                .at(122..163)
-            ],
+            seal: vec![StmtKind::Return(ast::ReturnStatement {
+                expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(Box::new(
+                    ExprKind::Identifier(ident!("this").at(66..70)).at(66..70)
+                )))
+                .at(56..71)
+            })
+            .at(49..84)],
+            open: vec![StmtKind::Return(ast::ReturnStatement {
+                expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
+                    Box::new(ExprKind::Identifier(ident!("envelope").at(141..149)).at(141..149))
+                ))
+                .at(129..150)
+            })
+            .at(122..163)],
             span: Span::new(0, 174),
         }]
     );
@@ -1635,86 +951,8 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
     "#;
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
+    insta::assert_json_snapshot!(policy);
 
-    assert_eq!(
-        policy.global_lets,
-        vec![
-            ast::GlobalLetStatement {
-                identifier: ident!("x").at(13..14),
-                expression: ExprKind::Int(42).at(17..19),
-                span: Span::new(9, 28),
-            },
-            ast::GlobalLetStatement {
-                identifier: ident!("y").at(32..33),
-                expression: ExprKind::String(text!("hello")).at(36..43),
-                span: Span::new(28, 52),
-            },
-            ast::GlobalLetStatement {
-                identifier: ident!("z").at(56..57),
-                expression: ExprKind::Bool(true).at(60..64),
-                span: Span::new(52, 74),
-            },
-        ]
-    );
-
-    assert_eq!(
-        policy.actions,
-        vec![ast::ActionDefinition {
-            persistence: ast::Persistence::Persistent,
-            identifier: ident!("foo").at(81..84),
-            arguments: vec![],
-            statements: vec![
-                StmtKind::Let(ast::LetStatement {
-                    identifier: ident!("a").at(105..106),
-                    expression: ExprKind::Add(
-                        Box::new(ExprKind::Identifier(ident!("x")).at(109..110)),
-                        Box::new(ExprKind::Int(1).at(113..114))
-                    )
-                    .at(109..114),
-                })
-                .at(101..127),
-                StmtKind::Let(ast::LetStatement {
-                    identifier: ident!("b").at(131..132),
-                    expression: ExprKind::Add(
-                        Box::new(ExprKind::Identifier(ident!("y")).at(135..136)),
-                        Box::new(ExprKind::String(text!(" world")).at(139..147))
-                    )
-                    .at(135..147),
-                })
-                .at(127..160),
-                StmtKind::Let(ast::LetStatement {
-                    identifier: ident!("c").at(164..165),
-                    expression: ExprKind::Not(Box::new(
-                        ExprKind::Identifier(ident!("z")).at(169..170)
-                    ))
-                    .at(168..170),
-                })
-                .at(160..183),
-                StmtKind::Emit(
-                    ExprKind::NamedStruct(ast::NamedStruct {
-                        identifier: ident!("Bar").at(188..273),
-                        fields: vec![
-                            (
-                                ident!("a").at(210..214),
-                                ExprKind::Identifier(ident!("a")).at(213..214)
-                            ),
-                            (
-                                ident!("b").at(232..236),
-                                ExprKind::Identifier(ident!("b")).at(235..236)
-                            ),
-                            (
-                                ident!("c").at(254..258),
-                                ExprKind::Identifier(ident!("c")).at(257..258)
-                            ),
-                        ],
-                    })
-                    .at(188..273)
-                )
-                .at(183..282),
-            ],
-            span: Span::new(74, 283),
-        }]
-    );
     Ok(())
 }
 
@@ -1792,7 +1030,8 @@ fn if_expression() {
             let b = if true { :1 } else { :0 }
         }
     "#;
-    parse_policy_str(text, Version::V2).expect("should parse");
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -1805,22 +1044,7 @@ fn test_action_call() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V2)?;
-    assert_eq!(
-        policy.actions[1],
-        ast::ActionDefinition {
-            persistence: ast::Persistence::Persistent,
-            identifier: ident!("pong").at(33..37),
-            arguments: vec![],
-            statements: vec![
-                StmtKind::ActionCall(ast::FunctionCall {
-                    identifier: ident!("ping").at(57..63),
-                    arguments: vec![]
-                })
-                .at(50..63)
-            ],
-            span: Span::new(26, 69),
-        }
-    );
+    insta::assert_json_snapshot!(policy);
 
     Ok(())
 }
@@ -1836,24 +1060,7 @@ fn test_map_statement() {
     "#;
 
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    assert_eq!(
-        policy.actions[0].statements,
-        vec![
-            StmtKind::Map(ast::MapStatement {
-                fact: ast::FactLiteral {
-                    identifier: ident!("Foo").at(73..82),
-                    key_fields: vec![(
-                        ident!("i").at(77..80),
-                        FactField::Expression(ExprKind::Int(1).at(79..80))
-                    )],
-                    value_fields: None,
-                },
-                identifier: ident!("f").at(85..86),
-                statements: vec![]
-            })
-            .at(69..102)
-        ]
-    );
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -1869,37 +1076,7 @@ fn test_block_expression() {
     "#;
 
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    assert_eq!(
-        policy.actions[0].statements,
-        vec![
-            StmtKind::Let(ast::LetStatement {
-                identifier: ident!("x").at(32..33),
-                expression: ExprKind::Block(
-                    vec![
-                        StmtKind::Let(ast::LetStatement {
-                            identifier: ident!("a").at(54..55),
-                            expression: ExprKind::Int(3).at(58..59)
-                        })
-                        .at(50..72),
-                        StmtKind::Let(ast::LetStatement {
-                            identifier: ident!("b").at(76..77),
-                            expression: ExprKind::Int(4).at(80..81)
-                        })
-                        .at(72..94),
-                    ],
-                    Box::new(
-                        ExprKind::Add(
-                            Box::new(ExprKind::Identifier(ident!("a").at(96..97)).at(96..97)),
-                            Box::new(ExprKind::Identifier(ident!("b").at(100..101)).at(100..101))
-                        )
-                        .at(96..101)
-                    )
-                )
-                .at(36..111)
-            })
-            .at(28..116)
-        ]
-    );
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
@@ -1917,49 +1094,7 @@ fn parse_match_expression() {
     "#;
 
     let policy = parse_policy_str(src, Version::V2).expect("should parse");
-    assert_eq!(
-        policy.actions[0].statements,
-        vec![
-            StmtKind::Let(ast::LetStatement {
-                identifier: ident!("x").at(45..46),
-                expression: ExprKind::Match(Box::new(ast::MatchExpression {
-                    scrutinee: ExprKind::Identifier(ident!("n").at(55..56)).at(55..56),
-                    arms: vec![
-                        ast::MatchExpressionArm {
-                            pattern: MatchPattern {
-                                kind: MatchPatternKind::Values(vec![ExprKind::Int(0).at(75..76)]),
-                                span: Span::new(75, 76)
-                            },
-                            expression: ExprKind::Block(
-                                vec![
-                                    StmtKind::Let(ast::LetStatement {
-                                        identifier: ident!("x").at(106..107),
-                                        expression: ExprKind::Bool(true).at(110..114)
-                                    })
-                                    .at(102..135)
-                                ],
-                                Box::new(
-                                    ExprKind::Identifier(ident!("x").at(137..138)).at(137..138)
-                                )
-                            )
-                            .at(80..156),
-                            span: Span::new(75, 173)
-                        },
-                        ast::MatchExpressionArm {
-                            pattern: MatchPattern {
-                                kind: MatchPatternKind::Default,
-                                span: Span::new(173, 174),
-                            },
-                            expression: ExprKind::Bool(false).at(178..183),
-                            span: Span::new(173, 196)
-                        }
-                    ]
-                }))
-                .at(49..197)
-            })
-            .at(41..206)
-        ]
-    );
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]
