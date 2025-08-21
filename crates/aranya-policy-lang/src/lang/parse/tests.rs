@@ -3,7 +3,7 @@
 use std::{fs::OpenOptions, io::Read};
 
 use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
-use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
+use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern, MatchPatternKind};
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
@@ -12,12 +12,12 @@ use super::{
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
-trait Spanned {
+trait SpannedAt {
     type Type;
     fn at(self, span: impl Into<Span>) -> Self::Type;
 }
 
-impl Spanned for Identifier {
+impl SpannedAt for Identifier {
     type Type = Ident;
     fn at(self, span: impl Into<Span>) -> Self::Type {
         Ident {
@@ -27,7 +27,7 @@ impl Spanned for Identifier {
     }
 }
 
-impl Spanned for TypeKind {
+impl SpannedAt for TypeKind {
     type Type = ast::VType;
     fn at(self, span: impl Into<Span>) -> Self::Type {
         ast::VType {
@@ -37,7 +37,7 @@ impl Spanned for TypeKind {
     }
 }
 
-impl Spanned for ExprKind {
+impl SpannedAt for ExprKind {
     type Type = Expression;
     fn at(self, span: impl Into<Span>) -> Self::Type {
         Expression {
@@ -47,7 +47,7 @@ impl Spanned for ExprKind {
     }
 }
 
-impl Spanned for StmtKind {
+impl SpannedAt for StmtKind {
     type Type = ast::Statement;
     fn at(self, span: impl Into<Span>) -> Self::Type {
         ast::Statement {
@@ -1889,8 +1889,8 @@ fn test_block_expression() {
                     ],
                     Box::new(
                         ExprKind::Add(
-                            Box::new(ExprKind::Identifier(ident!("a")).at(96..97)),
-                            Box::new(ExprKind::Identifier(ident!("b")).at(100..101))
+                            Box::new(ExprKind::Identifier(ident!("a").at(96..97)).at(96..97)),
+                            Box::new(ExprKind::Identifier(ident!("b").at(100..101)).at(100..101))
                         )
                         .at(96..101)
                     )
@@ -1923,10 +1923,13 @@ fn parse_match_expression() {
             StmtKind::Let(ast::LetStatement {
                 identifier: ident!("x").at(45..46),
                 expression: ExprKind::Match(Box::new(ast::MatchExpression {
-                    scrutinee: ExprKind::Identifier(ident!("n")).at(55..56),
+                    scrutinee: ExprKind::Identifier(ident!("n").at(55..56)).at(55..56),
                     arms: vec![
                         ast::MatchExpressionArm {
-                            pattern: MatchPattern::Values(vec![ExprKind::Int(0).at(75..76)]),
+                            pattern: MatchPattern {
+                                kind: MatchPatternKind::Values(vec![ExprKind::Int(0).at(75..76)]),
+                                span: Span::new(75, 76)
+                            },
                             expression: ExprKind::Block(
                                 vec![
                                     StmtKind::Let(ast::LetStatement {
@@ -1935,13 +1938,18 @@ fn parse_match_expression() {
                                     })
                                     .at(102..135)
                                 ],
-                                Box::new(ExprKind::Identifier(ident!("x")).at(137..138))
+                                Box::new(
+                                    ExprKind::Identifier(ident!("x").at(137..138)).at(137..138)
+                                )
                             )
                             .at(80..156),
                             span: Span::new(75, 173)
                         },
                         ast::MatchExpressionArm {
-                            pattern: MatchPattern::Default,
+                            pattern: MatchPattern {
+                                kind: MatchPatternKind::Default,
+                                span: Span::new(173, 174),
+                            },
                             expression: ExprKind::Bool(false).at(178..183),
                             span: Span::new(173, 196)
                         }

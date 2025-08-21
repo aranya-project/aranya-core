@@ -4,9 +4,9 @@ use aranya_policy_ast::{
     self as ast, ident, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
-    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchPatternKind,
-    MatchStatement, NamedStruct, Persistence, PersistenceKind, ReturnStatement, Statement,
-    StmtKind, Text, TypeKind, UpdateStatement, VType, Version,
+    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
+    NamedStruct, Persistence, PersistenceKind, ReturnStatement, Statement, StmtKind, Text,
+    TypeKind, UpdateStatement, VType, Version,
 };
 use buggy::BugExt;
 use pest::{
@@ -434,12 +434,12 @@ impl ChunkParser<'_> {
                         )
                     })?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::Int(n), span})
+                    Ok(Expression{kind: ExprKind::Int(n), span})
                 }
                 Rule::string_literal => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let s = Self::parse_string_literal(primary)?;
-                    Ok(Expression{kind:ExprKind::String(s), span})
+                    Ok(Expression{kind: ExprKind::String(s), span})
                 }
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
@@ -549,10 +549,22 @@ impl ChunkParser<'_> {
                         fact_literal,
                     )), span})
                 }
-                Rule::count_up_to => self.parse_counting_fn(primary, ast::FactCountType::UpTo),
-                Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast),
-                Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost),
-                Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly),
+                Rule::count_up_to => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    self.parse_counting_fn(primary, ast::FactCountType::UpTo(span))
+                },
+                Rule::at_least => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span))
+                },
+                Rule::at_most => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    self.parse_counting_fn(primary, ast::FactCountType::AtMost(span))
+                },
+                Rule::exactly => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    self.parse_counting_fn(primary, ast::FactCountType::Exactly(span))
+                },
                 Rule::match_expression => self.parse_match_expression(primary),
                 Rule::if_expr => self.parse_if_expression(primary),
                 Rule::serialize => {
@@ -587,19 +599,28 @@ impl ChunkParser<'_> {
                 }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::Identifier(Ident{
-                        name:ident!("this"),
+                    Ok(Expression{
+                        kind: ExprKind::Identifier(Ident {
+                            name:ident!("this"),
+                            span,
+                        }),
                         span,
-                    }),span})
+                    })
                 }
                 Rule::todo => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::InternalFunction(InternalFunction::Todo),span})
+                    Ok(Expression {
+                        kind: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                        span,
+                    })
                 }
                 Rule::identifier => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ident = remain(primary).consume_ident(self)?;
-                    Ok(Expression{kind:ExprKind::Identifier(ident),span})
+                    Ok(Expression {
+                        kind: ExprKind::Identifier(ident),
+                        span,
+                    })
                 }
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
@@ -726,7 +747,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 };
-                Ok(Expression{kind,span:combined_span})
+                Ok(Expression{kind, span: combined_span})
             })
             .parse(pairs)
     }
@@ -757,15 +778,15 @@ impl ChunkParser<'_> {
             let token = pc.consume()?;
 
             let span = self.to_ast_span(token.as_span())?;
-            let kind = match token.as_rule() {
-                Rule::match_default => MatchPatternKind::Default,
+            let pattern = match token.as_rule() {
+                Rule::match_default => MatchPattern::Default(span),
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
                         .map(|token| self.parse_expression(token.to_owned()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    MatchPatternKind::Values(values)
+                    MatchPattern::Values(values)
                 }
                 _ => {
                     return Err(ParseError::new(
@@ -775,7 +796,6 @@ impl ChunkParser<'_> {
                     ));
                 }
             };
-            let pattern = MatchPattern { kind, span };
 
             // Remaining tokens are policy statements
             let expression = self.parse_expression(pc.consume()?)?;
@@ -1027,8 +1047,8 @@ impl ChunkParser<'_> {
             let token = pc.consume()?;
 
             let span = self.to_ast_span(token.as_span())?;
-            let kind = match token.as_rule() {
-                Rule::match_default => MatchPatternKind::Default,
+            let pattern = match token.as_rule() {
+                Rule::match_default => MatchPattern::Default(span),
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
@@ -1038,7 +1058,7 @@ impl ChunkParser<'_> {
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    MatchPatternKind::Values(values)
+                    MatchPattern::Values(values)
                 }
                 _ => {
                     return Err(ParseError::new(
@@ -1048,7 +1068,6 @@ impl ChunkParser<'_> {
                     ));
                 }
             };
-            let pattern = MatchPattern { kind, span };
 
             // Remaining tokens are policy statements
             let statements = self.parse_statement_list(pc.into_inner())?;

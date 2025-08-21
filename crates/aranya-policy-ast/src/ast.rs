@@ -1,189 +1,9 @@
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
-use core::{
-    fmt,
-    ops::{Bound, Deref, Range, RangeBounds},
-    str::FromStr,
-};
+use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Text};
-
-/// A trait for types that can provide a source span.
-pub trait Spanned {
-    /// Returns a span covering the contents of the item.
-    fn span(&self) -> Span;
-}
-
-/// A range in the source text.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Span {
-    // [start, end)
-    start: usize,
-    end: usize,
-}
-
-impl Span {
-    /// Create a new span
-    pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(
-            start <= end,
-            "invalid span: start ({}) must be <= end ({})",
-            start,
-            end
-        );
-        Span { start, end }
-    }
-
-    /// Creates an empty span.
-    pub fn empty() -> Self {
-        Self::new(0, 0)
-    }
-
-    /// Returns the start position.
-    pub fn start(&self) -> usize {
-        self.start
-    }
-
-    /// Returns the end position.
-    pub fn end(&self) -> usize {
-        self.end
-    }
-
-    /// Reports whether `self` contains `other`.
-    pub fn contains<U>(&self, other: U) -> bool
-    where
-        U: RangeBounds<usize>,
-    {
-        self.intersect(&other.to_bounds()) == other.to_bounds() && !other.is_empty()
-    }
-
-    /// Merges two spans into a single span.
-    pub fn merge(&self, other: Span) -> Span {
-        Self::new(self.start.min(other.start), self.end.max(other.end))
-    }
-
-    /// Returns the length of the span.
-    pub fn len(&self) -> usize {
-        self.end.saturating_sub(self.start)
-    }
-
-    /// Reports whether the span is empty.
-    pub fn is_empty(&self) -> bool {
-        self.start >= self.end
-    }
-}
-
-impl Default for Span {
-    fn default() -> Self {
-        Self::empty()
-    }
-}
-
-impl RangeBounds<usize> for Span {
-    fn start_bound(&self) -> Bound<&usize> {
-        Bound::Included(&self.start)
-    }
-
-    fn end_bound(&self) -> Bound<&usize> {
-        Bound::Excluded(&self.end)
-    }
-}
-
-impl RangeBounds<usize> for &Span {
-    fn start_bound(&self) -> Bound<&usize> {
-        (**self).start_bound()
-    }
-
-    fn end_bound(&self) -> Bound<&usize> {
-        (**self).end_bound()
-    }
-}
-
-impl From<Range<usize>> for Span {
-    fn from(range: Range<usize>) -> Self {
-        Span::new(range.start, range.end)
-    }
-}
-
-impl From<Span> for Range<usize> {
-    fn from(span: Span) -> Self {
-        span.start..span.end
-    }
-}
-
-impl fmt::Debug for Span {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Range::from(*self).fmt(f)
-    }
-}
-
-/// Extension trait for [`RangeBounds`].
-///
-/// Similar to the +nightly `IntoBounds`.
-trait RangeBoundsExt<T>: RangeBounds<T> {
-    /// Returns the (start, end) bounds.
-    fn to_bounds(&self) -> (Bound<&T>, Bound<&T>) {
-        (self.start_bound(), self.end_bound())
-    }
-
-    /// Reports whether `self` is the empty range.
-    fn is_empty(&self) -> bool
-    where
-        T: PartialOrd,
-    {
-        use Bound::*;
-        !match (self.start_bound(), self.end_bound()) {
-            (Unbounded, _) | (_, Unbounded) => true,
-            (Included(start), Excluded(end))
-            | (Excluded(start), Included(end))
-            | (Excluded(start), Excluded(end)) => start < end,
-            (Included(start), Included(end)) => start <= end,
-        }
-    }
-
-    /// Returns the intersection of `self` and `other`.
-    fn intersect<'a, U>(&'a self, other: &'a U) -> (Bound<&'a T>, Bound<&'a T>)
-    where
-        Self: Sized,
-        U: RangeBounds<T>,
-        T: Ord,
-    {
-        use Bound::*;
-
-        let (self_start, self_end) = self.to_bounds();
-        let (other_start, other_end) = other.to_bounds();
-
-        let start = match (self_start, other_start) {
-            (Included(a), Included(b)) => Included(Ord::max(a, b)),
-            (Excluded(a), Excluded(b)) => Excluded(Ord::max(a, b)),
-            (Unbounded, Unbounded) => Unbounded,
-            (x, Unbounded) | (Unbounded, x) => x,
-            (Included(i), Excluded(e)) | (Excluded(e), Included(i)) => {
-                if i > e {
-                    Included(i)
-                } else {
-                    Excluded(e)
-                }
-            }
-        };
-        let end = match (self_end, other_end) {
-            (Included(a), Included(b)) => Included(Ord::min(a, b)),
-            (Excluded(a), Excluded(b)) => Excluded(Ord::min(a, b)),
-            (Unbounded, Unbounded) => Unbounded,
-            (x, Unbounded) | (Unbounded, x) => x,
-            (Included(i), Excluded(e)) | (Excluded(e), Included(i)) => {
-                if i < e {
-                    Included(i)
-                } else {
-                    Excluded(e)
-                }
-            }
-        };
-        (start, end)
-    }
-}
-impl<R, T> RangeBoundsExt<T> for R where R: RangeBounds<T> {}
+use crate::{span::spanned, Identifier, Span, Spanned, Text};
 
 /// An identifier.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -192,13 +12,6 @@ pub struct Ident {
     pub name: Identifier,
     /// The source location of this identifier
     pub span: Span,
-}
-
-impl Ident {
-    /// Creates a new identifier.
-    pub fn new(name: Identifier, span: Span) -> Self {
-        Ident { name, span }
-    }
 }
 
 impl Deref for Ident {
@@ -378,6 +191,7 @@ impl fmt::Display for TypeKind {
     }
 }
 
+spanned! {
 /// An identifier and its type
 ///
 /// Field definitions are used in Command fields, fact
@@ -388,6 +202,7 @@ pub struct FieldDefinition {
     pub identifier: Ident,
     /// the field's type
     pub field_type: VType,
+}
 }
 
 /// An identifier and its type and dynamic effect marker
@@ -401,6 +216,12 @@ pub struct EffectFieldDefinition {
     pub field_type: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
+}
+
+impl Spanned for EffectFieldDefinition {
+    fn span(&self) -> Span {
+        self.identifier.span.merge(self.field_type.span())
+    }
 }
 
 /// Value part of a key/value pair for a fact field.
@@ -421,6 +242,7 @@ impl Spanned for FactField {
     }
 }
 
+spanned! {
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
@@ -433,7 +255,9 @@ pub struct FactLiteral {
     /// values for the fields of the fact value, which can be absent
     pub value_fields: Option<Vec<(Ident, FactField)>>,
 }
+}
 
+spanned! {
 /// A function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
@@ -444,7 +268,9 @@ pub struct FunctionCall {
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
+}
 
+spanned! {
 /// A named struct literal
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedStruct {
@@ -454,6 +280,7 @@ pub struct NamedStruct {
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
+}
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -467,6 +294,13 @@ pub struct EnumDefinition {
     pub span: Span,
 }
 
+impl Spanned for EnumDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+spanned! {
 /// A reference to an enumeration, e.g. `Color::Red`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumReference {
@@ -475,27 +309,38 @@ pub struct EnumReference {
     /// name of value inside enum
     pub value: Ident,
 }
+}
 
 /// How many facts to expect when counting
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub enum FactCountType {
     /// Up to
-    UpTo,
+    UpTo(Span),
     /// At least
-    AtLeast,
+    AtLeast(Span),
     /// At most
-    AtMost,
+    AtMost(Span),
     /// Exactly
-    Exactly,
+    Exactly(Span),
 }
 
 impl fmt::Display for FactCountType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UpTo => write!(f, "up_to"),
-            Self::AtLeast => write!(f, "at_least"),
-            Self::AtMost => write!(f, "at_most"),
-            Self::Exactly => write!(f, "exactly"),
+            Self::UpTo(_) => write!(f, "up_to"),
+            Self::AtLeast(_) => write!(f, "at_least"),
+            Self::AtMost(_) => write!(f, "at_most"),
+            Self::Exactly(_) => write!(f, "exactly"),
+        }
+    }
+}
+
+impl Spanned for FactCountType {
+    fn span(&self) -> Span {
+        match self {
+            Self::UpTo(span) | Self::AtLeast(span) | Self::AtMost(span) | Self::Exactly(span) => {
+                *span
+            }
         }
     }
 }
@@ -508,6 +353,7 @@ pub enum InternalFunction {
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
+    // TODO(eric): make `i64` an expr or literal or something
     FactCount(FactCountType, i64, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
@@ -516,9 +362,23 @@ pub enum InternalFunction {
     /// Deserialize function
     Deserialize(Box<Expression>),
     /// Not yet implemented panic
-    Todo,
+    Todo(Span),
 }
 
+impl Spanned for InternalFunction {
+    fn span(&self) -> Span {
+        match self {
+            Self::Query(fact) => fact.span(),
+            Self::Exists(fact) => fact.span(),
+            Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
+            Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
+            Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
+            Self::Todo(span) => *span,
+        }
+    }
+}
+
+spanned! {
 /// A foreign function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
@@ -530,6 +390,7 @@ pub struct ForeignFunctionCall {
     pub identifier: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
+}
 }
 
 /// All of the things which can be in an expression.
@@ -612,6 +473,7 @@ pub enum ExprKind {
     Match(Box<MatchExpression>),
 }
 
+spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
 #[derive(Debug, PartialEq)]
@@ -623,7 +485,9 @@ pub struct FunctionDecl {
     /// The return type of the function, if any
     pub return_type: Option<VType>,
 }
+}
 
+spanned! {
 /// Define a variable with an expression
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetStatement {
@@ -632,32 +496,38 @@ pub struct LetStatement {
     /// The variable's value
     pub expression: Expression,
 }
+}
 
+spanned! {
 /// Check that a boolean expression is true, and fail otherwise
 #[derive(Debug, Clone, PartialEq)]
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
 }
-
-/// Match arm pattern
-#[derive(Debug, Clone, PartialEq)]
-pub struct MatchPattern {
-    /// The kind of match pattern.
-    pub kind: MatchPatternKind,
-    /// The source location of this pattern.
-    pub span: Span,
 }
 
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq)]
-pub enum MatchPatternKind {
+pub enum MatchPattern {
     /// No values, default case
-    Default,
+    Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
 }
 
+impl Spanned for MatchPattern {
+    fn span(&self) -> Span {
+        match self {
+            MatchPattern::Default(span) => *span,
+            MatchPattern::Values(values) => values
+                .iter()
+                .fold(Span::empty(), |span, expr| span.merge(expr.span())),
+        }
+    }
+}
+
+spanned! {
 /// One arm of a match statement
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
@@ -668,16 +538,9 @@ pub struct MatchArm {
     /// The statements to execute if the value matches
     pub statements: Vec<Statement>,
 }
-
-impl MatchArm {
-    /// Returns the source location of this match arm.
-    pub fn span(&self) -> Span {
-        self.statements
-            .iter()
-            .fold(self.pattern.span, |span, stmt| span.merge(stmt.span))
-    }
 }
 
+spanned! {
 /// Match a value and execute one possibility out of many
 ///
 /// Match arms are tested in order.
@@ -688,7 +551,9 @@ pub struct MatchStatement {
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
+}
 
+spanned! {
 /// Match statement expression
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchExpression {
@@ -696,6 +561,7 @@ pub struct MatchExpression {
     pub scrutinee: Expression,
     /// Match arms
     pub arms: Vec<MatchExpressionArm>,
+}
 }
 
 /// A container for a statement or expression
@@ -705,6 +571,19 @@ pub enum LanguageContext<A, B> {
     Statement(A),
     /// expression
     Expression(B),
+}
+
+impl<A, B> Spanned for LanguageContext<A, B>
+where
+    A: Spanned,
+    B: Spanned,
+{
+    fn span(&self) -> Span {
+        match self {
+            LanguageContext::Statement(stmt) => stmt.span(),
+            LanguageContext::Expression(expr) => expr.span(),
+        }
+    }
 }
 
 /// Match arm expression
@@ -718,6 +597,13 @@ pub struct MatchExpressionArm {
     pub span: Span,
 }
 
+impl Spanned for MatchExpressionArm {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+spanned! {
 /// Test a series of conditions and execute the statements for the first true condition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfStatement {
@@ -726,7 +612,9 @@ pub struct IfStatement {
     /// The `else` branch, if present.
     pub fallback: Option<Vec<Statement>>,
 }
+}
 
+spanned! {
 /// Iterate over the results of a query, and execute some statements for each one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapStatement {
@@ -737,14 +625,18 @@ pub struct MapStatement {
     /// Statements to execute for each fact
     pub statements: Vec<Statement>,
 }
+}
 
+spanned! {
 /// Create a fact
 #[derive(Debug, Clone, PartialEq)]
 pub struct CreateStatement {
     /// The fact to create
     pub fact: FactLiteral,
 }
+}
 
+spanned! {
 /// Update a fact
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdateStatement {
@@ -753,14 +645,18 @@ pub struct UpdateStatement {
     /// The value fields are updated to these values
     pub to: Vec<(Ident, FactField)>,
 }
+}
 
+spanned! {
 /// Delete a fact
 #[derive(Debug, Clone, PartialEq)]
 pub struct DeleteStatement {
     /// The fact to delete
     pub fact: FactLiteral,
 }
+}
 
+spanned! {
 /// Return from a function
 ///
 /// Only valid within functions.
@@ -768,6 +664,7 @@ pub struct DeleteStatement {
 pub struct ReturnStatement {
     /// The value to return
     pub expression: Expression,
+}
 }
 
 /// Statements in the policy language.
@@ -780,10 +677,9 @@ pub struct Statement {
     pub span: Span,
 }
 
-impl Statement {
-    /// Creates a new statement.
-    pub fn new(kind: StmtKind, span: Span) -> Self {
-        Statement { kind, span }
+impl Spanned for Statement {
+    fn span(&self) -> Span {
+        self.span
     }
 }
 
@@ -839,6 +735,12 @@ pub struct FactDefinition {
     pub span: Span,
 }
 
+impl Spanned for FactDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// An action definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActionDefinition {
@@ -854,6 +756,12 @@ pub struct ActionDefinition {
     pub span: Span,
 }
 
+impl Spanned for ActionDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// An effect definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectDefinition {
@@ -865,6 +773,12 @@ pub struct EffectDefinition {
     pub span: Span,
 }
 
+impl Spanned for EffectDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A struct definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDefinition {
@@ -874,6 +788,12 @@ pub struct StructDefinition {
     pub items: Vec<StructItem<FieldDefinition>>,
     /// The source location of this definition
     pub span: Span,
+}
+
+impl Spanned for StructDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// Struct field or insertion reference
@@ -891,6 +811,15 @@ impl<T> StructItem<T> {
         match self {
             StructItem::Field(f) => Some(f),
             StructItem::StructRef(_) => None,
+        }
+    }
+}
+
+impl<T: Spanned> Spanned for StructItem<T> {
+    fn span(&self) -> Span {
+        match self {
+            Self::Field(f) => f.span(),
+            Self::StructRef(ident) => ident.span,
         }
     }
 }
@@ -918,6 +847,12 @@ pub struct CommandDefinition {
     pub span: Span,
 }
 
+impl Spanned for CommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A function definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
@@ -931,6 +866,12 @@ pub struct FunctionDefinition {
     pub statements: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
+}
+
+impl Spanned for FunctionDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A finish function definition. This is slightly different than a
@@ -948,6 +889,12 @@ pub struct FinishFunctionDefinition {
     pub span: Span,
 }
 
+impl Spanned for FinishFunctionDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A globally scopped let statement
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalLetStatement {
@@ -957,6 +904,12 @@ pub struct GlobalLetStatement {
     pub expression: Expression,
     /// The source location of this statement
     pub span: Span,
+}
+
+impl Spanned for GlobalLetStatement {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// The policy AST root
@@ -997,163 +950,6 @@ impl Policy {
             version,
             text: text.to_owned(),
             ..Default::default()
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    macro_rules! span {
-        ($start:expr, $end:expr) => {
-            Span::new($start, $end)
-        };
-    }
-
-    #[test]
-    #[should_panic(expected = "invalid span")]
-    #[cfg(debug_assertions)]
-    fn test_span_new_invalid() {
-        // This should panic in debug mode
-        span!(10, 5);
-    }
-
-    #[test]
-    fn test_span_contains() {
-        let test_cases = [
-            (span!(10, 20), 12..18, true),                 // inner range contained
-            (span!(10, 20), 5..25, false),                 // outer range not contained
-            (span!(10, 20), 15..25, false),                // overlapping range not contained
-            (span!(10, 20), 5..15, false),                 // partial overlap not contained
-            (span!(10, 20), 10..20, true),                 // span contains itself
-            (span!(10, 20), 10..19, true),                 // starts at boundary, ends before
-            (span!(10, 20), 11..20, true),                 // ends at boundary (excluded)
-            (span!(10, 20), 10..20, true),                 // exact same range
-            (span!(10, 20), 15..15, false),                // empty range inside span
-            (span!(10, 20), 10..10, false),                // empty range at start
-            (span!(10, 20), 20..20, false),                // empty range at end (excluded)
-            (span!(10, 10), 10..10, false), // empty span contains empty range at same position
-            (span!(0, usize::MAX), 0..100, true), // max span contains regular range
-            (span!(0, usize::MAX), 0..(usize::MAX), true), // max span contains almost-max range
-        ];
-        for (i, (span, other, want)) in test_cases.iter().enumerate() {
-            let got = span.contains(other.clone());
-            assert_eq!(got, *want, "#{i}: contains({span:?}, {other:?})");
-        }
-
-        let inclusive_cases = [
-            (span!(10, 20), 12..=17, true),  // inclusive range contained
-            (span!(10, 20), 10..=19, true),  // inclusive range at boundaries
-            (span!(10, 20), 10..=20, false), // inclusive range extends to excluded end
-            (span!(10, 20), 15..=25, false), // inclusive range extends beyond
-            (span!(10, 11), 10..=10, true),  // single-element inclusive range
-        ];
-        for (i, (span, other, want)) in inclusive_cases.iter().enumerate() {
-            let got = span.contains(other.clone());
-            assert_eq!(got, *want, "#{i}: contains({span:?}, {other:?})");
-        }
-
-        let range_full_cases = [
-            (span!(10, 20), false),        // regular span can't contain unbounded range
-            (span!(0, usize::MAX), false), // even max span can't contain unbounded range
-            (Span::empty(), false),        // empty span can't contain unbounded range
-        ];
-        for (i, (span, want)) in range_full_cases.iter().enumerate() {
-            let got = span.contains(..);
-            assert_eq!(got, *want, "#{i}: contains({span:?}, ..)");
-        }
-
-        let range_from_cases = [
-            (span!(10, 20), 15, false),         // unbounded end not contained
-            (span!(10, 20), 10, false),         // starts at boundary, unbounded end
-            (span!(10, 20), 0, false),          // starts before, unbounded end
-            (span!(10, 20), 25, false),         // starts after, unbounded end
-            (span!(0, usize::MAX), 100, false), // even max span can't contain unbounded end
-            (span!(0, usize::MAX), 0, false),   // max span starting at 0, unbounded end
-        ];
-        for (i, (span, start, want)) in range_from_cases.iter().enumerate() {
-            let got = span.contains(*start..);
-            assert_eq!(got, *want, "#{i}: contains({span:?}, {start}..)");
-        }
-
-        let range_to_cases = [
-            (span!(10, 20), 15, false),                // unbounded start not contained
-            (span!(10, 20), 20, false),                // unbounded start, ends at boundary
-            (span!(10, 20), 25, false),                // unbounded start, ends after
-            (span!(10, 20), 5, false),                 // unbounded start, ends before
-            (span!(0, usize::MAX), 100, false), // even max span can't contain unbounded start
-            (span!(0, usize::MAX), usize::MAX, false), // max span ending at max, unbounded start
-        ];
-        for (i, (span, end, want)) in range_to_cases.iter().enumerate() {
-            let got = span.contains(..*end);
-            assert_eq!(got, *want, "#{i}: contains({span:?}, ..{end})");
-        }
-
-        let range_to_inclusive_cases = [
-            (span!(10, 20), 15, false),         // unbounded start not contained
-            (span!(10, 20), 19, false),         // unbounded start, ends at last valid
-            (span!(10, 20), 20, false),         // unbounded start, ends at boundary
-            (span!(10, 20), 25, false),         // unbounded start, ends after
-            (span!(0, usize::MAX), 100, false), // even max span can't contain unbounded start
-            (span!(0, usize::MAX), usize::MAX - 1, false), // max span, unbounded start
-        ];
-        for (i, (span, end, want)) in range_to_inclusive_cases.iter().enumerate() {
-            let got = span.contains(..=*end);
-            assert_eq!(got, *want, "#{i}: contains({span:?}, ..={end})");
-        }
-    }
-
-    #[test]
-    fn test_span_merge() {
-        let test_cases = [
-            (span!(10, 20), span!(30, 40), span!(10, 40)), // non-overlapping spans
-            (span!(10, 20), span!(15, 35), span!(10, 35)), // overlapping spans
-            (span!(30, 40), span!(10, 20), span!(10, 40)), // merge order doesn't matter
-            (span!(10, 20), span!(10, 20), span!(10, 20)), // merging with self
-            (span!(0, 10), span!(5, 15), span!(0, 15)),    // partial overlap
-            (span!(10, 20), span!(5, 12), span!(5, 20)),   // left extension
-            (span!(10, 20), span!(18, 25), span!(10, 25)), // right extension
-            (span!(15, 25), span!(10, 30), span!(10, 30)), // fully contained by other
-            (span!(10, 30), span!(15, 25), span!(10, 30)), // fully contains other
-            (Span::empty(), span!(10, 20), span!(0, 20)),  // empty with non-empty
-            (span!(0, usize::MAX), span!(100, 200), span!(0, usize::MAX)), // max span with regular span
-        ];
-        for (i, (lhs, rhs, want)) in test_cases.iter().enumerate() {
-            let got = lhs.merge(*rhs);
-            assert_eq!(got, *want, "#{i}: merge({lhs:?}, {rhs:?})");
-        }
-    }
-
-    #[test]
-    fn test_span_len() {
-        let test_cases = [
-            (span!(0, 10), 10),                     // regular span length
-            (span!(5, 5), 0),                       // empty span length
-            (span!(100, 150), 50),                  // larger span length
-            (Span::empty(), 0),                     // empty() span length
-            (span!(0, 1), 1),                       // single unit span
-            (span!(usize::MAX - 1, usize::MAX), 1), // max boundary span
-        ];
-        for (i, (span, want)) in test_cases.iter().enumerate() {
-            let got = span.len();
-            assert_eq!(got, *want, "#{i}: len({span:?})");
-        }
-    }
-
-    #[test]
-    fn test_span_is_empty() {
-        let test_cases = [
-            (span!(0, 10), false),                      // regular span is not empty
-            (span!(0, 0), true),                        // zero-length span is empty
-            (Span::empty(), true),                      // empty() span is empty
-            (span!(5, 5), true),                        // same start/end span is empty
-            (span!(1, 2), false),                       // single unit span is not empty
-            (span!(usize::MAX - 1, usize::MAX), false), // max boundary span is not empty
-        ];
-        for (i, (span, want)) in test_cases.iter().enumerate() {
-            let got = span.is_empty();
-            assert_eq!(got, *want, "#{i}: is_empty({span:?})");
         }
     }
 }
