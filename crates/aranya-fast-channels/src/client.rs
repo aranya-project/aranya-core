@@ -2,9 +2,9 @@
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
-    zeroize::Zeroize,
+    zeroize::Zeroize as _,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 
 #[allow(unused_imports)]
 use crate::features::*;
@@ -193,7 +193,7 @@ impl<S: AfcState> Client<S> {
             let (ciphertext, header) = ciphertext
                 .split_last_chunk()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
+            let DataHeader { label, seq } = DataHeader::try_parse(header)?;
             (label, seq, ciphertext)
         };
         debug!(
@@ -247,7 +247,7 @@ impl<S: AfcState> Client<S> {
             let (rest, header) = data
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
+            let DataHeader { label, seq } = DataHeader::try_parse(header)?;
             #[allow(clippy::incompatible_msrv)] // clippy#12280
             let (ciphertext, tag) = rest
                 .split_at_mut_checked(rest.len() - Self::TAG_SIZE)

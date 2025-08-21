@@ -5,8 +5,8 @@ use core::convert::Infallible;
 
 use aranya_crypto::{
     Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id,
-    IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey, custom_id,
-    engine::Engine, policy, zeroize::Zeroizing,
+    IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId, SigningKey, VerifyingKey,
+    custom_id, engine::Engine, policy, zeroize::Zeroizing,
 };
 use aranya_policy_vm::{
     CommandContext, Text, Typed, Value, ValueConversionError,

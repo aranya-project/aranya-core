@@ -23,7 +23,7 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -388,7 +388,7 @@ impl<'a> CompileState<'a> {
 
     /// Attempt to resolve any unresolved targets.
     pub fn resolve_targets(&mut self) -> Result<(), CompileError> {
-        for ref mut instr in &mut self.m.progmem {
+        for instr in &mut self.m.progmem {
             match instr {
                 Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
                     Self::resolve_target(t, &self.m.labels)?;
@@ -490,7 +490,7 @@ impl<'a> CompileState<'a> {
             None => {
                 if require_value {
                     return Err(self.err(CompileErrorType::InvalidFactLiteral(
-                        "fact literal requires value".to_string(),
+                        "fact literal requires value".to_owned(),
                     )));
                 }
             }
@@ -886,7 +886,9 @@ impl<'a> CompileState<'a> {
                                 })?;
                             Ok(NullableVType::Type(field_def.field_type.clone()))
                         }
-                        _ => Err(TypeError::new("Expression left of `.` is not a struct")),
+                        NullableVType::Type(_) | NullableVType::Null => {
+                            Err(TypeError::new("Expression left of `.` is not a struct"))
+                        }
                     })
                     .map_err(|err| self.err(err.into()))?
             }
@@ -922,10 +924,12 @@ impl<'a> CompileState<'a> {
                             }
                             Ok(NullableVType::Type(VType::Struct(sub.clone())))
                         }
-                        _ => Err(CompileErrorType::InvalidType(
-                            "Expression to the left of the substruct operator is not a struct"
-                                .into(),
-                        )),
+                        NullableVType::Type(_) | NullableVType::Null => {
+                            Err(CompileErrorType::InvalidType(
+                                "Expression to the left of the substruct operator is not a struct"
+                                    .into(),
+                            ))
+                        }
                     })
                     .map_err(|err| self.err(err))?;
 
@@ -1610,7 +1614,7 @@ impl<'a> CompileState<'a> {
                 }
             }
             VType::Optional(t) => return self.ensure_type_is_defined(t),
-            _ => {}
+            VType::String | VType::Bytes | VType::Int | VType::Bool | VType::Id => {}
         }
         Ok(())
     }
@@ -2061,7 +2065,7 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         if limit <= 0 {
             return Err(self.err(CompileErrorType::BadArgument(
-                "count limit must be greater than zero".to_string(),
+                "count limit must be greater than zero".to_owned(),
             )));
         }
         self.verify_fact_against_schema(fact, false)?;

@@ -93,7 +93,7 @@ async fn run(options: Opt) -> Result<()> {
         .and_then(|cert| fs::read_to_string(&key_path).map(|key| (cert, key)))
     {
         Ok(x) => x,
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
             let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])
                 .expect("error generating cert");
             let key = ck.key_pair.serialize_pem();

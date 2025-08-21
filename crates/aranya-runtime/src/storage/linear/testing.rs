@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
@@ -65,7 +65,7 @@ impl io::Write for Writer {
 
     fn readonly(&self) -> Self::ReadOnly {
         Reader {
-            shared: self.shared.clone(),
+            shared: Arc::clone(&self.shared),
         }
     }
 

@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, vec, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
@@ -13,7 +13,7 @@ use aranya_policy_vm::{
     ast::{Identifier, Text},
     ffi::FfiModule,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use spin::Mutex;
 use tracing::error;
 
@@ -289,7 +289,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
             let bool = match bytes {
                 [0] => false,
                 [1] => true,
-                _ => return Err("invalid boolean")?,
+                _ => return Err("invalid boolean"),
             };
             HashableValue::Bool(bool)
         }

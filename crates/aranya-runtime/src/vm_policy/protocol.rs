@@ -90,9 +90,9 @@ impl Command for VmProtocol<'_> {
     }
 
     fn policy(&self) -> Option<&[u8]> {
-        match self.unpacked {
-            VmProtocolData::Init { ref policy, .. } => Some(policy),
-            _ => None,
+        match &self.unpacked {
+            VmProtocolData::Init { policy, .. } => Some(policy),
+            VmProtocolData::Merge { .. } | VmProtocolData::Basic { .. } => None,
         }
     }
 

@@ -23,10 +23,10 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
         v => {
             return Err(ParseError::new(
                 ParseErrorKind::InvalidVersion {
-                    found: v.to_string(),
+                    found: v.to_owned(),
                     required: Version::V2,
                 },
-                "Update `policy-version`.".to_string(),
+                "Update `policy-version`.".to_owned(),
                 None,
             ));
         }

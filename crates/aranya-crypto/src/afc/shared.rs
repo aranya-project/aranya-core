@@ -2,7 +2,7 @@ use derive_where::derive_where;
 use spideroak_crypto::{
     csprng::{Csprng, Random},
     import::{ExportError, Import, ImportError},
-    kem::{DecapKey, Kem},
+    kem::{DecapKey as _, Kem},
     keys::{SecretKey, SecretKeyBytes},
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},

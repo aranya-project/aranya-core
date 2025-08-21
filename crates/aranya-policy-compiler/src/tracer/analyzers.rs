@@ -69,11 +69,11 @@ pub enum AnalyzerStatus {
 impl AnalyzerStatus {
     /// Convenience constructor for [`AnalyzerStatus::Failed`].
     pub fn fail(s: &str) -> Self {
-        Self::Failed(s.to_string())
+        Self::Failed(s.to_owned())
     }
 
     /// Convenience constructor for [`AnalyzerStatus::Halted`].
     pub fn halt(s: &str) -> Self {
-        Self::Halted(s.to_string())
+        Self::Halted(s.to_owned())
     }
 }

@@ -73,10 +73,10 @@ impl CommandContext {
     /// Try to create a new [`CommandContext::Seal`] with the same `head_id` as the current context.
     /// This method will fail if it's not called on an [`CommandContext::Action`]
     pub fn seal_from_action(&self, command_name: Identifier) -> Result<Self, Bug> {
-        if let Self::Action(ActionContext { name: _, head_id }) = self {
+        if let Self::Action(ActionContext { head_id, .. }) = *self {
             Ok(Self::Seal(SealContext {
                 name: command_name,
-                head_id: *head_id,
+                head_id,
             }))
         } else {
             bug!(

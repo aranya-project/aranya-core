@@ -4,7 +4,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
-    io::{Read, stdin},
+    io::{Read as _, stdin},
 };
 
 use aranya_crypto::Id;
@@ -271,7 +271,7 @@ fn main() -> anyhow::Result<()> {
             let mut rs;
             let ctx;
 
-            if let Some(action) = &args.action {
+            if let Some(action) = args.action {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
                     name,

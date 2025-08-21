@@ -2,7 +2,7 @@
 
 use core::{any::Any, ffi::CStr, marker::PhantomData, ops::Deref};
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use cfg_if::cfg_if;
 use ciborium as cbor;
 use ciborium_io::{Read, Write};
@@ -12,7 +12,7 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
-use spideroak_base58::{String32, ToBase58};
+use spideroak_base58::{String32, ToBase58 as _};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{

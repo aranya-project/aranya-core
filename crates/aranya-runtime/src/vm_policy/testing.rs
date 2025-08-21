@@ -5,7 +5,7 @@ use core::convert::Infallible;
 
 use aranya_crypto::DeviceId;
 use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 
 use crate::CommandId;
 

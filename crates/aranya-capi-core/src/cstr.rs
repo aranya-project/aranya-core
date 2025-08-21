@@ -1,6 +1,6 @@
 use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit, ptr};
 
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 
 /// The error returned by [`write_c_str`].
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

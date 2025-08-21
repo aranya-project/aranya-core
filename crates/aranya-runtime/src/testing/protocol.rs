@@ -138,7 +138,7 @@ impl TestPolicy {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<<Self as Policy>::Effect>,
     ) -> Result<(), EngineError> {
-        if let WireProtocol::Basic(m) = &policy_command {
+        if let WireProtocol::Basic(m) = policy_command {
             self.origin_check_message(m, facts)?;
 
             sink.consume(TestEffect::Got(m.payload.1));

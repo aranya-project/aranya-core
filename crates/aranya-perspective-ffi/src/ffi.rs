@@ -29,9 +29,11 @@ impl FfiPerspective {
         match ctx {
             CommandContext::Action(actx) => Ok(actx.head_id),
             CommandContext::Seal(sctx) => Ok(sctx.head_id),
-            _ => Err(MachineError::new(MachineErrorType::Unknown(String::from(
-                "head_id is only available in Seal and Action contexts",
-            )))),
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+                Err(MachineError::new(MachineErrorType::Unknown(String::from(
+                    "head_id is only available in Seal and Action contexts",
+                ))))
+            }
         }
     }
 }

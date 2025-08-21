@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use aranya_crypto::Csprng;
-use buggy::BugExt;
+use buggy::BugExt as _;
 use heapless::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -10,8 +10,8 @@ use super::{
     SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
-    Address, Command, GraphId, Location,
-    storage::{Segment, Storage, StorageError, StorageProvider},
+    Address, Command as _, GraphId, Location,
+    storage::{Segment as _, Storage as _, StorageError, StorageProvider},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -70,11 +70,11 @@ pub enum SyncRequestMessage {
 
 impl SyncRequestMessage {
     pub fn session_id(&self) -> u128 {
-        match self {
-            Self::SyncRequest { session_id, .. } => *session_id,
-            Self::RequestMissing { session_id, .. } => *session_id,
-            Self::SyncResume { session_id, .. } => *session_id,
-            Self::EndSession { session_id, .. } => *session_id,
+        match *self {
+            Self::SyncRequest { session_id, .. } => session_id,
+            Self::RequestMissing { session_id, .. } => session_id,
+            Self::SyncResume { session_id, .. } => session_id,
+            Self::EndSession { session_id, .. } => session_id,
         }
     }
 }

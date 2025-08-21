@@ -4,9 +4,9 @@ use aranya_policy_ast::{
     self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
 };
 use ast::{EnumReference, Expression, FactField, MatchPattern};
-use buggy::BugExt;
+use buggy::BugExt as _;
 use pest::{
-    Parser, Span,
+    Parser as _, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
@@ -114,7 +114,7 @@ impl<'a> PairContext<'a> {
         if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
-                identifier.to_string(),
+                identifier.to_owned(),
                 Some(token.as_span()),
             ));
         }
@@ -1525,7 +1525,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
         None => {
             return ParseError::new(
                 ParseErrorKind::Unknown,
-                "error location error".to_string(),
+                "error location error".to_owned(),
                 None,
             );
         }
@@ -1553,7 +1553,7 @@ pub fn parse_policy_chunk(
                 found: policy.version.to_string(),
                 required: Version::V2,
             },
-            "please update `policy-version` to 2".to_string(),
+            "please update `policy-version` to 2".to_owned(),
             None,
         ));
     }

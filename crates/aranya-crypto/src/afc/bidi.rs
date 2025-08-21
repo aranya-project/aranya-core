@@ -1,8 +1,8 @@
 use core::cell::OnceCell;
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use derive_where::derive_where;
-use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
+use spideroak_crypto::{csprng::Random as _, import::ImportError, kem::Kem};
 use zerocopy::{
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
     byteorder::{BE, U32},

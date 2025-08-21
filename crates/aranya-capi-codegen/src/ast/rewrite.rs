@@ -1,4 +1,4 @@
-use std::{fmt::Write, mem};
+use std::{fmt::Write as _, mem};
 
 use aho_corasick::{AhoCorasick, MatchKind};
 use syn::{
@@ -186,7 +186,13 @@ impl Ast {
                         Item::Impl(v) => visitor.visit_item_impl_mut(v),
                         Item::Other(syn::Item::Mod(v)) => visitor.visit_item_mod_mut(v),
                         // TODO(eric): Should we do all `Item`s?
-                        _ => {}
+                        Item::Enum(_)
+                        | Item::Fn(_)
+                        | Item::Other(_)
+                        | Item::Struct(_)
+                        | Item::Type(_)
+                        | Item::Union(_)
+                        | Item::Use(_) => {}
                     }
                 }
             }

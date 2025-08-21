@@ -9,15 +9,15 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use spideroak_crypto::{
     aead::Tag,
     csprng::Csprng,
-    import::{Import, ImportError},
-    kem::{DecapKey, Kem},
-    keys::PublicKey,
-    signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    import::{Import as _, ImportError},
+    kem::{DecapKey as _, Kem},
+    keys::PublicKey as _,
+    signer::{self, Signer, SigningKey as _, VerifyingKey as _},
 };
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
     hpke::{self, Mode},

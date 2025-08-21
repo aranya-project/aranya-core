@@ -13,7 +13,7 @@ use spideroak_crypto::{
     hash,
     kdf::{self, Expand, Kdf as _, KdfError},
     oid::{Identified, Oid},
-    typenum::Unsigned,
+    typenum::Unsigned as _,
 };
 
 use crate::ciphersuite::CipherSuite;

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fs::File, io::Write};
+use std::{cell::RefCell, fs::File, io::Write as _};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};

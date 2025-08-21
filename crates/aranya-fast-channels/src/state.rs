@@ -8,7 +8,7 @@ use aranya_crypto::{
     afc::{OpenKey, SealKey},
     subtle::ConstantTimeEq,
 };
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder as _, LittleEndian};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
@@ -334,10 +334,10 @@ impl<S, O> Directed<&S, &O> {
 impl<S, O> Directed<S, O> {
     /// Converts from `Directed<S, O>` to `Directed<&S, &O>>`.
     pub const fn as_ref(&self) -> Directed<&S, &O> {
-        match *self {
-            Self::SealOnly { ref seal } => Directed::SealOnly { seal },
-            Self::OpenOnly { ref open } => Directed::OpenOnly { open },
-            Self::Bidirectional { ref seal, ref open } => Directed::Bidirectional { seal, open },
+        match self {
+            Self::SealOnly { seal } => Directed::SealOnly { seal },
+            Self::OpenOnly { open } => Directed::OpenOnly { open },
+            Self::Bidirectional { seal, open } => Directed::Bidirectional { seal, open },
         }
     }
 

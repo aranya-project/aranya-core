@@ -161,7 +161,7 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
                 found.insert(s.as_str());
             }
             VType::Optional(inner) => visit(struct_defs, found, inner),
-            _ => {}
+            VType::String | VType::Bytes | VType::Int | VType::Bool | VType::Id => {}
         }
     }
 

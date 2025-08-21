@@ -1,13 +1,13 @@
 use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
     Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
-    Location, MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable,
-    Segment, Sink, Storage, StorageError, StorageProvider,
+    Location, MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable as _,
+    Segment as _, Sink, Storage, StorageError, StorageProvider,
 };
 
 /// Transaction used to receive many commands at once.

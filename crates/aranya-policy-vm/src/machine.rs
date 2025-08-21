@@ -1,15 +1,16 @@
 extern crate alloc;
 
 use alloc::{
-    borrow::ToOwned,
+    borrow::ToOwned as _,
     collections::BTreeMap,
-    string::{String, ToString},
+    string::{String, ToString as _},
     vec,
     vec::Vec,
 };
 use core::{
     cell::RefCell,
     fmt::{self, Display},
+    iter,
 };
 
 use aranya_crypto::Id;
@@ -19,7 +20,7 @@ use aranya_policy_module::{
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
     ValueConversionError,
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]
@@ -742,8 +743,8 @@ where
                 self.ipush(target)?;
             }
             Instruction::MStructGet(n) => {
-                let field_names = (0..n.into())
-                    .map(|_| self.ipop::<Identifier>())
+                let field_names = iter::repeat_with(|| self.ipop::<Identifier>())
+                    .take(n.into())
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut s: Struct = self.ipop()?;
 
@@ -807,7 +808,9 @@ where
                 let (command, recall) = match &self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
-                    _ => {
+                    CommandContext::Action(_)
+                    | CommandContext::Seal(_)
+                    | CommandContext::Open(_) => {
                         return Err(
                             self.err(MachineErrorType::BadState("Emit: wrong command context"))
                         );
@@ -832,13 +835,7 @@ where
                         .fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
-                        Ok(f) => {
-                            if fact_match(&qf, &f.0, &f.1) {
-                                Some(Ok(f))
-                            } else {
-                                None
-                            }
-                        }
+                        Ok(f) => fact_match(&qf, &f.0, &f.1).then(|| Ok(f)),
                         Err(e) => Some(Err(e)),
                     })
                 };
@@ -946,7 +943,7 @@ where
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
-                let CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
+                let CommandContext::Open(OpenContext { name }) = &self.ctx else {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,

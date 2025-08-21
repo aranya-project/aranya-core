@@ -1,7 +1,7 @@
 use alloc::vec;
 use core::mem;
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
@@ -11,8 +11,8 @@ use super::{
 };
 use crate::{
     StorageError, SyncType,
-    command::{Address, Command, CommandId},
-    storage::{GraphId, Location, Segment, Storage, StorageProvider},
+    command::{Address, Command as _, CommandId},
+    storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
 };
 
 #[derive(Default, Debug)]
@@ -121,11 +121,11 @@ pub enum SyncResponseMessage {
 
 impl SyncResponseMessage {
     pub fn session_id(&self) -> u128 {
-        match self {
-            Self::SyncResponse { session_id, .. } => *session_id,
-            Self::SyncEnd { session_id, .. } => *session_id,
-            Self::Offer { session_id, .. } => *session_id,
-            Self::EndSession { session_id, .. } => *session_id,
+        match *self {
+            Self::SyncResponse { session_id, .. } => session_id,
+            Self::SyncEnd { session_id, .. } => session_id,
+            Self::Offer { session_id, .. } => session_id,
+            Self::EndSession { session_id, .. } => session_id,
         }
     }
 }

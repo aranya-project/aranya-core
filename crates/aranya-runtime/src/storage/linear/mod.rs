@@ -30,7 +30,7 @@ pub mod testing;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 

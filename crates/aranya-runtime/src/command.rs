@@ -1,9 +1,9 @@
 use alloc::{
     format,
-    string::{String, ToString},
+    string::{String, ToString as _},
 };
 
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
@@ -17,7 +17,7 @@ impl CommandId {
     /// Derives a [`CommandId`] from some data.
     #[cfg(feature = "testing")]
     pub fn hash_for_testing_only(data: &[u8]) -> Self {
-        use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash, rust::Sha256};
+        use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256};
         Sha256::hash(data).into_array().into()
     }
 

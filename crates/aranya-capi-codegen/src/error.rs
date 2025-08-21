@@ -16,7 +16,7 @@ use std::{
     borrow::Cow,
     error::Error,
     fmt,
-    io::{self, Write},
+    io::{self, Write as _},
     ops::Range,
     path::Path,
 };

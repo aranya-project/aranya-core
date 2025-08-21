@@ -1,9 +1,9 @@
 use alloc::vec::Vec;
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use tracing::trace;
 
-use crate::{ClientError, Command, Location, Prior, Segment, Storage};
+use crate::{ClientError, Command as _, Location, Prior, Segment as _, Storage};
 
 // Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
 impl From<strand_heap::ParallelFinalize> for ClientError {
@@ -155,7 +155,7 @@ mod strand_heap {
     use alloc::collections::BinaryHeap;
 
     use crate::{
-        ClientError, Command, CommandId, Location, Priority, Segment, Storage, StorageError,
+        ClientError, Command as _, CommandId, Location, Priority, Segment, Storage, StorageError,
     };
 
     pub struct Strand<S> {

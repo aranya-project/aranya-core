@@ -12,7 +12,7 @@ use tracing::{instrument, trace};
 use crate::{
     ctx::Ctx,
     syntax::{self, Item, Node, Type},
-    util::{IdentExt, PathExt},
+    util::{IdentExt as _, PathExt as _},
 };
 
 /// An AST (for some definition of "AST") for a generated C API.
@@ -46,7 +46,7 @@ impl Ast {
                         Node::Enum(e) => &e.ident,
                         Node::Struct(s) => &s.ident,
                         Node::Union(u) => &u.ident,
-                        _ => return None,
+                        Node::FfiFn(_) | Node::RustFn(_) | Node::Other(_) => return None,
                     };
                     Some((ident.clone(), n.clone()))
                 })
@@ -181,7 +181,7 @@ impl Ast {
                     let new = old.with_prefix(&ctx.fn_prefix);
                     (old, new)
                 }
-                _ => continue,
+                Node::RustFn(_) | Node::Other(_) => continue,
             };
             if !self.idents.contains_new(&new) {
                 trace!(%old, %new, "found new ident");

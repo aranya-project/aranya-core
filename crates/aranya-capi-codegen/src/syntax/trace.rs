@@ -3,7 +3,7 @@ use quote::{ToTokens, quote};
 use syn::{
     Expr, Ident, Token, parse_quote,
     punctuated::Punctuated,
-    spanned::Spanned,
+    spanned::Spanned as _,
     token::{Bracket, Paren},
 };
 
@@ -73,7 +73,20 @@ impl Instrument {
                         #capi::internal::util::Addr::from_ref(#name)
                     },
                 },
-                _ => Field {
+                Type::CBytes(_)
+                | Type::CStr(_)
+                | Type::FnPtr(_)
+                | Type::MaybeUninit(_)
+                | Type::Named(_)
+                | Type::Option(_)
+                | Type::Ref(_)
+                | Type::Result(_)
+                | Type::Safe(_)
+                | Type::Slice(_)
+                | Type::Str(_)
+                | Type::Unit(_)
+                | Type::Writer(_)
+                | Type::Verbatim(_) => Field {
                     name: Some((name.clone(), Token![=](span))),
                     debug: None,
                     display: None,

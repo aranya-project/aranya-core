@@ -107,7 +107,7 @@ function parent_id(envelope_input struct Envelope) id
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.parent_id)
             }
-            _ => Err(WrongContext(
+            CommandContext::Action(_) | CommandContext::Seal(_) => Err(WrongContext(
                 "`envelope::parent_id` called outside of an `open`, `policy`, or `recall` block",
             )
             .into()),
@@ -127,7 +127,7 @@ function author_id(envelope_input struct Envelope) id
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.author_id)
             }
-            _ => Err(WrongContext(
+            CommandContext::Action(_) | CommandContext::Seal(_) => Err(WrongContext(
                 "`envelope::author_id` called outside of an `open`, `policy`, or `recall` block",
             )
             .into()),
@@ -148,7 +148,7 @@ function command_id(envelope_input struct Envelope) id
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.command_id)
             }
-            _ => Err(WrongContext(
+            CommandContext::Action(_) | CommandContext::Seal(_) => Err(WrongContext(
                 "`envelope::command_id` called outside of an `open`, `policy`, or `recall` block",
             )
             .into()),
@@ -169,7 +169,7 @@ function signature(envelope_input struct Envelope) bytes
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.signature)
             }
-            _ => Err(WrongContext(
+            CommandContext::Action(_) | CommandContext::Seal(_) => Err(WrongContext(
                 "`envelope::signature` called outside of an `open`, `policy`, or `recall` block",
             )
             .into()),
@@ -190,7 +190,7 @@ function payload(envelope_input struct Envelope) bytes
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.payload)
             }
-            _ => Err(WrongContext(
+            CommandContext::Action(_) | CommandContext::Seal(_) => Err(WrongContext(
                 "`envelope::payload` called outside of an `open`, `policy`, or `recall` block",
             )
             .into()),

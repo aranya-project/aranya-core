@@ -26,7 +26,7 @@ impl Analyzer for ActionAnalyzer {
             Instruction::Publish => self.have_publish = true,
             Instruction::Return => {
                 if !self.have_publish {
-                    return Ok(AnalyzerStatus::Failed("no publish".to_string()));
+                    return Ok(AnalyzerStatus::Failed("no publish".to_owned()));
                 }
             }
             _ => (),

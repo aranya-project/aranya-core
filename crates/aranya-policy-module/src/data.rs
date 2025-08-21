@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned as _, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
@@ -162,7 +162,7 @@ impl Value {
             Self::Id(_) => Some(VType::Id),
             Self::Enum(name, _) => Some(VType::Enum(name.to_owned())),
             Self::Struct(s) => Some(VType::Struct(s.name.clone())),
-            _ => None,
+            Self::Fact(_) | Self::Identifier(_) | Self::None => None,
         }
     }
 
@@ -561,7 +561,11 @@ impl TryFrom<Value> for HashableValue {
             Value::String(v) => Ok(Self::String(v)),
             Value::Id(v) => Ok(Self::Id(v)),
             Value::Enum(id, value) => Ok(Self::Enum(id, value)),
-            _ => Err(ValueConversionError::invalid_type(
+            Value::Bytes(_)
+            | Value::Struct(_)
+            | Value::Fact(_)
+            | Value::Identifier(_)
+            | Value::None => Err(ValueConversionError::invalid_type(
                 "Int | Bool | String | Id | Enum",
                 value.type_name(),
                 "Value -> HashableValue",

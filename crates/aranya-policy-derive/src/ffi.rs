@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::File, io::Write};
+use std::{collections::HashSet, fs::File, io::Write as _};
 
 use aranya_policy_lang::{
     ast::{
@@ -14,7 +14,7 @@ use syn::{
     PatType, Path, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_quote,
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 
 use crate::attr::{Attr, Symbol, get_lit_str};
@@ -561,7 +561,7 @@ impl FfiExportAttr {
         match &attr.meta {
             // An empty attribute: `#[ffi_export]`.
             Meta::Path(_) => {}
-            _ => attr.parse_nested_meta(|meta| {
+            Meta::List(_) | Meta::NameValue(_) => attr.parse_nested_meta(|meta| {
                 if meta.path == DEF {
                     let decl = get_lit_str(DEF, &meta)?.value();
                     let fd = lang::parse_ffi_decl(&decl)

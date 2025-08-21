@@ -3,7 +3,7 @@ use core::{cell::OnceCell, fmt};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
-    csprng::Random,
+    csprng::Random as _,
     import::ImportError,
     kem::Kem,
     subtle::{Choice, ConstantTimeEq},

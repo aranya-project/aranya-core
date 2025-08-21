@@ -9,15 +9,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use aranya_crypto::{Csprng, Rng};
+use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, MAX_SYNC_MESSAGE_SIZE, PeerCache,
+    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache,
     StorageError, SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder,
     SyncType,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use heapless::{FnvIndexMap, Vec};
 use s2n_quic::{
     Client, Connection, Server,
@@ -85,7 +85,7 @@ pub async fn run_syncer<EN, SP, S>(
     loop {
         select! {
             Some(conn) = server.accept() => {
-                if let Err(e) = handle_connection(conn, syncer.clone()).await {
+                if let Err(e) = handle_connection(conn, Arc::clone(&syncer)).await {
                     error!(cause = ?e, "sync error");
                 }
             },

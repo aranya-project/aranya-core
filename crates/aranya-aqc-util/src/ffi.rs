@@ -10,7 +10,7 @@ use core::convert::Infallible;
 
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
-    KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
+    KeyStore, KeyStoreExt as _, PolicyId, UnwrapError, WrapError,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
     policy,
 };

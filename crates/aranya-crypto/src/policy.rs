@@ -1,13 +1,13 @@
 //! Aranya policy related routines.
 
-use core::borrow::Borrow;
+use core::borrow::Borrow as _;
 
 use spideroak_crypto::hash::{Digest, Hash};
 use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aranya::{Signature, SigningKeyId},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     id::{Id, custom_id},
 };
 

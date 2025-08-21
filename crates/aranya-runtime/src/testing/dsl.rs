@@ -60,15 +60,15 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::time::Instant;
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RRng};
-use buggy::{Bug, BugExt};
+use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CommandId, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
-    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command as _, CommandId, EngineError,
+    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
+    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
 
@@ -91,28 +91,15 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
 ) -> Result<usize, SyncError> {
     let sync_type: SyncType<A> = postcard::from_bytes(data)?;
     let len = match sync_type {
-        SyncType::Poll {
-            request,
-            address: _,
-        } => {
+        SyncType::Poll { request, .. } => {
             let mut response_syncer: SyncResponder<()> = SyncResponder::new(());
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
         }
-        SyncType::Subscribe {
-            storage_id: _,
-            remain_open: _,
-            max_bytes: _,
-            address: _,
-            commands: _,
-        } => unimplemented!(),
-        SyncType::Unsubscribe { address: _ } => unimplemented!(),
-        SyncType::Push {
-            message: _,
-            storage_id: _,
-            address: _,
-        } => unimplemented!(),
+        SyncType::Subscribe { .. } => unimplemented!(),
+        SyncType::Unsubscribe { .. } => unimplemented!(),
+        SyncType::Push { .. } => unimplemented!(),
     };
     Ok(len)
 }
@@ -315,7 +302,7 @@ impl Display for TestRule {
 
 /// An error result from a test.
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)] // fields used only via `Debug`
+#[allow(dead_code, reason = "fields used only via `Debug`")]
 pub enum TestError {
     #[error(transparent)]
     Storage(#[from] StorageError),
@@ -711,7 +698,7 @@ where
 
                 assert_eq!(actual_ids, expected_ids);
             }
-            _ => {}
+            TestRule::GenerateGraph { .. } | TestRule::SetupClientsAndGraph { .. } => {}
         }
         #[cfg(any(test, feature = "std"))]
         if false {

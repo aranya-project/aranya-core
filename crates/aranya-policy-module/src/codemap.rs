@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned as _, string::String, vec, vec::Vec};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,11 +22,9 @@ impl<'a> Span<'a> {
     /// the `start` or `end` do not occur on a UTF-8 character boundary, this will return
     /// `None`.
     pub fn new(text: &'a str, start: usize, end: usize) -> Option<Self> {
-        if text.get(start..end).is_some() {
-            Some(Span { text, start, end })
-        } else {
-            None
-        }
+        text.get(start..end)
+            .is_some()
+            .then_some(Span { text, start, end })
     }
 
     /// The start of the span, in bytes. This is guaranteed to be on a UTF-8 boundary.

@@ -117,13 +117,13 @@
 extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
-use core::{borrow::Borrow, cell::RefCell, fmt};
+use core::{borrow::Borrow as _, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    OpenContext, PolicyContext, RunState, Stack, Struct, Value, ast::Identifier,
+    OpenContext, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
 };
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 

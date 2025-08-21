@@ -1,6 +1,6 @@
 use core::{cell::OnceCell, fmt, marker::PhantomData};
 
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
@@ -14,7 +14,7 @@ use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 use crate::{
     Csprng, Random,
     aranya::{Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
@@ -24,7 +24,7 @@ use crate::{
     subtle::{Choice, ConstantTimeEq},
     tls::{self, CipherSuiteId},
     util,
-    zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
+    zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
 type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as Kdf>::PrkSize>;

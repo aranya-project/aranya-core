@@ -1,12 +1,12 @@
 use std::{collections::HashMap, iter::Peekable, mem, slice};
 
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use quote::{ToTokens, TokenStreamExt as _, format_ident, quote};
 use syn::{
     Attribute, Expr, Ident, ItemConst, ItemImpl, ItemStruct, Path, Result, Token, parse_quote,
     parse_quote_spanned,
     punctuated::{Pair, Punctuated},
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 use tracing::{debug, instrument, trace};
 
@@ -14,12 +14,13 @@ use super::{Ast, IdentMap};
 use crate::{
     ctx::Ctx,
     syntax::{
-        Alias, AttrsExt, Builds, DeriveTrait, Enum, FfiFn, Fields, FnArg, Lifetimes, MaybeUninit,
-        Node, Ptr, Ref, ReturnType, RustFn, Scalar, ScalarType, Struct, Type, Union, Unit,
+        Alias, AttrsExt as _, Builds, DeriveTrait, Enum, FfiFn, Fields, FnArg, Lifetimes,
+        MaybeUninit, Node, Ptr, Ref, ReturnType, RustFn, Scalar, ScalarType, Struct, Type, Union,
+        Unit,
         attrs::{NoExtError, Repr},
         trace::Instrument,
     },
-    util::{IdentExt, PathExt, parse_doc},
+    util::{IdentExt as _, PathExt as _, parse_doc},
 };
 
 impl Ast {
@@ -332,11 +333,10 @@ impl Ast {
                 &strukt.ident,
                 &old,
                 &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
+                strukt
+                    .ext_error
+                    .is_some()
+                    .then(|| NoExtError::with_span(span)),
             )?;
         }
 
@@ -348,11 +348,10 @@ impl Ast {
                 &old,
                 ty,
                 &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
+                strukt
+                    .ext_error
+                    .is_some()
+                    .then(|| NoExtError::with_span(span)),
             )?;
         }
 
@@ -363,11 +362,10 @@ impl Ast {
                 &strukt.ident,
                 &old,
                 &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
+                strukt
+                    .ext_error
+                    .is_some()
+                    .then(|| NoExtError::with_span(span)),
             )?;
         }
 
@@ -928,7 +926,7 @@ impl Ast {
         let util = &ctx.util;
         let name = old.to_snake_case().with_suffix("_init");
 
-        let doc = parse_doc! {r"
+        let doc = parse_doc! {"
 /// Initializes `{ty}`.
 ///
 /// When no longer needed, `out`'s resources must be released
@@ -975,7 +973,7 @@ impl Ast {
         let util = &ctx.util;
         let name = old.to_snake_case().with_suffix("_build");
 
-        let doc = parse_doc! {r"
+        let doc = parse_doc! {"
 /// Builds `{output}`.
 ///
 /// When no longer needed, `out`'s resources must be released
@@ -1027,7 +1025,7 @@ impl Ast {
             .with_suffix("_init")
             .with_prefix(&ctx.fn_prefix);
 
-        let doc = parse_doc! {r"
+        let doc = parse_doc! {"
 /// Releases any resources associated with `ptr`.
 ///
 /// `ptr` must either be null or initialized by `::{init}`.

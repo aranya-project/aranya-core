@@ -8,7 +8,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, Command, CommandId, PolicyId, Prior};
@@ -232,7 +232,7 @@ pub trait Storage {
     /// Writes the given fact perspective to a fact index.
     fn write_facts(
         &mut self,
-        fact_perspective: Self::FactPerspective,
+        facts: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError>;
 
     /// Determine whether the given location is an ancestor of the given segment.

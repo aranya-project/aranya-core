@@ -1,10 +1,10 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::borrow::Borrow;
+use core::borrow::Borrow as _;
 
 use aranya_crypto::{
-    Cmd, Engine, Id, KeyStore, Signature, SigningKey, VerifyingKey, subtle::ConstantTimeEq,
+    Cmd, Engine, Id, KeyStore, Signature, SigningKey, VerifyingKey, subtle::ConstantTimeEq as _,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 

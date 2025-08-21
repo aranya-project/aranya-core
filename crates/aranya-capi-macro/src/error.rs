@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use aranya_capi_codegen::{
-    IdentExt, KeyValPair,
+    IdentExt as _, KeyValPair,
     attr::{Attr, Symbol},
     syntax::Repr,
 };
@@ -23,13 +23,8 @@ pub fn derive(item: TokenStream) -> Result<TokenStream> {
         let mut reprs: Vec<_> = item
             .attrs
             .iter()
-            .filter_map(|a| {
-                if a.path().is_ident("repr") {
-                    Some(a.parse_args::<Repr>())
-                } else {
-                    None
-                }
-            })
+            .filter(|a| a.path().is_ident("repr"))
+            .map(|a| a.parse_args::<Repr>())
             .collect::<Result<_>>()?;
         if reprs.len() > 1 {
             return Err(Error::new_spanned(

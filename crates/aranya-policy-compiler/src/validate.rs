@@ -7,7 +7,7 @@ use crate::{
 };
 
 pub fn validate(module: &Module) -> bool {
-    let ModuleData::V0(ref m) = module.data;
+    let ModuleData::V0(m) = &module.data;
     let mut failed = false;
 
     // Get all global variable names

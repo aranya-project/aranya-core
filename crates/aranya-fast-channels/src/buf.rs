@@ -7,8 +7,8 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::zeroize::Zeroize;
-use buggy::{Bug, BugExt};
+use aranya_crypto::zeroize::Zeroize as _;
+use buggy::{Bug, BugExt as _};
 
 /// Unable to allocate memory.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -170,11 +170,7 @@ impl<'a> FixedBuf<'a> {
     ///
     /// Returns `None` if `len > data.len()`.
     pub fn from_slice_mut(data: &'a mut [u8], len: usize) -> Option<Self> {
-        if len <= data.len() {
-            Some(Self { data, len })
-        } else {
-            None
-        }
+        (len <= data.len()).then_some(Self { data, len })
     }
 
     fn capacity(&self) -> usize {
