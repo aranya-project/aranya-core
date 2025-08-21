@@ -4,7 +4,7 @@ use core::{
     ops::{Bound, Range, RangeBounds},
 };
 
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
 /// A range in the source text.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
