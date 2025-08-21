@@ -1,26 +1,26 @@
 use std::cell::RefCell;
 
 use aranya_policy_ast::{
-    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
+    self as ast, ident, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, Identifier, IfStatement, InternalFunction,
     LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
-    MatchStatement, NamedStruct, ReturnStatement, Span as AstSpan, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version, ident,
+    MatchPatternKind, MatchStatement, NamedStruct, ReturnStatement, Statement, StmtKind, Text,
+    TypeKind, UpdateStatement, VType, Version,
 };
 use buggy::BugExt;
 use pest::{
-    Parser, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
+    Parser, Span,
 };
 
 mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{ChunkOffset, extract_policy, parse_policy_document};
+pub use markdown::{extract_policy, parse_policy_document, ChunkOffset};
 
 mod keywords;
 use keywords::KEYWORDS;
@@ -179,7 +179,7 @@ impl ChunkParser<'_> {
     }
 
     /// Convert a Pest span to an AST span with offset
-    fn to_ast_span(&self, pest_span: Span<'_>) -> Result<AstSpan, ParseError> {
+    fn to_ast_span(&self, pest_span: Span<'_>) -> Result<ast::Span, ParseError> {
         let start = pest_span.start().checked_add(self.offset).ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Unknown,
@@ -207,7 +207,7 @@ impl ChunkParser<'_> {
             ));
         }
 
-        Ok(AstSpan::new(start, end))
+        Ok(ast::Span::new(start, end))
     }
 
     /// Parse an identifier with span
@@ -775,15 +775,16 @@ impl ChunkParser<'_> {
             let pc = descend(arm.to_owned());
             let token = pc.consume()?;
 
-            let pattern = match token.as_rule() {
-                Rule::match_default => MatchPattern::Default,
+            let span = self.to_ast_span(token.as_span())?;
+            let kind = match token.as_rule() {
+                Rule::match_default => MatchPatternKind::Default,
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
                         .map(|token| self.parse_expression(token.to_owned()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    MatchPattern::Values(values)
+                    MatchPatternKind::Values(values)
                 }
                 _ => {
                     return Err(ParseError::new(
@@ -793,6 +794,7 @@ impl ChunkParser<'_> {
                     ));
                 }
             };
+            let pattern = MatchPattern { kind, span };
 
             // Remaining tokens are policy statements
             let expression = self.parse_expression(pc.consume()?)?;
@@ -1062,8 +1064,9 @@ impl ChunkParser<'_> {
             let pc = descend(arm.to_owned());
             let token = pc.consume()?;
 
-            let pattern = match token.as_rule() {
-                Rule::match_default => MatchPattern::Default,
+            let span = self.to_ast_span(token.as_span())?;
+            let kind = match token.as_rule() {
+                Rule::match_default => MatchPatternKind::Default,
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
@@ -1073,7 +1076,7 @@ impl ChunkParser<'_> {
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    MatchPattern::Values(values)
+                    MatchPatternKind::Values(values)
                 }
                 _ => {
                     return Err(ParseError::new(
@@ -1083,6 +1086,7 @@ impl ChunkParser<'_> {
                     ));
                 }
             };
+            let pattern = MatchPattern { kind, span };
 
             // Remaining tokens are policy statements
             let statements = self.parse_statement_list(pc.into_inner())?;

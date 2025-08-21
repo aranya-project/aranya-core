@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,17 +11,17 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
-    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
-    MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Statement, StmtKind,
-    StructItem, TypeKind, VType, ident,
+    self as ast, ident, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
+    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    MatchExpression, MatchPattern, MatchPatternKind, MatchStatement, NamedStruct, Span, Statement,
+    StmtKind, StructItem, TypeKind, VType,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{Bug, BugExt, bug};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -2393,9 +2393,9 @@ impl<'a> CompileState<'a> {
         // NOTE We don't check for zero arms, because that's enforced by the parser.
         let all_values = patterns
             .iter()
-            .flat_map(|pattern| match &pattern {
-                MatchPattern::Values(values) => values.as_slice(),
-                MatchPattern::Default => &[],
+            .flat_map(|pattern| match &pattern.kind {
+                MatchPatternKind::Values(values) => values.as_slice(),
+                MatchPatternKind::Default => &[],
             })
             .collect::<Vec<&Expression>>();
         // Check for duplicates by comparing expression kinds, not including spans
@@ -2412,7 +2412,7 @@ impl<'a> CompileState<'a> {
         // find duplicate default arms
         let default_count = patterns
             .iter()
-            .filter(|p| matches!(p, MatchPattern::Default))
+            .filter(|p| matches!(p.kind, MatchPatternKind::Default))
             .count();
         if default_count > 1 {
             return Err(self.err_loc(
@@ -2437,8 +2437,8 @@ impl<'a> CompileState<'a> {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
-            match pattern {
-                MatchPattern::Values(values) => {
+            match &pattern.kind {
+                MatchPatternKind::Values(values) => {
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
                         self.append_instruction(Instruction::Dup);
@@ -2465,7 +2465,7 @@ impl<'a> CompileState<'a> {
                         )));
                     }
                 }
-                MatchPattern::Default => {
+                MatchPatternKind::Default => {
                     self.append_instruction(Instruction::Jump(Target::Unresolved(
                         arm_label.clone(),
                     )));
@@ -2481,7 +2481,7 @@ impl<'a> CompileState<'a> {
         }
 
         // if no match, and no default case, panic
-        if !patterns.iter().any(|p| *p == MatchPattern::Default) {
+        if !patterns.iter().any(|p| p.kind == MatchPatternKind::Default) {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 

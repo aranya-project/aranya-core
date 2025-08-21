@@ -597,7 +597,16 @@ pub struct CheckStatement {
 
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq)]
-pub enum MatchPattern {
+pub struct MatchPattern {
+    /// The kind of match pattern.
+    pub kind: MatchPatternKind,
+    /// The source location of this pattern.
+    pub span: Span,
+}
+
+/// Match arm pattern
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchPatternKind {
     /// No values, default case
     Default,
     /// List of values to match
@@ -613,6 +622,15 @@ pub struct MatchArm {
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
     pub statements: Vec<Statement>,
+}
+
+impl MatchArm {
+    /// Returns the source location of this match arm.
+    pub fn span(&self) -> Span {
+        self.statements
+            .iter()
+            .fold(self.pattern.span, |span, stmt| span.merge(stmt.span))
+    }
 }
 
 /// Match a value and execute one possibility out of many
