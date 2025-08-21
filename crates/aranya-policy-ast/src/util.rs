@@ -34,7 +34,9 @@ impl Expression {
                 Some(e) => e.is_literal(),
                 None => true,
             },
-            ExprKind::NamedStruct(s) => s.fields.iter().all(|(_, e)| e.is_literal()),
+            ExprKind::NamedStruct(s) => {
+                s.fields.iter().all(|(_, e)| e.is_literal()) && s.sources.is_empty()
+            }
             _ => false,
         }
     }

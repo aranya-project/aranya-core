@@ -33,6 +33,8 @@ mod internal {
     pub struct PolicyParser;
 }
 
+type FieldsAndSources = (Vec<(Identifier, Expression)>, Vec<Identifier>);
+
 // Each of the rules in policy.pest becomes an enumerable value here
 // The core parser for policy documents
 pub use internal::{PolicyParser, Rule};
@@ -387,8 +389,12 @@ impl ChunkParser<'_> {
         let identifier = Ident::new(identifier_str, identifier_span);
 
         // key/expression pairs follow the identifier
-        let fields = self.parse_kv_literal_fields_new(pc.into_inner())?;
-        Ok(NamedStruct { identifier, fields })
+        let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
+        Ok(NamedStruct {
+            identifier,
+            fields,
+            sources,
+        })
     }
 
     fn parse_function_call(&self, call: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
@@ -888,26 +894,30 @@ impl ChunkParser<'_> {
         ))
     }
 
-    /// Parses a list of Rule::struct_literal_field items into (String,
-    /// Expression) pairs.
-    ///
-    /// This is used any place where something looks like a struct literal -
-    /// fact key/values, publish, and effects.
-    #[allow(dead_code)]
-    fn parse_kv_literal_fields(
-        &self,
-        fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(Identifier, Expression)>, ParseError> {
-        let mut out = vec![];
+    /// Parses a list of Rule::struct_data items into lists of (String,
+    /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
+    fn parse_struct_data(&self, fields: Pairs<'_, Rule>) -> Result<FieldsAndSources, ParseError> {
+        let mut field_expressions = vec![];
+        let mut sources = vec![];
 
         for field in fields {
+            let rule_kind = field.as_rule();
             let pc = descend(field);
-            let identifier = pc.consume_identifier()?;
-            let expression = pc.consume_expression(self)?;
-            out.push((identifier, expression));
+            match rule_kind {
+                Rule::struct_literal_field => {
+                    let identifier = pc.consume_identifier()?;
+                    let expression = pc.consume_expression(self)?;
+                    field_expressions.push((identifier, expression));
+                }
+                Rule::struct_composition => {
+                    let identifier = pc.consume_identifier()?;
+                    sources.push(identifier);
+                }
+                _ => return Err(pc.location_error()),
+            }
         }
 
-        Ok(out)
+        Ok((field_expressions, sources))
     }
 
     /// New version that returns new types with spans
@@ -1841,12 +1851,13 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | Priority | Op |
 /// |----------|----|
 /// | 1        | `.` |
-/// | 2        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
-/// | 3        | `%` |
-/// | 4        | `+`, `-` (infix) |
-/// | 5        | `>`, `<`, `>=`, `<=`, `is` |
-/// | 6        | `==`, `!=` |
-/// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 2        | `substruct`, `as` (infix) |
+/// | 3        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
+/// | 4        | `%` |
+/// | 5        | `+`, `-` (infix) |
+/// | 6        | `>`, `<`, `>=`, `<=`, `is` |
+/// | 7        | `==`, `!=` |
+/// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
 pub fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
@@ -1861,7 +1872,7 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::prefix(Rule::not)
             | Op::prefix(Rule::unwrap)
             | Op::prefix(Rule::check_unwrap))
-        .op(Op::infix(Rule::substruct, Assoc::Left))
+        .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
 }
 

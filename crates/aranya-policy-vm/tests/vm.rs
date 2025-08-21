@@ -470,6 +470,49 @@ fn test_fact_query() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_invalid_update() -> anyhow::Result<()> {
+    fn run(initial_value: i64) -> anyhow::Result<ExitReason> {
+        let policy = parse_policy_str(POLICY_TEST_UPDATE.trim(), Version::V2)?;
+
+        let module = Compiler::new(&policy)
+            .ffi_modules(TestIO::FFI_SCHEMAS)
+            .compile()?;
+        let mut machine = Machine::from_module(module)?;
+        let io = RefCell::new(TestIO::new());
+
+        let exit = {
+            let name = ident!("Set");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct =
+                Struct::new(name.clone(), [KVPair::new_int(ident!("a"), initial_value)]);
+            machine
+                .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+                .success();
+
+            let name = ident!("Increment");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct = Struct::new(name.clone(), &[]);
+            machine.call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+        };
+
+        let fk = (ident!("Foo"), vec![]);
+        let fv = vec![FactValue::new(ident!("x"), Value::Int(initial_value + 1))];
+        assert_eq!(io.borrow().facts[&fk], fv);
+
+        Ok(exit)
+    }
+
+    // Incrementing from '0' is valid
+    assert_eq!(run(0).unwrap(), ExitReason::Normal);
+
+    // Incrementing from a value other than '0' is invalid
+    let err = run(10).unwrap_err().downcast::<MachineError>()?;
+    assert_eq!(err.err_type, MachineErrorType::InvalidFact(ident!("Foo")));
+
+    Ok(())
+}
+
+#[test]
 fn test_fact_exists() -> anyhow::Result<()> {
     let text = r#"
     enum Bool {
@@ -2343,6 +2386,67 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_struct_composition() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Foo {
+            fields {
+                x int,
+                y bool,
+                z string,
+            }
+            seal { return todo() }
+            open { return todo() }
+        }
+        struct Bar {
+            x int,
+            y bool,
+            z string,
+        }
+        action baz(source struct Bar, x int) {
+            publish Foo { x: x, ...source }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
+    let action_name = ident!("baz");
+    let ctx = dummy_ctx_action(action_name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    call_action(
+        &mut rs,
+        &mut published,
+        action_name,
+        [
+            Value::Struct(Struct::new(
+                ident!("Bar"),
+                [
+                    (ident!("x"), Value::Int(30)),
+                    (ident!("y"), Value::Bool(false)),
+                    (ident!("z"), Value::String(text!("lorem"))),
+                ],
+            )),
+            Value::Int(10),
+        ],
+    )?
+    .success();
+    drop(rs);
+
+    let lorem = Value::String(text!("lorem"));
+
+    assert_eq!(
+        published,
+        [vm_struct!(Foo {
+            x: 10,
+            y: false,
+            z: lorem,
+        })]
+    );
+    Ok(())
+}
+
+#[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
         let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
@@ -2423,4 +2527,72 @@ fn test_comparison_operators() {
     check("2 >= 1");
     check("!(2 < 1)");
     check("!(2 <= 1)");
+}
+
+#[test]
+fn test_struct_conversion() -> anyhow::Result<()> {
+    let policy = r#"
+        struct Foo { y string, x int }
+
+        command Bar {
+            fields { x int, y string }
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        function new_foo(x int, y string) struct Foo {
+            return Foo { y:y, x: x }
+        }
+
+        action test() {
+            let foo = Foo { y: "abc", x: 42 }
+            publish foo as Bar // var reference
+            publish Foo { y: "b", x: 1 } as Bar // struct literal
+            publish new_foo(5, "def") as Bar // function return value
+            publish Bar { x: 100, y: "xyz" } as Bar
+        }
+        "#;
+
+    let policy = parse_policy_str(policy, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(ident!("test"));
+    let mut rs = machine.create_run_state(&io, ctx);
+    let mut published = Vec::new();
+    let _ = call_action(
+        &mut rs,
+        &mut published,
+        ident!("test"),
+        iter::empty::<Value>(),
+    )?;
+    assert_eq!(
+        published[0],
+        vm_struct!(Bar {
+            x: Value::Int(42),
+            y: Value::String(text!("abc")),
+        })
+    );
+    assert_eq!(
+        published[1],
+        vm_struct!(Bar {
+            x: Value::Int(1),
+            y: Value::String(text!("b")),
+        })
+    );
+    assert_eq!(
+        published[2],
+        vm_struct!(Bar {
+            x: Value::Int(5),
+            y: Value::String(text!("def")),
+        })
+    );
+    assert_eq!(
+        published[3],
+        vm_struct!(Bar {
+            x: Value::Int(100),
+            y: Value::String(text!("xyz")),
+        })
+    );
+    Ok(())
 }
