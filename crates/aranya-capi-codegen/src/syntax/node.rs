@@ -1330,7 +1330,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.as_ref().map_or((0, Some(0)), |v| v.size_hint())
+        self.0.as_ref().map_or((0, Some(0)), Iterator::size_hint)
     }
 }
 
@@ -1342,7 +1342,7 @@ impl<T> DoubleEndedIterator for IterMut<'_, T> {
 
 impl<T> ExactSizeIterator for IterMut<'_, T> {
     fn len(&self) -> usize {
-        self.0.as_ref().map_or(0, |v| v.len())
+        self.0.as_ref().map_or(0, ExactSizeIterator::len)
     }
 }
 

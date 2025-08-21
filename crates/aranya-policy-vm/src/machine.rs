@@ -1004,7 +1004,7 @@ where
                 #[cfg(feature = "bench")]
                 bench_aggregate(&mut self.stopwatch);
                 return Ok(reason);
-            };
+            }
         }
     }
 

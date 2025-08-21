@@ -8,7 +8,7 @@ use aranya_capi_codegen::{
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Error, Ident, ItemEnum, LitCStr, LitStr, Path,
+    Attribute, Error, Ident, ItemEnum, LitCStr, LitStr, Path,
     parse::{Parse, ParseStream, Result},
     parse_quote,
 };
@@ -24,7 +24,7 @@ pub fn derive(item: TokenStream) -> Result<TokenStream> {
             .attrs
             .iter()
             .filter(|a| a.path().is_ident("repr"))
-            .map(|a| a.parse_args::<Repr>())
+            .map(Attribute::parse_args::<Repr>)
             .collect::<Result<_>>()?;
         if reprs.len() > 1 {
             return Err(Error::new_spanned(

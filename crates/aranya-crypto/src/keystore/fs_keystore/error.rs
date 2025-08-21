@@ -140,27 +140,25 @@ impl Repr {
 
     fn downcast_ref<T: 'static>(&self) -> Option<&T> {
         match self {
-            Self::AlreadyExists => None,
             Self::UnexpectedEof(err) => downcast_ref(err),
             Self::Errno(err) => downcast_ref(err),
             Self::Encode(err) => downcast_ref(err),
             Self::Decode(err) => downcast_ref(err),
             Self::Bug(err) => downcast_ref(err),
             Self::RootDeleted(err) => downcast_ref(err),
-            Self::Other => None,
+            Self::AlreadyExists | Self::Other => None,
         }
     }
 
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
-            Self::AlreadyExists => None,
             Self::UnexpectedEof(err) => Some(err),
             Self::Errno(err) => Some(err),
             Self::Encode(err) => Some(err),
             Self::Decode(err) => Some(err),
             Self::Bug(err) => Some(err),
             Self::RootDeleted(err) => Some(err),
-            Self::Other => None,
+            Self::AlreadyExists | Self::Other => None,
         }
     }
 }

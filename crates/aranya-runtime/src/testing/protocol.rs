@@ -68,8 +68,7 @@ impl Command for TestProtocol<'_> {
     fn policy(&self) -> Option<&[u8]> {
         match &self.command {
             WireProtocol::Init(m) => Some(&m.policy_num),
-            WireProtocol::Merge(_) => None,
-            WireProtocol::Basic(_) => None,
+            WireProtocol::Merge(_) | WireProtocol::Basic(_) => None,
         }
     }
 
