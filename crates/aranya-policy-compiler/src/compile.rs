@@ -16,8 +16,8 @@ use aranya_policy_ast::{
     MatchExpression, MatchStatement, StructItem, VType, ident,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ActionDef, CodeMap, CommandDef, EnumDef, ExitReason, Instruction, Label, LabelType, Meta,
+    Module, Struct, StructDef, Target, Value, ffi::ModuleSchema,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
@@ -200,41 +200,40 @@ impl<'a> CompileState<'a> {
 
         // Add explicitly-defined fields and those from struct insertions
 
-        let mut field_definitions = Vec::new();
+        let mut field_definitions = IndexMap::default();
         for item in items {
             match item {
                 StructItem::Field(field) => {
-                    if field_definitions
-                        .iter()
-                        .any(|f: &FieldDefinition| f.identifier == field.identifier)
-                    {
+                    if field_definitions.contains_key(&field.identifier) {
                         return Err(self.err(CompileErrorType::AlreadyDefined(
                             field.identifier.to_string(),
                         )));
                     }
-                    field_definitions.push(field.clone());
+                    field_definitions.insert(field.identifier.clone(), field.field_type.clone());
                 }
                 StructItem::StructRef(ident) => {
                     let other =
                         self.m.struct_defs.get(ident).ok_or_else(|| {
                             self.err(CompileErrorType::NotDefined(ident.to_string()))
                         })?;
-                    for field in other {
-                        if field_definitions
-                            .iter()
-                            .any(|f: &FieldDefinition| f.identifier == field.identifier)
-                        {
-                            return Err(self.err(CompileErrorType::AlreadyDefined(
-                                field.identifier.to_string(),
-                            )));
+                    for (field_name, field_type) in &other.fields {
+                        if field_definitions.contains_key(field_name) {
+                            return Err(
+                                self.err(CompileErrorType::AlreadyDefined(field_name.to_string()))
+                            );
                         }
-                        field_definitions.push(field.clone());
+                        field_definitions.insert(field_name.clone(), field_type.clone());
                     }
                 }
             }
         }
 
-        self.m.struct_defs.insert(identifier, field_definitions);
+        self.m.struct_defs.insert(
+            identifier,
+            StructDef {
+                fields: field_definitions,
+            },
+        );
         Ok(())
     }
 
@@ -249,9 +248,9 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = IndexMap::new();
+        let mut variants = IndexMap::default();
         for (i, value_name) in enum_def.variants.iter().enumerate() {
-            match values.entry(value_name.clone()) {
+            match variants.entry(value_name.clone()) {
                 indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
@@ -268,7 +267,9 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m.enum_defs.insert(enum_name.clone(), values);
+        self.m
+            .enum_defs
+            .insert(enum_name.clone(), EnumDef { variants });
 
         Ok(())
     }
@@ -418,16 +419,12 @@ impl<'a> CompileState<'a> {
 
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for (field_name, e) in &s.fields {
-            let def_field_type = &struct_def
-                .iter()
-                .find(|f| &f.identifier == field_name)
-                .ok_or_else(|| {
-                    self.err(CompileErrorType::InvalidType(format!(
-                        "field `{}` not found in `Struct {}`",
-                        field_name, s.identifier
-                    )))
-                })?
-                .field_type;
+            let def_field_type = &struct_def.fields.get(field_name).ok_or_else(|| {
+                self.err(CompileErrorType::InvalidType(format!(
+                    "field `{}` not found in `Struct {}`",
+                    field_name, s.identifier
+                )))
+            })?;
             let t = self.compile_expression(e)?;
             if !t.fits_type(def_field_type) {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
@@ -897,16 +894,13 @@ impl<'a> CompileState<'a> {
                                 self.m.struct_defs.get(name.as_str()).ok_or_else(|| {
                                     TypeError::new_owned(format!("Struct `{name}` not defined"))
                                 })?;
-                            let field_def = struct_def
-                                .iter()
-                                .find(|f| &f.identifier == s)
-                                .ok_or_else(|| {
-                                    TypeError::new_owned(format!(
-                                        "Struct `{}` has no member `{}`",
-                                        name, s
-                                    ))
-                                })?;
-                            Ok(NullableVType::Type(field_def.field_type.clone()))
+                            let field_type = struct_def.fields.get(s).ok_or_else(|| {
+                                TypeError::new_owned(format!(
+                                    "Struct `{}` has no member `{}`",
+                                    name, s
+                                ))
+                            })?;
+                            Ok(NullableVType::Type(field_type.clone()))
                         }
                         _ => Err(TypeError::new("Expression left of `.` is not a struct")),
                     })
@@ -915,7 +909,7 @@ impl<'a> CompileState<'a> {
             Expression::Substruct(lhs, sub) => {
                 self.append_instruction(Instruction::StructNew(sub.clone()));
 
-                let Some(sub_field_defns) = self.m.struct_defs.get(sub).cloned() else {
+                let Some(sub_defn) = self.m.struct_defs.get(sub).cloned() else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{sub}` not defined"
                     ))));
@@ -925,17 +919,17 @@ impl<'a> CompileState<'a> {
                 let result_type = lhs_expression
                     .try_map(|nty| match nty {
                         NullableVType::Type(VType::Struct(lhs_struct_name)) => {
-                            let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name)
-                            else {
+                            let Some(lhs_defn) = self.m.struct_defs.get(&lhs_struct_name) else {
                                 return Err(CompileErrorType::NotDefined(format!(
                                     "Struct `{lhs_struct_name}` is not defined",
                                 )));
                             };
 
                             // Check that the struct type on the RHS is a subset of the struct expression on the LHS
-                            if !sub_field_defns
-                                .iter()
-                                .all(|field_def| lhs_field_defns.contains(field_def))
+                            if !sub_defn
+                                .fields
+                                .keys()
+                                .all(|name| lhs_defn.fields.contains_key(name))
                             {
                                 return Err(CompileErrorType::InvalidSubstruct(
                                     sub.clone(),
@@ -951,11 +945,9 @@ impl<'a> CompileState<'a> {
                     })
                     .map_err(|err| self.err(err))?;
 
-                let field_count = sub_field_defns.len();
-                for field in sub_field_defns {
-                    self.append_instruction(Instruction::Const(Value::Identifier(
-                        field.identifier,
-                    )));
+                let field_count = sub_defn.fields.len();
+                for (field_name, _) in sub_defn.fields {
+                    self.append_instruction(Instruction::Const(Value::Identifier(field_name)));
                 }
 
                 if let Some(field_count) = NonZeroUsize::new(field_count) {
@@ -969,24 +961,32 @@ impl<'a> CompileState<'a> {
                 // NOTE this is implemented only for structs
 
                 // make sure other struct is defined
-                let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
-                    self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
-                })?;
+                let rhs_fields = &self
+                    .m
+                    .struct_defs
+                    .get(rhs_ident)
+                    .cloned()
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
+                    })?
+                    .fields;
 
                 let lhs_type = self.compile_expression(lhs)?;
                 _ = lhs_type.try_map(|t| match t {
                     NullableVType::Type(VType::Struct(lhs_struct_name)) => {
-                        let lhs_fields =
-                            self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
+                        let lhs_fields = &self
+                            .m
+                            .struct_defs
+                            .get(&lhs_struct_name)
+                            .ok_or_else(|| {
                                 self.err(CompileErrorType::NotDefined(format!(
                                     "struct {lhs_struct_name}"
                                 )))
-                            })?;
+                            })?
+                            .fields;
 
                         // Check that both structs have the same field names and types (though not necessarily in the same order)
-                        if lhs_fields.len() != rhs_fields.len()
-                            || !lhs_fields.iter().all(|f| rhs_fields.contains(f))
-                        {
+                        if lhs_fields != rhs_fields {
                             return Err(self.err(CompileErrorType::InvalidCast(
                                 lhs_struct_name,
                                 rhs_ident.clone(),
@@ -1214,7 +1214,7 @@ impl<'a> CompileState<'a> {
             .enum_defs
             .get(&e.identifier)
             .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.to_string())))?;
-        let value = enum_def.get(&e.value).ok_or_else(|| {
+        let value = enum_def.variants.get(&e.value).ok_or_else(|| {
             self.err(CompileErrorType::NotDefined(format!(
                 "{}::{}",
                 e.identifier, e.value
@@ -1841,7 +1841,14 @@ impl<'a> CompileState<'a> {
 
         match self.m.action_defs.entry(action_node.identifier.clone()) {
             Entry::Vacant(e) => {
-                e.insert(action_node.arguments.clone());
+                e.insert(ActionDef {
+                    persistence: action_node.persistence,
+                    args: action_node
+                        .arguments
+                        .iter()
+                        .map(|f| (f.identifier.clone(), f.field_type.clone()))
+                        .collect(),
+                });
             }
             Entry::Occupied(_) => {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
@@ -2086,22 +2093,13 @@ impl<'a> CompileState<'a> {
         self.compile_command_open(command, command_node.locator)?;
 
         // attributes
-        let mut attr_values = BTreeMap::new();
+        let mut attributes = IndexMap::default();
         for (name, value_expr) in &command.attributes {
-            match attr_values.entry(name.clone()) {
-                Entry::Vacant(e) => {
-                    let value = self.expression_value(value_expr)?;
-                    e.insert(value);
-                }
-                Entry::Occupied(_) => {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(name.to_string())));
-                }
+            let value = self.expression_value(value_expr)?;
+            let old = attributes.insert(name.clone(), value);
+            if old.is_some() {
+                return Err(self.err(CompileErrorType::AlreadyDefined(name.to_string())));
             }
-        }
-        if !attr_values.is_empty() {
-            self.m
-                .command_attributes
-                .insert(command.identifier.clone(), attr_values);
         }
 
         // fields
@@ -2110,23 +2108,31 @@ impl<'a> CompileState<'a> {
                 command_node.identifier.to_string(),
             )));
         }
-        let mut map = BTreeMap::new();
+        let mut fields = IndexMap::default();
         for si in &command_node.fields {
             match si {
                 StructItem::Field(f) => {
-                    map.insert(f.identifier.clone(), f.field_type.clone());
+                    fields.insert(f.identifier.clone(), f.field_type.clone());
                 }
                 StructItem::StructRef(ref_name) => {
                     let struct_def = self.m.struct_defs.get(ref_name).ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(ref_name.to_string()))
                     })?;
-                    for fd in struct_def {
-                        map.insert(fd.identifier.clone(), fd.field_type.clone());
+                    for (name, ty) in &struct_def.fields {
+                        fields.insert(name.clone(), ty.clone());
                     }
                 }
             }
         }
-        self.m.command_defs.insert(command.identifier.clone(), map);
+
+        self.m.command_defs.insert(
+            command.identifier.clone(),
+            CommandDef {
+                persistence: command.persistence,
+                attributes,
+                fields,
+            },
+        );
 
         Ok(())
     }
@@ -2498,7 +2504,7 @@ impl<'a> CompileState<'a> {
     fn evaluate_sources<'s>(
         &self,
         base_struct: &'s NamedStruct,
-        base_struct_defns: &[FieldDefinition],
+        base_struct_def: &StructDef,
     ) -> Result<Cow<'s, NamedStruct>, CompileError> {
         // If there are no sources, no evaluation is needed.
         if base_struct.sources.is_empty() {
@@ -2506,7 +2512,7 @@ impl<'a> CompileState<'a> {
         }
 
         // If the struct is already full, there ought to be no sources.
-        if base_struct.fields.len() == base_struct_defns.len() {
+        if base_struct.fields.len() == base_struct_def.fields.len() {
             return Err(self.err(CompileErrorType::NoOpStructComp));
         }
 
@@ -2539,23 +2545,21 @@ impl<'a> CompileState<'a> {
                     continue;
                 }
             };
-            let src_field_defns = self
+            let src_struct_def = self
                 .m
                 .struct_defs
                 .get(&src_struct_type_name)
                 .assume("identifier with a struct type has that struct already defined")
                 .map_err(|err| self.err(err.into()))?;
 
-            for src_field_defn in src_field_defns {
+            for (src_field_name, src_field_type) in &src_struct_def.fields {
                 // Don't resolve fields already in the base struct.
-                if base_fields.contains(src_field_defn.identifier.as_str()) {
+                if base_fields.contains(src_field_name.as_str()) {
                     continue;
                 }
 
                 // Ensure we haven't already resolved this field from another source.
-                if let Some(other) =
-                    seen.insert(&src_field_defn.identifier, src_struct_type_name.clone())
-                {
+                if let Some(other) = seen.insert(src_field_name, src_struct_type_name.clone()) {
                     return Err(self.err(CompileErrorType::DuplicateSourceFields(
                         src_struct_type_name,
                         other,
@@ -2563,19 +2567,17 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Ensure this field has the right type.
-                let base_struct_defn = base_struct_defns
-                    .iter()
-                    .find(|b_defn| b_defn.identifier == src_field_defn.identifier)
-                    .ok_or_else(|| {
+                let base_struct_field_type =
+                    base_struct_def.fields.get(src_field_name).ok_or_else(|| {
                         self.err(CompileErrorType::SourceStructNotSubsetOfBase(
                             src_struct_type_name.clone(),
                             base_struct.identifier.clone(),
                         ))
                     })?;
-                if base_struct_defn.field_type != src_field_defn.field_type {
+                if base_struct_field_type != src_field_type {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
                         "Expected field `{}` of `{}` to be a `{}`",
-                        &src_field_defn.identifier, src_var_name, base_struct_defn.field_type
+                        &src_field_name, src_var_name, base_struct_field_type
                     ))));
                 }
 
@@ -2583,10 +2585,10 @@ impl<'a> CompileState<'a> {
 
                 // Foo {x: 0, ...bar } -> Foo -> {x: 0, y: bar.y }
                 resolved_struct.fields.push((
-                    src_field_defn.identifier.clone(),
+                    src_field_name.clone(),
                     Expression::Dot(
                         Box::new(Expression::Identifier(src_var_name.clone())),
-                        src_field_defn.identifier.clone(),
+                        src_field_name.clone(),
                     ),
                 ));
             }

@@ -1,7 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, VType};
+use aranya_policy_ast::{Identifier, VType};
 use aranya_policy_compiler::compile::target::CompileTarget;
+use aranya_policy_module::StructDef;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
@@ -13,12 +14,12 @@ pub fn generate_code(target: &CompileTarget) -> String {
     let structs = target
         .struct_defs
         .iter()
-        .filter(|(id, _fields)| reachable.contains(id.as_str()))
-        .map(|(id, fields)| {
+        .filter(|(id, _)| reachable.contains(id.as_str()))
+        .map(|(id, def)| {
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
-            let names = fields.iter().map(|f| mk_ident(&f.identifier));
-            let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+            let names = def.fields.keys().map(mk_ident);
+            let types = def.fields.values().map(vtype_to_rtype);
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -31,11 +32,11 @@ pub fn generate_code(target: &CompileTarget) -> String {
     let enums = target
         .enum_defs
         .iter()
-        .filter(|(id, _values)| reachable.contains(id.as_str()))
-        .map(|(id, values)| {
+        .filter(|(id, _)| reachable.contains(id.as_str()))
+        .map(|(id, def)| {
             let doc = format!(" {} policy enum.", id);
             let name = mk_ident(id);
-            let names = values.iter().map(|(id, _)| mk_ident(id));
+            let names = def.variants.keys().map(mk_ident);
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -46,14 +47,14 @@ pub fn generate_code(target: &CompileTarget) -> String {
         });
 
     let effects = target.effects.iter().map(|s| {
-        let fields = target
+        let def = target
             .struct_defs
             .get(s)
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
-        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier));
-        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+        let field_idents = def.fields.keys().map(mk_ident);
+        let field_types = def.fields.values().map(vtype_to_rtype);
         quote! {
             #[doc = #doc]
             #[effect]
@@ -76,10 +77,10 @@ pub fn generate_code(target: &CompileTarget) -> String {
     };
 
     let actions = {
-        let sigs = target.action_defs.iter().map(|(id, args)| {
+        let sigs = target.action_defs.iter().map(|(id, def)| {
             let ident = mk_ident(id);
-            let argnames = args.iter().map(|arg| mk_ident(&arg.identifier));
-            let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
+            let argnames = def.args.keys().map(mk_ident);
+            let argtypes = def.args.values().map(vtype_to_rtype);
             quote! {
                 fn #ident(&mut self, #(#argnames: #argtypes),*) -> Result<(), ClientError>;
             }
@@ -149,15 +150,15 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 #[allow(clippy::panic)]
 fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
     fn visit<'a>(
-        struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
+        struct_defs: &'a BTreeMap<Identifier, StructDef>,
         found: &mut HashSet<&'a str>,
         ty: &'a VType,
     ) {
         match ty {
             VType::Struct(s) => {
                 if found.insert(s.as_str()) {
-                    for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type);
+                    for field in struct_defs[s.as_str()].fields.values() {
+                        visit(struct_defs, found, field);
                     }
                 }
             }
@@ -169,27 +170,21 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
         }
     }
 
-    let struct_defs = target
-        .struct_defs
-        .iter()
-        .map(|(id, fields)| (id.as_str(), fields.as_slice()))
-        .collect::<HashMap<_, _>>();
-
     let mut found = HashSet::new();
 
-    for args in target.action_defs.values() {
-        for arg in args {
-            visit(&struct_defs, &mut found, &arg.field_type);
+    for def in target.action_defs.values() {
+        for (_, ty) in &def.args {
+            visit(&target.struct_defs, &mut found, ty);
         }
     }
 
     for id in &target.effects {
-        let fields = target
+        let def = target
             .struct_defs
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
-        for field in fields {
-            visit(&struct_defs, &mut found, &field.field_type);
+        for ty in def.fields.values() {
+            visit(&target.struct_defs, &mut found, ty);
         }
     }
 

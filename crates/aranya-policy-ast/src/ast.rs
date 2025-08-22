@@ -73,7 +73,7 @@ impl<T> Deref for AstNode<T> {
 }
 
 /// Persistence mode for commands and actions
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Persistence {
     /// Persisted on-graph (default behavior)
     Persistent,
