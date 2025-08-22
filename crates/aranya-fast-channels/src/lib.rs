@@ -37,10 +37,11 @@
 //! # #[cfg(all(feature = "posix", not(feature = "trng")))]
 //! # {
 //! use aranya_crypto::{
-//!     Csprng, EncryptionKey, Engine, Id, IdentityKey, Random, Rng,
+//!     Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
 //!     afc::{BidiChannel, BidiKeys, BidiSecrets, RawOpenKey, RawSealKey},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
+//!     policy::CmdId,
 //! };
 //! use aranya_fast_channels::{
 //!     AfcState, AranyaState, Channel, ChannelId, Client, Directed, Error, Label, NodeId,
@@ -90,7 +91,7 @@
 //! const TOP_SECRET: Label = Label::new(12);
 //!
 //! let ch1 = BidiChannel {
-//!     parent_cmd_id: Id::random(&mut eng),
+//!     parent_cmd_id: CmdId::random(&mut eng),
 //!     our_sk: &device1_enc_sk,
 //!     our_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,
