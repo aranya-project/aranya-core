@@ -1,60 +1,69 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{FnArg, Ident, ItemTrait, Pat, Signature, TraitItem, spanned::Spanned};
+use syn::{ItemEnum, spanned::Spanned as _};
 
-pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let act: ItemTrait = syn::parse2(item)?;
+use crate::common::get_derive;
+
+struct Attrs {
+    interface: syn::Path,
+}
+
+impl syn::parse::Parse for Attrs {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let name: syn::Ident = input.parse()?;
+        assert_eq!(name, "interface");
+        input.parse::<syn::Token![=]>()?;
+        let value: syn::Path = input.parse()?;
+        Ok(Attrs { interface: value })
+    }
+}
+
+pub(super) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+    let Attrs { interface } = syn::parse2(attr)?;
+
+    let act: ItemEnum = syn::parse2(item)?;
 
     let ident = &act.ident;
 
-    let methods = act
-        .items
+    let variants = act.variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
+    let subtypes = act
+        .variants
         .iter()
-        .map(|item| {
-            let TraitItem::Fn(func) = item else {
-                return Err(syn::Error::new(item.span(), "unexpected item in trait"));
-            };
-
-            let sig = &func.sig;
-            let action_ident = &sig.ident;
-            let arg_idents = get_args(sig)?;
-
-            Ok(quote! {
-                #sig {
-                    self.call_action(::aranya_policy_ifgen::vm_action! {
-                        #action_ident( #(#arg_idents),* )
-                    })
+        .map(|v| match &v.fields {
+            syn::Fields::Unnamed(tuple) => {
+                if tuple.unnamed.len() != 1 {
+                    return Err(syn::Error::new(tuple.span(), "expected single field"));
                 }
-            })
+                Ok(&tuple.unnamed.first().expect("unreachable").ty)
+            }
+            _ => Err(syn::Error::new(v.fields.span(), "expected tuple struct")),
         })
-        .collect::<syn::Result<TokenStream>>()?;
+        .collect::<syn::Result<Vec<_>>>()?;
+
+    let derive = get_derive();
 
     Ok(quote! {
+        #derive
         #act
 
-        impl<A: ::aranya_policy_ifgen::Actor> #ident for A {
-            #methods
-        }
-    })
-}
+        impl ::aranya_policy_ifgen::Actionable for #ident {
+            type Interface = #interface;
 
-fn get_args(sig: &Signature) -> syn::Result<Vec<&Ident>> {
-    let mut iter = sig.inputs.iter();
-    match iter.next() {
-        Some(FnArg::Receiver(_)) => {}
-        Some(FnArg::Typed(typed)) => {
-            return Err(syn::Error::new(typed.span(), "expected receiver"));
+            fn with_action<R>(self, f: impl for<'a> FnOnce(::aranya_policy_ifgen::VmAction<'a>) -> R) -> R {
+                match self {
+                    #(
+                        Self::#variants(v) => ::aranya_policy_ifgen::Actionable::with_action(v, f),
+                    )*
+                }
+            }
         }
-        None => return Err(syn::Error::new(sig.span(), "expected receiver")),
-    }
-    iter.map(|arg| {
-        let FnArg::Typed(typed) = arg else {
-            return Err(syn::Error::new(arg.span(), "unexpected receiver"));
-        };
-        let Pat::Ident(ident) = typed.pat.as_ref() else {
-            return Err(syn::Error::new(typed.span(), "expected identifier"));
-        };
-        Ok(&ident.ident)
+
+        #(
+        impl ::core::convert::From<#subtypes> for #ident {
+            fn from(act: #subtypes) -> Self {
+                Self::#variants(act)
+            }
+        }
+        )*
     })
-    .collect()
 }
