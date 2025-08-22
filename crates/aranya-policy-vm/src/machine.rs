@@ -12,7 +12,7 @@ use core::{
     fmt::{self, Display},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
@@ -372,7 +372,7 @@ where
     }
 
     /// Update the context with a new head ID, e.g. after publishing a command.
-    pub fn update_context_with_new_head(&mut self, new_head_id: Id) -> Result<(), Bug> {
+    pub fn update_context_with_new_head(&mut self, new_head_id: CmdId) -> Result<(), Bug> {
         self.ctx = self.ctx.with_new_head(new_head_id)?;
         Ok(())
     }

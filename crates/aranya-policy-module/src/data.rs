@@ -4,7 +4,10 @@ use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec,
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
-use aranya_crypto::{DeviceId, EncryptionKeyId, SigningKeyId};
+use aranya_crypto::{
+    policy::{CmdId, GroupId, LabelId, RoleId},
+    DeviceId, EncryptionKeyId, SigningKeyId,
+};
 use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
@@ -84,9 +87,6 @@ impl_typed!(u8 => Int);
 impl_typed!(bool => Bool);
 
 impl_typed!(Id => Id);
-impl_typed!(EncryptionKeyId => Id);
-impl_typed!(DeviceId => Id);
-impl_typed!(SigningKeyId => Id);
 
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
@@ -273,24 +273,6 @@ impl From<Id> for Value {
     }
 }
 
-impl From<DeviceId> for Value {
-    fn from(id: DeviceId) -> Self {
-        Value::Id(id.into())
-    }
-}
-
-impl From<EncryptionKeyId> for Value {
-    fn from(id: EncryptionKeyId) -> Self {
-        Value::Id(id.into())
-    }
-}
-
-impl From<SigningKeyId> for Value {
-    fn from(id: SigningKeyId) -> Self {
-        Value::Id(id.into())
-    }
-}
-
 impl TryFrom<Value> for i64 {
     type Error = ValueConversionError;
 
@@ -407,54 +389,6 @@ impl TryFrom<Value> for Id {
                 "Id",
                 value.type_name(),
                 "Value -> Id",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for DeviceId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> DeviceId",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for EncryptionKeyId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> EncryptionKeyId",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for SigningKeyId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> SigningKeyId",
             ))
         }
     }
@@ -857,3 +791,39 @@ impl Display for Struct {
         write!(f, "}}")
     }
 }
+
+macro_rules! id_impls {
+    ($ty:ident) => {
+        impl_typed!($ty => Id);
+
+        impl From<$ty> for Value {
+            fn from(id: $ty) -> Self {
+                Value::Id(id.into())
+            }
+        }
+
+        impl TryFrom<Value> for $ty {
+            type Error = ValueConversionError;
+
+            fn try_from(value: Value) -> Result<Self, Self::Error> {
+                if let Value::Id(id) = value {
+                    Ok(id.into())
+                } else {
+                    Err(ValueConversionError::invalid_type(
+                        "Id",
+                        value.type_name(),
+                        concat!("Value -> ", stringify!($ty)),
+                    ))
+                }
+            }
+        }
+    }
+}
+
+id_impls!(DeviceId);
+id_impls!(EncryptionKeyId);
+id_impls!(SigningKeyId);
+id_impls!(CmdId);
+id_impls!(LabelId);
+id_impls!(GroupId);
+id_impls!(RoleId);
