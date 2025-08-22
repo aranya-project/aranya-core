@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use core::{any::Any, ffi::CStr, marker::PhantomData, ops::Deref};
+use core::{ffi::CStr, marker::PhantomData, ops::Deref};
 
 use buggy::BugExt;
 use cfg_if::cfg_if;
@@ -45,23 +45,15 @@ impl Store {
 
     /// Clones the `KeyStore`.
     pub fn try_clone(&self) -> Result<Self, Error> {
-        let root = match self.root.try_clone() {
-            Ok(fd) => fd,
-            Err(err) => {
-                // Annoyingly, rustix returns either
-                // `std::io::Error` or `rustix::io::Errno`
-                // depending on whether its `std` feature is
-                // enabled, so we have to handle both cases.
-                let raw = &err.raw_os_error() as &dyn Any;
-                let err = if let Some(raw) = raw.downcast_ref::<i32>() {
-                    Some(*raw)
-                } else {
-                    raw.downcast_ref::<Option<i32>>().copied().flatten()
-                }
-                .assume("should have a raw OS error")?;
-                return Err(Errno::from_raw_os_error(err).into());
-            }
-        };
+        let root = self.root.try_clone().or_else(|err| {
+            // Annoyingly, rustix returns either `std::io::Error`
+            // or `rustix::io::Errno` depending on whether its `std`
+            // feature is enabled, so we have to handle both cases.
+            #[allow(clippy::useless_conversion, reason = "depends on cfg")]
+            let raw: Option<i32> = err.raw_os_error().into();
+            let raw = raw.assume("should have a raw OS error")?;
+            Err(Error::from(Errno::from_raw_os_error(raw)))
+        })?;
         Self::init_canary(root.as_fd())?;
         Ok(Self::new(root))
     }
