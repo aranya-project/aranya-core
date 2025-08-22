@@ -99,7 +99,28 @@ impl Default for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
 pub enum VType {
     /// A character (UTF-8) string
     String,
@@ -116,7 +137,7 @@ pub enum VType {
     /// Named enumeration
     Enum(Identifier),
     /// An optional type of some other type
-    Optional(Box<VType>),
+    Optional(#[rkyv(omit_bounds)] Box<VType>),
 }
 
 impl fmt::Display for VType {
@@ -138,7 +159,17 @@ impl fmt::Display for VType {
 ///
 /// Field definitions are used in Command fields, fact
 /// key/value fields, and action/function arguments.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct FieldDefinition {
     /// the field's name
     pub identifier: Identifier,
@@ -530,7 +561,17 @@ pub enum Statement {
 }
 
 /// A schema definition for a fact
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,

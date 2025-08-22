@@ -40,7 +40,17 @@ pub struct UnsupportedVersion(());
 
 /// The serializable state of
 /// a [`Machine`](../policy_vm/struct.Machine.html).
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(
+    Clone,
+    Debug,
+    Serialize,
+    Deserialize,
+    Eq,
+    PartialEq,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Module {
     /// The module data
     pub data: ModuleData,
@@ -57,7 +67,17 @@ impl Module {
 }
 
 /// Versioned [`Module`] data.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 #[serde(tag = "version")]
 pub enum ModuleData {
     /// Version 0
@@ -65,7 +85,17 @@ pub enum ModuleData {
 }
 
 /// The Version 0 module format
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct ModuleV0 {
     /// Program memory

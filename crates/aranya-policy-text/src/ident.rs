@@ -9,7 +9,11 @@ use crate::{
     repr::Repr,
 };
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, PartialOrd, Ord, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
+#[rkyv(bytecheck(verify))]
+#[rkyv(derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord))]
 /// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
 pub struct Identifier(Text);
 
@@ -157,5 +161,31 @@ impl<'de> de::Deserialize<'de> for Identifier {
             )
         })?;
         Ok(Self(Text(r)))
+    }
+}
+
+impl ArchivedIdentifier {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    pub fn deserialize(&self) -> Identifier {
+        Identifier(Text(Repr::from_str(self.as_str())))
+    }
+}
+
+impl Borrow<str> for ArchivedIdentifier {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+// SAFETY: This impl validates the string as an identifier.
+unsafe impl<C> rkyv::bytecheck::Verify<C> for ArchivedIdentifier
+where
+    C: rkyv::rancor::Fallible<Error: rkyv::rancor::Source> + ?Sized,
+{
+    fn verify(&self, _context: &mut C) -> Result<(), <C as rkyv::rancor::Fallible>::Error> {
+        Identifier::validate(self.as_str()).map_err(rkyv::rancor::Source::new)
     }
 }
