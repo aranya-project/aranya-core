@@ -1,60 +1,16 @@
 //! Compilation session and context.
 
-use std::cell::OnceCell;
+use std::ops::Deref;
 
 use aranya_policy_ast::{Identifier, Text};
 
 use crate::{
     ast::Ast,
-    depgraph::{DepGraph, DepsPass},
     diag::{DiagCtx, ErrorGuaranteed, OptionExt},
-    hir::{Hir, HirLowerPass, IdentInterner, IdentRef, TextInterner, TextRef},
-    pass::{Access, DepList, Pass},
-    symbol_resolution::{SymbolTable, SymbolsPass},
+    hir::{IdentInterner, IdentRef, TextInterner, TextRef},
+    pass::{Access, DepList, Pass, Results},
+    typecheck::types::{Builtins, Type, TypeInterner, TypeRef},
 };
-
-/// Compilation session containing all compiler state.
-#[derive(Debug)]
-pub(crate) struct Session {
-    pub dcx: DiagCtx,
-}
-
-impl Session {
-    pub fn dcx(&self) -> &DiagCtx {
-        &self.dcx
-    }
-}
-
-/// Compilation session containing all compiler state.
-#[derive(Debug)]
-pub struct InnerCtx<'cx> {
-    pub sess: &'cx Session,
-
-    /// TODO
-    pub ast: Ast<'cx>,
-
-    /// Identifier interner.
-    pub idents: IdentInterner,
-
-    /// Text interner.
-    pub text: TextInterner,
-
-    /// Results from core passes.
-    pub results: Results,
-}
-
-impl<'cx> InnerCtx<'cx> {
-    /// Create a new compilation session.
-    pub fn new(sess: &'cx Session, ast: Ast<'cx>) -> Self {
-        Self {
-            sess,
-            ast,
-            idents: IdentInterner::new(),
-            text: TextInterner::new(),
-            results: Results::new(),
-        }
-    }
-}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ctx<'cx> {
@@ -100,6 +56,21 @@ impl<'cx> Ctx<'cx> {
             .clone()
     }
 
+    /// Interns a type.
+    pub fn intern_type(&self, ty: Type) -> TypeRef {
+        self.inner.types.intern(ty)
+    }
+
+    /// Retrieves a type by its reference.
+    ///
+    /// It is an ICE if `xref` is not found.
+    pub fn get_type(&self, xref: TypeRef) -> &'cx Type {
+        self.inner
+            .types
+            .get(xref)
+            .unwrap_or_bug(self.dcx(), "type not found")
+    }
+
     /// TODO
     pub fn get<P: Pass>(&self) -> Result<&'cx P::Output, ErrorGuaranteed>
     where
@@ -115,52 +86,58 @@ impl<'cx> Ctx<'cx> {
     }
 }
 
-/// Storage for pass results.
-#[derive(Clone, Debug)]
-pub struct Results {
-    pub hir: OnceCell<Hir>,
-    pub symbols: OnceCell<SymbolTable>,
-    pub deps: OnceCell<DepGraph>,
-    // pub types: OnceCell<TypeInfo>,
+impl<'cx> Deref for Ctx<'cx> {
+    type Target = InnerCtx<'cx>;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
 }
 
-impl Results {
-    pub fn new() -> Self {
+/// Compilation session containing all compiler state.
+#[derive(Debug)]
+pub struct InnerCtx<'cx> {
+    /// TODO
+    pub sess: &'cx Session,
+    /// TODO
+    pub ast: Ast<'cx>,
+    /// Identifier interner.
+    pub idents: IdentInterner,
+    /// Text interner.
+    pub text: TextInterner,
+    /// Type interner.
+    pub types: TypeInterner,
+    /// Builtin interned types.
+    pub builtins: Builtins,
+    /// Results from core passes.
+    pub results: Results,
+}
+
+impl<'cx> InnerCtx<'cx> {
+    /// Create a new compilation session.
+    pub fn new(sess: &'cx Session, ast: Ast<'cx>) -> Self {
+        let types = TypeInterner::new();
+        let builtins = Builtins::new(&types);
         Self {
-            hir: OnceCell::new(),
-            symbols: OnceCell::new(),
-            deps: OnceCell::new(),
-            // types: OnceCell::new(),
+            sess,
+            ast,
+            idents: IdentInterner::new(),
+            text: TextInterner::new(),
+            types,
+            builtins,
+            results: Results::new(),
         }
     }
 }
 
-impl Default for Results {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Compilation session containing all compiler state.
+#[derive(Debug)]
+pub(crate) struct Session {
+    pub dcx: DiagCtx,
 }
 
-impl Access<HirLowerPass> for Results {
-    fn cell(&self) -> &OnceCell<Hir> {
-        &self.hir
+impl Session {
+    pub fn dcx(&self) -> &DiagCtx {
+        &self.dcx
     }
 }
-
-impl Access<SymbolsPass> for Results {
-    fn cell(&self) -> &OnceCell<SymbolTable> {
-        &self.symbols
-    }
-}
-
-impl Access<DepsPass> for Results {
-    fn cell(&self) -> &OnceCell<DepGraph> {
-        &self.deps
-    }
-}
-
-// impl Access<TypesPass> for Results {
-//     fn cell(&self) -> &OnceCell<TypeInfo> {
-//         &self.types
-//     }
-// }

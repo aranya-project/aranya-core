@@ -29,6 +29,7 @@ thiserror = { workspace = true }
 bumpalo = { version = "3" }
 tracing = { workspace = true }
 codespan-reporting = { version = "0.12" }
+unindent = { version = "0.2" }
 
 [dev-dependencies]
 anyhow = { workspace = true }

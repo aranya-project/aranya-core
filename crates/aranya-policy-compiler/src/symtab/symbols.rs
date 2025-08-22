@@ -7,7 +7,7 @@ use crate::{
     arena::{self, Arena},
     hir::{
         ActionId, BlockId, CmdId, EffectId, EnumId, FactId, FfiEnumId, FfiFuncId, FfiImportId,
-        FfiModuleId, FfiStructId, FinishFuncId, FuncId, GlobalId, IdentId, Span, StructId,
+        FfiModuleId, FfiStructId, FinishFuncId, FuncId, GlobalId, Hir, IdentId, Span, StructId,
     },
 };
 

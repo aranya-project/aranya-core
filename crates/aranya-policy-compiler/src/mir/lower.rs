@@ -20,7 +20,7 @@ use crate::{
         },
         Mir,
     },
-    symbol_resolution::SymbolId,
+    symtab::SymbolId,
 };
 
 #[derive(Clone, Debug)]

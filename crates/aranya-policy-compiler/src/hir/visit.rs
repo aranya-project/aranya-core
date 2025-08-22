@@ -21,9 +21,9 @@ use super::types::{
 macro_rules! try_visit {
     ($e:expr) => {
         match $crate::hir::visit::VisitorResult::branch($e) {
-            core::ops::ControlFlow::Continue(()) => (),
+            ::core::ops::ControlFlow::Continue(()) => (),
             #[allow(unreachable_code)]
-            core::ops::ControlFlow::Break(r) => {
+            ::core::ops::ControlFlow::Break(r) => {
                 return $crate::hir::visit::VisitorResult::from_residual(r);
             }
         }
@@ -329,7 +329,6 @@ macro_rules! for_each_top_level_item {
 }
 pub(crate) use for_each_top_level_item;
 
-
 /// The result from a [`Visitor`] method.
 pub(crate) trait VisitorResult {
     /// The type of the value passed to
@@ -567,8 +566,15 @@ pub(crate) fn walk_action<'hir, V>(visitor: &mut V, def: &'hir ActionDef) -> V::
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_action_id(def.id));
-    try_visit_by_id!(visitor.visit_body(def.body));
+    let ActionDef {
+        id,
+        span: _,
+        ident,
+        body,
+    } = *def;
+    try_visit!(visitor.visit_action_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_body(body));
     V::Result::output()
 }
 
@@ -579,14 +585,25 @@ pub(crate) fn walk_cmd<'hir, V>(visitor: &mut V, def: &'hir CmdDef) -> V::Result
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_cmd_id(def.id));
-    for &id in &def.fields {
+    let CmdDef {
+        id,
+        span: _,
+        ident,
+        fields,
+        seal,
+        open,
+        policy,
+        recall,
+    } = def;
+    try_visit!(visitor.visit_cmd_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in fields {
         try_visit_by_id!(visitor.visit_cmd_field(id));
     }
-    try_visit_by_id!(visitor.visit_cmd_seal_block(def.seal));
-    try_visit_by_id!(visitor.visit_cmd_open_block(def.open));
-    try_visit_by_id!(visitor.visit_cmd_policy_block(def.policy));
-    try_visit_by_id!(visitor.visit_cmd_recall_block(def.recall));
+    try_visit_by_id!(visitor.visit_cmd_seal_block(*seal));
+    try_visit_by_id!(visitor.visit_cmd_open_block(*open));
+    try_visit_by_id!(visitor.visit_cmd_policy_block(*policy));
+    try_visit_by_id!(visitor.visit_cmd_recall_block(*recall));
     V::Result::output()
 }
 
@@ -597,8 +614,9 @@ pub(crate) fn walk_cmd_field<'hir, V>(visitor: &mut V, field: &'hir CmdField) ->
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_cmd_field_id(field.id));
-    try_visit!(visitor.visit_cmd_field_kind(&field.kind));
+    let CmdField { id, span: _, kind } = field;
+    try_visit!(visitor.visit_cmd_field_id(*id));
+    try_visit!(visitor.visit_cmd_field_kind(kind));
     V::Result::output()
 }
 
@@ -628,8 +646,9 @@ pub(crate) fn walk_ident<'hir, V>(visitor: &mut V, ident: &'hir Ident) -> V::Res
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ident_id(ident.id));
-    try_visit!(visitor.visit_ident_ident(ident.xref));
+    let Ident { id, span: _, xref } = *ident;
+    try_visit!(visitor.visit_ident_id(id));
+    try_visit!(visitor.visit_ident_ident(xref));
     V::Result::output()
 }
 
@@ -640,8 +659,9 @@ pub(crate) fn walk_vtype<'hir, V>(visitor: &mut V, ty: &'hir VType) -> V::Result
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_vtype_id(ty.id));
-    try_visit!(visitor.visit_vtype_kind(&ty.kind));
+    let VType { id, span: _, kind } = ty;
+    try_visit!(visitor.visit_vtype_id(*id));
+    try_visit!(visitor.visit_vtype_kind(kind));
     V::Result::output()
 }
 
@@ -672,9 +692,19 @@ pub(crate) fn walk_block<'hir, V>(visitor: &mut V, block: &'hir Block) -> V::Res
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_block_id(block.id));
-    for &id in &block.stmts {
+    let Block {
+        id,
+        span: _,
+        stmts,
+        expr,
+        returns: _,
+    } = block;
+    try_visit!(visitor.visit_block_id(*id));
+    for &id in stmts {
         try_visit_by_id!(visitor.visit_stmt(id));
+    }
+    if let Some(expr) = expr {
+        try_visit_by_id!(visitor.visit_expr(*expr));
     }
     V::Result::output()
 }
@@ -686,8 +716,14 @@ pub(crate) fn walk_stmt<'hir, V>(visitor: &mut V, stmt: &'hir Stmt) -> V::Result
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_stmt_id(stmt.id));
-    try_visit!(visitor.visit_stmt_kind(&stmt.kind));
+    let Stmt {
+        id,
+        span: _,
+        kind,
+        returns: _,
+    } = stmt;
+    try_visit!(visitor.visit_stmt_id(*id));
+    try_visit!(visitor.visit_stmt_kind(kind));
     V::Result::output()
 }
 
@@ -790,8 +826,15 @@ pub(crate) fn walk_expr<'hir, V>(visitor: &mut V, expr: &'hir Expr) -> V::Result
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_expr_id(expr.id));
-    try_visit!(visitor.visit_expr_kind(&expr.kind));
+    let Expr {
+        id,
+        span: _,
+        kind,
+        pure: _,
+        returns: _,
+    } = expr;
+    try_visit!(visitor.visit_expr_id(*id));
+    try_visit!(visitor.visit_expr_kind(kind));
     V::Result::output()
 }
 
@@ -889,7 +932,8 @@ pub(crate) fn walk_lit<'hir, V>(visitor: &mut V, lit: &'hir Lit) -> V::Result
 where
     V: Visitor<'hir>,
 {
-    match &lit.kind {
+    let Lit { kind } = lit;
+    match kind {
         LitKind::String(_) | LitKind::Int(_) | LitKind::Bool(_) => {}
         LitKind::Optional(v) => {
             if let Some(v) = v {
@@ -913,8 +957,9 @@ pub(crate) fn walk_named_struct_lit<'hir, V>(visitor: &mut V, lit: &'hir NamedSt
 where
     V: Visitor<'hir>,
 {
-    try_visit_by_id!(visitor.visit_ident(lit.ident));
-    for field in &lit.fields {
+    let NamedStruct { ident, fields } = lit;
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for field in fields {
         try_visit!(visitor.visit_named_struct_lit_field(field));
     }
     V::Result::output()
@@ -927,11 +972,12 @@ pub(crate) fn walk_fact_lit<'hir, V>(visitor: &mut V, fact: &'hir FactLiteral) -
 where
     V: Visitor<'hir>,
 {
-    try_visit_by_id!(visitor.visit_ident(fact.ident));
-    for k in &fact.keys {
+    let FactLiteral { ident, keys, vals } = fact;
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for k in keys {
         try_visit!(visitor.visit_fact_lit_key(k));
     }
-    for v in &fact.vals {
+    for v in vals {
         try_visit!(visitor.visit_fact_lit_val(v));
     }
     V::Result::output()
@@ -960,8 +1006,15 @@ pub(crate) fn walk_effect<'hir, V>(visitor: &mut V, def: &'hir EffectDef) -> V::
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_effect_id(def.id));
-    for &id in &def.items {
+    let EffectDef {
+        id,
+        span: _,
+        ident,
+        items,
+    } = def;
+    try_visit!(visitor.visit_effect_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in items {
         try_visit_by_id!(visitor.visit_effect_field(id));
     }
     V::Result::output()
@@ -974,8 +1027,9 @@ pub(crate) fn walk_effect_field<'hir, V>(visitor: &mut V, field: &'hir EffectFie
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_effect_field_id(field.id));
-    try_visit!(visitor.visit_effect_field_kind(&field.kind));
+    let EffectField { id, span: _, kind } = field;
+    try_visit!(visitor.visit_effect_field_id(*id));
+    try_visit!(visitor.visit_effect_field_kind(kind));
     V::Result::output()
 }
 
@@ -1008,7 +1062,17 @@ pub(crate) fn walk_enum<'hir, V>(visitor: &mut V, def: &'hir EnumDef) -> V::Resu
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_enum_id(def.id));
+    let EnumDef {
+        id,
+        span: _,
+        ident,
+        variants,
+    } = def;
+    try_visit!(visitor.visit_enum_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in variants {
+        try_visit_by_id!(visitor.visit_ident(id));
+    }
     V::Result::output()
 }
 
@@ -1019,8 +1083,15 @@ pub(crate) fn walk_finish_func<'hir, V>(visitor: &mut V, def: &'hir FinishFuncDe
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_finish_func_id(def.id));
-    try_visit_by_id!(visitor.visit_body(def.body));
+    let FinishFuncDef {
+        id,
+        span: _,
+        ident,
+        body,
+    } = *def;
+    try_visit!(visitor.visit_finish_func_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_body(body));
     V::Result::output()
 }
 
@@ -1031,9 +1102,17 @@ pub(crate) fn walk_func<'hir, V>(visitor: &mut V, def: &'hir FuncDef) -> V::Resu
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_func_id(def.id));
-    try_visit_by_id!(visitor.visit_func_result(def.result));
-    try_visit_by_id!(visitor.visit_body(def.body));
+    let FuncDef {
+        id,
+        span: _,
+        ident,
+        result,
+        body,
+    } = *def;
+    try_visit!(visitor.visit_func_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_func_result(result));
+    try_visit_by_id!(visitor.visit_body(body));
     V::Result::output()
 }
 
@@ -1044,8 +1123,15 @@ pub(crate) fn walk_global_let<'hir, V>(visitor: &mut V, def: &'hir GlobalLetDef)
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_global_id(def.id));
-    try_visit_by_id!(visitor.visit_expr(def.expr));
+    let GlobalLetDef {
+        id,
+        span: _,
+        ident,
+        expr,
+    } = *def;
+    try_visit!(visitor.visit_global_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_expr(expr));
     V::Result::output()
 }
 
@@ -1056,8 +1142,15 @@ pub(crate) fn walk_struct<'hir, V>(visitor: &mut V, def: &'hir StructDef) -> V::
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_struct_id(def.id));
-    for &id in &def.items {
+    let StructDef {
+        id,
+        span: _,
+        ident,
+        items,
+    } = def;
+    try_visit!(visitor.visit_struct_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in items {
         try_visit_by_id!(visitor.visit_struct_field(id));
     }
     V::Result::output()
@@ -1068,8 +1161,9 @@ pub(crate) fn walk_struct_field<'hir, V>(visitor: &mut V, field: &'hir StructFie
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_struct_field_id(field.id));
-    try_visit!(visitor.visit_struct_field_kind(&field.kind));
+    let StructField { id, span: _, kind } = field;
+    try_visit!(visitor.visit_struct_field_id(*id));
+    try_visit!(visitor.visit_struct_field_kind(kind));
     V::Result::output()
 }
 
@@ -1097,11 +1191,19 @@ pub(crate) fn walk_fact<'hir, V>(visitor: &mut V, def: &'hir FactDef) -> V::Resu
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_fact_id(def.id));
-    for &id in &def.keys {
+    let FactDef {
+        id,
+        span: _,
+        ident,
+        keys,
+        vals,
+    } = def;
+    try_visit!(visitor.visit_fact_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in keys {
         try_visit_by_id!(visitor.visit_fact_key(id));
     }
-    for &id in &def.vals {
+    for &id in vals {
         try_visit_by_id!(visitor.visit_fact_val(id));
     }
     V::Result::output()
@@ -1111,9 +1213,15 @@ pub(crate) fn walk_fact_key<'hir, V>(visitor: &mut V, key: &'hir FactKey) -> V::
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_fact_key_id(key.id));
-    try_visit_by_id!(visitor.visit_ident(key.ident));
-    try_visit_by_id!(visitor.visit_vtype(key.ty));
+    let FactKey {
+        id,
+        span: _,
+        ident,
+        ty,
+    } = *key;
+    try_visit!(visitor.visit_fact_key_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_vtype(ty));
     V::Result::output()
 }
 
@@ -1124,9 +1232,15 @@ pub(crate) fn walk_fact_val<'hir, V>(visitor: &mut V, val: &'hir FactVal) -> V::
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_fact_val_id(val.id));
-    try_visit_by_id!(visitor.visit_ident(val.ident));
-    try_visit_by_id!(visitor.visit_vtype(val.ty));
+    let FactVal {
+        id,
+        span: _,
+        ident,
+        ty,
+    } = *val;
+    try_visit!(visitor.visit_fact_val_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_vtype(ty));
     V::Result::output()
 }
 
@@ -1137,8 +1251,9 @@ pub(crate) fn walk_fact_field_expr<'hir, V>(
 where
     V: Visitor<'hir>,
 {
-    try_visit_by_id!(visitor.visit_ident(field.ident));
-    match &field.expr {
+    let FactFieldExpr { ident, expr } = field;
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    match expr {
         FactField::Expr(expr) => {
             try_visit_by_id!(visitor.visit_expr(*expr));
         }
@@ -1154,8 +1269,9 @@ pub(crate) fn walk_struct_field_expr<'hir, V>(
 where
     V: Visitor<'hir>,
 {
-    try_visit_by_id!(visitor.visit_ident(field.ident));
-    try_visit_by_id!(visitor.visit_expr(field.expr));
+    let StructFieldExpr { ident, expr } = *field;
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_expr(expr));
     V::Result::output()
 }
 
@@ -1163,14 +1279,23 @@ pub(crate) fn walk_ffi_module<'hir, V>(visitor: &mut V, def: &'hir FfiModuleDef)
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ffi_module_id(def.id));
-    for &id in &def.funcs {
+    let FfiModuleDef {
+        id,
+        span: _,
+        ident,
+        funcs,
+        structs,
+        enums,
+    } = def;
+    try_visit!(visitor.visit_ffi_module_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in funcs {
         try_visit_by_id!(visitor.visit_ffi_func(id));
     }
-    for &id in &def.structs {
+    for &id in structs {
         try_visit_by_id!(visitor.visit_ffi_struct(id));
     }
-    for &id in &def.enums {
+    for &id in enums {
         try_visit_by_id!(visitor.visit_ffi_enum(id));
     }
     V::Result::output()
@@ -1180,9 +1305,15 @@ pub(crate) fn walk_ffi_func<'hir, V>(visitor: &mut V, def: &'hir FfiFuncDef) -> 
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ffi_func_id(def.id));
-    try_visit_by_id!(visitor.visit_ident(def.ident));
-    try_visit!(visitor.visit_ffi_func_sig(&def.sig));
+    let FfiFuncDef {
+        id,
+        span: _,
+        ident,
+        sig,
+    } = def;
+    try_visit!(visitor.visit_ffi_func_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    try_visit!(visitor.visit_ffi_func_sig(sig));
     V::Result::output()
 }
 
@@ -1190,10 +1321,11 @@ pub(crate) fn walk_ffi_func_sig<'hir, V>(visitor: &mut V, sig: &'hir FfiFuncSig)
 where
     V: Visitor<'hir>,
 {
-    for &id in &sig.args {
+    let FfiFuncSig { args, result } = sig;
+    for &id in args {
         try_visit_by_id!(visitor.visit_param(id));
     }
-    try_visit_by_id!(visitor.visit_vtype(sig.result));
+    try_visit_by_id!(visitor.visit_vtype(*result));
     V::Result::output()
 }
 
@@ -1201,8 +1333,15 @@ pub(crate) fn walk_ffi_struct<'hir, V>(visitor: &mut V, def: &'hir FfiStructDef)
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ffi_struct_id(def.id));
-    for &id in &def.fields {
+    let FfiStructDef {
+        id,
+        span: _,
+        ident,
+        fields,
+    } = def;
+    try_visit!(visitor.visit_ffi_struct_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in fields {
         try_visit_by_id!(visitor.visit_ffi_struct_field(id));
     }
     V::Result::output()
@@ -1215,8 +1354,9 @@ pub(crate) fn walk_ffi_struct_field<'hir, V>(
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ffi_struct_field_id(field.id));
-    try_visit!(visitor.visit_ffi_struct_field_kind(&field.kind));
+    let FfiStructField { id, span: _, kind } = field;
+    try_visit!(visitor.visit_ffi_struct_field_id(*id));
+    try_visit!(visitor.visit_ffi_struct_field_kind(kind));
     V::Result::output()
 }
 
@@ -1243,8 +1383,15 @@ pub(crate) fn walk_ffi_enum<'hir, V>(visitor: &mut V, def: &'hir FfiEnumDef) -> 
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ffi_enum_id(def.id));
-    for &id in &def.variants {
+    let FfiEnumDef {
+        id,
+        span: _,
+        ident,
+        variants,
+    } = def;
+    try_visit!(visitor.visit_ffi_enum_id(*id));
+    try_visit_by_id!(visitor.visit_ident(*ident));
+    for &id in variants {
         try_visit_by_id!(visitor.visit_ident(id));
     }
     V::Result::output()
@@ -1254,8 +1401,9 @@ pub(crate) fn walk_ffi_import_def<'hir, V>(visitor: &mut V, def: &'hir FfiImport
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_ffi_import_id(def.id));
-    try_visit_by_id!(visitor.visit_ident(def.ident));
+    let FfiImportDef { id, span: _, ident } = *def;
+    try_visit!(visitor.visit_ffi_import_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
     V::Result::output()
 }
 
@@ -1263,9 +1411,15 @@ pub(crate) fn walk_param<'hir, V>(visitor: &mut V, param: &'hir Param) -> V::Res
 where
     V: Visitor<'hir>,
 {
-    try_visit!(visitor.visit_param_id(param.id));
-    try_visit_by_id!(visitor.visit_ident(param.ident));
-    try_visit_by_id!(visitor.visit_vtype(param.ty));
+    let Param {
+        id,
+        span: _,
+        ident,
+        ty,
+    } = *param;
+    try_visit!(visitor.visit_param_id(id));
+    try_visit_by_id!(visitor.visit_ident(ident));
+    try_visit_by_id!(visitor.visit_vtype(ty));
     V::Result::output()
 }
 

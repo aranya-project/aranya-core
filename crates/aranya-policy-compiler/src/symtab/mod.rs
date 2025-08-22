@@ -82,99 +82,36 @@ mod error;
 mod resolver;
 mod scope;
 mod symbols;
+mod table;
 //mod tests;
-
-use std::collections::{BTreeMap, BTreeSet};
 
 use aranya_policy_ast::ident;
 
+use self::resolver::Resolver;
 pub(crate) use self::{
     error::SymbolResolutionError,
-    scope::{InvalidScopeId, ScopeId, ScopedId, Scopes},
+    scope::Scopes,
     symbols::{Symbol, SymbolId, SymbolKind, Symbols},
+    table::{ScopeMap, SymbolTable},
 };
-use self::{resolver::Resolver, scope::InsertError};
 use crate::{
     arena::Iter,
     ctx::Ctx,
     diag::{ErrorGuaranteed, OptionExt},
-    hir::{HirLowerPass, Ident, IdentId, Span},
+    hir::{AstLowering, IdentId},
     pass::{DepsRefs, Pass, View},
 };
 
 pub(crate) type Result<T, E = SymbolResolutionError> = std::result::Result<T, E>;
 
-/// Symbol resolution information.
-#[derive(Clone, Debug)]
-pub struct SymbolTable {
-    /// Maps identifiers to their symbols.
-    pub resolutions: BTreeMap<IdentId, SymbolId>,
-    /// Identifiers that we skipped because they'll be "resolved"
-    /// during while type checking. E.g., struct fields, enum
-    /// variants, etc.
-    pub skipped: BTreeSet<IdentId>,
-    /// The scope hierarchy.
-    pub scopes: Scopes,
-    /// The symbol arena.
-    pub symbols: Symbols,
-    /// TODO
-    #[cfg(test)]
-    pub scopemap: ScopeMap,
-}
-
-impl SymbolTable {
-    pub fn empty() -> Self {
-        Self {
-            resolutions: BTreeMap::new(),
-            skipped: BTreeSet::new(),
-            scopes: Scopes::new(),
-            symbols: Symbols::new(),
-            #[cfg(test)]
-            scopemap: ScopeMap::new(),
-        }
-    }
-
-    /// Retrieves a shared reference to a symbol by its ID.
-    pub fn get(&self, id: SymbolId) -> Option<&Symbol> {
-        self.symbols.get(id)
-    }
-
-    /// Sugar for creating a child scope of `scope`.
-    fn create_child_scope(&mut self, scope: ScopeId) -> Result<ScopeId, InvalidScopeId> {
-        self.scopes.create_child_scope(scope)
-    }
-
-    /// Adds a symbol created from `ident`, `kind`, and `span` to
-    /// `scope`.
-    fn add_symbol(
-        &mut self,
-        scope: ScopeId,
-        ident: &Ident,
-        kind: SymbolKind,
-        span: Span,
-    ) -> Result<(), InsertError> {
-        let sym = Symbol {
-            ident: ident.id,
-            kind,
-            scope,
-            span,
-        };
-        let sym_id = self.symbols.insert(sym);
-        self.resolutions.insert(ident.id, sym_id);
-        self.scopes.try_insert(scope, ident.xref, sym_id)
-    }
-}
-
-pub(crate) type ScopeMap = BTreeMap<ScopedId, ScopeId>;
-
 #[derive(Copy, Clone, Debug)]
-pub struct SymbolsPass;
+pub struct SymbolResolution;
 
-impl Pass for SymbolsPass {
+impl Pass for SymbolResolution {
     const NAME: &'static str = "symbols";
     type Output = SymbolTable;
     type View<'cx> = SymbolsView<'cx>;
-    type Deps = (HirLowerPass,);
+    type Deps = (AstLowering,);
 
     fn run(cx: Ctx<'_>, (hir,): DepsRefs<'_, Self>) -> Result<SymbolTable, ErrorGuaranteed> {
         let reserved_idents = [ident!("this"), ident!("envelope"), ident!("id")]
@@ -193,7 +130,7 @@ impl Pass for SymbolsPass {
 
 impl<'cx> Ctx<'cx> {
     pub fn symbols(self) -> Result<SymbolsView<'cx>, ErrorGuaranteed> {
-        let table = self.get::<SymbolsPass>()?;
+        let table = self.get::<SymbolResolution>()?;
         Ok(SymbolsView::new(self, table))
     }
 }

@@ -9,49 +9,35 @@ use serde::{Deserialize, Serialize};
 use crate::{
     hir::{ExprId, IdentId, IdentRef, Span, VTypeId},
     intern::typed_interner,
-    symbol_resolution::SymbolId,
+    symtab::SymbolId,
 };
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) enum Type {
-    Builtin(TypeBuiltin),
-    Struct(TypeStruct),
-    Enum(TypeEnum),
-    Optional(TypeOptional),
-}
-
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Builtin(ty) => write!(f, "{ty}"),
-            Self::Struct(ty) => write!(f, "struct({ty:?})"),
-            Self::Enum(ty) => write!(f, "enum({ty:?})"),
-            Self::Optional(ty) => write!(f, "optional({ty:?})"),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub(crate) enum TypeBuiltin {
     String,
     Bytes,
     Int,
     Bool,
     Id,
+    Struct(TypeStruct),
+    Enum(TypeEnum),
+    Optional(TypeOptional),
+    Function(TypeFunc),
+    Fact(TypeFact),
+    Error,
+    Unit,
 }
 
-impl fmt::Display for TypeBuiltin {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::String => write!(f, "string"),
-            Self::Bytes => write!(f, "bytes"),
-            Self::Int => write!(f, "int"),
-            Self::Bool => write!(f, "bool"),
-            Self::Id => write!(f, "id"),
-        }
+impl Type {
+    pub fn is_builtin(&self) -> bool {
+        matches!(
+            self,
+            Self::String | Self::Bytes | Self::Int | Self::Bool | Self::Id
+        )
     }
 }
 
+/// A struct.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct TypeStruct {
     pub symbol: SymbolId,
@@ -86,6 +72,7 @@ pub(crate) struct StructField {
     pub ty: TypeRef,
 }
 
+/// An enumeration.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct TypeEnum {
     pub symbol: SymbolId,
@@ -119,12 +106,64 @@ pub(crate) struct EnumVariant {
     pub xref: IdentRef,
 }
 
+/// An optional type.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub(crate) struct TypeOptional {
-    pub ty: Option<TypeRef>,
+    pub inner: Option<TypeRef>,
 }
 
-#[derive(Clone, Debug)]
+/// A function, finish function, or action.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct TypeFunc {
+    pub symbol: SymbolId,
+    pub params: Vec<TypeRef>,
+    pub return_type: Option<TypeRef>,
+}
+
+impl Eq for TypeFunc {}
+impl PartialEq for TypeFunc {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+    }
+}
+
+impl Hash for TypeFunc {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
+}
+
+/// A fact.
+///
+/// TODO(eric): keep this?
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct TypeFact {
+    pub symbol: SymbolId,
+    pub keys: Vec<FactField>,
+    pub vals: Vec<FactField>,
+}
+
+impl Eq for TypeFact {}
+impl PartialEq for TypeFact {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+    }
+}
+
+impl Hash for TypeFact {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub(crate) struct FactField {
+    pub ident: IdentId,
+    pub xref: IdentRef,
+    pub ty: TypeRef,
+}
+
+#[derive(Debug)]
 pub(crate) struct TypeEnv {
     pub types: TypeInterner,
     pub symbols: BTreeMap<SymbolId, TypeRef>,
@@ -142,16 +181,34 @@ impl TypeEnv {
         }
     }
 
-    pub fn new_builtin(&mut self, ty: TypeBuiltin) -> TypeRef {
-        self.types.intern(Type::Builtin(ty))
-    }
-
     pub fn new_none(&mut self) -> TypeRef {
-        self.types.intern(Type::Optional(TypeOptional { ty: None }))
+        self.types
+            .intern(Type::Optional(TypeOptional { inner: None }))
     }
 
     pub fn new_struct(&mut self, ty: TypeStruct) -> TypeRef {
         self.types.intern(Type::Struct(ty))
+    }
+
+    pub fn new_enum(&mut self, ty: TypeEnum) -> TypeRef {
+        self.types.intern(Type::Enum(ty))
+    }
+
+    pub fn new_function(&mut self, ty: TypeFunc) -> TypeRef {
+        self.types.intern(Type::Function(ty))
+    }
+
+    pub fn new_fact(&mut self, ty: TypeFact) -> TypeRef {
+        self.types.intern(Type::Fact(ty))
+    }
+
+    pub fn new_optional(&mut self, inner_ty: Option<TypeRef>) -> TypeRef {
+        self.types
+            .intern(Type::Optional(TypeOptional { inner: inner_ty }))
+    }
+
+    pub fn new_error(&mut self) -> TypeRef {
+        self.types.intern(Type::Error)
     }
 }
 
@@ -165,144 +222,38 @@ typed_interner! {
     pub(crate) struct TypeInterner(Type) => TypeRef;
 }
 
-/// Type checking error
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TypeError {
-    pub kind: TypeErrorKind,
-    pub span: Span,
+// TODO(eric): Rename to Common or something.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Builtins {
+    pub string: TypeRef,
+    pub bytes: TypeRef,
+    pub int: TypeRef,
+    pub bool: TypeRef,
+    pub id: TypeRef,
+    pub none: TypeRef,
+    pub error: TypeRef,
+    pub unit: TypeRef,
 }
 
-impl TypeError {
-    pub fn new(kind: TypeErrorKind, span: Span) -> Self {
-        Self { kind, span }
-    }
-
-    pub fn type_mismatch(expected: Type, found: Type, span: Span) -> Self {
-        Self::new(TypeErrorKind::TypeMismatch { expected, found }, span)
-    }
-
-    pub fn undefined_identifier(ident: IdentRef, span: Span) -> Self {
-        Self::new(TypeErrorKind::UndefinedIdentifier(ident), span)
-    }
-
-    pub fn undefined_field(struct_name: IdentRef, field: IdentRef, span: Span) -> Self {
-        Self::new(TypeErrorKind::UndefinedField { struct_name, field }, span)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum TypeErrorKind {
-    TypeMismatch {
-        expected: Type,
-        found: Type,
-    },
-    UndefinedIdentifier(IdentRef),
-    UndefinedField {
-        struct_name: IdentRef,
-        field: IdentRef,
-    },
-    UndefinedEnumVariant {
-        enum_name: IdentRef,
-        variant: IdentRef,
-    },
-    ArgumentCountMismatch {
-        expected: usize,
-        found: usize,
-    },
-    InvalidUnaryOp {
-        op: String,
-        ty: Type,
-    },
-    InvalidBinaryOp {
-        op: String,
-        left: Type,
-        right: Type,
-    },
-    NotAFunction(IdentRef),
-    NotAStruct(Type),
-    NotAnEnum(Type),
-    NotAFact(Type),
-    NotOptional(Type),
-    RecursiveType(IdentRef),
-    MissingReturnType,
-    UnexpectedReturn,
-    IncompatibleMatchArms,
-    IncompatibleBranches {
-        then_ty: Type,
-        else_ty: Type,
-    },
-}
-
-impl fmt::Display for TypeErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TypeErrorKind::TypeMismatch { expected, found } => {
-                write!(
-                    f,
-                    "type mismatch: expected {:?}, found {:?}",
-                    expected.kind, found.kind
-                )
-            }
-            TypeErrorKind::UndefinedIdentifier(ident) => {
-                write!(f, "undefined identifier: {:?}", ident)
-            }
-            TypeErrorKind::UndefinedField { struct_name, field } => {
-                write!(f, "undefined field {:?} in struct {:?}", field, struct_name)
-            }
-            TypeErrorKind::UndefinedEnumVariant { enum_name, variant } => {
-                write!(f, "undefined variant {:?} in enum {:?}", variant, enum_name)
-            }
-            TypeErrorKind::ArgumentCountMismatch { expected, found } => {
-                write!(
-                    f,
-                    "argument count mismatch: expected {}, found {}",
-                    expected, found
-                )
-            }
-            TypeErrorKind::InvalidUnaryOp { op, ty } => {
-                write!(f, "invalid unary operation {} on type {:?}", op, ty.kind)
-            }
-            TypeErrorKind::InvalidBinaryOp { op, left, right } => {
-                write!(
-                    f,
-                    "invalid binary operation {} between {:?} and {:?}",
-                    op, left.kind, right.kind
-                )
-            }
-            TypeErrorKind::NotAFunction(ident) => {
-                write!(f, "{:?} is not a function", ident)
-            }
-            TypeErrorKind::NotAStruct(ty) => {
-                write!(f, "expected struct type, found {:?}", ty.kind)
-            }
-            TypeErrorKind::NotAnEnum(ty) => {
-                write!(f, "expected enum type, found {:?}", ty.kind)
-            }
-            TypeErrorKind::NotAFact(ty) => {
-                write!(f, "expected fact type, found {:?}", ty.kind)
-            }
-            TypeErrorKind::NotOptional(ty) => {
-                write!(f, "expected optional type, found {:?}", ty.kind)
-            }
-            TypeErrorKind::RecursiveType(ident) => {
-                write!(f, "recursive type definition: {:?}", ident)
-            }
-            TypeErrorKind::MissingReturnType => {
-                write!(f, "missing return statement in function with return type")
-            }
-            TypeErrorKind::UnexpectedReturn => {
-                write!(f, "unexpected return statement in void context")
-            }
-            TypeErrorKind::IncompatibleMatchArms => {
-                write!(f, "match arms have incompatible types")
-            }
-            TypeErrorKind::IncompatibleBranches { then_ty, else_ty } => {
-                write!(
-                    f,
-                    "if branches have incompatible types: {:?} and {:?}",
-                    then_ty.kind, else_ty.kind
-                )
-            }
+impl Builtins {
+    pub fn new(types: &TypeInterner) -> Self {
+        let string = types.intern(Type::String);
+        let bytes = types.intern(Type::Bytes);
+        let int = types.intern(Type::Int);
+        let bool = types.intern(Type::Bool);
+        let id = types.intern(Type::Id);
+        let none = types.intern(Type::Optional(TypeOptional { inner: None }));
+        let error = types.intern(Type::Error);
+        let unit = types.intern(Type::Unit);
+        Self {
+            string,
+            bytes,
+            int,
+            bool,
+            id,
+            none,
+            error,
+            unit,
         }
     }
 }

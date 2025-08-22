@@ -42,6 +42,8 @@ pub(crate) mod visit;
 
 use std::ops::Index;
 
+use aranya_policy_ast::Identifier;
+
 pub(crate) use self::hir::*;
 use self::lower::LowerCtx;
 use crate::{
@@ -55,10 +57,11 @@ pub(crate) mod types {
     pub(crate) use crate::hir::*;
 }
 
+/// Lowers the AST into HIR.
 #[derive(Copy, Clone, Debug)]
-pub struct HirLowerPass;
+pub struct AstLowering;
 
-impl Pass for HirLowerPass {
+impl Pass for AstLowering {
     const NAME: &'static str = "hir_lower";
     type Deps = ();
     type Output = Hir;
@@ -83,7 +86,7 @@ impl Pass for HirLowerPass {
 impl<'cx> Ctx<'cx> {
     /// Get the HIR lower pass.
     pub fn hir(self) -> Result<HirView<'cx>, ErrorGuaranteed> {
-        let hir = self.get::<HirLowerPass>()?;
+        let hir = self.get::<AstLowering>()?;
         Ok(HirView::new(self, hir))
     }
 }
@@ -91,7 +94,7 @@ impl<'cx> Ctx<'cx> {
 /// A view of the HIR.
 #[derive(Copy, Clone, Debug)]
 pub struct HirView<'cx> {
-    _cx: Ctx<'cx>,
+    cx: Ctx<'cx>,
     hir: &'cx Hir,
 }
 
@@ -109,6 +112,26 @@ impl<'cx> HirView<'cx> {
         self.hir().index(id)
     }
 
+    /// Retrieves a span.
+    pub fn lookup_span<Id, T>(&self, id: Id) -> Span
+    where
+        Hir: Index<Id, Output = T>,
+        T: Spanned,
+    {
+        self.lookup(id).span()
+    }
+
+    /// Retrieves an interned identifier.
+    pub fn lookup_ident(&self, id: IdentId) -> Identifier {
+        let xref = self.lookup_ident_ref(id);
+        self.cx.get_ident(xref)
+    }
+
+    /// Retrieves a reference to an interned identifier.
+    pub fn lookup_ident_ref(&self, id: IdentId) -> IdentRef {
+        self.lookup(id).xref
+    }
+
     /// Retrieves a HIR node.
     pub fn lookup_node(&self, id: NodeId) -> Node<'cx> {
         self.hir().lookup(id)
@@ -116,7 +139,7 @@ impl<'cx> HirView<'cx> {
 }
 
 impl<'cx> View<'cx, Hir> for HirView<'cx> {
-    fn new(_cx: Ctx<'cx>, data: &'cx Hir) -> Self {
-        Self { _cx, hir: data }
+    fn new(cx: Ctx<'cx>, data: &'cx Hir) -> Self {
+        Self { cx, hir: data }
     }
 }

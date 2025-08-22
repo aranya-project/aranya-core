@@ -321,7 +321,8 @@ impl DiagCtx {
 }
 
 impl DiagCtx {
-    fn create_err(&self, msg: impl Into<DiagMsg>) -> Diag<'_, ErrorGuaranteed> {
+    /// Creates an error diagnostic.
+    pub fn create_err(&self, msg: impl Into<DiagMsg>) -> Diag<'_, ErrorGuaranteed> {
         Diag::new(self, Severity::Error, msg)
     }
 
@@ -402,6 +403,11 @@ impl MultiSpan {
         }
     }
 
+    /// Adds primary span to the collection of spans.
+    pub fn push_primary(&mut self, span: Span, msg: impl Into<DiagMsg>) {
+        self.primary.push((span, msg.into()));
+    }
+
     /// Adds a label to the collection of spans.
     pub fn push_label(&mut self, span: Span, msg: impl Into<DiagMsg>) {
         self.labels.push((span, msg.into()));
@@ -410,6 +416,12 @@ impl MultiSpan {
     /// Are there any spans in this collection?
     pub fn is_empty(&self) -> bool {
         self.primary.is_empty() && self.labels.is_empty()
+    }
+}
+
+impl From<(Span, &str)> for MultiSpan {
+    fn from((span, msg): (Span, &str)) -> Self {
+        Self::from_span(span, Cow::Owned(String::from(msg)))
     }
 }
 

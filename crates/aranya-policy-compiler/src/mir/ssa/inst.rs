@@ -7,7 +7,7 @@ use slotmap::SlotMap;
 use super::block::BlockId;
 use crate::{
     hir::{CmdFieldId, CmdId, EffectFieldId, EffectId, FactId, IdentId, StructFieldId},
-    symbol_resolution::SymbolId,
+    symtab::SymbolId,
 };
 
 /// Declares an SSA instruction.

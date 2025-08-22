@@ -6,79 +6,91 @@ use std::collections::BTreeMap;
 
 use self::{
     check::TypeChecker,
-    types::{Type, TypeEnv},
+    types::{Type, TypeEnv, TypeRef},
 };
 use crate::{
     arena::Arena,
     ctx::Ctx,
-    depgraph::{DepGraph, DepsPass},
+    depgraph::{DepsPass, DepsView},
     diag::ErrorGuaranteed,
-    hir::{ExprId, Hir, HirLowerPass},
-    pass::Pass,
-    symbol_resolution::{SymbolTable, SymbolsPass},
+    hir::{AstLowering, ExprId, HirView},
+    pass::{Pass, View},
+    symtab::{SymbolResolution, SymbolsView},
 };
 
-// Type ID for the arena
-crate::arena::new_key_type! {
-    /// Uniquely identifies a type.
-    pub struct TypeId;
-}
+#[derive(Copy, Clone, Debug)]
+pub struct TypesPass;
 
-/// Result type for type checking operations.
-pub(crate) type Result<T, E = ErrorGuaranteed> = std::result::Result<T, E>;
+impl Pass for TypesPass {
+    const NAME: &'static str = "types";
+    type Output = Types;
+    type View<'cx> = TypesView<'cx>;
+    type Deps = (AstLowering, SymbolResolution, DepsPass);
 
-impl Ctx<'_> {
-    /// Performs type checking on the HIR.
-    ///
-    /// This runs a single-pass type checker that computes types for all
-    /// expressions and validates type constraints.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` if type checking succeeds, or `Err(errors)` with
-    /// a list of type errors if it fails.
-    pub fn typecheck(&mut self) -> Result<()> {
-        let _checker = TypeChecker {
-            ctx: self,
-            types: Arena::default(),
+    fn run<'ctx>(
+        cx: Ctx<'ctx>,
+        (hir, symbols, deps): (HirView<'ctx>, SymbolsView<'ctx>, DepsView<'ctx>),
+    ) -> Result<Types, ErrorGuaranteed> {
+        let mut checker = TypeChecker {
+            ctx: cx,
+            hir,
+            symbols,
+            deps,
             expr_types: BTreeMap::new(),
             vtype_map: BTreeMap::new(),
             env: TypeEnv::default(),
             next_type_var: 0,
-            has_errors: false,
+            max_errs: 10,
+            num_errs: 0,
         };
-        // TODO: Port the actual type checking logic
-        Ok(())
+
+        checker.check()?;
+
+        let mut expr_types = BTreeMap::new();
+        let mut types_arena = Arena::default();
+
+        for (expr_id, type_ref) in checker.env.exprs {
+            if let Some(ty) = checker.env.types.get(type_ref) {
+                let type_id = types_arena.insert(ty.clone());
+                expr_types.insert(expr_id, type_id);
+            }
+        }
+
+        Ok(Types {
+            exprs: expr_types,
+            types: types_arena,
+        })
     }
 }
 
 // Type information from type checking
 #[derive(Clone, Debug)]
-pub struct TypeInfo {
+pub struct Types {
     /// Maps expressions to their types.
-    pub expr_types: BTreeMap<ExprId, TypeId>,
-
+    pub exprs: BTreeMap<ExprId, TypeRef>,
     /// Arena of types.
-    pub types: Arena<TypeId, Type>,
+    pub types: Arena<TypeRef, Type>,
 }
 
-// Pass implementation for type checking
-pub struct TypesPass;
+pub struct TypesView<'cx> {
+    cx: Ctx<'cx>,
+    types: &'cx Types,
+}
 
-impl Pass for TypesPass {
-    type Output = TypeInfo;
-    type Deps = (HirLowerPass, SymbolsPass, DepsPass);
-    const NAME: &'static str = "types";
+impl<'cx> TypesView<'cx> {
+    /// Retrieves the type information.
+    pub fn types(&self) -> &'cx Types {
+        self.types
+    }
 
-    fn run<'ctx>(
-        _cx: Ctx<'ctx>,
-        (_hir, _symbols, _deps): (&Hir, &SymbolTable, &DepGraph),
-    ) -> Result<TypeInfo, ErrorGuaranteed> {
-        // TODO: Need to get the actual Ctx to run type checking
-        // For now, return empty type info
-        Ok(TypeInfo {
-            expr_types: BTreeMap::new(),
-            types: Arena::default(),
-        })
+    /// Gets the type for a specific expression ID.
+    pub fn get_type(&self, expr_id: ExprId) -> Option<TypeRef> {
+        self.types.exprs.get(&expr_id).copied()
+    }
+}
+
+impl<'cx> View<'cx, Types> for TypesView<'cx> {
+    fn new(cx: Ctx<'cx>, data: &'cx Types) -> Self {
+        Self { cx, types: data }
     }
 }

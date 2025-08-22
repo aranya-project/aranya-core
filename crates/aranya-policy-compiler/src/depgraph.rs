@@ -20,14 +20,14 @@ use crate::{
     ctx::Ctx,
     diag::{
         Diag, DiagCtx, Diagnostic, EmissionGuarantee, ErrorGuaranteed, MultiSpan, OptionExt,
-        Severity,
+        ResultExt, Severity,
     },
     hir::{
         visit::{self, Visitor, Walkable},
-        Hir, HirLowerPass, HirView, Ident, IdentId, LetStmt, Named, Span, Stmt, StmtKind,
+        AstLowering, Hir, HirView, Ident, IdentId, LetStmt, Named, Span, Stmt, StmtKind,
     },
     pass::{DepsRefs, Pass, View},
-    symbol_resolution::{SymbolId, SymbolKind, SymbolsPass, SymbolsView},
+    symtab::{SymbolId, SymbolKind, SymbolResolution, SymbolsView},
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -37,7 +37,7 @@ impl Pass for DepsPass {
     const NAME: &'static str = "deps";
     type Output = DepGraph;
     type View<'cx> = DepsView<'cx>;
-    type Deps = (HirLowerPass, SymbolsPass);
+    type Deps = (AstLowering, SymbolResolution);
 
     fn run<'cx>(
         cx: Ctx<'cx>,
@@ -102,18 +102,21 @@ pub struct DepsView<'cx> {
 }
 
 impl<'cx> DepsView<'cx> {
-    /// Create a new deps view.
-    pub fn new(ctx: Ctx<'cx>, deps: &'cx DepGraph) -> Self {
-        Self { ctx, deps }
-    }
-
     pub fn graph(&self) -> &'cx DepGraph {
         self.deps
     }
 
     /// Get the topologically sorted symbols.
-    pub fn topo_sorted(&self) -> &[SymbolId] {
-        todo!()
+    pub fn topo_sorted(&self) -> &'cx [SymbolId] {
+        self.deps
+            .topo_sorted
+            .get_or_init(|| {
+                self.deps
+                    .graph
+                    .topo_sort()
+                    .unwrap_or_bug(self.ctx.dcx(), "dependency graph must be acyclic")
+            })
+            .as_slice()
     }
 }
 

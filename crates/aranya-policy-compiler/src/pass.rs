@@ -7,8 +7,11 @@
 use std::{cell::OnceCell, marker::PhantomData};
 
 use crate::{
-    ctx::{Ctx, Results},
+    ctx::Ctx,
+    depgraph::{DepGraph, DepsPass},
     diag::ErrorGuaranteed,
+    hir::{AstLowering, Hir},
+    symtab::{SymbolResolution, SymbolTable},
 };
 
 /// A compiler pass with typed output and dependencies.
@@ -114,3 +117,53 @@ macro_rules! impl_deplist_tuples {
 impl_deplist_tuples!(A, B, C, D, E, F);
 
 pub type DepsRefs<'cx, P> = <<P as Pass>::Deps as DepList>::Refs<'cx>;
+
+/// Storage for pass results.
+#[derive(Clone, Debug)]
+pub struct Results {
+    pub hir: OnceCell<Hir>,
+    pub symbols: OnceCell<SymbolTable>,
+    pub deps: OnceCell<DepGraph>,
+    // pub types: OnceCell<TypeInfo>,
+}
+
+impl Results {
+    pub fn new() -> Self {
+        Self {
+            hir: OnceCell::new(),
+            symbols: OnceCell::new(),
+            deps: OnceCell::new(),
+            // types: OnceCell::new(),
+        }
+    }
+}
+
+impl Default for Results {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Access<AstLowering> for Results {
+    fn cell(&self) -> &OnceCell<Hir> {
+        &self.hir
+    }
+}
+
+impl Access<SymbolResolution> for Results {
+    fn cell(&self) -> &OnceCell<SymbolTable> {
+        &self.symbols
+    }
+}
+
+impl Access<DepsPass> for Results {
+    fn cell(&self) -> &OnceCell<DepGraph> {
+        &self.deps
+    }
+}
+
+// impl Access<TypesPass> for Results {
+//     fn cell(&self) -> &OnceCell<TypeInfo> {
+//         &self.types
+//     }
+// }
