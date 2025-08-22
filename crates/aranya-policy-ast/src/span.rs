@@ -198,18 +198,18 @@ where
     }
 }
 
-impl<T: Spanned, const N: usize> Spanned for [T; N] {
-    fn span(&self) -> Span {
-        self.as_slice().span()
-    }
-}
-
 impl<T: Spanned> Spanned for [T] {
     fn span(&self) -> Span {
         self.iter()
-            .map(|span| span.span())
+            .map(Spanned::span)
             .reduce(|acc, span| acc.merge(span))
             .unwrap_or_default()
+    }
+}
+
+impl<T: Spanned, const N: usize> Spanned for [T; N] {
+    fn span(&self) -> Span {
+        self.as_slice().span()
     }
 }
 
@@ -221,7 +221,7 @@ impl<T: Spanned> Spanned for Vec<T> {
 
 impl<T: Spanned> Spanned for Option<T> {
     fn span(&self) -> Span {
-        self.as_ref().map(|v| v.span()).unwrap_or_default()
+        self.as_ref().map(Spanned::span).unwrap_or_default()
     }
 }
 
@@ -232,7 +232,7 @@ macro_rules! spanned {
             $(
                 $(#[$field_meta:meta])*
                 $field_vis:vis $field:ident : $ty:ty
-            ),* $(,)?
+            ),+ $(,)?
         }
     ) => {
         $(#[$meta])*
@@ -240,7 +240,7 @@ macro_rules! spanned {
             $(
                 $(#[$field_meta])*
                 $field_vis $field: $ty,
-            )*
+            )+
         }
         impl Spanned for $name {
             fn span(&self) -> Span {

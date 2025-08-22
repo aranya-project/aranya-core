@@ -558,9 +558,7 @@ impl Spanned for MatchPattern {
     fn span(&self) -> Span {
         match self {
             MatchPattern::Default(span) => *span,
-            MatchPattern::Values(values) => values
-                .iter()
-                .fold(Span::empty(), |span, expr| span.merge(expr.span())),
+            MatchPattern::Values(values) => values.span(),
         }
     }
 }
