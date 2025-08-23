@@ -22,10 +22,10 @@ use crate::{
     hir::{
         self,
         visit::{try_visit, Visitor, VisitorResult, Walkable},
-        ActionCall, BinOp, Body, BodyId, CheckStmt, EnumRef, Expr, ExprId, ExprKind, FactFieldExpr,
-        FactKeyId, FactLiteral, FactValId, ForeignFunctionCall, FuncDef, FunctionCall, Hir,
-        HirView, IdentId, IdentRef, Intrinsic, LetStmt, Lit, LitKind, MatchExpr, MatchExprArm,
-        MatchPattern, NamedStruct, ReturnStmt, Span, Stmt, StmtKind, StructFieldExpr,
+        ActionCall, BinOp, Body, BodyId, CheckStmt, EnumRef, Expr, ExprId, ExprKind, FactCountType,
+        FactFieldExpr, FactKeyId, FactLiteral, FactValId, ForeignFunctionCall, FuncDef,
+        FunctionCall, Hir, HirView, IdentId, IdentRef, Intrinsic, LetStmt, Lit, LitKind, MatchExpr,
+        MatchExprArm, MatchPattern, NamedStruct, ReturnStmt, Span, Stmt, StmtKind, StructFieldExpr,
         StructFieldId, StructFieldKind, Ternary, UnaryOp, VType, VTypeId, VTypeKind,
     },
     symtab::{SymbolId, SymbolKind, SymbolsView},
@@ -130,108 +130,15 @@ impl<'cx> TypeChecker<'cx> {
     fn check_symbol(&mut self, sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
         let sym = self.symbols.get(sym_id);
         match sym.kind {
-            SymbolKind::Func(id) => {
-                let func_def = self.hir.lookup(id);
+            SymbolKind::Func(_) => {}
+            SymbolKind::Action(_) => {}
+            SymbolKind::GlobalVar(_) => {}
+            SymbolKind::Struct(_) => {}
+            SymbolKind::Enum(_) => {}
+            SymbolKind::Fact(_) => {}
+            SymbolKind::FinishFunc(_) => {}
 
-                // Store function type for later reference
-                let params = self.collect_param_types(func_def.body)?;
-                let return_type = self.resolve_vtype_to_type(func_def.result)?;
-
-                let ty = TypeFunc {
-                    symbol: sym_id,
-                    params,
-                    return_type: Some(return_type),
-                };
-                let type_ref = self.env.new_function(ty);
-                self.env.symbols.insert(sym_id, type_ref);
-
-                self.check_body(func_def.body)?
-            }
-            SymbolKind::Action(action_id) => {
-                let action_def = self.hir.lookup(action_id);
-
-                // Store action type (distinct from function)
-                let params = self.collect_param_types(action_def.body)?;
-
-                // Actions use TypeFunction but have no return type
-                let action_type = TypeFunc {
-                    symbol: sym_id,
-                    params,
-                    return_type: None,
-                };
-                let type_ref = self.env.new_function(action_type);
-                self.env.symbols.insert(sym_id, type_ref);
-
-                // Now type check the body
-                self.check_body(action_def.body)?
-            }
-            SymbolKind::GlobalVar(global_id) => {
-                let global_def = self.hir.lookup(global_id);
-                let expr_id = global_def.expr;
-
-                // Type check the initializer expression
-                let expr = self.hir.lookup(expr_id);
-                let mut visitor = TypeCheckVisitor { checker: self };
-                let _ = visitor.visit_expr(expr);
-
-                // Store the type for the global variable
-                let expr_type = self.env.exprs[&expr_id];
-                self.env.symbols.insert(sym_id, expr_type);
-            }
-            SymbolKind::Struct(struct_id) => {
-                let struct_def = self.hir.lookup(struct_id);
-                let fields = self.collect_struct_fields(&struct_def.items)?;
-
-                let struct_type = TypeStruct {
-                    symbol: sym_id,
-                    fields,
-                };
-                let type_ref = self.env.new_struct(struct_type);
-                self.env.symbols.insert(sym_id, type_ref);
-            }
-            SymbolKind::Enum(enum_id) => {
-                let enum_def = self.hir.lookup(enum_id);
-                let variants = self.collect_enum_variants(&enum_def.variants)?;
-
-                let enum_type = TypeEnum {
-                    symbol: sym_id,
-                    variants,
-                };
-                let type_ref = self.env.new_enum(enum_type);
-                self.env.symbols.insert(sym_id, type_ref);
-            }
-            SymbolKind::Fact(fact_id) => {
-                let fact_def = self.hir.lookup(fact_id);
-                let keys = self.collect_fact_key_fields(&fact_def.keys)?;
-                let vals = self.collect_fact_val_fields(&fact_def.vals)?;
-
-                let fact_type = TypeFact {
-                    symbol: sym_id,
-                    keys,
-                    vals,
-                };
-                let type_ref = self.env.new_fact(fact_type);
-                self.env.symbols.insert(sym_id, type_ref);
-            }
-            SymbolKind::FinishFunc(finish_func_id) => {
-                let finish_func_def = self.hir.lookup(finish_func_id);
-
-                // Store finish function type (distinct from regular function)
-                let params = self.collect_param_types(finish_func_def.body)?;
-
-                // Finish functions are like actions - no return type
-                let finish_func_type = TypeFunc {
-                    symbol: sym_id,
-                    params,
-                    return_type: None,
-                };
-                let type_ref = self.env.new_function(finish_func_type);
-                self.env.symbols.insert(sym_id, type_ref);
-
-                // Now type check the body
-                self.check_body(finish_func_def.body)?
-            }
-            // These symbol kinds don't define types, they just declare names
+            // These symbol kinds don't define types.
             SymbolKind::Cmd(_) => {}
             SymbolKind::Effect(_) => {}
             SymbolKind::FfiEnum(_) => {}
@@ -239,142 +146,8 @@ impl<'cx> TypeChecker<'cx> {
             SymbolKind::FfiImport(_) => {}
             SymbolKind::FfiModule(_) => {}
             SymbolKind::FfiStruct(_) => {}
-            SymbolKind::LocalVar(_) => {
-                // Local vars are handled when we process the let statement that creates them
-            }
+            SymbolKind::LocalVar(_) => {}
         }
-
-        Ok(())
-    }
-
-    fn collect_param_types(&mut self, id: BodyId) -> Result<Vec<TypeRef>, ErrorGuaranteed> {
-        let body = self.hir.lookup(id);
-        let mut types = Vec::new();
-        for &id in &body.params {
-            let param = self.hir.lookup(id);
-            let param_type = self.resolve_vtype_to_type(param.ty)?;
-            types.push(param_type);
-        }
-        Ok(types)
-    }
-
-    fn collect_struct_fields(
-        &mut self,
-        field_ids: &[StructFieldId],
-    ) -> Result<Vec<StructField>, ErrorGuaranteed> {
-        let mut fields = Vec::new();
-
-        for &field_id in field_ids {
-            let field_def = self.hir.lookup(field_id);
-            match &field_def.kind {
-                StructFieldKind::Field { ident, ty } => {
-                    let field_type = self.resolve_vtype_to_type(*ty)?;
-                    let ident_ref = self.hir.lookup(*ident);
-
-                    fields.push(StructField {
-                        ident: *ident,
-                        xref: ident_ref.xref,
-                        ty: field_type,
-                    });
-                }
-                StructFieldKind::StructRef(ident_id) => {
-                    // Handle struct references (inheritance/embedding)
-                    let symbol_id = self.symbols.resolve(*ident_id);
-
-                    if let Some(&type_ref) = self.env.symbols.get(&symbol_id) {
-                        let struct_type = self.env.types.get(type_ref).unwrap();
-
-                        if let Type::Struct(TypeStruct {
-                            fields: embedded_fields,
-                            ..
-                        }) = struct_type
-                        {
-                            // Add all fields from the embedded struct
-                            fields.extend_from_slice(embedded_fields);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(fields)
-    }
-
-    fn collect_enum_variants(
-        &mut self,
-        variant_idents: &[IdentId],
-    ) -> Result<Vec<EnumVariant>, ErrorGuaranteed> {
-        let mut variants = Vec::new();
-
-        for &ident_id in variant_idents {
-            let ident = self.hir.lookup(ident_id);
-            variants.push(EnumVariant {
-                ident: ident_id,
-                xref: ident.xref,
-            });
-        }
-
-        Ok(variants)
-    }
-
-    fn collect_fact_key_fields(
-        &mut self,
-        field_ids: &[FactKeyId],
-    ) -> Result<Vec<FactField>, ErrorGuaranteed> {
-        let mut fields = Vec::new();
-
-        for &field_id in field_ids {
-            let field_def = self.hir.lookup(field_id);
-            let field_type = self.resolve_vtype_to_type(field_def.ty)?;
-            let ident_ref = self.hir.lookup(field_def.ident);
-
-            fields.push(FactField {
-                ident: field_def.ident,
-                xref: ident_ref.xref,
-                ty: field_type,
-            });
-        }
-
-        Ok(fields)
-    }
-
-    fn collect_fact_val_fields(
-        &mut self,
-        field_ids: &[FactValId],
-    ) -> Result<Vec<FactField>, ErrorGuaranteed> {
-        let mut fields = Vec::new();
-
-        for &field_id in field_ids {
-            let field_def = self.hir.lookup(field_id);
-            let field_type = self.resolve_vtype_to_type(field_def.ty)?;
-            let ident_ref = self.hir.lookup(field_def.ident);
-
-            fields.push(FactField {
-                ident: field_def.ident,
-                xref: ident_ref.xref,
-                ty: field_type,
-            });
-        }
-
-        Ok(fields)
-    }
-
-    fn resolve_vtype_to_type(&mut self, vtype_id: VTypeId) -> Result<TypeRef, ErrorGuaranteed> {
-        let vtype = self.hir.lookup(vtype_id);
-        let mut visitor = TypeCheckVisitor { checker: self };
-        Ok(visitor.resolve_vtype(vtype))
-    }
-
-    fn check_body(&mut self, id: BodyId) -> Result<(), ErrorGuaranteed> {
-        let body = self.hir.lookup(id);
-
-        // Type check all statements in the body
-        for &id in &body.stmts {
-            let stmt = self.hir.lookup(id);
-            let mut visitor = TypeCheckVisitor { checker: self };
-            let _ = visitor.visit_stmt(stmt);
-        }
-
         Ok(())
     }
 
@@ -410,20 +183,7 @@ impl<'cx> TypeChecker<'cx> {
         } = self.hir.lookup(expr);
         match kind {
             ExprKind::Lit(lit) => self.check_lit(lit),
-            ExprKind::Intrinsic(v) => match v {
-                Intrinsic::Query(_) => {
-                    todo!()
-                }
-                Intrinsic::FactCount(_, _, _) => {
-                    todo!()
-                }
-                Intrinsic::Serialize(_) => {
-                    todo!()
-                }
-                Intrinsic::Deserialize(_) => {
-                    todo!()
-                }
-            },
+            ExprKind::Intrinsic(v) => self.check_intrinsic(v),
             ExprKind::FunctionCall(_) => {
                 todo!()
             }
@@ -532,32 +292,32 @@ impl<'cx> TypeChecker<'cx> {
         };
 
         for &FactFieldExpr { ident, expr } in keys {
-            let expect = match self.find_fact_key(fact, ident) {
+            let ty = match self.find_fact_key(fact, ident) {
                 Some(field) => field.ty,
                 None => return self.ctx.builtins.error,
             };
             match expr {
                 hir::FactField::Expr(expr) => {
-                    self.check_expr_is_ty(expr, expect, Some(self.hir.lookup_span(ident)));
+                    self.check_expr_is_ty(expr, ty, Some(self.hir.lookup_span(ident)));
                 }
                 hir::FactField::Bind => {}
             }
         }
 
         for &FactFieldExpr { ident, expr } in vals {
-            let expect = match self.find_fact_val(fact, ident) {
+            let ty = match self.find_fact_val(fact, ident) {
                 Some(field) => field.ty,
                 None => return self.ctx.builtins.error,
             };
             match expr {
                 hir::FactField::Expr(expr) => {
-                    self.check_expr_is_ty(expr, expect, Some(self.hir.lookup_span(ident)));
+                    self.check_expr_is_ty(expr, ty, Some(self.hir.lookup_span(ident)));
                 }
                 hir::FactField::Bind => {}
             }
         }
 
-        todo!()
+        *ty_ref
     }
 
     /// Attempts to find a fact key.
@@ -894,6 +654,47 @@ impl<'cx> TypeChecker<'cx> {
             .symbols
             .get(&sym_id)
             .unwrap_or_bug(self.dcx(), "type not found")
+    }
+
+    fn check_intrinsic(&self, intrinsic: &'cx Intrinsic) -> TypeRef {
+        match intrinsic {
+            Intrinsic::Query(fact) => {
+                let fact_type = self.check_lit_fact(fact);
+                self.ctx.intern_type(Type::Optional(TypeOptional {
+                    inner: Some(fact_type),
+                }))
+            }
+            Intrinsic::FactCount(count_type, _limit, fact) => {
+                self.check_lit_fact(fact);
+
+                match count_type {
+                    FactCountType::UpTo => self.ctx.builtins.int,
+                    FactCountType::AtLeast | FactCountType::AtMost | FactCountType::Exactly => {
+                        self.ctx.builtins.bool
+                    }
+                }
+            }
+            Intrinsic::Serialize(expr) => {
+                self.check_expr(*expr);
+                self.ctx.builtins.bytes
+            }
+            Intrinsic::Deserialize(expr) => {
+                let expr_type = self.check_expr(*expr);
+                // Check that expression is bytes type
+                if expr_type != self.ctx.builtins.bytes {
+                    self.dcx().emit_err_diag(TypeMismatch {
+                        span: self.hir.lookup_span(*expr),
+                        expected: self.get_type_ref_string(self.ctx.builtins.bytes),
+                        found: self.get_type_ref_string(expr_type),
+                        reason: None,
+                    });
+                    return self.ctx.builtins.error;
+                }
+                // For now, return error type since we don't have context for target struct
+                // This will be improved when we have better context handling
+                self.ctx.builtins.error
+            }
+        }
     }
 
     fn check_match(&self, expr: &'cx MatchExpr) -> TypeRef {
