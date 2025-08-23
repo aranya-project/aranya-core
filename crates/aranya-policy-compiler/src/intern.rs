@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{hash_map::RandomState, HashMap},
+    collections::{HashMap, hash_map::RandomState},
     hash::{BuildHasher, Hash},
     ptr::NonNull,
 };

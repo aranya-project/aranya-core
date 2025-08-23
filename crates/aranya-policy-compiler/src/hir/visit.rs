@@ -864,6 +864,7 @@ where
             Intrinsic::Serialize(expr) | Intrinsic::Deserialize(expr) => {
                 try_visit_by_id!(visitor.visit_expr(*expr));
             }
+            Intrinsic::Todo => {}
         },
         ExprKind::FunctionCall(v) => {
             try_visit_by_id!(visitor.visit_ident(v.ident));
@@ -920,6 +921,10 @@ where
                 }
                 try_visit_by_id!(visitor.visit_expr(arm.expr));
             }
+        }
+        ExprKind::Cast(expr, ident) => {
+            try_visit_by_id!(visitor.visit_expr(*expr));
+            try_visit_by_id!(visitor.visit_ident(*ident));
         }
     }
     V::Result::output()

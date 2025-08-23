@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use aranya_policy_ast::{self as ast, AstNode};
-use aranya_policy_module::{ffi, CodeMap};
+use aranya_policy_module::{CodeMap, ffi};
 use slotmap::SlotMap;
 
 #[derive(Clone, Debug)]

@@ -6,10 +6,10 @@ use aranya_policy_ast as ast;
 use tracing::{instrument, trace};
 
 use super::{
+    Result, ScopeMap, SymbolTable,
     error::SymbolResolutionError,
     scope::{InsertError, ScopeId, ScopedId},
     symbols::{Symbol, SymbolId, SymbolKind},
-    Result, ScopeMap, SymbolTable,
 };
 use crate::{
     ctx::Ctx,
@@ -18,11 +18,11 @@ use crate::{
         OptionExt, ResultExt, Severity,
     },
     hir::{
-        visit::{self, Visitor},
         ActionCall, Block, BlockId, Body, CmdDef, CmdFieldKind, EffectFieldKind, EnumDef, EnumRef,
         Expr, ExprKind, ForeignFunctionCall, FunctionCall, GlobalLetDef, GlobalSymbol, Hir,
         HirView, Ident, IdentId, IdentRef, LetStmt, Param, Span, Stmt, StmtKind, StructFieldKind,
         VType, VTypeKind,
+        visit::{self, Visitor},
     },
 };
 

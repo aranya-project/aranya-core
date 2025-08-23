@@ -637,6 +637,14 @@ hir_type! {
         ///
         /// [`if`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#if
         Ternary(Ternary),
+        /// A struct [conversion] expression.
+        ///
+        /// ```policy
+        /// let b = foo as Bar
+        /// ```
+        ///
+        /// [conversion]: https://github.com/aranya-project/aranya-docs/blob/c9701a0c7c4d4f2370c9512104b89657d76ce667/docs/policy-v2.md#struct-conversion
+        Cast(ExprId, IdentId),
     }
 }
 
@@ -771,6 +779,8 @@ hir_type! {
         ///
         /// [`deserialize`]: https://github.com/aranya-project/aranya-docs/blob/ccf916c97a4112823cb3c29bae0ad61796e97e51/docs/policy-v1.md#serializedeserialize
         Deserialize(ExprId),
+        /// A "not yet implemented" panic.
+        Todo,
     }
 }
 

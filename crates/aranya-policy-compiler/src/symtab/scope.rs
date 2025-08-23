@@ -2,8 +2,8 @@
 
 use std::{
     collections::{
-        btree_map::{BTreeMap, Entry},
         BTreeSet, VecDeque,
+        btree_map::{BTreeMap, Entry},
     },
     fmt,
     hash::Hash,

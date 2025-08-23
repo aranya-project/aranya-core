@@ -24,17 +24,16 @@ pub(crate) enum Type {
     Optional(TypeOptional),
     Function(TypeFunc),
     Fact(TypeFact),
+    /// A command type (to be synthesized as struct)
+    Cmd(TypeCmd),
+    /// An effect type (to be synthesized as struct)
+    Effect(TypeEffect),
+    /// Type variable for inference (future)
+    TypeVar(u32),
     Error,
     Unit,
-}
-
-impl Type {
-    pub fn is_builtin(&self) -> bool {
-        matches!(
-            self,
-            Self::String | Self::Bytes | Self::Int | Self::Bool | Self::Id
-        )
-    }
+    Infer,
+    Never,
 }
 
 /// A struct.
@@ -163,6 +162,46 @@ pub(crate) struct FactField {
     pub ty: TypeRef,
 }
 
+/// A command.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct TypeCmd {
+    pub symbol: SymbolId,
+    pub fields: Vec<StructField>,
+}
+
+impl Eq for TypeCmd {}
+impl PartialEq for TypeCmd {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+    }
+}
+
+impl Hash for TypeCmd {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
+}
+
+/// An effect.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct TypeEffect {
+    pub symbol: SymbolId,
+    pub fields: Vec<StructField>,
+}
+
+impl Eq for TypeEffect {}
+impl PartialEq for TypeEffect {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+    }
+}
+
+impl Hash for TypeEffect {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct TypeEnv {
     pub types: TypeInterner,
@@ -179,36 +218,6 @@ impl TypeEnv {
             exprs: BTreeMap::new(),
             vtypes: BTreeMap::new(),
         }
-    }
-
-    pub fn new_none(&mut self) -> TypeRef {
-        self.types
-            .intern(Type::Optional(TypeOptional { inner: None }))
-    }
-
-    pub fn new_struct(&mut self, ty: TypeStruct) -> TypeRef {
-        self.types.intern(Type::Struct(ty))
-    }
-
-    pub fn new_enum(&mut self, ty: TypeEnum) -> TypeRef {
-        self.types.intern(Type::Enum(ty))
-    }
-
-    pub fn new_function(&mut self, ty: TypeFunc) -> TypeRef {
-        self.types.intern(Type::Function(ty))
-    }
-
-    pub fn new_fact(&mut self, ty: TypeFact) -> TypeRef {
-        self.types.intern(Type::Fact(ty))
-    }
-
-    pub fn new_optional(&mut self, inner_ty: Option<TypeRef>) -> TypeRef {
-        self.types
-            .intern(Type::Optional(TypeOptional { inner: inner_ty }))
-    }
-
-    pub fn new_error(&mut self) -> TypeRef {
-        self.types.intern(Type::Error)
     }
 }
 
@@ -233,6 +242,8 @@ pub struct Builtins {
     pub none: TypeRef,
     pub error: TypeRef,
     pub unit: TypeRef,
+    pub infer: TypeRef,
+    pub never: TypeRef,
 }
 
 impl Builtins {
@@ -245,6 +256,8 @@ impl Builtins {
         let none = types.intern(Type::Optional(TypeOptional { inner: None }));
         let error = types.intern(Type::Error);
         let unit = types.intern(Type::Unit);
+        let infer = types.intern(Type::Infer);
+        let never = types.intern(Type::Never);
         Self {
             string,
             bytes,
@@ -254,6 +267,8 @@ impl Builtins {
             none,
             error,
             unit,
+            infer,
+            never,
         }
     }
 }

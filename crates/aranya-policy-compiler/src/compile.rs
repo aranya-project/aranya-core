@@ -2606,9 +2606,10 @@ enum Scope {
 }
 
 /// A builder for creating an instance of [`Module`]
+#[derive(Debug)]
 pub struct Compiler<'a> {
-    policy: &'a AstPolicy,
-    ffi_modules: &'a [ModuleSchema<'a>],
+    pub(crate) policy: &'a AstPolicy,
+    pub(crate) ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
     stub_ffi: bool,
 }

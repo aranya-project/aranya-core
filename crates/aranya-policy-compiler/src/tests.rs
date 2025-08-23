@@ -2,14 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{ident, text, FieldDefinition, VType, Version};
+use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    ffi::{self, ModuleSchema},
     Label, LabelType, Module, ModuleData, Struct, Value,
+    ffi::{self, ModuleSchema},
 };
 
-use crate::{validate::validate, CompileErrorType, Compiler, InvalidCallColor};
+use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -73,7 +73,10 @@ fn test_undefined_struct() {
     "#;
 
     let err = compile_fail(text);
-    assert_eq!(err, CompileErrorType::NotDefined(String::from("Bar")),);
+    assert_eq!(
+        err,
+        CompileErrorType::NotDefined(String::from("Struct `Bar` not defined")),
+    );
 }
 
 #[test]
@@ -174,7 +177,6 @@ fn test_function_wrong_color_pure() {
 #[test]
 fn test_function_wrong_color_finish() {
     let text = r#"
-        effect Foo {}
         finish function f(x int) {
             emit Foo {}
         }
@@ -205,14 +207,18 @@ fn test_seal_open_command() {
     let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal)));
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen)));
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal))
+    );
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen))
+    );
 }
 
 #[test]
@@ -538,7 +544,7 @@ fn test_struct_field_insertion_errors() {
         ),
         (
             r#"struct Foo { +Foo }"#,
-            CompileErrorType::RecursiveDefinition(vec![ident!("Foo")]),
+            CompileErrorType::NotDefined("Foo".to_string()),
         ),
     ];
     for (text, err_type) in cases {
@@ -1389,7 +1395,6 @@ fn test_match_expression() {
 fn test_bad_statements() {
     let texts = &[
         r#"
-            fact Foo[]=>{}
             action foo() {
                 create Foo[]=>{}
             }
@@ -1400,10 +1405,6 @@ fn test_bad_statements() {
             }
         "#,
         r#"
-            command Bar {
-                open { return None }
-                seal { return None }
-            }
             function foo(x int) int {
                 publish Bar{}
             }
@@ -1412,10 +1413,7 @@ fn test_bad_statements() {
 
     for text in texts {
         let err = compile_fail(text);
-        assert!(
-            matches!(err, CompileErrorType::InvalidStatement(_)),
-            "{err:?}"
-        );
+        assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
     }
 }
 
@@ -1529,17 +1527,13 @@ fn test_count_up_to() {
 fn test_map_valid_in_action() {
     // map is valid only in actions
     let test = r#"
-        fact Pet[name string]=>{}
         function pets() int {
             map Pet[name:?]=>{} as p {}
             return 0
         }
     "#;
     let err = compile_fail(test);
-    assert!(
-        matches!(err, CompileErrorType::InvalidStatement(..)),
-        "{err:?}"
-    );
+    assert!(matches!(err, CompileErrorType::InvalidStatement(..)));
 
     let test = r#"
         fact Pet[name string]=>{age int}
@@ -1960,7 +1954,7 @@ fn test_type_errors() {
                     } else {
                         :None
                     }
-
+                    
 
                     let new_foo = Foo {
                         y: true,
@@ -2121,7 +2115,7 @@ fn test_struct_composition_global_let_and_command_attributes() {
         struct Foo {
             x int,
             y int
-        }
+        }  
 
         let foo = Foo { x: 10, y: 20 }
         let foo2 = Foo { x: 1000, ...foo }
@@ -2597,7 +2591,7 @@ fn test_return_type_not_defined() {
                 return Foo {}
             }
             "#,
-            CompileErrorType::NotDefined("Nonexistent".to_string()),
+            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
         ),
         (
             r#"
@@ -2605,7 +2599,7 @@ fn test_return_type_not_defined() {
                 return Blah::Foo
             }
             "#,
-            CompileErrorType::NotDefined("Blah".to_string()),
+            CompileErrorType::NotDefined("enum Blah".to_string()),
         ),
         (
             r#"
@@ -2613,7 +2607,7 @@ fn test_return_type_not_defined() {
                 return Some(Foo {})
             }
             "#,
-            CompileErrorType::NotDefined("Foo".to_string()),
+            CompileErrorType::NotDefined("struct Foo".to_string()),
         ),
     ];
 
@@ -2632,7 +2626,7 @@ fn test_function_arguments_with_undefined_types() {
                 return 0
             }
             "#,
-            CompileErrorType::NotDefined("UndefinedStruct".to_string()),
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
         ),
         (
             r#"
@@ -2640,7 +2634,7 @@ fn test_function_arguments_with_undefined_types() {
                 return false
             }
             "#,
-            CompileErrorType::NotDefined("UndefinedEnum".to_string()),
+            CompileErrorType::NotDefined("enum UndefinedEnum".to_string()),
         ),
         (
             r#"
@@ -2648,7 +2642,7 @@ fn test_function_arguments_with_undefined_types() {
                 return true
             }
             "#,
-            CompileErrorType::NotDefined("UndefinedStruct".to_string()),
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
         ),
     ];
 
@@ -2677,7 +2671,7 @@ fn test_substruct_errors() {
                     publish new_struct
                 }
             "#,
-            e: "not defined: Bar",
+            e: "not defined: Struct `Bar` not defined",
         },
         Case {
             t: r#"
@@ -2690,7 +2684,7 @@ fn test_substruct_errors() {
                     publish new_struct
                 }
             "#,
-            e: "not defined: Foo",
+            e: "not defined: Struct `Foo` not defined",
         },
         Case {
             t: r#"

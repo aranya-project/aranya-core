@@ -2,8 +2,8 @@
 
 use aranya_policy_ast::{self as ast, AstNode};
 use aranya_policy_module::{
-    ffi::{self, ModuleSchema},
     CodeMap,
+    ffi::{self, ModuleSchema},
 };
 
 use super::{
@@ -163,6 +163,7 @@ impl LowerCtx<'_> {
                 ast::InternalFunction::Deserialize(expr) => {
                     ExprKind::Intrinsic(Intrinsic::Deserialize(self.lower_expr(expr)))
                 }
+                ast::InternalFunction::Todo => ExprKind::Intrinsic(Intrinsic::Todo),
             },
             ast::Expression::FunctionCall(v) => ExprKind::FunctionCall(FunctionCall {
                 ident: self.lower_ident(&v.identifier),
@@ -232,6 +233,9 @@ impl LowerCtx<'_> {
                 scrutinee: self.lower_expr(&expr.scrutinee),
                 arms: self.lower_list(&expr.arms),
             }),
+            ast::Expression::Cast(expr, ident) => {
+                ExprKind::Cast(self.lower_expr(expr), self.lower_ident(ident))
+            }
         };
 
         let ExprInfo { pure, returns } = find_expr_info(&self.hir, &kind);

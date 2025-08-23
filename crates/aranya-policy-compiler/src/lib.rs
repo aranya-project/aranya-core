@@ -6,7 +6,7 @@ mod ast;
 pub mod compile;
 mod compile2;
 mod ctx;
-mod depgraph;
+pub mod depgraph;
 mod diag;
 mod intern;
 mod pass;

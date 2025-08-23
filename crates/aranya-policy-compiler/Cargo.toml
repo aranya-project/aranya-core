@@ -20,19 +20,19 @@ aranya-policy-lang = { version = "0.7.0", path = "../aranya-policy-lang" }
 aranya-policy-module = { version = "0.12.0", path = "../aranya-policy-module", features = ["std"] }
 buggy = { version = "0.1.0", features = ["std"] }
 
+bumpalo = { version = "3" }
 ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }
+codespan-reporting = { version = "0.12" }
 indexmap = { version = "2.9.0", default-features = false, features = ["serde"] }
 serde = { workspace = true }
 slotmap = { version = "1", features = ["serde"] }
 thiserror = { workspace = true }
-bumpalo = { version = "3" }
 tracing = { workspace = true }
-codespan-reporting = { version = "0.12" }
 unindent = { version = "0.2" }
 
 [dev-dependencies]
 anyhow = { workspace = true }
 insta = { version = "1", features = ["json"] }
-test-log = { workspace = true, features = ["color"] }
 pretty_assertions = { version = "1.4" }
+test-log = { workspace = true, features = ["color"] }

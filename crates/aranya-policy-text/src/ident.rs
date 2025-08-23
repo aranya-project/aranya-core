@@ -4,9 +4,9 @@ use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
 use serde::de;
 
 use crate::{
+    Text,
     error::{InvalidIdentifier, InvalidIdentifierRepr},
     repr::Repr,
-    Text,
 };
 
 /// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.

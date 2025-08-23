@@ -23,8 +23,8 @@ use crate::{
         ResultExt, Severity,
     },
     hir::{
-        visit::{self, Visitor, Walkable},
         AstLowering, Hir, HirView, Ident, IdentId, LetStmt, Named, Span, Stmt, StmtKind,
+        visit::{self, Visitor, Walkable},
     },
     pass::{DepsRefs, Pass, View},
     symtab::{SymbolId, SymbolKind, SymbolResolution, SymbolsView},
@@ -254,7 +254,7 @@ pub struct DepGraph {
 /// The graph is generic over the key type `K` and dependency
 /// kind `D`.
 #[derive(Clone)]
-pub(crate) struct Graph<K, D> {
+pub struct Graph<K, D> {
     /// Nodes indexed by key.
     nodes: IndexMap<K, NodeData<K, D>>,
     /// Reverse edge index: target -> Vec<source> for efficient
@@ -388,7 +388,10 @@ where
     /// use aranya_policy_compiler::depgraph::Graph;
     ///
     /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    /// enum DepType { Type, Value }
+    /// enum DepType {
+    ///     Type,
+    ///     Value,
+    /// }
     ///
     /// let mut graph = Graph::<&str, DepType>::new();
     ///
@@ -397,9 +400,9 @@ where
     /// graph.add_dependency("B", "C", DepType::Value);
     ///
     /// // Check for dependency paths
-    /// assert!(graph.has_dependency_path("A", "C"));  // A -> B -> C
-    /// assert!(graph.has_dependency_path("A", "B"));  // A -> B
-    /// assert!(graph.has_dependency_path("B", "C"));  // B -> C
+    /// assert!(graph.has_dependency_path("A", "C")); // A -> B -> C
+    /// assert!(graph.has_dependency_path("A", "B")); // A -> B
+    /// assert!(graph.has_dependency_path("B", "C")); // B -> C
     /// assert!(!graph.has_dependency_path("C", "A")); // No path from C to A
     /// assert!(!graph.has_dependency_path("C", "B")); // No path from C to B
     /// ```
@@ -502,7 +505,10 @@ where
     /// use aranya_policy_compiler::depgraph::Graph;
     ///
     /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    /// enum DepType { Type, Value }
+    /// enum DepType {
+    ///     Type,
+    ///     Value,
+    /// }
     ///
     /// let mut graph = Graph::<&str, DepType>::new();
     ///
@@ -514,15 +520,15 @@ where
     /// // Find what must be processed before C
     /// let closure = graph.dependency_closure("C");
     /// assert_eq!(closure.len(), 3);
-    /// assert!(closure.contains(&"A"));  // A -> B -> C
-    /// assert!(closure.contains(&"B"));  // B -> C
-    /// assert!(closure.contains(&"D"));  // D -> B -> C
+    /// assert!(closure.contains(&"A")); // A -> B -> C
+    /// assert!(closure.contains(&"B")); // B -> C
+    /// assert!(closure.contains(&"D")); // D -> B -> C
     ///
     /// // Find what must be processed before B
     /// let closure = graph.dependency_closure("B");
     /// assert_eq!(closure.len(), 2);
-    /// assert!(closure.contains(&"A"));  // A -> B
-    /// assert!(closure.contains(&"D"));  // D -> B
+    /// assert!(closure.contains(&"A")); // A -> B
+    /// assert!(closure.contains(&"D")); // D -> B
     /// ```
     pub fn dependency_closure(&self, node: K) -> Vec<K> {
         let mut closure = Vec::new();
@@ -613,7 +619,10 @@ where
     /// use aranya_policy_compiler::depgraph::Graph;
     ///
     /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    /// enum DepType { Type, Value }
+    /// enum DepType {
+    ///     Type,
+    ///     Value,
+    /// }
     ///
     /// let mut graph = Graph::<&str, DepType>::new();
     ///
@@ -625,18 +634,18 @@ where
     /// // Find what depends on A (impact analysis)
     /// let dependents = graph.find_dependents("A");
     /// assert_eq!(dependents.len(), 3);
-    /// assert!(dependents.contains(&"B"));  // A -> B
-    /// assert!(dependents.contains(&"C"));  // A -> B -> C
-    /// assert!(dependents.contains(&"D"));  // A -> D
+    /// assert!(dependents.contains(&"B")); // A -> B
+    /// assert!(dependents.contains(&"C")); // A -> B -> C
+    /// assert!(dependents.contains(&"D")); // A -> D
     ///
     /// // Find what depends on B
     /// let dependents = graph.find_dependents("B");
     /// assert_eq!(dependents.len(), 1);
-    /// assert!(dependents.contains(&"C"));  // B -> C
+    /// assert!(dependents.contains(&"C")); // B -> C
     ///
     /// // Find what depends on C (leaf node)
     /// let dependents = graph.find_dependents("C");
-    /// assert_eq!(dependents.len(), 0);  // No dependents
+    /// assert_eq!(dependents.len(), 0); // No dependents
     /// ```
     pub fn find_dependents(&self, src: K) -> Vec<K> {
         let mut dependents = Vec::new();
@@ -731,7 +740,10 @@ where
     /// use aranya_policy_compiler::depgraph::Graph;
     ///
     /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    /// enum DepType { Type, Value }
+    /// enum DepType {
+    ///     Type,
+    ///     Value,
+    /// }
     ///
     /// let mut graph = Graph::<&str, DepType>::new();
     ///
@@ -743,18 +755,18 @@ where
     /// // Find what can reach C (backward closure)
     /// let reachable = graph.find_reachability("C");
     /// assert_eq!(reachable.len(), 2);
-    /// assert!(reachable.contains(&"A"));  // A -> B -> C
-    /// assert!(reachable.contains(&"B"));  // B -> C
+    /// assert!(reachable.contains(&"A")); // A -> B -> C
+    /// assert!(reachable.contains(&"B")); // B -> C
     ///
     /// // Find what can reach B
     /// let reachable = graph.find_reachability("B");
     /// assert_eq!(reachable.len(), 2);
-    /// assert!(reachable.contains(&"A"));  // A -> B
-    /// assert!(reachable.contains(&"D"));  // D -> B
+    /// assert!(reachable.contains(&"A")); // A -> B
+    /// assert!(reachable.contains(&"D")); // D -> B
     ///
     /// // Find what can reach A (root node)
     /// let reachable = graph.find_reachability("A");
-    /// assert_eq!(reachable.len(), 0);  // No nodes reach A
+    /// assert_eq!(reachable.len(), 0); // No nodes reach A
     /// ```
     pub fn find_reachability(&self, target: K) -> Vec<K> {
         let mut reachable = Vec::new();
@@ -870,20 +882,23 @@ where
     /// use aranya_policy_compiler::depgraph::Graph;
     ///
     /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    /// enum DepType { Type, Value }
+    /// enum DepType {
+    ///     Type,
+    ///     Value,
+    /// }
     ///
     /// let mut graph = Graph::<&str, DepType>::new();
     ///
     /// // Build a graph with cycles: A -> B -> C -> A, D -> E -> D
     /// graph.add_dependency("A", "B", DepType::Type);
     /// graph.add_dependency("B", "C", DepType::Value);
-    /// graph.add_dependency("C", "A", DepType::Type);  // Creates cycle A -> B -> C -> A
+    /// graph.add_dependency("C", "A", DepType::Type); // Creates cycle A -> B -> C -> A
     /// graph.add_dependency("D", "E", DepType::Type);
-    /// graph.add_dependency("E", "D", DepType::Type);  // Creates cycle D -> E -> D
+    /// graph.add_dependency("E", "D", DepType::Type); // Creates cycle D -> E -> D
     ///
     /// // Find all strongly connected components
     /// let sccs = graph.find_sccs();
-    /// assert_eq!(sccs.len(), 2);  // Two SCCs
+    /// assert_eq!(sccs.len(), 2); // Two SCCs
     ///
     /// // First SCC should contain the A -> B -> C -> A cycle
     /// let first_scc = &sccs[0];
@@ -904,7 +919,7 @@ where
     /// dag.add_dependency("Y", "Z", DepType::Value);
     ///
     /// let sccs = dag.find_sccs();
-    /// assert_eq!(sccs.len(), 3);  // Each node is its own SCC in a DAG
+    /// assert_eq!(sccs.len(), 3); // Each node is its own SCC in a DAG
     /// ```
     fn find_sccs(&self) -> Vec<Vec<K>> {
         if self.nodes.is_empty() {
@@ -1255,11 +1270,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use aranya_policy_compiler::depgraph::Graph;
-    /// use aranya_policy_compiler::depgraph::SortError;
+    /// use aranya_policy_compiler::depgraph::{Graph, SortError};
     ///
     /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    /// enum DepType { Type, Value }
+    /// enum DepType {
+    ///     Type,
+    ///     Value,
+    /// }
     ///
     /// // Test with a valid DAG
     /// let mut graph = Graph::<&str, DepType>::new();
@@ -1277,16 +1294,16 @@ where
     /// let logger_idx = sorted.iter().position(|&id| id == "Logger").unwrap();
     /// let app_idx = sorted.iter().position(|&id| id == "App").unwrap();
     ///
-    /// assert!(config_idx < db_idx);      // Config before Database
-    /// assert!(config_idx < logger_idx);  // Config before Logger
-    /// assert!(db_idx < app_idx);         // Database before App
-    /// assert!(logger_idx < app_idx);     // Logger before App
+    /// assert!(config_idx < db_idx); // Config before Database
+    /// assert!(config_idx < logger_idx); // Config before Logger
+    /// assert!(db_idx < app_idx); // Database before App
+    /// assert!(logger_idx < app_idx); // Logger before App
     ///
     /// // Test with a cycle (should fail)
     /// let mut cyclic_graph = Graph::<&str, DepType>::new();
     /// cyclic_graph.add_dependency("A", "B", DepType::Type);
     /// cyclic_graph.add_dependency("B", "C", DepType::Value);
-    /// cyclic_graph.add_dependency("C", "A", DepType::Type);  // Creates cycle
+    /// cyclic_graph.add_dependency("C", "A", DepType::Type); // Creates cycle
     ///
     /// let result = cyclic_graph.topo_sort();
     /// assert!(result.is_err());

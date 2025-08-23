@@ -1,6 +1,6 @@
 mod check;
 pub(crate) mod types;
-//mod unify;
+mod unify;
 
 use std::collections::BTreeMap;
 

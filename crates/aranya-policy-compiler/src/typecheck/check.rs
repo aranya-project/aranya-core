@@ -8,8 +8,8 @@ use aranya_policy_ast::{self as ast, ident};
 use unindent::Unindent as _;
 
 use super::types::{
-    EnumVariant, FactField, StructField, Type, TypeEnum, TypeEnv, TypeFact, TypeFunc, TypeOptional,
-    TypeRef, TypeStruct,
+    EnumVariant, FactField, StructField, Type, TypeCmd, TypeEffect, TypeEnum, TypeEnv, TypeFact,
+    TypeFunc, TypeOptional, TypeRef, TypeStruct,
 };
 use crate::{
     arena::Arena,
@@ -20,13 +20,13 @@ use crate::{
         ResultExt, Severity,
     },
     hir::{
-        self,
-        visit::{try_visit, Visitor, VisitorResult, Walkable},
-        ActionCall, BinOp, Body, BodyId, CheckStmt, EnumRef, Expr, ExprId, ExprKind, FactCountType,
-        FactFieldExpr, FactKeyId, FactLiteral, FactValId, ForeignFunctionCall, FuncDef,
-        FunctionCall, Hir, HirView, IdentId, IdentRef, Intrinsic, LetStmt, Lit, LitKind, MatchExpr,
-        MatchExprArm, MatchPattern, NamedStruct, ReturnStmt, Span, Stmt, StmtKind, StructFieldExpr,
-        StructFieldId, StructFieldKind, Ternary, UnaryOp, VType, VTypeId, VTypeKind,
+        self, ActionCall, BinOp, Body, BodyId, CheckStmt, EnumRef, Expr, ExprId, ExprKind,
+        FactCountType, FactFieldExpr, FactKeyId, FactLiteral, FactValId, ForeignFunctionCall,
+        FuncDef, FunctionCall, Hir, HirView, IdentId, IdentRef, Intrinsic, LetStmt, Lit, LitKind,
+        MatchExpr, MatchExprArm, MatchPattern, NamedStruct, ReturnStmt, Span, Stmt, StmtKind,
+        StructFieldExpr, StructFieldId, StructFieldKind, Ternary, UnaryOp, VType, VTypeId,
+        VTypeKind,
+        visit::{Visitor, VisitorResult, Walkable, try_visit},
     },
     symtab::{SymbolId, SymbolKind, SymbolsView},
 };
@@ -95,15 +95,23 @@ impl<'cx> TypeChecker<'cx> {
                 Cow::Owned(format!("func {}", self.get_sym_ident(*symbol)))
             }
             Type::Fact(TypeFact { symbol, .. }) => {
-                // TODO
                 Cow::Owned(format!("fact {}", self.get_sym_ident(*symbol)))
             }
+            Type::Cmd(TypeCmd { symbol, .. }) => {
+                Cow::Owned(format!("command {}", self.get_sym_ident(*symbol)))
+            }
+            Type::Effect(TypeEffect { symbol, .. }) => {
+                Cow::Owned(format!("effect {}", self.get_sym_ident(*symbol)))
+            }
+            Type::TypeVar(var_id) => Cow::Owned(format!("typevar({})", var_id)),
             Type::Optional(TypeOptional { inner: ty }) => match ty {
                 Some(xref) => Cow::Owned(format!("optional {}", self.get_type_ref_string(*xref))),
                 None => Cow::Borrowed("None"),
             },
             Type::Unit => Cow::Borrowed("unit"),
             Type::Error => Cow::Borrowed("error"),
+            Type::Infer => Cow::Borrowed("infer"),
+            Type::Never => Cow::Borrowed("never"),
         }
     }
 
@@ -130,24 +138,58 @@ impl<'cx> TypeChecker<'cx> {
     fn check_symbol(&mut self, sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
         let sym = self.symbols.get(sym_id);
         match sym.kind {
-            SymbolKind::Func(_) => {}
-            SymbolKind::Action(_) => {}
-            SymbolKind::GlobalVar(_) => {}
-            SymbolKind::Struct(_) => {}
-            SymbolKind::Enum(_) => {}
-            SymbolKind::Fact(_) => {}
-            SymbolKind::FinishFunc(_) => {}
+            SymbolKind::Func(_) => self.check_func(sym_id),
+            SymbolKind::Action(_) => self.check_action(sym_id),
+            SymbolKind::GlobalVar(_) => self.check_global_var(sym_id),
+            SymbolKind::Struct(_) => self.check_struct(sym_id),
+            SymbolKind::Enum(_) => self.check_enum(sym_id),
+            SymbolKind::Fact(_) => self.check_fact(sym_id),
+            SymbolKind::FinishFunc(_) => self.check_finish_func(sym_id),
 
             // These symbol kinds don't define types.
-            SymbolKind::Cmd(_) => {}
-            SymbolKind::Effect(_) => {}
-            SymbolKind::FfiEnum(_) => {}
-            SymbolKind::FfiFunc(_) => {}
-            SymbolKind::FfiImport(_) => {}
-            SymbolKind::FfiModule(_) => {}
-            SymbolKind::FfiStruct(_) => {}
-            SymbolKind::LocalVar(_) => {}
+            SymbolKind::Cmd(_) => Ok(()),
+            SymbolKind::Effect(_) => Ok(()),
+            SymbolKind::FfiEnum(_) => Ok(()),
+            SymbolKind::FfiFunc(_) => Ok(()),
+            SymbolKind::FfiImport(_) => Ok(()),
+            SymbolKind::FfiModule(_) => Ok(()),
+            SymbolKind::FfiStruct(_) => Ok(()),
+            SymbolKind::LocalVar(_) => Ok(()),
         }
+    }
+
+    fn check_func(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement function type checking
+        Ok(())
+    }
+
+    fn check_action(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement action type checking
+        Ok(())
+    }
+
+    fn check_global_var(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement global variable type checking
+        Ok(())
+    }
+
+    fn check_struct(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement struct type checking
+        Ok(())
+    }
+
+    fn check_enum(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement enum type checking
+        Ok(())
+    }
+
+    fn check_fact(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement fact type checking
+        Ok(())
+    }
+
+    fn check_finish_func(&mut self, _sym_id: SymbolId) -> Result<(), ErrorGuaranteed> {
+        // TODO: Implement finish function type checking
         Ok(())
     }
 
@@ -200,8 +242,9 @@ impl<'cx> TypeChecker<'cx> {
                 todo!()
             }
             ExprKind::Substruct(base, target) => self.check_substruct(*base, *target),
-            ExprKind::Match(match_expr) => self.check_match(match_expr),
+            ExprKind::Match(expr) => self.check_match(expr),
             ExprKind::Ternary(ternary) => self.check_ternary(ternary),
+            ExprKind::Cast(expr, ident) => self.check_cast(*expr, *ident),
         }
     }
 
@@ -502,10 +545,21 @@ impl<'cx> TypeChecker<'cx> {
             Type::Fact(_) => self
                 .dcx()
                 .emit_bug("expression should not resolve to a fact type"),
+            Type::Cmd(_) => self
+                .dcx()
+                .emit_bug("expression should not resolve to a command type"),
+            Type::Effect(_) => self
+                .dcx()
+                .emit_bug("expression should not resolve to an effect type"),
+            Type::TypeVar(_) => self
+                .dcx()
+                .emit_bug("expression should not resolve to a type variable"),
             Type::Unit => self
                 .dcx()
                 .emit_bug("expression should not resolve to a unit type"),
             Type::Error => return self.ctx.builtins.error,
+            Type::Infer => todo!(),
+            Type::Never => return self.ctx.builtins.never,
         };
 
         match self.find_struct_field(st, ident) {
@@ -656,6 +710,112 @@ impl<'cx> TypeChecker<'cx> {
             .unwrap_or_bug(self.dcx(), "type not found")
     }
 
+    fn check_cast(&self, expr: ExprId, target_ident: IdentId) -> TypeRef {
+        let source_type = self.check_expr(expr);
+
+        let Type::Struct(source_st) = self.ctx.get_type(source_type) else {
+            let span = MultiSpan::from_span(
+                self.hir.lookup_span(expr),
+                format!(
+                    "expected struct, found `{}`",
+                    self.get_type_ref_string(source_type)
+                ),
+            );
+            self.dcx()
+                .emit_span_err(span, "cannot cast non-struct type");
+            return self.ctx.builtins.error;
+        };
+
+        let target_sym_id = self.symbols.resolve(target_ident);
+        let target_ty_ref = self
+            .env
+            .symbols
+            .get(&target_sym_id)
+            .unwrap_or_bug(self.dcx(), "type not found");
+
+        let Type::Struct(target_st) = self.ctx.get_type(*target_ty_ref) else {
+            let name = self.get_sym_ident(target_sym_id);
+            let span = MultiSpan::from_span(self.hir.lookup_span(target_ident), "expected struct");
+            self.dcx()
+                .emit_span_err(span, format!("`{name}` is not a struct"));
+            return self.ctx.builtins.error;
+        };
+
+        if !self.check_structs_isomorphic(source_st, target_st, self.hir.lookup_span(target_ident))
+        {
+            self.ctx.builtins.error
+        } else {
+            *target_ty_ref
+        }
+    }
+
+    /// Checks if two structs are isomorphic (same field names and types).
+    ///
+    /// Emits errors for any mismatches.
+    fn check_structs_isomorphic(
+        &self,
+        source: &TypeStruct,
+        target: &TypeStruct,
+        target_span: Span,
+    ) -> bool {
+        let mut span = MultiSpan::new();
+
+        // Check that all source fields exist in target with same type
+        for source_field in &source.fields {
+            match target.fields.iter().find(|f| f.ident == source_field.ident) {
+                Some(target_field) => {
+                    if source_field.ty != target_field.ty {
+                        let msg = {
+                            let field_name = self.hir.lookup_ident(source_field.ident);
+                            let source_name = self.get_sym_ident(source.symbol);
+                            let source_type = self.get_type_ref_string(source_field.ty);
+                            let target_type = self.get_type_ref_string(target_field.ty);
+                            let target_name = self.get_sym_ident(target.symbol);
+                            format!(
+                                "field `{field_name}` has type `{source_type}` in `{source_name}`, \
+                                 but `{target_type}` in `{target_name}`"
+                            )
+                        };
+                        span.push_label(self.hir.lookup_span(source_field.ident), msg);
+                    }
+                }
+                None => {
+                    let field_name = self.ctx.get_ident(self.hir.lookup(source_field.ident).xref);
+                    let target_name = self.get_sym_ident(target.symbol);
+                    span.push_label(
+                        self.hir.lookup_span(source_field.ident),
+                        format!("field `{field_name}` not found in `{target_name}`"),
+                    );
+                }
+            }
+        }
+
+        // Check that all target fields exist in source
+        for target_field in &target.fields {
+            if !source.fields.iter().any(|f| f.ident == target_field.ident) {
+                let field_name = self.ctx.get_ident(self.hir.lookup(target_field.ident).xref);
+                let source_name = self.get_sym_ident(source.symbol);
+                span.push_label(
+                    self.hir.lookup_span(target_field.ident),
+                    format!("field `{field_name}` not found in `{source_name}`"),
+                );
+            }
+        }
+
+        if !span.is_empty() {
+            span.push_primary(target_span, "not isomorphic");
+            let source_name = self.get_sym_ident(source.symbol);
+            let target_name = self.get_sym_ident(target.symbol);
+            self.dcx().emit_span_err(
+                span,
+                format!("struct `{source_name}` cannot be cast to struct `{target_name}`"),
+            );
+            return false;
+        }
+
+        true
+    }
+
     fn check_intrinsic(&self, intrinsic: &'cx Intrinsic) -> TypeRef {
         match intrinsic {
             Intrinsic::Query(fact) => {
@@ -666,7 +826,6 @@ impl<'cx> TypeChecker<'cx> {
             }
             Intrinsic::FactCount(count_type, _limit, fact) => {
                 self.check_lit_fact(fact);
-
                 match count_type {
                     FactCountType::UpTo => self.ctx.builtins.int,
                     FactCountType::AtLeast | FactCountType::AtMost | FactCountType::Exactly => {
@@ -675,25 +834,36 @@ impl<'cx> TypeChecker<'cx> {
                 }
             }
             Intrinsic::Serialize(expr) => {
-                self.check_expr(*expr);
+                let xref = self.check_expr(*expr);
+                // `serialize` can only accept `struct` types.
+                let Type::Struct(_) = self.ctx.get_type(xref) else {
+                    // TODO(eric): USe an "InvalidArg"
+                    // diagnostic.
+                    self.dcx().emit_err_diag(TypeMismatch {
+                        span: self.hir.lookup_span(*expr),
+                        expected: "struct".into(),
+                        found: self.get_type_ref_string(xref),
+                        reason: None,
+                    });
+                    return self.ctx.builtins.error;
+                };
                 self.ctx.builtins.bytes
             }
             Intrinsic::Deserialize(expr) => {
-                let expr_type = self.check_expr(*expr);
-                // Check that expression is bytes type
-                if expr_type != self.ctx.builtins.bytes {
+                let ty = self.check_expr(*expr);
+                if ty != self.ctx.builtins.bytes {
                     self.dcx().emit_err_diag(TypeMismatch {
                         span: self.hir.lookup_span(*expr),
                         expected: self.get_type_ref_string(self.ctx.builtins.bytes),
-                        found: self.get_type_ref_string(expr_type),
+                        found: self.get_type_ref_string(ty),
                         reason: None,
                     });
                     return self.ctx.builtins.error;
                 }
-                // For now, return error type since we don't have context for target struct
-                // This will be improved when we have better context handling
-                self.ctx.builtins.error
+                // Return infer type for later type inference
+                self.ctx.builtins.infer
             }
+            Intrinsic::Todo => self.ctx.builtins.never,
         }
     }
 
