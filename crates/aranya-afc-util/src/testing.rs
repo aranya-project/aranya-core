@@ -18,12 +18,13 @@ use core::{
 
 use aranya_crypto::{
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, Rng,
+    IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},
+    policy::CmdId,
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
@@ -229,18 +230,14 @@ impl<T: TestImpl> Device<T> {
             .expect("device ID should be valid");
 
         let enc_sk = EncryptionKey::new(&mut eng);
-        let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
                 .expect("encryption public key should be valid"),
         );
 
-        let wrapped = eng
-            .wrap(enc_sk)
-            .expect("should be able to wrap `EncryptionKey`");
-        store
-            .try_insert(enc_key_id.into(), wrapped)
+        let enc_key_id = store
+            .insert_key(&mut eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -322,13 +319,12 @@ impl<T: TestImpl> Device<T> {
 /// # Example
 ///
 /// ```rust
-///
-/// use aranya_fast_channels::memory::State;
-/// use aranya_afc_util::testing::{test_all, MemStore, TestImpl, Device};
+/// use aranya_afc_util::testing::{Device, MemStore, TestImpl, test_all};
 /// use aranya_crypto::{
-///     default::{DefaultCipherSuite, DefaultEngine},
 ///     Rng,
+///     default::{DefaultCipherSuite, DefaultEngine},
 /// };
+/// use aranya_fast_channels::memory::State;
 ///
 /// struct DefaultImpl;
 ///
@@ -395,7 +391,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
@@ -501,7 +497,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
         head_id: parent_cmd_id,
@@ -609,7 +605,7 @@ where
     let mut peer = T::new(); // seal only
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
         head_id: parent_cmd_id,

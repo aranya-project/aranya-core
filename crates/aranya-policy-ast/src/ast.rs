@@ -80,6 +80,30 @@ impl<T> Deref for AstNode<T> {
     }
 }
 
+/// Persistence mode for commands and actions
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum Persistence {
+    /// Persisted on-graph (default behavior)
+    Persistent,
+    /// Not persisted on-graph (ephemeral)
+    Ephemeral,
+}
+
+impl fmt::Display for Persistence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Persistent => write!(f, "persistent"),
+            Self::Ephemeral => write!(f, "ephemeral"),
+        }
+    }
+}
+
+impl Default for Persistence {
+    fn default() -> Self {
+        Self::Persistent
+    }
+}
+
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
@@ -194,6 +218,8 @@ pub struct NamedStruct {
     pub identifier: Identifier,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Identifier, Expression)>,
+    /// sources is a list of identifiers used in struct composition
+    pub sources: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -253,6 +279,8 @@ pub enum InternalFunction {
     Serialize(Box<Expression>),
     /// Deserialize function
     Deserialize(Box<Expression>),
+    /// Not yet implemented panic
+    Todo,
 }
 
 /// A foreign function call with a list of arguments.
@@ -327,6 +355,8 @@ pub enum Expression {
     Block(Vec<AstNode<Statement>>, Box<Expression>),
     /// A substruct expression
     Substruct(Box<Expression>, Identifier),
+    /// Type cast expression
+    Cast(Box<Expression>, Identifier),
     /// Match expression
     Match(Box<MatchExpression>),
 }
@@ -523,6 +553,8 @@ pub struct FactDefinition {
 /// An action definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionDefinition {
+    /// The persistence mode of the action
+    pub persistence: Persistence,
     /// The name of the action
     pub identifier: Identifier,
     /// The arguments to the action
@@ -571,6 +603,8 @@ impl<T> StructItem<T> {
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
+    /// The persistence mode of the command
+    pub persistence: Persistence,
     /// Optional attributes
     pub attributes: Vec<(Identifier, Expression)>,
     /// The name of the command

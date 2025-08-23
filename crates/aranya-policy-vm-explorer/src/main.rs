@@ -7,7 +7,7 @@ use std::{
     io::{Read, stdin},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, Id, policy::CmdId};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
@@ -114,7 +114,6 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
 
 struct MachExpIO {
     facts: HashMap<(Identifier, FactKeyList), FactValueList>,
-    commands: Vec<(Identifier, Vec<KVPair>)>,
     effects: Vec<(Identifier, Vec<KVPair>)>,
 }
 
@@ -122,7 +121,6 @@ impl MachExpIO {
     fn new() -> Self {
         MachExpIO {
             facts: HashMap::new(),
-            commands: vec![],
             effects: vec![],
         }
     }
@@ -197,16 +195,11 @@ where
         })
     }
 
-    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
-        let fields = fields.into_iter().collect();
-        self.commands.push((name, fields))
-    }
-
     fn effect(
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        _command: Id,
+        _command: CmdId,
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
@@ -275,7 +268,7 @@ fn main() -> anyhow::Result<()> {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
                     name: name.clone(),
-                    head_id: Id::default(),
+                    head_id: CmdId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
@@ -284,8 +277,8 @@ fn main() -> anyhow::Result<()> {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
                     name: name.clone(),
-                    id: Id::default(),
-                    author: Id::default().into(),
+                    id: CmdId::default(),
+                    author: DeviceId::default(),
                     version: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
@@ -319,7 +312,10 @@ fn main() -> anyhow::Result<()> {
                 }
             }
 
-            drop(rs);
+            println!("Stack:");
+            for value in rs.stack.into_vec() {
+                println!("  {value}");
+            }
 
             println!("Facts:");
             for ((name, k), v) in &io.borrow().facts {
@@ -333,16 +329,9 @@ fn main() -> anyhow::Result<()> {
                 }
                 println!("}}");
             }
+
             println!("Effects:");
             for (name, fields) in &io.borrow().effects {
-                println!("  {} {{", name);
-                for f in fields {
-                    println!("    {}", f);
-                }
-                println!("  }}");
-            }
-            println!("Published Commands:");
-            for (name, fields) in &io.borrow().commands {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);

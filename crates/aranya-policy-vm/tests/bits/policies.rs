@@ -10,8 +10,8 @@ command Foo {
         a int,
         b int,
     }
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
     policy {
         let sum = this.a + this.b
         finish {
@@ -46,8 +46,8 @@ command Set {
     fields {
         a int,
     }
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
     policy {
         let x = this.a
         finish {
@@ -59,8 +59,8 @@ command Set {
 
 command Clear {
     fields {}
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
     policy {
         finish {
             delete Foo[]
@@ -70,8 +70,8 @@ command Clear {
 
 command Increment {
     fields {}
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
     policy {
         let r = unwrap query Foo[]=>{x: ?}
         let new_x = r.x + 1
@@ -83,13 +83,44 @@ command Increment {
 }
 "#;
 
+pub const POLICY_TEST_UPDATE: &str = r#"
+fact Foo[]=>{x int}
+
+command Set {
+    fields {
+        a int,
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        let x = this.a
+        finish {
+            create Foo[]=>{x: x}
+        }
+    }
+}
+
+command Increment {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        let r = unwrap query Foo[]=>{x: ?}
+        let new_x = r.x + 1
+        finish {
+            update Foo[]=>{x: 0} to {x: new_x}
+        }
+    }
+}
+"#;
+
 pub const POLICY_MATCH: &str = r#"
     command Result {
         fields {
             x int
         }
-        seal { return None }
-        open { return None }
+        seal { return todo() }
+        open { return todo() }
     }
 
     action foo(x int) {
@@ -109,12 +140,17 @@ pub const POLICY_IS: &str = r#"
         fields {
             x int
         }
-        seal { return None }
-        open { return None }
+        seal { return todo() }
+        open { return todo() }
+    }
+    command Empty {
+        fields { }
+        seal { return todo() }
+        open { return todo() }
     }
     action check_none(x optional int) {
         if x is None {
-            publish Result { x: None }
+            publish Empty { }
         }
         if x is Some {
             publish Result { x: unwrap x }

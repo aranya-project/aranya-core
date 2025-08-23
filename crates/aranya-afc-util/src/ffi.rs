@@ -9,9 +9,10 @@ use alloc::vec::Vec;
 use core::result::Result;
 
 use aranya_crypto::{
-    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
+    policy::CmdId,
 };
 use aranya_policy_vm::{
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
@@ -80,7 +81,7 @@ function create_bidi_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: CmdId,
         our_enc_key_id: EncryptionKeyId,
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
@@ -92,7 +93,7 @@ function create_bidi_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, our_enc_key_id.into())
+            .get_key(eng, our_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -106,19 +107,14 @@ function create_bidi_channel(
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into();
-        let wrapped = eng.wrap(author)?;
-        self.store
-            .lock()
-            .try_insert(key_id, wrapped)
-            .map_err(|err| {
-                error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let key_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AfcBidiChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id,
+            key_id: key_id.into(),
         })
     }
 
@@ -137,7 +133,7 @@ function create_uni_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
         seal_id: DeviceId,
@@ -149,7 +145,7 @@ function create_uni_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, author_enc_key_id.into())
+            .get_key(eng, author_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
@@ -163,19 +159,14 @@ function create_uni_channel(
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into();
-        let wrapped = eng.wrap(author)?;
-        self.store
-            .lock()
-            .try_insert(key_id, wrapped)
-            .map_err(|err| {
-                error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let key_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id,
+            key_id: key_id.into(),
         })
     }
 }

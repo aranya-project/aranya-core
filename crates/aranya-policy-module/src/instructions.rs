@@ -83,10 +83,8 @@ pub enum Instruction {
     Def(Identifier),
     /// Get a local value by name
     Get(Identifier),
-    /// Swap value at depth d with the top of the stack
-    Swap(usize), // TODO(chip): remove this or limit the argument to small values
-    /// Duplicate the value at depth d onto the top of the stack
-    Dup(usize),
+    /// Duplicate the value at the top of the stack
+    Dup,
     /// Remove a value from the top of the stack
     Pop,
     // control flow
@@ -117,10 +115,6 @@ pub enum Instruction {
     Sub,
     /// Logical negation
     Not,
-    /// Logical and
-    And,
-    /// Logical or
-    Or,
     /// Greater than
     Gt,
     /// Less than
@@ -145,6 +139,8 @@ pub enum Instruction {
     MStructSet(NonZeroUsize),
     /// Get multiple members from the struct
     MStructGet(NonZeroUsize),
+    /// Cast previous stack value to given type
+    Cast(Identifier),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -178,8 +174,7 @@ impl Display for Instruction {
             Instruction::Const(v) => write!(f, "const {v}"),
             Instruction::Def(ident) => write!(f, "def {ident}"),
             Instruction::Get(ident) => write!(f, "get {ident}"),
-            Instruction::Swap(d) => write!(f, "swap {d}"),
-            Instruction::Dup(d) => write!(f, "dup {d}"),
+            Instruction::Dup => write!(f, "dup"),
             Instruction::Pop => write!(f, "pop"),
             Instruction::Block => write!(f, "block"),
             Instruction::End => write!(f, "end"),
@@ -194,8 +189,6 @@ impl Display for Instruction {
             Instruction::Add => write!(f, "add"),
             Instruction::Sub => write!(f, "sub"),
             Instruction::Not => write!(f, "not"),
-            Instruction::And => write!(f, "and"),
-            Instruction::Or => write!(f, "or"),
             Instruction::Gt => write!(f, "gt"),
             Instruction::Lt => write!(f, "lt"),
             Instruction::Eq => write!(f, "eq"),
@@ -219,6 +212,7 @@ impl Display for Instruction {
             Instruction::Serialize => write!(f, "serialize"),
             Instruction::Deserialize => write!(f, "deserialize"),
             Instruction::Meta(m) => write!(f, "meta: {m}"),
+            Instruction::Cast(identifier) => write!(f, "cast {identifier}"),
         }
     }
 }

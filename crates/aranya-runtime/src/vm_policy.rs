@@ -129,7 +129,7 @@ use tracing::{error, info, instrument};
 
 use crate::{
     CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
-    command::{Command, CommandId},
+    command::{CmdId, Command},
     engine::{EngineError, NullSink, Policy, Sink},
 };
 
@@ -453,7 +453,7 @@ pub struct VmEffect {
     /// The fields of the effect.
     pub fields: Vec<KVPair>,
     /// The command ID that produced this effect
-    pub command: CommandId,
+    pub command: CmdId,
     /// Was this produced from a recall block?
     pub recalled: bool,
 }
@@ -519,7 +519,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 } => (
                     Some((
                         Envelope {
-                            parent_id: CommandId::default(),
+                            parent_id: CmdId::default(),
                             author_id,
                             command_id: command.id(),
                             payload: Cow::Borrowed(serialized_fields),
@@ -576,9 +576,9 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 .collect();
             let ctx = CommandContext::Policy(PolicyContext {
                 name: kind.clone(),
-                id: command.id().into(),
+                id: command.id(),
                 author: author_id,
-                version: CommandId::default().into(),
+                version: CmdId::default().into(),
             });
             self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
         }
@@ -607,7 +607,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent.id.into(),
+            head_id: ctx_parent.id,
         });
         {
             let mut rs = self.machine.create_run_state(&io, ctx);
@@ -631,21 +631,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             error!("should have command struct: {e}");
                             EngineError::InternalError
                         })?;
+                        let command_name = command_struct.name.clone();
 
-                        let fields = command_struct
-                            .fields
-                            .iter()
-                            .map(|(k, v)| KVPair::new(k.clone(), v.clone()));
-                        io.try_borrow_mut()
-                            .assume("should be able to borrow io")?
-                            .publish(command_struct.name.clone(), fields);
-
-                        let seal_ctx = rs
-                            .get_context()
-                            .seal_from_action(command_struct.name.clone())?;
+                        let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal
-                            .call_seal(command_struct.name.clone(), &command_struct)
+                            .call_seal(command_name.clone(), command_struct)
                             .map_err(|e| {
                                 error!("Cannot seal command: {}", e);
                                 EngineError::Panic
@@ -678,7 +669,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         };
 
                         let priority = if parent.is_some() {
-                            self.get_command_priority(&command_struct.name).into()
+                            self.get_command_priority(&command_name).into()
                         } else {
                             Priority::Init
                         };
@@ -688,14 +679,14 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                 // TODO(chip): where does the policy value come from?
                                 policy: 0u64.to_le_bytes(),
                                 author_id: envelope.author_id,
-                                kind: command_struct.name.clone(),
+                                kind: command_name.clone(),
                                 serialized_fields: &envelope.payload,
                                 signature: &envelope.signature,
                             },
                             Some(parent) => VmProtocolData::Basic {
                                 author_id: envelope.author_id,
                                 parent,
-                                kind: command_struct.name.clone(),
+                                kind: command_name.clone(),
                                 serialized_fields: &envelope.payload,
                                 signature: &envelope.signature,
                             },
@@ -719,7 +710,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        rs.update_context_with_new_head(new_command.id().into())?;
+                        rs.update_context_with_new_head(new_command.id())?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {
@@ -749,12 +740,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<Self::Command<'a>, EngineError> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
-        let id = aranya_crypto::merge_cmd_id::<E::CS>(
-            left.id.into_id().into(),
-            right.id.into_id().into(),
-        )
-        .into_id()
-        .into();
+        let id = aranya_crypto::merge_cmd_id::<E::CS>(left.id, right.id);
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
@@ -812,8 +798,8 @@ mod test {
                         {attrs}
                     }}
                     fields {{ }}
-                    seal {{ return None }}
-                    open {{ return None }}
+                    seal {{ return todo() }}
+                    open {{ return todo() }}
                     policy {{ }}
                 }}
                 "#

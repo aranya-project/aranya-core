@@ -243,8 +243,7 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             description: String::from("Integer overflow"),
             input: r#"18446744073709551617"#.to_string(),
             error_message: String::from(
-                "Invalid number: line 1 column 1: 18446744073709551617: \
-                number too large to fit in target type",
+                "Invalid number: line 1 column 1: number too large to fit in target type",
             ),
             rule: Rule::expression,
         },
@@ -255,24 +254,21 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             )"#
             .to_string(),
             error_message: String::from(
-                "Invalid number: line 2 column 17: 18446744073709551617: \
-                number too large to fit in target type",
+                "Invalid number: line 2 column 17: number too large to fit in target type",
             ),
             rule: Rule::expression,
         },
         ErrorInput {
             description: String::from("Invalid string escape"),
             input: r#""\\""#.to_string(),
-            error_message: String::from(
-                "Invalid string: line 1 column 1: \"\\\\\": invalid escape: \\",
-            ),
+            error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
             rule: Rule::expression,
         },
         ErrorInput {
             description: String::from("Expect Invalid substruct operation"),
             input: r#"x substruct 4"#.to_string(),
             error_message: String::from(
-                "Invalid substruct operation: line 1 column 3: substruct: Expression `Int(4)` to the right of the substruct operator must be an identifier",
+                "Invalid substruct operation: line 1 column 3: Expression `Int(4)` to the right of the substruct operator must be an identifier",
             ),
             rule: Rule::expression,
         },
@@ -572,6 +568,16 @@ fn parse_policy_test() -> Result<(), ParseError> {
             create Next[]=>{}
         }
 
+        
+        // ephemeral commands and actions
+
+        ephemeral command C {
+            fields {
+                x int
+            }
+        }
+
+        ephemeral action a() {}
     "#;
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
@@ -602,41 +608,54 @@ fn parse_policy_test() -> Result<(), ParseError> {
     );
     assert_eq!(
         policy.actions,
-        vec![AstNode::new(
-            ast::ActionDefinition {
-                identifier: ident!("add"),
-                arguments: vec![
-                    ast::FieldDefinition {
-                        identifier: ident!("x"),
-                        field_type: ast::VType::Int,
-                    },
-                    ast::FieldDefinition {
-                        identifier: ident!("y"),
-                        field_type: ast::VType::Int,
-                    },
-                ],
-                statements: vec![
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("obj"),
-                            expression: Expression::NamedStruct(ast::NamedStruct {
-                                identifier: ident!("Add"),
-                                fields: vec![(
-                                    ident!("count"),
-                                    Expression::Identifier(ident!("x")),
-                                )],
+        vec![
+            AstNode::new(
+                ast::ActionDefinition {
+                    persistence: ast::Persistence::Persistent,
+                    identifier: ident!("add"),
+                    arguments: vec![
+                        ast::FieldDefinition {
+                            identifier: ident!("x"),
+                            field_type: ast::VType::Int,
+                        },
+                        ast::FieldDefinition {
+                            identifier: ident!("y"),
+                            field_type: ast::VType::Int,
+                        },
+                    ],
+                    statements: vec![
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("obj"),
+                                expression: Expression::NamedStruct(ast::NamedStruct {
+                                    identifier: ident!("Add"),
+                                    fields: vec![(
+                                        ident!("count"),
+                                        Expression::Identifier(ident!("x")),
+                                    )],
+                                    sources: vec![],
+                                }),
                             }),
-                        }),
-                        227,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Publish(Expression::Identifier(ident!("obj"))),
-                        295,
-                    ),
-                ],
-            },
-            188,
-        )]
+                            227,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Publish(Expression::Identifier(ident!("obj"))),
+                            295,
+                        ),
+                    ],
+                },
+                188,
+            ),
+            AstNode::new(
+                ast::ActionDefinition {
+                    persistence: ast::Persistence::Ephemeral,
+                    identifier: ident!("a"),
+                    arguments: vec![],
+                    statements: vec![],
+                },
+                2339,
+            )
+        ]
     );
     assert_eq!(
         policy.effects,
@@ -661,336 +680,381 @@ fn parse_policy_test() -> Result<(), ParseError> {
     );
     assert_eq!(
         policy.commands,
-        vec![AstNode::new(
-            ast::CommandDefinition {
-                attributes: vec![],
-                identifier: ident!("Add"),
-                fields: vec![ast::StructItem::Field(ast::FieldDefinition {
-                    identifier: ident!("count"),
-                    field_type: ast::VType::Int,
-                })],
-                seal: vec![],
-                open: vec![],
-                policy: vec![
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("envelope_id"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
-                                module: ident!("envelope"),
-                                identifier: ident!("command_id"),
-                                arguments: vec![Expression::Identifier(ident!("envelope"))]
-                            },),
-                        }),
-                        519,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("author"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
-                                module: ident!("envelope"),
-                                identifier: ident!("author_id"),
-                                arguments: vec![Expression::Identifier(ident!("envelope"))]
-                            },),
-                        }),
-                        584,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("new_x"),
-                            expression: Expression::Add(
-                                Box::new(Expression::Identifier(ident!("x"))),
-                                Box::new(Expression::Identifier(ident!("count"))),
-                            ),
-                        }),
-                        643,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Check(ast::CheckStatement {
-                            expression: Expression::InternalFunction(
-                                ast::InternalFunction::Exists(ast::FactLiteral {
-                                    identifier: ident!("TestFact"),
-                                    key_fields: vec![(
-                                        ident!("v"),
-                                        FactField::Expression(Expression::String(text!("test"))),
-                                    )],
-                                    value_fields: Some(vec![]),
-                                }),
-                            ),
-                        }),
-                        681,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Match(ast::MatchStatement {
-                            expression: Expression::Identifier(ident!("x")),
-                            arms: vec![
-                                ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec![Expression::Int(0)]),
-                                    statements: vec![AstNode::new(
-                                        ast::Statement::Check(ast::CheckStatement {
-                                            expression: Expression::FunctionCall(
-                                                ast::FunctionCall {
-                                                    identifier: ident!("positive"),
-                                                    arguments: vec![Expression::Optional(Some(
-                                                        Box::new(Expression::Identifier(ident!(
-                                                            "new_x"
-                                                        ),),)
-                                                    ),)],
-                                                },
-                                            ),
-                                        }),
-                                        795,
-                                    )],
-                                },
-                                ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec!(Expression::Int(1))),
-                                    statements: vec![AstNode::new(
-                                        ast::Statement::Check(ast::CheckStatement {
-                                            expression: Expression::FunctionCall(
-                                                ast::FunctionCall {
-                                                    identifier: ident!("positive"),
-                                                    arguments: vec![Expression::Optional(None,)],
-                                                },
-                                            ),
-                                        }),
-                                        896,
-                                    )],
-                                },
-                                ast::MatchArm {
-                                    pattern: MatchPattern::Default,
-                                    statements: vec![],
-                                },
-                            ],
-                        }),
-                        734,
-                    ),
-                    AstNode::new(
-                        ast::Statement::If(ast::IfStatement {
-                            branches: vec![(
-                                Expression::Equal(
-                                    Box::new(Expression::Identifier(ident!("x"))),
-                                    Box::new(Expression::Int(3)),
-                                ),
-                                vec![AstNode::new(
-                                    ast::Statement::Check(ast::CheckStatement {
-                                        expression: Expression::LessThan(
-                                            Box::new(Expression::Identifier(ident!("new_x"))),
-                                            Box::new(Expression::Int(10)),
-                                        ),
-                                    }),
-                                    1056,
-                                )],
-                            )],
-                            fallback: None
-                        }),
-                        1024
-                    ),
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("a"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
-                                module: ident!("foo"),
-                                identifier: ident!("ext_func"),
-                                arguments: vec![Expression::Identifier(ident!("x"))],
+        vec![
+            AstNode::new(
+                ast::CommandDefinition {
+                    persistence: ast::Persistence::Persistent,
+                    attributes: vec![],
+                    identifier: ident!("Add"),
+                    fields: vec![ast::StructItem::Field(ast::FieldDefinition {
+                        identifier: ident!("count"),
+                        field_type: ast::VType::Int,
+                    })],
+                    seal: vec![],
+                    open: vec![],
+                    policy: vec![
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("envelope_id"),
+                                expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                                    module: ident!("envelope"),
+                                    identifier: ident!("command_id"),
+                                    arguments: vec![Expression::Identifier(ident!("envelope"))]
+                                },),
                             }),
-                        }),
-                        1108
-                    ),
-                    AstNode::new(
-                        ast::Statement::Finish(vec![
-                            AstNode::new(
-                                ast::Statement::Create(ast::CreateStatement {
-                                    fact: ast::FactLiteral {
-                                        identifier: ident!("F"),
+                            519,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("author"),
+                                expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                                    module: ident!("envelope"),
+                                    identifier: ident!("author_id"),
+                                    arguments: vec![Expression::Identifier(ident!("envelope"))]
+                                },),
+                            }),
+                            584,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("new_x"),
+                                expression: Expression::Add(
+                                    Box::new(Expression::Identifier(ident!("x"))),
+                                    Box::new(Expression::Identifier(ident!("count"))),
+                                ),
+                            }),
+                            643,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Check(ast::CheckStatement {
+                                expression: Expression::InternalFunction(
+                                    ast::InternalFunction::Exists(ast::FactLiteral {
+                                        identifier: ident!("TestFact"),
                                         key_fields: vec![(
                                             ident!("v"),
                                             FactField::Expression(Expression::String(text!(
-                                                "hello"
-                                            )),)
+                                                "test"
+                                            ))),
                                         )],
-                                        value_fields: Some(vec![
-                                            (
+                                        value_fields: Some(vec![]),
+                                    }),
+                                ),
+                            }),
+                            681,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Match(ast::MatchStatement {
+                                expression: Expression::Identifier(ident!("x")),
+                                arms: vec![
+                                    ast::MatchArm {
+                                        pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                        statements: vec![AstNode::new(
+                                            ast::Statement::Check(ast::CheckStatement {
+                                                expression: Expression::FunctionCall(
+                                                    ast::FunctionCall {
+                                                        identifier: ident!("positive"),
+                                                        arguments: vec![Expression::Optional(
+                                                            Some(Box::new(Expression::Identifier(
+                                                                ident!("new_x"),
+                                                            ),)),
+                                                        )],
+                                                    },
+                                                ),
+                                            }),
+                                            795,
+                                        )],
+                                    },
+                                    ast::MatchArm {
+                                        pattern: MatchPattern::Values(vec!(Expression::Int(1))),
+                                        statements: vec![AstNode::new(
+                                            ast::Statement::Check(ast::CheckStatement {
+                                                expression: Expression::FunctionCall(
+                                                    ast::FunctionCall {
+                                                        identifier: ident!("positive"),
+                                                        arguments: vec![
+                                                            Expression::Optional(None,)
+                                                        ],
+                                                    },
+                                                ),
+                                            }),
+                                            896,
+                                        )],
+                                    },
+                                    ast::MatchArm {
+                                        pattern: MatchPattern::Default,
+                                        statements: vec![],
+                                    },
+                                ],
+                            }),
+                            734,
+                        ),
+                        AstNode::new(
+                            ast::Statement::If(ast::IfStatement {
+                                branches: vec![(
+                                    Expression::Equal(
+                                        Box::new(Expression::Identifier(ident!("x"))),
+                                        Box::new(Expression::Int(3)),
+                                    ),
+                                    vec![AstNode::new(
+                                        ast::Statement::Check(ast::CheckStatement {
+                                            expression: Expression::LessThan(
+                                                Box::new(Expression::Identifier(ident!("new_x"))),
+                                                Box::new(Expression::Int(10)),
+                                            ),
+                                        }),
+                                        1056,
+                                    )],
+                                )],
+                                fallback: None
+                            }),
+                            1024
+                        ),
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("a"),
+                                expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                                    module: ident!("foo"),
+                                    identifier: ident!("ext_func"),
+                                    arguments: vec![Expression::Identifier(ident!("x"))],
+                                }),
+                            }),
+                            1108
+                        ),
+                        AstNode::new(
+                            ast::Statement::Finish(vec![
+                                AstNode::new(
+                                    ast::Statement::Create(ast::CreateStatement {
+                                        fact: ast::FactLiteral {
+                                            identifier: ident!("F"),
+                                            key_fields: vec![(
+                                                ident!("v"),
+                                                FactField::Expression(Expression::String(text!(
+                                                    "hello"
+                                                )),)
+                                            )],
+                                            value_fields: Some(vec![
+                                                (
+                                                    ident!("x"),
+                                                    FactField::Expression(Expression::Identifier(
+                                                        ident!("x")
+                                                    ),)
+                                                ),
+                                                (
+                                                    ident!("y"),
+                                                    FactField::Expression(Expression::Negative(
+                                                        Box::new(Expression::Identifier(ident!(
+                                                            "x"
+                                                        )),)
+                                                    )),
+                                                ),
+                                            ]),
+                                        },
+                                    }),
+                                    1179
+                                ),
+                                AstNode::new(
+                                    ast::Statement::Update(ast::UpdateStatement {
+                                        fact: ast::FactLiteral {
+                                            identifier: ident!("F"),
+                                            key_fields: vec![],
+                                            value_fields: Some(vec![(
                                                 ident!("x"),
                                                 FactField::Expression(Expression::Identifier(
                                                     ident!("x")
                                                 ),)
-                                            ),
-                                            (
-                                                ident!("y"),
-                                                FactField::Expression(Expression::Negative(
-                                                    Box::new(Expression::Identifier(ident!("x")),)
-                                                )),
-                                            ),
-                                        ]),
-                                    },
-                                }),
-                                1179
-                            ),
-                            AstNode::new(
-                                ast::Statement::Update(ast::UpdateStatement {
-                                    fact: ast::FactLiteral {
-                                        identifier: ident!("F"),
-                                        key_fields: vec![],
-                                        value_fields: Some(vec![(
+                                            )]),
+                                        },
+                                        to: vec![(
                                             ident!("x"),
                                             FactField::Expression(Expression::Identifier(ident!(
-                                                "x"
-                                            )),)
-                                        )]),
-                                    },
-                                    to: vec![(
-                                        ident!("x"),
-                                        FactField::Expression(Expression::Identifier(ident!(
-                                            "new_x"
-                                        )),)
-                                    )],
-                                }),
-                                1235
-                            ),
-                            AstNode::new(
-                                ast::Statement::Delete(ast::DeleteStatement {
-                                    fact: ast::FactLiteral {
-                                        identifier: ident!("F"),
-                                        key_fields: vec![(
-                                            ident!("v"),
-                                            FactField::Expression(Expression::String(text!(
-                                                "hello"
+                                                "new_x"
                                             )),)
                                         )],
-                                        value_fields: None,
-                                    },
-                                }),
-                                1288
-                            ),
-                            AstNode::new(
-                                ast::Statement::Emit(Expression::NamedStruct(ast::NamedStruct {
-                                    identifier: ident!("Added"),
-                                    fields: vec![
-                                        (ident!("x"), Expression::Identifier(ident!("new_x")),),
-                                        (ident!("y"), Expression::Identifier(ident!("count")),),
-                                    ],
-                                },)),
-                                1329
-                            ),
-                        ]),
-                        1150,
-                    ),
-                ],
-                recall: vec![
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("envelope_id"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
-                                module: ident!("envelope"),
-                                identifier: ident!("command_id"),
-                                arguments: vec![Expression::Identifier(ident!("envelope"))]
-                            },),
-                        }),
-                        1501,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("author"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
-                                module: ident!("envelope"),
-                                identifier: ident!("author_id"),
-                                arguments: vec![Expression::Identifier(ident!("envelope"))]
-                            },),
-                        }),
-                        1566,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("new_x"),
-                            expression: Expression::Add(
-                                Box::new(Expression::Identifier(ident!("x"))),
-                                Box::new(Expression::Identifier(ident!("count"))),
-                            ),
-                        }),
-                        1625,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Finish(vec![
-                            AstNode::new(
-                                ast::Statement::Create(ast::CreateStatement {
-                                    fact: ast::FactLiteral {
-                                        identifier: ident!("F"),
-                                        key_fields: vec![(
-                                            ident!("v"),
-                                            FactField::Expression(Expression::String(text!(
-                                                "hello"
-                                            ))),
-                                        )],
-                                        value_fields: Some(vec![
-                                            (
+                                    }),
+                                    1235
+                                ),
+                                AstNode::new(
+                                    ast::Statement::Delete(ast::DeleteStatement {
+                                        fact: ast::FactLiteral {
+                                            identifier: ident!("F"),
+                                            key_fields: vec![(
+                                                ident!("v"),
+                                                FactField::Expression(Expression::String(text!(
+                                                    "hello"
+                                                )),)
+                                            )],
+                                            value_fields: None,
+                                        },
+                                    }),
+                                    1288
+                                ),
+                                AstNode::new(
+                                    ast::Statement::Emit(Expression::NamedStruct(
+                                        ast::NamedStruct {
+                                            identifier: ident!("Added"),
+                                            fields: vec![
+                                                (
+                                                    ident!("x"),
+                                                    Expression::Identifier(ident!("new_x")),
+                                                ),
+                                                (
+                                                    ident!("y"),
+                                                    Expression::Identifier(ident!("count")),
+                                                ),
+                                            ],
+                                            sources: vec![],
+                                        },
+                                    )),
+                                    1329
+                                ),
+                            ]),
+                            1150,
+                        ),
+                    ],
+                    recall: vec![
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("envelope_id"),
+                                expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                                    module: ident!("envelope"),
+                                    identifier: ident!("command_id"),
+                                    arguments: vec![Expression::Identifier(ident!("envelope"))]
+                                },),
+                            }),
+                            1501,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("author"),
+                                expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                                    module: ident!("envelope"),
+                                    identifier: ident!("author_id"),
+                                    arguments: vec![Expression::Identifier(ident!("envelope"))]
+                                },),
+                            }),
+                            1566,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("new_x"),
+                                expression: Expression::Add(
+                                    Box::new(Expression::Identifier(ident!("x"))),
+                                    Box::new(Expression::Identifier(ident!("count"))),
+                                ),
+                            }),
+                            1625,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Finish(vec![
+                                AstNode::new(
+                                    ast::Statement::Create(ast::CreateStatement {
+                                        fact: ast::FactLiteral {
+                                            identifier: ident!("F"),
+                                            key_fields: vec![(
+                                                ident!("v"),
+                                                FactField::Expression(Expression::String(text!(
+                                                    "hello"
+                                                ))),
+                                            )],
+                                            value_fields: Some(vec![
+                                                (
+                                                    ident!("x"),
+                                                    FactField::Expression(Expression::Identifier(
+                                                        ident!("x")
+                                                    )),
+                                                ),
+                                                (
+                                                    ident!("y"),
+                                                    FactField::Expression(Expression::Negative(
+                                                        Box::new(Expression::Identifier(ident!(
+                                                            "x"
+                                                        )),)
+                                                    )),
+                                                ),
+                                            ]),
+                                        },
+                                    }),
+                                    1692
+                                ),
+                                AstNode::new(
+                                    ast::Statement::Update(ast::UpdateStatement {
+                                        fact: ast::FactLiteral {
+                                            identifier: ident!("F"),
+                                            key_fields: vec![],
+                                            value_fields: Some(vec![(
                                                 ident!("x"),
                                                 FactField::Expression(Expression::Identifier(
                                                     ident!("x")
-                                                )),
-                                            ),
-                                            (
-                                                ident!("y"),
-                                                FactField::Expression(Expression::Negative(
-                                                    Box::new(Expression::Identifier(ident!("x")),)
-                                                )),
-                                            ),
-                                        ]),
-                                    },
-                                }),
-                                1692
-                            ),
-                            AstNode::new(
-                                ast::Statement::Update(ast::UpdateStatement {
-                                    fact: ast::FactLiteral {
-                                        identifier: ident!("F"),
-                                        key_fields: vec![],
-                                        value_fields: Some(vec![(
+                                                ),)
+                                            )]),
+                                        },
+                                        to: vec![(
                                             ident!("x"),
                                             FactField::Expression(Expression::Identifier(ident!(
-                                                "x"
-                                            )),)
-                                        )]),
-                                    },
-                                    to: vec![(
-                                        ident!("x"),
-                                        FactField::Expression(Expression::Identifier(ident!(
-                                            "new_x"
-                                        )),)
-                                    )],
-                                }),
-                                1748
-                            ),
-                            AstNode::new(
-                                ast::Statement::Delete(ast::DeleteStatement {
-                                    fact: ast::FactLiteral {
-                                        identifier: ident!("F"),
-                                        key_fields: vec![(
-                                            ident!("v"),
-                                            FactField::Expression(Expression::String(text!(
-                                                "hello"
+                                                "new_x"
                                             )),)
                                         )],
-                                        value_fields: None,
-                                    },
-                                }),
-                                1801
-                            ),
-                            AstNode::new(
-                                ast::Statement::Emit(Expression::NamedStruct(ast::NamedStruct {
-                                    identifier: ident!("Added"),
-                                    fields: vec![
-                                        (ident!("x"), Expression::Identifier(ident!("new_x")),),
-                                        (ident!("y"), Expression::Identifier(ident!("count")),),
-                                    ],
-                                },)),
-                                1842
-                            ),
-                        ]),
-                        1663,
-                    ),
-                ],
-            },
-            406,
-        )]
+                                    }),
+                                    1748
+                                ),
+                                AstNode::new(
+                                    ast::Statement::Delete(ast::DeleteStatement {
+                                        fact: ast::FactLiteral {
+                                            identifier: ident!("F"),
+                                            key_fields: vec![(
+                                                ident!("v"),
+                                                FactField::Expression(Expression::String(text!(
+                                                    "hello"
+                                                )),)
+                                            )],
+                                            value_fields: None,
+                                        },
+                                    }),
+                                    1801
+                                ),
+                                AstNode::new(
+                                    ast::Statement::Emit(Expression::NamedStruct(
+                                        ast::NamedStruct {
+                                            identifier: ident!("Added"),
+                                            fields: vec![
+                                                (
+                                                    ident!("x"),
+                                                    Expression::Identifier(ident!("new_x")),
+                                                ),
+                                                (
+                                                    ident!("y"),
+                                                    Expression::Identifier(ident!("count")),
+                                                ),
+                                            ],
+                                            sources: vec![],
+                                        },
+                                    )),
+                                    1842
+                                ),
+                            ]),
+                            1663,
+                        ),
+                    ],
+                },
+                406,
+            ),
+            AstNode::new(
+                ast::CommandDefinition {
+                    persistence: ast::Persistence::Ephemeral,
+                    attributes: vec![],
+                    identifier: ident!("C"),
+                    fields: vec![ast::StructItem::Field(ast::FieldDefinition {
+                        identifier: ident!("x"),
+                        field_type: ast::VType::Int,
+                    })],
+                    policy: vec![],
+                    seal: vec![],
+                    open: vec![],
+                    recall: vec![],
+                },
+                2241,
+            )
+        ]
     );
     assert_eq!(
         policy.functions,
@@ -1181,7 +1245,7 @@ fn parse_struct() {
         }
 
         function convert(foo struct Foo) struct Bar {
-            return Bar {y: foo.x}
+            return Bar { y: foo.x, ...baz, ...thud }
         }
     "#
     .trim();
@@ -1221,6 +1285,7 @@ fn parse_struct() {
                                     ident!("x")
                                 )
                             )],
+                            sources: vec![ident!("baz"), ident!("thud")],
                         })
                     }),
                     108
@@ -1229,6 +1294,33 @@ fn parse_struct() {
             50
         )]
     );
+}
+
+#[test]
+#[allow(clippy::result_large_err)]
+fn parse_struct_composition() -> Result<(), PestError<Rule>> {
+    let input = "{ c: false, ...x }";
+
+    let struct_literal = PolicyParser::parse(Rule::struct_literal, input)?;
+
+    for field in struct_literal {
+        match field.as_rule() {
+            Rule::struct_literal_field => {
+                let mut parts = field.into_inner();
+                let field_name = parts.next().unwrap().as_str();
+                assert_eq!(field_name, "c");
+                let field_value = parts.next().unwrap().as_str();
+                assert_eq!(field_value, "false");
+            }
+            Rule::struct_composition => {
+                let identifer = field.into_inner().next().unwrap().as_str();
+                assert_eq!(identifer, "x");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
 }
 
 #[test]
@@ -1394,6 +1486,7 @@ fn parse_seal_open() {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
+                persistence: ast::Persistence::Persistent,
                 attributes: vec![],
                 identifier: ident!("Foo"),
                 fields: vec![],
@@ -1442,6 +1535,7 @@ fn parse_serialize_deserialize() {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
+                persistence: ast::Persistence::Persistent,
                 attributes: vec![],
                 identifier: ident!("Foo"),
                 fields: vec![],
@@ -1571,6 +1665,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
         policy.actions,
         vec![AstNode::new(
             ast::ActionDefinition {
+                persistence: ast::Persistence::Persistent,
                 identifier: ident!("foo"),
                 arguments: vec![],
                 statements: vec![
@@ -1611,6 +1706,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                                 (ident!("b"), Expression::Identifier(ident!("b")),),
                                 (ident!("c"), Expression::Identifier(ident!("c")),),
                             ],
+                            sources: vec![],
                         })),
                         183,
                     ),
@@ -1713,6 +1809,7 @@ fn test_action_call() -> anyhow::Result<()> {
         policy.actions[1],
         AstNode {
             inner: ast::ActionDefinition {
+                persistence: ast::Persistence::Persistent,
                 identifier: ident!("pong"),
                 arguments: vec![],
                 statements: vec![AstNode {
@@ -1935,5 +2032,64 @@ fn test_invalid_text() {
     for src in cases {
         let err = parse_policy_str(src, Version::V2).unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::InvalidString, "{src:?}");
+    }
+}
+
+#[test]
+fn test_error_line_number_in_chunks() {
+    let cases = [
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let int = 0
+```
+"#,
+            "Reserved identifier: line 6 column 9: int",
+        ),
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let x = 0
+```
+Next chunk:
+```policy
+    let x = 0
+    let y = "a\\0b"
+```
+        "#,
+            "Invalid string: line 11 column 13: invalid escape: \\",
+        ),
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let x = 0
+```
+Next chunk:
+```policy
+    let x = 0
+    let = 2
+```
+        "#,
+            r#"Syntax error: line 11 column 9:   --> 11:9
+   |
+11 |     let = 2
+   |         ^---
+   |
+   = expected identifier"#,
+        ),
+    ];
+
+    for (policy, expected) in cases {
+        let err = parse_policy_document(policy).unwrap_err();
+        assert_eq!(err.to_string(), expected);
     }
 }
