@@ -899,10 +899,7 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 /// Checks that `open` can decrypt ciphertexts from `seal`.
 fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc::OpenKey<CS>) {
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
+    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
 
     let (ciphertext, seq) = {
         let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<CS>::OVERHEAD];
@@ -933,10 +930,7 @@ fn assert_different_afc_keys<E: Engine>(
     open: &afc::OpenKey<E::CS>,
 ) {
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
+    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
 
     let (ciphertext, seq) = {
         let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
@@ -988,10 +982,7 @@ pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
+    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     // The upper bound is arbitrary. We obviously cannot test
     // all 2^61-1 integers.
@@ -1013,10 +1004,7 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
+    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
 
     // The first encryption should succeed since seq < max.
@@ -1044,10 +1032,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
+    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
 
@@ -1082,10 +1067,7 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
+    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
     for _ in 0..100 {
@@ -1116,14 +1098,8 @@ pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const GOOD_AD: afc::AuthData = afc::AuthData {
-        version: 1,
-        label: 2,
-    };
-    const WRONG_AD: afc::AuthData = afc::AuthData {
-        version: 3,
-        label: 4,
-    };
+    const GOOD_AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const WRONG_AD: afc::AuthData = afc::AuthData { version: 3, id: 4 };
 
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let seq = seal
@@ -1194,7 +1170,7 @@ fn assert_afc_bidi_keys_mismatch<E: Engine>(
 pub fn test_afc_derive_bidi_keys<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let ch1 = afc::BidiChannel {
         parent_cmd_id: CmdId::random(eng),
         our_sk: &sk1,
@@ -1207,7 +1183,7 @@ pub fn test_afc_derive_bidi_keys<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1217,7 +1193,7 @@ pub fn test_afc_derive_bidi_keys<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
-        label,
+        label_id,
     };
     assert_eq!(ch1.author_info(), ch2.peer_info());
     assert_eq!(ch1.peer_info(), ch2.author_info());
@@ -1247,7 +1223,7 @@ pub fn test_afc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label: 123,
+        label_id: LabelId::random(eng),
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1257,7 +1233,7 @@ pub fn test_afc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
-        label: 456,
+        label_id: LabelId::random(eng),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1279,7 +1255,7 @@ pub fn test_afc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
 pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::BidiChannel {
@@ -1294,7 +1270,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1304,7 +1280,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         their_id: DeviceId::random(eng),
-        label,
+        label_id,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1324,7 +1300,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::BidiChannel {
@@ -1339,7 +1315,7 @@ pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: CmdId::random(eng),
@@ -1349,7 +1325,7 @@ pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
-        label,
+        label_id,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1369,7 +1345,7 @@ pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::BidiChannel {
@@ -1384,7 +1360,7 @@ pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1394,7 +1370,7 @@ pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver id should be valid"),
         their_id: ch1.our_id,
-        label,
+        label_id,
     };
     // The info params are equal here because they do not
     // include the encryption key IDs. Those are mixed in
@@ -1415,7 +1391,7 @@ pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::BidiKeys`].
 pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = afc::BidiChannel {
@@ -1430,7 +1406,7 @@ pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label,
+        label_id,
     };
     let mut ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1440,7 +1416,7 @@ pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
-        label,
+        label_id,
     };
 
     let afc::BidiSecrets { peer, .. } = {
@@ -1479,7 +1455,7 @@ pub fn test_afc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label: 123,
+        label_id: LabelId::random(eng),
     };
 
     let afc::BidiSecrets { author: want, .. } =
@@ -1544,7 +1520,7 @@ fn assert_different_afc_uni_key<E: Engine>(
 pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let ch1 = afc::UniChannel {
         parent_cmd_id: CmdId::random(eng),
         our_sk: &sk1,
@@ -1557,7 +1533,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1567,7 +1543,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label,
+        label_id,
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1598,7 +1574,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label: 123,
+        label_id: LabelId::random(eng),
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1608,7 +1584,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label: 456,
+        label_id: LabelId::random(eng),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1627,7 +1603,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
 pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::UniChannel {
@@ -1642,7 +1618,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1652,7 +1628,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: DeviceId::random(eng),
-        label,
+        label_id,
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1671,7 +1647,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::UniChannel {
@@ -1686,7 +1662,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: CmdId::random(eng),
@@ -1696,7 +1672,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label,
+        label_id,
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1715,7 +1691,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::UniChannel {
@@ -1730,7 +1706,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label,
+        label_id,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1740,7 +1716,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label,
+        label_id,
     };
 
     let afc::UniSecrets { author, peer } =
@@ -1756,7 +1732,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::UniSealKey`]s.
 pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = afc::UniChannel {
@@ -1771,7 +1747,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label,
+        label_id,
     };
     let mut ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1781,7 +1757,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label,
+        label_id,
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1808,7 +1784,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::UniOpenKey`]s.
 pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = afc::UniChannel {
@@ -1823,7 +1799,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label,
+        label_id,
     };
     let mut ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1833,7 +1809,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label,
+        label_id,
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1873,7 +1849,7 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label: 123,
+        label_id: LabelId::random(eng),
     };
 
     let afc::UniSecrets { author: want, .. } =

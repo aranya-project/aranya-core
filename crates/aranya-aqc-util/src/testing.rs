@@ -400,7 +400,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
             author.device_id,
             peer.enc_pk.clone(),
             peer.device_id,
-            label_id,
+            label_id.into_id().into(),
         )
         .expect("author should be able to create a bidi channel");
 
@@ -489,7 +489,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label_id,
+            label_id.into_id().into(),
         )
         .expect("author should be able to create a uni channel");
 
@@ -580,7 +580,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label_id,
+            label_id.into_id().into(),
         )
         .expect("author should be able to create a uni channel");
 
@@ -674,7 +674,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
                     author.device_id,
                     peer.enc_pk.clone(),
                     peer.device_id,
-                    label_id,
+                    label_id.into_id().into(),
                 )
                 .expect("author should be able to create a bidi channel");
 
@@ -776,7 +776,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
                     author.device_id,
                     peer.enc_pk.clone(),
                     peer.device_id,
-                    label_id,
+                    label_id.into_id().into(),
                 )
                 .expect("author should be able to create a bidi channel");
 
@@ -886,7 +886,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
                     author.device_id,
                     peer.enc_pk.clone(),
                     peer.device_id,
-                    label_id,
+                    label_id.into_id().into(),
                 )
                 .expect("author should be able to create a bidi channel");
 

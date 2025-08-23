@@ -2,6 +2,7 @@
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
+    policy::LabelId,
     zeroize::Zeroize,
 };
 use buggy::BugExt;
@@ -12,7 +13,7 @@ use crate::{
     buf::Buf,
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
-    state::{AfcState, ChannelId, Label, NodeId},
+    state::{AfcState, ChannelId},
     util::debug,
 };
 
@@ -60,6 +61,7 @@ impl<S: AfcState> Client<S> {
     pub fn seal(
         &mut self,
         id: ChannelId,
+        label_id: LabelId,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -80,7 +82,7 @@ impl<S: AfcState> Client<S> {
             .split_last_chunk_mut()
             .assume("we've already checked that `dst` contains enough space")?;
 
-        self.do_seal(id, header, |aead, ad| {
+        self.do_seal(id, label_id, header, |aead, ad| {
             aead.seal(out, plaintext, ad).map_err(Into::into)
         })
         // This isn't necessary since AEAD encryption shouldn't
@@ -95,7 +97,12 @@ impl<S: AfcState> Client<S> {
     /// Encrypts and authenticates `data` for a channel.
     ///
     /// The resulting ciphertext is written in-place to `data`.
-    pub fn seal_in_place<T: Buf>(&mut self, id: ChannelId, data: &mut T) -> Result<Header, Error> {
+    pub fn seal_in_place<T: Buf>(
+        &mut self,
+        id: ChannelId,
+        label_id: LabelId,
+        data: &mut T,
+    ) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
         // over allocate, though, since we don't know if we'll be
         // performing future allocations.
@@ -117,7 +124,7 @@ impl<S: AfcState> Client<S> {
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
 
-        self.do_seal(id, header, |aead, ad| {
+        self.do_seal(id, label_id, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
         })
         // This isn't strictly necessary since AEAD
@@ -134,6 +141,7 @@ impl<S: AfcState> Client<S> {
     fn do_seal<F>(
         &mut self,
         id: ChannelId,
+        label_id: LabelId,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>
@@ -145,28 +153,24 @@ impl<S: AfcState> Client<S> {
     {
         debug!("finding seal info: id={id}");
 
-        let seq = self.state.seal(id, |aead| {
+        let seq = self.state.seal(id, label_id, |aead| {
             debug!("encrypting id={id}");
 
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
-                label: id.label().to_u32(),
+                id: id.to_u32(),
             };
             f(aead, &ad)
         })??;
         debug!("seq={seq}");
 
-        DataHeader {
-            seq,
-            label: id.label(),
-        }
-        .encode(header)?;
+        DataHeader { seq, id }.encode(header)?;
 
         Ok(Header {
             version: Version::current(),
             msg_type: MsgType::Data,
-            label: id.label(),
+            id,
         })
     }
 
@@ -181,23 +185,23 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open(
         &self,
-        peer: NodeId,
+        label_id: LabelId,
         dst: &mut [u8],
         ciphertext: &[u8],
-    ) -> Result<(Label, Seq), Error> {
+    ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
 
-        let (label, seq, ciphertext) = {
+        let (id, seq, ciphertext) = {
             let (ciphertext, header) = ciphertext
                 .split_last_chunk()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
-            (label, seq, ciphertext)
+            let DataHeader { id, seq, .. } = DataHeader::try_parse(header)?;
+            (id, seq, ciphertext)
         };
         debug!(
-            "peer={peer} label={label} seq={seq} ciphertext=[{:?}; {}]",
+            "id={id} label_id={label_id} seq={seq} ciphertext=[{:?}; {}]",
             ciphertext.as_ptr(),
             ciphertext.len()
         );
@@ -213,8 +217,7 @@ impl<S: AfcState> Client<S> {
             return Err(Error::BufferTooSmall);
         }
 
-        let id = ChannelId::new(peer, label);
-        self.do_open(id, seq, |aead, ad, seq| {
+        self.do_open(id, label_id, seq, |aead, ad, seq| {
             aead.open(dst, ciphertext, ad, seq).map_err(Into::into)
         })
         // For safety's sake, overwrite the output buffer if
@@ -225,7 +228,7 @@ impl<S: AfcState> Client<S> {
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok((label, seq))
+        Ok((label_id, seq))
     }
 
     /// Decrypts and authenticates the ciphertext `data` received
@@ -237,17 +240,21 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
-    pub fn open_in_place<T: Buf>(&self, peer: NodeId, data: &mut T) -> Result<(Label, Seq), Error> {
+    pub fn open_in_place<T: Buf>(
+        &self,
+        label_id: LabelId,
+        data: &mut T,
+    ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
 
         // Split `data` into its components.
-        let (label, seq, out, tag) = {
+        let (id, seq, out, tag) = {
             let (rest, header) = data
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
+            let DataHeader { id, seq, .. } = DataHeader::try_parse(header)?;
             #[allow(clippy::incompatible_msrv)] // clippy#12280
             let (ciphertext, tag) = rest
                 .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
@@ -255,17 +262,16 @@ impl<S: AfcState> Client<S> {
                 // definition we cannot authenticate the
                 // ciphertext.
                 .ok_or(Error::Authentication)?;
-            (label, seq, ciphertext, tag)
+            (id, seq, ciphertext, tag)
         };
         debug!(
-            "peer={peer} label={label} data=[{:?}; {}]",
+            "id={id} label_id={label_id} data=[{:?}; {}]",
             out.as_ptr(),
             out.len()
         );
 
-        let id = ChannelId::new(peer, label);
         let plaintext_len = out.len();
-        self.do_open(id, seq, |aead, ad, seq| {
+        self.do_open(id, label_id, seq, |aead, ad, seq| {
             aead.open_in_place(out, tag, ad, seq).map_err(Into::into)
         })
         // On success, get rid of the header and tag.
@@ -278,11 +284,11 @@ impl<S: AfcState> Client<S> {
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok((label, seq))
+        Ok((label_id, seq))
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: ChannelId, seq: Seq, f: F) -> Result<T, Error>
+    fn do_open<F, T>(&self, id: ChannelId, label_id: LabelId, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -295,9 +301,9 @@ impl<S: AfcState> Client<S> {
         let ad = AuthData {
             // TODO(eric): update `AuthData` to use `u16`.
             version: u32::from(Version::current().to_u16()),
-            label: id.label().to_u32(),
+            id: id.to_u32(),
         };
-        self.state.open(id, |aead| f(aead, &ad, seq))?
+        self.state.open(id, label_id, |aead| f(aead, &ad, seq))?
     }
 }
 
