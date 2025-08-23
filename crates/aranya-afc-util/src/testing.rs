@@ -24,9 +24,9 @@ use aranya_crypto::{
     },
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},
-    policy::CmdId,
+    policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
+use aranya_fast_channels::{self, AfcState, AranyaState, Client, NodeId};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use indexmap::IndexSet;
 use siphasher::sip::SipHasher13;
@@ -259,58 +259,55 @@ impl<T: TestImpl> Device<T> {
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
-    fn test_roundtrip(sealer: &mut Self, opener: &mut Self, label: Label) {
+    fn test_roundtrip(sealer: &mut Self, opener: &mut Self, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let opener_node_id = sealer.lookup(opener.device_id);
-            let id = ChannelId::new(opener_node_id, label);
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
             sealer
                 .afc_client
-                .seal(id, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({id}, ...): {err}"));
+                .seal(opener_node_id, label_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({opener_node_id}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_label_id, got_seq) = {
             let sealer_node_id = opener.lookup(sealer.device_id);
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
-            let (label, seq) = opener
+            let (label_id, seq) = opener
                 .afc_client
-                .open(sealer_node_id, &mut dst[..], &ciphertext[..])
+                .open(label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({sealer_node_id}, ...): {err}"));
-            (dst, label, seq)
+            (dst, label_id, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label);
+        assert_eq!(got_label_id, label_id);
         assert_eq!(got_seq, 0);
     }
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_bad_label(sealer: &mut Self, opener: &mut Self, label: Label) {
+    fn test_bad_label(sealer: &mut Self, opener: &mut Self, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let opener_node_id = sealer.lookup(opener.device_id);
-        let id = ChannelId::new(opener_node_id, label);
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
         let err = sealer
             .afc_client
-            .seal(id, &mut dst[..], GOLDEN.as_bytes())
+            .seal(opener_node_id, label_id, &mut dst[..], GOLDEN.as_bytes())
             .expect_err("should have failed");
-        assert_eq!(err, aranya_fast_channels::Error::NotFound(id));
+        assert_eq!(err, aranya_fast_channels::Error::InvalidLabel(label_id));
     }
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_wrong_direction(sealer: &mut Self, opener: &mut Self, label: Label) {
+    fn test_wrong_direction(sealer: &mut Self, opener: &mut Self, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let opener_node_id = sealer.lookup(opener.device_id);
-        let id = ChannelId::new(opener_node_id, label);
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
         let err = sealer
             .afc_client
-            .seal(id, &mut dst[..], GOLDEN.as_bytes())
+            .seal(opener_node_id, label_id, &mut dst[..], GOLDEN.as_bytes())
             .expect_err("should have failed");
-        assert_eq!(err, aranya_fast_channels::Error::NotFound(id));
+        assert_eq!(err, aranya_fast_channels::Error::NotFound(opener_node_id));
     }
 }
 
@@ -390,7 +387,7 @@ where
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label = Label::new(42);
+    let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
@@ -408,7 +405,7 @@ where
             author.device_id,
             peer.enc_pk.clone(),
             peer.device_id,
-            label.into(),
+            label_id,
         )
         .expect("author should be able to create a bidi channel");
 
@@ -425,17 +422,16 @@ where
                     author_enc_key_id: author.enc_key_id,
                     peer_id: peer.device_id,
                     peer_enc_pk: &peer.enc_pk,
-                    label,
+                    label_id,
                     key_id: key_id.into(),
                 },
             )
             .expect("author should be able to load bidi keys");
 
         let peer_node_id = author.lookup(peer.device_id);
-        let id = ChannelId::new(peer_node_id, label);
         author
             .afc_state
-            .add(id, keys.into())
+            .add(peer_node_id, keys.into(), label_id)
             .expect("author should be able to add channel");
     }
 
@@ -452,24 +448,24 @@ where
                     author_enc_pk: &author.enc_pk,
                     peer_id: peer.device_id,
                     peer_enc_key_id: peer.enc_key_id,
-                    label,
+                    label_id,
                     encap: &peer_encap,
                 },
             )
             .expect("peer should be able to load bidi keys");
 
         let author_node_id = peer.lookup(author.device_id);
-        let id = ChannelId::new(author_node_id, label);
         peer.afc_state
-            .add(id, keys.into())
+            .add(author_node_id, keys.into(), label_id)
             .expect("peer should be able to add channel");
     }
 
-    Device::test_roundtrip(&mut author, &mut peer, label);
-    Device::test_roundtrip(&mut peer, &mut author, label);
+    Device::test_roundtrip(&mut author, &mut peer, label_id);
+    Device::test_roundtrip(&mut peer, &mut author, label_id);
 
-    Device::test_bad_label(&mut author, &mut peer, Label::new(123));
-    Device::test_bad_label(&mut peer, &mut author, Label::new(123));
+    let bad_label = LabelId::random(&mut Rng);
+    Device::test_bad_label(&mut author, &mut peer, bad_label);
+    Device::test_bad_label(&mut peer, &mut author, bad_label);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -496,7 +492,7 @@ where
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label = Label::new(42);
+    let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
@@ -514,7 +510,7 @@ where
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label.into(),
+            label_id,
         )
         .expect("author should be able to create a uni channel");
 
@@ -532,7 +528,7 @@ where
                     open_id: peer.device_id,
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
-                    label,
+                    label_id,
                     key_id: key_id.into(),
                 },
             )
@@ -540,10 +536,9 @@ where
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
         let peer_node_id = author.lookup(peer.device_id);
-        let id = ChannelId::new(peer_node_id, label);
         author
             .afc_state
-            .add(id, keys.into())
+            .add(peer_node_id, keys.into(), label_id)
             .expect("author should be able to add channel");
     }
 
@@ -561,7 +556,7 @@ where
                     open_id: peer.device_id,
                     author_enc_pk: &author.enc_pk,
                     peer_enc_key_id: peer.enc_key_id,
-                    label,
+                    label_id,
                     encap: &peer_encap,
                 },
             )
@@ -569,15 +564,14 @@ where
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
         let author_node_id = peer.lookup(author.device_id);
-        let id = ChannelId::new(author_node_id, label);
         peer.afc_state
-            .add(id, keys.into())
+            .add(author_node_id, keys.into(), label_id)
             .expect("peer should be able to add channel");
     }
 
-    Device::test_roundtrip(&mut author, &mut peer, label);
-    Device::test_bad_label(&mut author, &mut peer, Label::new(123));
-    Device::test_wrong_direction(&mut peer, &mut author, label);
+    Device::test_roundtrip(&mut author, &mut peer, label_id);
+    Device::test_bad_label(&mut author, &mut peer, LabelId::random(&mut Rng));
+    Device::test_wrong_direction(&mut peer, &mut author, label_id);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -604,7 +598,7 @@ where
     let mut author = T::new(); // open only
     let mut peer = T::new(); // seal only
 
-    let label = Label::new(42);
+    let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
@@ -622,7 +616,7 @@ where
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label.into(),
+            label_id,
         )
         .expect("author should be able to create a uni channel");
 
@@ -640,7 +634,7 @@ where
                     open_id: author.device_id,
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
-                    label,
+                    label_id,
                     key_id: key_id.into(),
                 },
             )
@@ -648,10 +642,9 @@ where
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
         let peer_node_id = author.lookup(peer.device_id);
-        let id = ChannelId::new(peer_node_id, label);
         author
             .afc_state
-            .add(id, keys.into())
+            .add(peer_node_id, keys.into(), label_id)
             .expect("author should be able to add channel");
     }
 
@@ -669,7 +662,7 @@ where
                     open_id: author.device_id,
                     author_enc_pk: &author.enc_pk,
                     peer_enc_key_id: peer.enc_key_id,
-                    label,
+                    label_id,
                     encap: &peer_encap,
                 },
             )
@@ -677,13 +670,12 @@ where
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
         let author_node_id = peer.lookup(author.device_id);
-        let id = ChannelId::new(author_node_id, label);
         peer.afc_state
-            .add(id, keys.into())
+            .add(author_node_id, keys.into(), label_id)
             .expect("peer should be able to add channel");
     }
 
-    Device::test_roundtrip(&mut peer, &mut author, label);
-    Device::test_bad_label(&mut peer, &mut author, Label::new(123));
-    Device::test_wrong_direction(&mut author, &mut peer, label);
+    Device::test_roundtrip(&mut peer, &mut author, label_id);
+    Device::test_bad_label(&mut peer, &mut author, LabelId::random(&mut Rng));
+    Device::test_wrong_direction(&mut author, &mut peer, label_id);
 }

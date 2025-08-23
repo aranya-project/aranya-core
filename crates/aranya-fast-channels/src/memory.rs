@@ -10,14 +10,16 @@ use alloc::{collections::BTreeMap, sync::Arc};
 use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
 };
 use buggy::{Bug, BugExt};
 use derive_where::derive_where;
 
 use crate::{
+    ChannelId,
     error::Error,
     mutex::StdMutex,
-    state::{AfcState, AranyaState, ChannelId, Directed},
+    state::{AfcState, AranyaState, Directed},
 };
 
 /// An im-memory implementation of [`AfcState`] and
@@ -25,7 +27,7 @@ use crate::{
 #[derive_where(Clone, Default)]
 pub struct State<CS: CipherSuite> {
     #[allow(clippy::type_complexity)]
-    chans: Arc<StdMutex<BTreeMap<ChannelId, Directed<SealKey<CS>, OpenKey<CS>>>>>,
+    chans: Arc<StdMutex<BTreeMap<ChannelId, (Directed<SealKey<CS>, OpenKey<CS>>, LabelId)>>>,
 }
 
 impl<CS: CipherSuite> State<CS> {
@@ -41,29 +43,33 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, id: ChannelId, label_id: LabelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
     {
         let mut chans = self.chans.lock().assume("poisoned")?;
-        let key = chans
-            .get_mut(&id)
-            .ok_or(Error::NotFound(id))?
-            .seal_mut()
-            .ok_or(Error::NotFound(id))?;
+        let (key, chan_label_id) = chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+
+        if label_id != *chan_label_id {
+            return Err(Error::InvalidLabel(label_id));
+        }
+
+        let key = key.seal_mut().ok_or(Error::NotFound(id))?;
         Ok(f(key))
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: ChannelId, label_id: LabelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>,
     {
         let chans = self.chans.lock().assume("poisoned")?;
-        let key = chans
-            .get(&id)
-            .ok_or(Error::NotFound(id))?
-            .open()
-            .ok_or(Error::NotFound(id))?;
+        let (key, chan_label_id) = chans.get(&id).ok_or(Error::NotFound(id))?;
+
+        if label_id != *chan_label_id {
+            return Err(Error::InvalidLabel(label_id));
+        }
+        let key = key.open().ok_or(Error::NotFound(id))?;
+
         Ok(f(key))
     }
 
@@ -86,8 +92,12 @@ where
         &self,
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
     ) -> Result<(), Self::Error> {
-        self.chans.lock().assume("poisoned")?.insert(id, keys);
+        self.chans
+            .lock()
+            .assume("poisoned")?
+            .insert(id, (keys, label_id));
         Ok(())
     }
 
