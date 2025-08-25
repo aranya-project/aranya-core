@@ -8,7 +8,9 @@
 extern crate alloc;
 
 mod ast;
+mod span;
 mod util;
 
 pub use aranya_policy_text::*;
 pub use ast::*;
+pub use span::{Span, Spanned};
