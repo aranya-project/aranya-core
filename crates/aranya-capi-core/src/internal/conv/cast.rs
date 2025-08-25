@@ -599,6 +599,7 @@ mod tests {
 
         #[derive(Copy, Clone, Debug, Default)]
         #[repr(transparent)]
+        #[allow(dead_code)]
         struct C(B);
         unsafe impl NewType for C {
             type Inner = A;

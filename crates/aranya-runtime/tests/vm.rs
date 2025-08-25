@@ -22,20 +22,20 @@ fn new_engine() -> TestEngine {
 
 #[test]
 fn test_vmpolicy() {
-    vm::test_vmpolicy(new_engine()).unwrap()
+    vm::test_vmpolicy(new_engine()).unwrap();
 }
 
 #[test]
 fn test_query_fact_value() {
-    vm::test_query_fact_value(new_engine()).unwrap()
+    vm::test_query_fact_value(new_engine()).unwrap();
 }
 
 #[test]
 fn test_aranya_session() {
-    vm::test_aranya_session(new_engine()).unwrap()
+    vm::test_aranya_session(new_engine()).unwrap();
 }
 
 #[test]
 fn test_effect_metadata() {
-    vm::test_effect_metadata(new_engine(), new_engine()).unwrap()
+    vm::test_effect_metadata(new_engine(), new_engine()).unwrap();
 }

@@ -516,7 +516,7 @@ mod test {
                 );
             } else {
                 facts.insert("seq".into(), Keys::default(), data.into());
-            };
+            }
             Ok(())
         }
 
@@ -603,7 +603,7 @@ mod test {
             // We don't actually need any policy bytes, but the
             // transaction/storage requires it on init commands.
             match self.prior {
-                Prior::None { .. } => Some(b""),
+                Prior::None => Some(b""),
                 _ => None,
             }
         }
@@ -980,6 +980,6 @@ mod test {
             "i" < finalize "fff2";
         };
         let err = gb.commit().expect_err("merge should fail");
-        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}")
+        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
     }
 }

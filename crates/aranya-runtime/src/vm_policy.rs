@@ -861,6 +861,6 @@ mod test {
         assert_eq!(
             process("finalize: true, priority: 42"),
             Err(AttributeError::exclusive("Test", "finalize", "priority"))
-        )
+        );
     }
 }

@@ -877,7 +877,7 @@ pub mod graphviz {
                         Prior::Merge(..) => {
                             node.set("shape", "hexagon", false);
                         }
-                    };
+                    }
                 }
                 if i > 0 {
                     let previous = i.checked_sub(1).expect("i must be > 0");

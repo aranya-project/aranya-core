@@ -115,7 +115,7 @@ impl<CS: CipherSuite> State<CS> {
         let ptr = Mapping::open(path.as_ref(), flag, mode, layout.layout)?;
         if flag == Flag::Create {
             SharedMem::init(ptr.as_ptr(), max_chans, &layout);
-        };
+        }
         let state = Self {
             ptr,
             max_chans,
@@ -268,7 +268,7 @@ pub(super) struct Index(pub(super) usize);
 pub(super) struct Offset(usize);
 
 impl From<Offset> for usize {
-    fn from(val: Offset) -> usize {
+    fn from(val: Offset) -> Self {
         val.0
     }
 }
@@ -426,7 +426,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn as_uninit_mut(&mut self) -> &mut MaybeUninit<Self> {
         // SAFETY: `self` and `MaybeUninit<Self>` have the same
         // memory layout.
-        unsafe { &mut *(self as *mut ShmChan<CS>).cast::<MaybeUninit<ShmChan<CS>>>() }
+        unsafe { &mut *(self as *mut Self).cast::<MaybeUninit<Self>>() }
     }
 
     #[cfg(test)]
@@ -681,7 +681,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         // SAFETY: ptr is non-null, suitably aligned, and won't
         // wrap.
         let list = unsafe {
-            let ptr = (self as *const SharedMem<CS>).byte_add(off.into());
+            let ptr = (self as *const Self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
             &*ptr
         };
@@ -774,7 +774,7 @@ impl<CS: CipherSuite> ChanList<CS> {
     /// `max_chans`.
     fn new(max_chans: usize) -> Self {
         Self {
-            magic: ChanList::<CS>::MAGIC,
+            magic: Self::MAGIC,
             _pad0: [0u8; 4],
             data: Mutex::new(ChanListData {
                 generation: AtomicU32::new(0),

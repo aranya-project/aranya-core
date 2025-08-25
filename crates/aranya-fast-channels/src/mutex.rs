@@ -248,7 +248,7 @@ impl<T: ?Sized> Mutex<T> {
             Self::MUTEX_SLEEPING => futex_wake(&self.key, 1)?,
             Self::MUTEX_LOCKED => {}
             _ => ::buggy::bug!("invalid mutex state"),
-        };
+        }
         Ok(())
     }
 }

@@ -38,8 +38,8 @@ impl CountSink {
         self.count
     }
 
-    fn new() -> CountSink {
-        CountSink { count: 0 }
+    fn new() -> Self {
+        Self { count: 0 }
     }
 }
 
