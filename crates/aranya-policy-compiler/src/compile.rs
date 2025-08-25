@@ -1575,8 +1575,6 @@ impl<'a> CompileState<'a> {
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&fd.return_type) {
-                        println!("et = {et:?}");
-                        println!("rt = {:?}", fd.return_type);
                         return Err(self.err(CompileErrorType::InvalidType(format!(
                             "Return value of `{}()` must be {}",
                             fd.identifier,
@@ -2890,8 +2888,6 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Ensure we haven't already resolved this field from another source.
-                println!("cand = {:?}", src_field_defn.identifier.name);
-                println!("seen = {seen:?}");
                 if let Some(other) = seen.insert(
                     &src_field_defn.identifier.name,
                     src_struct_type_name.clone(),
@@ -2901,8 +2897,6 @@ impl<'a> CompileState<'a> {
                         other.name,
                     )));
                 }
-                println!("seen = {seen:?}");
-                println!();
 
                 // Ensure this field has the right type.
                 let base_struct_defn = base_struct_defns

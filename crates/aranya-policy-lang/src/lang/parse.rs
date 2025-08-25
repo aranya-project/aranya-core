@@ -947,35 +947,6 @@ impl ChunkParser<'_> {
         Ok(out)
     }
 
-    /// New version that returns new types with spans
-    fn parse_fact_literal_fields_new(
-        &self,
-        fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(Ident, FactField)>, ParseError> {
-        let mut out = vec![];
-
-        for field in fields {
-            let pc = descend(field.clone());
-            let identifier = pc.consume_ident(self)?;
-
-            let token = pc.consume()?;
-            let field_value = match token.as_rule() {
-                Rule::expression => FactField::Expression(self.parse_expression(token)?),
-                Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in fact field"),
-                        Some(token.as_span()),
-                    ));
-                }
-            };
-            out.push((identifier, field_value));
-        }
-
-        Ok(out)
-    }
-
     fn parse_action_call(&self, item: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
         assert_eq!(item.as_rule(), Rule::action_call);
 
@@ -1001,11 +972,11 @@ impl ChunkParser<'_> {
         let identifier = pc.consume_ident(self)?;
 
         let token = pc.consume_of_type(Rule::fact_literal_key)?;
-        let key_fields = self.parse_fact_literal_fields_new(token.into_inner())?;
+        let key_fields = self.parse_fact_literal_fields(token.into_inner())?;
 
         let value_fields = if pc.peek().is_some() {
             let token = pc.consume_of_type(Rule::fact_literal_value)?;
-            Some(self.parse_fact_literal_fields_new(token.into_inner())?)
+            Some(self.parse_fact_literal_fields(token.into_inner())?)
         } else {
             None
         };
