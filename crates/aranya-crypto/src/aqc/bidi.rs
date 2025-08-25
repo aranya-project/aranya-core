@@ -289,7 +289,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(BidiSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the bidirectional channel.

@@ -119,7 +119,7 @@ struct MachExpIO {
 
 impl MachExpIO {
     fn new() -> Self {
-        MachExpIO {
+        Self {
             facts: HashMap::new(),
             effects: vec![],
         }

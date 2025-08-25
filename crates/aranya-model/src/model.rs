@@ -317,7 +317,7 @@ where
 {
     /// Creates a new [`RuntimeModel`]
     pub fn new(client_factory: CF) -> Self {
-        RuntimeModel::<CF, CID, GID> {
+        Self {
             clients: BTreeMap::default(),
             storage_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),

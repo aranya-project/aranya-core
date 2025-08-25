@@ -41,7 +41,7 @@ pub struct CompileTarget {
 impl CompileTarget {
     /// Creates an empty `CompileTarget` with a given codemap. Used by the compiler.
     pub fn new(codemap: CodeMap) -> Self {
-        CompileTarget {
+        Self {
             progmem: vec![],
             labels: BTreeMap::new(),
             action_defs: BTreeMap::new(),

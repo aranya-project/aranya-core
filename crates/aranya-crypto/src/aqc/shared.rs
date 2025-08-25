@@ -123,8 +123,8 @@ impl<CS: CipherSuite> SendOrRecvCtx<CS> {
         T: Expand,
     {
         match self {
-            SendOrRecvCtx::Send(ctx) => ctx.export(context),
-            SendOrRecvCtx::Recv(ctx) => ctx.export(context),
+            Self::Send(ctx) => ctx.export(context),
+            Self::Recv(ctx) => ctx.export(context),
         }
     }
 }

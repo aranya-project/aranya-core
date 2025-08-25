@@ -63,7 +63,7 @@ impl Header {
     }
 
     /// Writes its byte representation to `out`.
-    pub fn encode(&self, out: &mut [u8; Header::PACKED_SIZE]) -> Result<(), HeaderError> {
+    pub fn encode(&self, out: &mut [u8; Self::PACKED_SIZE]) -> Result<(), HeaderError> {
         let (version_out, rest) = out
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `Version`")?;
@@ -119,7 +119,7 @@ impl DataHeader {
     }
 
     /// Writes the header to `out`.
-    pub fn encode(&self, out: &mut [u8; DataHeader::PACKED_SIZE]) -> Result<(), HeaderError> {
+    pub fn encode(&self, out: &mut [u8; Self::PACKED_SIZE]) -> Result<(), HeaderError> {
         let (label_out, rest) = out
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `Label`")?;

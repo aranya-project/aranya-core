@@ -33,7 +33,7 @@ impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiAuthorSecret<CS>)> fo
     fn transform(
         (ch, secret): (&BidiChannel<'_, CS>, BidiAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
-        BidiKeys::from_author_secret(ch, secret)
+        Self::from_author_secret(ch, secret)
     }
 }
 
@@ -129,7 +129,7 @@ impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiPeerEncap<CS>)> for B
     fn transform(
         (ch, secret): (&BidiChannel<'_, CS>, BidiPeerEncap<CS>),
     ) -> Result<Self, Self::Error> {
-        BidiKeys::from_peer_encap(ch, secret)
+        Self::from_peer_encap(ch, secret)
     }
 }
 

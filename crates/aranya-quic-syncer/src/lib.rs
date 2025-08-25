@@ -176,12 +176,12 @@ where
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
         server_addr: SocketAddr,
-    ) -> Result<Syncer<EN, SP, S>, QuicSyncError> {
+    ) -> Result<Self, QuicSyncError> {
         let client = Client::builder()
             .with_tls(cert)?
             .with_io("0.0.0.0:0")?
             .start()?;
-        Ok(Syncer {
+        Ok(Self {
             quic_client: client,
             remote_heads: BTreeMap::new(),
             sender,

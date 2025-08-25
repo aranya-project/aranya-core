@@ -32,6 +32,7 @@ cast_precision_loss = "warn"
 cast_sign_loss = "warn"
 panic = "warn"
 unwrap_used = "warn"
+use_self = "warn"
 wildcard_imports = "warn"
 
 [workspace.dependencies]

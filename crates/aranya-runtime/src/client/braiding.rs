@@ -177,7 +177,7 @@ mod strand_heap {
                 (cmd.priority(), cmd.id())
             };
 
-            Ok(Strand {
+            Ok(Self {
                 key,
                 next: location,
                 segment,

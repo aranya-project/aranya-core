@@ -70,11 +70,11 @@ pub enum StatementContext {
 impl fmt::Display for StatementContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StatementContext::Action(_) => write!(f, "action"),
-            StatementContext::CommandPolicy(_) => write!(f, "command policy block"),
-            StatementContext::CommandRecall(_) => write!(f, "command recall block"),
-            StatementContext::PureFunction(_) => write!(f, "pure function"),
-            StatementContext::Finish => write!(f, "finish block/function"),
+            Self::Action(_) => write!(f, "action"),
+            Self::CommandPolicy(_) => write!(f, "command policy block"),
+            Self::CommandRecall(_) => write!(f, "command recall block"),
+            Self::PureFunction(_) => write!(f, "pure function"),
+            Self::Finish => write!(f, "finish block/function"),
         }
     }
 }

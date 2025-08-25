@@ -31,8 +31,8 @@ impl FromStr for Version {
     #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "1" => Ok(Version::V1),
-            "2" => Ok(Version::V2),
+            "1" => Ok(Self::V1),
+            "2" => Ok(Self::V2),
             _ => Err(InvalidVersion),
         }
     }
@@ -59,8 +59,8 @@ pub struct AstNode<T> {
 
 impl<T> AstNode<T> {
     /// Create a new `AstNode` from a node and locator
-    pub fn new(inner: T, locator: usize) -> AstNode<T> {
-        AstNode { inner, locator }
+    pub fn new(inner: T, locator: usize) -> Self {
+        Self { inner, locator }
     }
 }
 
@@ -163,7 +163,7 @@ pub struct EffectFieldDefinition {
 /// dynamic information.
 impl From<&EffectFieldDefinition> for FieldDefinition {
     fn from(value: &EffectFieldDefinition) -> Self {
-        FieldDefinition {
+        Self {
             identifier: value.identifier.clone(),
             field_type: value.field_type.clone(),
         }
@@ -586,8 +586,8 @@ impl<T> StructItem<T> {
     /// Get the field definition from this struct item
     pub fn field(&self) -> Option<&T> {
         match self {
-            StructItem::Field(f) => Some(f),
-            StructItem::StructRef(_) => None,
+            Self::Field(f) => Some(f),
+            Self::StructRef(_) => None,
         }
     }
 }
@@ -687,8 +687,8 @@ pub struct Policy {
 
 impl Policy {
     /// Create a new `Policy` with the given source text.
-    pub fn new(version: Version, text: &str) -> Policy {
-        Policy {
+    pub fn new(version: Version, text: &str) -> Self {
+        Self {
             version,
             text: text.to_owned(),
             ..Default::default()

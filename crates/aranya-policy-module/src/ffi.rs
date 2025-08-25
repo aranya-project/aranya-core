@@ -45,14 +45,14 @@ impl Type<'_> {
 impl From<&Type<'_>> for VType {
     fn from(value: &Type<'_>) -> Self {
         match value {
-            Type::String => VType::String,
-            Type::Bytes => VType::Bytes,
-            Type::Int => VType::Int,
-            Type::Bool => VType::Bool,
-            Type::Id => VType::Id,
-            Type::Struct(s) => VType::Struct(s.clone()),
-            Type::Enum(e) => VType::Struct(e.clone()),
-            Type::Optional(t) => VType::Optional(Box::new((*t).into())),
+            Type::String => Self::String,
+            Type::Bytes => Self::Bytes,
+            Type::Int => Self::Int,
+            Type::Bool => Self::Bool,
+            Type::Id => Self::Id,
+            Type::Struct(s) => Self::Struct(s.clone()),
+            Type::Enum(e) => Self::Struct(e.clone()),
+            Type::Optional(t) => Self::Optional(Box::new((*t).into())),
         }
     }
 }

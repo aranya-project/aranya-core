@@ -27,7 +27,7 @@ pub struct Client<S> {
 impl<S> Client<S> {
     /// Create a [`Client`].
     pub const fn new(state: S) -> Self {
-        Client { state }
+        Self { state }
     }
 
     /// Returns the current state.

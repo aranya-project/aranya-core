@@ -37,14 +37,14 @@ pub struct TraceAnalyzerBuilder<'a> {
 }
 
 impl<'a> TraceAnalyzerBuilder<'a> {
-    pub fn new(m: &'a ModuleV0) -> TraceAnalyzerBuilder<'a> {
+    pub fn new(m: &'a ModuleV0) -> Self {
         TraceAnalyzerBuilder { m, tracers: vec![] }
     }
 }
 
 impl<'a> TraceAnalyzerBuilder<'a> {
     /// Add an [`Analyzer`] implementation.
-    pub fn add_analyzer<A>(mut self, mut tracer: A) -> TraceAnalyzerBuilder<'a>
+    pub fn add_analyzer<A>(mut self, mut tracer: A) -> Self
     where
         A: Analyzer + 'static,
     {

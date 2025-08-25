@@ -97,7 +97,7 @@ pub struct ChannelId {
 impl ChannelId {
     /// Creates a channel.
     pub const fn new(id: NodeId, label: Label) -> Self {
-        ChannelId { node_id: id, label }
+        Self { node_id: id, label }
     }
 
     /// Returns the team member's ID.
@@ -138,7 +138,7 @@ pub struct NodeId(u32);
 impl NodeId {
     /// Creates a [`NodeId`].
     pub const fn new(id: u32) -> Self {
-        NodeId(id)
+        Self(id)
     }
 
     /// The size in bytes of an ID.
@@ -202,7 +202,7 @@ impl Label {
     /// Creates a label from its little-endian
     /// representation.
     pub fn from_bytes(b: &[u8]) -> Self {
-        Label::new(LittleEndian::read_u32(b))
+        Self::new(LittleEndian::read_u32(b))
     }
 
     /// Converts the [`Label`] to its little-endian
@@ -375,18 +375,18 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Directed::SealOnly { seal: lhs }, Directed::SealOnly { seal: rhs }) => {
+            (Self::SealOnly { seal: lhs }, Self::SealOnly { seal: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
-            (Directed::OpenOnly { open: lhs }, Directed::OpenOnly { open: rhs }) => {
+            (Self::OpenOnly { open: lhs }, Self::OpenOnly { open: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
             (
-                Directed::Bidirectional {
+                Self::Bidirectional {
                     seal: lhs_seal,
                     open: lhs_open,
                 },
-                Directed::Bidirectional {
+                Self::Bidirectional {
                     seal: rhs_seal,
                     open: rhs_open,
                 },

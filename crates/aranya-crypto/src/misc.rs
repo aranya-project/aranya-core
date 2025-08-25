@@ -673,7 +673,7 @@ impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
             }
         }
         let pk = deserializer.deserialize_bytes(PkVisitor::<K>(PhantomData))?;
-        Ok(SerdeOwnedKey(pk))
+        Ok(Self(pk))
     }
 }
 

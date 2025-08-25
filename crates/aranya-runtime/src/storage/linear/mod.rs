@@ -278,7 +278,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 impl<W: Write> LinearStorage<W> {
     fn get_skip(
         &self,
-        segment: <LinearStorage<W> as Storage>::Segment,
+        segment: <Self as Storage>::Segment,
         max_cut: usize,
     ) -> Result<Option<(Location, usize)>, StorageError> {
         let mut head = segment;
@@ -1126,9 +1126,9 @@ impl<R: Read> Perspective for LinearPerspective<R> {
 impl From<Prior<Address>> for Prior<CmdId> {
     fn from(p: Prior<Address>) -> Self {
         match p {
-            Prior::None => Prior::None,
-            Prior::Single(l) => Prior::Single(l.id),
-            Prior::Merge(l, r) => Prior::Merge(l.id, r.id),
+            Prior::None => Self::None,
+            Prior::Single(l) => Self::Single(l.id),
+            Prior::Merge(l, r) => Self::Merge(l.id, r.id),
         }
     }
 }

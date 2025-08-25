@@ -328,7 +328,7 @@ impl fmt::Display for Repr {
 }
 
 impl Parse for Repr {
-    fn parse(input: ParseStream<'_>) -> Result<Repr> {
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
         // Taken from [`cxx`].
         // https://github.com/dtolnay/cxx/blob/afd4aa3f3d4e5d5e9a3a41d09df3408f5f86a469/syntax/attrs.rs#L230
         let begin = input.cursor();

@@ -60,8 +60,8 @@ pub struct ClientState<E, SP> {
 
 impl<E, SP> ClientState<E, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(engine: E, provider: SP) -> ClientState<E, SP> {
-        ClientState { engine, provider }
+    pub const fn new(engine: E, provider: SP) -> Self {
+        Self { engine, provider }
     }
 
     /// Provide access to the [`StorageProvider`].

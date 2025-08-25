@@ -142,7 +142,7 @@ impl Path {
 
     /// Creates an owned [`PathBuf`] with `path` joined to
     /// `self`.
-    pub fn join<P: AsRef<Path>>(&self, path: P) -> PathBuf {
+    pub fn join<P: AsRef<Self>>(&self, path: P) -> PathBuf {
         PathBuf::from_iter([self, path.as_ref()])
     }
 
@@ -277,8 +277,8 @@ impl_cmp_raw!(<> Path, [u8]);
 impl_cmp_raw!(<'a> Path, &'a [u8]);
 impl_cmp_raw!(<'a> &'a Path, [u8]);
 
-impl AsRef<Path> for Path {
-    fn as_ref(&self) -> &Path {
+impl AsRef<Self> for Path {
+    fn as_ref(&self) -> &Self {
         self
     }
 }

@@ -10,8 +10,8 @@ pub struct FunctionAnalyzer {
 }
 
 impl FunctionAnalyzer {
-    pub fn new() -> FunctionAnalyzer {
-        FunctionAnalyzer::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

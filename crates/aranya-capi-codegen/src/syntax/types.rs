@@ -85,7 +85,7 @@ impl Type {
     /// Converts `self` to `*mut self`.
     pub(crate) fn into_mut_ptr(self) -> Self {
         let span = Span::call_site();
-        Type::Ptr(Box::new(Ptr {
+        Self::Ptr(Box::new(Ptr {
             star_token: Token![*](span),
             const_token: None,
             mutability: Some(Token![mut](span)),
@@ -118,7 +118,7 @@ impl Type {
             Self::CStr(_) => Cow::Borrowed(self),
             Self::FnPtr(_f) => todo!(),
             Self::MaybeUninit(uninit) => do_match!(MaybeUninit, uninit),
-            Self::Named(_) => Cow::Owned(Type::unknown()),
+            Self::Named(_) => Cow::Owned(Self::unknown()),
             Self::Option(opt) => do_match!(Option, opt),
             Self::OwnedPtr(ptr) => do_match!(OwnedPtr, ptr),
             Self::Ptr(ptr) => do_match!(Ptr, ptr),

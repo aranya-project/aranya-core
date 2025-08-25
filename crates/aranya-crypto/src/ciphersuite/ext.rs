@@ -190,7 +190,7 @@ where
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        const { Oids::<CS>::all() }.iter().copied()
+        const { Self::all() }.iter().copied()
     }
 }
 

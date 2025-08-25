@@ -268,7 +268,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(UniSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the unirectional channel.
