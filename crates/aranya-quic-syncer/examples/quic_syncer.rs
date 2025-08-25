@@ -70,7 +70,7 @@ async fn sync_peer<EN, SP, S>(
     let fut = syncer.sync(client, sync_requester, sink, storage_id);
     match fut.await {
         Ok(_) => {}
-        Err(e) => println!("err: {:?}", e),
+        Err(e) => println!("err: {e:?}"),
     }
 }
 
@@ -135,7 +135,7 @@ async fn run(options: Opt) -> Result<()> {
                 sink.lock().await.deref_mut(),
             )
             .context("sync error")?;
-        println!("Storage id: {}", storage_id);
+        println!("Storage id: {storage_id}");
     } else if let Some(id) = options.storage_id {
         storage_id = id;
     } else {
@@ -193,7 +193,7 @@ impl Sink<TestEffect> for PrintSink {
     fn consume(&mut self, effect: TestEffect) {
         match effect {
             TestEffect::Got(g) => {
-                println!("received {}", g);
+                println!("received {g}");
             }
         }
     }

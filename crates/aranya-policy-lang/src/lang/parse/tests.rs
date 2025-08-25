@@ -300,7 +300,7 @@ fn parse_optional() {
     ];
     for (case, is_valid) in optional_types {
         let r = PolicyParser::parse(Rule::optional_t, case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+        assert!(*is_valid == r.is_ok(), "{case}: {r:?}");
     }
 }
 
@@ -464,7 +464,7 @@ fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     let mut let_parts = let_expr.into_inner();
     let_parts.next().unwrap(); // skip 'x' identifier
     let ffi_expr = let_parts.next().unwrap().into_inner().next().unwrap();
-    println!("> {}", ffi_expr);
+    println!("> {ffi_expr}");
     assert_eq!(ffi_expr.as_rule(), Rule::foreign_function_call);
 
     let mut f = ffi_expr.into_inner();
@@ -473,7 +473,7 @@ fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     // list of argument expressions
     let mut args = f.next().unwrap().into_inner();
     args.next().unwrap(); // skip identifier
-    println!("arg_expr {}", args);
+    println!("arg_expr {args}");
 
     // verify number and type of args
     assert_eq!(args.len(), 2);

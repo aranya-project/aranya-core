@@ -2572,12 +2572,12 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(!validate(&m), "Expected case to be valid: {p}");
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(validate(&m), "Expected case to be invalid: {p}");
     }
 }
 

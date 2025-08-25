@@ -61,7 +61,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let policy = parse_policy_str(&policy_text, version)?;
             match args.check_mode {
                 true => Ok(String::from("policy is valid")),
-                false => Ok(format!("{:#?}", policy)),
+                false => Ok(format!("{policy:#?}")),
             }
         }
         Mode::Expression => {
@@ -73,7 +73,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let mut p = ChunkParser::new(0, &pratt);
             let ast = p.parse_expression(token)?;
 
-            Ok(format!("{:#?}", ast))
+            Ok(format!("{ast:#?}"))
         }
     }
 }
@@ -81,11 +81,11 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
 fn output(res: anyhow::Result<String>) -> ExitCode {
     match res {
         Ok(s) => {
-            println!("{}", s);
+            println!("{s}");
             ExitCode::SUCCESS
         }
         Err(e) => {
-            println!("error: {}", e);
+            println!("error: {e}");
             ExitCode::from(1)
         }
     }

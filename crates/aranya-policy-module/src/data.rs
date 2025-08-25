@@ -177,7 +177,7 @@ impl Value {
             Self::Struct(s) => format!("Struct {}", s.name),
             Self::Fact(f) => format!("Fact {}", f.name),
             Self::Id(_) => String::from("Id"),
-            Self::Enum(name, _) => format!("Enum {}", name),
+            Self::Enum(name, _) => format!("Enum {name}"),
             Self::Identifier(_) => String::from("Identifier"),
             Self::None => String::from("None"),
         }
@@ -457,13 +457,13 @@ impl TryAsMut<Fact> for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(i) => write!(f, "{}", i),
-            Self::Bool(b) => write!(f, "{}", b),
-            Self::String(s) => write!(f, "\"{}\"", s),
+            Self::Int(i) => write!(f, "{i}"),
+            Self::Bool(b) => write!(f, "{b}"),
+            Self::String(s) => write!(f, "\"{s}\""),
             Self::Bytes(v) => {
                 write!(f, "b:")?;
                 for b in v {
-                    write!(f, "{:02X}", b)?;
+                    write!(f, "{b:02X}")?;
                 }
                 Ok(())
             }
@@ -542,7 +542,7 @@ impl From<HashableValue> for Value {
 impl Display for HashableValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let real_value: Value = self.to_owned().into();
-        write!(f, "{}", real_value)
+        write!(f, "{real_value}")
     }
 }
 
@@ -722,7 +722,7 @@ impl Display for Fact {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{k}: {v}")?;
         }
         write!(f, "]=>{{")?;
         i = false;
@@ -735,7 +735,7 @@ impl Display for Fact {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{k}: {v}")?;
         }
         write!(f, " }}")
     }
@@ -772,7 +772,7 @@ impl Display for Struct {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{k}: {v}")?;
         }
         write!(f, "}}")
     }

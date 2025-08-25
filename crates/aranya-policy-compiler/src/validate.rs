@@ -59,14 +59,13 @@ pub fn validate(module: &Module) -> bool {
                         match codemap.span_from_instruction(responsible_instruction) {
                             Ok(span) => {
                                 let (line, col) = span.start_linecol();
-                                println!(" at row {} col {}:", line, col);
+                                println!(" at row {line} col {col}:");
                                 println!("{}", span.as_str());
                             }
                             Err(e) => {
                                 println!();
                                 println!(
-                                    "  address {} is out of range in codemap: {}",
-                                    responsible_instruction, e
+                                    "  address {responsible_instruction} is out of range in codemap: {e}"
                                 );
                             }
                         }

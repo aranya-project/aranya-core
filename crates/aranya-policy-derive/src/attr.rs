@@ -102,7 +102,7 @@ fn get_lit_str2(
         if !suffix.is_empty() {
             Err(Error::new(
                 lit.span(),
-                format!("unexpected suffix `{}` on string literal", suffix),
+                format!("unexpected suffix `{suffix}` on string literal"),
             ))
         } else {
             Ok(lit.clone())
@@ -110,10 +110,7 @@ fn get_lit_str2(
     } else {
         Err(Error::new(
             expr.span(),
-            format!(
-                "expected {} attribute to be a string: `{} = \"...\"`",
-                name, meta_item_name
-            ),
+            format!("expected {name} attribute to be a string: `{meta_item_name} = \"...\"`"),
         ))
     }
 }

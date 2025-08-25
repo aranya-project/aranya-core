@@ -113,7 +113,7 @@ impl Display for MachineStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Executing => write!(f, "Executing"),
-            Self::Exited(reason) => write!(f, "Exited: {}", reason),
+            Self::Exited(reason) => write!(f, "Exited: {reason}"),
         }
     }
 }
@@ -290,19 +290,19 @@ impl Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
-            writeln!(f, "  {:4}  {}", addr, instr)?;
+            writeln!(f, "  {addr:4}  {instr}")?;
         }
         writeln!(f, "Labels:")?;
         for (k, v) in &self.labels {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         writeln!(f, "Fact definitions:")?;
         for (k, v) in &self.fact_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         writeln!(f, "Struct definitions:")?;
         for (k, v) in &self.struct_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         Ok(())
     }
@@ -970,8 +970,7 @@ where
                         let rhs_struct =
                             self.machine.struct_defs.get(&identifier).ok_or_else(|| {
                                 self.err(MachineErrorType::NotDefined(alloc::format!(
-                                    "struct `{}`",
-                                    identifier
+                                    "struct `{identifier}`"
                                 )))
                             })?;
 
@@ -983,9 +982,7 @@ where
                             // Check if the source struct has this field
                             let value = s.fields.get(field_name).ok_or_else(|| {
                                 self.err(MachineErrorType::Unknown(alloc::format!(
-                                    "cannot cast to `struct {}`: missing field `{}`",
-                                    identifier,
-                                    field_name
+                                    "cannot cast to `struct {identifier}`: missing field `{field_name}`"
                                 )))
                             })?;
 
@@ -1073,7 +1070,7 @@ where
     ) -> Result<(), MachineError> {
         #[cfg(feature = "bench")]
         self.stopwatch
-            .start(format!("setup_command: {}", name).as_str());
+            .start(format!("setup_command: {name}").as_str());
 
         self.setup_function(&Label::new(name.clone(), label_type))?;
 
@@ -1160,7 +1157,7 @@ where
     {
         #[cfg(feature = "bench")]
         self.stopwatch
-            .start(format!("setup_action: {}", name).as_str());
+            .start(format!("setup_action: {name}").as_str());
 
         // verify number and types of arguments
         let arg_def = self
@@ -1337,7 +1334,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "# Name table:")?;
         for (k, v) in &self.machine.labels {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         write!(f, "# Current defs")?;
         if !self.call_state.is_empty() {
@@ -1345,18 +1342,18 @@ where
         }
         writeln!(f, ":")?;
         for (k, v) in self.scope.locals() {
-            writeln!(f, "  {}: {}", k, v)?;
+            writeln!(f, "  {k}: {v}")?;
         }
         writeln!(f, "# Stack:")?;
         for v in &self.stack.0 {
-            write!(f, "{} ", v)?;
+            write!(f, "{v} ")?;
         }
         writeln!(f)?;
         writeln!(f, "# Program:")?;
         for (addr, instr) in self.machine.progmem.iter().enumerate() {
             for (k, v) in &self.machine.labels {
                 if *v == addr {
-                    writeln!(f, "{}:", k)?;
+                    writeln!(f, "{k}:")?;
                 }
             }
             if addr == self.pc() {
@@ -1364,7 +1361,7 @@ where
             } else {
                 write!(f, " ")?;
             }
-            writeln!(f, "  {:4}  {}", addr, instr)?;
+            writeln!(f, "  {addr:4}  {instr}")?;
         }
         Ok(())
     }

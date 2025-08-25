@@ -254,8 +254,7 @@ impl<'a> CompileState<'a> {
             match values.entry(value_name.clone()) {
                 indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                        "{}::{}",
-                        enum_name, value_name
+                        "{enum_name}::{value_name}"
                     ))));
                 }
                 indexmap::map::Entry::Vacant(e) => {
@@ -672,8 +671,7 @@ impl<'a> CompileState<'a> {
                     let condition_type = self.compile_expression(c)?;
                     if !condition_type.fits_type(&VType::Bool) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "if condition must be a boolean expression, was type {}",
-                            condition_type,
+                            "if condition must be a boolean expression, was type {condition_type}",
                         ))));
                     }
                     self.append_instruction(Instruction::Branch(Target::Unresolved(
@@ -871,8 +869,7 @@ impl<'a> CompileState<'a> {
             Expression::Identifier(i) => {
                 let t = self.identifier_types.get(i).map_err(|_| {
                     self.err(CompileErrorType::NotDefined(format!(
-                        "Unknown identifier `{}`",
-                        i
+                        "Unknown identifier `{i}`"
                     )))
                 })?;
 
@@ -902,8 +899,7 @@ impl<'a> CompileState<'a> {
                                 .find(|f| &f.identifier == s)
                                 .ok_or_else(|| {
                                     TypeError::new_owned(format!(
-                                        "Struct `{}` has no member `{}`",
-                                        name, s
+                                        "Struct `{name}` has no member `{s}`"
                                     ))
                                 })?;
                             Ok(NullableVType::Type(field_def.field_type.clone()))
@@ -1323,8 +1319,7 @@ impl<'a> CompileState<'a> {
                         let condition_type = self.compile_expression(cond)?;
                         if !condition_type.fits_type(&VType::Bool) {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "if condition must be a boolean expression, was type {}",
-                                condition_type,
+                                "if condition must be a boolean expression, was type {condition_type}",
                             ))));
                         }
 

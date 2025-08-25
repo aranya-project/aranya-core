@@ -169,7 +169,7 @@ fn sync_bench(c: &mut Criterion) {
                     )
                     .await
                 {
-                    println!("err: {:?}", e);
+                    println!("err: {e:?}");
                 }
             }
             let elapsed = start.elapsed();
