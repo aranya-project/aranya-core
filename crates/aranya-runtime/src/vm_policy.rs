@@ -580,7 +580,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 author: author_id,
                 version: CmdId::default().into(),
             });
-            self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
+            self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?;
         }
         Ok(())
     }
@@ -726,7 +726,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         info!("Panicked {}", self.source_location(&rs));
                         return Err(EngineError::Panic);
                     }
-                };
+                }
             }
         }
 

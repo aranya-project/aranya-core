@@ -132,7 +132,7 @@ impl KeyStore for Store {
                     // It doesn't exist yet, so create it.
                 }
                 Err(err) => return Err(err.into()),
-            };
+            }
             match Exclusive::create_new(&self.root, &*alias) {
                 Ok(fd) => {
                     break Entry::Vacant(VacantEntry::new(self.root.as_fd(), fd, alias));

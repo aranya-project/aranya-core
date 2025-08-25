@@ -212,5 +212,5 @@ pub fn readdir(dir: &mut OwnedDir) -> Result<Option<DirEntry<'_>>, Errno> {
 
 /// See `rewinddir(3p)`.
 pub fn rewinddir(dir: &mut OwnedDir) {
-    dir.rewinddir()
+    dir.rewinddir();
 }

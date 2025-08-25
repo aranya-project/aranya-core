@@ -62,7 +62,7 @@ impl PeerCache {
                 .push(command)
                 .ok()
                 .assume("command locations should not be full")?;
-        };
+        }
         Ok(())
     }
 }
@@ -269,7 +269,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             SyncRequestMessage::EndSession { .. } => {
                 self.state = SyncResponderState::Stopped;
             }
-        };
+        }
 
         Ok(())
     }

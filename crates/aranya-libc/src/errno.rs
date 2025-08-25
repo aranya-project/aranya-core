@@ -6,7 +6,7 @@ pub fn errno() -> Errno {
 }
 
 pub(crate) fn clear_errno() {
-    ::errno::set_errno(::errno::Errno(0))
+    ::errno::set_errno(::errno::Errno(0));
 }
 
 /// libc's `errno`.
@@ -65,7 +65,7 @@ mod tests {
         for (i, err) in CODES.into_iter().enumerate() {
             let got = err.to_string();
             eprintln!("{got:?}");
-            assert!(!got.is_empty(), "#{i}")
+            assert!(!got.is_empty(), "#{i}");
         }
     }
 }

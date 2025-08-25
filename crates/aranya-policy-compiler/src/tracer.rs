@@ -163,10 +163,10 @@ impl TraceAnalyzer<'_> {
                             instruction_path: self.instruction_path.clone(),
                             responsible_instruction: pc,
                             message: s,
-                        })
+                        });
                     }
                     _ => (),
-                };
+                }
             }
 
             match i {

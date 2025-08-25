@@ -42,7 +42,7 @@ fn encode_enc_pk<CS: CipherSuite>(pk: &EncryptionPublicKey<CS>) -> Vec<u8> {
 fn shuffle<T>(data: &mut [T]) {
     shuffle_by(data.len(), |i, j| {
         data.swap(i, j);
-    })
+    });
 }
 
 fn shuffle_by<F>(n: usize, mut swap: F)

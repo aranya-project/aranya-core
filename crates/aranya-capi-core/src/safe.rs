@@ -287,7 +287,7 @@ impl<T: Typed> Safe<T> {
 
 impl<T: Typed + Default> InitDefault for Safe<T> {
     fn init_default(out: &mut MaybeUninit<Self>) {
-        Self::init(out, T::default())
+        Self::init(out, T::default());
     }
 }
 
@@ -996,7 +996,7 @@ impl<T: ?Sized> PartialOrd for Valid<T> {
 
 impl<T: ?Sized> Hash for Valid<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ptr().hash(state)
+        self.as_ptr().hash(state);
     }
 }
 

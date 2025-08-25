@@ -141,7 +141,7 @@ pub struct TopicKey<CS: CipherSuite> {
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
 impl<CS: CipherSuite> Drop for TopicKey<CS> {
     fn drop(&mut self) {
-        self.seed.zeroize()
+        self.seed.zeroize();
     }
 }
 

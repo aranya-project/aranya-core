@@ -96,7 +96,7 @@ fn generate(cfg: Config, items: Vec<Item>) -> Result<TokenStream, BuildError> {
             Node::RustFn(f) => fns.push(f.into()),
             Node::Other(Item::Use(mut v)) => {
                 v.vis = parse_quote!(pub(super));
-                imports.push(v)
+                imports.push(v);
             }
             Node::Other(v) => other.push(v),
         }
@@ -155,5 +155,5 @@ pub fn dump(code: &TokenStream, path: &str) {
     File::create(path)
         .unwrap_or_else(|_| panic!("unable to create `{path}`"))
         .write_all(data.as_bytes())
-        .unwrap_or_else(|_| panic!("unable to write all data to `{path}`"))
+        .unwrap_or_else(|_| panic!("unable to write all data to `{path}`"));
 }

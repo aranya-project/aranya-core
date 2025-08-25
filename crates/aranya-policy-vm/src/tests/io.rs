@@ -36,7 +36,7 @@ impl fmt::Debug for TestIO {
 impl TestIO {
     pub fn new() -> Self {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
-        TestIO {
+        Self {
             facts: BTreeMap::new(),
             effect_stack: vec![],
             engine: RefCell::new(engine),

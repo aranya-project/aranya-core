@@ -419,7 +419,7 @@ where
                                     must_send: None,
                                     must_receive: None,
                                     max_syncs: 1,
-                                })
+                                });
                             }
                             _ => {}
                         }
@@ -433,7 +433,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
-                        })
+                        });
                     }
                     // Sync other clients with client 1 so all clients have the entire graph.
                     for i in 2..clients {
@@ -444,7 +444,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
-                        })
+                        });
                     }
                     // Sync the entire graph to client 0 at once.
                     generated_actions.push(TestRule::Sync {
@@ -465,7 +465,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
-                        })
+                        });
                     }
                     // Compare all graphs to ensure they're the same after syncing.
                     for i in 1..clients {
@@ -474,7 +474,7 @@ where
                             clientb: i,
                             graph,
                             equal: true,
-                        })
+                        });
                     }
                     generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
                     generated_actions
@@ -731,7 +731,7 @@ where
                 assert_eq!(actual_ids, expected_ids);
             }
             _ => {}
-        };
+        }
         #[cfg(any(test, feature = "std"))]
         if false {
             {
@@ -779,7 +779,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         request_state.commit(&mut request_trx, sink)?;
         let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
         request_state.update_heads(storage_id, addresses, request_cache)?;
-    };
+    }
 
     Ok((sent, received))
 }

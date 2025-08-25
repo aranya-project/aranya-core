@@ -345,7 +345,7 @@ impl ToTokens for Repr {
         let ident = format_ident!("{}", self.to_str());
         tokens.extend(quote! {
             #[repr(#ident)]
-        })
+        });
     }
 }
 

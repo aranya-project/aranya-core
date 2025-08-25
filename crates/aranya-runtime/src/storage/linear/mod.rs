@@ -1049,7 +1049,7 @@ impl<R: Read> QueryMut for LinearPerspective<R> {
 
     fn delete(&mut self, name: String, keys: Keys) {
         self.facts.delete(name.clone(), keys.clone());
-        self.current_updates.push((name, keys, None))
+        self.current_updates.push((name, keys, None));
     }
 }
 

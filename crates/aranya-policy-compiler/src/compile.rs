@@ -1053,7 +1053,7 @@ impl<'a> CompileState<'a> {
                         self.append_instruction(Instruction::Const(Value::Bool(true)));
                     }
                     _ => unreachable!(),
-                };
+                }
 
                 self.define_label(end, self.wp)?;
 

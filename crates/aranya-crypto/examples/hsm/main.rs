@@ -57,7 +57,7 @@ impl Default for HsmEngine {
 
 impl Csprng for HsmEngine {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
-        Rng.fill_bytes(dst)
+        Rng.fill_bytes(dst);
     }
 }
 

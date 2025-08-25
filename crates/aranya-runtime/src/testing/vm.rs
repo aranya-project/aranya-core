@@ -205,7 +205,7 @@ impl Sink<&[u8]> for MsgSink {
 
     fn consume(&mut self, effect: &[u8]) {
         trace!("sink consume");
-        self.0.push(effect.into())
+        self.0.push(effect.into());
     }
 
     fn rollback(&mut self) {
@@ -243,7 +243,7 @@ impl Sink<VmEffect> for VecSink {
 
     fn consume(&mut self, effect: VmEffect) {
         trace!("sink consume");
-        self.0.push(effect)
+        self.0.push(effect);
     }
 
     fn rollback(&mut self) {
@@ -560,7 +560,7 @@ fn test_sync<E, P, S>(
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
             cs2.add_commands(&mut req_transaction, sink, &cmds)
                 .expect("add commands");
-        };
+        }
     }
 
     cs2.commit(&mut req_transaction, sink).expect("commit");

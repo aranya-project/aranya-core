@@ -300,7 +300,7 @@ fn parse_optional() {
     ];
     for (case, is_valid) in optional_types {
         let r = PolicyParser::parse(Rule::optional_t, case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r)
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
 }
 
@@ -1409,7 +1409,7 @@ fn parse_ffi_decl() {
             ],
             return_type: Some(ast::VType::Bool)
         }
-    )
+    );
 }
 
 #[test]
@@ -1608,7 +1608,7 @@ fn parse_keyword_collision() -> anyhow::Result<()> {
 
     for text in texts {
         let policy = parse_policy_str(text, Version::V2);
-        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier))
+        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier));
     }
     Ok(())
 }

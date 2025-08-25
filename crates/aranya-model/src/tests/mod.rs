@@ -78,7 +78,7 @@ impl ClientFactory for BasicClientFactory {
     type PublicKeys = EmptyKeys;
     type Args = ();
 
-    fn create_client(&mut self, (): ()) -> ModelClient<BasicClientFactory> {
+    fn create_client(&mut self, (): ()) -> ModelClient<Self> {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
@@ -131,7 +131,7 @@ impl ClientFactory for FfiClientFactory {
     type PublicKeys = PublicKeys<DefaultCipherSuite>;
     type Args = ();
 
-    fn create_client(&mut self, (): ()) -> ModelClient<FfiClientFactory> {
+    fn create_client(&mut self, (): ()) -> ModelClient<Self> {
         // Setup keystore
         let temp_dir = tempdir().expect("should create temp directory");
         let root = temp_dir.into_path().join("client");
@@ -1113,7 +1113,7 @@ fn should_allow_access_to_fact_db_from_session() {
     // Observe that client B receives the commands from the client A session
     // and successfully processes the command to retrieve the current state of
     // the FactDB.
-    assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 42 })])
+    assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 42 })]);
 }
 
 // We want to test wether we can store our returned serialized ephemeral command

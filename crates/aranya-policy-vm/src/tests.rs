@@ -166,8 +166,8 @@ struct TestStack {
 }
 
 impl TestStack {
-    pub fn new() -> TestStack {
-        TestStack { stack: vec![] }
+    pub fn new() -> Self {
+        Self { stack: vec![] }
     }
 }
 

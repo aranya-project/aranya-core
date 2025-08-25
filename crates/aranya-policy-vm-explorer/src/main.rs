@@ -203,7 +203,7 @@ where
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
-        self.effects.push((name, fields))
+        self.effects.push((name, fields));
     }
 
     fn call(

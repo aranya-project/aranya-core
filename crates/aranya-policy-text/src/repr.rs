@@ -83,7 +83,7 @@ impl Ord for Repr {
 
 impl core::hash::Hash for Repr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
+        self.as_str().hash(state);
     }
 }
 
@@ -146,7 +146,7 @@ mod arc {
                     v.as_ptr(),
                     ptr::addr_of_mut!((*ptr.as_ptr()).data).cast::<u8>(),
                     v.len(),
-                )
+                );
             }
 
             Self { ptr }

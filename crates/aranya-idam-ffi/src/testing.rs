@@ -419,7 +419,7 @@ where
         assert!(
             bool::from(got.ct_eq(&want)),
             "`GroupKeys` differ, but have same ID"
-        )
+        );
     }
 
     /// Tests that we reject encrypted `GroupKey`s where the

@@ -200,7 +200,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     self.add_merge(storage, engine, sink, command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
-            };
+            }
         }
 
         Ok(count)

@@ -511,7 +511,7 @@ where
             }
             Instruction::Def(key) => {
                 let value = self.ipop_value()?;
-                self.scope.set(key, value)?
+                self.scope.set(key, value)?;
             }
             Instruction::Get(key) => {
                 let value = self.scope.get(&key)?;
