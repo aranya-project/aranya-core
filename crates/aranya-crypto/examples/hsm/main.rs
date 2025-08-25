@@ -176,20 +176,20 @@ impl<CS: CipherSuite> RawSecretBytes<CS> {
 }
 
 impl From<HsmError> for WrapError {
-    fn from(err: HsmError) -> WrapError {
+    fn from(err: HsmError) -> Self {
         match err {
-            HsmError::Bug(err) => WrapError::Bug(err),
-            _ => WrapError::Bug(Bug::new("non-wrap error")),
+            HsmError::Bug(err) => Self::Bug(err),
+            _ => Self::Bug(Bug::new("non-wrap error")),
         }
     }
 }
 
 impl From<HsmError> for UnwrapError {
-    fn from(err: HsmError) -> UnwrapError {
+    fn from(err: HsmError) -> Self {
         match err {
-            HsmError::Bug(err) => UnwrapError::Bug(err),
-            HsmError::Authentication => UnwrapError::Open(OpenError::Authentication),
-            _ => UnwrapError::Bug(Bug::new("non-unwrap error")),
+            HsmError::Bug(err) => Self::Bug(err),
+            HsmError::Authentication => Self::Open(OpenError::Authentication),
+            _ => Self::Bug(Bug::new("non-unwrap error")),
         }
     }
 }
@@ -268,12 +268,12 @@ impl KeyIdImpl {
 }
 
 impl From<HsmError> for SignerError {
-    fn from(err: HsmError) -> SignerError {
+    fn from(err: HsmError) -> Self {
         match err {
-            HsmError::NotFound(_) => SignerError::Other("key not found"),
-            HsmError::WrongKeyType => SignerError::Other("wrong key type"),
-            HsmError::Bug(err) => SignerError::Bug(err),
-            _ => SignerError::Bug(Bug::new("non-signer error")),
+            HsmError::NotFound(_) => Self::Other("key not found"),
+            HsmError::WrongKeyType => Self::Other("wrong key type"),
+            HsmError::Bug(err) => Self::Bug(err),
+            _ => Self::Bug(Bug::new("non-signer error")),
         }
     }
 }

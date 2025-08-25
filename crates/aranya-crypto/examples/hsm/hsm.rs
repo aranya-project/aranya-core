@@ -52,7 +52,7 @@ pub(crate) struct Hsm {
 
 impl Hsm {
     /// Returns a connection to the HSM.
-    fn get() -> &'static RwLock<Hsm> {
+    fn get() -> &'static RwLock<Self> {
         static HSM: OnceLock<RwLock<Hsm>> = OnceLock::new();
         HSM.get_or_init(|| {
             RwLock::new(Self {
@@ -63,12 +63,12 @@ impl Hsm {
     }
 
     /// Returns a read-only connection to the HSM.
-    pub fn read() -> RwLockReadGuard<'static, Hsm> {
+    pub fn read() -> RwLockReadGuard<'static, Self> {
         Self::get().read().expect("poisoned")
     }
 
     /// Returns a read-write connection to the HSM.
-    pub fn write() -> RwLockWriteGuard<'static, Hsm> {
+    pub fn write() -> RwLockWriteGuard<'static, Self> {
         Self::get().write().expect("poisoned")
     }
 }

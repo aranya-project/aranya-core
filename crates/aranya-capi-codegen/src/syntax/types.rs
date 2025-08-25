@@ -208,7 +208,7 @@ impl Type {
             syn::Type::Tuple(tuple) if tuple.elems.is_empty() => {
                 Unit::parse(ctx, tuple).map(Type::Unit)
             }
-            ty => Type::parse(ctx, ty),
+            ty => Self::parse(ctx, ty),
         }
     }
 
