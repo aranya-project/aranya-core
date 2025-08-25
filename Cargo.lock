@@ -391,6 +391,7 @@ dependencies = [
  "buggy",
  "ciborium",
  "clap",
+ "codespan-reporting",
  "indexmap",
  "thiserror 2.0.7",
  "tracing",
