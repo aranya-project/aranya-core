@@ -1,4 +1,4 @@
-use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit};
+use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit, ptr};
 
 use buggy::{Bug, BugExt as _};
 
@@ -67,7 +67,7 @@ impl<'a> CStrWriter<'a> {
 
         // SAFETY: `u8` and `MaybeUninit<u8>` have the same
         // size in memory.
-        let src = unsafe { &*(src as *const [u8] as *const [MaybeUninit<c_char>]) };
+        let src = unsafe { &*(ptr::from_ref::<[u8]>(src) as *const [MaybeUninit<c_char>]) };
         dst.copy_from_slice(src);
         *self.nw = end;
     }
@@ -122,7 +122,8 @@ mod tests {
                 // SAFETY: `u8` and `MaybeUninit<c_char>` have
                 // the same memory layout.
                 unsafe {
-                    &mut *(&mut dst[..want.len() - 1] as *mut [u8] as *mut [MaybeUninit<c_char>])
+                    &mut *(ptr::from_mut::<[u8]>(&mut dst[..want.len() - 1])
+                        as *mut [MaybeUninit<c_char>])
                 },
                 &input,
                 &mut n,
@@ -140,7 +141,10 @@ mod tests {
             let got = write_c_str(
                 // SAFETY: `u8` and `MaybeUninit<c_char>` have
                 // the same memory layout.
-                unsafe { &mut *(dst.as_mut_slice() as *mut [u8] as *mut [MaybeUninit<c_char>]) },
+                unsafe {
+                    &mut *(ptr::from_mut::<[u8]>(dst.as_mut_slice())
+                        as *mut [MaybeUninit<c_char>])
+                },
                 &input,
                 &mut n,
             );

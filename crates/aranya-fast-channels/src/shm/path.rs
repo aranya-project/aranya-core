@@ -1,6 +1,6 @@
 use core::{
     ffi::{CStr, c_char},
-    fmt, str,
+    fmt, ptr, str,
 };
 
 use cfg_if::cfg_if;
@@ -64,7 +64,7 @@ impl Path {
         Self::validate(path)?;
 
         // SAFETY: Path and [u8] must have the same layout.
-        Ok(unsafe { &*(path as *const [u8] as *const Self) })
+        Ok(unsafe { &*(ptr::from_ref::<[u8]>(path) as *const Self) })
     }
 
     pub(crate) fn as_ptr(&self) -> *const c_char {

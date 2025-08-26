@@ -426,7 +426,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn as_uninit_mut(&mut self) -> &mut MaybeUninit<Self> {
         // SAFETY: `self` and `MaybeUninit<Self>` have the same
         // memory layout.
-        unsafe { &mut *(self as *mut Self).cast::<MaybeUninit<Self>>() }
+        unsafe { &mut *ptr::from_mut::<Self>(self).cast::<MaybeUninit<Self>>() }
     }
 
     #[cfg(test)]
@@ -681,7 +681,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         // SAFETY: ptr is non-null, suitably aligned, and won't
         // wrap.
         let list = unsafe {
-            let ptr = (self as *const Self).byte_add(off.into());
+            let ptr = ptr::from_ref::<Self>(self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
             &*ptr
         };
