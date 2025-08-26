@@ -257,7 +257,7 @@ impl<T: ?Sized> Mutex<T> {
 mod linux {
     use core::{ptr, sync::atomic::AtomicU32};
 
-    use buggy::{Bug, BugExt};
+    use buggy::{Bug, BugExt as _};
     use libc::{FUTEX_WAIT, FUTEX_WAKE, SYS_futex, c_int, syscall, timespec};
 
     use crate::errno::{Errno, errno};
@@ -282,7 +282,7 @@ mod linux {
 
     pub fn futex_wait(uaddr: &AtomicU32, val: u32) {
         let _ = futex(
-            uaddr as *const AtomicU32,
+            ptr::from_ref::<AtomicU32>(uaddr),
             FUTEX_WAIT,
             val,
             ptr::null_mut(),
@@ -293,7 +293,7 @@ mod linux {
 
     pub fn futex_wake(uaddr: &AtomicU32, cnt: u32) -> Result<(), Bug> {
         futex(
-            uaddr as *const AtomicU32,
+            ptr::from_ref::<AtomicU32>(uaddr),
             FUTEX_WAKE,
             cnt,
             ptr::null_mut(),
