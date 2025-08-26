@@ -2,7 +2,8 @@ use std::{collections::HashSet, fs::File, io::Write as _};
 
 use aranya_policy_lang::{
     ast::{
-        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType,
+        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, Identifier, StructDefinition,
+        StructItem, VType,
     },
     lang,
 };
@@ -169,7 +170,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
     let enum_defs = enums.iter().map(|d| {
         let name = d.inner.identifier.as_str();
-        let variants = d.inner.variants.iter().map(|v| v.as_str());
+        let variants = d.inner.variants.iter().map(Identifier::as_str);
         quote! {
             #vm::ffi::Enum {
                 name: #vm::ident!(#name),
@@ -247,7 +248,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         //    __some_func,
         //    __another_func,
         //    ...
-        let variants = funcs.iter().map(|f| f.variant()).collect::<Vec<_>>();
+        let variants = funcs.iter().map(Func::variant).collect::<Vec<_>>();
 
         // The `__Func` variants mapped from `usize`:
         //    const __some_func = Self::some_func as usize;

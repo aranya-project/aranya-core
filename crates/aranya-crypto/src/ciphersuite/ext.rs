@@ -94,7 +94,7 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
 impl<CS: CipherSuite> CipherSuiteExt for CS {
     fn tuple_hash<const N: usize>(tag: &[u8], context: [&[u8]; N]) -> Digest<Self> {
         let iter = iter::once(tag)
-            .chain(CS::OIDS.into_iter().map(|oid| oid.as_bytes()))
+            .chain(CS::OIDS.into_iter().map(Oid::as_bytes))
             .chain(context.iter().copied());
         hash::tuple_hash::<Self::Hash, _>(iter)
     }
@@ -123,7 +123,7 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
     {
         let size = T::Size::U16.to_be_bytes();
         let labeled_info = iter::once(&size)
-            .map(|v| v.as_ref())
+            .map(AsRef::as_ref)
             .chain(iter::once(domain))
             .chain(
                 #[allow(clippy::useless_conversion, reason = "It helps with type inference")]

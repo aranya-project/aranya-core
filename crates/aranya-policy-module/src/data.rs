@@ -758,7 +758,7 @@ impl Struct {
     ) -> Self {
         Self {
             name,
-            fields: fields.into_iter().map(|p| p.into()).collect(),
+            fields: fields.into_iter().map(Into::into).collect(),
         }
     }
 }

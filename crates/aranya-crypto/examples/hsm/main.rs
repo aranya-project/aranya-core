@@ -364,7 +364,7 @@ impl PublicKey for HsmVerifyingKey {
 
     fn export(&self) -> Self::Data {
         Hsm::read()
-            .verifying_key(self.0, |pk| pk.export())
+            .verifying_key(self.0, PublicKey::export)
             .expect("see issues/519")
     }
 }

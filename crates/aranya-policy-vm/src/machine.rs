@@ -835,8 +835,8 @@ where
                     Some(r) => {
                         let f = r?;
                         let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
-                        fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
                         let s = Struct::new(qf.name, fields);
                         self.ipush(s)?;
                     }
@@ -896,8 +896,8 @@ where
                     Some(result) => {
                         let (k, v) = result?;
                         let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut k.into_iter().map(|e| e.into()).collect());
-                        fields.append(&mut v.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut k.into_iter().map(Into::into).collect());
+                        fields.append(&mut v.into_iter().map(Into::into).collect());
                         let s = Struct::new(ident.clone(), fields);
                         self.scope.set(ident, Value::Struct(s))?;
                         self.ipush(Value::Bool(false))?;
@@ -1165,7 +1165,7 @@ where
             .action_defs
             .get(&name)
             .ok_or_else(|| MachineError::new(MachineErrorType::NotDefined(name.to_string())))?;
-        let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
+        let args: Vec<Value> = args.into_iter().map(Into::into).collect();
         if args.len() != arg_def.len() {
             return Err(MachineError::new(MachineErrorType::Unknown(
                 alloc::format!(
