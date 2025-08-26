@@ -7,7 +7,7 @@ use buggy::Bug;
 use crate::compile::StatementContext;
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidCallColor {
     /// The call is a pure function
     #[error("pure function not allowed in finish context")]

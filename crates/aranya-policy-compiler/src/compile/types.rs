@@ -11,7 +11,7 @@ use ast::VType;
 use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeError(Cow<'static, str>);
 
 impl TypeError {

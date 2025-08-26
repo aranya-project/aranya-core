@@ -195,7 +195,7 @@ pub trait Model {
 }
 
 /// Holds a collection of effect data.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[derive_where(Default)]
 pub struct VecSink<E> {
     /// Effects from executing a policy action.

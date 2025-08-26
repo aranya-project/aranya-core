@@ -49,7 +49,7 @@ impl fmt::Display for Version {
 }
 
 /// An AST node with location information
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstNode<T> {
     /// The AST element contained within
     pub inner: T,
@@ -149,7 +149,7 @@ pub struct FieldDefinition {
 /// An identifier and its type and dynamic effect marker
 ///
 /// A variant used exclusively for Effects
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectFieldDefinition {
     /// the field's name
     pub identifier: Identifier,
@@ -214,7 +214,7 @@ pub struct NamedStruct {
     pub sources: Vec<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
@@ -223,7 +223,7 @@ pub struct EnumDefinition {
     pub variants: Vec<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// A reference to an enumeration, e.g. `Color::Red`.
 pub struct EnumReference {
     /// enum name
@@ -233,7 +233,7 @@ pub struct EnumReference {
 }
 
 /// How many facts to expect when counting
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FactCountType {
     /// Up to
     UpTo,
@@ -355,7 +355,7 @@ pub enum Expression {
 
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FunctionDecl {
     /// The identifier of the function
     pub identifier: Identifier,
@@ -422,7 +422,7 @@ pub struct MatchExpression {
 }
 
 /// A container for a statement or expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LanguageContext<A, B> {
     /// statement
     Statement(A),
@@ -556,7 +556,7 @@ pub struct ActionDefinition {
 }
 
 /// An effect definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectDefinition {
     /// The name of the effect
     pub identifier: Identifier,
@@ -565,7 +565,7 @@ pub struct EffectDefinition {
 }
 
 /// A struct definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructDefinition {
     /// The name of the struct
     pub identifier: Identifier,
@@ -574,7 +574,7 @@ pub struct StructDefinition {
 }
 
 /// Struct field or insertion reference
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructItem<T> {
     /// Field definition
     Field(T),

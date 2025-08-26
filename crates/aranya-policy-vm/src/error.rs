@@ -12,7 +12,7 @@ use crate::io::MachineIOError;
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
 // more fine grained types.
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MachineErrorType {
     /// Stack underflow - an operation tried to consume a value from an
     /// empty stack.

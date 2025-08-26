@@ -101,7 +101,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
 /// These are expected states entered after executing instructions, as opposed to MachineErrors,
 /// which are produced by invalid instructions or data.
 #[must_use]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MachineStatus {
     /// Execution will proceed as normal to the next instruction
     Executing,
