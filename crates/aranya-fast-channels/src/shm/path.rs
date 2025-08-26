@@ -226,6 +226,7 @@ mod alloc_impls {
         use super::*;
 
         #[test]
+        #[allow(clippy::redundant_clone)]
         fn test_boxing() {
             let bytes = b"/asdf\0".as_slice();
             let path: Box<Path> = Path::from_bytes(bytes).unwrap().into();
