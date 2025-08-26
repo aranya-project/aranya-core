@@ -30,7 +30,7 @@ pub fn write_c_str<T: fmt::Display>(
 ) -> Result<(), WriteCStrError> {
     let mut w = CStrWriter::new(dst, nw);
     write!(&mut w, "{src:}").assume("`write!` to `Writer` should not fail")?;
-    w.finish().map_err(|_| WriteCStrError::BufferTooSmall)
+    w.finish().map_err(|()| WriteCStrError::BufferTooSmall)
 }
 
 /// Implements [`Write`] for a fixed-size C string buffer.

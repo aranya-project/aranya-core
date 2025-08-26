@@ -177,7 +177,7 @@ where
 
         sink.begin();
         match policy.call_action(action, &mut perspective, sink) {
-            Ok(_) => {
+            Ok(()) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
                 sink.commit();

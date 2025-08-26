@@ -133,7 +133,7 @@ impl RawSecretWrap<Self> for HsmEngine {
                     AlgId::Prk(_) => RawSecret::Prk(Prk::new(SecretKeyBytes::new(
                         Import::<_>::import(plaintext.as_slice())?,
                     ))),
-                    AlgId::Seed(_) => RawSecret::Seed(Import::<_>::import(plaintext.as_slice())?),
+                    AlgId::Seed(()) => RawSecret::Seed(Import::<_>::import(plaintext.as_slice())?),
                     AlgId::Signing(_) => {
                         bug!("`AlgId::Signing(_)` is already covered one case up");
                     }

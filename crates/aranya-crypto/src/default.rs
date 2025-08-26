@@ -180,7 +180,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
             (AlgId::Prk(_), Ciphertext::Prk(data)) => {
                 RawSecret::Prk(Prk::new(SecretKeyBytes::new(data.clone())))
             }
-            (AlgId::Seed(_), Ciphertext::Seed(data)) => {
+            (AlgId::Seed(()), Ciphertext::Seed(data)) => {
                 RawSecret::Seed(Import::<_>::import(data.as_slice())?)
             }
             (AlgId::Signing(_), Ciphertext::Signing(data)) => {
