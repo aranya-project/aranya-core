@@ -69,7 +69,7 @@ pub trait Buf: AsRef<[u8]> + Deref<Target = [u8]> + AsMut<[u8]> + DerefMut<Targe
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError>;
     /// See [`Vec::resize`].
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError>;
-    /// See [`Zeroize`].
+    /// See [`Zeroize`](aranya_crypto::zeroize::Zeroize).
     fn zeroize(&mut self) {
         self[..].zeroize();
     }
