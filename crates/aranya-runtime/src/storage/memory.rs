@@ -158,8 +158,8 @@ impl MemStorage {
         }
 
         let segment = MemSegmentInner {
-            prior,
             index,
+            prior,
             policy,
             commands,
             facts,
