@@ -2194,7 +2194,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         ),
     ];
 
-    for case in cases.into_iter() {
+    for case in cases {
         let (expected, args) = case;
 
         // action call validation

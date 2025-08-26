@@ -161,7 +161,7 @@ impl<'a> CompileState<'a> {
 
         // ensure key identifiers are unique
         let mut identifiers = BTreeSet::new();
-        for key in fact.key.iter() {
+        for key in &fact.key {
             if !key.is_hashable() {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "Fact `{}` key field `{}` is not orderable; must be int, bool, string, or id",
@@ -174,7 +174,7 @@ impl<'a> CompileState<'a> {
         }
 
         // ensure value identifiers are unique
-        for value in fact.value.iter() {
+        for value in &fact.value {
             if !identifiers.insert(&value.identifier) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
                     value.identifier.to_string(),

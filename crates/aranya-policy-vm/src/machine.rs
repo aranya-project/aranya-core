@@ -41,7 +41,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         return false;
     }
 
-    for key in fact.keys.iter() {
+    for key in &fact.keys {
         let Some(key_value) = schema.key.iter().find(|k| k.identifier == key.identifier) else {
             return false;
         };
@@ -51,7 +51,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         }
     }
 
-    for value in fact.values.iter() {
+    for value in &fact.values {
         // Ensure named value exists in schema
         let Some(schema_value) = schema
             .value
@@ -81,7 +81,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
         return false;
     }
 
-    for qv in query.values.iter() {
+    for qv in &query.values {
         if let Some(v) = values.iter().find(|v| v.identifier == qv.identifier) {
             // value found, but types don't match
             if v.value != qv.value {

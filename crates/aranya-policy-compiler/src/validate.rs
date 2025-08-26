@@ -13,7 +13,7 @@ pub fn validate(module: &Module) -> bool {
     // Get all global variable names
     let global_names: Vec<Identifier> = m.globals.keys().cloned().collect();
 
-    for (l, _) in m.labels.iter() {
+    for l in m.labels.keys() {
         let mut predefined_names = vec![];
         match l.ltype {
             LabelType::CommandPolicy | LabelType::CommandRecall => {

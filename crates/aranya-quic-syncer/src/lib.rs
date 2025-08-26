@@ -395,7 +395,7 @@ where
     async fn send_push(&mut self, storage_id: GraphId) -> Result<(), QuicSyncError> {
         // Remove all expired subscriptions
         self.subscriptions.retain(|_, s| !s.expired());
-        for (addr, subscription) in self.subscriptions.iter_mut() {
+        for (addr, subscription) in &mut self.subscriptions {
             let response_cache = self.remote_heads.entry(*addr).or_default();
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
