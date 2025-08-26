@@ -654,7 +654,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_expression_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let pattern = match token.as_rule() {
@@ -662,7 +662,7 @@ impl ChunkParser<'_> {
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
-                        .map(|token| self.parse_expression(token.to_owned()))
+                        .map(|token| self.parse_expression(token.clone()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     MatchPattern::Values(values)
@@ -900,7 +900,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let pattern = match token.as_rule() {
@@ -909,7 +909,7 @@ impl ChunkParser<'_> {
                     let values = token
                         .into_inner()
                         .map(|token| {
-                            let expr = self.parse_expression(token.to_owned())?;
+                            let expr = self.parse_expression(token.clone())?;
                             Ok(expr)
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;

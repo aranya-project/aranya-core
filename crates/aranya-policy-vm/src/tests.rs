@@ -580,7 +580,7 @@ fn test_errors() {
             );
             Ok(())
         },
-        ctx.to_owned(),
+        ctx.clone(),
     );
 
     // InvalidAddress: Set PC to a label of the wrong type

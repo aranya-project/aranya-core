@@ -1216,7 +1216,7 @@ impl<'a> CompileState<'a> {
                 e.identifier, e.value
             )))
         })?;
-        Ok(Value::Enum(e.identifier.to_owned(), *value))
+        Ok(Value::Enum(e.identifier.clone(), *value))
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -1423,7 +1423,7 @@ impl<'a> CompileState<'a> {
                     // Consume results...
                     let top_label = self.anonymous_label();
                     let end_label = self.anonymous_label();
-                    self.define_label(top_label.to_owned(), self.wp)?;
+                    self.define_label(top_label.clone(), self.wp)?;
                     // Fetch next result
                     self.append_instruction(Instruction::Block);
                     self.append_instruction(Instruction::QueryNext(map_stmt.identifier.clone()));
@@ -2272,7 +2272,7 @@ impl<'a> CompileState<'a> {
         match s {
             LanguageContext::Statement(s) => {
                 for (i, arm) in s.arms.iter().enumerate() {
-                    let arm_start = arm_labels[i].to_owned();
+                    let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
                     // Drop expression value (It's still around because of the Dup)
@@ -2288,7 +2288,7 @@ impl<'a> CompileState<'a> {
             }
             LanguageContext::Expression(e) => {
                 for (i, arm) in e.arms.iter().enumerate() {
-                    let arm_start = arm_labels[i].to_owned();
+                    let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
                     // Drop expression value (It's still around because of the Dup)
@@ -2369,7 +2369,7 @@ impl<'a> CompileState<'a> {
                         })
                     })
                     .collect();
-                self.define_struct(s.name.to_owned(), &fields)?;
+                self.define_struct(s.name.clone(), &fields)?;
             }
         }
 

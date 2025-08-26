@@ -316,10 +316,7 @@ fn should_create_client_with_ffi_and_add_commands() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_ident_pk.clone(),
-                client_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
         )
         .expect("should add device");
 
@@ -471,10 +468,7 @@ fn should_sync_ffi_clients() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_one_ident_pk.clone(),
-                client_one_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_one_ident_pk, client_one_sign_pk)),
         )
         .expect("should add device");
 
@@ -522,10 +516,7 @@ fn should_sync_ffi_clients() {
         .action(
             Device::B,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_two_ident_pk.clone(),
-                client_two_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_two_ident_pk, client_two_sign_pk)),
         )
         .expect("should add device");
 
@@ -812,10 +803,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                model_one_ident_pk.clone(),
-                model_one_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(model_one_ident_pk, model_one_sign_pk)),
         )
         .expect("should add device");
 
@@ -857,10 +845,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                model_two_ident_pk.clone(),
-                model_two_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(model_two_ident_pk, model_two_sign_pk)),
         )
         .expect("should add device");
 
@@ -997,10 +982,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_ident_pk.clone(),
-                client_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
         )
         .expect("should add device");
 
@@ -1338,10 +1320,7 @@ fn should_create_clients_with_args() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_ident_pk.clone(),
-                client_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
         )
         .expect("should add device");
 
@@ -1377,7 +1356,7 @@ fn should_create_clients_with_args() {
                 Box::from(IdamFfi::new(store)),
             ];
 
-            let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
+            let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
             let engine = ModelEngine::new(policy);
             let provider = MemStorageProvider::new();
 
@@ -1564,7 +1543,7 @@ fn should_allow_remove_graph() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_one_sign_pk.clone())),
+            vm_action!(init(nonce, client_one_sign_pk)),
         )
         .expect("Should create a graph");
     let head_id_a = test_model
@@ -1610,10 +1589,7 @@ fn should_allow_remove_graph() {
         .action(
             Device::B,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_two_ident_pk.clone(),
-                client_two_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_two_ident_pk, client_two_sign_pk)),
         )
         .expect("should add device");
 

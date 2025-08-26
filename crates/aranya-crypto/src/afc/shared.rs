@@ -158,7 +158,7 @@ mod test_misc {
         fn from(key: RawSealKey<CS>) -> Self {
             Self {
                 key: key.key.clone(),
-                base_nonce: key.base_nonce.clone(),
+                base_nonce: key.base_nonce,
             }
         }
     }
@@ -167,7 +167,7 @@ mod test_misc {
         fn from(key: RawOpenKey<CS>) -> Self {
             Self {
                 key: key.key.clone(),
-                base_nonce: key.base_nonce.clone(),
+                base_nonce: key.base_nonce,
             }
         }
     }

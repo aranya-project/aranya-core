@@ -615,7 +615,7 @@ where
                             let b_type = b.type_name();
                             return Err(self.err(MachineErrorType::invalid_type(
                                 "Int, Int",
-                                alloc::format!("{a_type}, {b_type}").to_owned(),
+                                alloc::format!("{a_type}, {b_type}"),
                                 "Greater-than comparison",
                             )));
                         }
@@ -853,7 +853,7 @@ where
                         .io
                         .try_borrow()
                         .assume("should be able to borrow io")?
-                        .fact_query(fact.name.to_owned(), fact.keys.to_owned())?;
+                        .fact_query(fact.name.clone(), fact.keys.clone())?;
 
                     while count < limit {
                         let Some(r) = iter.next() else { break };

@@ -404,7 +404,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         }
                     }
 
-                    current = next.to_vec();
+                    current.clone_from(&next);
                 }
             }
         }

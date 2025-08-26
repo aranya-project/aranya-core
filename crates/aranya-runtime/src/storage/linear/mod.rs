@@ -873,7 +873,7 @@ impl<R: Read> Query for LinearFactIndex<R> {
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(v) = facts.facts.get(name).and_then(|m| m.get(keys)) {
-                return Ok(v.as_ref().cloned());
+                return Ok(v.clone());
             }
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
