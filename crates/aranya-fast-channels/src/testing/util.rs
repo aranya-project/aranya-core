@@ -723,10 +723,10 @@ where
 
         let got = tuple_hash::<Sha256, _>([nonce, data, additional_data]);
         let min = cmp::min(overhead.len(), got.len());
-        if !bool::from(overhead.ct_eq(&got[..min])) {
-            Err(OpenError::Authentication)
-        } else {
+        if bool::from(overhead.ct_eq(&got[..min])) {
             Ok(())
+        } else {
+            Err(OpenError::Authentication)
         }
     }
 }

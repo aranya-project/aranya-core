@@ -342,11 +342,11 @@ impl File {
                 Err(e) => return Err(e.into()),
             }
         }
-        if !buf.is_empty() {
+        if buf.is_empty() {
+            Ok(())
+        } else {
             error!(remaining = buf.len(), "could not fill buffer");
             Err(StorageError::IoError)
-        } else {
-            Ok(())
         }
     }
 

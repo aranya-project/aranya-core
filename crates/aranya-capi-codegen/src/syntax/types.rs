@@ -1471,12 +1471,12 @@ impl Unit {
     pub(crate) fn parse(_ctx: &Ctx, tuple: syn::TypeTuple) -> Result<Self> {
         trace!("parsing `Unit`");
 
-        if !tuple.elems.is_empty() {
-            Err(Error::new_spanned(&tuple, "only `()` is supported"))
-        } else {
+        if tuple.elems.is_empty() {
             Ok(Self {
                 paren_token: tuple.paren_token,
             })
+        } else {
+            Err(Error::new_spanned(&tuple, "only `()` is supported"))
         }
     }
 
