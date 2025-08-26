@@ -6,7 +6,7 @@
 #![allow(clippy::unwrap_used)]
 
 use std::{
-    ops::DerefMut,
+    ops::DerefMut as _,
     sync::Arc,
     time::{Duration, Instant},
 };

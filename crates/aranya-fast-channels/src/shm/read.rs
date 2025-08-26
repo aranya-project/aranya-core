@@ -9,7 +9,7 @@ use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 
 use super::{
     error::Error,

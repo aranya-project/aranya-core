@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{FnArg, Ident, ItemTrait, Pat, Signature, TraitItem, spanned::Spanned};
+use syn::{FnArg, Ident, ItemTrait, Pat, Signature, TraitItem, spanned::Spanned as _};
 
 pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let act: ItemTrait = syn::parse2(item)?;

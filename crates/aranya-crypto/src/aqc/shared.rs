@@ -6,12 +6,12 @@ use spideroak_crypto::{
     hpke::{RecvCtx, SendCtx},
     import::{ExportError, Import, ImportError},
     kdf::{Expand, Kdf, KdfError, Prk},
-    kem::{DecapKey, Kem},
+    kem::{DecapKey as _, Kem},
     keys::{SecretKey, SecretKeyBytes},
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
-    zeroize::{Zeroize, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop},
 };
 
 use crate::ciphersuite::CipherSuite;

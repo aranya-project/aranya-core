@@ -60,15 +60,15 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::time::Instant;
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RRng};
-use buggy::{Bug, BugExt};
+use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command, EngineError, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
-    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
+    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
+    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestEngine, TestSink},
         short_b58,

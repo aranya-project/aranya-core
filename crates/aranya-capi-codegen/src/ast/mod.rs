@@ -12,7 +12,7 @@ use tracing::{instrument, trace};
 use crate::{
     ctx::Ctx,
     syntax::{self, Item, Node, Type},
-    util::{IdentExt, PathExt},
+    util::{IdentExt as _, PathExt as _},
 };
 
 /// An AST (for some definition of "AST") for a generated C API.

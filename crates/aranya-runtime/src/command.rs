@@ -1,5 +1,5 @@
 pub use aranya_crypto::policy::CmdId;
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;

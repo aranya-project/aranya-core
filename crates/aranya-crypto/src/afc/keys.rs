@@ -1,7 +1,7 @@
 use core::{cmp::Ordering, fmt};
 
 use buggy::Bug;
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder as _, LittleEndian};
 pub use spideroak_crypto::hpke::MessageLimitReached;
 use spideroak_crypto::{
     aead,

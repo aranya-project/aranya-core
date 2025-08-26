@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
+use std::{net::SocketAddr, ops::DerefMut as _, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use aranya_crypto::Rng;
@@ -9,7 +9,7 @@ use aranya_runtime::{
     storage::{StorageProvider, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use s2n_quic::{Server, provider::congestion_controller::Bbr};
 use tokio::sync::{Mutex as TMutex, mpsc};
 

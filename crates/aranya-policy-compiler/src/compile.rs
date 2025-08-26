@@ -24,7 +24,7 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;

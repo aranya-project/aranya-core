@@ -17,7 +17,7 @@ use crate::{
     ActionContext, CodeMap, CommandContext, ExitReason, Fact, Instruction, Label, LabelType,
     MachineError, PolicyContext, Struct, Target, Value,
     error::MachineErrorType,
-    io::{MachineIO, MachineIOError},
+    io::{MachineIO as _, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
 };

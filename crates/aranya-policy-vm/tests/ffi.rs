@@ -7,7 +7,7 @@ use aranya_crypto::{
 };
 use aranya_policy_vm::{
     self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
-    Stack, Text, Typed, Value, ValueConversionError,
+    Stack as _, Text, Typed, Value, ValueConversionError,
     ffi::{FfiModule, Type, ffi},
     ident, text,
 };

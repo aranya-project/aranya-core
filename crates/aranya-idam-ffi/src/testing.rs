@@ -9,7 +9,7 @@ use aranya_crypto::{
     DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
     KeyStoreExt as _, OpenError, SigningKey,
     policy::{CmdId, GroupId},
-    subtle::ConstantTimeEq,
+    subtle::ConstantTimeEq as _,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 

@@ -1,7 +1,7 @@
 use alloc::vec;
 use core::mem;
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
@@ -11,8 +11,8 @@ use super::{
 };
 use crate::{
     StorageError, SyncType,
-    command::{Address, CmdId, Command},
-    storage::{GraphId, Location, Segment, Storage, StorageProvider},
+    command::{Address, CmdId, Command as _},
+    storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
 };
 
 #[derive(Default, Debug)]

@@ -3,7 +3,7 @@
 
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::ffi::FfiModule;
+use aranya_policy_vm::ffi::FfiModule as _;
 use aranya_runtime::{
     testing::vm::{self, TestEngine},
     vm_policy::testing::TestFfiEnvelope,

@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, boxed::Box, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
@@ -13,7 +13,7 @@ use aranya_policy_vm::{
     ast::{Identifier, Text},
     ffi::FfiModule,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use spin::Mutex;
 use tracing::error;
 

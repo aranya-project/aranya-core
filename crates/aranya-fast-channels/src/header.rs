@@ -1,5 +1,5 @@
 use aranya_crypto::afc::Seq;
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 
 use crate::state::Label;

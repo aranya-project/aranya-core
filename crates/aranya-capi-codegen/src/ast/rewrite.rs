@@ -1,4 +1,4 @@
-use std::{fmt::Write, mem};
+use std::{fmt::Write as _, mem};
 
 use aho_corasick::{AhoCorasick, MatchKind};
 use syn::{

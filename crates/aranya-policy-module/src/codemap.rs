@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned as _, string::String, vec, vec::Vec};
 
 use serde::{Deserialize, Serialize};
 

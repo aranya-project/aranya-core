@@ -13,7 +13,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use yoke::{Yoke, Yokeable};
@@ -21,7 +21,7 @@ use yoke::{Yoke, Yokeable};
 use crate::{
     Address, Checkpoint, ClientError, ClientState, CmdId, Command, CommandRecall, Engine, Fact,
     FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
-    Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
 };
 
 type Bytes = Box<[u8]>;

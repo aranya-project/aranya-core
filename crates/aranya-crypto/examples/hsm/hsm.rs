@@ -13,13 +13,13 @@ use aranya_crypto::{
         ed25519::{SigningKey, VerifyingKey},
         generic_array::GenericArray,
         hash::tuple_hash,
-        import::{Import, ImportError},
+        import::{Import as _, ImportError},
         keys::PublicKey as _,
         rust::{Aes256Gcm, Sha256},
         signer::PkError,
     },
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 /// An error returned by [`Hsm`].

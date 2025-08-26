@@ -1,15 +1,15 @@
 use std::{
     fs::OpenOptions,
-    io::{BufRead, BufReader, Read, stdin},
+    io::{BufRead as _, BufReader, Read, stdin},
     process::ExitCode,
 };
 
-use anyhow::Context;
+use anyhow::Context as _;
 use aranya_policy_lang::lang::{
     ChunkParser, PolicyParser, Rule, Version, extract_policy, get_pratt_parser, parse_policy_str,
 };
 use clap::{Parser, ValueEnum};
-use pest::Parser as PestParser;
+use pest::Parser as _;
 
 #[derive(Parser, Debug)]
 #[command(name = "parser explorer", version)]

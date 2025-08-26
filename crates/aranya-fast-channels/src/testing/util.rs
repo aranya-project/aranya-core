@@ -23,7 +23,7 @@ use aranya_crypto::{
         oid,
         oid::{Identified, Oid},
         rust::Sha256,
-        subtle::ConstantTimeEq,
+        subtle::ConstantTimeEq as _,
         typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
     },
     default::{DefaultCipherSuite, DefaultEngine},

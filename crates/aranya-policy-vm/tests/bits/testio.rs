@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, btree_map},
     fmt,
-    ops::DerefMut,
+    ops::DerefMut as _,
 };
 
 use aranya_crypto::{
@@ -14,7 +14,7 @@ use aranya_policy_ast::Identifier;
 use aranya_policy_vm::{
     CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair, MachineError,
     MachineErrorType, MachineIO, MachineIOError, Stack,
-    ffi::{FfiModule, ModuleSchema},
+    ffi::{FfiModule as _, ModuleSchema},
 };
 
 use super::printffi::*;

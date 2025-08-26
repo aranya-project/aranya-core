@@ -8,7 +8,7 @@ use aranya_crypto::{
     afc::{OpenKey, SealKey},
     subtle::ConstantTimeEq,
 };
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder as _, LittleEndian};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 

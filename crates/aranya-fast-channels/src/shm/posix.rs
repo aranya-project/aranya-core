@@ -7,7 +7,7 @@ use core::{
     ptr,
 };
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 use libc::{

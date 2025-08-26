@@ -18,7 +18,7 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
     Machine, Value,
-    ffi::{FfiModule, ModuleSchema},
+    ffi::{FfiModule as _, ModuleSchema},
     text,
 };
 use aranya_runtime::{
@@ -32,7 +32,7 @@ use tempfile::tempdir;
 use test_log::test;
 
 use crate::{
-    ClientFactory, Model, ModelClient, ModelEngine, ModelError, ProxyClientId, ProxyGraphId,
+    ClientFactory, Model as _, ModelClient, ModelEngine, ModelError, ProxyClientId, ProxyGraphId,
     RuntimeModel,
     tests::keygen::{KeyBundle, MinKeyBundle, PublicKeys},
 };

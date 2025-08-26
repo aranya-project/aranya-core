@@ -5,7 +5,7 @@ use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta,
     parse::{Parse, ParseStream, Result},
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 use tracing::{debug, instrument};
 

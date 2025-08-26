@@ -4,7 +4,7 @@ use derive_where::derive_where;
 pub use spideroak_crypto::default::Rng;
 use spideroak_crypto::{
     aead::{Aead, Nonce, Tag},
-    csprng::{Csprng, Random},
+    csprng::{Csprng, Random as _},
     ed25519,
     generic_array::GenericArray,
     import::Import,
@@ -19,7 +19,7 @@ use spideroak_crypto::{
 };
 
 use crate::{
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::{
         self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
         WrongKeyType,

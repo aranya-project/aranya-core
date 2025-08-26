@@ -5,20 +5,20 @@
 use std::{
     collections::BTreeMap,
     net::SocketAddr,
-    ops::DerefMut,
+    ops::DerefMut as _,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
-use aranya_crypto::{Csprng, Rng};
+use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, MAX_SYNC_MESSAGE_SIZE, PeerCache,
+    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache,
     StorageError, SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder,
     SyncType,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use heapless::{FnvIndexMap, Vec};
 use s2n_quic::{
     Client, Connection, Server,

@@ -1,10 +1,10 @@
 #![allow(clippy::panic)]
 
-use std::{fs::OpenOptions, io::Read};
+use std::{fs::OpenOptions, io::Read as _};
 
 use aranya_policy_ast::{ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{
     ParseError, PolicyParser, Rule, Version, ast, ast::AstNode, get_pratt_parser,

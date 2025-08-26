@@ -27,7 +27,7 @@ use spideroak_crypto::{
 };
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
-use crate::ciphersuite::{CipherSuite, CipherSuiteExt};
+use crate::ciphersuite::{CipherSuite, CipherSuiteExt as _};
 
 /// A unique cryptographic ID.
 ///

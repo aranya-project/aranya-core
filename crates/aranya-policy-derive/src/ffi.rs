@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::File, io::Write};
+use std::{collections::HashSet, fs::File, io::Write as _};
 
 use aranya_policy_lang::{
     ast::{
@@ -13,7 +13,7 @@ use syn::{
     PatType, Path, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_quote,
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 
 use crate::attr::{Attr, Symbol, get_lit_str};

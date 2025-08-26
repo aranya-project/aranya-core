@@ -1,19 +1,19 @@
 use std::{borrow::Cow, cmp, fmt};
 
 use proc_macro2::{Delimiter, Group, Span, TokenStream};
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use quote::{ToTokens, TokenStreamExt as _, format_ident, quote};
 use syn::{
     Abi, Attribute, BareFnArg, BareVariadic, Error, GenericArgument, Ident, Lifetime, Path,
     PathArguments, PathSegment, Result, Token, TypeBareFn, TypePath, TypeSlice,
     parse_quote_spanned,
     punctuated::Punctuated,
-    spanned::Spanned,
+    spanned::Spanned as _,
     token::{Bracket, Paren},
 };
 use tracing::{debug, instrument, trace};
 
 use super::{
-    attrs::AttrsExt,
+    attrs::AttrsExt as _,
     util::{TokensOrDefault, Trimmed},
 };
 use crate::ctx::Ctx;

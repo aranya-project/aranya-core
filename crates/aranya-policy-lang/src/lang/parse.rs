@@ -4,9 +4,9 @@ use aranya_policy_ast::{
     self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
 };
 use ast::{EnumReference, Expression, FactField, MatchPattern};
-use buggy::BugExt;
+use buggy::BugExt as _;
 use pest::{
-    Parser, Span,
+    Parser as _, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},

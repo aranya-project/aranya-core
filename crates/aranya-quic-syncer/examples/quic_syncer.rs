@@ -10,9 +10,9 @@
 //! Peer 2
 //! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
 
-use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
+use std::{fs, io, net::SocketAddr, ops::DerefMut as _, sync::Arc, thread, time};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{

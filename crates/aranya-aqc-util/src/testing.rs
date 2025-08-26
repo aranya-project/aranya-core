@@ -18,7 +18,7 @@ use core::{
 
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, KeyStoreExt as _, Random, Rng,
+    IdentityKey, KeyStore, KeyStoreExt as _, Random as _, Rng,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},

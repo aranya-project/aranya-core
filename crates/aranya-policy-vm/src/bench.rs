@@ -41,7 +41,7 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
-use core::{fmt::Display, ops::Div};
+use core::{fmt::Display, ops::Div as _};
 use std::{
     fmt,
     sync::{Mutex, MutexGuard},

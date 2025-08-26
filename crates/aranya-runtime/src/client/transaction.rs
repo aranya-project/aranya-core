@@ -1,13 +1,13 @@
 use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
     Address, ClientError, CmdId, Command, CommandRecall, Engine, EngineError, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyId, Prior, Revertable as _,
+    Segment as _, Sink, Storage, StorageError, StorageProvider,
 };
 
 /// Transaction used to receive many commands at once.
@@ -447,7 +447,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MergeIds, Priority,
+        ClientState, Keys, MergeIds, Perspective, Policy, Priority,
         memory::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -799,7 +799,7 @@ mod test {
     }
 
     fn lookup(storage: &impl Storage, name: &str) -> Option<Box<[u8]>> {
-        use crate::Query;
+        use crate::Query as _;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
         p.query(name, &Keys::default()).unwrap()

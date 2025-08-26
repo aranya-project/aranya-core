@@ -4,7 +4,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
-    io::{Read, stdin},
+    io::{Read as _, stdin},
 };
 
 use aranya_crypto::{DeviceId, Id, policy::CmdId};

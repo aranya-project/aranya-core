@@ -2,9 +2,9 @@
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
-    zeroize::Zeroize,
+    zeroize::Zeroize as _,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 
 #[allow(unused_imports)]
 use crate::features::*;

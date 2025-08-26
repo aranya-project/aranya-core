@@ -12,7 +12,7 @@ use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey, Seq},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 

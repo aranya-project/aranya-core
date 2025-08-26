@@ -11,12 +11,12 @@ use spideroak_crypto::{
     import::Import,
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
-    zeroize::{Zeroize, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop},
 };
 
 use crate::{
     aranya::VerifyingKey,
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,

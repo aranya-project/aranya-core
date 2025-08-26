@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned as _, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;

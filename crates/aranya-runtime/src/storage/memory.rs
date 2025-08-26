@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::ops::{Bound, Deref};
 
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use vec1::Vec1;
 
 use crate::{
@@ -816,7 +816,7 @@ pub mod graphviz {
 
     use std::{fs::File, io::BufWriter};
 
-    use dot_writer::{Attributes, DotWriter, Style};
+    use dot_writer::{Attributes as _, DotWriter, Style};
 
     #[allow(clippy::wildcard_imports)]
     use super::*;

@@ -7,8 +7,8 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::zeroize::Zeroize;
-use buggy::{Bug, BugExt};
+use aranya_crypto::zeroize::Zeroize as _;
+use buggy::{Bug, BugExt as _};
 
 /// Unable to allocate memory.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

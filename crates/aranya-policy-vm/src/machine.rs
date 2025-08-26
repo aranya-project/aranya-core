@@ -1,9 +1,9 @@
 extern crate alloc;
 
 use alloc::{
-    borrow::ToOwned,
+    borrow::ToOwned as _,
     collections::BTreeMap,
-    string::{String, ToString},
+    string::{String, ToString as _},
     vec,
     vec::Vec,
 };
@@ -19,7 +19,7 @@ use aranya_policy_module::{
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
     ValueConversionError,
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]

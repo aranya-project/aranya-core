@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use aranya_capi_codegen::{
-    IdentExt, KeyValPair,
+    IdentExt as _, KeyValPair,
     attr::{Attr, Symbol},
     syntax::Repr,
 };
