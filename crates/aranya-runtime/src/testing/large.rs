@@ -38,7 +38,7 @@ fn test_large_sync() {
         max_cut: 0,
     }];
     let mut rng = thread_rng();
-    let mut fuel = 20_000i32;
+    let mut fuel = 100_000i32;
     while fuel > 0 {
         eprintln!("fuel = {fuel}");
         // choose starting point

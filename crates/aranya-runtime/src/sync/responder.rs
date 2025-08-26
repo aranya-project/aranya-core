@@ -281,34 +281,32 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             .ok()
             .assume("heads not full")?;
 
-        let no_descend = {
-            let mut set = alloc::collections::BTreeSet::new();
+        let has = {
+            let mut set = heapless::LinearMap::<usize, usize, COMMAND_SAMPLE_MAX>::new();
             for &addr in &self.has {
                 if let Some(loc) = storage.get_location(addr)? {
-                    set.insert(loc);
+                    set.insert(loc.segment, loc.command)
+                        .ok()
+                        .assume("not full")?;
                 }
             }
             set
         };
 
         'heads: while let Some(head) = heads.pop_front() {
-            if let Some(existing) = self.to_send.get_mut(&head.segment) {
-                let old = Location::new(head.segment, *existing);
-                if no_descend.contains(&old) {
+            if has.contains_key(&head.segment) {
+                self.to_send.insert(head.segment, head.command);
+                continue 'heads;
+            }
+            for (&seg, &cmd) in &has {
+                let segment = storage.get_segment(Location::new(seg, cmd))?;
+                if storage.is_ancestor(head, &segment)? {
                     continue 'heads;
                 }
             }
 
             let segment = storage.get_segment(head)?;
 
-            for &addr in &self.has {
-                if let Some(loc) = segment_get_location_by_address(&segment, addr)? {
-                    if loc != segment.head_location() {
-                        self.to_send.insert(loc.segment, loc.command);
-                    }
-                    continue 'heads;
-                }
-            }
             for p in segment.prior() {
                 force_push_front(&mut heads, p)?;
             }
