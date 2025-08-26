@@ -2,7 +2,7 @@
 extern crate alloc;
 use alloc::boxed::Box;
 
-use aranya_policy_ast::{Identifier, VType};
+use aranya_policy_ast::{Ident, Identifier, Span, TypeKind, VType};
 
 /// The type of a value
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,15 +44,25 @@ impl Type<'_> {
 
 impl From<&Type<'_>> for VType {
     fn from(value: &Type<'_>) -> Self {
-        match value {
-            Type::String => Self::String,
-            Type::Bytes => Self::Bytes,
-            Type::Int => Self::Int,
-            Type::Bool => Self::Bool,
-            Type::Id => Self::Id,
-            Type::Struct(s) => Self::Struct(s.clone()),
-            Type::Enum(e) => Self::Struct(e.clone()),
-            Type::Optional(t) => Self::Optional(Box::new((*t).into())),
+        let kind = match value {
+            Type::String => TypeKind::String,
+            Type::Bytes => TypeKind::Bytes,
+            Type::Int => TypeKind::Int,
+            Type::Bool => TypeKind::Bool,
+            Type::Id => TypeKind::Id,
+            Type::Struct(s) => TypeKind::Struct(Ident {
+                name: s.clone(),
+                span: Span::default(),
+            }),
+            Type::Enum(e) => TypeKind::Enum(Ident {
+                name: e.clone(),
+                span: Span::default(),
+            }),
+            Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
+        };
+        VType {
+            kind,
+            span: Span::empty(),
         }
     }
 }
@@ -80,7 +90,7 @@ pub struct Func<'a> {
 }
 
 /// An argument to a foreign function.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Arg<'a> {
     /// The argument's name.
     pub name: Identifier,

@@ -6,6 +6,7 @@ use pest::{
     Span,
     error::{Error as PestError, LineColLocation},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
 
@@ -13,7 +14,7 @@ use crate::lang::parse::Rule;
 ///
 /// If the case contains a String, it is a message describing the item
 /// affected or a general error message.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
@@ -50,30 +51,30 @@ pub enum ParseErrorKind {
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidType => write!(f, "Invalid type"),
-            Self::InvalidStatement => write!(f, "Invalid statement"),
-            Self::InvalidNumber => write!(f, "Invalid number"),
-            Self::InvalidString => write!(f, "Invalid string"),
-            Self::InvalidFunctionCall => write!(f, "Invalid function call"),
-            Self::InvalidMember => write!(f, "Invalid member"),
-            Self::InvalidSubstruct => write!(f, "Invalid substruct operation"),
-            Self::InvalidVersion { found, required } => {
+            ParseErrorKind::InvalidType => write!(f, "Invalid type"),
+            ParseErrorKind::InvalidStatement => write!(f, "Invalid statement"),
+            ParseErrorKind::InvalidNumber => write!(f, "Invalid number"),
+            ParseErrorKind::InvalidString => write!(f, "Invalid string"),
+            ParseErrorKind::InvalidFunctionCall => write!(f, "Invalid function call"),
+            ParseErrorKind::InvalidMember => write!(f, "Invalid member"),
+            ParseErrorKind::InvalidSubstruct => write!(f, "Invalid substruct operation"),
+            ParseErrorKind::InvalidVersion { found, required } => {
                 write!(
                     f,
                     "Invalid policy version {found}, supported version is {required}"
                 )
             }
-            Self::Expression => write!(f, "Invalid expression"),
-            Self::Syntax => write!(f, "Syntax error"),
-            Self::FrontMatter => write!(f, "Front matter YAML parse error"),
-            Self::ReservedIdentifier => write!(f, "Reserved identifier"),
-            Self::Bug => write!(f, "Bug"),
-            Self::Unknown => write!(f, "Unknown error"),
+            ParseErrorKind::Expression => write!(f, "Invalid expression"),
+            ParseErrorKind::Syntax => write!(f, "Syntax error"),
+            ParseErrorKind::FrontMatter => write!(f, "Front matter YAML parse error"),
+            ParseErrorKind::ReservedIdentifier => write!(f, "Reserved identifier"),
+            ParseErrorKind::Bug => write!(f, "Bug"),
+            ParseErrorKind::Unknown => write!(f, "Unknown error"),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
     pub message: String,
@@ -82,9 +83,9 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> Self {
+    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> ParseError {
         let location = span.map(|s| s.start_pos().line_col());
-        Self {
+        ParseError {
             kind,
             message,
             location,
@@ -92,8 +93,7 @@ impl ParseError {
     }
 
     /// Return a new error with a location starting from the given line.
-    #[must_use]
-    pub fn adjust_line_number(mut self, start_line: usize) -> Self {
+    pub fn adjust_line_number(mut self, start_line: usize) -> ParseError {
         if let Some((line, _)) = &mut self.location {
             *line = line.saturating_add(start_line);
         }
@@ -118,7 +118,7 @@ impl From<PestError<Rule>> for ParseError {
             LineColLocation::Pos(p) => p,
             LineColLocation::Span(p, _) => p,
         };
-        Self {
+        ParseError {
             kind: ParseErrorKind::Syntax,
             message: e.to_string(),
             location: Some(p),
@@ -128,7 +128,7 @@ impl From<PestError<Rule>> for ParseError {
 
 impl From<Bug> for ParseError {
     fn from(bug: Bug) -> Self {
-        Self::new(ParseErrorKind::Bug, bug.msg().to_owned(), None)
+        ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None)
     }
 }
 

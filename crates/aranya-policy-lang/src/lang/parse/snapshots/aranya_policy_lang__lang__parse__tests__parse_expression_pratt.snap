@@ -1,0 +1,91 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: expr_parsed
+---
+{
+  "kind": {
+    "Unwrap": {
+      "kind": {
+        "FunctionCall": {
+          "identifier": {
+            "name": "call",
+            "span": {
+              "start": 7,
+              "end": 11
+            }
+          },
+          "arguments": [
+            {
+              "kind": {
+                "Add": [
+                  {
+                    "kind": {
+                      "Int": 3
+                    },
+                    "span": {
+                      "start": 12,
+                      "end": 13
+                    }
+                  },
+                  {
+                    "kind": {
+                      "Int": 7
+                    },
+                    "span": {
+                      "start": 16,
+                      "end": 17
+                    }
+                  }
+                ]
+              },
+              "span": {
+                "start": 12,
+                "end": 17
+              }
+            },
+            {
+              "kind": {
+                "Negative": {
+                  "kind": {
+                    "Identifier": {
+                      "name": "b",
+                      "span": {
+                        "start": 20,
+                        "end": 21
+                      }
+                    }
+                  },
+                  "span": {
+                    "start": 20,
+                    "end": 21
+                  }
+                }
+              },
+              "span": {
+                "start": 19,
+                "end": 21
+              }
+            },
+            {
+              "kind": {
+                "String": "foo{"
+              },
+              "span": {
+                "start": 23,
+                "end": 32
+              }
+            }
+          ]
+        }
+      },
+      "span": {
+        "start": 7,
+        "end": 33
+      }
+    }
+  },
+  "span": {
+    "start": 0,
+    "end": 33
+  }
+}

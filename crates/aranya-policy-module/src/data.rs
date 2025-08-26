@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned as _, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
@@ -8,7 +8,7 @@ use aranya_crypto::{
     DeviceId, EncryptionKeyId, SigningKeyId,
     policy::{CmdId, GroupId, LabelId, RoleId},
 };
-use aranya_policy_ast::{Identifier, Text, VType};
+use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
 use super::ffi::Type;
@@ -153,16 +153,22 @@ pub trait TryAsMut<T: ?Sized> {
 }
 
 impl Value {
-    /// Get the [`VType`], if possible.
-    pub fn vtype(&self) -> Option<VType> {
+    /// Get the [`TypeKind`], if possible.
+    pub fn vtype(&self) -> Option<TypeKind> {
         match self {
-            Self::Int(_) => Some(VType::Int),
-            Self::Bool(_) => Some(VType::Bool),
-            Self::String(_) => Some(VType::String),
-            Self::Bytes(_) => Some(VType::Bytes),
-            Self::Id(_) => Some(VType::Id),
-            Self::Enum(name, _) => Some(VType::Enum(name.to_owned())),
-            Self::Struct(s) => Some(VType::Struct(s.name.clone())),
+            Value::Int(_) => Some(TypeKind::Int),
+            Value::Bool(_) => Some(TypeKind::Bool),
+            Value::String(_) => Some(TypeKind::String),
+            Value::Bytes(_) => Some(TypeKind::Bytes),
+            Value::Id(_) => Some(TypeKind::Id),
+            Value::Enum(name, _) => Some(TypeKind::Enum(Ident {
+                name: name.to_owned(),
+                span: Span::default(),
+            })),
+            Value::Struct(s) => Some(TypeKind::Struct(Ident {
+                name: s.name.clone(),
+                span: Span::default(),
+            })),
             _ => None,
         }
     }
@@ -170,96 +176,100 @@ impl Value {
     /// Returns a string representing the value's type.
     pub fn type_name(&self) -> String {
         match self {
-            Self::Int(_) => String::from("Int"),
-            Self::Bool(_) => String::from("Bool"),
-            Self::String(_) => String::from("String"),
-            Self::Bytes(_) => String::from("Bytes"),
-            Self::Struct(s) => format!("Struct {}", s.name),
-            Self::Fact(f) => format!("Fact {}", f.name),
-            Self::Id(_) => String::from("Id"),
-            Self::Enum(name, _) => format!("Enum {name}"),
-            Self::Identifier(_) => String::from("Identifier"),
-            Self::None => String::from("None"),
+            Value::Int(_) => String::from("Int"),
+            Value::Bool(_) => String::from("Bool"),
+            Value::String(_) => String::from("String"),
+            Value::Bytes(_) => String::from("Bytes"),
+            Value::Struct(s) => format!("Struct {}", s.name),
+            Value::Fact(f) => format!("Fact {}", f.name),
+            Value::Id(_) => String::from("Id"),
+            Value::Enum(name, _) => format!("Enum {}", name),
+            Value::Identifier(_) => String::from("Identifier"),
+            Value::None => String::from("None"),
         }
     }
 
     /// Checks to see if a [`Value`] matches some [`VType`]
     /// ```
-    /// use aranya_policy_ast::VType;
+    /// use aranya_policy_ast::{Span, TypeKind, VType};
     /// use aranya_policy_module::Value;
     ///
     /// let value = Value::Int(1);
+    /// let int_type = VType {
+    ///     kind: TypeKind::Int,
+    ///     span: Span::empty(),
+    /// };
     ///
-    /// assert!(value.fits_type(&VType::Int));
+    /// assert!(value.fits_type(&int_type));
     /// ```
     pub fn fits_type(&self, expected_type: &VType) -> bool {
-        match (self.vtype(), expected_type) {
-            (None, VType::Optional(_)) => true,
+        use aranya_policy_ast::TypeKind;
+        match (self.vtype(), &expected_type.kind) {
+            (None, TypeKind::Optional(_)) => true,
             (None, _) => false,
-            (Some(VType::Optional(_)), _) => unreachable!(),
-            (Some(left), VType::Optional(inner)) => left == **inner,
-            (Some(left), right) => left == *right,
+            (Some(vtype), TypeKind::Optional(inner)) => vtype.matches(&inner.kind),
+            (Some(vtype), kind) => vtype.matches(kind),
         }
     }
 }
 
-impl<T: Into<Self>> From<Option<T>> for Value {
+impl<T: Into<Value>> From<Option<T>> for Value {
     fn from(value: Option<T>) -> Self {
-        value.map_or(Self::None, Into::into)
+        value.map_or(Value::None, Into::into)
     }
 }
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Self::Int(value)
+        Value::Int(value)
     }
 }
 
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
-        Self::Bool(value)
+        Value::Bool(value)
     }
 }
 
 impl From<Text> for Value {
     fn from(value: Text) -> Self {
-        Self::String(value)
+        Value::String(value)
     }
 }
 
 impl From<Identifier> for Value {
     fn from(value: Identifier) -> Self {
-        Self::Identifier(value)
+        Value::Identifier(value)
     }
 }
 
 impl From<&[u8]> for Value {
     fn from(value: &[u8]) -> Self {
-        Self::Bytes(value.to_owned())
+        Value::Bytes(value.to_owned())
     }
 }
 
 impl From<Vec<u8>> for Value {
     fn from(value: Vec<u8>) -> Self {
-        Self::Bytes(value)
+        Value::Bytes(value)
     }
 }
 
 impl From<Struct> for Value {
     fn from(value: Struct) -> Self {
-        Self::Struct(value)
+        Value::Struct(value)
     }
 }
 
 impl From<Fact> for Value {
     fn from(value: Fact) -> Self {
-        Self::Fact(value)
+        Value::Fact(value)
     }
 }
 
 impl From<Id> for Value {
     fn from(id: Id) -> Self {
-        Self::Id(id)
+        Value::Id(id)
     }
 }
 
@@ -457,22 +467,22 @@ impl TryAsMut<Fact> for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Int(i) => write!(f, "{i}"),
-            Self::Bool(b) => write!(f, "{b}"),
-            Self::String(s) => write!(f, "\"{s}\""),
-            Self::Bytes(v) => {
+            Value::Int(i) => write!(f, "{}", i),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Bytes(v) => {
                 write!(f, "b:")?;
                 for b in v {
-                    write!(f, "{b:02X}")?;
+                    write!(f, "{:02X}", b)?;
                 }
                 Ok(())
             }
-            Self::Struct(s) => s.fmt(f),
-            Self::Fact(fa) => fa.fmt(f),
-            Self::Id(id) => id.fmt(f),
-            Self::Enum(name, value) => write!(f, "{name}::{value}"),
-            Self::Identifier(name) => write!(f, "{name}"),
-            Self::None => write!(f, "None"),
+            Value::Struct(s) => s.fmt(f),
+            Value::Fact(fa) => fa.fmt(f),
+            Value::Id(id) => id.fmt(f),
+            Value::Enum(name, value) => write!(f, "{name}::{value}"),
+            Value::Identifier(name) => write!(f, "{name}"),
+            Value::None => write!(f, "None"),
         }
     }
 }
@@ -495,15 +505,19 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Get the ast:::Vtype. Unlike the Value version, this cannot
+    /// Get the [`TypeKind`]. Unlike the Value version, this cannot
     /// fail.
-    pub fn vtype(&self) -> VType {
+    pub fn vtype(&self) -> TypeKind {
+        use aranya_policy_ast::TypeKind;
         match self {
-            Self::Int(_) => VType::Int,
-            Self::Bool(_) => VType::Bool,
-            Self::String(_) => VType::String,
-            Self::Id(_) => VType::Id,
-            Self::Enum(id, _) => VType::Enum(id.clone()),
+            HashableValue::Int(_) => TypeKind::Int,
+            HashableValue::Bool(_) => TypeKind::Bool,
+            HashableValue::String(_) => TypeKind::String,
+            HashableValue::Id(_) => TypeKind::Id,
+            HashableValue::Enum(id, _) => TypeKind::Enum(Ident {
+                name: id.clone(),
+                span: Span::default(),
+            }),
         }
     }
 }
@@ -513,11 +527,11 @@ impl TryFrom<Value> for HashableValue {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Int(v) => Ok(Self::Int(v)),
-            Value::Bool(v) => Ok(Self::Bool(v)),
-            Value::String(v) => Ok(Self::String(v)),
-            Value::Id(v) => Ok(Self::Id(v)),
-            Value::Enum(id, value) => Ok(Self::Enum(id, value)),
+            Value::Int(v) => Ok(HashableValue::Int(v)),
+            Value::Bool(v) => Ok(HashableValue::Bool(v)),
+            Value::String(v) => Ok(HashableValue::String(v)),
+            Value::Id(v) => Ok(HashableValue::Id(v)),
+            Value::Enum(id, value) => Ok(HashableValue::Enum(id, value)),
             _ => Err(ValueConversionError::invalid_type(
                 "Int | Bool | String | Id | Enum",
                 value.type_name(),
@@ -530,11 +544,11 @@ impl TryFrom<Value> for HashableValue {
 impl From<HashableValue> for Value {
     fn from(value: HashableValue) -> Self {
         match value {
-            HashableValue::Int(v) => Self::Int(v),
-            HashableValue::Bool(v) => Self::Bool(v),
-            HashableValue::String(v) => Self::String(v),
-            HashableValue::Id(v) => Self::Id(v),
-            HashableValue::Enum(id, value) => Self::Enum(id, value),
+            HashableValue::Int(v) => Value::Int(v),
+            HashableValue::Bool(v) => Value::Bool(v),
+            HashableValue::String(v) => Value::String(v),
+            HashableValue::Id(v) => Value::Id(v),
+            HashableValue::Enum(id, value) => Value::Enum(id, value),
         }
     }
 }
@@ -542,7 +556,7 @@ impl From<HashableValue> for Value {
 impl Display for HashableValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let real_value: Value = self.to_owned().into();
-        write!(f, "{real_value}")
+        write!(f, "{}", real_value)
     }
 }
 
@@ -612,13 +626,13 @@ pub struct KVPair(Identifier, Value);
 
 impl KVPair {
     /// Creates a key-value pair.
-    pub fn new(key: Identifier, value: Value) -> Self {
-        Self(key, value)
+    pub fn new(key: Identifier, value: Value) -> KVPair {
+        KVPair(key, value)
     }
 
     /// Creates a key-value pair with an integer value.
-    pub fn new_int(key: Identifier, value: i64) -> Self {
-        Self(key, Value::Int(value))
+    pub fn new_int(key: Identifier, value: i64) -> KVPair {
+        KVPair(key, Value::Int(value))
     }
 
     /// Returns the key half of the key-value pair.
@@ -652,13 +666,13 @@ impl From<&KVPair> for (Identifier, Value) {
 
 impl From<FactKey> for KVPair {
     fn from(value: FactKey) -> Self {
-        Self(value.identifier, value.value.into())
+        KVPair(value.identifier, value.value.into())
     }
 }
 
 impl From<FactValue> for KVPair {
     fn from(value: FactValue) -> Self {
-        Self(value.identifier, value.value)
+        KVPair(value.identifier, value.value)
     }
 }
 
@@ -675,8 +689,8 @@ pub struct Fact {
 
 impl Fact {
     /// Creates a fact.
-    pub fn new(name: Identifier) -> Self {
-        Self {
+    pub fn new(name: Identifier) -> Fact {
+        Fact {
             name,
             keys: vec![],
             values: vec![],
@@ -722,7 +736,7 @@ impl Display for Fact {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{k}: {v}")?;
+            write!(f, "{}: {}", k, v)?;
         }
         write!(f, "]=>{{")?;
         i = false;
@@ -735,7 +749,7 @@ impl Display for Fact {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{k}: {v}")?;
+            write!(f, "{}: {}", k, v)?;
         }
         write!(f, " }}")
     }
@@ -755,10 +769,10 @@ impl Struct {
     pub fn new(
         name: Identifier,
         fields: impl IntoIterator<Item = impl Into<(Identifier, Value)>>,
-    ) -> Self {
-        Self {
+    ) -> Struct {
+        Struct {
             name,
-            fields: fields.into_iter().map(Into::into).collect(),
+            fields: fields.into_iter().map(|p| p.into()).collect(),
         }
     }
 }
@@ -772,7 +786,7 @@ impl Display for Struct {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{k}: {v}")?;
+            write!(f, "{}: {}", k, v)?;
         }
         write!(f, "}}")
     }

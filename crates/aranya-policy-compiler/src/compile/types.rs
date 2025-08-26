@@ -1,26 +1,24 @@
-#![allow(clippy::result_large_err)]
 use std::{
     borrow::Cow,
     collections::{HashMap, hash_map},
     fmt::{self, Display},
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
-use ast::VType;
+use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
 use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct TypeError(Cow<'static, str>);
 
 impl TypeError {
-    pub(super) fn new(msg: &'static str) -> Self {
-        Self(Cow::from(msg))
+    pub(super) fn new(msg: &'static str) -> TypeError {
+        TypeError(Cow::from(msg))
     }
 
-    pub(super) fn new_owned(msg: String) -> Self {
-        Self(Cow::from(msg))
+    pub(super) fn new_owned(msg: String) -> TypeError {
+        TypeError(Cow::from(msg))
     }
 }
 
@@ -32,7 +30,7 @@ impl Display for TypeError {
 
 impl From<TypeError> for CompileErrorType {
     fn from(value: TypeError) -> Self {
-        Self::InvalidType(value.0.into_owned())
+        CompileErrorType::InvalidType(value.0.into_owned())
     }
 }
 
@@ -56,7 +54,7 @@ impl Display for TypeUnifyError {
 // TODO: Remove and force callers to make better error.
 impl From<TypeUnifyError> for CompileErrorType {
     fn from(err: TypeUnifyError) -> Self {
-        Self::InvalidType(err.to_string())
+        CompileErrorType::InvalidType(err.to_string())
     }
 }
 
@@ -249,8 +247,8 @@ impl Typeish {
 impl Display for Typeish {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Known(t) => t.fmt(f),
-            Self::Never => f.write_str("never"),
+            Typeish::Known(t) => t.fmt(f),
+            Typeish::Never => f.write_str("never"),
         }
     }
 }
@@ -266,18 +264,28 @@ impl NullableVType {
     /// Returns whether the type matches. Null will match any optional.
     pub fn fits_type(&self, ot: &VType) -> bool {
         match self {
-            Self::Type(vtype) => vtype == ot,
-            Self::Null => matches!(ot, VType::Optional(_)),
+            Self::Type(vtype) => vtype.matches(ot),
+            Self::Null => matches!(ot.kind, TypeKind::Optional(_)),
         }
     }
 
     /// Equal types will unify, and null will unify with any optional.
-    fn unify(self, rhs: Self) -> Result<Self, TypeUnifyError> {
+    fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
-            (t @ Self::Type(VType::Optional(_)), Self::Null)
-            | (Self::Null, t @ Self::Type(VType::Optional(_))) => Ok(t),
-            (Self::Type(left), Self::Type(right)) if left == right => Ok(Self::Type(left)),
-            (Self::Null, Self::Null) => Ok(Self::Null),
+            (ref t @ NullableVType::Type(ref ty), NullableVType::Null)
+                if matches!(ty.kind, TypeKind::Optional(_)) =>
+            {
+                Ok(t.clone())
+            }
+            (NullableVType::Null, ref t @ NullableVType::Type(ref ty))
+                if matches!(ty.kind, TypeKind::Optional(_)) =>
+            {
+                Ok(t.clone())
+            }
+            (NullableVType::Type(left), NullableVType::Type(right)) if left.matches(&right) => {
+                Ok(NullableVType::Type(left))
+            }
+            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
             (left, right) => Err(TypeUnifyError {
                 left,
                 right,
@@ -287,10 +295,28 @@ impl NullableVType {
     }
 }
 
+// Wrapper type for displaying Type since we can't implement Display for external types
+pub struct DisplayType<'a>(pub &'a VType);
+
+impl Display for DisplayType<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0.kind {
+            TypeKind::String => f.write_str("string"),
+            TypeKind::Bytes => f.write_str("bytes"),
+            TypeKind::Int => f.write_str("int"),
+            TypeKind::Bool => f.write_str("bool"),
+            TypeKind::Id => f.write_str("id"),
+            TypeKind::Struct(id) => write!(f, "struct {}", id),
+            TypeKind::Enum(id) => write!(f, "enum {}", id),
+            TypeKind::Optional(inner) => write!(f, "optional {}", DisplayType(inner)),
+        }
+    }
+}
+
 impl Display for NullableVType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Type(vtype) => vtype.fmt(f),
+            Self::Type(vtype) => DisplayType(vtype).fmt(f),
             Self::Null => f.write_str("null"),
         }
     }
@@ -298,9 +324,12 @@ impl Display for NullableVType {
 
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
-    pub(super) fn struct_type(&self, s: &ast::NamedStruct) -> Result<VType, TypeError> {
-        if self.m.struct_defs.contains_key(&s.identifier) {
-            Ok(VType::Struct(s.identifier.clone()))
+    pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, TypeError> {
+        if self.m.struct_defs.contains_key(&s.identifier.name) {
+            Ok(VType {
+                kind: TypeKind::Struct(s.identifier.clone()),
+                span: s.identifier.span,
+            })
         } else {
             Err(TypeError::new_owned(format!(
                 "Struct `{}` not defined",
@@ -311,9 +340,12 @@ impl CompileState<'_> {
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
-    pub(super) fn query_fact_type(&self, f: &ast::FactLiteral) -> Result<VType, TypeError> {
-        if self.m.fact_defs.contains_key(&f.identifier) {
-            Ok(VType::Struct(f.identifier.clone()))
+    pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, TypeError> {
+        if self.m.fact_defs.contains_key(&f.identifier.name) {
+            Ok(VType {
+                kind: TypeKind::Struct(f.identifier.clone()),
+                span: f.identifier.span,
+            })
         } else {
             Err(TypeError::new_owned(format!(
                 "Fact `{}` not defined",
