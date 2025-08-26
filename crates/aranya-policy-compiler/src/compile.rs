@@ -586,11 +586,8 @@ impl<'a> CompileState<'a> {
                             f.identifier, k, def_field_type
                         ))));
                     }
-                } else {
-                    // Skip bind values
-                    continue;
+                    self.append_instruction(Instruction::FactValueSet(k.clone()));
                 }
-                self.append_instruction(Instruction::FactValueSet(k.clone()));
             }
         }
         Ok(())
