@@ -151,12 +151,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// and integrating the new commands.
     pub(super) fn add_commands(
         &mut self,
-        commands: &[impl Command],
+        commands: impl IntoIterator<Item: Command>,
         provider: &mut SP,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<usize, ClientError> {
-        let mut commands = commands.iter();
+        let mut commands = commands.into_iter();
         let mut count: usize = 0;
 
         // Get storage or try to initialize with first command.
@@ -165,7 +165,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
                 count = count.checked_add(1).assume("must not overflow")?;
-                self.init(command, engine, provider, sink)?
+                self.init(&command, engine, provider, sink)?
             }
             Err(e) => return Err(e.into()),
         };
@@ -193,11 +193,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     }
                 }
                 Prior::Single(parent) => {
-                    self.add_single(storage, engine, sink, command, parent)?;
+                    self.add_single(storage, engine, sink, &command, parent)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    self.add_merge(storage, engine, sink, command, left, right)?;
+                    self.add_merge(storage, engine, sink, &command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             };

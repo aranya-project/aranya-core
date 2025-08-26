@@ -30,16 +30,12 @@ const COMMAND_SAMPLE_MAX: usize = 100;
 /// in a single message
 const REQUEST_MISSING_MAX: usize = 100;
 
-/// The maximum number of commands in a response
-pub const COMMAND_RESPONSE_MAX: usize = 100;
-
 /// The maximum number of segments which can be stored to send
 const SEGMENT_BUFFER_MAX: usize = 100;
 
 /// The maximum size of a sync message
-// TODO: Use postcard to calculate max size (which accounts for overhead)
-// https://docs.rs/postcard/latest/postcard/experimental/max_size/index.html
-pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RESPONSE_MAX;
+// TODO(jdygert): Configurable and sent in request.
+pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * 100;
 
 /// Represents high-level data of a command.
 #[derive(Serialize, Deserialize, Debug)]

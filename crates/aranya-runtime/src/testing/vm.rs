@@ -558,7 +558,7 @@ fn test_sync<E, P, S>(
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds)
+            cs2.add_commands(&mut req_transaction, sink, cmds)
                 .expect("add commands");
         };
     }

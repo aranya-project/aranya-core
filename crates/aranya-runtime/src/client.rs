@@ -124,7 +124,7 @@ where
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
-        commands: &[impl Command],
+        commands: impl IntoIterator<Item: Command>,
     ) -> Result<usize, ClientError> {
         let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
         Ok(count)

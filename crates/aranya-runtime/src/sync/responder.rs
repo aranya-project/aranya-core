@@ -6,11 +6,10 @@ use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
-    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
+    COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
 };
 use crate::{
-    StorageError, SyncType,
+    StorageError, SyncCommand, SyncType,
     command::{Address, CmdId, Command},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
 };
@@ -85,8 +84,6 @@ pub enum SyncResponseMessage {
         /// will send more than one `SyncResponse`. The first message has an
         /// index of 1, and each following is incremented.
         response_index: u64,
-        /// Commands that the responder believes the requester does not have.
-        commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
     },
 
     /// End a sync session if `SyncRequest.max_bytes` has been reached or
@@ -194,7 +191,9 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
-        let length = match self.state {
+
+        let target = &mut Buf::new(target);
+        match self.state {
             S::New | S::Idle | S::Stopped => {
                 return Err(SyncError::NotReady); // TODO(chip): return Ok(NotReady)
             }
@@ -221,19 +220,17 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 }
                 self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
 
-                self.get_next(target, provider)?
+                self.get_next(target, provider)?;
             }
             S::Send => self.get_next(target, provider)?,
             S::Reset => {
                 self.state = S::Stopped;
-                let message = SyncResponseMessage::EndSession {
+                target.serialize(&SyncResponseMessage::EndSession {
                     session_id: self.session_id()?,
-                };
-                Self::write(target, message)?
+                })?;
             }
-        };
-
-        Ok(length)
+        }
+        Ok(target.written())
     }
 
     /// Receive a sync message. Updates the responders state for later polling.
@@ -272,14 +269,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         };
 
         Ok(())
-    }
-
-    fn write_sync_type(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
-        Ok(postcard::to_slice(&msg, target)?.len())
-    }
-
-    fn write(target: &mut [u8], msg: SyncResponseMessage) -> Result<usize, SyncError> {
-        Ok(postcard::to_slice(&msg, target)?.len())
     }
 
     /// This (probably) returns a Vec of segment addresses where the head of each segment is
@@ -353,42 +342,32 @@ impl<A: Serialize + Clone> SyncResponder<A> {
 
     fn get_next(
         &mut self,
-        target: &mut [u8],
+        target: &mut Buf<'_>,
         provider: &mut impl StorageProvider,
-    ) -> Result<usize, SyncError> {
+    ) -> Result<(), SyncError> {
         if self.next_send >= self.to_send.len() {
             self.state = SyncResponderState::Idle;
-            let message = SyncResponseMessage::SyncEnd {
+            target.serialize(&SyncResponseMessage::SyncEnd {
                 session_id: self.session_id()?,
                 max_index: self.message_index as u64,
                 remaining: false,
-            };
-            let length = Self::write(target, message)?;
-            return Ok(length);
+            })?;
+            return Ok(());
         }
 
-        let (commands, command_data, next_send) = self.get_commands(provider)?;
-
-        let message = SyncResponseMessage::SyncResponse {
+        target.serialize(&SyncResponseMessage::SyncResponse {
             session_id: self.session_id()?,
             response_index: self.message_index as u64,
-            commands,
-        };
+        })?;
+
         self.message_index = self
             .message_index
             .checked_add(1)
             .assume("message_index overflow")?;
-        self.next_send = next_send;
 
-        let length = Self::write(target, message)?;
-        let total_length = length
-            .checked_add(command_data.len())
-            .assume("length + command_data_length mustn't overflow")?;
-        target
-            .get_mut(length..total_length)
-            .assume("sync message fits in target")?
-            .copy_from_slice(&command_data);
-        Ok(total_length)
+        self.next_send = self.get_commands(target, provider)?;
+
+        Ok(())
     }
 
     /// Writes a sync push message to target for the peer. The message will
@@ -411,49 +390,36 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 return Err(e.into());
             }
         };
-        self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
-        let (commands, command_data, next_send) = self.get_commands(provider)?;
-        let mut length = 0;
-        if !commands.is_empty() {
-            let message = SyncType::Push {
-                message: SyncResponseMessage::SyncResponse {
-                    session_id: self.session_id()?,
-                    response_index: self.message_index as u64,
-                    commands,
-                },
-                storage_id: self.storage_id.assume("storage id must exist")?,
-                address: self.server_address.clone(),
-            };
-            self.message_index = self
-                .message_index
-                .checked_add(1)
-                .assume("message_index increment overflow")?;
-            self.next_send = next_send;
 
-            length = Self::write_sync_type(target, message)?;
-            let total_length = length
-                .checked_add(command_data.len())
-                .assume("length + command_data_length mustn't overflow")?;
-            target
-                .get_mut(length..total_length)
-                .assume("sync message fits in target")?
-                .copy_from_slice(&command_data);
-            length = total_length;
-        }
-        Ok(length)
+        let target = &mut Buf::new(target);
+
+        target.serialize(&SyncType::Push {
+            message: SyncResponseMessage::SyncResponse {
+                session_id: self.session_id()?,
+                response_index: self.message_index as u64,
+            },
+            storage_id: self.storage_id.assume("storage id must exist")?,
+            address: self.server_address.clone(),
+        })?;
+
+        self.message_index = self
+            .message_index
+            .checked_add(1)
+            .assume("message_index increment overflow")?;
+
+        self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+        self.next_send = self.get_commands(target, provider)?;
+
+        // TODO: rewind if empty?
+
+        Ok(target.written())
     }
 
     fn get_commands(
         &mut self,
+        target: &mut Buf<'_>,
         provider: &mut impl StorageProvider,
-    ) -> Result<
-        (
-            Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
-            usize,
-        ),
-        SyncError,
-    > {
+    ) -> Result<usize, SyncError> {
         let Some(storage_id) = self.storage_id.as_ref() else {
             self.state = SyncResponderState::Reset;
             bug!("get_next called before storage_id was set");
@@ -465,14 +431,10 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 return Err(e.into());
             }
         };
-        let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
-        let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         let mut index = self.next_send;
-        for i in self.next_send..self.to_send.len() {
-            if commands.is_full() {
-                break;
-            }
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
+        'outer: for i in self.next_send..self.to_send.len() {
+            index = i;
+
             let Some(&location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
@@ -484,46 +446,58 @@ impl<A: Serialize + Clone> SyncResponder<A> {
 
             let found = segment.get_from(location);
 
+            // FIXME(jdygert): Handle partial segments.
             for command in &found {
-                let mut policy_length = 0;
-
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len();
-                    command_data
-                        .extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data is too large")?;
-                }
-
-                let bytes = command.bytes();
-                command_data
-                    .extend_from_slice(bytes)
-                    .ok()
-                    .assume("command_data is too large")?;
-
-                let meta = CommandMeta {
-                    id: command.id(),
-                    priority: command.priority(),
-                    parent: command.parent(),
-                    policy_length: policy_length as u32,
-                    length: bytes.len() as u32,
-                    max_cut: command.max_cut()?,
+                if target
+                    .serialize(&SyncCommand {
+                        priority: command.priority(),
+                        id: command.id(),
+                        parent: command.parent(),
+                        policy: command.policy(),
+                        data: command.bytes(),
+                        max_cut: command.max_cut()?,
+                    })
+                    .is_err()
+                {
+                    break 'outer;
                 };
-
-                // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
-                commands
-                    .push(meta)
-                    .ok()
-                    .assume("too many commands in segment")?;
-                if commands.is_full() {
-                    break;
-                }
             }
         }
-        Ok((commands, command_data, index))
+        Ok(index)
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
         Ok(self.session_id.assume("session id is set")?)
+    }
+}
+
+use buf::Buf;
+mod buf {
+    use buggy::BugExt as _;
+
+    use crate::SyncError;
+
+    pub struct Buf<'a> {
+        slice: &'a mut [u8],
+        written: usize,
+    }
+
+    impl<'buf> Buf<'buf> {
+        pub fn new(slice: &'buf mut [u8]) -> Self {
+            Self { slice, written: 0 }
+        }
+
+        pub fn written(&self) -> usize {
+            self.written
+        }
+
+        pub fn serialize<T: serde::Serialize>(&mut self, value: &T) -> Result<(), SyncError> {
+            let len = postcard::to_slice(value, &mut self.slice[self.written..])?.len();
+            self.written = self
+                .written
+                .checked_add(len)
+                .assume("can't overflow if postcard behaves")?;
+            Ok(())
+        }
     }
 }
