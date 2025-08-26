@@ -408,22 +408,18 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             }
         };
         let mut index = self.next_send;
-        'outer: for i in self.next_send..self.to_send.len() {
-            index = i;
-
-            let Some(&location) = self.to_send.get(i) else {
+        let Some(sending) = self.to_send.make_contiguous().get_mut(self.next_send..) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
             };
-
+        'outer: for location in sending {
             let segment = storage
-                .get_segment(location)
+                .get_segment(*location)
                 .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
-            let found = segment.get_from(location);
+            let found = segment.get_from(*location);
 
-            // FIXME(jdygert): Handle partial segments.
-            for command in &found {
+            for (command, j) in found.iter().zip(location.command..) {
                 if target
                     .serialize(&SyncCommand {
                         priority: command.priority(),
@@ -435,9 +431,11 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     })
                     .is_err()
                 {
+                    location.command = j;
                     break 'outer;
                 };
             }
+            index = index.checked_add(1).assume("won't overflow")?;
         }
         Ok(index)
     }
