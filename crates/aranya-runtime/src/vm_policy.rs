@@ -554,7 +554,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                     )
                 }
                 // Merges always pass because they're an artifact of the graph
-                _ => (None, Priority::Merge),
+                VmProtocolData::Merge { .. } => (None, Priority::Merge),
             }
         };
 

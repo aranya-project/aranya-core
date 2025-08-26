@@ -86,7 +86,7 @@ impl BuildError {
                     display_syn_error(stderr, path, source, error);
                 }
             }
-            _ => {
+            Self::Other(_) => {
                 let _ = writeln!(io::stderr(), "{self}");
             }
         }

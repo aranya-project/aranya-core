@@ -689,7 +689,7 @@ impl Func {
             ReturnType::Default => {
                 return Err(Error::new(item.span(), "Rust function cannot return `()`"));
             }
-            _ => vtype,
+            ReturnType::Type(..) => vtype,
         };
 
         Ok(Some(Self {

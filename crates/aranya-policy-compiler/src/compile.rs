@@ -1179,7 +1179,7 @@ impl<'a> CompileState<'a> {
                         NullableVType::Type(VType::Optional(_)) | NullableVType::Null => {
                             Ok(NullableVType::Type(VType::Bool))
                         }
-                        _ => Err(TypeError::new(
+                        NullableVType::Type(_) => Err(TypeError::new(
                             "`is` must operate on an optional expression",
                         )),
                     })
@@ -1901,7 +1901,9 @@ impl<'a> CompileState<'a> {
             .try_map(|nty| match nty {
                 NullableVType::Type(VType::Optional(t)) => Ok(NullableVType::Type(*t)),
                 NullableVType::Null => Err(TypeError::new("Cannot unwrap None")),
-                _ => Err(TypeError::new("Cannot unwrap non-option expression")),
+                NullableVType::Type(_) => {
+                    Err(TypeError::new("Cannot unwrap non-option expression"))
+                }
             })
             .map_err(|err| self.err(err.into()))
     }

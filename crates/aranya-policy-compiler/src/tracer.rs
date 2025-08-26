@@ -166,7 +166,7 @@ impl TraceAnalyzer<'_> {
                             message: s,
                         });
                     }
-                    _ => (),
+                    AnalyzerStatus::Ok => (),
                 }
             }
 

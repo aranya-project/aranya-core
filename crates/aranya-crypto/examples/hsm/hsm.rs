@@ -192,7 +192,7 @@ impl Hsm {
     {
         match self.load_key(id)? {
             HsmKey::Signing(sk) => Ok(f(sk)),
-            _ => Err(HsmError::WrongKeyType),
+            HsmKey::Verifying(_) => Err(HsmError::WrongKeyType),
         }
     }
 
