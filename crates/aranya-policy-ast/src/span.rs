@@ -19,11 +19,9 @@ impl Span {
     pub fn new(start: usize, end: usize) -> Self {
         debug_assert!(
             start <= end,
-            "invalid span: start ({}) must be <= end ({})",
-            start,
-            end
+            "invalid span: start ({start}) must be <= end ({end})"
         );
-        Span { start, end }
+        Self { start, end }
     }
 
     /// Creates an empty span.
@@ -50,7 +48,8 @@ impl Span {
     }
 
     /// Merges two spans into a single span.
-    pub fn merge(&self, other: Span) -> Span {
+    #[must_use]
+    pub fn merge(&self, other: Self) -> Self {
         Self::new(self.start.min(other.start), self.end.max(other.end))
     }
 
@@ -93,7 +92,7 @@ impl RangeBounds<usize> for &Span {
 
 impl From<Range<usize>> for Span {
     fn from(range: Range<usize>) -> Self {
-        Span::new(range.start, range.end)
+        Self::new(range.start, range.end)
     }
 }
 
@@ -124,6 +123,7 @@ trait RangeBoundsExt<T>: RangeBounds<T> {
         T: PartialOrd,
     {
         use Bound::*;
+        #[allow(clippy::unnested_or_patterns)]
         !match (self.start_bound(), self.end_bound()) {
             (Unbounded, _) | (_, Unbounded) => true,
             (Included(start), Excluded(end))
