@@ -74,9 +74,11 @@ pub trait IdentExt {
         I: IdentFragment;
 
     /// Converts the identifier to snake_case.
+    #[must_use]
     fn to_snake_case(&self) -> Self;
 
     /// Converts the identifier to SCREAMING_SNAKE_CASE.
+    #[must_use]
     fn to_screaming_snake_case(&self) -> Self;
 }
 

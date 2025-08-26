@@ -92,6 +92,7 @@ impl ParseError {
     }
 
     /// Return a new error with a location starting from the given line.
+    #[must_use]
     pub fn adjust_line_number(mut self, start_line: usize) -> Self {
         if let Some((line, _)) = &mut self.location {
             *line = line.saturating_add(start_line);

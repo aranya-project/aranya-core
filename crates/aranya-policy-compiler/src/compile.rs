@@ -2620,17 +2620,20 @@ impl<'a> Compiler<'a> {
     }
 
     /// Sets the FFI modules
+    #[must_use]
     pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
         self.ffi_modules = ffi_modules;
         self
     }
 
     /// Enables or disables debug mode
+    #[must_use]
     pub fn debug(mut self, is_debug: bool) -> Self {
         self.is_debug = is_debug;
         self
     }
 
+    #[must_use]
     pub fn stub_ffi(mut self, flag: bool) -> Self {
         self.stub_ffi = flag;
         self

@@ -793,24 +793,28 @@ impl HeaderBuilder {
     }
 
     /// Sets the `version` field.
+    #[must_use]
     pub fn version(mut self, v: u16) -> Self {
         self.version = Some(v);
         self
     }
 
     /// Sets the `msg_typ` field.
+    #[must_use]
     pub fn msg_type(mut self, typ: u16) -> Self {
         self.msg_type = Some(typ);
         self
     }
 
     /// Sets the `label` field.
+    #[must_use]
     pub fn label(mut self, label: u32) -> Self {
         self.label = Some(label);
         self
     }
 
     /// Sets the `seq` field.
+    #[must_use]
     pub fn seq(mut self, seq: u64) -> Self {
         self.seq = Some(seq);
         self
@@ -864,12 +868,14 @@ impl DataHeaderBuilder {
     }
 
     /// Sets the `label` field.
+    #[must_use]
     pub fn label(mut self, label: u32) -> Self {
         self.label = Some(label);
         self
     }
 
     /// Sets the `seq` field.
+    #[must_use]
     pub fn seq(mut self, seq: u64) -> Self {
         self.seq = Some(seq);
         self
