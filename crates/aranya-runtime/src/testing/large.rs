@@ -13,6 +13,9 @@ use crate::{
 
 #[test]
 fn test_large_sync() {
+    let mut response_cache = PeerCache::new();
+    let mut request_cache = PeerCache::new();
+
     let mut client = ClientState::new(TestEngine::new(), MemStorageProvider::new());
 
     let graph_id = client
@@ -20,7 +23,13 @@ fn test_large_sync() {
         .unwrap();
 
     let mut other = ClientState::new(TestEngine::new(), MemStorageProvider::new());
-    sync(graph_id, &mut client, &mut other);
+    sync(
+        graph_id,
+        &mut client,
+        &mut other,
+        &mut response_cache,
+        &mut request_cache,
+    );
 
     let mut trx = client.transaction(graph_id);
 
@@ -29,7 +38,6 @@ fn test_large_sync() {
         max_cut: 0,
     }];
     let mut rng = thread_rng();
-    // let mut fuel = 200_000i32;
     let mut fuel = 20_000i32;
     while fuel > 0 {
         eprintln!("fuel = {fuel}");
@@ -72,32 +80,50 @@ fn test_large_sync() {
         seen.len() / 100 * 2
     );
 
-    sync(graph_id, &mut client, &mut other);
-
-    let s1 = client.provider().get_storage(graph_id).unwrap();
-    let s2 = other.provider().get_storage(graph_id).unwrap();
-    assert_eq!(
-        s1.get_command_id(s1.get_head().unwrap()).unwrap(),
-        s2.get_command_id(s2.get_head().unwrap()).unwrap(),
-    )
+    while {
+        let s1 = client.provider().get_storage(graph_id).unwrap();
+        let s2 = other.provider().get_storage(graph_id).unwrap();
+        s1.get_command_id(s1.get_head().unwrap()).unwrap()
+            != s2.get_command_id(s2.get_head().unwrap()).unwrap()
+    } {
+        let x = sync(
+            graph_id,
+            &mut client,
+            &mut other,
+            &mut response_cache,
+            &mut request_cache,
+        );
+        let y = sync(
+            graph_id,
+            &mut other,
+            &mut client,
+            &mut request_cache,
+            &mut response_cache,
+        );
+        assert!(x > 0 || y > 0)
+    }
 }
 
 type Client = ClientState<TestEngine, MemStorageProvider>;
 
-fn sync(graph_id: GraphId, response_state: &mut Client, request_state: &mut Client) {
+fn sync(
+    graph_id: GraphId,
+    response_state: &mut Client,
+    request_state: &mut Client,
+    response_cache: &mut PeerCache,
+    request_cache: &mut PeerCache,
+) -> usize {
+    let mut added = 0;
     let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
     let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
 
     let mut request_trx = request_state.transaction(graph_id);
 
-    let mut request_cache = PeerCache::new();
-    let mut response_cache = PeerCache::new();
-
     let mut request_syncer = SyncRequester::new(graph_id, &mut Rng::new(), ());
     assert!(request_syncer.ready());
 
     let (len, _) = request_syncer
-        .poll(&mut buffer, request_state.provider(), &mut request_cache)
+        .poll(&mut buffer, request_state.provider(), request_cache)
         .unwrap();
 
     let mut response_syncer = SyncResponder::new(());
@@ -113,7 +139,7 @@ fn sync(graph_id: GraphId, response_state: &mut Client, request_state: &mut Clie
 
     loop {
         let len = response_syncer
-            .poll(&mut target, response_state.provider(), &mut response_cache)
+            .poll(&mut target, response_state.provider(), response_cache)
             .unwrap();
         if len == 0 {
             break;
@@ -121,7 +147,7 @@ fn sync(graph_id: GraphId, response_state: &mut Client, request_state: &mut Clie
 
         if let Some(cmds) = request_syncer.receive(&target[..len]).unwrap() {
             tracing::info!("synced {} commands", cmds.len());
-            request_state
+            added += request_state
                 .add_commands(&mut request_trx, &mut NullSink, cmds)
                 .unwrap();
         } else {
@@ -133,4 +159,6 @@ fn sync(graph_id: GraphId, response_state: &mut Client, request_state: &mut Clie
     request_state
         .commit(&mut request_trx, &mut NullSink)
         .unwrap();
+
+    added
 }

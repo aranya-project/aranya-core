@@ -149,7 +149,7 @@ pub struct SyncResponder<A> {
     next_send: usize,
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
-    to_send: Deque<Location, SEGMENT_BUFFER_MAX>,
+    to_send: Lru<usize, usize, SEGMENT_BUFFER_MAX>,
     server_address: A,
 }
 
@@ -164,7 +164,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             next_send: 0,
             message_index: 0,
             has: Vec::new(),
-            to_send: Deque::new(),
+            to_send: Lru::new(),
             server_address,
         }
     }
@@ -281,17 +281,22 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             .ok()
             .assume("heads not full")?;
 
-        'heads: while let Some(head) = heads.pop_front() {
-            if let Some(existing) = self
-                .to_send
-                .iter_mut()
-                .find(|loc| loc.segment == head.segment)
-            {
-                // TODO(jdygert): Should this be more like an LRU so `existing` gets bumped up?
-                if head.command < existing.command {
-                    existing.command = head.command
+        let no_descend = {
+            let mut set = alloc::collections::BTreeSet::new();
+            for &addr in &self.has {
+                if let Some(loc) = storage.get_location(addr)? {
+                    set.insert(loc);
                 }
-                continue 'heads;
+            }
+            set
+        };
+
+        'heads: while let Some(head) = heads.pop_front() {
+            if let Some(existing) = self.to_send.get_mut(&head.segment) {
+                let old = Location::new(head.segment, *existing);
+                if no_descend.contains(&old) {
+                    continue 'heads;
+                }
             }
 
             let segment = storage.get_segment(head)?;
@@ -299,7 +304,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             for &addr in &self.has {
                 if let Some(loc) = segment_get_location_by_address(&segment, addr)? {
                     if loc != segment.head_location() {
-                        force_push_front(&mut self.to_send, loc)?;
+                        self.to_send.insert(loc.segment, loc.command);
                     }
                     continue 'heads;
                 }
@@ -308,11 +313,14 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 force_push_front(&mut heads, p)?;
             }
 
-            force_push_front(&mut self.to_send, segment.first_location())?;
+            let loc = segment.first_location();
+            self.to_send.insert(loc.segment, loc.command);
         }
+
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
-        self.to_send.make_contiguous().sort();
+        self.to_send.sort_by_key();
+
         Ok(())
     }
 
@@ -408,18 +416,19 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             }
         };
         let mut index = self.next_send;
-        let Some(sending) = self.to_send.make_contiguous().get_mut(self.next_send..) else {
-                self.state = SyncResponderState::Reset;
-                bug!("send index OOB");
-            };
-        'outer: for location in sending {
+        let Some(sending) = self.to_send.iter_mut_from(self.next_send) else {
+            self.state = SyncResponderState::Reset;
+            bug!("send index OOB");
+        };
+        'outer: for (seg, cmd) in sending {
+            let location = Location::new(*seg, *cmd);
             let segment = storage
-                .get_segment(*location)
+                .get_segment(location)
                 .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
-            let found = segment.get_from(*location);
+            let found = segment.get_from(location);
 
-            for (command, j) in found.iter().zip(location.command..) {
+            for (command, j) in found.iter().zip(*cmd..) {
                 if target
                     .serialize(&SyncCommand {
                         priority: command.priority(),
@@ -431,7 +440,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     })
                     .is_err()
                 {
-                    location.command = j;
+                    *cmd = j;
                     break 'outer;
                 };
             }
@@ -493,6 +502,69 @@ mod buf {
                 .checked_add(len)
                 .assume("can't overflow if postcard behaves")?;
             Ok(())
+        }
+    }
+}
+
+use lru::Lru;
+mod lru {
+    use alloc::vec::Vec;
+
+    pub struct Lru<K, V, const SIZE: usize> {
+        data: Vec<(K, V)>,
+    }
+
+    impl<K, V, const SIZE: usize> Lru<K, V, SIZE> {
+        pub const fn new() -> Self {
+            Self { data: Vec::new() }
+        }
+
+        pub fn len(&self) -> usize {
+            self.data.len()
+        }
+
+        pub fn clear(&mut self) {
+            self.data.clear()
+        }
+
+        pub fn iter_mut_from(
+            &mut self,
+            start: usize,
+        ) -> Option<impl Iterator<Item = (&K, &mut V)>> {
+            self.data
+                .get_mut(start..)
+                .map(|xs| xs.iter_mut().map(|(k, v)| (&*k, v)))
+        }
+    }
+
+    impl<K: Ord, V, const SIZE: usize> Lru<K, V, SIZE> {
+        pub fn sort_by_key(&mut self) {
+            self.data.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        }
+    }
+
+    impl<K: Eq, V, const SIZE: usize> Lru<K, V, SIZE> {
+        pub fn insert(&mut self, k: K, v: V) {
+            if let Some(pos) = self.data.iter().position(|(x, _)| *x == k) {
+                self.data.remove(pos);
+            } else if self.data.len() >= SIZE {
+                self.data.remove(0);
+            }
+            self.data.push((k, v))
+        }
+
+        pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+            let pos = self.data.iter().position(|(x, _)| x == k)?;
+            let old = self.data.remove(pos);
+            self.data.push(old);
+            let (_, v) = self.data.last_mut()?;
+            Some(v)
+        }
+    }
+
+    impl<K, V, const SIZE: usize> Default for Lru<K, V, SIZE> {
+        fn default() -> Self {
+            Self::new()
         }
     }
 }
