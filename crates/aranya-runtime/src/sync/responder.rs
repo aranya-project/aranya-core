@@ -1,7 +1,4 @@
-use alloc::vec;
-use core::mem;
-
-use buggy::{BugExt, bug};
+use buggy::{Bug, BugExt, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
@@ -152,7 +149,7 @@ pub struct SyncResponder<A> {
     next_send: usize,
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
-    to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    to_send: Deque<Location, SEGMENT_BUFFER_MAX>,
     server_address: A,
 }
 
@@ -167,7 +164,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             next_send: 0,
             message_index: 0,
             has: Vec::new(),
-            to_send: Vec::new(),
+            to_send: Deque::new(),
             server_address,
         }
     }
@@ -218,7 +215,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                         response_cache.add_command(storage, *command, cmd_loc)?;
                     }
                 }
-                self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+                self.find_needed_segments(storage)?;
 
                 self.get_next(target, provider)?;
             }
@@ -252,7 +249,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 self.state = SyncResponderState::Start;
                 self.storage_id = Some(storage_id);
                 self.bytes_sent = max_bytes;
-                self.to_send = Vec::new();
+                self.to_send.clear();
                 self.has = commands;
                 self.next_send = 0;
                 return Ok(());
@@ -274,70 +271,49 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     /// This (probably) returns a Vec of segment addresses where the head of each segment is
     /// not the ancestor of any samples we have been sent. If that is longer than
     /// SEGMENT_BUFFER_MAX, it contains the oldest segment heads where that holds.
-    fn find_needed_segments(
-        commands: &[Address],
-        storage: &impl Storage,
-    ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        let mut have_locations = vec::Vec::new(); //BUG: not constant size
-        for &addr in commands {
-            let Some(location) = storage.get_location(addr)? else {
-                // Note: We could use things we don't
-                // have as a hint to know we should
-                // perform a sync request.
-                continue;
-            };
+    fn find_needed_segments(&mut self, storage: &impl Storage) -> Result<(), SyncError> {
+        self.to_send.clear();
 
-            have_locations.push(location);
-        }
+        // TODO(jdygert): Use `to_send` to also store heads?
+        let mut heads: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
+        heads
+            .push_front(storage.get_head()?)
+            .ok()
+            .assume("heads not full")?;
 
-        let mut heads = vec::Vec::new();
-        heads.push(storage.get_head()?);
+        'heads: while let Some(head) = heads.pop_front() {
+            if let Some(existing) = self
+                .to_send
+                .iter_mut()
+                .find(|loc| loc.segment == head.segment)
+            {
+                // TODO(jdygert): Should this be more like an LRU so `existing` gets bumped up?
+                if head.command < existing.command {
+                    existing.command = head.command
+                }
+                continue 'heads;
+            }
 
-        let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
+            let segment = storage.get_segment(head)?;
 
-        while !heads.is_empty() {
-            let current = mem::take(&mut heads);
-            'heads: for head in current {
-                let segment = storage.get_segment(head)?;
-                if segment.contains_any(&result) {
+            for &addr in &self.has {
+                if let Some(loc) = segment_get_location_by_address(&segment, addr)? {
+                    if loc != segment.head_location() {
+                        force_push_front(&mut self.to_send, loc)?;
+                    }
                     continue 'heads;
                 }
-
-                for &location in &have_locations {
-                    if segment.contains(location) {
-                        if location != segment.head_location() {
-                            if result.is_full() {
-                                result.pop_back();
-                            }
-                            result
-                                .push_front(location)
-                                .ok()
-                                .assume("too many segments")?;
-                        }
-                        continue 'heads;
-                    }
-                }
-                heads.extend(segment.prior());
-
-                if result.is_full() {
-                    result.pop_back();
-                }
-
-                let location = segment.first_location();
-                result
-                    .push_front(location)
-                    .ok()
-                    .assume("too many segments")?;
             }
-        }
-        let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        for l in result {
-            r.push(l).ok().assume("too many segments")?;
+            for p in segment.prior() {
+                force_push_front(&mut heads, p)?;
+            }
+
+            force_push_front(&mut self.to_send, segment.first_location())?;
         }
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
-        r.sort();
-        Ok(r)
+        self.to_send.make_contiguous().sort();
+        Ok(())
     }
 
     fn get_next(
@@ -407,7 +383,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             .checked_add(1)
             .assume("message_index increment overflow")?;
 
-        self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+        self.find_needed_segments(storage)?;
         self.next_send = self.get_commands(target, provider)?;
 
         // TODO: rewind if empty?
@@ -469,6 +445,27 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     fn session_id(&self) -> Result<u128, SyncError> {
         Ok(self.session_id.assume("session id is set")?)
     }
+}
+
+fn force_push_front<T>(deque: &mut heapless::deque::DequeView<T>, value: T) -> Result<(), Bug> {
+    if deque.is_full() {
+        deque.pop_back();
+    }
+    deque
+        .push_front(value)
+        .ok()
+        .assume("deque is not full after popping if full")
+}
+
+fn segment_get_location_by_address(
+    segment: &impl Segment,
+    addr: Address,
+) -> Result<Option<Location>, StorageError> {
+    Ok(segment.get_from_max_cut(addr.max_cut)?.filter(|&loc| {
+        segment
+            .get_command(loc)
+            .is_some_and(|cmd| cmd.id() == addr.id)
+    }))
 }
 
 use buf::Buf;

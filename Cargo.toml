@@ -15,7 +15,7 @@ authors = ["SpiderOak, Inc."]
 edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/aranya-project/aranya-core"
-rust-version = "1.85.0"
+rust-version = "1.86.0"
 
 [workspace.lints.rust]
 # missing_docs = "warn"
@@ -43,7 +43,7 @@ const_format = { version = "0.2", default-features = false }
 criterion = { version = "0.6" }
 derive-where = { version = "1", default-features = false }
 errno = { version = "0.3", default-features = false }
-heapless = { version = "0.8", default-features = false }
+heapless = { version = "0.9", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }

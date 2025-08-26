@@ -18,7 +18,7 @@ use aranya_runtime::{
     storage::{GraphId, StorageProvider},
 };
 use buggy::{Bug, BugExt, bug};
-use heapless::{FnvIndexMap, Vec};
+use heapless::{Vec, index_map::FnvIndexMap};
 use s2n_quic::{
     Client, Connection, Server,
     client::Connect,
