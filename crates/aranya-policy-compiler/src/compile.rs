@@ -447,7 +447,7 @@ impl<'a> CompileState<'a> {
         let s = self.evaluate_sources(s, &struct_def)?;
 
         // Check for duplicate fields in the struct literal
-        if let Some(duplicate_field) = find_duplicate(&s.fields, |(name, _)| name) {
+        if let Some(duplicate_field) = find_duplicate(&s.fields, |(ident, _)| &ident.name) {
             return Err(self.err(CompileErrorType::AlreadyDefined(
                 duplicate_field.to_string(),
             )));
