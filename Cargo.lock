@@ -564,6 +564,7 @@ dependencies = [
  "heapless 0.9.1",
  "postcard",
  "proptest",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "spin 0.10.0",
