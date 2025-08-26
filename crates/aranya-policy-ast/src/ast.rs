@@ -3,7 +3,53 @@ use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Text};
+use crate::{Identifier, Span, Spanned, Text, span::spanned};
+
+/// An identifier.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Ident {
+    /// The identifier name
+    pub name: Identifier,
+    /// The source location of this identifier
+    pub span: Span,
+}
+
+impl Ident {
+    /// Reports whether the identifiers are the same, ignoring
+    /// spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Deref for Ident {
+    type Target = Identifier;
+
+    fn deref(&self) -> &Self::Target {
+        &self.name
+    }
+}
+
+impl fmt::Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
+impl<T> PartialEq<T> for Ident
+where
+    T: AsRef<str> + ?Sized,
+{
+    fn eq(&self, other: &T) -> bool {
+        self.name == other.as_ref()
+    }
+}
+
+impl Spanned for Ident {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 /// An invalid version string was provided to
 /// [`Version::from_str`].
@@ -11,17 +57,24 @@ use crate::{Identifier, Text};
 #[error("invalid version string")]
 pub struct InvalidVersion;
 
-/// Policy language version
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
-pub enum Version {
-    /// Version 1, the initial version of the "new" policy
-    /// language.
-    #[deprecated]
-    V1,
-    /// Version 2, the second version of the policy language
-    #[default]
-    V2,
+mod version {
+    #![allow(deprecated)] // for serde
+
+    use super::{Deserialize, Serialize};
+
+    /// Policy language version
+    #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+    pub enum Version {
+        /// Version 1, the initial version of the "new" policy
+        /// language.
+        #[deprecated]
+        V1,
+        /// Version 2, the second version of the policy language
+        #[default]
+        V2,
+    }
 }
+pub use version::Version;
 
 // This supports the command-line tools, allowing automatic
 // conversion between string arguments and the enum.
@@ -48,51 +101,40 @@ impl fmt::Display for Version {
     }
 }
 
-/// An AST node with location information
-#[derive(Debug, Clone, PartialEq)]
-pub struct AstNode<T> {
-    /// The AST element contained within
-    pub inner: T,
-    /// The locator for where this AST element occurred in the source text
-    pub locator: usize,
-}
-
-impl<T> AstNode<T> {
-    /// Create a new `AstNode` from a node and locator
-    pub fn new(inner: T, locator: usize) -> AstNode<T> {
-        AstNode { inner, locator }
-    }
-}
-
-impl<T> Deref for AstNode<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
 /// Persistence mode for commands and actions
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Persistence {
     /// Persisted on-graph (default behavior)
     Persistent,
     /// Not persisted on-graph (ephemeral)
-    Ephemeral,
+    Ephemeral(Span),
+}
+
+impl Persistence {
+    /// Reports whether both persistence modes are the same,
+    /// ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::Persistent, Self::Persistent) | (Self::Ephemeral(_), Self::Ephemeral(_))
+        )
+    }
+
+    /// Returns the span of the persistence mode, if available.
+    pub fn span(&self) -> Option<Span> {
+        match self {
+            Self::Persistent => None,
+            Self::Ephemeral(span) => Some(*span),
+        }
+    }
 }
 
 impl fmt::Display for Persistence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Persistent => write!(f, "persistent"),
-            Self::Ephemeral => write!(f, "ephemeral"),
+            Self::Ephemeral(_) => write!(f, "ephemeral"),
         }
-    }
-}
-
-impl Default for Persistence {
-    fn default() -> Self {
-        Self::Persistent
     }
 }
 
@@ -100,7 +142,35 @@ impl Default for Persistence {
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum VType {
+pub struct VType {
+    /// The type kind
+    pub kind: TypeKind,
+    /// The source location of this type
+    pub span: Span,
+}
+
+impl VType {
+    /// Reports whether the types are the same, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        self.kind.matches(&other.kind)
+    }
+}
+
+impl fmt::Display for VType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl Spanned for VType {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// The kind of a [`VType`].
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TypeKind {
     /// A character (UTF-8) string
     String,
     /// A byte string
@@ -112,14 +182,31 @@ pub enum VType {
     /// A unique identifier
     Id,
     /// A named struct
-    Struct(Identifier),
+    Struct(Ident),
     /// Named enumeration
-    Enum(Identifier),
+    Enum(Ident),
     /// An optional type of some other type
     Optional(Box<VType>),
 }
 
-impl fmt::Display for VType {
+impl TypeKind {
+    /// Reports whether the kinds are the same, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String, Self::String)
+            | (Self::Bytes, Self::Bytes)
+            | (Self::Int, Self::Int)
+            | (Self::Bool, Self::Bool)
+            | (Self::Id, Self::Id) => true,
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.matches(rhs),
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::String => write!(f, "string"),
@@ -134,6 +221,7 @@ impl fmt::Display for VType {
     }
 }
 
+spanned! {
 /// An identifier and its type
 ///
 /// Field definitions are used in Command fields, fact
@@ -141,129 +229,169 @@ impl fmt::Display for VType {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     /// the field's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// the field's type
     pub field_type: VType,
+}
+}
+
+impl FieldDefinition {
+    /// Reports whether the field definitions are the same,
+    /// ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        self.identifier.matches(&other.identifier) && self.field_type.matches(&other.field_type)
+    }
 }
 
 /// An identifier and its type and dynamic effect marker
 ///
 /// A variant used exclusively for Effects
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EffectFieldDefinition {
     /// the field's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// the field's type
     pub field_type: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
 }
 
-/// Convert from EffectFieldDefinition to FieldDefinition, losing the
-/// dynamic information.
-impl From<&EffectFieldDefinition> for FieldDefinition {
-    fn from(value: &EffectFieldDefinition) -> Self {
-        FieldDefinition {
-            identifier: value.identifier.clone(),
-            field_type: value.field_type.clone(),
-        }
+impl Spanned for EffectFieldDefinition {
+    fn span(&self) -> Span {
+        self.identifier.span.merge(self.field_type.span())
     }
 }
 
 /// Value part of a key/value pair for a fact field.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FactField {
     /// Expression
     Expression(Expression),
     /// Bind value, e.g. "?"
-    Bind,
+    Bind(Span),
 }
 
+impl Spanned for FactField {
+    fn span(&self) -> Span {
+        match self {
+            Self::Expression(expr) => expr.span(),
+            Self::Bind(span) => *span,
+        }
+    }
+}
+
+spanned! {
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// values for the fields of the fact key
-    pub key_fields: Vec<(Identifier, FactField)>,
+    pub key_fields: Vec<(Ident, FactField)>,
     /// values for the fields of the fact value, which can be absent
-    pub value_fields: Option<Vec<(Identifier, FactField)>>,
+    pub value_fields: Option<Vec<(Ident, FactField)>>,
+}
 }
 
+spanned! {
 /// A function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
-
-/// A named struct literal
-#[derive(Debug, Clone, PartialEq)]
-pub struct NamedStruct {
-    /// the struct name - should refer to either a Effect or Command
-    pub identifier: Identifier,
-    /// The fields, which are pairs of identifiers and expressions
-    pub fields: Vec<(Identifier, Expression)>,
-    /// sources is a list of identifiers used in struct composition
-    pub sources: Vec<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+spanned! {
+/// A named struct literal
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NamedStruct {
+    /// the struct name - should refer to either a Effect or Command
+    pub identifier: Ident,
+    /// The fields, which are pairs of identifiers and expressions
+    pub fields: Vec<(Ident, Expression)>,
+    /// sources is a list of identifiers used in struct composition
+    pub sources: Vec<Ident>,
+}
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// list of possible values
-    pub variants: Vec<Identifier>,
+    pub variants: Vec<Ident>,
+    /// The source location of this definition
+    pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl Spanned for EnumDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+spanned! {
 /// A reference to an enumeration, e.g. `Color::Red`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// name of value inside enum
-    pub value: Identifier,
+    pub value: Ident,
+}
 }
 
 /// How many facts to expect when counting
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FactCountType {
     /// Up to
-    UpTo,
+    UpTo(Span),
     /// At least
-    AtLeast,
+    AtLeast(Span),
     /// At most
-    AtMost,
+    AtMost(Span),
     /// Exactly
-    Exactly,
+    Exactly(Span),
 }
 
 impl fmt::Display for FactCountType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UpTo => write!(f, "up_to"),
-            Self::AtLeast => write!(f, "at_least"),
-            Self::AtMost => write!(f, "at_most"),
-            Self::Exactly => write!(f, "exactly"),
+            Self::UpTo(_) => write!(f, "up_to"),
+            Self::AtLeast(_) => write!(f, "at_least"),
+            Self::AtMost(_) => write!(f, "at_most"),
+            Self::Exactly(_) => write!(f, "exactly"),
+        }
+    }
+}
+
+impl Spanned for FactCountType {
+    fn span(&self) -> Span {
+        match self {
+            Self::UpTo(span) | Self::AtLeast(span) | Self::AtMost(span) | Self::Exactly(span) => {
+                *span
+            }
         }
     }
 }
 
 /// Expression atoms with special rules or effects.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
     /// A `query` expression
     Query(FactLiteral),
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
+    // TODO(eric): make `i64` an expr or literal or something
     FactCount(FactCountType, i64, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
@@ -272,25 +400,55 @@ pub enum InternalFunction {
     /// Deserialize function
     Deserialize(Box<Expression>),
     /// Not yet implemented panic
-    Todo,
+    Todo(Span),
 }
 
+impl Spanned for InternalFunction {
+    fn span(&self) -> Span {
+        match self {
+            Self::Query(fact) => fact.span(),
+            Self::Exists(fact) => fact.span(),
+            Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
+            Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
+            Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
+            Self::Todo(span) => *span,
+        }
+    }
+}
+
+spanned! {
 /// A foreign function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ForeignFunctionCall {
     /// the function's module name
-    pub module: Identifier,
+    pub module: Ident,
     /// the function's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
+}
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Expression {
+    /// The expression kind
+    pub kind: ExprKind,
+    /// The source location of this expression
+    pub span: Span,
+}
+
+impl Spanned for Expression {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// The kind of [`Expression`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ExprKind {
     /// A 64-bit signed integer
     Int(i64),
     /// A text string
@@ -308,7 +466,7 @@ pub enum Expression {
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
     /// A variable identifier
-    Identifier(Identifier),
+    Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
     /// `expr + expr`
@@ -320,7 +478,7 @@ pub enum Expression {
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
     /// expr.expr`
-    Dot(Box<Expression>, Identifier),
+    Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
     Equal(Box<Expression>, Box<Expression>),
     /// `expr` != `expr`
@@ -344,85 +502,106 @@ pub enum Expression {
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
-    Block(Vec<AstNode<Statement>>, Box<Expression>),
+    Block(Vec<Statement>, Box<Expression>),
     /// A substruct expression
-    Substruct(Box<Expression>, Identifier),
+    Substruct(Box<Expression>, Ident),
     /// Type cast expression
-    Cast(Box<Expression>, Identifier),
+    Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
 }
 
+spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct FunctionDecl {
     /// The identifier of the function
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// A list of the arguments to the function, and their types
     pub arguments: Vec<FieldDefinition>,
     /// The return type of the function, if any
     pub return_type: Option<VType>,
 }
+}
 
+spanned! {
 /// Define a variable with an expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The variable's value
     pub expression: Expression,
 }
+}
 
+spanned! {
 /// Check that a boolean expression is true, and fail otherwise
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
 }
+}
 
 /// Match arm pattern
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
     /// No values, default case
-    Default,
+    Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
 }
 
+impl Spanned for MatchPattern {
+    fn span(&self) -> Span {
+        match self {
+            MatchPattern::Default(span) => *span,
+            MatchPattern::Values(values) => values.span(),
+        }
+    }
+}
+
+spanned! {
 /// One arm of a match statement
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchArm {
     /// The values to check against. Matches any value if the option is None.
     // TODO(chip): Restrict this to only literal values so we can do
     // exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+}
 }
 
+spanned! {
 /// Match a value and execute one possibility out of many
 ///
 /// Match arms are tested in order.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchStatement {
     /// The value to match against
     pub expression: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
+}
 
+spanned! {
 /// Match statement expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchExpression {
     /// Value to match against
     pub scrutinee: Expression,
     /// Match arms
-    pub arms: Vec<AstNode<MatchExpressionArm>>,
+    pub arms: Vec<MatchExpressionArm>,
+}
 }
 
 /// A container for a statement or expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LanguageContext<A, B> {
     /// statement
     Statement(A),
@@ -430,71 +609,119 @@ pub enum LanguageContext<A, B> {
     Expression(B),
 }
 
+impl<A, B> Spanned for LanguageContext<A, B>
+where
+    A: Spanned,
+    B: Spanned,
+{
+    fn span(&self) -> Span {
+        match self {
+            LanguageContext::Statement(stmt) => stmt.span(),
+            LanguageContext::Expression(expr) => expr.span(),
+        }
+    }
+}
+
 /// Match arm expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
     /// Expression
     pub expression: Expression,
+    /// The source location of this match arm
+    pub span: Span,
 }
 
+impl Spanned for MatchExpressionArm {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+spanned! {
 /// Test a series of conditions and execute the statements for the first true condition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IfStatement {
     /// Each `if` and `else if` branch.
-    pub branches: Vec<(Expression, Vec<AstNode<Statement>>)>,
+    pub branches: Vec<(Expression, Vec<Statement>)>,
     /// The `else` branch, if present.
-    pub fallback: Option<Vec<AstNode<Statement>>>,
+    pub fallback: Option<Vec<Statement>>,
+}
 }
 
+spanned! {
 /// Iterate over the results of a query, and execute some statements for each one.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
     /// Identifier of container struct
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// Statements to execute for each fact
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+}
 }
 
+spanned! {
 /// Create a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateStatement {
     /// The fact to create
     pub fact: FactLiteral,
 }
+}
 
+spanned! {
 /// Update a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
     /// The value fields are updated to these values
-    pub to: Vec<(Identifier, FactField)>,
+    pub to: Vec<(Ident, FactField)>,
+}
 }
 
+spanned! {
 /// Delete a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteStatement {
     /// The fact to delete
     pub fact: FactLiteral,
 }
+}
 
+spanned! {
 /// Return from a function
 ///
 /// Only valid within functions.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReturnStatement {
     /// The value to return
     pub expression: Expression,
 }
+}
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Statement {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Statement {
+    /// The statement kind
+    pub kind: StmtKind,
+    /// The source location of this statement
+    pub span: Span,
+}
+
+impl Spanned for Statement {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// The kind of [`Statement`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum StmtKind {
     /// A [LetStatement]
     Let(LetStatement),
     /// A [CheckStatement]
@@ -505,7 +732,7 @@ pub enum Statement {
     If(IfStatement),
     /// A `finish` block containing [Statement]s
     /// Valid only in policy blocks
-    Finish(Vec<AstNode<Statement>>),
+    Finish(Vec<Statement>),
     /// Map over a fact result set
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
@@ -535,51 +762,83 @@ pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
     /// The name of the fact
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// Types for all of the key fields
     pub key: Vec<FieldDefinition>,
     /// Types for all of the value fields
     pub value: Vec<FieldDefinition>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for FactDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// An action definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionDefinition {
     /// The persistence mode of the action
     pub persistence: Persistence,
     /// The name of the action
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The arguments to the action
     pub arguments: Vec<FieldDefinition>,
     /// The statements executed when the action is called
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for ActionDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// An effect definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EffectDefinition {
     /// The name of the effect
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields of the effect and their types
     pub items: Vec<StructItem<EffectFieldDefinition>>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for EffectDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A struct definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructDefinition {
     /// The name of the struct
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields of the struct and their types
     pub items: Vec<StructItem<FieldDefinition>>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for StructDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// Struct field or insertion reference
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
     /// Named struct from whose fields to add to the current struct
-    StructRef(Identifier),
+    StructRef(Ident),
 }
 
 impl<T> StructItem<T> {
@@ -592,97 +851,132 @@ impl<T> StructItem<T> {
     }
 }
 
+impl<T: Spanned> Spanned for StructItem<T> {
+    fn span(&self) -> Span {
+        match self {
+            Self::Field(f) => f.span(),
+            Self::StructRef(ident) => ident.span,
+        }
+    }
+}
+
 /// A command definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
     /// The persistence mode of the command
     pub persistence: Persistence,
     /// Optional attributes
-    pub attributes: Vec<(Identifier, Expression)>,
+    pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
     /// Statements for sealing the command into an envelope
-    pub seal: Vec<AstNode<Statement>>,
+    pub seal: Vec<Statement>,
     /// Statements for opening the command envelope
-    pub open: Vec<AstNode<Statement>>,
+    pub open: Vec<Statement>,
     /// The policy rule statements for this command
-    pub policy: Vec<AstNode<Statement>>,
+    pub policy: Vec<Statement>,
     /// The recall rule statements for this command
-    pub recall: Vec<AstNode<Statement>>,
+    pub recall: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for CommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A function definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionDefinition {
     /// The name of the function
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for FunctionDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A finish function definition. This is slightly different than a
 /// regular function since it cannot return values and can only
 /// execute finish block statements.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The finish block statements
-    pub statements: Vec<AstNode<Statement>>,
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for FinishFunctionDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A globally scopped let statement
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobalLetStatement {
     /// The variable's name
-    pub identifier: Identifier,
+    pub identifier: Ident,
     /// The variable's value
     pub expression: Expression,
+    /// The source location of this statement
+    pub span: Span,
 }
 
-/// A list of (position, size) pairs for text ranges
-pub type TextRanges = Vec<(usize, usize)>;
+impl Spanned for GlobalLetStatement {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 /// The policy AST root
 ///
 /// This contains all of the definitions that comprise a policy.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Policy {
     /// The policy version.
     pub version: Version,
     /// FFI imports
-    pub ffi_imports: Vec<Identifier>,
+    pub ffi_imports: Vec<Ident>,
     /// The policy's fact definitions.
-    pub facts: Vec<AstNode<FactDefinition>>,
+    pub facts: Vec<FactDefinition>,
     /// The policy's action definitions.
-    pub actions: Vec<AstNode<ActionDefinition>>,
+    pub actions: Vec<ActionDefinition>,
     /// The policy's effect definitions.
-    pub effects: Vec<AstNode<EffectDefinition>>,
+    pub effects: Vec<EffectDefinition>,
     /// The policy's struct definitions.
-    pub structs: Vec<AstNode<StructDefinition>>,
+    pub structs: Vec<StructDefinition>,
     /// The policy's enum definitions.
-    pub enums: Vec<AstNode<EnumDefinition>>,
+    pub enums: Vec<EnumDefinition>,
     /// The policy's command definitions.
-    pub commands: Vec<AstNode<CommandDefinition>>,
+    pub commands: Vec<CommandDefinition>,
     /// The policy's function definitions.
-    pub functions: Vec<AstNode<FunctionDefinition>>,
+    pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.
-    pub finish_functions: Vec<AstNode<FinishFunctionDefinition>>,
+    pub finish_functions: Vec<FinishFunctionDefinition>,
     /// The policy's global let statements.
-    pub global_lets: Vec<AstNode<GlobalLetStatement>>,
+    pub global_lets: Vec<GlobalLetStatement>,
     /// The source text
     pub text: String,
-    /// Text ranges for various nodes (start, end)
-    /// Start is also the locator
-    pub ranges: TextRanges,
 }
 
 impl Policy {

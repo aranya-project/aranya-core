@@ -37,16 +37,20 @@ const STACK_SIZE: usize = 100;
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier {
+    if fact.name != schema.identifier.name {
         return false;
     }
 
     for key in fact.keys.iter() {
-        let Some(key_value) = schema.key.iter().find(|k| k.identifier == key.identifier) else {
+        let Some(key_value) = schema
+            .key
+            .iter()
+            .find(|k| k.identifier.name == key.identifier)
+        else {
             return false;
         };
 
-        if key.value.vtype() != key_value.field_type {
+        if !key.value.vtype().matches(&key_value.field_type.kind) {
             return false;
         }
     }
@@ -56,7 +60,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(schema_value) = schema
             .value
             .iter()
-            .find(|v| v.identifier == value.identifier)
+            .find(|v| v.identifier.name == value.identifier)
         else {
             return false;
         };
@@ -65,7 +69,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(value_type) = value.value.vtype() else {
             return false;
         };
-        if value_type != schema_value.field_type {
+        if !value_type.matches(&schema_value.field_type.kind) {
             return false;
         }
     }
@@ -469,20 +473,22 @@ where
                 // Check for struct fields that do not exist in the
                 // definition.
                 for f in &s.fields {
-                    if !fields.iter().any(|v| &v.identifier == f.0) {
+                    if !fields.iter().any(|v| &v.identifier.name == f.0) {
                         return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
                 // types.
                 for f in fields {
-                    match s.fields.get(&f.identifier) {
-                        Some(f) => {
-                            if f.vtype() != f.vtype() {
+                    match s.fields.get(&f.identifier.name) {
+                        Some(v) => {
+                            if !v.fits_type(&f.field_type) {
                                 return Err(mk_err());
                             }
                         }
-                        None => return Err(mk_err()),
+                        None => {
+                            return Err(mk_err());
+                        }
                     }
                 }
 
@@ -668,7 +674,10 @@ where
                     .struct_defs
                     .get(&s.name)
                     .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
-                if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
+                if !struct_def_fields
+                    .iter()
+                    .any(|f| f.identifier.name == field_name)
+                {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
                 s.fields.insert(field_name, value);
@@ -702,7 +711,7 @@ where
                 for (field_name, field_val) in field_name_value_pairs {
                     let Some(field_defn) = struct_def_fields
                         .iter()
-                        .find(|f| f.identifier == field_name)
+                        .find(|f| f.identifier.name == field_name)
                     else {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
@@ -981,7 +990,7 @@ where
                             let field_type = &field.field_type;
 
                             // Check if the source struct has this field
-                            let value = s.fields.get(field_name).ok_or_else(|| {
+                            let value = s.fields.get(&field_name.name).ok_or_else(|| {
                                 self.err(MachineErrorType::Unknown(alloc::format!(
                                     "cannot cast to `struct {}`: missing field `{}`",
                                     identifier,

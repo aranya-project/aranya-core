@@ -150,8 +150,14 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x"),
-            field_type: ast::VType::Int
+            identifier: ast::Ident {
+                name: ident!("x"),
+                span: ast::Span::new(34, 35)
+            },
+            field_type: ast::VType {
+                kind: ast::TypeKind::Int,
+                span: ast::Span::new(36, 39)
+            }
         }])
     );
 
@@ -2533,7 +2539,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
         }
-        
+
         function new_foo(x int, y string) struct Foo {
             return Foo { y:y, x: x }
         }
