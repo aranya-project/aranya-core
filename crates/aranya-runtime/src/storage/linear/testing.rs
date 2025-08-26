@@ -65,7 +65,7 @@ impl io::Write for Writer {
 
     fn readonly(&self) -> Self::ReadOnly {
         Reader {
-            shared: self.shared.clone(),
+            shared: Arc::clone(&self.shared),
         }
     }
 

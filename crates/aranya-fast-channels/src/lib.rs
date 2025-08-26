@@ -190,8 +190,6 @@
 #![warn(
     clippy::alloc_instead_of_core,
     clippy::implicit_saturating_sub,
-    clippy::ptr_as_ptr,
-    clippy::transmute_ptr_to_ptr,
     clippy::wildcard_imports,
     clippy::undocumented_unsafe_blocks,
     clippy::expect_used,

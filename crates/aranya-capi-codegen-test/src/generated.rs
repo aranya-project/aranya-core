@@ -2982,10 +2982,8 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
             });
         }
     }
@@ -3120,10 +3118,8 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
             });
         }
     }
@@ -3243,10 +3239,8 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
             });
         }
     }
@@ -3419,10 +3413,8 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
             });
         }
     }
@@ -3572,10 +3564,8 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
             });
         }
     }

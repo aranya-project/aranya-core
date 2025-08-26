@@ -86,7 +86,7 @@ pub async fn run_syncer<EN, SP, S>(
     loop {
         select! {
             Some(conn) = server.accept() => {
-                if let Err(e) = handle_connection(conn, syncer.clone()).await {
+                if let Err(e) = handle_connection(conn, Arc::clone(&syncer)).await {
                     error!(cause = ?e, "sync error");
                 }
             },

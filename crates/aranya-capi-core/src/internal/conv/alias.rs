@@ -134,7 +134,7 @@ where
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound. `t` is a ref, so the pointer is never null
     // or unaligned.
-    unsafe { &*(ptr::from_ref::<T>(t) as *const U) }
+    unsafe { &*ptr::from_ref::<T>(t).cast::<U>() }
 }
 
 /// Casts `&mut T` to `&mut U`.
@@ -151,7 +151,7 @@ where
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound. `t` is an exclusive ref, so the pointer is
     // never null or unaligned.
-    unsafe { &mut *(ptr::from_mut::<T>(t) as *mut U) }
+    unsafe { &mut *ptr::from_mut::<T>(t).cast::<U>() }
 }
 
 /// Casts `*const T` to `*const U`.
@@ -165,7 +165,7 @@ where
         assert!(align_of::<T>() == align_of::<U>());
         assert!(needs_drop::<T>() == needs_drop::<U>());
     }
-    t as *const U
+    t.cast::<U>()
 }
 
 /// Converts `*mut T` to `*mut U`.
@@ -179,7 +179,7 @@ where
         assert!(align_of::<T>() == align_of::<U>());
         assert!(needs_drop::<T>() == needs_drop::<U>());
     }
-    t as *mut U
+    t.cast::<U>()
 }
 
 /// Converts `&[T]` to `&[U]`.

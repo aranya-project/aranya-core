@@ -117,8 +117,8 @@ async fn run(options: Opt) -> Result<()> {
     let (tx1, _) = mpsc::unbounded_channel();
     let syncer = Arc::new(TMutex::new(Syncer::new(
         &cert[..],
-        client.clone(),
-        sink.clone(),
+        Arc::clone(&client),
+        Arc::clone(&sink),
         tx1,
         server.local_addr()?,
     )?));
@@ -143,7 +143,7 @@ async fn run(options: Opt) -> Result<()> {
     }
 
     let (_, rx1) = mpsc::unbounded_channel();
-    let task = tokio::spawn(run_syncer(syncer.clone(), server, rx1));
+    let task = tokio::spawn(run_syncer(Arc::clone(&syncer), server, rx1));
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(

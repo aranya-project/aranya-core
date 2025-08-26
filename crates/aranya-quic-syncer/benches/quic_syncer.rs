@@ -116,8 +116,8 @@ fn sync_bench(c: &mut Criterion) {
             let syncer1 = Arc::new(TMutex::new(
                 Syncer::new(
                     &*cert.clone(),
-                    request_client.clone(),
-                    request_sink.clone(),
+                    Arc::clone(&request_client),
+                    Arc::clone(&request_sink),
                     tx1,
                     server1.local_addr().expect("error getting local addr"),
                 )
@@ -132,8 +132,8 @@ fn sync_bench(c: &mut Criterion) {
             let syncer2 = Arc::new(TMutex::new(
                 Syncer::new(
                     &*cert,
-                    response_client.clone(),
-                    response_sink.clone(),
+                    Arc::clone(&response_client),
+                    Arc::clone(&response_sink),
                     tx2,
                     server2_addr,
                 )
@@ -146,7 +146,7 @@ fn sync_bench(c: &mut Criterion) {
             )
             .expect("creating graph failed");
 
-            let task = tokio::spawn(run_syncer(syncer2.clone(), server2, rx2));
+            let task = tokio::spawn(run_syncer(Arc::clone(&syncer2), server2, rx2));
             add_commands(
                 response_client.lock().await.deref_mut(),
                 storage_id,
