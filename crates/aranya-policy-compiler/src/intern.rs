@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{HashMap, hash_map::RandomState},
+    collections::{hash_map::RandomState, HashMap},
     hash::{BuildHasher, Hash},
     ptr::NonNull,
 };
@@ -9,18 +9,19 @@ use bumpalo::Bump;
 
 use crate::arena::{Arena, Key};
 
-/// Creates a typed interner with a custom key type.
+/// Creates a typed interner with a custom ref (key) type.
 ///
-/// Generates both the interner type alias and the key type.
+/// Generates both the interner type alias and the ref (key)
+/// type.
 macro_rules! typed_interner {
     (
         $(#[$meta:meta])*
-        $vis:vis struct $name:ident($ty:ty) => $id:ident;
+        $vis:vis struct $name:ident($ty:ty) => $xref:ident;
     ) => {
         $(#[$meta])*
-        $vis type $name = $crate::intern::Interner<$id, $ty>;
+        $vis type $name = $crate::intern::Interner<$xref, $ty>;
         $crate::arena::new_key_type! {
-            $vis struct $id;
+            $vis struct $xref;
         }
     };
 }

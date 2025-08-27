@@ -30,6 +30,16 @@
 //!
 //! These are "resolved" during the type checking compiler pass.
 //!
+//! ## Symbol Kinds and Namespaces
+//!
+//! There are two "kinds" of symbols: items and types. An item is
+//! a symbol that is not a type. A type is either a struct or an
+//! enum.
+//!
+//! Each kind of symbol has its own *namespace*. This allows the
+//! compiler to auto-define structs for commands, effects, and
+//! facts without causing name collisions.
+//!
 //! # Scope
 //!
 //! Scope maps identifiers to symbols. Logically, you can think
@@ -83,26 +93,26 @@ mod resolver;
 mod scope;
 mod symbols;
 mod table;
-//mod tests;
+mod tests;
 
 use aranya_policy_ast::ident;
 
 use self::resolver::Resolver;
-pub(crate) use self::{
-    error::SymbolResolutionError,
+pub use self::{
     scope::Scopes,
-    symbols::{Symbol, SymbolId, SymbolKind, Symbols},
+    symbols::{
+        GlobalSymbol, ItemKind, Namespace, Symbol, SymbolId, SymbolKind, Symbols, TypeKind,
+        TypeOrigin,
+    },
     table::{ScopeMap, SymbolTable},
 };
 use crate::{
     arena::Iter,
     ctx::Ctx,
     diag::{ErrorGuaranteed, OptionExt},
-    hir::{AstLowering, IdentId},
+    hir::{IdentId, LowerAst, Span},
     pass::{DepsRefs, Pass, View},
 };
-
-pub(crate) type Result<T, E = SymbolResolutionError> = std::result::Result<T, E>;
 
 #[derive(Copy, Clone, Debug)]
 pub struct SymbolResolution;
@@ -111,7 +121,7 @@ impl Pass for SymbolResolution {
     const NAME: &'static str = "symbols";
     type Output = SymbolTable;
     type View<'cx> = SymbolsView<'cx>;
-    type Deps = (AstLowering,);
+    type Deps = (LowerAst,);
 
     fn run(cx: Ctx<'_>, (hir,): DepsRefs<'_, Self>) -> Result<SymbolTable, ErrorGuaranteed> {
         let reserved_idents = [ident!("this"), ident!("envelope"), ident!("id")]
@@ -128,13 +138,6 @@ impl Pass for SymbolResolution {
     }
 }
 
-impl<'cx> Ctx<'cx> {
-    pub fn symbols(self) -> Result<SymbolsView<'cx>, ErrorGuaranteed> {
-        let table = self.get::<SymbolResolution>()?;
-        Ok(SymbolsView::new(self, table))
-    }
-}
-
 #[derive(Copy, Clone, Debug)]
 pub struct SymbolsView<'cx> {
     cx: Ctx<'cx>,
@@ -147,11 +150,22 @@ impl<'cx> SymbolsView<'cx> {
         self.table
     }
 
-    /// Resolve an identifier to a symbol ID.
-    pub fn resolve(&self, id: IdentId) -> SymbolId {
-        self.table
-            .resolutions
-            .get(&id)
+    /// Resolve an identifier for an item to a symbol ID.
+    pub fn resolve_item(&self, id: IdentId) -> SymbolId {
+        self.resolve_in(id, Namespace::Item)
+    }
+
+    /// Resolves an identifier for a type to a symbol ID.
+    pub fn resolve_type(&self, id: IdentId) -> SymbolId {
+        self.resolve_in(id, Namespace::Type)
+    }
+
+    fn resolve_in(&self, id: IdentId, ns: Namespace) -> SymbolId {
+        let res = match ns {
+            Namespace::Item => &self.table.item_resolutions,
+            Namespace::Type => &self.table.type_resolutions,
+        };
+        res.get(&id)
             .copied()
             .unwrap_or_bug(self.cx.dcx(), "ident must be resolved")
     }
@@ -162,6 +176,11 @@ impl<'cx> SymbolsView<'cx> {
             .symbols
             .get(id)
             .unwrap_or_bug(self.cx.dcx(), "symbol must exist")
+    }
+
+    /// Get a symbol's span.
+    pub fn get_span(&self, id: SymbolId) -> Span {
+        self.get(id).span
     }
 
     /// Check if an identifier was skipped during resolution.

@@ -2,18 +2,19 @@ mod check;
 pub(crate) mod types;
 mod unify;
 
-use std::collections::BTreeMap;
+use std::{cell::RefCell, collections::BTreeMap};
 
 use self::{
     check::TypeChecker,
-    types::{Type, TypeEnv, TypeRef},
+    types::{Type, TypeEnv, TypeKind, TypeRef},
+    unify::UnifierState,
 };
 use crate::{
     arena::Arena,
     ctx::Ctx,
-    depgraph::{DepsPass, DepsView},
-    diag::ErrorGuaranteed,
-    hir::{AstLowering, ExprId, HirView},
+    depgraph::{BuildDepGraph, DepsView},
+    diag::{ErrorGuaranteed, OptionExt},
+    hir::{ExprId, HirView, LowerAst},
     pass::{Pass, View},
     symtab::{SymbolResolution, SymbolsView},
 };
@@ -25,7 +26,7 @@ impl Pass for TypesPass {
     const NAME: &'static str = "types";
     type Output = Types;
     type View<'cx> = TypesView<'cx>;
-    type Deps = (AstLowering, SymbolResolution, DepsPass);
+    type Deps = (LowerAst, SymbolResolution, BuildDepGraph);
 
     fn run<'ctx>(
         cx: Ctx<'ctx>,
@@ -36,30 +37,17 @@ impl Pass for TypesPass {
             hir,
             symbols,
             deps,
-            expr_types: BTreeMap::new(),
-            vtype_map: BTreeMap::new(),
+            types: Types::new(),
             env: TypeEnv::default(),
-            next_type_var: 0,
+            state: RefCell::new(UnifierState::new()),
+            local_vars: RefCell::new(BTreeMap::new()),
             max_errs: 10,
             num_errs: 0,
         };
 
         checker.check()?;
 
-        let mut expr_types = BTreeMap::new();
-        let mut types_arena = Arena::default();
-
-        for (expr_id, type_ref) in checker.env.exprs {
-            if let Some(ty) = checker.env.types.get(type_ref) {
-                let type_id = types_arena.insert(ty.clone());
-                expr_types.insert(expr_id, type_id);
-            }
-        }
-
-        Ok(Types {
-            exprs: expr_types,
-            types: types_arena,
-        })
+        Ok(checker.types)
     }
 }
 
@@ -69,9 +57,19 @@ pub struct Types {
     /// Maps expressions to their types.
     pub exprs: BTreeMap<ExprId, TypeRef>,
     /// Arena of types.
-    pub types: Arena<TypeRef, Type>,
+    pub types: Arena<TypeRef, TypeKind>,
 }
 
+impl Types {
+    fn new() -> Self {
+        Self {
+            exprs: BTreeMap::new(),
+            types: Arena::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct TypesView<'cx> {
     cx: Ctx<'cx>,
     types: &'cx Types,
@@ -83,9 +81,20 @@ impl<'cx> TypesView<'cx> {
         self.types
     }
 
-    /// Gets the type for a specific expression ID.
-    pub fn get_type(&self, expr_id: ExprId) -> Option<TypeRef> {
-        self.types.exprs.get(&expr_id).copied()
+    /// Gets the type for a specific expr.
+    pub fn get_type_ref(&self, id: ExprId) -> TypeRef {
+        self.types
+            .exprs
+            .get(&id)
+            .copied()
+            .unwrap_or_bug(self.cx.dcx(), "expr must have a type")
+    }
+
+    /// Gets the type for a specific expr.
+    pub fn get_type(&self, id: ExprId) -> Type<'cx> {
+        let xref = self.get_type_ref(id);
+        let kind = self.cx.get_type(xref);
+        Type { xref, kind }
     }
 }
 

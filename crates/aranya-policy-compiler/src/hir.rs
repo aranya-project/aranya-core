@@ -34,18 +34,19 @@
 
 #![allow(clippy::module_inception)]
 
-mod hir;
 mod lower;
+pub mod types;
 //mod normalize; TODO
 //mod snapshot_tests; TODO
+pub mod span;
 pub(crate) mod visit;
 
 use std::ops::Index;
 
 use aranya_policy_ast::Identifier;
 
-pub(crate) use self::hir::*;
-use self::lower::LowerCtx;
+use self::{lower::LowerCtx, span::Spanned};
+pub use self::{span::Span, types::*};
 use crate::{
     ast,
     ctx::Ctx,
@@ -53,15 +54,11 @@ use crate::{
     pass::{Pass, View},
 };
 
-pub(crate) mod types {
-    pub(crate) use crate::hir::*;
-}
-
 /// Lowers the AST into HIR.
 #[derive(Copy, Clone, Debug)]
-pub struct AstLowering;
+pub struct LowerAst;
 
-impl Pass for AstLowering {
+impl Pass for LowerAst {
     const NAME: &'static str = "hir_lower";
     type Deps = ();
     type Output = Hir;
@@ -80,14 +77,6 @@ impl Pass for AstLowering {
             ctx.lower_item(&item);
         }
         Ok(ctx.hir)
-    }
-}
-
-impl<'cx> Ctx<'cx> {
-    /// Get the HIR lower pass.
-    pub fn hir(self) -> Result<HirView<'cx>, ErrorGuaranteed> {
-        let hir = self.get::<AstLowering>()?;
-        Ok(HirView::new(self, hir))
     }
 }
 
@@ -122,7 +111,7 @@ impl<'cx> HirView<'cx> {
     }
 
     /// Retrieves an interned identifier.
-    pub fn lookup_ident(&self, id: IdentId) -> Identifier {
+    pub fn lookup_ident(&self, id: IdentId) -> &'cx Identifier {
         let xref = self.lookup_ident_ref(id);
         self.cx.get_ident(xref)
     }

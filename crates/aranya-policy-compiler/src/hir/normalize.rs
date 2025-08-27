@@ -1,3 +1,5 @@
+//! NOTE FOR AI: IGNORE THIS FILE.
+
 use std::{collections::HashMap, mem};
 
 use slotmap::SlotMap;
@@ -1335,10 +1337,13 @@ impl Normalizer {
 /// Split match arms into regular patterns and the default case.
 fn split_match_arms(arms: &[MatchArm]) -> (&[MatchArm], Option<&MatchArm>) {
     match arms {
-        [arms @ .., default @ MatchArm {
-            pattern: MatchPattern::Default,
-            ..
-        }] => (arms, Some(default)),
+        [
+            arms @ ..,
+            default @ MatchArm {
+                pattern: MatchPattern::Default,
+                ..
+            },
+        ] => (arms, Some(default)),
         arms => (arms, None),
     }
 }

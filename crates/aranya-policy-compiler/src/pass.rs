@@ -8,10 +8,13 @@ use std::{cell::OnceCell, marker::PhantomData};
 
 use crate::{
     ctx::Ctx,
-    depgraph::{DepGraph, DepsPass},
+    depgraph::{BuildDepGraph, DepGraph},
     diag::ErrorGuaranteed,
-    hir::{AstLowering, Hir},
+    eval::{ConstEval, Consts},
+    hir::{Hir, LowerAst},
+    simplify::{Hir as SHir, SimplifyPass},
     symtab::{SymbolResolution, SymbolTable},
+    typecheck::{Types, TypesPass},
 };
 
 /// A compiler pass with typed output and dependencies.
@@ -122,18 +125,22 @@ pub type DepsRefs<'cx, P> = <<P as Pass>::Deps as DepList>::Refs<'cx>;
 #[derive(Clone, Debug)]
 pub struct Results {
     pub hir: OnceCell<Hir>,
+    pub shir: OnceCell<SHir>,
     pub symbols: OnceCell<SymbolTable>,
     pub deps: OnceCell<DepGraph>,
-    // pub types: OnceCell<TypeInfo>,
+    pub types: OnceCell<Types>,
+    pub consts: OnceCell<Consts>,
 }
 
 impl Results {
     pub fn new() -> Self {
         Self {
             hir: OnceCell::new(),
+            shir: OnceCell::new(),
             symbols: OnceCell::new(),
             deps: OnceCell::new(),
-            // types: OnceCell::new(),
+            types: OnceCell::new(),
+            consts: OnceCell::new(),
         }
     }
 }
@@ -144,9 +151,15 @@ impl Default for Results {
     }
 }
 
-impl Access<AstLowering> for Results {
+impl Access<LowerAst> for Results {
     fn cell(&self) -> &OnceCell<Hir> {
         &self.hir
+    }
+}
+
+impl Access<SimplifyPass> for Results {
+    fn cell(&self) -> &OnceCell<SHir> {
+        &self.shir
     }
 }
 
@@ -156,14 +169,20 @@ impl Access<SymbolResolution> for Results {
     }
 }
 
-impl Access<DepsPass> for Results {
+impl Access<BuildDepGraph> for Results {
     fn cell(&self) -> &OnceCell<DepGraph> {
         &self.deps
     }
 }
 
-// impl Access<TypesPass> for Results {
-//     fn cell(&self) -> &OnceCell<TypeInfo> {
-//         &self.types
-//     }
-// }
+impl Access<TypesPass> for Results {
+    fn cell(&self) -> &OnceCell<Types> {
+        &self.types
+    }
+}
+
+impl Access<ConstEval> for Results {
+    fn cell(&self) -> &OnceCell<Consts> {
+        &self.consts
+    }
+}

@@ -6,10 +6,10 @@ use aranya_policy_ast as ast;
 use tracing::{instrument, trace};
 
 use super::{
-    Result, ScopeMap, SymbolTable,
+    ScopeMap, SymbolTable,
     error::SymbolResolutionError,
     scope::{InsertError, ScopeId, ScopedId},
-    symbols::{Symbol, SymbolId, SymbolKind},
+    symbols::{GlobalSymbol, ItemKind, Symbol, SymbolId, SymbolKind, TypeKind, TypeOrigin},
 };
 use crate::{
     ctx::Ctx,
@@ -18,10 +18,13 @@ use crate::{
         OptionExt, ResultExt, Severity,
     },
     hir::{
-        ActionCall, Block, BlockId, Body, CmdDef, CmdFieldKind, EffectFieldKind, EnumDef, EnumRef,
-        Expr, ExprKind, ForeignFunctionCall, FunctionCall, GlobalLetDef, GlobalSymbol, Hir,
-        HirView, Ident, IdentId, IdentRef, LetStmt, Param, Span, Stmt, StmtKind, StructFieldKind,
-        VType, VTypeKind,
+        ActionCall, ActionDef, ActionId, Block, BlockId, Body, CmdDef, CmdFieldKind, CmdId,
+        EffectDef, EffectFieldKind, EffectId, EnumDef, EnumId, EnumRef, Expr, ExprKind, FactDef,
+        FactFieldExpr, FactId, FfiEnumDef, FfiEnumId, FfiFuncId, FfiImportDef, FfiImportId,
+        FfiModuleDef, FfiModuleId, FfiStructDef, FfiStructId, FinishFuncDef, FinishFuncId,
+        ForeignFunctionCall, FuncDef, FuncId, FunctionCall, GlobalId, GlobalLetDef, Hir, HirView,
+        Ident, IdentId, IdentRef, LetStmt, NamedStruct, Param, Span, Stmt, StmtKind, StructDef,
+        StructFieldExpr, StructFieldKind, StructId, VType, VTypeKind,
         visit::{self, Visitor},
     },
 };
@@ -50,7 +53,10 @@ impl<'ctx> Resolver<'ctx> {
         // Make sure that we resolved all identifiers.
         for (id, ident) in &self.hir.hir().idents {
             let mut spans = Vec::new();
-            if !self.table.resolutions.contains_key(&id) && !self.table.skipped.contains(&id) {
+            if !self.table.item_resolutions.contains_key(&id)
+                && !self.table.type_resolutions.contains_key(&id)
+                && !self.table.skipped.contains(&id)
+            {
                 let msg = self.ctx.get_ident(ident.xref).to_string();
                 spans.push((ident.span, DiagMsg::from(msg)));
             }
@@ -154,11 +160,10 @@ impl<'ctx> Mark<'ctx> {
     fn mark<T>(&mut self, node: T) -> ControlFlow<()>
     where
         T: GlobalSymbol,
-        SymbolKind: From<T::Id>,
     {
         let ident = self.hir.lookup(node.ident());
         let span = node.span();
-        let kind = SymbolKind::from(node.id());
+        let kind = node.kind();
 
         trace!(
             ident = %self.ctx.get_ident(ident.xref),
@@ -313,8 +318,15 @@ impl<'ctx> ResolveIdents<'ctx> {
             Err(err) => self.dcx().emit_bug(err),
         };
 
-        if let Some(got) = self.table.resolutions.get(&id) {
-            assert_eq!(sym_id, *got);
+        if cfg!(debug_assertions) {
+            if let Some(got) = self
+                .table
+                .item_resolutions
+                .get(&id)
+                .or_else(|| self.table.type_resolutions.get(&id))
+            {
+                debug_assert_eq!(sym_id, *got);
+            }
         }
 
         match self.table.symbols.get(sym_id) {
@@ -338,7 +350,7 @@ impl<'ctx> ResolveIdents<'ctx> {
 
         trace!(ident = %self.ctx.get_ident(ident.xref));
 
-        let kind = SymbolKind::LocalVar(block);
+        let kind = SymbolKind::Item(ItemKind::LocalVar(block));
         let result = match self.table.add_symbol(self.scope, ident, kind, span) {
             Ok(()) => Ok(()),
             Err(InsertError::Bug(err)) => self.dcx().emit_bug_diag(err),
@@ -424,9 +436,16 @@ impl<'ctx> ResolveIdents<'ctx> {
                     kind,
                 })
             })?;
-        self.table.resolutions.insert(ident.id, sym_id);
-
-        trace!(%sym_id, "resolved ident");
+        let sym = self
+            .table
+            .symbols
+            .get(sym_id)
+            .unwrap_or_bug(self.dcx(), "symbol should exist");
+        match sym.kind {
+            SymbolKind::Item(_) => self.table.item_resolutions.insert(ident.id, sym_id),
+            SymbolKind::Type(_) => self.table.type_resolutions.insert(ident.id, sym_id),
+        };
+        trace!(%sym_id, kind = ?sym.kind, "resolved ident");
 
         Ok(sym_id)
     }
@@ -606,7 +625,7 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
                 // this is the only use of `get_global`, so it
                 // should be updated to emit a regular error.)
                 let &Symbol {
-                    kind: SymbolKind::FfiModule(id),
+                    kind: SymbolKind::Item(ItemKind::FfiModule(id)),
                     ..
                 } = self.get_global(*module)
                 else {
@@ -642,6 +661,23 @@ impl<'a: 'hir, 'hir> Visitor<'hir> for ResolveIdents<'a> {
             }
             _ => visit::walk_expr(self, expr),
         }
+    }
+
+    #[instrument(skip(self))]
+    fn visit_named_struct_lit(&mut self, lit: &'hir NamedStruct) -> Self::Result {
+        // Resolve the struct type name, but do not treat field names as value idents
+        self.resolve_ident_by_id(lit.ident, IdentKind::Struct)?;
+        for field in &lit.fields {
+            self.visit_named_struct_lit_field(field)?;
+        }
+        ControlFlow::Continue(())
+    }
+
+    #[instrument(skip(self))]
+    fn visit_named_struct_lit_field(&mut self, field: &'hir StructFieldExpr) -> Self::Result {
+        // Skip field name ident; only resolve the value expression
+        self.skip_ident(field.ident);
+        self.visit_expr(self.hir.lookup(field.expr))
     }
 
     #[instrument(skip(self))]

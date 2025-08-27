@@ -1,14 +1,14 @@
 #![expect(clippy::enum_variant_names)]
 
 use std::{
-    fmt,
     hash::Hash,
-    ops::{BitAnd, BitAndAssign, Index, Range},
+    ops::{BitAnd, BitAndAssign, Index},
 };
 
 use aranya_policy_ast as ast;
 use serde::{Deserialize, Serialize};
 
+use super::span::{Span, Spanned};
 use crate::{
     arena::{Arena, Key},
     intern::typed_interner,
@@ -419,6 +419,8 @@ hir_node! {
         pub open: BlockId,
         pub policy: BlockId,
         pub recall: BlockId,
+        /// The command's auto-defined struct.
+        pub struct_id: StructId,
     }
 }
 
@@ -454,6 +456,8 @@ hir_node! {
         pub id: EffectId,
         pub ident: IdentId,
         pub items: Vec<EffectFieldId>,
+        /// The effect's auto-defined struct.
+        pub struct_id: StructId,
     }
 }
 
@@ -568,10 +572,8 @@ hir_type! {
         /// return None
         ///        ^^^^ ExprKind::Optional(None)
         /// ```
-        // TODO(eric): This really isn't a literal per-se.
         Optional(Option<ExprId>),
         /// A named struct literal.
-        // TODO(eric): This isn't a literal per-se.
         NamedStruct(NamedStruct),
         /// A fact literal.
         // TODO(eric): This isn't a literal per-se.
@@ -870,6 +872,8 @@ hir_node! {
         pub ident: IdentId,
         pub keys: Vec<FactKeyId>,
         pub vals: Vec<FactValId>,
+        /// The fact's auto-defined struct.
+        pub struct_id: StructId,
     }
 }
 
@@ -916,7 +920,9 @@ hir_node! {
 
 hir_node! {
     /// A global let definition.
+    // TODO(eric): Rename this to `GlobalVarDef`.
     pub struct GlobalLetDef {
+        // TODO(eric): Rename this to `GlobalVarId`.
         pub id: GlobalId,
         pub ident: IdentId,
         pub expr: ExprId,
@@ -937,7 +943,7 @@ hir_node! {
 }
 
 hir_type! {
-    /// The kind of a statement.
+    /// The kind of a [`Stmt`].
     pub enum StmtKind {
         Let(LetStmt),
         Check(CheckStmt),
@@ -1114,6 +1120,26 @@ hir_node! {
         pub id: StructId,
         pub ident: IdentId,
         pub items: Vec<StructFieldId>,
+        pub origin: StructOrigin,
+    }
+}
+
+hir_type! {
+    /// How a [`StructDef`] was defined.
+    ///
+    /// See [auto-definition] for more information.
+    ///
+    /// [auto-definition]: https://github.com/aranya-project/aranya-docs/blob/c9701a0c7c4d4f2370c9512104b89657d76ce667/docs/policy-v1.md#struct-auto-definition
+    #[derive(Copy)]
+    pub enum StructOrigin {
+        /// Manually defined by a user in the policy source.
+        Explicit,
+        /// Auto-defined for a [`CmdDef`].
+        AutoCmd(CmdId),
+        /// Auto-defined for a [`EffectDef`]
+        AutoEffect(EffectId),
+        /// Auto-defined for a [`FactDef`].
+        AutoFact(FactId),
     }
 }
 
@@ -1188,33 +1214,6 @@ impl<T: Named> Named for &T {
         (*self).ident()
     }
 }
-
-/// Marker trait for HIR nodes that represent global symbols.
-///
-/// Global symbols are top-level items that can be referenced
-/// from anywhere in the program (e.g., actions, structs, enums).
-///
-/// NOTE: This list must be kept in sync with the types in
-/// `for_each_top_level_item` macro in `visit.rs`.
-pub trait GlobalSymbol: HirNode + Named {}
-
-impl<T: GlobalSymbol> GlobalSymbol for &T {}
-
-// Implement for all the top-level types
-// Keep this list in sync with for_each_top_level_item macro in visit.rs
-impl GlobalSymbol for ActionDef {}
-impl GlobalSymbol for CmdDef {}
-impl GlobalSymbol for EffectDef {}
-impl GlobalSymbol for EnumDef {}
-impl GlobalSymbol for FactDef {}
-impl GlobalSymbol for FfiEnumDef {}
-impl GlobalSymbol for FfiImportDef {}
-impl GlobalSymbol for FfiModuleDef {}
-impl GlobalSymbol for FfiStructDef {}
-impl GlobalSymbol for FinishFuncDef {}
-impl GlobalSymbol for FuncDef {}
-impl GlobalSymbol for GlobalLetDef {}
-impl GlobalSymbol for StructDef {}
 
 hir_type! {
     /// A ternary [`if`] expression.
@@ -1355,74 +1354,5 @@ hir_node! {
         pub id: FfiEnumId,
         pub ident: IdentId,
         pub variants: Vec<IdentId>,
-    }
-}
-
-/// A span representing a range in the source text.
-#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct Span {
-    /// The start position in the source text (in bytes).
-    pub start: usize,
-    /// The end position in the source text (in bytes).
-    pub end: usize,
-}
-
-impl Span {
-    /// Creates a new span with the given start and end
-    /// positions.
-    pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(start <= end, "{start} {end}");
-
-        Self { start, end }
-    }
-
-    /// Creates a span where start and end positions are the
-    /// same.
-    pub fn point(pos: usize) -> Self {
-        Self::new(pos, pos)
-    }
-
-    /// Merges the two spans.
-    pub fn merge(self, rhs: Self) -> Self {
-        Self::new(self.start.min(rhs.start), self.end.max(rhs.end))
-    }
-
-    /// Reports whether `start == end`.
-    pub fn is_empty(self) -> bool {
-        self.start == self.end
-    }
-
-    /// Converts the span into a [`Range`].
-    pub fn into_range(self) -> Range<usize> {
-        self.start..self.end
-    }
-}
-
-impl From<Span> for Range<usize> {
-    fn from(span: Span) -> Self {
-        span.start..span.end
-    }
-}
-
-impl From<aranya_policy_module::Span<'_>> for Span {
-    fn from(span: aranya_policy_module::Span<'_>) -> Self {
-        Self::new(span.start(), span.end())
-    }
-}
-
-impl fmt::Debug for Span {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}..{}", self.start, self.end)
-    }
-}
-
-/// Implemented by types that have a span.
-pub trait Spanned {
-    fn span(&self) -> Span;
-}
-
-impl<T: Spanned> Spanned for &T {
-    fn span(&self) -> Span {
-        (*self).span()
     }
 }

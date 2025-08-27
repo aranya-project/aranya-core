@@ -2,11 +2,12 @@
 
 use aranya_policy_ast::{self as ast, AstNode};
 use aranya_policy_module::{
-    CodeMap,
     ffi::{self, ModuleSchema},
+    CodeMap,
 };
 
 use super::{
+    span::Span,
     types::{
         ActionCall, ActionDef, BinOp, Block, BlockId, Body, BodyId, CheckStmt, CmdDef, CmdField,
         CmdFieldId, CmdFieldKind, Create, DebugAssert, Delete, EffectDef, EffectField,
@@ -16,9 +17,9 @@ use super::{
         FfiStructField, FfiStructFieldId, FfiStructFieldKind, FieldDef, FinishFuncDef,
         ForeignFunctionCall, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch,
         IfStmt, Intrinsic, LetStmt, Lit, LitKind, MapStmt, MatchArm, MatchExpr, MatchExprArm,
-        MatchPattern, MatchStmt, NamedStruct, Param, ParamId, Publish, Pure, ReturnStmt, Span,
-        Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr, StructFieldId,
-        StructFieldKind, Ternary, UnaryOp, Update, VType, VTypeId, VTypeKind,
+        MatchPattern, MatchStmt, NamedStruct, Param, ParamId, Publish, Pure, ReturnStmt, Stmt,
+        StmtId, StmtKind, StructDef, StructField, StructFieldExpr, StructFieldId, StructFieldKind,
+        StructOrigin, Ternary, UnaryOp, Update, VType, VTypeId, VTypeKind,
     },
     visit::{self, Visitor},
 };
@@ -424,15 +425,31 @@ impl LowerCtx<'_> {
         let open = self.lower_block(&node.open);
         let policy = self.lower_block(&node.policy);
         let recall = self.lower_block(&node.recall);
-        self.hir.cmds.insert_with_key(|id| CmdDef {
-            id,
-            span,
-            ident,
-            fields,
-            seal,
-            open,
-            policy,
-            recall,
+
+        let items = self.lower_list::<_, StructField, _>(&node.fields);
+
+        let cmds = &mut self.hir.cmds;
+        let structs = &mut self.hir.structs;
+
+        cmds.insert_with_key(|cmd_id| {
+            let struct_id = structs.insert_with_key(|struct_id| StructDef {
+                id: struct_id,
+                span,
+                ident,
+                items,
+                origin: StructOrigin::AutoCmd(cmd_id),
+            });
+            CmdDef {
+                id: cmd_id,
+                span,
+                ident,
+                fields,
+                seal,
+                open,
+                policy,
+                recall,
+                struct_id,
+            }
         });
     }
 
@@ -455,15 +472,31 @@ impl LowerCtx<'_> {
         })
     }
 
-    fn lower_effect(&mut self, e: &AstNode<ast::EffectDefinition>) {
-        let span = self.find_and_update_last_span(e.locator);
-        let ident = self.lower_ident(&e.identifier);
-        let items = self.lower_list(&e.items);
-        self.hir.effects.insert_with_key(|id| EffectDef {
-            id,
-            span,
-            ident,
-            items,
+    fn lower_effect(&mut self, node: &AstNode<ast::EffectDefinition>) {
+        let span = self.find_and_update_last_span(node.locator);
+        let ident = self.lower_ident(&node.identifier);
+        let items = self.lower_list::<_, EffectField, _>(&node.items);
+
+        let struct_items = self.lower_list::<_, StructField, _>(&node.items);
+
+        let effects = &mut self.hir.effects;
+        let structs = &mut self.hir.structs;
+
+        effects.insert_with_key(|effect_id| {
+            let struct_id = structs.insert_with_key(|struct_id| StructDef {
+                id: struct_id,
+                span,
+                ident,
+                items: struct_items,
+                origin: StructOrigin::AutoEffect(effect_id),
+            });
+            EffectDef {
+                id: effect_id,
+                span,
+                ident,
+                items,
+                struct_id,
+            }
         });
     }
 
@@ -489,10 +522,32 @@ impl LowerCtx<'_> {
         })
     }
 
-    fn lower_enum(&mut self, e: &AstNode<ast::EnumDefinition>) {
-        let span = self.find_and_update_last_span(e.locator);
-        let ident = self.lower_ident(&e.identifier);
-        let variants = self.lower_list(&e.variants);
+    fn lower_effect_field_as_struct_field(
+        &mut self,
+        node: &ast::StructItem<ast::EffectFieldDefinition>,
+    ) -> StructFieldId {
+        let kind = match node {
+            ast::StructItem::Field(field) => {
+                let ident = self.lower_ident(&field.identifier);
+                let ty = self.lower_vtype(&field.field_type);
+                StructFieldKind::Field { ident, ty }
+            }
+            ast::StructItem::StructRef(struct_ref) => {
+                let ident = self.lower_ident(struct_ref);
+                StructFieldKind::StructRef(ident)
+            }
+        };
+        self.hir.struct_fields.insert_with_key(|id| StructField {
+            id,
+            span: self.last_span,
+            kind,
+        })
+    }
+
+    fn lower_enum(&mut self, node: &AstNode<ast::EnumDefinition>) {
+        let span = self.find_and_update_last_span(node.locator);
+        let ident = self.lower_ident(&node.identifier);
+        let variants = self.lower_list(&node.variants);
         self.hir.enums.insert_with_key(|id| EnumDef {
             id,
             span,
@@ -501,17 +556,34 @@ impl LowerCtx<'_> {
         });
     }
 
-    fn lower_fact(&mut self, f: &AstNode<ast::FactDefinition>) {
-        let span = self.find_and_update_last_span(f.locator);
-        let ident = self.lower_ident(&f.identifier);
-        let keys = self.lower_list::<_, FactKey, _>(&f.key);
-        let vals = self.lower_list::<_, FactVal, _>(&f.value);
-        self.hir.facts.insert_with_key(|id| FactDef {
-            id,
-            span,
-            ident,
-            keys,
-            vals,
+    fn lower_fact(&mut self, node: &AstNode<ast::FactDefinition>) {
+        let span = self.find_and_update_last_span(node.locator);
+        let ident = self.lower_ident(&node.identifier);
+        let keys = self.lower_list::<_, FactKey, _>(&node.key);
+        let vals = self.lower_list::<_, FactVal, _>(&node.value);
+
+        let mut items: Vec<_> = self.lower_list::<_, StructField, _>(&node.key);
+        items.append(&mut self.lower_list::<_, StructField, _>(&node.value));
+
+        let facts = &mut self.hir.facts;
+        let structs = &mut self.hir.structs;
+
+        facts.insert_with_key(|fact_id| {
+            let struct_id = structs.insert_with_key(|struct_id| StructDef {
+                id: struct_id,
+                span,
+                ident,
+                items,
+                origin: StructOrigin::AutoFact(fact_id),
+            });
+            FactDef {
+                id: fact_id,
+                span,
+                ident,
+                keys,
+                vals,
+                struct_id,
+            }
         });
     }
 
@@ -534,6 +606,19 @@ impl LowerCtx<'_> {
             span: self.last_span,
             ident,
             ty,
+        })
+    }
+
+    fn lower_fact_key_or_val_as_struct_field(
+        &mut self,
+        node: &ast::FieldDefinition,
+    ) -> StructFieldId {
+        let ident = self.lower_ident(&node.identifier);
+        let ty = self.lower_vtype(&node.field_type);
+        self.hir.struct_fields.insert_with_key(|id| StructField {
+            id,
+            span: self.last_span,
+            kind: StructFieldKind::Field { ident, ty },
         })
     }
 
@@ -584,6 +669,7 @@ impl LowerCtx<'_> {
             span,
             ident,
             items,
+            origin: StructOrigin::Explicit,
         });
     }
 
@@ -816,6 +902,13 @@ impl Lower<EffectField> for ast::StructItem<ast::EffectFieldDefinition> {
     }
 }
 
+impl Lower<StructField> for ast::StructItem<ast::EffectFieldDefinition> {
+    type Result = StructFieldId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        ctx.lower_effect_field_as_struct_field(self)
+    }
+}
+
 impl Lower<MatchPattern> for ast::MatchPattern {
     type Result = MatchPattern;
     fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
@@ -868,6 +961,13 @@ impl Lower<FactVal> for ast::FieldDefinition {
     type Result = FactValId;
     fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
         ctx.lower_fact_val(self)
+    }
+}
+
+impl Lower<StructField> for ast::FieldDefinition {
+    type Result = StructFieldId;
+    fn lower(&self, ctx: &mut LowerCtx<'_>) -> Self::Result {
+        ctx.lower_fact_key_or_val_as_struct_field(self)
     }
 }
 

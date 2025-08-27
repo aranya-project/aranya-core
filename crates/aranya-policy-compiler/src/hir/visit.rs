@@ -14,7 +14,7 @@ use super::types::{
     FfiStructFieldKind, FfiStructId, FinishFuncDef, FinishFuncId, FuncDef, FuncId, GlobalId,
     GlobalLetDef, Hir, Ident, IdentId, IdentRef, Intrinsic, Lit, LitKind, MatchPattern,
     NamedStruct, Param, ParamId, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldExpr,
-    StructFieldId, StructFieldKind, StructId, VType, VTypeId, VTypeKind,
+    StructFieldId, StructFieldKind, StructId, StructOrigin, VType, VTypeId, VTypeKind,
 };
 
 /// Exits early if the [`VisitorResult`] asks to break.
@@ -72,6 +72,10 @@ macro_rules! visitor_method {
 /// Visits HIR nodes.
 ///
 /// # Usage
+///
+/// TODO
+// TODO(eric): Add the ability to filter nodes. Eg, filtering
+// non-explicit structs.
 pub(crate) trait Visitor<'hir>: Sized {
     /// The result from a "visit_" method.
     type Result: VisitorResult;
@@ -107,6 +111,7 @@ pub(crate) trait Visitor<'hir>: Sized {
     visitor_method!(@walk visit_cmd_open_block, Block);
     visitor_method!(@walk visit_cmd_policy_block, Block);
     visitor_method!(@walk visit_cmd_recall_block, Block);
+    visitor_method!(@id visit_cmd_struct_id, StructId);
 
     //
     // Effects
@@ -117,6 +122,7 @@ pub(crate) trait Visitor<'hir>: Sized {
     visitor_method!(@walk visit_effect_field, EffectField);
     visitor_method!(@id visit_effect_field_id, EffectFieldId);
     visitor_method!(@walk visit_effect_field_kind, EffectFieldKind);
+    visitor_method!(@id visit_effect_struct_id, StructId);
 
     //
     // Enums
@@ -135,6 +141,7 @@ pub(crate) trait Visitor<'hir>: Sized {
     visitor_method!(@id visit_fact_key_id, FactKeyId);
     visitor_method!(@walk visit_fact_val, FactVal);
     visitor_method!(@id visit_fact_val_id, FactValId);
+    visitor_method!(@id visit_fact_struct_id, StructId);
 
     //
     // Finish functions
@@ -167,6 +174,7 @@ pub(crate) trait Visitor<'hir>: Sized {
     visitor_method!(@walk visit_struct_field, StructField);
     visitor_method!(@id visit_struct_field_id, StructFieldId);
     visitor_method!(@walk visit_struct_field_kind, StructFieldKind);
+    visitor_method!(@other visit_struct_origin, StructOrigin);
 
     //
     // Ident
@@ -212,8 +220,7 @@ pub(crate) trait Visitor<'hir>: Sized {
     //
 
     visitor_method!(@walk visit_lit, Lit);
-    // TODO(eric): implement this
-    // visitor_method!(@walk visit_lit_kind, LitKind);
+    visitor_method!(@walk visit_lit_kind, LitKind);
 
     visitor_method!(@walk visit_named_struct_lit, NamedStruct);
     visitor_method!(@walk visit_named_struct_lit_field, StructFieldExpr);
@@ -286,8 +293,8 @@ where
 /// where `visit` is the `visit_*` [`Visitor`] method and `ty` is
 /// the method's argument.
 ///
-/// NOTE: This list must be kept in sync with the GlobalSymbol trait
-/// implementations in `hir.rs`.
+/// NOTE: Keep this macro in sync with
+/// [`GlobalSymbol`][crate::symtab::GlobalSymbol].
 macro_rules! for_each_top_level_item {
     ($callback:ident) => {
         $crate::hir::visit::for_each_top_level_item!(@impl [partial] $callback);
@@ -547,6 +554,7 @@ visitable_and_walkable_ref! {
     GlobalLetDef, visit_global_def, walk_global_let;
     Ident, visit_ident, walk_ident;
     Lit, visit_lit, walk_lit;
+    LitKind, visit_lit_kind, walk_lit_kind;
     NamedStruct, visit_named_struct_lit, walk_named_struct_lit;
     Param, visit_param, walk_param;
     Stmt, visit_stmt, walk_stmt;
@@ -594,6 +602,7 @@ where
         open,
         policy,
         recall,
+        struct_id,
     } = def;
     try_visit!(visitor.visit_cmd_id(*id));
     try_visit_by_id!(visitor.visit_ident(*ident));
@@ -604,6 +613,7 @@ where
     try_visit_by_id!(visitor.visit_cmd_open_block(*open));
     try_visit_by_id!(visitor.visit_cmd_policy_block(*policy));
     try_visit_by_id!(visitor.visit_cmd_recall_block(*recall));
+    try_visit!(visitor.visit_cmd_struct_id(*struct_id));
     V::Result::output()
 }
 
@@ -938,6 +948,14 @@ where
     V: Visitor<'hir>,
 {
     let Lit { kind } = lit;
+    try_visit!(visitor.visit_lit_kind(kind));
+    V::Result::output()
+}
+
+pub(crate) fn walk_lit_kind<'hir, V>(visitor: &mut V, kind: &'hir LitKind) -> V::Result
+where
+    V: Visitor<'hir>,
+{
     match kind {
         LitKind::String(_) | LitKind::Int(_) | LitKind::Bool(_) => {}
         LitKind::Optional(v) => {
@@ -1016,12 +1034,14 @@ where
         span: _,
         ident,
         items,
+        struct_id,
     } = def;
     try_visit!(visitor.visit_effect_id(*id));
     try_visit_by_id!(visitor.visit_ident(*ident));
     for &id in items {
         try_visit_by_id!(visitor.visit_effect_field(id));
     }
+    try_visit!(visitor.visit_effect_struct_id(*struct_id));
     V::Result::output()
 }
 
@@ -1152,6 +1172,7 @@ where
         span: _,
         ident,
         items,
+        origin,
     } = def;
     try_visit!(visitor.visit_struct_id(*id));
     try_visit_by_id!(visitor.visit_ident(*ident));
@@ -1202,6 +1223,7 @@ where
         ident,
         keys,
         vals,
+        struct_id,
     } = def;
     try_visit!(visitor.visit_fact_id(*id));
     try_visit_by_id!(visitor.visit_ident(*ident));
@@ -1211,6 +1233,7 @@ where
     for &id in vals {
         try_visit_by_id!(visitor.visit_fact_val(id));
     }
+    try_visit!(visitor.visit_fact_struct_id(*struct_id));
     V::Result::output()
 }
 

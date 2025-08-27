@@ -303,9 +303,9 @@ impl DiagCtx {
         if span.is_empty() {
             // Inflate the empty span to the end of its current
             // line.
-            let frag = &src[span.start..];
+            let frag = &src[span.start()..];
             let end = src.find('\n').unwrap_or(frag.len());
-            return Span::new(span.start, end);
+            return Span::new(span.start(), end);
         }
         // Chop off trailing whitespace so that our messages
         // don't unnecessarily span multiple lines.
@@ -314,7 +314,7 @@ impl DiagCtx {
             if !frag.last().is_some_and(|v| v.is_ascii_whitespace()) {
                 break;
             }
-            span.end = span.end.saturating_sub(1);
+            span = Span::new(span.start(), span.end().saturating_sub(1));
         }
         span
     }

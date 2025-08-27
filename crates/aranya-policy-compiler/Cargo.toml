@@ -30,6 +30,7 @@ slotmap = { version = "1", features = ["serde"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 unindent = { version = "0.2" }
+itertools = { version = "0.14" }
 
 [dev-dependencies]
 anyhow = { workspace = true }

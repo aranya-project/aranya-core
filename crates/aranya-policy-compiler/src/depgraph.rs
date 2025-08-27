@@ -23,21 +23,22 @@ use crate::{
         ResultExt, Severity,
     },
     hir::{
-        AstLowering, Hir, HirView, Ident, IdentId, LetStmt, Named, Span, Stmt, StmtKind,
+        Hir, HirView, Ident, IdentId, LetStmt, LowerAst, Named, Span, Stmt, StmtKind,
         visit::{self, Visitor, Walkable},
     },
     pass::{DepsRefs, Pass, View},
     symtab::{SymbolId, SymbolKind, SymbolResolution, SymbolsView},
 };
 
+/// Builds the dependency graph.
 #[derive(Copy, Clone, Debug)]
-pub struct DepsPass;
+pub struct BuildDepGraph;
 
-impl Pass for DepsPass {
+impl Pass for BuildDepGraph {
     const NAME: &'static str = "deps";
     type Output = DepGraph;
     type View<'cx> = DepsView<'cx>;
-    type Deps = (AstLowering, SymbolResolution);
+    type Deps = (LowerAst, SymbolResolution);
 
     fn run<'cx>(
         cx: Ctx<'cx>,
@@ -85,13 +86,6 @@ impl Pass for DepsPass {
                 topo_sorted: OnceCell::new(),
             })
         }
-    }
-}
-
-impl<'cx> Ctx<'cx> {
-    pub fn deps(self) -> Result<DepsView<'cx>, ErrorGuaranteed> {
-        let deps = self.get::<DepsPass>()?;
-        Ok(View::new(self, deps))
     }
 }
 
@@ -150,14 +144,11 @@ impl AddEdges<'_, '_> {
     ///
     /// This method resolves the identifier to its symbol ID and
     /// temporarily sets it as the current item being processed.
-    /// This is necessary because the visitor needs to know which
-    /// symbol is creating dependencies when it encounters
-    /// references to other symbols.
     fn with_item_for_ident<F, R>(&mut self, ident: IdentId, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {
-        let item = self.symbols.resolve(ident);
+        let item = self.symbols.resolve_item(ident);
         self.with_item(item, f)
     }
 
@@ -166,8 +157,6 @@ impl AddEdges<'_, '_> {
     ///
     /// This method temporarily sets the current item and
     /// restores the previous value after the closure completes.
-    /// This allows for nested symbol processing while
-    /// maintaining the correct dependency context.
     fn with_item<F, R>(&mut self, item: SymbolId, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
@@ -203,6 +192,31 @@ impl<'ctx: 'hir, 'hir> Visitor<'hir> for AddEdges<'_, 'ctx> {
 
     visit::for_each_top_level_item!(update_item);
 
+    /// Skip creating edges for struct literal field identifiers; they are not symbol references.
+    fn visit_named_struct_lit_field(
+        &mut self,
+        field: &'hir crate::hir::StructFieldExpr,
+    ) -> Self::Result {
+        // Skip field identifier; only walk the expression
+        self.visit_expr(self.hir.lookup(field.expr))
+    }
+
+    /// Skip creating edges for fact literal field identifiers; they are not symbol references.
+    fn visit_fact_lit_key(&mut self, field: &'hir crate::hir::FactFieldExpr) -> Self::Result {
+        match &field.expr {
+            crate::hir::FactField::Expr(eid) => self.visit_expr(self.hir.lookup(*eid)),
+            crate::hir::FactField::Bind => ControlFlow::Continue(()),
+        }
+    }
+
+    /// Skip creating edges for fact literal field identifiers; they are not symbol references.
+    fn visit_fact_lit_val(&mut self, field: &'hir crate::hir::FactFieldExpr) -> Self::Result {
+        match &field.expr {
+            crate::hir::FactField::Expr(eid) => self.visit_expr(self.hir.lookup(*eid)),
+            crate::hir::FactField::Bind => ControlFlow::Continue(()),
+        }
+    }
+
     /// Visits statements and handles let statements specially.
     ///
     /// Let statements create new symbols, so we need to set the
@@ -235,7 +249,11 @@ impl<'ctx: 'hir, 'hir> Visitor<'hir> for AddEdges<'_, 'ctx> {
             self.ctx.dcx(),
             "`self.item` must be set before visiting an ident",
         );
-        let to = self.symbols.resolve(ident.id);
+        let to = self.symbols.resolve_item(ident.id);
+        // Avoid creating self-dependencies for item headers like function/struct names.
+        if from == to {
+            return ControlFlow::Continue(());
+        }
         let kind = self.symbols.get(to).kind;
         self.graph.add_dependency(from, to, kind);
         ControlFlow::Continue(())
@@ -265,7 +283,7 @@ pub struct Graph<K, D> {
 // Basic operations with minimal bounds
 impl<K, D> Graph<K, D> {
     /// Create a new empty dependency graph
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             nodes: IndexMap::new(),
             incoming_edges: BTreeMap::new(),
@@ -322,8 +340,10 @@ where
         self.add_node(to);
 
         let from_node = self.nodes.get_mut(&from).expect("from node must exist");
-
-        assert!(!from_node.edge_targets.contains(&to), "edge already exists");
+        // Idempotent: if edge already exists, do nothing
+        if from_node.edge_targets.contains(&to) {
+            return;
+        }
 
         from_node.edges.push(Edge { target: to, kind });
         from_node.edge_targets.insert(to);
@@ -692,47 +712,19 @@ where
         }
     }
 
-    /// Find all nodes that can reach the given node (transitive predecessors).
+    /// Find all nodes that can reach the given node (transitive
+    /// predecessors).
     ///
-    /// This method computes the backward closure of a node, finding all
-    /// nodes that it depends on either directly or indirectly. It's
-    /// essentially the inverse of `find_dependents` and is useful for
-    /// understanding the complete dependency chain leading to a node.
+    /// This method is an alias for `dependency_closure` and returns
+    /// identical results. It's maintained for backward compatibility
+    /// but `dependency_closure` is preferred for new code due to
+    /// better performance characteristics.
     ///
-    /// # Algorithm Overview (Backward DFS Closure)
+    /// # Performance Note
     ///
-    /// This method is identical to `dependency_closure` but with different
-    /// naming to emphasize the direction of traversal. It's useful for
-    /// understanding the complete dependency chain that leads to a target.
-    ///
-    /// ## Time Complexity
-    /// - Worst Case: O(V + E) where V is the number of nodes and E is the number of edges
-    /// - Best Case: O(V + E) for sparse graphs with few incoming edges
-    /// - Average Case: O(V + E) due to efficient reverse edge lookup
-    ///
-    /// ## Space Complexity
-    /// - Worst Case: O(V) for the visited map and result vector
-    ///
-    /// ## Pseudocode:
-    /// ```text
-    /// function find_reachability(graph, target):
-    ///     reachable = []
-    ///     visited = {}
-    ///     dfs_reachability(target, visited, reachable)
-    ///     return reachable - {target}  # Exclude target itself
-    ///
-    /// function dfs_reachability(node, visited, reachable):
-    ///     if visited[node]:
-    ///         return
-    ///
-    ///     visited[node] = true
-    ///     reachable.push(node)
-    ///
-    ///     # Find all nodes that have edges TO this node
-    ///     for each other_node in graph:
-    ///         if other_node has edge to node:
-    ///             dfs_reachability(other_node, visited, reachable)
-    /// ```
+    /// This method delegates to `dependency_closure` which has O(V + E)
+    /// time complexity, making it much more efficient than the previous
+    /// O(V² + V×E) implementation.
     ///
     /// # Examples
     ///
@@ -754,9 +746,10 @@ where
     ///
     /// // Find what can reach C (backward closure)
     /// let reachable = graph.find_reachability("C");
-    /// assert_eq!(reachable.len(), 2);
+    /// assert_eq!(reachable.len(), 3);
     /// assert!(reachable.contains(&"A")); // A -> B -> C
     /// assert!(reachable.contains(&"B")); // B -> C
+    /// assert!(reachable.contains(&"D")); // D -> B -> C
     ///
     /// // Find what can reach B
     /// let reachable = graph.find_reachability("B");
@@ -769,50 +762,8 @@ where
     /// assert_eq!(reachable.len(), 0); // No nodes reach A
     /// ```
     pub fn find_reachability(&self, target: K) -> Vec<K> {
-        let mut reachable = Vec::new();
-        let mut visited: BTreeMap<K, bool> = BTreeMap::new();
-
-        self.dfs_reachability(target, &mut visited, &mut reachable);
-
-        // Remove the target node itself
-        reachable.retain(|&k| k != target);
-        reachable
-    }
-
-    /// Computes the backward closure using depth-first search.
-    ///
-    /// This method traverses the graph backwards from the target node,
-    /// finding all nodes that have edges pointing to it. It's used
-    /// to compute the complete set of nodes that can reach the target.
-    ///
-    /// ## Algorithm Details:
-    ///
-    /// The backward traversal efficiently finds incoming edges using the reverse edge index,
-    /// making it as efficient as forward traversal. This approach provides O(1) lookup
-    /// for incoming edges instead of the previous O(V) scan.
-    ///
-    /// This is particularly useful for:
-    /// - Understanding what needs to be built before a target
-    /// - Analyzing the impact of removing a dependency
-    /// - Planning build order for complex dependency graphs
-    fn dfs_reachability(
-        &self,
-        node_key: K,
-        visited: &mut BTreeMap<K, bool>,
-        reachable: &mut Vec<K>,
-    ) {
-        if visited.get(&node_key) == Some(&true) {
-            return;
-        }
-        visited.insert(node_key, true);
-        reachable.push(node_key);
-
-        // Find all nodes that have edges TO this node using reverse index
-        if let Some(sources) = self.incoming_edges.get(&node_key) {
-            for &source in sources {
-                self.dfs_reachability(source, visited, reachable);
-            }
-        }
+        // Delegate to the efficient implementation
+        self.dependency_closure(target)
     }
 
     /// Find all strongly connected components in the graph.
@@ -921,7 +872,7 @@ where
     /// let sccs = dag.find_sccs();
     /// assert_eq!(sccs.len(), 3); // Each node is its own SCC in a DAG
     /// ```
-    fn find_sccs(&self) -> Vec<Vec<K>> {
+    pub fn find_sccs(&self) -> Vec<Vec<K>> {
         if self.nodes.is_empty() {
             return Vec::new();
         }
@@ -1309,10 +1260,11 @@ where
     /// assert!(result.is_err());
     /// match result {
     ///     Err(SortError::Cycle(cycle)) => {
+    ///         let cycle = cycle.into_iter().collect::<Vec<_>>();
     ///         // The cycle should contain A, B, C
-    ///         assert!(cycle.cycle.contains(&"A"));
-    ///         assert!(cycle.cycle.contains(&"B"));
-    ///         assert!(cycle.cycle.contains(&"C"));
+    ///         assert!(cycle.contains(&"A"));
+    ///         assert!(cycle.contains(&"B"));
+    ///         assert!(cycle.contains(&"C"));
     ///     }
     ///     _ => panic!("Expected cycle error"),
     /// }
@@ -1454,7 +1406,7 @@ struct NodeData<K, D> {
 
 /// Unable to sort the dependency graph.
 #[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum SortError<K> {
+pub enum SortError<K> {
     /// An internal bug was discovered.
     #[error("bug: {0}")]
     Bug(#[from] Bug),
@@ -1482,7 +1434,7 @@ pub(crate) enum DepGraphError<K> {
 
 /// A cycle in the dependency graph.
 #[derive(Clone, Debug)]
-pub(crate) struct Cycle<K> {
+pub struct Cycle<K> {
     cycle: Vec<K>,
 }
 
@@ -1506,7 +1458,7 @@ impl<K> error::Error for Cycle<K> where K: fmt::Debug {}
 /// A cyclic dependency was detected in the dependency graph.
 #[derive(Clone, Debug, thiserror::Error)]
 #[error("cyclic dependency detected")]
-pub(crate) struct CyclicDependencyError {
+struct CyclicDependencyError {
     /// The identifiers that form the cycle with their spans
     cycle: Vec<(ast::Identifier, Span)>,
 }
