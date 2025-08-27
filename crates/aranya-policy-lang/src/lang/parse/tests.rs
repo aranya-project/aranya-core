@@ -102,7 +102,6 @@ policy-version: 2
 }
 
 #[test]
-
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
     let token: Pair<'_, Rule> = pair.next().unwrap();
@@ -112,7 +111,6 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_atom_string() -> Result<(), PestError<Rule>> {
     // basic string
     let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
@@ -139,7 +137,6 @@ fn parse_atom_string() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     // bare call
     let mut pair = PolicyParser::parse(Rule::atom, r#"call()"#)?;
@@ -190,7 +187,6 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::expression, r#"unwrap call(3 + 7, -b, "foo\x7b")"#)?;
 
@@ -338,7 +334,6 @@ fn parse_optional() {
 }
 
 #[test]
-
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
 
@@ -351,7 +346,6 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
         fact Foo[a int] => {b id, c string}
@@ -366,7 +360,6 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
         action init(owner id) {
@@ -384,7 +377,6 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
@@ -412,7 +404,6 @@ fn test_parse_effect_with_field_insertion() {
 }
 
 #[test]
-
 fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
         command Foo {
@@ -453,7 +444,6 @@ fn parse_command_attributes() {
 }
 
 #[test]
-
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
     function foo(x int) bool {
@@ -469,7 +459,6 @@ fn parse_function() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-
 fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     let src = r#"
         let x = foo::bar(5, "baz")
@@ -714,7 +703,6 @@ fn parse_struct() {
 }
 
 #[test]
-
 fn parse_struct_composition() -> Result<(), PestError<Rule>> {
     let input = "{ c: false, ...x }";
 
@@ -782,7 +770,6 @@ fn parse_enum_definition() {
 }
 
 #[test]
-
 fn parse_enum_reference() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::enum_reference, "Color::Red")?;
     let token: Pair<'_, Rule> = pair.next().unwrap();

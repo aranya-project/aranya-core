@@ -29,8 +29,7 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
     let name = t.ident.clone();
 
     let definition = if generated {
-        #[allow(clippy::redundant_clone)]
-        let vis = t.vis.clone();
+        let vis = &t.vis;
 
         let attrs: Vec<Attribute> = t
             .attrs

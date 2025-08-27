@@ -77,8 +77,6 @@ return_self_not_must_use = "warn"
 semicolon_if_nothing_returned = "warn"
 # Checks if we're transmuting pointer types when casts are safer.
 transmute_ptr_to_ptr = "warn"
-# Makes sure any variables that can be part of the format string are.
-uninlined_format_args = "warn"
 # Catches trailing semicolons that don't need to be there.
 unnecessary_semicolon = "warn"
 # Catches e.g. Some(0) | Some(2) when pattern matching instead of Some(0 | 2).
