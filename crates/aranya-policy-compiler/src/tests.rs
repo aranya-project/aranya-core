@@ -2245,6 +2245,24 @@ fn test_struct_composition_global_let_and_command_attributes() {
 }
 
 #[test]
+fn test_struct_literal_duplicate_field() {
+    let text = r#"
+        struct S {
+            x int
+        }
+        function f() struct S {
+            return S {
+                x: 1,
+                x: 2,
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("x")));
+}
+
+#[test]
 fn test_optional_types() {
     let err = compile_fail("function f() bool { return unwrap None }");
     assert_eq!(
