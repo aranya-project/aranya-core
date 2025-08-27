@@ -6,6 +6,7 @@ use aranya_crypto::{
     id::IdExt as _,
     policy::CmdId,
 };
+use aranya_policy_derive::Valuable;
 use aranya_policy_vm::{
     self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
     Stack as _, Text, Value, ValueConversionError,
@@ -147,26 +148,31 @@ impl<T, G> TestModule<'_, T, G> {
     const CUSTOM_TYPE_RESULT: Label = Label(4321);
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Valuable)]
+struct S0 {
+    x: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Valuable)]
+struct S1 {
+    a: Text,
+    b: Vec<u8>,
+    c: i64,
+    d: bool,
+    e: BaseId,
+    f: S0,
+    g: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Valuable)]
+struct S2 {
+    a: S0,
+    b: S1,
+}
+
 #[ffi(
     module = "test",
     def = r#"
-struct S0 {
-    x: int
-}
-struct S1 {
-    a: string,
-    b: bytes,
-    c: int,
-    d: bool,
-    e: id,
-    f: struct S0,
-    g: option[int],
-}
-struct S2 {
-    a: struct S0,
-    b: struct S1,
-}
-
 enum TestEnum { A, B }
 "#
 )]
@@ -416,8 +422,6 @@ fn test_ffi_derive() {
 
     // Positive test for `struct_fn`.
     {
-        use __test_ffi::{S0, S1, S2};
-
         let a = S0 { x: 42 };
         let b = S1 {
             a: text!("hello, world!"),

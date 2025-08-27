@@ -213,25 +213,30 @@ fn test_ffi_enum_wrong_variant_name() {
 mod ffi {
     use core::convert::Infallible;
 
-    use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
+    use aranya_crypto::{CmdId, DeviceId};
+    use aranya_policy_vm::{
+        CommandContext, MachineError,
+        ffi::{Valuable, ffi},
+    };
 
     pub struct TestFfiEnvelope;
+
+    #[derive(Valuable)]
+    struct Envelope {
+        // The parent command ID.
+        parent_id: CmdId,
+        // The author's device ID.
+        author_id: DeviceId,
+        // Uniquely identifies the command.
+        command_id: CmdId,
+        // The signature over the command and its contextual
+        // bindings.
+        signature: Vec<u8>,
+    }
 
     #[ffi(
         module = "envelope",
         def = r#"
-struct Envelope {
-    // The parent command ID.
-    parent_id: id,
-    // The author's device ID.
-    author_id: id,
-    // Uniquely identifies the command.
-    command_id: id,
-    // The signature over the command and its contextual
-    // bindings.
-    signature: bytes,
-}
-
 // This exists only for FFI contract testing purposes
 enum TestEnum {
     True,

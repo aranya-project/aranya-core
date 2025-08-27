@@ -6,10 +6,13 @@ use core::result::Result;
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt as _, UnwrapError, WrapError,
-    afc::{UniChannel, UniSecrets},
+    afc::{UniAuthorSecretId, UniChannel, UniSecrets},
     policy::{CmdId, LabelId},
 };
-use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, MachineIOError, ffi::ffi};
+use aranya_policy_vm::{
+    CommandContext, MachineError, MachineErrorType, MachineIOError,
+    ffi::{Valuable, ffi},
+};
 use buggy::Bug;
 use spin::Mutex;
 
@@ -42,15 +45,16 @@ impl<S: KeyStore> Ffi<S> {
     }
 }
 
-#[ffi(
-    module = "afc",
-    def = r#"
-struct AfcUniChannel {
-    peer_encap: bytes,
-    key_id: id,
+/// A unidirectional channel.
+#[derive(Debug, Valuable)]
+pub struct AfcUniChannel {
+    /// The peer's encapsulated secret.
+    pub peer_encap: Vec<u8>,
+    /// The author's secret ID.
+    pub key_id: UniAuthorSecretId,
 }
-"#
-)]
+
+#[ffi(module = "afc")]
 #[allow(clippy::too_many_arguments)]
 impl<S: KeyStore> Ffi<S> {
     /// Creates a unidirectional channel.
@@ -99,7 +103,7 @@ function create_uni_channel(
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id: key_id.as_base(),
+            key_id,
         })
     }
 }
