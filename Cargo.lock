@@ -468,6 +468,8 @@ version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-ast",
+ "fnv",
+ "indexmap",
  "proptest",
  "proptest-derive",
  "serde",
