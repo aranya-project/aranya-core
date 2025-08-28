@@ -7,7 +7,7 @@ use markdown::{
 };
 use serde::Deserialize;
 
-use crate::lang::{ParseError, ParseErrorKind, Version, parse_policy_chunk};
+use super::{ParseError, ParseErrorKind, Version, parse_policy_chunk};
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -124,7 +124,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
 
 /// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
 /// policy version.
-pub fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
+fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)

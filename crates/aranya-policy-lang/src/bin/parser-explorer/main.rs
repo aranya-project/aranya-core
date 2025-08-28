@@ -4,12 +4,10 @@ use std::{
     process::ExitCode,
 };
 
-use anyhow::Context;
 use aranya_policy_lang::lang::{
-    ChunkParser, PolicyParser, Rule, Version, extract_policy, get_pratt_parser, parse_policy_str,
+    Version, parse_expression, parse_policy_document, parse_policy_str,
 };
 use clap::{Parser, ValueEnum};
-use pest::Parser as PestParser;
 
 #[derive(Parser, Debug)]
 #[command(name = "parser explorer", version)]
@@ -39,41 +37,21 @@ enum Mode {
     Expression,
 }
 
-fn parse_text_and_version(s: &str, args: &Args) -> anyhow::Result<(String, Version)> {
-    match args.raw_policy_version {
-        Some(version) => Ok((s.to_owned(), version)),
-        None => {
-            let (chunks, version) = extract_policy(s)?;
-            let mut s = String::new();
-            for c in chunks {
-                s.push_str(&c.text);
-            }
-
-            Ok((s, version))
-        }
-    }
-}
-
 fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
     match args.mode {
         Mode::Document => {
-            let (policy_text, version) = parse_text_and_version(s, args)?;
-            let policy = parse_policy_str(&policy_text, version)?;
+            let policy = match args.raw_policy_version {
+                Some(version) => parse_policy_str(s, version)?,
+                None => parse_policy_document(s)?,
+            };
             match args.check_mode {
                 true => Ok(String::from("policy is valid")),
                 false => Ok(format!("{:#?}", policy)),
             }
         }
         Mode::Expression => {
-            let mut pairs = PolicyParser::parse(Rule::expression, s)?;
-
-            let token = pairs.next().context("No tokens")?;
-
-            let pratt = get_pratt_parser();
-            let p = ChunkParser::new(0, &pratt, s.len());
-            let ast = p.parse_expression(token)?;
-
-            Ok(format!("{:#?}", ast))
+            let expr = parse_expression(s)?;
+            Ok(format!("{expr:#?}"))
         }
     }
 }

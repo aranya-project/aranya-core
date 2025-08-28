@@ -7,10 +7,9 @@ use ast::Expression;
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
-    parse_policy_str,
+    ChunkParser, ParseError, ParseErrorKind, PolicyParser, Rule, Version, ast, get_pratt_parser,
+    parse_policy_document, parse_policy_str,
 };
-use crate::lang::{ChunkParser, ParseErrorKind};
 
 trait SpannedAt {
     type Type;
