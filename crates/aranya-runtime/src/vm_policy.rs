@@ -299,8 +299,8 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         let sink = RefCell::new(sink);
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let mut rs = self.machine.create_run_state(&io, ctx);
-        let self_data = Struct::new(name, fields);
-        match rs.call_command_policy(self_data.name.clone(), &self_data, envelope.clone().into()) {
+        let this_data = Struct::new(name, fields);
+        match rs.call_command_policy(this_data.clone(), envelope.clone().into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
@@ -316,13 +316,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
                     rs.set_context(recall_ctx);
-                    self.recall_internal(
-                        recall,
-                        &mut rs,
-                        self_data.name.clone(),
-                        &self_data,
-                        envelope,
-                    )
+                    self.recall_internal(recall, &mut rs, this_data, envelope)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -340,8 +334,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         &self,
         recall: CommandRecall,
         rs: &mut RunState<'_, M>,
-        name: Identifier,
-        self_data: &Struct,
+        this_data: Struct,
         envelope: Envelope<'_>,
     ) -> Result<(), EngineError>
     where
@@ -349,20 +342,18 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     {
         match recall {
             CommandRecall::None => Err(EngineError::Check),
-            CommandRecall::OnCheck => {
-                match rs.call_command_recall(name, self_data, envelope.into()) {
-                    Ok(ExitReason::Normal) => Err(EngineError::Check),
-                    Ok(ExitReason::Yield) => bug!("unexpected yield"),
-                    Ok(ExitReason::Check) => {
-                        info!("Recall failed: {}", self.source_location(rs));
-                        Err(EngineError::Check)
-                    }
-                    Ok(ExitReason::Panic) | Err(_) => {
-                        info!("Recall panicked: {}", self.source_location(rs));
-                        Err(EngineError::Panic)
-                    }
+            CommandRecall::OnCheck => match rs.call_command_recall(this_data, envelope.into()) {
+                Ok(ExitReason::Normal) => Err(EngineError::Check),
+                Ok(ExitReason::Yield) => bug!("unexpected yield"),
+                Ok(ExitReason::Check) => {
+                    info!("Recall failed: {}", self.source_location(rs));
+                    Err(EngineError::Check)
                 }
-            }
+                Ok(ExitReason::Panic) | Err(_) => {
+                    info!("Recall panicked: {}", self.source_location(rs));
+                    Err(EngineError::Panic)
+                }
+            },
         }
     }
 
@@ -635,12 +626,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
                         let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
-                        match rs_seal
-                            .call_seal(command_name.clone(), command_struct)
-                            .map_err(|e| {
-                                error!("Cannot seal command: {}", e);
-                                EngineError::Panic
-                            })? {
+                        match rs_seal.call_seal(command_struct).map_err(|e| {
+                            error!("Cannot seal command: {}", e);
+                            EngineError::Panic
+                        })? {
                             ExitReason::Normal => (),
                             r @ ExitReason::Yield
                             | r @ ExitReason::Check
