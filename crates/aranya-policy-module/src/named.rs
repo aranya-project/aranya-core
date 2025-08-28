@@ -1,8 +1,7 @@
-#![expect(missing_docs, reason = "TODO(jdygert): Document")]
+//! [`NamedMap`] and associated traits and types.
 
 use aranya_policy_ast::Identifier;
 
-#[macro_export]
 macro_rules! named {
     ($ty:ty) => {
         impl $crate::named::Named for $ty {
@@ -12,11 +11,19 @@ macro_rules! named {
         }
     };
 }
+pub(crate) use named;
 
+/// A [`Named`] type has a name field and can be used in [`NamedMap`].
 pub trait Named {
+    /// The name of this value.
+    ///
+    /// This method should be pure and return the same name every time.
     fn name(&self) -> &Identifier;
 }
 
+/// A mapping of named values which preserves insertion order.
+///
+/// `V` must implement [`Named`].
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 #[serde(bound(
@@ -28,30 +35,40 @@ pub struct NamedMap<V> {
 }
 
 impl<V> NamedMap<V> {
+    /// Create an empty map.
     pub const fn new() -> Self {
         Self {
             map: indexmap::IndexSet::with_hasher(core::hash::BuildHasherDefault::new()),
         }
     }
 
+    /// Return the number of items in the map.
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
+    /// Returns true if the map is empty.
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
+    /// Returns an iterator over the items of the map.
+    ///
+    /// The items are guaranteed to be in insertion order.
     pub fn iter(&self) -> impl Iterator<Item = &V> {
         self.map.iter().map(|x| &x.0)
     }
 }
 
+/// An error indicating an attempt to insert a duplicate entry.
 #[derive(Copy, Clone, Debug, thiserror::Error)]
 #[error("An entry with that name already exists")]
 pub struct AlreadyExists;
 
 impl<V: Named> NamedMap<V> {
+    /// Insert an item into the map.
+    ///
+    /// Returns an error if an entry with the same name already exists.
     pub fn insert(&mut self, val: V) -> Result<(), AlreadyExists> {
         if self.map.insert(ByName(val)) {
             Ok(())
@@ -60,10 +77,12 @@ impl<V: Named> NamedMap<V> {
         }
     }
 
+    /// Look up an entry for the given name.
     pub fn get(&self, name: impl AsRef<str>) -> Option<&V> {
         self.map.get(name.as_ref()).map(|x| &x.0)
     }
 
+    /// Returns true if the map contains an entry for the given name.
     pub fn contains(&self, name: impl AsRef<str>) -> bool {
         self.map.contains(name.as_ref())
     }
