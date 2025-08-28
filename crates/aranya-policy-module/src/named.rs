@@ -97,10 +97,12 @@ impl<V> Default for NamedMap<V> {
 impl<V: Named + PartialEq> PartialEq for NamedMap<V> {
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len()
-            && self
-                .set
-                .iter()
-                .all(|x| other.set.get(x.0.name().as_str()).is_some_and(|y| x == y))
+            && self.set.iter().all(|x| {
+                other
+                    .set
+                    .get(x.0.name().as_str())
+                    .is_some_and(|y| V::eq(&x.0, &y.0))
+            })
     }
 }
 impl<V: Named + Eq> Eq for NamedMap<V> {}
