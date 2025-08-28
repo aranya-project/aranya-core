@@ -88,6 +88,9 @@ pub enum MachineErrorType {
     /// FFI module was found, but the procedure index is invalid.
     #[error("FFI proc {0} not defined in module {1}")]
     FfiProcedureNotDefined(Identifier, usize),
+    /// Context mismatch
+    #[error("Attempted call with invalid context")]
+    ContextMismatch,
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(Bug),

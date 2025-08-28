@@ -260,23 +260,20 @@ fn main() -> anyhow::Result<()> {
     // which will return the commands or effects produced.
     match mode {
         Mode::Exec | Mode::Debug => {
-            let name;
             let mut rs;
             let ctx;
 
-            if let Some(action) = &args.action {
-                name = action.clone();
+            if let Some(action) = args.action {
                 ctx = CommandContext::Action(ActionContext {
-                    name: name.clone(),
+                    name: action.clone(),
                     head_id: CmdId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
-                rs.setup_action(action.clone(), call_args)?;
+                rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
-                name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
-                    name: name.clone(),
+                    name: command.clone(),
                     id: CmdId::default(),
                     author: DeviceId::default(),
                     version: Id::default(),
@@ -293,11 +290,11 @@ fn main() -> anyhow::Result<()> {
                         )
                     })
                     .collect();
-                let self_data = Struct {
-                    name: command.clone(),
+                let this_data = Struct {
+                    name: command,
                     fields,
                 };
-                rs.setup_command(command.clone(), LabelType::CommandPolicy, &self_data)?;
+                rs.setup_command(LabelType::CommandPolicy, this_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }
