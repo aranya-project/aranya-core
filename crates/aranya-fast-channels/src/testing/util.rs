@@ -178,15 +178,11 @@ where
         self.state.add(channel.id, channel.keys, channel.label_id)
     }
 
-    // TODO(Steve): This is slow.
     pub fn common_channels<'a>(
         &'a self,
-        others: impl IntoIterator<Item = &'a Self>,
-    ) -> HashSet<(ChannelId, LabelId)> {
-        let initial = self.chan_labels.clone();
-        others.into_iter().fold(initial, |acc, other| {
-            acc.intersection(&other.chan_labels).cloned().collect()
-        })
+        other: &'a Self,
+    ) -> impl Iterator<Item = (ChannelId, LabelId)> {
+        self.chan_labels.intersection(&other.chan_labels).cloned()
     }
 }
 
@@ -199,7 +195,7 @@ where
     /// The test name.
     name: String,
     /// All known Aranya devices.
-    pub devices: HashMap<NodeId, Device<T, E::CS>>,
+    pub(crate) devices: HashMap<NodeId, Device<T, E::CS>>,
     /// All peers that have `ChanOp` to the label.
     peers: Vec<(NodeId, LabelId, ChanOp)>,
     /// Selects the next `NodeId` for a client.
@@ -455,7 +451,7 @@ where
     /// Returns `None` if `id` is not found.
     #[allow(clippy::type_complexity)]
     pub fn remove(
-        &mut self,
+        &self,
         id: ChannelId,
         device_id: NodeId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {

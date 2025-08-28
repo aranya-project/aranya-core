@@ -131,7 +131,7 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
@@ -165,7 +165,7 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
@@ -292,9 +292,9 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(&id2).expect("device to exist");
     let d3 = d.devices.get(&id3).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        const GOLDEN: &str = "hello, world!";
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    const GOLDEN: &str = "hello, world!";
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
@@ -347,8 +347,8 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let d3 = d.devices.get(&id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
@@ -375,14 +375,14 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
         .unwrap_or_else(|| panic!("remove_all({id1}): not found"))
         .unwrap_or_else(|err| panic!("remove_all({id1}): {err}"));
 
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for id in [id2, id3] {
+    for device in [d2, d3] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
                 c1.seal_in_place(channel_id, label_id, &mut data)
                     .err()
-                    .unwrap_or_else(|| panic!("seal_in_place({id}) should panic"))
+                    .unwrap_or_else(|| panic!("seal_in_place({channel_id} {label_id} should panic"))
             };
             assert_eq!(err, Error::NotFound(channel_id));
         }
@@ -405,8 +405,8 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let d3 = d.devices.get(&id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
@@ -427,8 +427,8 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
         }
     }
 
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for id in [id2, id3] {
+    for (id, device) in [(id2, d2), (id3, d3)] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             // Now that we know it works, delete the channel and try
             // again. It should fail.
             d.remove_if(id1, |v| v == channel_id)
@@ -443,14 +443,15 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             };
             assert_eq!(err, Error::NotFound(channel_id));
 
-            // TODO(Steve): Fixme
             // Test that other channel still works
-            // if id == id2 {
-            //     let mut data: Vec<u8> = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
-            //     data.extend_from_slice(GOLDEN.as_bytes());
-            //     c1.seal_in_place(channel_id, label_id, &mut data)
-            //         .unwrap_or_else(|err| panic!("seal_in_place({id3}, ...): {err}"));
-            // }
+            if id == id2 {
+                for (channel_id, label_id) in d1.common_channels(d3) {
+                    let mut data: Vec<u8> = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
+                    data.extend_from_slice(GOLDEN.as_bytes());
+                    c1.seal_in_place(channel_id, label_id, &mut data)
+                        .unwrap_or_else(|err| panic!("seal_in_place({id3}, ...): {err}"));
+                }
+            }
         }
     }
 }
@@ -471,8 +472,8 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let d3 = d.devices.get(&id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
@@ -505,17 +506,15 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
         .unwrap_or_else(|| panic!("remove_all({id1}): not found"))
         .unwrap_or_else(|err| panic!("remove_all({id1}): {err}"));
 
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for id in [id2, id3] {
-            let err = {
-                let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
-                data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(channel_id, label_id, &mut data)
-                    .err()
-                    .unwrap_or_else(|| panic!("seal_in_place({id}) should panic"))
-            };
-            assert_eq!(err, Error::NotFound(channel_id));
-        }
+    for (channel_id, label_id) in d1.common_channels(d2).chain(d1.common_channels(d3)) {
+        let err = {
+            let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
+            data.extend_from_slice(GOLDEN.as_bytes());
+            c1.seal_in_place(channel_id, label_id, &mut data)
+                .err()
+                .unwrap_or_else(|| panic!("seal_in_place({channel_id},{label_id}) should panic"))
+        };
+        assert_eq!(err, Error::NotFound(channel_id));
     }
 }
 
@@ -537,7 +536,7 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
     const GOLDEN: &str = "hello, world!";
 
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
-        for (channel_id, label_id) in d1.common_channels([device]) {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
@@ -565,10 +564,10 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
             if i == j {
                 continue;
             }
-            let ida = ids[i];
+            let _ida = ids[i];
             let idb = ids[j];
 
-            let common_channels = devices[i].common_channels([devices[j]]);
+            let common_channels = devices[i].common_channels(devices[j]);
             // Verify that expected labels exist.
 
             for (channel_id, label_id) in common_channels {
@@ -605,8 +604,8 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
     let d3 = d.devices.get(&id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for (channel_id, label_id) in d1.common_channels([d2, d3]) {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (channel_id, label_id) in d1.common_channels(device) {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
@@ -661,7 +660,7 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
 
     const GOLDEN: &str = "hello";
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         let ciphertext = {
             let len = GOLDEN.len() + overhead(&c1) + 100;
             let mut dst = vec![0u8; len];
@@ -705,14 +704,22 @@ where
 
 /// A basic positive test for unidirectional channels.
 pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
-    fn test<S: AfcState>(
+    fn test<S: AfcState, T: TestImpl, CS: CipherSuite>(
         c1: &mut (Client<S>, NodeId),
         c2: &(Client<S>, NodeId),
-        channel_id: ChannelId,
+        d1: &Device<T, CS>,
+        d2: &Device<T, CS>,
         label_id: LabelId,
     ) {
         let (c1, id1) = c1;
         let (c2, id2) = c2;
+
+        let (channel_id, label_id) = d1
+            .common_channels(d2)
+            .into_iter()
+            .next()
+            .filter(|(_, lab)| *lab == label_id)
+            .expect("channel to exist");
 
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
@@ -767,17 +774,20 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
         ],
     );
 
-    // TODO(fixme)
-    // test(&mut c1, &c2, label1);
-    // test(&mut c1, &c3, label1);
-    // test(&mut c1, &c3, label3);
+    let d1 = d.devices.get(&c1.1).expect("device to exist");
+    let d2 = d.devices.get(&c2.1).expect("device to exist");
+    let d3 = d.devices.get(&c3.1).expect("device to exist");
 
-    // test(&mut c2, &c1, label2);
-    // test(&mut c2, &c3, label2);
-    // test(&mut c2, &c3, label3);
+    test(&mut c1, &c2, d1, d2, label1);
+    test(&mut c1, &c3, d1, d3, label1);
+    test(&mut c1, &c3, d1, d3, label3);
 
-    // test(&mut c3, &c1, label2);
-    // test(&mut c3, &c2, label1);
+    test(&mut c2, &c1, d2, d1, label2);
+    test(&mut c2, &c3, d2, d3, label2);
+    test(&mut c2, &c3, d3, d3, label3);
+
+    test(&mut c3, &c1, d3, d1, label2);
+    test(&mut c3, &c2, d3, d2, label1);
 }
 
 /// A positive and negative test for unidirectional channels.
@@ -793,7 +803,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
         let (_, id2) = c2;
 
         let (channel_id, label_id) = d1
-            .common_channels([d2])
+            .common_channels(d2)
             .into_iter()
             .next()
             .filter(|(_, lab)| *lab == label_id)
@@ -818,7 +828,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
         let (c2, id2) = c2;
 
         let (channel_id, label_id) = d1
-            .common_channels([d2])
+            .common_channels(d2)
             .into_iter()
             .next()
             .filter(|(_, lab)| *lab == label_id)
@@ -861,7 +871,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
             (label3, ChanOp::OpenOnly),
         ],
     );
-    let c2 = d.new_client_with_type(
+    let mut c2 = d.new_client_with_type(
         &mut id,
         [
             (label1, ChanOp::SealOnly),
@@ -869,7 +879,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
             (label3, ChanOp::Any),
         ],
     );
-    let c3 = d.new_client_with_type(
+    let mut c3 = d.new_client_with_type(
         &mut id,
         [
             (label1, ChanOp::OpenOnly),
@@ -877,8 +887,8 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
             (label3, ChanOp::OpenOnly),
         ],
     );
-    let c4 = d.new_client_with_type(&mut id, [(label4, ChanOp::Any)]);
-    let c5 = d.new_client_with_type(&mut id, []);
+    let mut c4 = d.new_client_with_type(&mut id, [(label4, ChanOp::Any)]);
+    let mut c5 = d.new_client_with_type(&mut id, []);
 
     let d1 = d.devices.get(&c1.1).expect("device to exist");
     let d2 = d.devices.get(&c2.1).expect("device to exist");
@@ -904,75 +914,85 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
     fail(&mut c1, &c5, d1, d5, label4); // no chans
 
     // TODO(fixme)
-    /*
-    pass(&mut c2, &c1, label1); // seal -> open
-    pass(&mut c2, &c1, label2); // seal -> bidi
-    pass(&mut c2, &c1, label3); // bidi -> open
-    fail(&mut c2, &c1, label4); // no chans
-    pass(&mut c2, &c3, label1); // seal -> open
-    fail(&mut c2, &c3, label2); // seal -> seal
-    pass(&mut c2, &c3, label3); // bidi -> open
-    fail(&mut c2, &c3, label4); // no chans
-    fail(&mut c2, &c4, label1); // no chans
-    fail(&mut c2, &c4, label2); // no chans
-    fail(&mut c2, &c4, label3); // no chans
-    fail(&mut c2, &c4, label4); // no chans
-    fail(&mut c2, &c5, label1); // no chans
-    fail(&mut c2, &c5, label2); // no chans
-    fail(&mut c2, &c5, label3); // no chans
-    fail(&mut c2, &c5, label4); // no chans
+    pass(&mut c2, &c1, d2, d1, label1); // seal -> open
+    pass(&mut c2, &c1, d2, d1, label2); // seal -> bidi
+    pass(&mut c2, &c1, d2, d1, label3); // bidi -> open
+    fail(&mut c2, &c1, d2, d1, label4); // no chans
 
-    fail(&mut c3, &c1, label1); // open -> open
-    pass(&mut c3, &c1, label2); // seal -> bidi
-    fail(&mut c3, &c1, label3); // open -> open
-    fail(&mut c3, &c1, label4); // no chans
-    fail(&mut c3, &c2, label1); // open -> seal
-    fail(&mut c3, &c2, label2); // seal -> seal
-    fail(&mut c3, &c2, label3); // open -> bidi
-    fail(&mut c3, &c2, label4); // no chans
-    fail(&mut c3, &c4, label1); // no chans
-    fail(&mut c3, &c4, label2); // no chans
-    fail(&mut c3, &c4, label3); // no chans
-    fail(&mut c3, &c4, label4); // no chans
-    fail(&mut c3, &c5, label1); // no chans
-    fail(&mut c3, &c5, label2); // no chans
-    fail(&mut c3, &c5, label3); // no chans
-    fail(&mut c3, &c5, label4); // no chans
+    pass(&mut c2, &c3, d2, d3, label1); // seal -> open
+    fail(&mut c2, &c3, d2, d3, label2); // seal -> seal
+    pass(&mut c2, &c3, d2, d3, label3); // bidi -> open
+    fail(&mut c2, &c3, d2, d3, label4); // no chans
 
-    fail(&mut c4, &c1, label1); // no chans
-    fail(&mut c4, &c1, label2); // no chans
-    fail(&mut c4, &c1, label3); // no chans
-    fail(&mut c4, &c1, label4); // no chans
-    fail(&mut c4, &c2, label1); // no chans
-    fail(&mut c4, &c2, label2); // no chans
-    fail(&mut c4, &c2, label3); // no chans
-    fail(&mut c4, &c2, label4); // no chans
-    fail(&mut c4, &c3, label1); // no chans
-    fail(&mut c4, &c3, label2); // no chans
-    fail(&mut c4, &c3, label3); // no chans
-    fail(&mut c4, &c3, label4); // no chans
-    fail(&mut c4, &c5, label1); // no chans
-    fail(&mut c4, &c5, label2); // no chans
-    fail(&mut c4, &c5, label3); // no chans
-    fail(&mut c4, &c5, label4); // no chans
+    fail(&mut c2, &c4, d2, d4, label1); // no chans
+    fail(&mut c2, &c4, d2, d4, label2); // no chans
+    fail(&mut c2, &c4, d2, d4, label3); // no chans
+    fail(&mut c2, &c4, d2, d4, label4); // no chans
 
-    fail(&mut c5, &c1, label1); // no chans
-    fail(&mut c5, &c1, label2); // no chans
-    fail(&mut c5, &c1, label3); // no chans
-    fail(&mut c5, &c1, label4); // no chans
-    fail(&mut c5, &c2, label1); // no chans
-    fail(&mut c5, &c2, label2); // no chans
-    fail(&mut c5, &c2, label3); // no chans
-    fail(&mut c5, &c2, label4); // no chans
-    fail(&mut c5, &c3, label1); // no chans
-    fail(&mut c5, &c3, label2); // no chans
-    fail(&mut c5, &c3, label3); // no chans
-    fail(&mut c5, &c3, label4); // no chans
-    fail(&mut c5, &c4, label1); // no chans
-    fail(&mut c5, &c4, label2); // no chans
-    fail(&mut c5, &c4, label3); // no chans
-    fail(&mut c5, &c4, label4); // no chans
-    */
+    fail(&mut c2, &c5, d2, d5, label1); // no chans
+    fail(&mut c2, &c5, d2, d5, label2); // no chans
+    fail(&mut c2, &c5, d2, d5, label3); // no chans
+    fail(&mut c2, &c5, d2, d5, label4); // no chans
+
+    fail(&mut c3, &c1, d3, d1, label1); // open -> open
+    pass(&mut c3, &c1, d3, d1, label2); // seal -> bidi
+    fail(&mut c3, &c1, d3, d1, label3); // open -> open
+    fail(&mut c3, &c1, d3, d1, label4); // no chans
+
+    fail(&mut c3, &c2, d3, d2, label1); // open -> seal
+    fail(&mut c3, &c2, d3, d2, label2); // seal -> seal
+    fail(&mut c3, &c2, d3, d2, label3); // open -> bidi
+    fail(&mut c3, &c2, d3, d2, label4); // no chans
+
+    fail(&mut c3, &c4, d3, d4, label1); // no chans
+    fail(&mut c3, &c4, d3, d4, label2); // no chans
+    fail(&mut c3, &c4, d3, d4, label3); // no chans
+    fail(&mut c3, &c4, d3, d4, label4); // no chans
+
+    fail(&mut c3, &c5, d3, d5, label1); // no chans
+    fail(&mut c3, &c5, d3, d5, label2); // no chans
+    fail(&mut c3, &c5, d3, d5, label3); // no chans
+    fail(&mut c3, &c5, d3, d5, label4); // no chans
+
+    fail(&mut c4, &c1, d4, d1, label1); // no chans
+    fail(&mut c4, &c1, d4, d1, label2); // no chans
+    fail(&mut c4, &c1, d4, d1, label3); // no chans
+    fail(&mut c4, &c1, d4, d1, label4); // no chans
+
+    fail(&mut c4, &c2, d4, d2, label1); // no chans
+    fail(&mut c4, &c2, d4, d2, label2); // no chans
+    fail(&mut c4, &c2, d4, d2, label3); // no chans
+    fail(&mut c4, &c2, d4, d2, label4); // no chans
+
+    fail(&mut c4, &c3, d4, d3, label1); // no chans
+    fail(&mut c4, &c3, d4, d3, label2); // no chans
+    fail(&mut c4, &c3, d4, d3, label3); // no chans
+    fail(&mut c4, &c3, d4, d3, label4); // no chans
+
+    fail(&mut c4, &c5, d4, d5, label1); // no chans
+    fail(&mut c4, &c5, d4, d5, label2); // no chans
+    fail(&mut c4, &c5, d4, d5, label3); // no chans
+    fail(&mut c4, &c5, d4, d5, label4); // no chans
+
+    fail(&mut c5, &c1, d5, d1, label1); // no chans
+    fail(&mut c5, &c1, d5, d1, label2); // no chans
+    fail(&mut c5, &c1, d5, d1, label3); // no chans
+    fail(&mut c5, &c1, d5, d1, label4); // no chans
+
+    fail(&mut c5, &c2, d5, d2, label1); // no chans
+    fail(&mut c5, &c2, d5, d2, label2); // no chans
+    fail(&mut c5, &c2, d5, d2, label3); // no chans
+    fail(&mut c5, &c2, d5, d2, label4); // no chans
+
+    fail(&mut c5, &c3, d5, d3, label1); // no chans
+    fail(&mut c5, &c3, d5, d3, label2); // no chans
+    fail(&mut c5, &c3, d5, d3, label3); // no chans
+    fail(&mut c5, &c3, d5, d3, label4); // no chans
+
+    fail(&mut c5, &c4, d5, d4, label1); // no chans
+    fail(&mut c5, &c4, d5, d4, label2); // no chans
+    fail(&mut c5, &c4, d5, d4, label3); // no chans
+    fail(&mut c5, &c4, d5, d4, label4); // no chans
 }
 
 /// A positive test for when keys expire.
@@ -997,7 +1017,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     assert!(seq_max > 0);
 
     for seq in 0..=seq_max {
-        for (channel_id, label_id) in d1.common_channels([d2]) {
+        for (channel_id, label_id) in d1.common_channels(d2) {
             let ciphertext = {
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
 
@@ -1050,7 +1070,7 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
@@ -1083,7 +1103,7 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
@@ -1115,7 +1135,7 @@ pub fn test_open_different_label<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    let common_channels: Vec<_> = d1.common_channels([d2]).into_iter().collect();
+    let common_channels: Vec<_> = d1.common_channels(d2).into_iter().collect();
     let [first, second, ..] = common_channels[..] else {
         panic!("There are less than 2 channels")
     };
@@ -1155,7 +1175,7 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
@@ -1204,7 +1224,7 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    for (channel_id, label_id) in d1.common_channels([d2]) {
+    for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
@@ -1257,7 +1277,7 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     assert!(seq_max > 0);
 
     for want_seq in 0..seq_max {
-        for (channel_id, label_id) in d1.common_channels([d2]) {
+        for (channel_id, label_id) in d1.common_channels(d2) {
             let ciphertext = {
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
                 c1.seal(channel_id, label_id, &mut dst[..], GOLDEN.as_bytes())
