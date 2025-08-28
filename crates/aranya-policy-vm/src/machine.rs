@@ -25,7 +25,7 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    CommandContext, OpenContext, SealContext,
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -1133,6 +1133,10 @@ where
         this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Policy(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_command(LabelType::CommandPolicy, this_data)?;
         self.ipush(envelope)?;
         self.run()
@@ -1146,6 +1150,10 @@ where
         this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_command(LabelType::CommandRecall, this_data)?;
         self.ipush(envelope)?;
         self.run()
@@ -1223,6 +1231,10 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        if !matches!(&self.ctx, CommandContext::Action(ActionContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_action(name, args)?;
         self.run()
     }
@@ -1232,6 +1244,10 @@ where
     /// return an opaque envelope struct on the stack.
     pub fn call_seal(&mut self, this_data: Struct) -> Result<ExitReason, MachineError> {
         let name = this_data.name.clone();
+        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
@@ -1247,6 +1263,10 @@ where
         name: Identifier,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()

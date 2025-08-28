@@ -44,6 +44,15 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     })
 }
 
+fn dummy_ctx_recall(name: Identifier) -> CommandContext {
+    CommandContext::Recall(PolicyContext {
+        name,
+        id: CmdId::default(),
+        author: DeviceId::default(),
+        version: Id::default(),
+    })
+}
+
 fn dummy_envelope() -> Struct {
     Struct {
         name: ident!("Envelope"),
@@ -264,7 +273,7 @@ fn test_action_call_action() -> anyhow::Result<()> {
     let mut published = Vec::new();
 
     let action_name = ident!("bar");
-    let ctx = dummy_ctx_policy(action_name.clone());
+    let ctx = dummy_ctx_action(action_name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
     call_action(
         &mut rs,
@@ -860,7 +869,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name.clone());
+        let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_command_policy(this_data, dummy_envelope())?
             .success();
@@ -868,7 +877,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_query");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -876,7 +885,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_exists");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -921,7 +930,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name.clone());
+        let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_command_policy(this_data, dummy_envelope())?
             .success();
@@ -929,7 +938,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_query");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -952,7 +961,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     )?;
 
     let name = ident!("test");
-    let ctx = dummy_ctx_policy(name.clone());
+    let ctx = dummy_ctx_action(name.clone());
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
@@ -1610,7 +1619,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name.clone());
+        let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_command_policy(this_data, dummy_envelope())?
             .success();
@@ -1618,7 +1627,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_existing");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -1626,7 +1635,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_nonexistent");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let status = rs.call_action(action_name.clone(), iter::empty::<Value>())?;
         assert_eq!(status, ExitReason::Check);
@@ -1684,7 +1693,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 
     {
         let name = ident!("Foo");
-        let ctx = dummy_ctx_policy(name.clone());
+        let ctx = dummy_ctx_recall(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_command_recall(
             Struct::new(
@@ -1737,7 +1746,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
         io: &RefCell<TestIO>,
         action_name: Identifier,
     ) -> Result<ExitReason, MachineError> {
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())
     }
@@ -1928,7 +1937,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
     let io = RefCell::new(TestIO::new());
     let mut published = Vec::new();
     let name = ident!("test");
-    let ctx = dummy_ctx_policy(name.clone());
+    let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
     call_action(
         &mut rs,
