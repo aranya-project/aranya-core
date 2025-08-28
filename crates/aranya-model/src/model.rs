@@ -12,8 +12,8 @@ use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CommandId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider,
-    SyncError, SyncRequester,
+    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
+    SyncRequester,
     engine::{Engine, EngineError, Policy, PolicyId, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -137,7 +137,7 @@ pub trait Model {
         &mut self,
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
-    ) -> Result<CommandId, ModelError>;
+    ) -> Result<CmdId, ModelError>;
 
     /// Used to remove a graph from a client.
     fn remove_graph(
@@ -388,7 +388,7 @@ where
         &mut self,
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
-    ) -> Result<CommandId, ModelError> {
+    ) -> Result<CmdId, ModelError> {
         let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
             return Err(ModelError::GraphNotFound);
         };

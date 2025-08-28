@@ -12,7 +12,7 @@ use core::{
     fmt::{self, Display},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
@@ -37,16 +37,20 @@ const STACK_SIZE: usize = 100;
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier {
+    if fact.name != schema.identifier.name {
         return false;
     }
 
     for key in fact.keys.iter() {
-        let Some(key_value) = schema.key.iter().find(|k| k.identifier == key.identifier) else {
+        let Some(key_value) = schema
+            .key
+            .iter()
+            .find(|k| k.identifier.name == key.identifier)
+        else {
             return false;
         };
 
-        if key.value.vtype() != key_value.field_type {
+        if !key.value.vtype().matches(&key_value.field_type.kind) {
             return false;
         }
     }
@@ -56,7 +60,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(schema_value) = schema
             .value
             .iter()
-            .find(|v| v.identifier == value.identifier)
+            .find(|v| v.identifier.name == value.identifier)
         else {
             return false;
         };
@@ -65,7 +69,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(value_type) = value.value.vtype() else {
             return false;
         };
-        if value_type != schema_value.field_type {
+        if !value_type.matches(&schema_value.field_type.kind) {
             return false;
         }
     }
@@ -368,7 +372,7 @@ where
     }
 
     /// Update the context with a new head ID, e.g. after publishing a command.
-    pub fn update_context_with_new_head(&mut self, new_head_id: Id) -> Result<(), Bug> {
+    pub fn update_context_with_new_head(&mut self, new_head_id: CmdId) -> Result<(), Bug> {
         self.ctx = self.ctx.with_new_head(new_head_id)?;
         Ok(())
     }
@@ -469,20 +473,22 @@ where
                 // Check for struct fields that do not exist in the
                 // definition.
                 for f in &s.fields {
-                    if !fields.iter().any(|v| &v.identifier == f.0) {
+                    if !fields.iter().any(|v| &v.identifier.name == f.0) {
                         return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
                 // types.
                 for f in fields {
-                    match s.fields.get(&f.identifier) {
-                        Some(f) => {
-                            if f.vtype() != f.vtype() {
+                    match s.fields.get(&f.identifier.name) {
+                        Some(v) => {
+                            if !v.fits_type(&f.field_type) {
                                 return Err(mk_err());
                             }
                         }
-                        None => return Err(mk_err()),
+                        None => {
+                            return Err(mk_err());
+                        }
                     }
                 }
 
@@ -668,7 +674,10 @@ where
                     .struct_defs
                     .get(&s.name)
                     .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
-                if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
+                if !struct_def_fields
+                    .iter()
+                    .any(|f| f.identifier.name == field_name)
+                {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
                 s.fields.insert(field_name, value);
@@ -702,7 +711,7 @@ where
                 for (field_name, field_val) in field_name_value_pairs {
                     let Some(field_defn) = struct_def_fields
                         .iter()
-                        .find(|f| f.identifier == field_name)
+                        .find(|f| f.identifier.name == field_name)
                     else {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
@@ -754,8 +763,8 @@ where
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
-                let fact_from: Fact = self.ipop()?;
-                let replaced_fact = {
+                let mut fact_from: Fact = self.ipop()?;
+                let mut replaced_fact = {
                     let mut iter = self
                         .io
                         .try_borrow()
@@ -765,6 +774,21 @@ where
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
                 };
+
+                if !fact_from.values.is_empty() {
+                    let replaced_fact_values = &mut replaced_fact.1;
+
+                    replaced_fact_values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                    fact_from
+                        .values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+
+                    if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
+                        return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
+                    }
+                }
+
                 self.io
                     .try_borrow_mut()
                     .assume("should be able to borrow io")?
@@ -947,6 +971,56 @@ where
                 self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
+            Instruction::Cast(identifier) => {
+                let value = self.ipop_value()?;
+                match value {
+                    Value::Struct(s) => {
+                        // make sure identifier is a valid struct name
+                        let rhs_struct =
+                            self.machine.struct_defs.get(&identifier).ok_or_else(|| {
+                                self.err(MachineErrorType::NotDefined(alloc::format!(
+                                    "struct `{}`",
+                                    identifier
+                                )))
+                            })?;
+
+                        // Check that all required fields exist and have matching types
+                        for field in rhs_struct {
+                            let field_name = &field.identifier;
+                            let field_type = &field.field_type;
+
+                            // Check if the source struct has this field
+                            let value = s.fields.get(&field_name.name).ok_or_else(|| {
+                                self.err(MachineErrorType::Unknown(alloc::format!(
+                                    "cannot cast to `struct {}`: missing field `{}`",
+                                    identifier,
+                                    field_name
+                                )))
+                            })?;
+
+                            // Check if the type matches
+                            if !value.fits_type(field_type) {
+                                return Err(self.err(MachineErrorType::Unknown(alloc::format!(
+                                    "cannot cast to `struct {}`: field `{}` has wrong type (expected `{}`, found `{}`)",
+                                    identifier, field_name, field_type, value.type_name()
+                                ))));
+                            }
+                        }
+
+                        // replace value on stack with clone, under new name
+                        let mut s = s;
+                        s.name = identifier.clone();
+                        self.ipush(Value::Struct(s))?;
+                    }
+                    _ => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Struct",
+                            value.type_name(),
+                            "Cast LHS",
+                        )));
+                    }
+                }
+            }
         }
 
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;

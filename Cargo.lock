@@ -131,7 +131,7 @@ checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "aranya-afc-util"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
@@ -149,7 +149,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-aqc-util"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "aranya-aqc-util",
  "aranya-crypto",
@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "aranya-crypto",
  "buggy",
@@ -264,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-device-ffi"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-envelope-ffi"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-idam-ffi"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-idam-ffi",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-libc"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "cfg-if",
  "errno",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-perspective-ffi"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ast"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "aranya-policy-text",
  "serde",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",
@@ -409,7 +409,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
@@ -424,7 +424,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-build"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -438,7 +438,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-macro"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -447,22 +447,24 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-lang"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
  "buggy",
  "clap",
+ "insta",
  "markdown",
  "pest",
  "pest_derive",
  "serde",
+ "serde_json",
  "serde_yaml",
 ]
 
 [[package]]
 name = "aranya-policy-module"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-ast",
@@ -474,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-text"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aranya-policy-text-macro",
  "proptest",
@@ -494,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "aranya-crypto",
@@ -548,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",
@@ -692,7 +694,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "regex",
@@ -1694,6 +1696,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0c10553d664a4d0bcff9f4215d0aac67a639cc68ef660840afe309b807bc9f5"
 dependencies = [
  "generic-array 0.14.7",
+]
+
+[[package]]
+name = "insta"
+version = "1.43.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "154934ea70c58054b556dd430b99a98c2a7ff5309ac9891597e339b5c28f4371"
+dependencies = [
+ "console",
+ "once_cell",
+ "serde",
+ "similar",
 ]
 
 [[package]]
@@ -3663,9 +3677,9 @@ dependencies = [
 
 [[package]]
 name = "yoke"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "120e6aef9aa629e3d4f52dc8cc43a015c7724194c97dfaf45180d2daf2b77f40"
+checksum = "5f41bb01b8226ef4bfd589436a297c53d118f65921786300e427be8d487695cc"
 dependencies = [
  "serde",
  "stable_deref_trait",
@@ -3675,9 +3689,9 @@ dependencies = [
 
 [[package]]
 name = "yoke-derive"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2380878cad4ac9aac1e2435f3eb4020e8374b5f13c296cb75b4620ff8e229154"
+checksum = "38da3c9736e16c5d3c8c597a9aaa5d1fa565d0532ae05e27c24aa62fb32c0ab6"
 dependencies = [
  "proc-macro2",
  "quote",

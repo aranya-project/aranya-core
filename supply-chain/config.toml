@@ -437,10 +437,6 @@ criteria = "safe-to-deploy"
 version = "0.8.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.hermit-abi]]
-version = "0.4.0"
-criteria = "safe-to-run"
-
 [[exemptions.hex-literal]]
 version = "0.4.1"
 criteria = "safe-to-deploy"
@@ -449,17 +445,13 @@ criteria = "safe-to-deploy"
 version = "0.12.4"
 criteria = "safe-to-deploy"
 
-[[exemptions.indexmap]]
-version = "2.7.0"
+[[exemptions.insta]]
+version = "1.43.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.intrusive-collections]]
 version = "0.9.7"
 criteria = "safe-to-deploy"
-
-[[exemptions.is-terminal]]
-version = "0.4.13"
-criteria = "safe-to-run"
 
 [[exemptions.is_terminal_polyfill]]
 version = "1.70.1"

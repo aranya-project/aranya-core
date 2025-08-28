@@ -1,0 +1,137 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
+---
+{
+  "version": "V2",
+  "ffi_imports": [],
+  "facts": [
+    {
+      "immutable": false,
+      "identifier": {
+        "name": "Foo",
+        "span": {
+          "start": 14,
+          "end": 17
+        }
+      },
+      "key": [
+        {
+          "identifier": {
+            "name": "i",
+            "span": {
+              "start": 18,
+              "end": 19
+            }
+          },
+          "field_type": {
+            "kind": "Int",
+            "span": {
+              "start": 20,
+              "end": 23
+            }
+          }
+        }
+      ],
+      "value": [
+        {
+          "identifier": {
+            "name": "n",
+            "span": {
+              "start": 27,
+              "end": 28
+            }
+          },
+          "field_type": {
+            "kind": "Int",
+            "span": {
+              "start": 29,
+              "end": 32
+            }
+          }
+        }
+      ],
+      "span": {
+        "start": 9,
+        "end": 33
+      }
+    }
+  ],
+  "actions": [
+    {
+      "persistence": "Persistent",
+      "identifier": {
+        "name": "foo",
+        "span": {
+          "start": 49,
+          "end": 52
+        }
+      },
+      "arguments": [],
+      "statements": [
+        {
+          "kind": {
+            "Map": {
+              "fact": {
+                "identifier": {
+                  "name": "Foo",
+                  "span": {
+                    "start": 73,
+                    "end": 76
+                  }
+                },
+                "key_fields": [
+                  [
+                    {
+                      "name": "i",
+                      "span": {
+                        "start": 77,
+                        "end": 78
+                      }
+                    },
+                    {
+                      "Expression": {
+                        "kind": {
+                          "Int": 1
+                        },
+                        "span": {
+                          "start": 79,
+                          "end": 80
+                        }
+                      }
+                    }
+                  ]
+                ],
+                "value_fields": null
+              },
+              "identifier": {
+                "name": "f",
+                "span": {
+                  "start": 85,
+                  "end": 86
+                }
+              },
+              "statements": []
+            }
+          },
+          "span": {
+            "start": 69,
+            "end": 102
+          }
+        }
+      ],
+      "span": {
+        "start": 42,
+        "end": 112
+      }
+    }
+  ],
+  "effects": [],
+  "structs": [],
+  "enums": [],
+  "commands": [],
+  "functions": [],
+  "finish_functions": [],
+  "global_lets": [],
+  "text": "\n        fact Foo[i int]=>{n int}\n        action foo() {\n            map Foo[i:1] as f {\n            }\n        }\n    "
+}

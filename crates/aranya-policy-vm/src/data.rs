@@ -1,5 +1,5 @@
-use aranya_crypto::DeviceId;
 pub use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, policy::CmdId};
 use buggy::{Bug, bug};
 
 use crate::Identifier;
@@ -10,7 +10,7 @@ pub struct ActionContext {
     /// The name of the action
     pub name: Identifier,
     /// The head of the graph
-    pub head_id: Id,
+    pub head_id: CmdId,
 }
 
 /// Context for seal blocks
@@ -19,7 +19,7 @@ pub struct SealContext {
     /// The name of the command
     pub name: Identifier,
     /// The ID of the command at the head of the perspective
-    pub head_id: Id,
+    pub head_id: CmdId,
 }
 
 /// Context for open blocks
@@ -35,7 +35,7 @@ pub struct PolicyContext {
     /// The name of the command
     pub name: Identifier,
     /// The ID of the command
-    pub id: Id,
+    pub id: CmdId,
     /// The ID of the author of the command
     pub author: DeviceId,
     /// The ID of the version of policy and FFI module set
@@ -60,7 +60,7 @@ pub enum CommandContext {
 impl CommandContext {
     /// Try to create a new command context with a new `head_id` that uses the same name as the original
     /// This method will fail if it's not called on an [`CommandContext::Action`]
-    pub fn with_new_head(&self, new_head_id: Id) -> Result<CommandContext, Bug> {
+    pub fn with_new_head(&self, new_head_id: CmdId) -> Result<CommandContext, Bug> {
         match &self {
             Self::Action(ctx) => Ok(Self::Action(ActionContext {
                 name: ctx.name.clone(),

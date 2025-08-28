@@ -24,6 +24,7 @@ use aranya_crypto::{
     },
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},
+    policy::CmdId,
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
@@ -390,7 +391,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
@@ -496,7 +497,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
         head_id: parent_cmd_id,
@@ -604,7 +605,7 @@ where
     let mut peer = T::new(); // seal only
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
         head_id: parent_cmd_id,

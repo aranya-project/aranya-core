@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
+    Address, CmdId, Command, CommandRecall, Engine, EngineError, FactPerspective, Keys,
     MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
+    testing::hash_for_testing_only,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -39,7 +40,7 @@ pub enum WireProtocol {
 
 #[derive(Debug, Clone)]
 pub struct TestProtocol<'a> {
-    id: CommandId,
+    id: CmdId,
     command: WireProtocol,
     data: &'a [u8],
 }
@@ -53,7 +54,7 @@ impl Command for TestProtocol<'_> {
         }
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         self.id
     }
 
@@ -155,7 +156,7 @@ impl TestPolicy {
 
         let command = WireProtocol::Init(message);
         let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
+        let id = hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -176,7 +177,7 @@ impl TestPolicy {
 
         let command = WireProtocol::Basic(message);
         let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
+        let id = hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -291,7 +292,7 @@ impl Policy for TestPolicy {
         let (left, right) = ids.into();
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
+        let id = hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -304,7 +305,7 @@ impl Policy for TestPolicy {
     ) -> Result<(), EngineError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
-                id: CommandId::default(),
+                id: CmdId::default(),
                 max_cut: 0,
             },
             Prior::Single(id) => id,

@@ -10,8 +10,8 @@ mod shared;
 pub mod testing;
 mod tests;
 
+pub use aranya_crypto::policy::LabelId;
 #[cfg(feature = "alloc")]
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use ffi::*;
 pub use handler::*;
-pub use shared::LabelId;
