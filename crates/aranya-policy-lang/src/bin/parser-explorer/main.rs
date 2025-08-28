@@ -1,15 +1,15 @@
 use std::{
     fs::OpenOptions,
-    io::{BufRead, BufReader, Read, stdin},
+    io::{BufRead as _, BufReader, Read, stdin},
     process::ExitCode,
 };
 
-use anyhow::Context;
+use anyhow::Context as _;
 use aranya_policy_lang::lang::{
     ChunkParser, PolicyParser, Rule, Version, extract_policy, get_pratt_parser, parse_policy_str,
 };
 use clap::{Parser, ValueEnum};
-use pest::Parser as PestParser;
+use pest::Parser as _;
 
 #[derive(Parser, Debug)]
 #[command(name = "parser explorer", version)]
@@ -61,7 +61,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let policy = parse_policy_str(&policy_text, version)?;
             match args.check_mode {
                 true => Ok(String::from("policy is valid")),
-                false => Ok(format!("{:#?}", policy)),
+                false => Ok(format!("{policy:#?}")),
             }
         }
         Mode::Expression => {
@@ -73,7 +73,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let p = ChunkParser::new(0, &pratt, s.len());
             let ast = p.parse_expression(token)?;
 
-            Ok(format!("{:#?}", ast))
+            Ok(format!("{ast:#?}"))
         }
     }
 }
@@ -81,11 +81,11 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
 fn output(res: anyhow::Result<String>) -> ExitCode {
     match res {
         Ok(s) => {
-            println!("{}", s);
+            println!("{s}");
             ExitCode::SUCCESS
         }
         Err(e) => {
-            println!("error: {}", e);
+            println!("error: {e}");
             ExitCode::from(1)
         }
     }

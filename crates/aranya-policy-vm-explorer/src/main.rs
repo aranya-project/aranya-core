@@ -4,7 +4,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
-    io::{Read, stdin},
+    io::{Read as _, stdin},
 };
 
 use aranya_crypto::{DeviceId, Id, policy::CmdId};
@@ -66,7 +66,7 @@ where
     let mut buf = String::new();
     let mut status = MachineStatus::Executing;
     while status == MachineStatus::Executing {
-        println!("{}", rs);
+        println!("{rs}");
         stdin().read_line(&mut buf)?;
         status = rs.step()?;
     }
@@ -81,9 +81,9 @@ fn print_machine_status<M>(reason: ExitReason, rs: &RunState<'_, M>)
 where
     M: MachineIO<MachineStack>,
 {
-    print!("Exited({})", reason);
+    print!("Exited({reason})");
     if let Some(loc) = rs.source_location() {
-        println!(" {}", loc);
+        println!(" {loc}");
     } else {
         println!();
     }
@@ -119,7 +119,7 @@ struct MachExpIO {
 
 impl MachExpIO {
     fn new() -> Self {
-        MachExpIO {
+        Self {
             facts: HashMap::new(),
             effects: vec![],
         }
@@ -139,7 +139,7 @@ impl Iterator for MachExpQueryIterator {
         self.iter
             .next()
             .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
-            .map(|((_, k), v)| Ok((k.clone(), v.clone())))
+            .map(|((_, k), v)| Ok((k, v)))
     }
 }
 
@@ -203,7 +203,7 @@ where
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
-        self.effects.push((name, fields))
+        self.effects.push((name, fields));
     }
 
     fn call(
@@ -267,7 +267,7 @@ fn main() -> anyhow::Result<()> {
             if let Some(action) = &args.action {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
-                    name: name.clone(),
+                    name,
                     head_id: CmdId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
@@ -276,7 +276,7 @@ fn main() -> anyhow::Result<()> {
             } else if let Some(command) = args.command {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
-                    name: name.clone(),
+                    name,
                     id: CmdId::default(),
                     author: DeviceId::default(),
                     version: Id::default(),
@@ -297,7 +297,7 @@ fn main() -> anyhow::Result<()> {
                     name: command.clone(),
                     fields,
                 };
-                rs.setup_command(command.clone(), LabelType::CommandPolicy, &self_data)?;
+                rs.setup_command(command, LabelType::CommandPolicy, &self_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }
@@ -308,7 +308,7 @@ fn main() -> anyhow::Result<()> {
             } else {
                 match debug_loop(&mut rs) {
                     Ok(()) => (),
-                    Err(e) => println!("execution stopped: {}", e),
+                    Err(e) => println!("execution stopped: {e}"),
                 }
             }
 
@@ -319,28 +319,28 @@ fn main() -> anyhow::Result<()> {
 
             println!("Facts:");
             for ((name, k), v) in &io.borrow().facts {
-                print!("  {}[", name);
+                print!("  {name}[");
                 for e in k {
-                    print!("{}", e);
+                    print!("{e}");
                 }
                 print!("]=>{{");
                 for e in v {
-                    print!("{}", e);
+                    print!("{e}");
                 }
                 println!("}}");
             }
 
             println!("Effects:");
             for (name, fields) in &io.borrow().effects {
-                println!("  {} {{", name);
+                println!("  {name} {{");
                 for f in fields {
-                    println!("    {}", f);
+                    println!("    {f}");
                 }
                 println!("  }}");
             }
         }
         Mode::Compile => {
-            println!("{}", machine);
+            println!("{machine}");
         }
     }
 

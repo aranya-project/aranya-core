@@ -1,10 +1,11 @@
 #![allow(clippy::panic)]
+#![allow(clippy::result_large_err)]
 
-use std::{fs::OpenOptions, io::Read};
+use std::{fs::OpenOptions, io::Read as _};
 
 use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
 use ast::Expression;
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{
     ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
@@ -58,7 +59,6 @@ impl SpannedAt for StmtKind {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 #[allow(deprecated)]
 fn accept_only_latest_lang_version() -> Result<(), PestError<Rule>> {
     // parse string literal
@@ -102,7 +102,6 @@ policy-version: 2
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
     let token: Pair<'_, Rule> = pair.next().unwrap();
@@ -112,7 +111,6 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_atom_string() -> Result<(), PestError<Rule>> {
     // basic string
     let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
@@ -139,7 +137,6 @@ fn parse_atom_string() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     // bare call
     let mut pair = PolicyParser::parse(Rule::atom, r#"call()"#)?;
@@ -190,7 +187,6 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::expression, r#"unwrap call(3 + 7, -b, "foo\x7b")"#)?;
 
@@ -333,12 +329,11 @@ fn parse_optional() {
     ];
     for (case, is_valid) in optional_types {
         let r = PolicyParser::parse(Rule::optional_t, case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r)
+        assert!(*is_valid == r.is_ok(), "{case}: {r:?}");
     }
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
 
@@ -351,7 +346,6 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
         fact Foo[a int] => {b id, c string}
@@ -366,7 +360,6 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
         action init(owner id) {
@@ -384,7 +377,6 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
@@ -412,7 +404,6 @@ fn test_parse_effect_with_field_insertion() {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
         command Foo {
@@ -453,7 +444,6 @@ fn parse_command_attributes() {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
     function foo(x int) bool {
@@ -469,7 +459,6 @@ fn parse_function() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     let src = r#"
         let x = foo::bar(5, "baz")
@@ -482,7 +471,7 @@ fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     let mut let_parts = let_expr.into_inner();
     let_parts.next().unwrap(); // skip 'x' identifier
     let ffi_expr = let_parts.next().unwrap().into_inner().next().unwrap();
-    println!("> {}", ffi_expr);
+    println!("> {ffi_expr}");
     assert_eq!(ffi_expr.as_rule(), Rule::foreign_function_call);
 
     let mut f = ffi_expr.into_inner();
@@ -491,7 +480,7 @@ fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     // list of argument expressions
     let mut args = f.next().unwrap().into_inner();
     args.next().unwrap(); // skip identifier
-    println!("arg_expr {}", args);
+    println!("arg_expr {args}");
 
     // verify number and type of args
     assert_eq!(args.len(), 2);
@@ -714,7 +703,6 @@ fn parse_struct() {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_struct_composition() -> Result<(), PestError<Rule>> {
     let input = "{ c: false, ...x }";
 
@@ -782,7 +770,6 @@ fn parse_enum_definition() {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
 fn parse_enum_reference() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::enum_reference, "Color::Red")?;
     let token: Pair<'_, Rule> = pair.next().unwrap();
@@ -931,7 +918,7 @@ fn parse_keyword_collision() -> anyhow::Result<()> {
 
     for text in texts {
         let policy = parse_policy_str(text, Version::V2);
-        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier))
+        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier));
     }
     Ok(())
 }

@@ -22,8 +22,8 @@ pub struct TraceError {
 }
 
 impl TraceError {
-    pub fn new(etype: TraceErrorType, instruction_path: Vec<usize>) -> TraceError {
-        TraceError {
+    pub fn new(etype: TraceErrorType, instruction_path: Vec<usize>) -> Self {
+        Self {
             etype,
             instruction_path: instruction_path.into(),
         }

@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use aranya_crypto::Csprng;
-use buggy::BugExt;
+use buggy::BugExt as _;
 use heapless::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -10,8 +10,8 @@ use super::{
     SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
-    Address, Command, GraphId, Location,
-    storage::{Segment, Storage, StorageError, StorageProvider},
+    Address, Command as _, GraphId, Location,
+    storage::{Segment as _, Storage as _, StorageError, StorageProvider},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -116,7 +116,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         rng.fill_bytes(&mut dst);
         let session_id = u128::from_le_bytes(dst);
 
-        SyncRequester {
+        Self {
             session_id,
             storage_id,
             state: SyncRequesterState::New,
@@ -128,7 +128,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
 
     /// Create a new [`SyncRequester`] for an existing session.
     pub fn new_session_id(storage_id: GraphId, session_id: u128, server_address: A) -> Self {
-        SyncRequester {
+        Self {
             session_id,
             storage_id,
             state: SyncRequesterState::Waiting,
@@ -404,7 +404,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         }
                     }
 
-                    current = next.to_vec();
+                    current.clone_from(&next);
                 }
             }
         }

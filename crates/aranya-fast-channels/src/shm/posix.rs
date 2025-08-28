@@ -7,7 +7,7 @@ use core::{
     ptr,
 };
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 use libc::{
@@ -137,7 +137,7 @@ impl<T> Mapping<T> {
                 let ptr = Aligned::new(base.cast::<T>(), layout)
                     // TODO(eric): better error here.
                     .ok_or(invalid_argument("unable to align mapping"))?;
-                Ok(Mapping { ptr, base, layout })
+                Ok(Self { ptr, base, layout })
             }
         }
     }

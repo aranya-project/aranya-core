@@ -27,7 +27,7 @@ use spideroak_crypto::{
 };
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
-use crate::ciphersuite::{CipherSuite, CipherSuiteExt};
+use crate::ciphersuite::{CipherSuite, CipherSuiteExt as _};
 
 /// A unique cryptographic ID.
 ///
@@ -52,7 +52,7 @@ pub struct Id([u8; 32]);
 
 impl Id {
     /// Derives an [`Id`] from the hash of some data.
-    pub fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Id {
+    pub fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Self {
         // id = H("ID-v1" || suites || data || tag)
         CS::tuple_hash(b"ID-v1", [data, tag]).into_array().into()
     }
@@ -476,7 +476,7 @@ impl From<Bug> for IdError {
 
 impl From<PkError> for IdError {
     fn from(err: PkError) -> Self {
-        IdError::new(err.msg())
+        Self::new(err.msg())
     }
 }
 

@@ -1,14 +1,14 @@
 use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, TokenStreamExt, quote};
+use quote::{ToTokens, TokenStreamExt as _, quote};
 pub use syn::Abi;
 use syn::{
     Attribute, Block, Error, Expr, GenericParam, Generics, Ident, ItemEnum, ItemFn, ItemStruct,
     ItemType, ItemUnion, LifetimeParam, Lit, LitInt, Pat, PatIdent, PatType, Result, Signature,
     Token, Visibility,
     punctuated::{self, Punctuated},
-    spanned::Spanned,
+    spanned::Spanned as _,
     token::{Brace, Paren},
 };
 use tracing::{debug, instrument, trace};

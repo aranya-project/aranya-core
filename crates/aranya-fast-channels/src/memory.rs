@@ -11,7 +11,7 @@ use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use derive_where::derive_where;
 
 use crate::{

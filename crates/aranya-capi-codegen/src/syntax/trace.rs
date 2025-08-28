@@ -3,7 +3,7 @@ use quote::{ToTokens, quote};
 use syn::{
     Expr, Ident, Token, parse_quote,
     punctuated::Punctuated,
-    spanned::Spanned,
+    spanned::Spanned as _,
     token::{Bracket, Paren},
 };
 
@@ -126,7 +126,7 @@ impl ToTokens for Instrument {
                         self.fields.to_tokens(tokens);
                     });
                 }
-            })
+            });
         });
     }
 }

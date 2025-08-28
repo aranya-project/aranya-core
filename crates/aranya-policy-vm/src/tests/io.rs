@@ -1,6 +1,6 @@
 extern crate alloc;
 use alloc::collections::{BTreeMap, btree_map};
-use core::{cell::RefCell, fmt, ops::DerefMut};
+use core::{cell::RefCell, fmt, ops::DerefMut as _};
 
 use aranya_crypto::{
     Rng,
@@ -12,7 +12,7 @@ use aranya_policy_ast::Identifier;
 use super::ffi::*;
 use crate::{
     CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair, MachineError,
-    MachineErrorType, MachineIO, MachineIOError, Stack, ffi::FfiModule,
+    MachineErrorType, MachineIO, MachineIOError, Stack, ffi::FfiModule as _,
 };
 
 pub struct TestIO {
@@ -36,7 +36,7 @@ impl fmt::Debug for TestIO {
 impl TestIO {
     pub fn new() -> Self {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
-        TestIO {
+        Self {
             facts: BTreeMap::new(),
             effect_stack: vec![],
             engine: RefCell::new(engine),
@@ -65,7 +65,7 @@ where
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
         let value: Vec<_> = value.into_iter().collect();
-        println!("fact insert {}[{:?}]=>{{{:?}}}", name, key, value);
+        println!("fact insert {name}[{key:?}]=>{{{value:?}}}");
         match self.facts.entry((name, key)) {
             btree_map::Entry::Vacant(entry) => {
                 entry.insert(value);
@@ -81,7 +81,7 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        println!("fact delete {}[{:?}]", name, key);
+        println!("fact delete {name}[{key:?}]");
         match self.facts.entry((name, key)) {
             btree_map::Entry::Vacant(_) => Err(MachineIOError::FactNotFound),
             btree_map::Entry::Occupied(entry) => {
@@ -97,7 +97,7 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        println!("query {}[{:?}]", name, key);
+        println!("query {name}[{key:?}]");
         let iter = self
             .facts
             .clone()
@@ -117,7 +117,7 @@ where
     ) {
         let mut fields: Vec<_> = fields.into_iter().collect();
         fields.sort_by(|a, b| a.key().cmp(b.key()));
-        println!("effect {} {{{:?}}}", name, fields);
+        println!("effect {name} {{{fields:?}}}");
         self.effect_stack.push((name, fields));
     }
 

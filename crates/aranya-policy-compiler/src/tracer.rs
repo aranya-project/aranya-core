@@ -37,14 +37,15 @@ pub struct TraceAnalyzerBuilder<'a> {
 }
 
 impl<'a> TraceAnalyzerBuilder<'a> {
-    pub fn new(m: &'a ModuleV0) -> TraceAnalyzerBuilder<'a> {
+    pub fn new(m: &'a ModuleV0) -> Self {
         TraceAnalyzerBuilder { m, tracers: vec![] }
     }
 }
 
 impl<'a> TraceAnalyzerBuilder<'a> {
     /// Add an [`Analyzer`] implementation.
-    pub fn add_analyzer<A>(mut self, mut tracer: A) -> TraceAnalyzerBuilder<'a>
+    #[must_use]
+    pub fn add_analyzer<A>(mut self, mut tracer: A) -> Self
     where
         A: Analyzer + 'static,
     {
@@ -163,10 +164,10 @@ impl TraceAnalyzer<'_> {
                             instruction_path: self.instruction_path.clone(),
                             responsible_instruction: pc,
                             message: s,
-                        })
+                        });
                     }
-                    _ => (),
-                };
+                    AnalyzerStatus::Ok => (),
+                }
             }
 
             match i {

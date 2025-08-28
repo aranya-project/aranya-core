@@ -46,7 +46,7 @@ impl FfiModule for PrintFfi {
                 Ok(())
             }
             _ => Err(MachineError::new(MachineErrorType::FfiProcedureNotDefined(
-                Self::SCHEMA.name.clone(),
+                Self::SCHEMA.name,
                 procedure,
             ))),
         }

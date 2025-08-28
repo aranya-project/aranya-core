@@ -8,9 +8,9 @@ use aranya_policy_ast::{
     NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
     UpdateStatement, VType, Version, ident,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use pest::{
-    Parser, Span,
+    Parser as _, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
@@ -307,7 +307,7 @@ impl ChunkParser<'_> {
         if it.next() != Some('"') {
             return Err(ParseError::new(
                 ParseErrorKind::InvalidString,
-                format!("bad string: {}", src),
+                format!("bad string: {src}"),
                 Some(string.as_span()),
             ));
         }
@@ -321,7 +321,7 @@ impl ChunkParser<'_> {
                                 let v = u8::from_str_radix(&s, 16).map_err(|e| {
                                     ParseError::new(
                                         ParseErrorKind::InvalidNumber,
-                                        format!("{}: {}", s, e),
+                                        format!("{s}: {e}"),
                                         Some(string.as_span()),
                                     )
                                 })?;
@@ -333,7 +333,7 @@ impl ChunkParser<'_> {
                             _ => {
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
-                                    format!("invalid escape: {}", next),
+                                    format!("invalid escape: {next}"),
                                     Some(string.as_span()),
                                 ));
                             }
@@ -464,7 +464,7 @@ impl ChunkParser<'_> {
                         }
                         t => Err(ParseError::new(
                             ParseErrorKind::Unknown,
-                            format!("impossible token: {:?}", t),
+                            format!("impossible token: {t:?}"),
                             Some(primary.as_span()),
                         )),
                     }
@@ -495,7 +495,7 @@ impl ChunkParser<'_> {
                         t => {
                             return Err(ParseError::new(
                                 ParseErrorKind::Unknown,
-                                format!("invalid token in optional: {:?}", t),
+                                format!("invalid token in optional: {t:?}"),
                                 Some(primary.as_span()),
                             ))
                         }
@@ -648,7 +648,7 @@ impl ChunkParser<'_> {
                                 let neg_n = n.checked_neg().ok_or_else(|| {
                                     ParseError::new(
                                         ParseErrorKind::InvalidNumber,
-                                        format!("Negation of {} overflows", n),
+                                        format!("Negation of {n} overflows"),
                                         Some(op.as_span()),
                                     )
                                 })?;
@@ -706,7 +706,7 @@ impl ChunkParser<'_> {
                         ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
                         e => return Err(ParseError::new(
                             ParseErrorKind::InvalidSubstruct,
-                            format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
+                            format!("Expression `{e:?}` to the right of the as operator must be an identifier"),
                             Some(op.as_span()),
                         )),
                     },
@@ -778,7 +778,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_expression_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let span = self.to_ast_span(token.as_span())?;
@@ -787,7 +787,7 @@ impl ChunkParser<'_> {
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
-                        .map(|token| self.parse_expression(token.to_owned()))
+                        .map(|token| self.parse_expression(token.clone()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     MatchPattern::Values(values)
@@ -827,7 +827,7 @@ impl ChunkParser<'_> {
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
-                format!("{} requires count limit (int)", cmp_type),
+                format!("{cmp_type} requires count limit (int)"),
                 Some(statement.as_span()),
             )
         })?;
@@ -841,7 +841,7 @@ impl ChunkParser<'_> {
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
-                format!("{} requires fact literal", cmp_type),
+                format!("{cmp_type} requires fact literal"),
                 Some(statement.as_span()),
             )
         })?;
@@ -1018,7 +1018,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let span = self.to_ast_span(token.as_span())?;
@@ -1028,7 +1028,7 @@ impl ChunkParser<'_> {
                     let values = token
                         .into_inner()
                         .map(|token| {
-                            let expr = self.parse_expression(token.to_owned())?;
+                            let expr = self.parse_expression(token.clone())?;
                             Ok(expr)
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
@@ -1173,7 +1173,7 @@ impl ChunkParser<'_> {
                 s => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
-                        format!("found invalid rule `{:?}`", s),
+                        format!("found invalid rule `{s:?}`"),
                         Some(statement.as_span()),
                     ));
                 }
@@ -1330,7 +1330,7 @@ impl ChunkParser<'_> {
         for field in pc.into_inner() {
             match field.as_rule() {
                 Rule::field_definition => {
-                    items.push(ast::StructItem::Field(self.parse_field_definition(field)?))
+                    items.push(ast::StructItem::Field(self.parse_field_definition(field)?));
                 }
                 Rule::field_insertion => {
                     let ident = descend(field).consume_ident(self)?;
@@ -1457,7 +1457,7 @@ impl ChunkParser<'_> {
                 t => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
-                        format!("found {:?} in command definition", t),
+                        format!("found {t:?} in command definition"),
                         Some(token.as_span()),
                     ));
                 }
@@ -1682,7 +1682,7 @@ fn parse_policy_chunk_inner(
                 .finish_functions
                 .push(p.parse_finish_function_definition(item)?),
             Rule::global_let_statement => {
-                policy.global_lets.push(p.parse_global_let_statement(item)?)
+                policy.global_lets.push(p.parse_global_let_statement(item)?);
             }
             Rule::EOI => (),
             _ => {
@@ -1744,7 +1744,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
 }
 
 /// A series of Struct or Enum definitions for the FFI
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FfiTypes {
     pub structs: Vec<ast::StructDefinition>,
     pub enums: Vec<EnumDefinition>,
