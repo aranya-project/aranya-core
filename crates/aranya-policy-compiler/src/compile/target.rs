@@ -4,7 +4,10 @@ use std::{
 };
 
 use aranya_policy_ast::{self as ast, Identifier};
-use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
+use aranya_policy_module::{
+    ActionDef, CodeMap, CommandDef, Instruction, Label, Module, ModuleData, ModuleV0, Value,
+    named::NamedMap,
+};
 use ast::FactDefinition;
 use indexmap::IndexMap;
 
@@ -19,9 +22,9 @@ pub struct CompileTarget {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: NamedMap<ActionDef>,
     /// Command definitions (`fields`)
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: NamedMap<CommandDef>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
     pub effects: BTreeSet<Identifier>,
     /// Fact schemas
@@ -30,8 +33,6 @@ pub struct CompileTarget {
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -44,13 +45,12 @@ impl CompileTarget {
         CompileTarget {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             effects: BTreeSet::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -74,7 +74,6 @@ impl CompileTarget {
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs,
-                command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
             }),
