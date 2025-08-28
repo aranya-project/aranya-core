@@ -31,32 +31,32 @@ pub trait Named {
     deserialize = "V: serde::de::DeserializeOwned + Named"
 ))]
 pub struct NamedMap<V> {
-    map: indexmap::IndexSet<ByName<V>, fnv::FnvBuildHasher>,
+    set: indexmap::IndexSet<ByName<V>, fnv::FnvBuildHasher>,
 }
 
 impl<V> NamedMap<V> {
     /// Create an empty map.
     pub const fn new() -> Self {
         Self {
-            map: indexmap::IndexSet::with_hasher(core::hash::BuildHasherDefault::new()),
+            set: indexmap::IndexSet::with_hasher(core::hash::BuildHasherDefault::new()),
         }
     }
 
     /// Return the number of items in the map.
     pub fn len(&self) -> usize {
-        self.map.len()
+        self.set.len()
     }
 
     /// Returns true if the map is empty.
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.set.is_empty()
     }
 
     /// Returns an iterator over the items of the map.
     ///
     /// The items are guaranteed to be in insertion order.
     pub fn iter(&self) -> impl Iterator<Item = &V> {
-        self.map.iter().map(|x| &x.0)
+        self.set.iter().map(|x| &x.0)
     }
 }
 
@@ -70,7 +70,7 @@ impl<V: Named> NamedMap<V> {
     ///
     /// Returns an error if an entry with the same name already exists.
     pub fn insert(&mut self, val: V) -> Result<(), AlreadyExists> {
-        if self.map.insert(ByName(val)) {
+        if self.set.insert(ByName(val)) {
             Ok(())
         } else {
             Err(AlreadyExists)
@@ -79,12 +79,12 @@ impl<V: Named> NamedMap<V> {
 
     /// Look up an entry for the given name.
     pub fn get(&self, name: impl AsRef<str>) -> Option<&V> {
-        self.map.get(name.as_ref()).map(|x| &x.0)
+        self.set.get(name.as_ref()).map(|x| &x.0)
     }
 
     /// Returns true if the map contains an entry for the given name.
     pub fn contains(&self, name: impl AsRef<str>) -> bool {
-        self.map.contains(name.as_ref())
+        self.set.contains(name.as_ref())
     }
 }
 
@@ -98,9 +98,9 @@ impl<V: Named + PartialEq> PartialEq for NamedMap<V> {
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len()
             && self
-                .map
+                .set
                 .iter()
-                .all(|x| other.map.get(x.0.name().as_str()).is_some_and(|y| x == y))
+                .all(|x| other.set.get(x.0.name().as_str()).is_some_and(|y| x == y))
     }
 }
 impl<V: Named + Eq> Eq for NamedMap<V> {}
