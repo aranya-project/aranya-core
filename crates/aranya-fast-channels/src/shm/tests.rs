@@ -2,9 +2,7 @@
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
 use aranya_crypto::{
-    CipherSuite, Engine, Random, Rng,
-    afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
-    dangerous::spideroak_crypto::{hash::Hash, rust::Sha256},
+    afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey}, dangerous::spideroak_crypto::{hash::Hash, rust::Sha256}, policy::LabelId, CipherSuite, Engine, Random, Rng
 };
 use serial_test::serial;
 
@@ -78,7 +76,7 @@ test_impl!(#[serial], shm, SharedMemImpl);
 fn test_many_nodes() {
     const MAX_CHANS: usize = 101;
 
-    let labels = [Label::new(0), Label::new(42)];
+    let label_ids = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
 
     type E = TestEngine<DummyAead>;
 
@@ -88,7 +86,7 @@ fn test_many_nodes() {
         path,
         Flag::Create,
         Mode::ReadWrite,
-        MAX_CHANS * labels.len(),
+        MAX_CHANS * label_ids.len(),
         Rng,
     )
     .expect("unable to created shared memory");
@@ -96,21 +94,21 @@ fn test_many_nodes() {
         path,
         Flag::OpenOnly,
         Mode::ReadWrite,
-        MAX_CHANS * labels.len(),
+        MAX_CHANS * label_ids.len(),
     )
     .expect("unable to created shared memory");
 
     // All the channels we've stored in the shared memory.
-    let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
+    let mut chans = Vec::with_capacity(MAX_CHANS * label_ids.len());
 
     let rng = &mut Rng;
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
-    for label in labels {
+    for label_id in label_ids {
         for i in 0..MAX_CHANS {
             let chan = Channel {
-                id: ChannelId::new(NodeId::new(u32::try_from(i).unwrap()), label),
+                id: ChannelId::new(i),
                 keys: match util::rand_intn(&mut Rng, 3) {
                     0 => Directed::SealOnly {
                         seal: RawSealKey::random(rng),
@@ -124,9 +122,10 @@ fn test_many_nodes() {
                     },
                     v => unreachable!("{v}"),
                 },
+                label_id,
             };
             aranya
-                .add(chan.id, chan.keys.clone())
+                .add(chan.id, chan.keys.clone(), label_id)
                 .unwrap_or_else(|err| panic!("unable to add node {i}: {err}"));
             chans.push(chan);
 
