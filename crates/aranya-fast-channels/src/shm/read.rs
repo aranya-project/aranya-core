@@ -8,6 +8,7 @@ use core::{
 use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
 };
 use buggy::BugExt;
 
@@ -84,7 +85,12 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn seal<F, T>(
+        &self,
+        id: ChannelId,
+        label_id: LabelId,
+        f: F,
+    ) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, crate::Error>,
     {
@@ -136,6 +142,11 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
+
+        if chan.label != label_id {
+            return Err(crate::Error::InvalidLabel(label_id));
+        }
+
         let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
 
         debug!("chan = {chan:p}/{chan:?}");
@@ -171,7 +182,12 @@ where
         Ok(result)
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn open<F, T>(
+        &self,
+        id: ChannelId,
+        label_id: LabelId,
+        f: F,
+    ) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&OpenKey<CS>) -> Result<T, crate::Error>,
     {
@@ -213,6 +229,11 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
+
+        if chan.label != label_id {
+            return Err(crate::Error::InvalidLabel(label_id));
+        }
+
         let key = OpenKey::from_raw(&chan.open_key)?;
 
         let result = f(&key);

@@ -11,6 +11,7 @@ use aranya_crypto::{
     CipherSuite, Csprng, Random,
     afc::{RawOpenKey, RawSealKey, Seq},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
+    policy::LabelId,
 };
 use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
@@ -31,7 +32,7 @@ use crate::features::*;
 use crate::{
     errno::{Errno, errno},
     mutex::Mutex,
-    state::{ChannelId, Directed, NodeId},
+    state::{ChannelId, Directed},
     util::{const_assert, debug},
 };
 
@@ -348,10 +349,10 @@ impl PartialEq<Op> for ChanDirection {
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
-    /// The peer's node ID.
-    pub node_id: U32,
+    /// The channel's ID.
+    pub channel_id: U32,
     /// The channel's label.
-    pub label: U32,
+    pub label: LabelId,
     /// Describes the direction that data flows in the channel.
     pub direction: U32,
 
@@ -383,6 +384,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn init<R: Csprng>(
         ptr: &mut MaybeUninit<Self>,
         id: ChannelId,
+        label: LabelId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
         rng: &mut R,
     ) {
@@ -405,8 +407,8 @@ impl<CS: CipherSuite> ShmChan<CS> {
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
         let chan = Self {
             magic: Self::MAGIC,
-            node_id: id.node_id().to_u32().into(),
-            label: id.label().to_u32().into(),
+            channel_id: id.to_u32().into(),
+            label,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
             // For the same reason that we randomize keys,
             // manually exhaust the sequence number.
@@ -450,9 +452,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn id(&self) -> Result<ChannelId, Corrupted> {
         self.check()?;
 
-        let node_id = NodeId::new(self.node_id.into());
-        let label: u32 = self.label.into();
-        Ok(ChannelId::new(node_id, label.into()))
+        Ok(ChannelId::new(self.channel_id.into()))
     }
 
     /// Reports whether this channel matches `op`.

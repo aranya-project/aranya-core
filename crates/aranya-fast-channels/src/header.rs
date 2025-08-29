@@ -2,7 +2,7 @@ use aranya_crypto::afc::Seq;
 use buggy::{Bug, BugExt, bug};
 use serde::{Deserialize, Serialize};
 
-use crate::state::Label;
+use crate::ChannelId;
 
 macro_rules! packed {
     (
@@ -27,12 +27,12 @@ packed! {
     /// The per-message header.
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub struct Header {
-        /// The APS protocol version.
+        /// The AFC protocol version.
         pub version: Version,
         /// The type of message.
         pub msg_type: MsgType,
-        /// The channel label.
-        pub label: Label,
+        /// Unique ID for the channel.
+        pub id: ChannelId,
     }
 }
 
@@ -45,9 +45,9 @@ impl Header {
         let (msg_typ, rest) = rest
             .split_first_chunk()
             .assume("`buf` should be large enough for `MsgType`")?;
-        let (label, rest) = rest
+        let (id, rest) = rest
             .split_first_chunk()
-            .assume("`buf` should be large enough for `Label`")?;
+            .assume("`buf` should be large enough for `ChannelId`")?;
 
         if !rest.is_empty() {
             bug!("`rest` has trailing data");
@@ -58,7 +58,7 @@ impl Header {
                 .ok_or(HeaderError::UnknownVersion)?,
             msg_type: MsgType::try_from_u16(u16::from_le_bytes(*msg_typ))
                 .ok_or(HeaderError::InvalidMsgType)?,
-            label: u32::from_le_bytes(*label).into(),
+            id: u32::from_le_bytes(*id).into(),
         })
     }
 
@@ -74,10 +74,10 @@ impl Header {
             .assume("`out` should be large enough for `MsgType`")?;
         *msg_typ_out = self.msg_type.to_u16().to_le_bytes();
 
-        let (label_out, rest) = rest
+        let (id_out, rest) = rest
             .split_first_chunk_mut()
-            .assume("`out` should be large enough for `Label`")?;
-        *label_out = self.label.to_u32().to_le_bytes();
+            .assume("`out` should be large enough for `NodeId`")?;
+        *id_out = self.id.to_u32().to_le_bytes();
 
         if !rest.is_empty() {
             bug!("`out` should be exactly `Header::PACKED_SIZE`");
@@ -91,8 +91,8 @@ packed! {
     /// The "header" appended to data messages.
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub(crate) struct DataHeader {
-        /// The channel label.
-        pub label: Label,
+        /// The channel's unique ID.
+        pub id: ChannelId,
         /// The ciphertext's sequence number.
         pub seq: Seq,
     }
@@ -101,7 +101,7 @@ packed! {
 impl DataHeader {
     /// Parses the header from its byte representation.
     pub fn try_parse(buf: &[u8; Self::PACKED_SIZE]) -> Result<Self, HeaderError> {
-        let (label, rest) = buf
+        let (id, rest) = buf
             .split_first_chunk()
             .assume("`buf` should be large enough for `Label`")?;
         let (seq, rest) = rest
@@ -113,17 +113,17 @@ impl DataHeader {
         }
 
         Ok(Self {
-            label: u32::from_le_bytes(*label).into(),
+            id: u32::from_le_bytes(*id).into(),
             seq: Seq::new(u64::from_le_bytes(*seq)),
         })
     }
 
     /// Writes the header to `out`.
     pub fn encode(&self, out: &mut [u8; DataHeader::PACKED_SIZE]) -> Result<(), HeaderError> {
-        let (label_out, rest) = out
+        let (id_out, rest) = out
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `Label`")?;
-        *label_out = self.label.to_u32().to_le_bytes();
+        *id_out = self.id.to_u32().to_le_bytes();
 
         let (seq_out, rest) = rest
             .split_first_chunk_mut()
@@ -212,12 +212,16 @@ mod tests {
 
     #[test]
     fn test_header_basic() {
-        for label in [Label::new(0), Label::new(1), Label::new(u32::MAX)] {
+        for id in [
+            ChannelId::new(0),
+            ChannelId::new(1),
+            ChannelId::new(u32::MAX),
+        ] {
             for msg_typ in [MsgType::Data, MsgType::Control] {
                 let want = Header {
                     version: Version::V1,
                     msg_type: msg_typ,
-                    label,
+                    id,
                 };
                 let got = {
                     let mut buf = [0u8; Header::PACKED_SIZE];
@@ -258,9 +262,13 @@ mod tests {
 
     #[test]
     fn test_data_header_basic() {
-        for label in [Label::new(0), Label::new(1), Label::new(u32::MAX)] {
+        for id in [
+            ChannelId::new(0),
+            ChannelId::new(1),
+            ChannelId::new(u32::MAX),
+        ] {
             for seq in [0, 1, u64::MAX].map(Into::<Seq>::into) {
-                let want = DataHeader { label, seq };
+                let want = DataHeader { id, seq };
                 let got = {
                     let mut buf = [0u8; DataHeader::PACKED_SIZE];
                     want.encode(&mut buf)

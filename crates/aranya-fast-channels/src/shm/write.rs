@@ -3,6 +3,7 @@ use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Orderin
 use aranya_crypto::{
     CipherSuite, Csprng,
     afc::{RawOpenKey, RawSealKey},
+    policy::LabelId,
 };
 use buggy::BugExt;
 
@@ -61,6 +62,7 @@ where
         &self,
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
     ) -> Result<(), Error> {
         let mut rng = self.rng.lock().assume("poisoned")?;
 
@@ -90,7 +92,7 @@ where
             };
             debug!("adding chan {id} at {idx} grow={grow}");
 
-            ShmChan::<CS>::init(chan, id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("write side generation={}", generation + 1);
@@ -112,7 +114,7 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("read side generation={}", generation + 1);

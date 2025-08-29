@@ -3,10 +3,11 @@ use core::{alloc::LayoutError, convert::Infallible};
 use aranya_crypto::{
     ImportError,
     afc::{OpenError, SealError},
+    policy::LabelId,
 };
 use buggy::Bug;
 
-use crate::{buf::AllocError, errno::Errno, header::HeaderError, state::ChannelId};
+use crate::{ChannelId, buf::AllocError, errno::Errno, header::HeaderError};
 
 /// Shorthand for `Result`s that use [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
@@ -23,6 +24,9 @@ pub enum Error {
     /// The channel could not be found.
     #[error("channel not found: {0}")]
     NotFound(ChannelId),
+    /// Invalid label.
+    #[error("invalid label: {0}")]
+    InvalidLabel(LabelId),
     /// The input is too large.
     #[error("input too large")]
     InputTooLarge,

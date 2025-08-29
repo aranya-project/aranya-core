@@ -3,7 +3,7 @@
 use std::{
     cell::Cell,
     cmp,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     iter::{self, IntoIterator},
     marker::PhantomData,
     mem,
@@ -27,15 +27,16 @@ use aranya_crypto::{
         typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
     },
     default::{DefaultCipherSuite, DefaultEngine},
-    policy::CmdId,
+    policy::{CmdId, LabelId},
     test_util::TestCs,
 };
 
 use crate::{
+    ChannelId,
     client::Client,
     header::{DataHeader, Header, MsgType, Version},
     memory,
-    state::{AfcState, AranyaState, Channel, ChannelId, Directed, Label, NodeId},
+    state::{AfcState, AranyaState, Channel, Directed, NodeId},
 };
 
 #[cfg(feature = "trng")]
@@ -143,7 +144,7 @@ impl ChanOp {
     }
 }
 
-struct Device<T, CS>
+pub(crate) struct Device<T, CS>
 where
     T: TestImpl,
     CS: CipherSuite,
@@ -151,6 +152,7 @@ where
     ident_sk: IdentityKey<CS>,
     enc_sk: EncryptionKey<CS>,
     state: T::Aranya<CS>,
+    chan_labels: HashSet<(ChannelId, LabelId)>,
 }
 
 impl<T, CS> Device<T, CS>
@@ -163,7 +165,24 @@ where
             ident_sk: IdentityKey::new(rng),
             enc_sk: EncryptionKey::new(rng),
             state,
+            chan_labels: HashSet::new(),
         }
+    }
+
+    fn add_channel(
+        &mut self,
+        channel: TestChan<T, CS>,
+        label: LabelId,
+    ) -> Result<(), <T::Aranya<CS> as AranyaState>::Error> {
+        let _ = self.chan_labels.insert((channel.id, label));
+        self.state.add(channel.id, channel.keys, channel.label_id)
+    }
+
+    pub fn common_channels<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> impl Iterator<Item = (ChannelId, LabelId)> {
+        self.chan_labels.intersection(&other.chan_labels).cloned()
     }
 }
 
@@ -176,9 +195,9 @@ where
     /// The test name.
     name: String,
     /// All known Aranya devices.
-    devices: HashMap<NodeId, Device<T, E::CS>>,
+    pub(crate) devices: HashMap<NodeId, Device<T, E::CS>>,
     /// All peers that have `ChanOp` to the label.
-    peers: Vec<(NodeId, Label, ChanOp)>,
+    peers: Vec<(NodeId, LabelId, ChanOp)>,
     /// Selects the next `NodeId` for a client.
     ///
     /// TODO(eric): does this need to be `Cell`?
@@ -213,18 +232,26 @@ where
 
     /// Create a [`Client`] that has `ChanOp` to a particular
     /// label.
-    pub fn new_client<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, NodeId)
+    pub fn new_client<I>(
+        &mut self,
+        id: &mut ChannelId,
+        labels: I,
+    ) -> (Client<T::Afc<E::CS>>, NodeId)
     where
-        I: IntoIterator<Item = Label>,
+        I: IntoIterator<Item = LabelId>,
     {
-        self.new_client_with_type(labels.into_iter().zip(iter::repeat(ChanOp::Any)))
+        self.new_client_with_type(id, labels.into_iter().zip(iter::repeat(ChanOp::Any)))
     }
 
     /// Create a [`Client`] that has `ChanOp` to a particular
     /// label.
-    pub fn new_client_with_type<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, NodeId)
+    pub fn new_client_with_type<I>(
+        &mut self,
+        id: &mut ChannelId,
+        labels: I,
+    ) -> (Client<T::Afc<E::CS>>, NodeId)
     where
-        I: IntoIterator<Item = (Label, ChanOp)>,
+        I: IntoIterator<Item = (LabelId, ChanOp)>,
     {
         let device_id = NodeId::new({
             let old = self.next_id.get();
@@ -235,7 +262,7 @@ where
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
-        let device = Device::new(&mut self.eng, aranya);
+        let mut device = Device::new(&mut self.eng, aranya);
         let client = Client::<T::Afc<E::CS>>::new(afc);
 
         for (label, device_type) in labels {
@@ -261,25 +288,23 @@ where
                     .unwrap_or_else(|| panic!("`states.get` does not have {peer_id}"));
 
                 let (our_side, peer_side) = {
-                    let author = (&device, device_id, device_type);
-                    let peer = (peer, *peer_id, *peer_type);
-                    Self::new_channel(&mut self.eng, author, peer, label)
+                    let author = (&device, device_type);
+                    let peer = (peer, *peer_type);
+                    Self::new_channel(&mut self.eng, *id, author, peer, label)
                 };
+                // Increment the channel ID so each channel ID is unique.
+                id.increment();
 
                 // Register the peer.
-                device
-                    .state
-                    .add(our_side.id, our_side.keys)
-                    .unwrap_or_else(|err| {
-                        panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
-                    });
+                device.add_channel(our_side, label).unwrap_or_else(|err| {
+                    panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
+                });
 
                 // Register with the peer.
                 self.devices
-                    .get(peer_id)
+                    .get_mut(peer_id)
                     .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
-                    .state
-                    .add(peer_side.id, peer_side.keys)
+                    .add_channel(peer_side, label)
                     .unwrap_or_else(|err| {
                         panic!(
                             "{label}: add({device_id}, ...): unable to register with peer: {err}"
@@ -295,18 +320,19 @@ where
 
     fn new_channel(
         eng: &mut E,
-        author: (&Device<T, E::CS>, NodeId, ChanOp),
-        peer: (&Device<T, E::CS>, NodeId, ChanOp),
-        label: Label,
+        id: ChannelId,
+        author: (&Device<T, E::CS>, ChanOp),
+        peer: (&Device<T, E::CS>, ChanOp),
+        label: LabelId,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
-        let (author, author_op) = ((author.0, author.1), author.2);
-        let (peer, peer_op) = ((peer.0, peer.1), peer.2);
+        let (author, author_op) = (author.0, author.1);
+        let (peer, peer_op) = (peer.0, peer.1);
         let (author_op, peer_op) = ChanOp::disambiguate(author_op, peer_op);
         match ChanOp::disambiguate(author_op, peer_op) {
-            (ChanOp::Any, ChanOp::Any) => Self::new_bidi_channel(eng, author, peer, label),
-            (ChanOp::SealOnly, _) => Self::new_uni_channel(eng, author, peer, label),
+            (ChanOp::Any, ChanOp::Any) => Self::new_bidi_channel(eng, id, author, peer, label),
+            (ChanOp::SealOnly, _) => Self::new_uni_channel(eng, id, author, peer, label),
             (ChanOp::OpenOnly, _) => {
-                let (mut seal, mut open) = Self::new_uni_channel(eng, peer, author, label);
+                let (mut seal, mut open) = Self::new_uni_channel(eng, id, peer, author, label);
                 // We've swapped `author` and `peer`, so swap
                 // them back.
                 mem::swap(&mut seal, &mut open);
@@ -318,13 +344,11 @@ where
 
     fn new_bidi_channel(
         eng: &mut E,
-        author: (&Device<T, E::CS>, NodeId),
-        peer: (&Device<T, E::CS>, NodeId),
-        label: Label,
+        id: ChannelId,
+        author: &Device<T, E::CS>,
+        peer: &Device<T, E::CS>,
+        label_id: LabelId,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
-        let (author, author_node_id) = author;
-        let (peer, peer_node_id) = peer;
-
         let (author_keys, peer_keys) = {
             let author_cfg = BidiChannel {
                 parent_cmd_id: CmdId::random(eng),
@@ -332,7 +356,7 @@ where
                 our_id: author.ident_sk.public().unwrap().id().unwrap(),
                 their_pk: &peer.enc_sk.public().unwrap(),
                 their_id: peer.ident_sk.public().unwrap().id().unwrap(),
-                label: label.to_u32(),
+                label_id,
             };
             let peer_cfg = BidiChannel {
                 parent_cmd_id: author_cfg.parent_cmd_id,
@@ -340,7 +364,7 @@ where
                 our_id: peer.ident_sk.public().unwrap().id().unwrap(),
                 their_pk: &author.enc_sk.public().unwrap(),
                 their_id: author.ident_sk.public().unwrap().id().unwrap(),
-                label: label.to_u32(),
+                label_id,
             };
 
             let BidiSecrets { author, peer } =
@@ -355,15 +379,17 @@ where
         let author_ch = {
             let (seal, open) = T::convert_bidi_keys(author_keys);
             Channel {
-                id: ChannelId::new(peer_node_id, label),
+                id,
                 keys: Directed::Bidirectional { seal, open },
+                label_id,
             }
         };
         let peer_ch = {
             let (seal, open) = T::convert_bidi_keys(peer_keys);
             Channel {
-                id: ChannelId::new(author_node_id, label),
+                id,
                 keys: Directed::Bidirectional { seal, open },
+                label_id,
             }
         };
         (author_ch, peer_ch)
@@ -371,13 +397,11 @@ where
 
     fn new_uni_channel(
         eng: &mut E,
-        seal: (&Device<T, E::CS>, NodeId),
-        open: (&Device<T, E::CS>, NodeId),
-        label: Label,
+        id: ChannelId,
+        seal: &Device<T, E::CS>,
+        open: &Device<T, E::CS>,
+        label_id: LabelId,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
-        let (seal, seal_node_id) = seal;
-        let (open, open_node_id) = open;
-
         let (seal_key, open_key) = {
             let seal_cfg = UniChannel {
                 parent_cmd_id: CmdId::random(eng),
@@ -385,7 +409,7 @@ where
                 their_pk: &open.enc_sk.public().unwrap(),
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),
                 open_id: open.ident_sk.public().unwrap().id().unwrap(),
-                label: label.to_u32(),
+                label_id,
             };
             let open_cfg = UniChannel {
                 parent_cmd_id: seal_cfg.parent_cmd_id,
@@ -393,7 +417,7 @@ where
                 their_pk: &seal.enc_sk.public().unwrap(),
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),
                 open_id: open.ident_sk.public().unwrap().id().unwrap(),
-                label: label.to_u32(),
+                label_id,
             };
 
             let UniSecrets { author, peer } =
@@ -406,16 +430,18 @@ where
         };
 
         let seal_ch = Channel {
-            id: ChannelId::new(open_node_id, label),
+            id,
             keys: Directed::SealOnly {
                 seal: T::convert_uni_seal_key(seal_key),
             },
+            label_id,
         };
         let open_ch = Channel {
-            id: ChannelId::new(seal_node_id, label),
+            id,
             keys: Directed::OpenOnly {
                 open: T::convert_uni_open_key(open_key),
             },
+            label_id,
         };
         (seal_ch, open_ch)
     }
@@ -425,18 +451,18 @@ where
     /// Returns `None` if `id` is not found.
     #[allow(clippy::type_complexity)]
     pub fn remove(
-        &mut self,
-        id: NodeId,
-        ch: ChannelId,
+        &self,
+        id: ChannelId,
+        device_id: NodeId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&id)?;
-        Some(aranya.state.remove(ch))
+        let aranya = self.devices.get(&device_id)?;
+        Some(aranya.state.remove(id))
     }
 
     /// Removes all channels.
     #[allow(clippy::type_complexity)]
     pub fn remove_all(
-        &mut self,
+        &self,
         id: NodeId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(&id)?;
@@ -446,11 +472,11 @@ where
     /// Removes channels where `f(id)` returns true.
     #[allow(clippy::type_complexity)]
     pub fn remove_if(
-        &mut self,
-        id: NodeId,
+        &self,
+        device_id: NodeId,
         f: impl FnMut(ChannelId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&id)?;
+        let aranya = self.devices.get(&device_id)?;
         Some(aranya.state.remove_if(f))
     }
 
@@ -459,12 +485,12 @@ where
     /// Returns true if channel exists.
     #[allow(clippy::type_complexity)]
     pub fn exists(
-        &mut self,
-        id: NodeId,
-        ch: ChannelId,
+        &self,
+        id: ChannelId,
+        device_id: NodeId,
     ) -> Option<Result<bool, <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&id)?;
-        Some(aranya.state.exists(ch))
+        let aranya = self.devices.get(&device_id)?;
+        Some(aranya.state.exists(id))
     }
 }
 
@@ -780,8 +806,8 @@ pub struct HeaderBuilder {
     version: Option<u16>,
     /// The type of message.
     msg_type: Option<u16>,
-    /// The channel label.
-    label: Option<u32>,
+    /// The channel's unique identifier.
+    id: Option<u32>,
     /// The message sequence number.
     seq: Option<u64>,
 }
@@ -804,9 +830,9 @@ impl HeaderBuilder {
         self
     }
 
-    /// Sets the `label` field.
-    pub fn label(mut self, label: u32) -> Self {
-        self.label = Some(label);
+    /// Sets the `id` field.
+    pub fn id(mut self, id: u32) -> Self {
+        self.id = Some(id);
         self
     }
 
@@ -824,7 +850,7 @@ impl HeaderBuilder {
         let hdr = Header::try_parse(out).unwrap_or(Header {
             version: Version::V1,
             msg_type: MsgType::Data,
-            label: Label::new(0),
+            id: ChannelId::new(0),
         });
 
         // NB: we have to do this manually because `Header` uses
@@ -839,10 +865,10 @@ impl HeaderBuilder {
             .expect("`out` should be large enough for `MsgType`");
         *msg_typ_out = self.msg_type.unwrap_or(hdr.msg_type.to_u16()).to_le_bytes();
 
-        let (label_out, rest) = rest
+        let (id_out, rest) = rest
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Label`");
-        *label_out = self.label.unwrap_or(hdr.label.to_u32()).to_le_bytes();
+        *id_out = self.id.unwrap_or(hdr.id.to_u32()).to_le_bytes();
 
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }
@@ -851,8 +877,8 @@ impl HeaderBuilder {
 /// Used to modify `DataHeader`s.
 #[derive(Default)]
 pub struct DataHeaderBuilder {
-    /// The channel label.
-    label: Option<u32>,
+    /// The channel's unique identifier.
+    id: Option<u32>,
     /// The message sequence number.
     seq: Option<u64>,
 }
@@ -863,9 +889,9 @@ impl DataHeaderBuilder {
         Self::default()
     }
 
-    /// Sets the `label` field.
-    pub fn label(mut self, label: u32) -> Self {
-        self.label = Some(label);
+    /// Sets the `id` field.
+    pub fn id(mut self, id: u32) -> Self {
+        self.id = Some(id);
         self
     }
 
@@ -882,10 +908,10 @@ impl DataHeaderBuilder {
             .expect("`ciphertext` should contain a header");
         let hdr = DataHeader::try_parse(out).expect("should be able to parse `DataHeader`");
 
-        let (label_out, rest) = out
+        let (id_out, rest) = out
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Label`");
-        *label_out = self.label.unwrap_or(hdr.label.to_u32()).to_le_bytes();
+        *id_out = self.id.unwrap_or(hdr.id.to_u32()).to_le_bytes();
 
         let (seq_out, rest) = rest
             .split_first_chunk_mut()
