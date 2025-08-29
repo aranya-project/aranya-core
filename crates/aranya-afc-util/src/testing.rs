@@ -10,7 +10,6 @@ extern crate alloc;
 use alloc::{sync::Arc, vec, vec::Vec};
 use core::{
     cell::UnsafeCell,
-    hash::BuildHasherDefault,
     mem::{self, MaybeUninit},
     ops::Deref,
     result::Result,
@@ -26,10 +25,8 @@ use aranya_crypto::{
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, NodeId};
+use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
-use indexmap::IndexSet;
-use siphasher::sip::SipHasher13;
 use spin::Mutex;
 
 use crate::{
@@ -202,7 +199,7 @@ pub trait TestImpl: Sized {
 }
 
 /// A test device.
-pub(crate) struct Device<T: TestImpl> {
+pub struct Device<T: TestImpl> {
     eng: T::Engine,
     /// The device's ID.
     device_id: DeviceId,
@@ -218,8 +215,6 @@ pub(crate) struct Device<T: TestImpl> {
     afc_client: Client<T::Afc>,
     /// Aranya's view of the shared state.
     afc_state: T::Aranya,
-    /// Maps `DeviceId`s to `NodeId`s.
-    mapping: IndexSet<DeviceId, BuildHasherDefault<SipHasher13>>,
 }
 
 impl<T: TestImpl> Device<T> {
@@ -249,13 +244,7 @@ impl<T: TestImpl> Device<T> {
             handler: Handler::new(device_id, store),
             afc_client: Client::new(afc),
             afc_state: aranya,
-            mapping: Default::default(),
         }
-    }
-
-    fn lookup(&mut self, id: DeviceId) -> NodeId {
-        let (idx, _) = self.mapping.insert_full(id);
-        NodeId::new(u32::try_from(idx).expect("`idx` out of range"))
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
@@ -289,12 +278,7 @@ impl<T: TestImpl> Device<T> {
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_bad_label(
-        sealer: &mut Self,
-        opener: &mut Self,
-        channel_id: ChannelId,
-        label_id: LabelId,
-    ) {
+    fn test_bad_label(sealer: &mut Self, channel_id: ChannelId, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
         let err = sealer
@@ -473,8 +457,8 @@ where
     Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
 
     let bad_label = LabelId::random(&mut Rng);
-    Device::test_bad_label(&mut author, &mut peer, channel_id, bad_label);
-    Device::test_bad_label(&mut peer, &mut author, channel_id, bad_label);
+    Device::test_bad_label(&mut author, channel_id, bad_label);
+    Device::test_bad_label(&mut peer, channel_id, bad_label);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -549,7 +533,6 @@ where
             .expect("author should be able to load encryption key");
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
-        let peer_node_id = author.lookup(peer.device_id);
         author
             .afc_state
             .add(channel_id, keys.into(), label_id)
@@ -577,19 +560,13 @@ where
             .expect("peer should be able to load decryption key");
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
-        let author_node_id = peer.lookup(author.device_id);
         peer.afc_state
             .add(channel_id, keys.into(), label_id)
             .expect("peer should be able to add channel");
     }
 
     Device::test_roundtrip(&mut author, &mut peer, channel_id, label_id);
-    Device::test_bad_label(
-        &mut author,
-        &mut peer,
-        channel_id,
-        LabelId::random(&mut Rng),
-    );
+    Device::test_bad_label(&mut author, channel_id, LabelId::random(&mut Rng));
     Device::test_wrong_direction(&mut peer, channel_id, label_id);
 }
 
@@ -665,7 +642,6 @@ where
             .expect("author should be able to load decryption key");
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
-        let peer_node_id = author.lookup(peer.device_id);
         author
             .afc_state
             .add(channel_id, keys.into(), label_id)
@@ -693,18 +669,12 @@ where
             .expect("peer should be able to load encryption key");
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
-        let author_node_id = peer.lookup(author.device_id);
         peer.afc_state
             .add(channel_id, keys.into(), label_id)
             .expect("peer should be able to add channel");
     }
 
     Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
-    Device::test_bad_label(
-        &mut peer,
-        &mut author,
-        channel_id,
-        LabelId::random(&mut Rng),
-    );
+    Device::test_bad_label(&mut peer, channel_id, LabelId::random(&mut Rng));
     Device::test_wrong_direction(&mut author, channel_id, label_id);
 }

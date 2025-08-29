@@ -16,6 +16,8 @@
 
 pub mod util;
 
+use std::collections::HashMap;
+
 use aranya_crypto::{
     Aead, CipherSuite, Engine, Rng,
     policy::LabelId,
@@ -187,7 +189,6 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     }
 }
 
-/*
 /// Similar to [`test_seal_open_basic`], but with multiple
 /// clients.
 pub fn test_multi_client<T: TestImpl, A: Aead>() {
@@ -219,14 +220,25 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     const GOLDEN: &str = "hello, world!";
 
-    fn test<T: TestImpl, S: AfcState, E: Engine>(
+    fn test<T: TestImpl, S: AfcState, CS: CipherSuite>(
         clients: &mut HashMap<NodeId, Client<S>>,
-        id: ChannelId,
+        devices: &HashMap<NodeId, Device<T, CS>>,
         send: NodeId,
         recv: NodeId,
         label_id: LabelId,
         seqs: &mut HashMap<(NodeId, NodeId, LabelId), u64>,
     ) {
+        let (channel_id, label_id) = {
+            let send_device = devices.get(&send).expect("device to exist");
+            let recv_device = devices.get(&recv).expect("device to exist");
+
+            send_device
+                .common_channels(recv_device)
+                .next()
+                .filter(|(_, lab)| *lab == label_id)
+                .expect("channel to exist")
+        };
+
         let want_seq = *seqs
             .entry((send, recv, label_id))
             .and_modify(|seq| {
@@ -239,7 +251,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
                 .get_mut(&send)
                 .unwrap_or_else(|| panic!("unable to find send client {send}"));
             let mut dst = vec![0u8; GOLDEN.len() + overhead(u0)];
-            u0.seal(id, label_id, &mut dst[..], GOLDEN.as_bytes())
+            u0.seal(channel_id, label_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("{label_id}: seal({recv}, ...): {err}"));
             dst
         };
@@ -260,23 +272,20 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     }
 
     let mut seqs = HashMap::new();
-    for a in &ids {
-        for b in &ids {
-            if a == b {
-                continue;
-            }
-            let device_a = d.devices.get(a).expect("device to exist");
-            let device_b = d.devices.get(b).expect("device to exist");
 
-            for (channel_id, label_id) in device_a.common_channels(device_b) {
-                test(&mut clients, *channel_id, *a, *b, *label_id, &mut seqs);
-                test(&mut clients, *channel_id, *b, *a, *label_id, &mut seqs);
-            }
+    for label_id in label_ids {
+        for a in &ids {
+            for b in &ids {
+                if a == b {
+                    continue;
+                }
 
+                test(&mut clients, &d.devices, *a, *b, label_id, &mut seqs);
+                test(&mut clients, &d.devices, *b, *a, label_id, &mut seqs);
+            }
         }
     }
 }
-*/
 
 /// Basic positive test for removing a channel.
 pub fn test_remove<T: TestImpl, A: Aead>() {
@@ -716,7 +725,6 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
 
         let (channel_id, label_id) = d1
             .common_channels(d2)
-            .into_iter()
             .next()
             .filter(|(_, lab)| *lab == label_id)
             .expect("channel to exist");
@@ -804,7 +812,6 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
 
         let (channel_id, label_id) = d1
             .common_channels(d2)
-            .into_iter()
             .next()
             .filter(|(_, lab)| *lab == label_id)
             .expect("channel to exist");
@@ -829,7 +836,6 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
 
         let (channel_id, label_id) = d1
             .common_channels(d2)
-            .into_iter()
             .next()
             .filter(|(_, lab)| *lab == label_id)
             .expect("channel to exist");
@@ -1135,7 +1141,7 @@ pub fn test_open_different_label<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(&id1).expect("device to exist");
     let d2 = d.devices.get(&id2).expect("device to exist");
 
-    let common_channels: Vec<_> = d1.common_channels(d2).into_iter().collect();
+    let common_channels: Vec<_> = d1.common_channels(d2).collect();
     let [first, second, ..] = common_channels[..] else {
         panic!("There are less than 2 channels")
     };
