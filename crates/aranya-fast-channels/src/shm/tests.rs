@@ -2,7 +2,10 @@
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
 use aranya_crypto::{
-    afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey}, dangerous::spideroak_crypto::{hash::Hash, rust::Sha256}, policy::LabelId, CipherSuite, Engine, Random, Rng
+    CipherSuite, Engine, Random, Rng,
+    afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
+    dangerous::spideroak_crypto::{hash::Hash, rust::Sha256},
+    policy::LabelId,
 };
 use serial_test::serial;
 
@@ -11,7 +14,7 @@ use super::{
     shared::{Index, ShmChan},
 };
 use crate::{
-    state::{AranyaState, Channel, ChannelId, Directed, Label, NodeId},
+    state::{AranyaState, Channel, ChannelId, Directed, NodeId},
     testing::{
         test_impl,
         util::{self, DummyAead, States, TestEngine, TestImpl},
@@ -108,7 +111,7 @@ fn test_many_nodes() {
     for label_id in label_ids {
         for i in 0..MAX_CHANS {
             let chan = Channel {
-                id: ChannelId::new(i),
+                id: ChannelId::new(i.try_into().unwrap()),
                 keys: match util::rand_intn(&mut Rng, 3) {
                     0 => Directed::SealOnly {
                         seal: RawSealKey::random(rng),
