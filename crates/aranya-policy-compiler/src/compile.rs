@@ -1674,6 +1674,8 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Create);
                 }
                 (StmtKind::Update(s), StatementContext::Finish) => {
+                    // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
+
                     // ensure fact is mutable
                     let fact_def = self.get_fact_def(&s.fact.identifier)?;
                     if fact_def.immutable {
@@ -1695,7 +1697,7 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    self.verify_fact_against_schema(&s.fact, true)?;
+                    self.verify_fact_against_schema(&s.fact, false)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup);
 
