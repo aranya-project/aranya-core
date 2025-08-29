@@ -14,7 +14,7 @@ mod dispatcher;
 mod requester;
 mod responder;
 
-pub use dispatcher::{SubscribeResult, SyncType};
+pub use dispatcher::{SubscribeResult, SyncHelloType, SyncType};
 pub use requester::{SyncRequestMessage, SyncRequester};
 pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
 

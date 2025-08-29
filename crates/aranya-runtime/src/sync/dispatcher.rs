@@ -4,6 +4,31 @@ use serde::{Deserialize, Serialize};
 use super::{COMMAND_SAMPLE_MAX, SyncResponseMessage, requester::SyncRequestMessage};
 use crate::{Address, GraphId};
 
+/// The sync hello message types for subscription-based notifications.
+#[derive(Serialize, Deserialize, Debug)]
+pub enum SyncHelloType<A> {
+    /// Subscribe to receive hello notifications from this peer
+    Subscribe {
+        /// Delay in milliseconds between notifications to this subscriber
+        /// 0 = notify immediately, 1 = 1 millisecond delay between notifications, etc.
+        delay_milliseconds: u64,
+        /// The subscriber's address for receiving hello notifications
+        address: A,
+    },
+    /// Unsubscribe from hello notifications
+    Unsubscribe {
+        /// The subscriber's address to identify which subscription to remove
+        address: A,
+    },
+    /// Notification message sent to subscribers
+    Hello {
+        /// The current head of the sender's graph
+        head: Address,
+        /// The sender's address for sync_on_hello operations
+        address: A,
+    },
+}
+
 /// The sync type to dispatch.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -48,6 +73,8 @@ pub enum SyncType<A> {
         /// The remote address of this peer. Used to update the peer cache.
         address: A,
     },
+    /// Sync hello message for subscription-based notifications.
+    Hello(SyncHelloType<A>),
 }
 
 /// The result of attempting to subscribe.
