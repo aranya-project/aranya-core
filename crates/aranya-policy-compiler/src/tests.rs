@@ -996,6 +996,25 @@ fn test_fact_update_invalid_to_type() {
 }
 
 #[test]
+fn test_fact_update() {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        command Test {
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    update Foo[i: 1] to {a: "updated"}
+                    update Foo[i: 1]=>{a:"apple"} to {a: "orange"}
+                }
+            }
+        }
+    "#;
+
+    compile_pass(text);
+}
+
+#[test]
 fn test_immutable_fact_can_be_created_and_deleted() {
     let text = r#"
         immutable fact Foo[i int] => {a string}
