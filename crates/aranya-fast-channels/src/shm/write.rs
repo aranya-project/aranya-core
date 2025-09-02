@@ -21,6 +21,7 @@ use crate::{
 };
 
 /// The writer's view of the shared memory state.
+#[derive(Debug)]
 pub struct WriteState<CS, R> {
     inner: State<CS>,
     rng: StdMutex<R>,
