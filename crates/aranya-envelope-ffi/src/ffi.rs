@@ -220,9 +220,9 @@ function new(
     ) -> Result<Envelope, Error> {
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
-                parent_id: parent_id.into(),
-                command_id: command_id.into(),
-                author_id: author_id.into(),
+                parent_id: parent_id.into_id(),
+                command_id: command_id.into_id(),
+                author_id: author_id.into_id(),
                 signature,
                 payload,
             })

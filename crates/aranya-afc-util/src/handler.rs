@@ -52,7 +52,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0.into())
+            .remove_key(eng, effect.key_id.0.from_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -212,7 +212,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0.into())
+            .remove_key(eng, effect.key_id.0.from_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 

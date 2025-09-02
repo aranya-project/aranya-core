@@ -578,7 +578,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 name: kind.clone(),
                 id: command.id(),
                 author: author_id,
-                version: CmdId::default().into(),
+                version: CmdId::default().into_id(),
             });
             self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
         }

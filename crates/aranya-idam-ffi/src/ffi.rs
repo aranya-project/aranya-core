@@ -171,7 +171,9 @@ function open_group_key(
             .store
             .get_key(eng, our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.into())))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.into_id()))
+            })?;
         debug_assert_eq!(sk.id().map_err(aranya_crypto::Error::from)?, our_enc_sk_id);
 
         let group_key = {
@@ -225,7 +227,10 @@ function encrypt_message(
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| {
-                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id.into()))
+                Error::new(
+                    ErrorKind::KeyNotFound,
+                    KeyNotFound(our_sign_sk_id.into_id()),
+                )
             })?;
         let our_sign_pk = sk.public().expect("signing key should be valid");
 
