@@ -245,8 +245,6 @@ skip = [
     "rand@0.7.3",
     "rand_chacha@0.2.2",
     "rand_core@0.5.1",
-    "regex-automata@0.1.10",
-    "regex-syntax@0.6.29",
     "spin@0.9.8",
     "thiserror-impl@1.0.69",
     "thiserror@1.0.69",
