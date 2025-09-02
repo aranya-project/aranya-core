@@ -44,6 +44,7 @@ struct Cache<K> {
 }
 
 /// The reader's view of the shared memory state.
+#[derive(Debug)]
 pub struct ReadState<CS>
 where
     CS: CipherSuite,
