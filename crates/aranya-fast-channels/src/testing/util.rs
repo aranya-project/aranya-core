@@ -3,7 +3,7 @@
 use std::{
     cell::Cell,
     cmp,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     iter::{self, IntoIterator},
     marker::PhantomData,
     mem,
@@ -144,7 +144,7 @@ impl ChanOp {
     }
 }
 
-struct Device<T, CS>
+pub(crate) struct Device<T, CS>
 where
     T: TestImpl,
     CS: CipherSuite,
@@ -152,6 +152,7 @@ where
     ident_sk: IdentityKey<CS>,
     enc_sk: EncryptionKey<CS>,
     state: T::Aranya<CS>,
+    chan_labels: HashSet<(ChannelId, LabelId)>,
 }
 
 impl<T, CS> Device<T, CS>
@@ -164,7 +165,24 @@ where
             ident_sk: IdentityKey::new(rng),
             enc_sk: EncryptionKey::new(rng),
             state,
+            chan_labels: HashSet::new(),
         }
+    }
+
+    fn add_channel(
+        &mut self,
+        channel: TestChan<T, CS>,
+        label: LabelId,
+    ) -> Result<(), <T::Aranya<CS> as AranyaState>::Error> {
+        let _ = self.chan_labels.insert((channel.id, label));
+        self.state.add(channel.id, channel.keys, channel.label_id)
+    }
+
+    pub fn common_channels<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> impl Iterator<Item = (ChannelId, LabelId)> {
+        self.chan_labels.intersection(&other.chan_labels).cloned()
     }
 }
 
@@ -177,7 +195,7 @@ where
     /// The test name.
     name: String,
     /// All known Aranya devices.
-    devices: HashMap<NodeId, Device<T, E::CS>>,
+    pub(crate) devices: HashMap<NodeId, Device<T, E::CS>>,
     /// All peers that have `ChanOp` to the label.
     peers: Vec<(NodeId, LabelId, ChanOp)>,
     /// Selects the next `NodeId` for a client.
@@ -218,7 +236,7 @@ where
         &mut self,
         id: &mut ChannelId,
         labels: I,
-    ) -> (Client<T::Afc<E::CS>>, NodeId, Vec<ChannelId>)
+    ) -> (Client<T::Afc<E::CS>>, NodeId)
     where
         I: IntoIterator<Item = LabelId>,
     {
@@ -231,7 +249,7 @@ where
         &mut self,
         id: &mut ChannelId,
         labels: I,
-    ) -> (Client<T::Afc<E::CS>>, NodeId, Vec<ChannelId>)
+    ) -> (Client<T::Afc<E::CS>>, NodeId)
     where
         I: IntoIterator<Item = (LabelId, ChanOp)>,
     {
@@ -244,10 +262,9 @@ where
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
-        let device = Device::new(&mut self.eng, aranya);
+        let mut device = Device::new(&mut self.eng, aranya);
         let client = Client::<T::Afc<E::CS>>::new(afc);
 
-        let mut chan_ids = vec![];
         for (label, device_type) in labels {
             // Find all the peers that we're able to create
             // channels with.
@@ -276,23 +293,18 @@ where
                     Self::new_channel(&mut self.eng, *id, author, peer, label)
                 };
                 // Increment the channel ID so each channel ID is unique.
-                chan_ids.push(*id);
                 id.increment();
 
                 // Register the peer.
-                device
-                    .state
-                    .add(our_side.id, our_side.keys, our_side.label_id)
-                    .unwrap_or_else(|err| {
-                        panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
-                    });
+                device.add_channel(our_side, label).unwrap_or_else(|err| {
+                    panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
+                });
 
                 // Register with the peer.
                 self.devices
-                    .get(peer_id)
+                    .get_mut(peer_id)
                     .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
-                    .state
-                    .add(peer_side.id, peer_side.keys, peer_side.label_id)
+                    .add_channel(peer_side, label)
                     .unwrap_or_else(|err| {
                         panic!(
                             "{label}: add({device_id}, ...): unable to register with peer: {err}"
@@ -303,7 +315,7 @@ where
         }
         self.devices.insert(device_id, device);
 
-        (client, device_id, chan_ids)
+        (client, device_id)
     }
 
     fn new_channel(
@@ -439,7 +451,7 @@ where
     /// Returns `None` if `id` is not found.
     #[allow(clippy::type_complexity)]
     pub fn remove(
-        &mut self,
+        &self,
         id: ChannelId,
         device_id: NodeId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
@@ -450,7 +462,7 @@ where
     /// Removes all channels.
     #[allow(clippy::type_complexity)]
     pub fn remove_all(
-        &mut self,
+        &self,
         id: NodeId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(&id)?;
@@ -460,7 +472,7 @@ where
     /// Removes channels where `f(id)` returns true.
     #[allow(clippy::type_complexity)]
     pub fn remove_if(
-        &mut self,
+        &self,
         device_id: NodeId,
         f: impl FnMut(ChannelId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
@@ -473,7 +485,7 @@ where
     /// Returns true if channel exists.
     #[allow(clippy::type_complexity)]
     pub fn exists(
-        &mut self,
+        &self,
         id: ChannelId,
         device_id: NodeId,
     ) -> Option<Result<bool, <T::Aranya<E::CS> as AranyaState>::Error>> {

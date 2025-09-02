@@ -64,7 +64,7 @@ use crate::{
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
 /// let parent_cmd_id = CmdId::random(&mut eng);
-/// let label = LabelId::random(&mut eng);
+/// let label_id = LabelId::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
@@ -86,7 +86,7 @@ use crate::{
 ///         .expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
-///     label,
+///     label_id,
 /// };
 /// let UniSecrets { author, peer } =
 ///     UniSecrets::new(&mut eng, &device1_ch).expect("unable to create `UniSecrets`");
@@ -102,7 +102,7 @@ use crate::{
 ///         .expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
-///     label,
+///     label_id,
 /// };
 /// let device2 = key_from_peer(&device2_ch, peer);
 ///
@@ -114,12 +114,15 @@ use crate::{
 ///     type E = DefaultEngine<Rng, DefaultCipherSuite>;
 ///     let (mut eng, _) = E::from_entropy(Rng);
 ///     let label = LabelId::random(&mut eng);
+///     let id = {
+///         let mut buf = [0; 4];
+///         Rng.fill_bytes(&mut buf);
+///         u32::from_ne_bytes(buf)
+///     };
+///
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
-///         let ad = AuthData {
-///             version,
-///             label: label.to_u32(),
-///         };
+///         let ad = AuthData { version, id };
 ///         let seq = seal
 ///             .seal(&mut dst, GOLDEN, &ad)
 ///             .expect("should be able to encrypt plaintext");
@@ -127,10 +130,7 @@ use crate::{
 ///     };
 ///     let plaintext = {
 ///         let mut dst = vec![0u8; ciphertext.len()];
-///         let ad = AuthData {
-///             version,
-///             label: label.to_u32(),
-///         };
+///         let ad = AuthData { version, id };
 ///         open.open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");
 ///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);

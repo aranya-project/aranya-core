@@ -378,7 +378,7 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, Directed, NodeId,
+        AfcState, AranyaState, ChannelId, Directed, NodeId,
         error::Error,
         memory,
         testing::{

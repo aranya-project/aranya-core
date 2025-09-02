@@ -37,7 +37,7 @@ use crate::{
 ///         SealKey,
 ///     },
 ///     default::{DefaultCipherSuite, DefaultEngine},
-///     policy::CmdId,
+///     policy::{CmdId, LabelId},
 /// };
 ///
 /// struct Keys<CS: CipherSuite> {
@@ -69,7 +69,7 @@ use crate::{
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
 /// let parent_cmd_id = CmdId::random(&mut eng);
-/// let label = 42u32;
+/// let label_id = LabelId::random(&mut Rng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
@@ -91,7 +91,7 @@ use crate::{
 ///         .public()
 ///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device2_id,
-///     label,
+///     label_id,
 /// };
 /// let BidiSecrets { author, peer } =
 ///     BidiSecrets::new(&mut eng, &device1_ch).expect("unable to create `BidiSecrets`");
@@ -107,7 +107,7 @@ use crate::{
 ///         .public()
 ///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device1_id,
-///     label,
+///     label_id,
 /// };
 /// let mut device2 = Keys::from_peer(&device2_ch, peer);
 ///
@@ -116,10 +116,16 @@ use crate::{
 ///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
 ///
 ///     let version = 4;
-///     let label = 1234;
+///     let label_id = LabelId::random(&mut Rng);
+///     let id = {
+///         let mut buf = [0; 4];
+///         Rng.fill_bytes(&mut buf);
+///         u32::from_ne_bytes(buf)
+///     };
+///
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
-///         let ad = AuthData { version, label };
+///         let ad = AuthData { version, id };
 ///         let seq = a
 ///             .seal
 ///             .seal(&mut dst, GOLDEN, &ad)
@@ -128,7 +134,7 @@ use crate::{
 ///     };
 ///     let plaintext = {
 ///         let mut dst = vec![0u8; ciphertext.len()];
-///         let ad = AuthData { version, label };
+///         let ad = AuthData { version, id };
 ///         b.open
 ///             .open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");
