@@ -59,6 +59,10 @@ action init(nonce int) {
 
 // `Init` is a command that initializes a graph.
 command Init {
+    attributes {
+        init: true,
+    }
+
     // Local variables for command
     fields {
         nonce int
@@ -89,6 +93,10 @@ action create_action(v int) {
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
 // the `StuffHappened` effect back to the user.
 command Create {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -141,6 +149,10 @@ action increment(v int) {
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
 command Increment {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -201,6 +213,10 @@ action decrement(v int) {
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
 command Decrement {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -254,6 +270,10 @@ action get_stuff_on_graph() {
 }
 
 command GetStuffOnGraph {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
     }
@@ -343,6 +363,10 @@ action verify_hello_on_graph() {
 }
 
 command VerifyGreetingOnGraph {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key string,
         value string,
@@ -373,6 +397,10 @@ action store_session_data(key string, value bytes) {
 // `StoreSessionData` will take serialized byte information and add it to
 // the factDB in a `PersistedSessionData` fact.
 command StoreSessionData {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key string,
         cmd bytes,
@@ -398,6 +426,10 @@ effect Relationship {
 
 // Emits `Relationship` effects
 command Link {
+    attributes {
+        priority: 0,
+    }
+
     // Local variables for command
     fields {}
 
