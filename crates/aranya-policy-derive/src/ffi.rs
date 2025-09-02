@@ -784,7 +784,7 @@ impl ToTokens for TypeTokens<'_> {
             TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
             TypeKind::Int => quote!(i64),
             TypeKind::Bool => quote!(bool),
-            TypeKind::Id => quote!(#crypto::Id),
+            TypeKind::Id => quote!(#crypto::BaseId),
             TypeKind::Struct(name) => {
                 let ident = format_ident!("{name}");
                 quote!(#ident)
