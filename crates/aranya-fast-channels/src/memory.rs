@@ -24,7 +24,7 @@ use crate::{
 
 /// An im-memory implementation of [`AfcState`] and
 /// [`AranyaState`].
-#[derive_where(Clone, Default)]
+#[derive_where(Clone, Debug, Default)]
 pub struct State<CS: CipherSuite> {
     #[allow(clippy::type_complexity)]
     chans: Arc<StdMutex<BTreeMap<ChannelId, (Directed<SealKey<CS>, OpenKey<CS>>, LabelId)>>>,
