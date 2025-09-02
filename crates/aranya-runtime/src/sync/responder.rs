@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     StorageError, SyncType,
-    command::{Address, Command, CommandId},
+    command::{Address, CmdId, Command},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
 };
 
@@ -111,7 +111,7 @@ pub enum SyncResponseMessage {
         /// corresponding to the `session_id` in the initial `SyncRequest`.
         session_id: u128,
         /// Head of the branch the responder wishes to send.
-        head: CommandId,
+        head: CmdId,
     },
 
     /// Message sent by either requester or responder to indicate the session

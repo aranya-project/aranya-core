@@ -7,7 +7,7 @@ use std::{
     io::{Read, stdin},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, Id, policy::CmdId};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
@@ -199,7 +199,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        _command: Id,
+        _command: CmdId,
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
@@ -268,7 +268,7 @@ fn main() -> anyhow::Result<()> {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
                     name: name.clone(),
-                    head_id: Id::default(),
+                    head_id: CmdId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
@@ -277,8 +277,8 @@ fn main() -> anyhow::Result<()> {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
                     name: name.clone(),
-                    id: Id::default(),
-                    author: Id::default().into(),
+                    id: CmdId::default(),
+                    author: DeviceId::default(),
                     version: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);

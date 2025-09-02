@@ -4,8 +4,11 @@ use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec,
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
-use aranya_crypto::{DeviceId, EncryptionKeyId, SigningKeyId};
-use aranya_policy_ast::{Identifier, Text, VType};
+use aranya_crypto::{
+    DeviceId, EncryptionKeyId, SigningKeyId,
+    policy::{CmdId, GroupId, LabelId, RoleId},
+};
+use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
 use super::ffi::Type;
@@ -84,9 +87,6 @@ impl_typed!(u8 => Int);
 impl_typed!(bool => Bool);
 
 impl_typed!(Id => Id);
-impl_typed!(EncryptionKeyId => Id);
-impl_typed!(DeviceId => Id);
-impl_typed!(SigningKeyId => Id);
 
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
@@ -174,16 +174,22 @@ pub trait TryAsMut<T: ?Sized> {
 }
 
 impl Value {
-    /// Get the [`VType`], if possible.
-    pub fn vtype(&self) -> Option<VType> {
+    /// Get the [`TypeKind`], if possible.
+    pub fn vtype(&self) -> Option<TypeKind> {
         match self {
-            Value::Int(_) => Some(VType::Int),
-            Value::Bool(_) => Some(VType::Bool),
-            Value::String(_) => Some(VType::String),
-            Value::Bytes(_) => Some(VType::Bytes),
-            Value::Id(_) => Some(VType::Id),
-            Value::Enum(name, _) => Some(VType::Enum(name.to_owned())),
-            Value::Struct(s) => Some(VType::Struct(s.name.clone())),
+            Value::Int(_) => Some(TypeKind::Int),
+            Value::Bool(_) => Some(TypeKind::Bool),
+            Value::String(_) => Some(TypeKind::String),
+            Value::Bytes(_) => Some(TypeKind::Bytes),
+            Value::Id(_) => Some(TypeKind::Id),
+            Value::Enum(name, _) => Some(TypeKind::Enum(Ident {
+                name: name.to_owned(),
+                span: Span::default(),
+            })),
+            Value::Struct(s) => Some(TypeKind::Struct(Ident {
+                name: s.name.clone(),
+                span: Span::default(),
+            })),
             _ => None,
         }
     }
@@ -206,20 +212,24 @@ impl Value {
 
     /// Checks to see if a [`Value`] matches some [`VType`]
     /// ```
-    /// use aranya_policy_ast::VType;
+    /// use aranya_policy_ast::{Span, TypeKind, VType};
     /// use aranya_policy_module::Value;
     ///
     /// let value = Value::Int(1);
+    /// let int_type = VType {
+    ///     kind: TypeKind::Int,
+    ///     span: Span::empty(),
+    /// };
     ///
-    /// assert!(value.fits_type(&VType::Int));
+    /// assert!(value.fits_type(&int_type));
     /// ```
     pub fn fits_type(&self, expected_type: &VType) -> bool {
-        match (self.vtype(), expected_type) {
-            (None, VType::Optional(_)) => true,
+        use aranya_policy_ast::TypeKind;
+        match (self.vtype(), &expected_type.kind) {
+            (None, TypeKind::Optional(_)) => true,
             (None, _) => false,
-            (Some(VType::Optional(_)), _) => unreachable!(),
-            (Some(left), VType::Optional(inner)) => left == **inner,
-            (Some(left), right) => left == *right,
+            (Some(vtype), TypeKind::Optional(inner)) => vtype.matches(&inner.kind),
+            (Some(vtype), kind) => vtype.matches(kind),
         }
     }
 }
@@ -281,24 +291,6 @@ impl From<Fact> for Value {
 impl From<Id> for Value {
     fn from(id: Id) -> Self {
         Value::Id(id)
-    }
-}
-
-impl From<DeviceId> for Value {
-    fn from(id: DeviceId) -> Self {
-        Value::Id(id.into())
-    }
-}
-
-impl From<EncryptionKeyId> for Value {
-    fn from(id: EncryptionKeyId) -> Self {
-        Value::Id(id.into())
-    }
-}
-
-impl From<SigningKeyId> for Value {
-    fn from(id: SigningKeyId) -> Self {
-        Value::Id(id.into())
     }
 }
 
@@ -418,54 +410,6 @@ impl TryFrom<Value> for Id {
                 "Id",
                 value.type_name(),
                 "Value -> Id",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for DeviceId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> DeviceId",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for EncryptionKeyId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> EncryptionKeyId",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for SigningKeyId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> SigningKeyId",
             ))
         }
     }
@@ -595,15 +539,19 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Get the ast:::Vtype. Unlike the Value version, this cannot
+    /// Get the [`TypeKind`]. Unlike the Value version, this cannot
     /// fail.
-    pub fn vtype(&self) -> VType {
+    pub fn vtype(&self) -> TypeKind {
+        use aranya_policy_ast::TypeKind;
         match self {
-            HashableValue::Int(_) => VType::Int,
-            HashableValue::Bool(_) => VType::Bool,
-            HashableValue::String(_) => VType::String,
-            HashableValue::Id(_) => VType::Id,
-            HashableValue::Enum(id, _) => VType::Enum(id.clone()),
+            HashableValue::Int(_) => TypeKind::Int,
+            HashableValue::Bool(_) => TypeKind::Bool,
+            HashableValue::String(_) => TypeKind::String,
+            HashableValue::Id(_) => TypeKind::Id,
+            HashableValue::Enum(id, _) => TypeKind::Enum(Ident {
+                name: id.clone(),
+                span: Span::default(),
+            }),
         }
     }
 }
@@ -945,3 +893,39 @@ impl Display for Struct {
         write!(f, "}}")
     }
 }
+
+macro_rules! id_impls {
+    ($ty:ident) => {
+        impl_typed!($ty => Id);
+
+        impl From<$ty> for Value {
+            fn from(id: $ty) -> Self {
+                Value::Id(id.into())
+            }
+        }
+
+        impl TryFrom<Value> for $ty {
+            type Error = ValueConversionError;
+
+            fn try_from(value: Value) -> Result<Self, Self::Error> {
+                if let Value::Id(id) = value {
+                    Ok(id.into())
+                } else {
+                    Err(ValueConversionError::invalid_type(
+                        "Id",
+                        value.type_name(),
+                        concat!("Value -> ", stringify!($ty)),
+                    ))
+                }
+            }
+        }
+    }
+}
+
+id_impls!(DeviceId);
+id_impls!(EncryptionKeyId);
+id_impls!(SigningKeyId);
+id_impls!(CmdId);
+id_impls!(LabelId);
+id_impls!(GroupId);
+id_impls!(RoleId);

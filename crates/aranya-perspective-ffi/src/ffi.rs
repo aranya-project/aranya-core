@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::string::String;
 
-use aranya_crypto::Id;
+use aranya_crypto::policy::CmdId;
 use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, ffi::ffi};
 
 /// Implements 'perspective` FFI module.
@@ -25,7 +25,7 @@ impl FfiPerspective {
         &self,
         ctx: &CommandContext,
         _eng: &mut E,
-    ) -> Result<Id, MachineError> {
+    ) -> Result<CmdId, MachineError> {
         match ctx {
             CommandContext::Action(actx) => Ok(actx.head_id),
             CommandContext::Seal(sctx) => Ok(sctx.head_id),

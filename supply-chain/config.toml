@@ -445,6 +445,10 @@ criteria = "safe-to-deploy"
 version = "0.12.4"
 criteria = "safe-to-deploy"
 
+[[exemptions.insta]]
+version = "1.43.1"
+criteria = "safe-to-run"
+
 [[exemptions.intrusive-collections]]
 version = "0.9.7"
 criteria = "safe-to-deploy"
@@ -654,15 +658,7 @@ version = "1.11.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.regex-automata]]
-version = "0.1.10"
-criteria = "safe-to-deploy"
-
-[[exemptions.regex-automata]]
 version = "0.4.9"
-criteria = "safe-to-deploy"
-
-[[exemptions.regex-syntax]]
-version = "0.6.29"
 criteria = "safe-to-deploy"
 
 [[exemptions.rfc6979]]
@@ -833,28 +829,12 @@ criteria = "safe-to-deploy"
 version = "2.4.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.tracing]]
-version = "0.1.41"
-criteria = "safe-to-deploy"
-
 [[exemptions.tracing-appender]]
 version = "0.2.3"
 criteria = "safe-to-deploy"
 
-[[exemptions.tracing-attributes]]
-version = "0.1.28"
-criteria = "safe-to-deploy"
-
-[[exemptions.tracing-core]]
-version = "0.1.33"
-criteria = "safe-to-deploy"
-
 [[exemptions.tracing-log]]
 version = "0.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.tracing-subscriber]]
-version = "0.3.19"
 criteria = "safe-to-deploy"
 
 [[exemptions.tracing-test]]
@@ -937,13 +917,9 @@ criteria = "safe-to-run"
 version = "4.3.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.winapi]]
-version = "0.3.9"
-criteria = "safe-to-deploy"
-
 [[exemptions.winapi-i686-pc-windows-gnu]]
 version = "0.4.0"
-criteria = "safe-to-deploy"
+criteria = "safe-to-run"
 
 [[exemptions.winapi-util]]
 version = "0.1.9"
@@ -951,7 +927,7 @@ criteria = "safe-to-deploy"
 
 [[exemptions.winapi-x86_64-pc-windows-gnu]]
 version = "0.4.0"
-criteria = "safe-to-deploy"
+criteria = "safe-to-run"
 
 [[exemptions.windows-sys]]
 version = "0.52.0"

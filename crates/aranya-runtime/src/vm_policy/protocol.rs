@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{Command, CommandId, Priority},
+    command::{CmdId, Command, Priority},
 };
 
 /// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.
@@ -49,7 +49,7 @@ pub struct VmProtocol<'a> {
     /// Reference to the serialized data underlying the command
     data: &'a [u8],
     /// The ID of the command
-    id: CommandId,
+    id: CmdId,
     /// The deserialized data
     unpacked: VmProtocolData<'a>,
     /// The command's priority.
@@ -59,7 +59,7 @@ pub struct VmProtocol<'a> {
 impl<'a> VmProtocol<'a> {
     pub fn new(
         data: &'a [u8],
-        id: CommandId,
+        id: CmdId,
         unpacked: VmProtocolData<'a>,
         priority: Priority,
     ) -> VmProtocol<'a> {
@@ -77,7 +77,7 @@ impl Command for VmProtocol<'_> {
         self.priority.clone()
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         self.id
     }
 
@@ -103,9 +103,9 @@ impl Command for VmProtocol<'_> {
 
 #[derive(Clone, Debug)]
 pub struct Envelope<'a> {
-    pub parent_id: CommandId,
+    pub parent_id: CmdId,
     pub author_id: DeviceId,
-    pub command_id: CommandId,
+    pub command_id: CmdId,
     pub payload: Cow<'a, [u8]>,
     pub signature: Cow<'a, [u8]>,
 }
@@ -115,9 +115,9 @@ impl From<Envelope<'_>> for Struct {
         Self::new(
             ident!("Envelope"),
             [
-                (ident!("parent_id"), e.parent_id.into_id().into()),
-                (ident!("author_id"), e.author_id.into_id().into()),
-                (ident!("command_id"), e.command_id.into_id().into()),
+                (ident!("parent_id"), e.parent_id.into()),
+                (ident!("author_id"), e.author_id.into()),
+                (ident!("command_id"), e.command_id.into()),
                 (ident!("payload"), e.payload.into_owned().into()),
                 (ident!("signature"), e.signature.into_owned().into()),
             ],

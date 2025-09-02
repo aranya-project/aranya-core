@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
+use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Label, LabelType, Module, ModuleData, Struct, Value,
@@ -385,9 +385,27 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     let ModuleData::V0(module) = module.data;
 
     let want = BTreeMap::from([
-        (ident!("a"), VType::Int),
-        (ident!("b"), VType::String),
-        (ident!("c"), VType::Bool),
+        (
+            ident!("a"),
+            VType {
+                kind: TypeKind::Int,
+                span: ast::Span::empty(),
+            },
+        ),
+        (
+            ident!("b"),
+            VType {
+                kind: TypeKind::String,
+                span: ast::Span::empty(),
+            },
+        ),
+        (
+            ident!("c"),
+            VType {
+                kind: TypeKind::Bool,
+                span: ast::Span::empty(),
+            },
+        ),
     ]);
     let got = module.command_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
@@ -498,12 +516,24 @@ fn test_autodefine_struct() {
 
     let want = vec![
         FieldDefinition {
-            identifier: ident!("a"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("a"),
+                span: ast::Span::new(18, 19),
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span::new(20, 23),
+            },
         },
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span::new(27, 28),
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span::new(29, 32),
+            },
         },
     ];
     let got = module.struct_defs.get("Foo").unwrap();
@@ -563,12 +593,24 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
+                    identifier: ast::Ident {
+                        name: ident!("a"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Int,
+                        span: ast::Span::empty(),
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
+                    identifier: ast::Ident {
+                        name: ident!("b"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::String,
+                        span: ast::Span::empty(),
+                    },
                 },
             ],
         ),
@@ -580,16 +622,34 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
+                    identifier: ast::Ident {
+                        name: ident!("a"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Int,
+                        span: ast::Span::empty(),
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
+                    identifier: ast::Ident {
+                        name: ident!("b"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::String,
+                        span: ast::Span::empty(),
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("c"),
-                    field_type: VType::Bool,
+                    identifier: ast::Ident {
+                        name: ident!("c"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Bool,
+                        span: ast::Span::empty(),
+                    },
                 },
             ],
         ),
@@ -619,12 +679,24 @@ fn test_effect_with_field_insertion() {
 
     let foo_want = vec![
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::Bool,
+                span: ast::Span::empty(),
+            },
         },
         FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
+            identifier: ast::Ident {
+                name: ident!("s"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::String,
+                span: ast::Span::empty(),
+            },
         },
     ];
     let foo_got = module.struct_defs.get("Foo").unwrap();
@@ -632,16 +704,34 @@ fn test_effect_with_field_insertion() {
 
     let baz_want = vec![
         FieldDefinition {
-            identifier: ident!("i"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("i"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span::empty(),
+            },
         },
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::Bool,
+                span: ast::Span::empty(),
+            },
         },
         FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
+            identifier: ast::Ident {
+                name: ident!("s"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::String,
+                span: ast::Span::empty(),
+            },
         },
     ];
     let baz_got = module.struct_defs.get("Baz").unwrap();
@@ -858,6 +948,22 @@ fn test_fact_bind_value_type() {
 }
 
 #[test]
+fn test_fact_query_disallow_leading_binds() {
+    let text = r#"
+    fact Foo[x int, y int] => {}
+    action test() {
+        check exists Foo[x: ?, y: 42] => {}
+    }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidFactLiteral("leading bind values not allowed".to_string())
+    )
+}
+
+#[test]
 fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
@@ -1031,9 +1137,55 @@ fn test_should_not_allow_bind_value_in_fact_creation() {
 }
 
 #[test]
+fn test_should_not_allow_bind_key_in_fact_delete() {
+    let text = r#"
+        fact F[i int] => {}
+        command C {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    delete F[i:?]
+                }
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("Cannot delete fact with wildcard keys".to_owned())
+    );
+}
+
+#[test]
 fn test_should_not_allow_bind_key_in_fact_update() {
     let text = r#"
-        fact F[i int] => {s string}
+        fact F[i int] => {}
+        command C {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    update F[i:?] => {} to {}
+                }
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("Cannot update fact with wildcard keys".to_owned())
+    );
+}
+
+#[test]
+fn test_should_not_allow_bind_value_in_fact_update() {
+    let text = r#"
+        fact F[] => {s string}
 
         command CreateBindValue {
             fields {}
@@ -1041,8 +1193,7 @@ fn test_should_not_allow_bind_key_in_fact_update() {
             open { return todo() }
             policy {
                 finish {
-                    create F[i:1] => {s: ""}
-                    update F[i:?] => {s: ""} to {s: ?}
+                    update F[] => {s: ""} to {s: ?}
                 }
             }
         }
@@ -1893,7 +2044,7 @@ fn test_type_errors() {
                     } else {
                         :None
                     }
-                    
+
 
                     let new_foo = Foo {
                         y: true,
@@ -2044,7 +2195,7 @@ fn test_struct_composition() {
             }
         }
 
-        assert_eq!(err.to_string(), c.e.expect("Failure case"));
+        assert_eq!(err.to_string(), c.e.expect("Failure case"), "#{i}");
     }
 }
 
@@ -2054,7 +2205,7 @@ fn test_struct_composition_global_let_and_command_attributes() {
         struct Foo {
             x int,
             y int
-        }  
+        }
 
         let foo = Foo { x: 10, y: 20 }
         let foo2 = Foo { x: 1000, ...foo }
@@ -2094,6 +2245,24 @@ fn test_struct_composition_global_let_and_command_attributes() {
 }
 
 #[test]
+fn test_struct_literal_duplicate_field() {
+    let text = r#"
+        struct S {
+            x int
+        }
+        function f() struct S {
+            return S {
+                x: 1,
+                x: 2,
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("x")));
+}
+
+#[test]
 fn test_optional_types() {
     let err = compile_fail("function f() bool { return unwrap None }");
     assert_eq!(
@@ -2129,10 +2298,23 @@ fn test_duplicate_definitions() {
     let cases = [
         Case {
             t: r#"
+                function f() int {
+                    let x = {
+                        let x = 1
+                        : x
+                    }
+
+                    return x
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
-                        2 => { let z = 4 }
+                        2 => { let x = 4 }
                     }
                     return false
                 }
@@ -2141,40 +2323,84 @@ fn test_duplicate_definitions() {
         },
         Case {
             t: r#"
+                function f(y int) bool {
+                    if y == 0 {
+                        let x = 3
+                    }
+                    else {
+                        let x = 4
+                    }
+
+                    return false
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f() bool {
-                    // this will fail at runtime but is allowed by the
-                    // compiler because they are the same type
                     let x = 3
                     let x = 4
                     return false
                 }
             "#,
-            e: None,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
                 function f() bool {
-                    // this is allowed because todo() is indeterminate
                     let x = 3
                     let x = todo()
                     return false
                 }
             "#,
-            e: None,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
                 function f() bool {
-                    // this, however, fails because they are definitely
-                    // different types
                     let x = 3
                     let x = "foo"
                     return false
                 }
-        "#,
-            e: Some(CompileErrorType::InvalidType(
-                "type mismatch: int != string".to_string(),
-            )),
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                action foo(n int) {
+                    let n = n
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('n'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        let x = 4
+                        return x
+                    } else {
+                        return x
+                    }
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        return x
+                    } else {
+                        let x = 4
+                        return x
+                    }
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
     ];
 
@@ -2431,8 +2657,8 @@ fn test_validate_publish() {
         concat(
             r#"
             action f() {
-                if true { 
-                    publish Foo { a: 0 } 
+                if true {
+                    publish Foo { a: 0 }
                 }
             }
         "#,
@@ -2441,11 +2667,11 @@ fn test_validate_publish() {
             r#"
             action g() {
                 if true {
-                } 
+                }
                 else if false {
-                } 
+                }
                 else {
-                    publish Foo { a: 0 } 
+                    publish Foo { a: 0 }
                 }
             }
         "#,
@@ -2652,10 +2878,10 @@ fn test_struct_conversion_errors() {
         ),
     ];
 
-    for (msg, text, expected) in cases {
+    for (i, (msg, text, expected)) in cases.into_iter().enumerate() {
         let err = compile_fail(text);
         println!("Test case: {msg}");
-        assert_eq!(err, expected);
+        assert_eq!(err, expected, "#{i}");
     }
 }
 
@@ -2759,7 +2985,7 @@ fn test_function_used_before_definition() {
         function pow(x int, n int) int {
             if n == 0 {
                 // x^0 == x
-                return 1 
+                return 1
             }
             if n == 1 {
                 // x^1 = x

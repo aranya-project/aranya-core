@@ -5,15 +5,15 @@ use buggy::{Bug, BugExt, bug};
 use vec1::Vec1;
 
 use crate::{
-    Address, Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys,
-    Location, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    Storage, StorageError, StorageProvider,
+    Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
+    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    StorageError, StorageProvider,
 };
 
 #[derive(Debug)]
 pub struct MemCommand {
     priority: Priority,
-    id: CommandId,
+    id: CmdId,
     parent: Prior<Address>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
@@ -40,7 +40,7 @@ impl Command for MemCommand {
         self.priority.clone()
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         self.id
     }
 
@@ -130,7 +130,7 @@ type NamedFactMap = BTreeMap<String, FactMap>;
 
 pub struct MemStorage {
     segments: Vec<MemSegment>,
-    commands: BTreeMap<CommandId, Location>,
+    commands: BTreeMap<CmdId, Location>,
     head: Option<Location>,
 }
 
@@ -186,7 +186,7 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError> {
+    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError> {
         let segment = self.get_segment(location)?;
         let command = segment
             .get_command(location)
@@ -711,7 +711,7 @@ impl Perspective for MemPerspective {
         self.policy
     }
 
-    fn includes(&self, id: CommandId) -> bool {
+    fn includes(&self, id: CmdId) -> bool {
         self.commands.iter().any(|cmd| cmd.command.id == id)
     }
 
@@ -820,6 +820,7 @@ pub mod graphviz {
 
     #[allow(clippy::wildcard_imports)]
     use super::*;
+    use crate::testing::short_b58;
 
     fn loc(location: impl Into<Location>) -> String {
         let location = location.into();
@@ -867,7 +868,7 @@ pub mod graphviz {
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
                     let mut node = cluster.node_named(loc((segment.index, i)));
-                    node.set_label(&cmd.command.id.short_b58());
+                    node.set_label(&short_b58(cmd.command.id));
                     match cmd.command.parent {
                         Prior::None => {
                             node.set("shape", "house", false);

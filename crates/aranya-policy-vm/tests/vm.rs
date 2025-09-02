@@ -5,7 +5,7 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, Id, policy::CmdId};
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
@@ -20,14 +20,14 @@ use ciborium as cbor;
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
     CommandContext::Action(ActionContext {
         name,
-        head_id: Id::default(),
+        head_id: CmdId::default(),
     })
 }
 
 fn dummy_ctx_seal(name: Identifier) -> CommandContext {
     CommandContext::Seal(SealContext {
         name,
-        head_id: Id::default(),
+        head_id: CmdId::default(),
     })
 }
 
@@ -38,8 +38,8 @@ fn dummy_ctx_open(name: Identifier) -> CommandContext {
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     CommandContext::Policy(PolicyContext {
         name,
-        id: Id::default(),
-        author: Id::default().into(),
+        id: CmdId::default(),
+        author: DeviceId::default(),
         version: Id::default(),
     })
 }
@@ -150,8 +150,14 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x"),
-            field_type: ast::VType::Int
+            identifier: ast::Ident {
+                name: ident!("x"),
+                span: ast::Span::new(34, 35)
+            },
+            field_type: ast::VType {
+                kind: ast::TypeKind::Int,
+                span: ast::Span::new(36, 39)
+            }
         }])
     );
 
@@ -2533,7 +2539,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
         }
-        
+
         function new_foo(x int, y string) struct Foo {
             return Foo { y:y, x: x }
         }

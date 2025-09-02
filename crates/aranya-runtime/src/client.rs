@@ -1,8 +1,8 @@
 use buggy::{Bug, BugExt};
 
 use crate::{
-    Address, Command, CommandId, Engine, EngineError, GraphId, PeerCache, Perspective, Policy,
-    Sink, Storage, StorageError, StorageProvider,
+    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective, Policy, Sink,
+    Storage, StorageError, StorageProvider,
 };
 
 mod braiding;
@@ -15,7 +15,7 @@ pub use self::{session::Session, transaction::Transaction};
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     #[error("no such parent: {0}")]
-    NoSuchParent(CommandId),
+    NoSuchParent(CmdId),
     #[error("engine error: {0}")]
     EngineError(EngineError),
     #[error("storage error: {0}")]
@@ -146,7 +146,7 @@ where
     }
 
     /// Returns the ID of the head of the graph.
-    pub fn head_id(&mut self, storage_id: GraphId) -> Result<CommandId, ClientError> {
+    pub fn head_id(&mut self, storage_id: GraphId) -> Result<CmdId, ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
 
         let head = storage.get_head()?;

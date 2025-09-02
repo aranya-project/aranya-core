@@ -1,17 +1,18 @@
 //! An effect handler for AQC.
 
 use aranya_crypto::{
-    DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
     aqc::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
     },
     custom_id,
+    policy::{CmdId, LabelId},
 };
 use buggy::{Bug, bug};
 use serde::{Deserialize, Serialize};
 
-use crate::shared::{LabelId, decode_enc_pk};
+use crate::shared::decode_enc_pk;
 
 /// Wraps `tracing::error` to always use the `aqc-handler`
 /// target.
@@ -72,7 +73,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.author_id,
             their_pk,
             their_id: effect.peer_id,
-            label: effect.label_id.into(),
+            label: effect.label_id,
         };
 
         let secret = BidiSecret::from_author_secret(&ch, secret).inspect_err(|err| {
@@ -114,7 +115,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.peer_id,
             their_pk,
             their_id: effect.author_id,
-            label: effect.label_id.into(),
+            label: effect.label_id,
         };
 
         let secret = BidiSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
@@ -133,7 +134,7 @@ pub struct BidiChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -162,7 +163,7 @@ pub struct BidiChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded
@@ -222,7 +223,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label_id.into(),
+            label: effect.label_id,
         };
 
         let secret = if self.device_id == effect.send_id {
@@ -271,7 +272,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label_id.into(),
+            label: effect.label_id,
         };
 
         let secret = if self.device_id == effect.send_id {
@@ -296,7 +297,7 @@ pub struct UniChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.
@@ -326,7 +327,7 @@ pub struct UniChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.

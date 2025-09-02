@@ -20,7 +20,8 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
-    id::{Id, IdError, Identified, custom_id},
+    id::{IdError, Identified, custom_id},
+    policy::CmdId,
 };
 
 /// Key material used to derive per-event encryption keys.
@@ -106,13 +107,14 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     Context, GroupKey, Id, Rng, SigningKey,
+    ///     Context, GroupKey, Rng, SigningKey,
     ///     default::{DefaultCipherSuite, DefaultEngine},
+    ///     policy::CmdId,
     /// };
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
-    /// const PARENT: Id = Id::default();
+    /// const PARENT: CmdId = CmdId::default();
     /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng)
     ///     .public()
     ///     .expect("signing key should be valid");
@@ -276,7 +278,7 @@ pub struct Context<'a, CS: CipherSuite> {
     /// For example, it could be an event name.
     pub label: &'a str,
     /// The stable ID of the parent event.
-    pub parent: Id,
+    pub parent: CmdId,
     /// The public key of the author of the encrypted data.
     pub author_sign_pk: &'a VerifyingKey<CS>,
 }
