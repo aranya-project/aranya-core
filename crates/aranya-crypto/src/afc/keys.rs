@@ -11,7 +11,8 @@ use spideroak_crypto::{
 
 use crate::{
     afc::shared::{RawOpenKey, RawSealKey},
-    ciphersuite::CipherSuite, policy::LabelId,
+    ciphersuite::CipherSuite,
+    policy::LabelId,
 };
 
 /// Identifies the position of a ciphertext in a channel.

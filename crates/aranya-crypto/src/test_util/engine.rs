@@ -6,7 +6,12 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::ops::Add;
 
 use spideroak_crypto::{
-    aead::{Aead, OpenError}, csprng::Random, default::Rng, generic_array::ArrayLength, hpke::HpkeError, typenum::{Sum, U64}
+    aead::{Aead, OpenError},
+    csprng::Random,
+    default::Rng,
+    generic_array::ArrayLength,
+    hpke::HpkeError,
+    typenum::{Sum, U64},
 };
 
 use super::{assert_ct_eq, assert_ct_ne};
