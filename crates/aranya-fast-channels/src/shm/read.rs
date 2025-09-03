@@ -43,6 +43,16 @@ struct Cache<K> {
     idx: Index,
 }
 
+impl<K> core::fmt::Debug for Cache<K> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Cache")
+            .field("id", &self.id)
+            .field("generation", &self.generation)
+            .field("idx", &self.idx)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The reader's view of the shared memory state.
 #[derive(Debug)]
 pub struct ReadState<CS>
