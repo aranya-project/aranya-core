@@ -267,7 +267,7 @@ impl<T: TestImpl> Device<T> {
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
             let (label_id, seq) = opener
                 .afc_client
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({channel_id}, ...): {err}"));
             (dst, label_id, seq)
         };

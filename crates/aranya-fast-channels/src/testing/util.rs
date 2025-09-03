@@ -850,7 +850,7 @@ impl HeaderBuilder {
         let hdr = Header::try_parse(out).unwrap_or(Header {
             version: Version::V1,
             msg_type: MsgType::Data,
-            id: ChannelId::new(0),
+            label_id: LabelId::default(),
         });
 
         // NB: we have to do this manually because `Header` uses
@@ -868,7 +868,7 @@ impl HeaderBuilder {
         let (id_out, rest) = rest
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Label`");
-        *id_out = self.id.unwrap_or(hdr.id.to_u32()).to_le_bytes();
+        *id_out = self.id.unwrap_or(hdr.label_id.to_u32()).to_le_bytes();
 
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }
@@ -877,8 +877,8 @@ impl HeaderBuilder {
 /// Used to modify `DataHeader`s.
 #[derive(Default)]
 pub struct DataHeaderBuilder {
-    /// The channel's unique identifier.
-    id: Option<u32>,
+    /// The label ID associated with the channel.
+    id: Option<LabelId>,
     /// The message sequence number.
     seq: Option<u64>,
 }
@@ -890,7 +890,7 @@ impl DataHeaderBuilder {
     }
 
     /// Sets the `id` field.
-    pub fn id(mut self, id: u32) -> Self {
+    pub fn id(mut self, id: LabelId) -> Self {
         self.id = Some(id);
         self
     }
@@ -911,7 +911,7 @@ impl DataHeaderBuilder {
         let (id_out, rest) = out
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Label`");
-        *id_out = self.id.unwrap_or(hdr.id.to_u32()).to_le_bytes();
+        *id_out = *(self.id.unwrap_or(hdr.label_id).as_array());
 
         let (seq_out, rest) = rest
             .split_first_chunk_mut()

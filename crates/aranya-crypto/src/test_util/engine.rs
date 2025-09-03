@@ -899,7 +899,10 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 /// Checks that `open` can decrypt ciphertexts from `seal`.
 fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc::OpenKey<CS>) {
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
 
     let (ciphertext, seq) = {
         let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<CS>::OVERHEAD];
@@ -930,7 +933,10 @@ fn assert_different_afc_keys<E: Engine>(
     open: &afc::OpenKey<E::CS>,
 ) {
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
 
     let (ciphertext, seq) = {
         let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
@@ -982,7 +988,10 @@ pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     // The upper bound is arbitrary. We obviously cannot test
     // all 2^61-1 integers.
@@ -1004,7 +1013,10 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
 
     // The first encryption should succeed since seq < max.
@@ -1032,7 +1044,10 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
 
@@ -1067,7 +1082,10 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
+    const AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
     for _ in 0..100 {
@@ -1098,8 +1116,14 @@ pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const GOOD_AD: afc::AuthData = afc::AuthData { version: 1, id: 2 };
-    const WRONG_AD: afc::AuthData = afc::AuthData { version: 3, id: 4 };
+    const GOOD_AD: afc::AuthData = afc::AuthData {
+        version: 1,
+        label_id: 2,
+    };
+    const WRONG_AD: afc::AuthData = afc::AuthData {
+        version: 3,
+        label_id: 4,
+    };
 
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let seq = seal

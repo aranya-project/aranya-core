@@ -117,15 +117,13 @@ use crate::{
 ///
 ///     let version = 4;
 ///     let label_id = LabelId::random(&mut Rng);
-///     let id = {
-///         let mut buf = [0; 4];
-///         Rng.fill_bytes(&mut buf);
-///         u32::from_ne_bytes(buf)
-///     };
 ///
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
-///         let ad = AuthData { version, id };
+///         let ad = AuthData {
+///             version,
+///             label_id: label_id.to_u32(),
+///         };
 ///         let seq = a
 ///             .seal
 ///             .seal(&mut dst, GOLDEN, &ad)
@@ -134,7 +132,10 @@ use crate::{
 ///     };
 ///     let plaintext = {
 ///         let mut dst = vec![0u8; ciphertext.len()];
-///         let ad = AuthData { version, id };
+///         let ad = AuthData {
+///             version,
+///             label_id: label_id.to_u32(),
+///         };
 ///         b.open
 ///             .open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");

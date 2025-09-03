@@ -136,6 +136,17 @@ custom_id! {
     pub struct LabelId;
 }
 
+impl LabelId {
+    /// Converts the first 4 bytes of an ID into a little endian integer
+    pub fn to_u32(&self) -> u32 {
+        u32::from_le_bytes(
+            self.as_bytes()[0..4]
+                .try_into()
+                .expect("IDs are at least 4 bytes"),
+        )
+    }
+}
+
 /// Computes the ID of a label.
 ///
 /// `cmd` must be the command that created (or is creating) the

@@ -190,6 +190,7 @@ macro_rules! bench_impl {
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
 					b.iter(|| {
 						let _ = black_box(client.open(
+							black_box(id),
 							black_box(label_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
@@ -207,6 +208,7 @@ macro_rules! bench_impl {
 						// N ciphertexts.
 						let (_channel_id, label_id) = iter.next().expect("should repeat");
 						let _ = client.open(
+							black_box(id),
 							black_box(*label_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),

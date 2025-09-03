@@ -98,8 +98,8 @@ packed! {
     pub struct AuthData {
         /// The AFC version number.
         pub version: u32,
-        /// The channel's unique identifier.
-        pub id: u32,
+        /// The channel's truncated label Id.
+        pub label_id: u32,
     }
 }
 
@@ -107,7 +107,7 @@ impl AuthData {
     fn to_bytes(&self) -> [u8; Self::PACKED_SIZE] {
         let mut b = [0u8; Self::PACKED_SIZE];
         LittleEndian::write_u32(&mut b[0..4], self.version);
-        LittleEndian::write_u32(&mut b[4..8], self.id);
+        LittleEndian::write_u32(&mut b[4..8], self.label_id);
         b
     }
 }

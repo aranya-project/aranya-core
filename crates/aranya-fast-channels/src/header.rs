@@ -1,8 +1,6 @@
-use aranya_crypto::afc::Seq;
+use aranya_crypto::{afc::Seq, policy::LabelId};
 use buggy::{Bug, BugExt, bug};
 use serde::{Deserialize, Serialize};
-
-use crate::ChannelId;
 
 macro_rules! packed {
     (
@@ -31,8 +29,8 @@ packed! {
         pub version: Version,
         /// The type of message.
         pub msg_type: MsgType,
-        /// Unique ID for the channel.
-        pub id: ChannelId,
+       /// The ID of the label associated with a channel.
+        pub label_id: LabelId,
     }
 }
 
@@ -45,6 +43,7 @@ impl Header {
         let (msg_typ, rest) = rest
             .split_first_chunk()
             .assume("`buf` should be large enough for `MsgType`")?;
+
         let (id, rest) = rest
             .split_first_chunk()
             .assume("`buf` should be large enough for `ChannelId`")?;
@@ -58,7 +57,7 @@ impl Header {
                 .ok_or(HeaderError::UnknownVersion)?,
             msg_type: MsgType::try_from_u16(u16::from_le_bytes(*msg_typ))
                 .ok_or(HeaderError::InvalidMsgType)?,
-            id: u32::from_le_bytes(*id).into(),
+            label_id: (*id).into(),
         })
     }
 
@@ -77,7 +76,7 @@ impl Header {
         let (id_out, rest) = rest
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `NodeId`")?;
-        *id_out = self.id.to_u32().to_le_bytes();
+        *id_out = self.label_id.to_u32().to_le_bytes();
 
         if !rest.is_empty() {
             bug!("`out` should be exactly `Header::PACKED_SIZE`");
@@ -91,8 +90,8 @@ packed! {
     /// The "header" appended to data messages.
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub(crate) struct DataHeader {
-        /// The channel's unique ID.
-        pub id: ChannelId,
+        /// The ID of the label associated with a channel.
+        pub label_id: LabelId,
         /// The ciphertext's sequence number.
         pub seq: Seq,
     }
@@ -113,7 +112,7 @@ impl DataHeader {
         }
 
         Ok(Self {
-            id: u32::from_le_bytes(*id).into(),
+            label_id: (*id).into(),
             seq: Seq::new(u64::from_le_bytes(*seq)),
         })
     }
@@ -123,7 +122,7 @@ impl DataHeader {
         let (id_out, rest) = out
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `Label`")?;
-        *id_out = self.id.to_u32().to_le_bytes();
+        *id_out = self.label_id.to_u32().to_le_bytes();
 
         let (seq_out, rest) = rest
             .split_first_chunk_mut()
@@ -207,21 +206,19 @@ impl MsgType {
 
 #[cfg(test)]
 mod tests {
+    use aranya_crypto::Rng;
+
     use super::*;
     use crate::testing::util::HeaderBuilder;
 
     #[test]
     fn test_header_basic() {
-        for id in [
-            ChannelId::new(0),
-            ChannelId::new(1),
-            ChannelId::new(u32::MAX),
-        ] {
+        for id in [LabelId::default(), LabelId::random(&mut Rng)] {
             for msg_typ in [MsgType::Data, MsgType::Control] {
                 let want = Header {
                     version: Version::V1,
                     msg_type: msg_typ,
-                    id,
+                    label_id: id,
                 };
                 let got = {
                     let mut buf = [0u8; Header::PACKED_SIZE];
@@ -262,13 +259,9 @@ mod tests {
 
     #[test]
     fn test_data_header_basic() {
-        for id in [
-            ChannelId::new(0),
-            ChannelId::new(1),
-            ChannelId::new(u32::MAX),
-        ] {
+        for id in [LabelId::default(), LabelId::random(&mut Rng)] {
             for seq in [0, 1, u64::MAX].map(Into::<Seq>::into) {
-                let want = DataHeader { id, seq };
+                let want = DataHeader { label_id: id, seq };
                 let got = {
                     let mut buf = [0u8; DataHeader::PACKED_SIZE];
                     want.encode(&mut buf)

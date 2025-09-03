@@ -159,18 +159,18 @@ impl<S: AfcState> Client<S> {
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
-                id: id.to_u32(),
+                label_id: label_id.to_u32(),
             };
             f(aead, &ad)
         })??;
         debug!("seq={seq}");
 
-        DataHeader { seq, id }.encode(header)?;
+        DataHeader { seq, label_id }.encode(header)?;
 
         Ok(Header {
             version: Version::current(),
             msg_type: MsgType::Data,
-            id,
+            label_id,
         })
     }
 
@@ -185,6 +185,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open(
         &self,
+        channel_id: ChannelId,
         label_id: LabelId,
         dst: &mut [u8],
         ciphertext: &[u8],
@@ -193,15 +194,24 @@ impl<S: AfcState> Client<S> {
         // like so:
         //    ciphertext || tag || header
 
-        let (id, seq, ciphertext) = {
+        let (label_id, seq, ciphertext) = {
             let (ciphertext, header) = ciphertext
                 .split_last_chunk()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader { id, seq, .. } = DataHeader::try_parse(header)?;
-            (id, seq, ciphertext)
+            let DataHeader {
+                label_id: label_id_from_header,
+                seq,
+                ..
+            } = DataHeader::try_parse(header)?;
+
+            if label_id_from_header != label_id {
+                return Err(Error::InvalidLabel(label_id));
+            }
+
+            (label_id_from_header, seq, ciphertext)
         };
         debug!(
-            "id={id} label_id={label_id} seq={seq} ciphertext=[{:?}; {}]",
+            "label_id={label_id}  seq={seq} ciphertext=[{:?}; {}] channel_id={channel_id}",
             ciphertext.as_ptr(),
             ciphertext.len()
         );
@@ -217,7 +227,7 @@ impl<S: AfcState> Client<S> {
             return Err(Error::BufferTooSmall);
         }
 
-        self.do_open(id, label_id, seq, |aead, ad, seq| {
+        self.do_open(channel_id, label_id, seq, |aead, ad, seq| {
             aead.open(dst, ciphertext, ad, seq).map_err(Into::into)
         })
         // For safety's sake, overwrite the output buffer if
@@ -242,6 +252,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open_in_place<T: Buf>(
         &self,
+        channel_id: ChannelId,
         label_id: LabelId,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
@@ -250,11 +261,20 @@ impl<S: AfcState> Client<S> {
         //    ciphertext || tag || header
 
         // Split `data` into its components.
-        let (id, seq, out, tag) = {
+        let (label_id, seq, out, tag) = {
             let (rest, header) = data
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader { id, seq, .. } = DataHeader::try_parse(header)?;
+            let DataHeader {
+                label_id: label_id_from_header,
+                seq,
+                ..
+            } = DataHeader::try_parse(header)?;
+
+            if label_id != label_id_from_header {
+                return Err(Error::InvalidLabel(label_id));
+            }
+
             #[allow(clippy::incompatible_msrv)] // clippy#12280
             let (ciphertext, tag) = rest
                 .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
@@ -262,16 +282,16 @@ impl<S: AfcState> Client<S> {
                 // definition we cannot authenticate the
                 // ciphertext.
                 .ok_or(Error::Authentication)?;
-            (id, seq, ciphertext, tag)
+            (label_id_from_header, seq, ciphertext, tag)
         };
         debug!(
-            "id={id} label_id={label_id} data=[{:?}; {}]",
+            "channel_id={channel_id} label_id={label_id} data=[{:?}; {}]",
             out.as_ptr(),
             out.len()
         );
 
         let plaintext_len = out.len();
-        self.do_open(id, label_id, seq, |aead, ad, seq| {
+        self.do_open(channel_id, label_id, seq, |aead, ad, seq| {
             aead.open_in_place(out, tag, ad, seq).map_err(Into::into)
         })
         // On success, get rid of the header and tag.
@@ -301,7 +321,7 @@ impl<S: AfcState> Client<S> {
         let ad = AuthData {
             // TODO(eric): update `AuthData` to use `u16`.
             version: u32::from(Version::current().to_u16()),
-            id: id.to_u32(),
+            label_id: label_id.to_u32(),
         };
         self.state.open(id, label_id, |aead| f(aead, &ad, seq))?
     }

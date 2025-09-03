@@ -144,7 +144,7 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
         let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
             let (label, seq) = c2
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
             (dst, label, seq)
         };
@@ -179,7 +179,7 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
         let (plaintext, got_label, got_seq) = {
             let mut data = ciphertext.clone();
             let (label_id, seq) = c2
-                .open_in_place(label_id, &mut data)
+                .open_in_place(channel_id, label_id, &mut data)
                 .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
             (data, label_id, seq)
         };
@@ -262,7 +262,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
                 .unwrap_or_else(|| panic!("unable to find recv client: {recv}"));
             let mut dst = vec![0u8; ciphertext.len() - overhead(u1)];
             let (label_id, seq) = u1
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{label_id}: open({send}, ...): {err}"));
             (dst, label_id, seq)
         };
@@ -314,7 +314,7 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
                 let (label, seq) = c
-                    .open_in_place(label_id, &mut data)
+                    .open_in_place(channel_id, label_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
                 (data, label, seq)
             };
@@ -368,7 +368,7 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
                 let (label, seq) = c
-                    .open_in_place(label_id, &mut data)
+                    .open_in_place(channel_id, label_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
                 (data, label, seq)
             };
@@ -426,7 +426,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
                 let (label, seq) = c
-                    .open_in_place(label_id, &mut data)
+                    .open_in_place(channel_id, label_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
                 (data, label, seq)
             };
@@ -493,7 +493,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
                 let (label, seq) = c
-                    .open_in_place(label_id, &mut data)
+                    .open_in_place(channel_id, label_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
                 (data, label, seq)
             };
@@ -556,7 +556,7 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
                 let (label, seq) = c
-                    .open_in_place(label_id, &mut data)
+                    .open_in_place(channel_id, label_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
                 (data, label, seq)
             };
@@ -625,7 +625,7 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
                 let (label, seq) = c
-                    .open_in_place(label_id, &mut data)
+                    .open_in_place(channel_id, label_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
                 (data, label, seq)
             };
@@ -682,7 +682,7 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
         let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c1)];
             let (label_id, seq) = c2
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
             dst.truncate(ciphertext.len() - overhead(&c2));
             (dst, label_id, seq)
@@ -739,7 +739,7 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
         let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
             let (label, seq) = c2
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
             (dst, label, seq)
         };
@@ -850,7 +850,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
         let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
             let (label, seq) = c2
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{id2}::open({id1}, ...): {err}"));
             (dst, label, seq)
         };
@@ -1044,7 +1044,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
             if seq < seq_max {
                 let (plaintext, got_label, got_seq) = {
                     let (label_id, seq) = c2
-                        .open(label_id, &mut dst[..], &ciphertext[..])
+                        .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                         .unwrap_or_else(|err| panic!("{seq}: open({id1}, ...): {err}"));
                     (dst, label_id, seq)
                 };
@@ -1053,7 +1053,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
                 assert_eq!(got_seq, seq);
             } else {
                 let err = c2
-                    .open(label_id, &mut dst[..], &ciphertext[..])
+                    .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                     .err()
                     .unwrap_or_else(|| panic!("{seq}: open({id1}, ...): should have failed"));
                 assert_eq!(err, Error::KeyExpired);
@@ -1088,7 +1088,7 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
         };
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
         let err = c2
-            .open(label_id, &mut dst[..], &ciphertext[..])
+            .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
             .err()
             .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
         assert_eq!(err, Error::Authentication,);
@@ -1120,7 +1120,7 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
         };
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
         let err = c2
-            .open(label_id, &mut dst[..], &ciphertext[..])
+            .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
             .err()
             .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
         assert_eq!(err, Error::Authentication,);
@@ -1149,19 +1149,17 @@ pub fn test_open_different_label<T: TestImpl, A: Aead>() {
     const GOLDEN: &str = "hello, world!";
     let ciphertext = {
         let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-        c1.seal(first.0, label_ids[0], &mut dst[..], GOLDEN.as_bytes())
+        c1.seal(first.0, first.1, &mut dst[..], GOLDEN.as_bytes())
             .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
 
         // Rewrite the header to use a different label.
-        DataHeaderBuilder::new()
-            .id(second.0.to_u32())
-            .encode(&mut dst);
+        DataHeaderBuilder::new().id(second.1).encode(&mut dst);
 
         dst
     };
     let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
     let err = c2
-        .open(label_ids[0], &mut dst[..], &ciphertext[..])
+        .open(first.0, first.1, &mut dst[..], &ciphertext[..])
         .err()
         .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
     assert_eq!(err, Error::Authentication,);
@@ -1200,7 +1198,7 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
         };
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
         let err = c2
-            .open(label_id, &mut dst[..], &ciphertext[..])
+            .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
             .err()
             .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
         assert_eq!(err, Error::Authentication);
@@ -1251,7 +1249,7 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
         let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
             let (label, seq) = c2
-                .open(label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
             (dst, label, seq)
         };
@@ -1293,7 +1291,7 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
             let (plaintext, got_label, got_seq) = {
                 let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
                 let (label, seq) = c2
-                    .open(label_id, &mut dst[..], &ciphertext[..])
+                    .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                     .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
                 (dst, label, seq)
             };
