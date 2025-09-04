@@ -1,6 +1,6 @@
 # aranya-policy-compiler
 
-The Aranya Policy Compiler is a core component of the Aranya project that compiles policies written in the Aranya Policy Language into executable policy modules.
+The Aranya Policy Compiler is a core component of the Aranya project that compiles policies written in the Aranya Policy Language into modules that can be loaded and executed by the Aranya runtime.
 
 ## Overview
 
