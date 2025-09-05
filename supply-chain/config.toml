@@ -64,6 +64,9 @@ audit-as-crates-io = false
 [policy.aranya-fast-channels]
 audit-as-crates-io = false
 
+[policy.aranya-id]
+audit-as-crates-io = false
+
 [policy.aranya-idam-ffi]
 audit-as-crates-io = false
 
