@@ -409,7 +409,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
         let chan = Self {
             magic: Self::MAGIC,
             channel_id: id.to_u32().into(),
-            label,
+            label_id,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
             // For the same reason that we randomize keys,
             // manually exhaust the sequence number.
