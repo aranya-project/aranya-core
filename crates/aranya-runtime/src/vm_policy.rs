@@ -353,8 +353,8 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
+                ExitReason::Check(recall_block) => {
+                    info!("Check {recall_block}: {}", self.source_location(&rs));
 
                     match placement {
                         CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
@@ -376,7 +376,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
                     rs.set_context(recall_ctx);
-                    self.recall_internal(&mut rs, this_data, envelope)
+                    self.recall_internal(&mut rs, this_data, envelope, recall_block)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -395,15 +395,21 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         rs: &mut RunState<'_, M>,
         this_data: Struct,
         envelope: Envelope<'_>,
+        recall_block_name: Identifier,
     ) -> Result<(), PolicyError>
     where
         M: MachineIO<MachineStack>,
     {
-        match rs.call_command_recall(this_data, envelope.into()) {
+        // NOTE Can recall actually fail?
+        match rs.call_command_recall(this_data, envelope.into(), recall_block_name) {
             Ok(ExitReason::Normal) => Err(PolicyError::Check),
             Ok(ExitReason::Yield) => bug!("unexpected yield"),
-            Ok(ExitReason::Check) => {
-                info!("Recall failed: {}", self.source_location(rs));
+            Ok(ExitReason::Check(recall_block)) => {
+                info!(
+                    "Recall failed: {}: {}",
+                    self.source_location(rs),
+                    recall_block
+                );
                 Err(PolicyError::Check)
             }
             Ok(ExitReason::Panic) | Err(_) => {
@@ -441,8 +447,8 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                     })?)
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
+                ExitReason::Check(recall) => {
+                    info!("Check {}: {}", self.source_location(&rs), recall);
                     Err(PolicyError::Check)
                 }
                 ExitReason::Panic => {
@@ -709,7 +715,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             PolicyError::Panic
                         })? {
                             ExitReason::Normal => (),
-                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
+                            r @ (ExitReason::Yield | ExitReason::Check(_) | ExitReason::Panic) => {
                                 error!("Could not seal command: {}", r);
                                 return Err(PolicyError::Panic);
                             }
@@ -791,8 +797,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             PolicyError::InternalError
                         })?;
                     }
-                    ExitReason::Check => {
-                        info!("Check {}", self.source_location(&rs));
+                    ExitReason::Check(recall) => {
+                        info!("Check {recall}: {}", self.source_location(&rs));
                         return Err(PolicyError::Check);
                     }
                     ExitReason::Panic => {
