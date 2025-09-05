@@ -1,0 +1,77 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+assertion_line: 1254
+expression: policy
+---
+{
+  "version": "V2",
+  "ffi_imports": [],
+  "facts": [],
+  "actions": [
+    {
+      "persistence": "Persistent",
+      "identifier": {
+        "name": "foo",
+        "span": {
+          "start": 16,
+          "end": 19
+        }
+      },
+      "arguments": [],
+      "statements": [
+        {
+          "kind": {
+            "Check": {
+              "expression": {
+                "kind": {
+                  "Bool": false
+                },
+                "span": {
+                  "start": 42,
+                  "end": 47
+                }
+              },
+              "err_message": null
+            }
+          },
+          "span": {
+            "start": 36,
+            "end": 60
+          }
+        },
+        {
+          "kind": {
+            "Check": {
+              "expression": {
+                "kind": {
+                  "Bool": false
+                },
+                "span": {
+                  "start": 66,
+                  "end": 71
+                }
+              },
+              "err_message": "failed"
+            }
+          },
+          "span": {
+            "start": 60,
+            "end": 85
+          }
+        }
+      ],
+      "span": {
+        "start": 9,
+        "end": 95
+      }
+    }
+  ],
+  "effects": [],
+  "structs": [],
+  "enums": [],
+  "commands": [],
+  "functions": [],
+  "finish_functions": [],
+  "global_lets": [],
+  "text": "\n        action foo() {\n            check false\n            check false else \"failed\"\n        }\n        "
+}
