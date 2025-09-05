@@ -806,8 +806,8 @@ pub struct HeaderBuilder {
     version: Option<u16>,
     /// The type of message.
     msg_type: Option<u16>,
-    /// The channel's unique identifier.
-    id: Option<u32>,
+    /// The channel's label ID.
+    label_id: Option<LabelId>,
     /// The message sequence number.
     seq: Option<u64>,
 }
@@ -830,9 +830,9 @@ impl HeaderBuilder {
         self
     }
 
-    /// Sets the `id` field.
-    pub fn id(mut self, id: u32) -> Self {
-        self.id = Some(id);
+    /// Sets the `label_id` field.
+    pub fn label_id(mut self, label_id: LabelId) -> Self {
+        self.label_id = Some(label_id);
         self
     }
 
@@ -865,10 +865,10 @@ impl HeaderBuilder {
             .expect("`out` should be large enough for `MsgType`");
         *msg_typ_out = self.msg_type.unwrap_or(hdr.msg_type.to_u16()).to_le_bytes();
 
-        let (id_out, rest) = rest
+        let (label_id_out, rest) = rest
             .split_first_chunk_mut()
-            .expect("`out` should be large enough for `Label`");
-        *id_out = self.id.unwrap_or(hdr.label_id.to_u32()).to_le_bytes();
+            .expect("`out` should be large enough for `LabelId`");
+        *label_id_out = self.label_id.unwrap_or(hdr.label_id).into();
 
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }
@@ -877,10 +877,10 @@ impl HeaderBuilder {
 /// Used to modify `DataHeader`s.
 #[derive(Default)]
 pub struct DataHeaderBuilder {
-    /// The label ID associated with the channel.
-    id: Option<LabelId>,
     /// The message sequence number.
     seq: Option<u64>,
+    /// The label ID associated with the channel.
+    label_id: Option<LabelId>,
 }
 
 impl DataHeaderBuilder {
@@ -889,15 +889,15 @@ impl DataHeaderBuilder {
         Self::default()
     }
 
-    /// Sets the `id` field.
-    pub fn id(mut self, id: LabelId) -> Self {
-        self.id = Some(id);
-        self
-    }
-
     /// Sets the `seq` field.
     pub fn seq(mut self, seq: u64) -> Self {
         self.seq = Some(seq);
+        self
+    }
+
+    /// Sets the `label_id` field.
+    pub fn label_id(mut self, label_id: LabelId) -> Self {
+        self.label_id = Some(label_id);
         self
     }
 
@@ -908,15 +908,15 @@ impl DataHeaderBuilder {
             .expect("`ciphertext` should contain a header");
         let hdr = DataHeader::try_parse(out).expect("should be able to parse `DataHeader`");
 
-        let (id_out, rest) = out
-            .split_first_chunk_mut()
-            .expect("`out` should be large enough for `Label`");
-        *id_out = *(self.id.unwrap_or(hdr.label_id).as_array());
-
-        let (seq_out, rest) = rest
+        let (seq_out, rest) = out
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Seq`");
         *seq_out = self.seq.unwrap_or(hdr.seq.to_u64()).to_le_bytes();
+
+        let (label_id_out, rest) = rest
+            .split_first_chunk_mut()
+            .expect("`out` should be large enough for `LabelId`");
+        *label_id_out = *(self.label_id.unwrap_or(hdr.label_id).as_array());
 
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }

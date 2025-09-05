@@ -353,7 +353,7 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The channel's ID.
     pub channel_id: U32,
     /// The channel's label.
-    pub label: LabelId,
+    pub label_id: LabelId,
     /// Describes the direction that data flows in the channel.
     pub direction: U32,
 
@@ -385,7 +385,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn init<R: Csprng>(
         ptr: &mut MaybeUninit<Self>,
         id: ChannelId,
-        label: LabelId,
+        label_id: LabelId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
         rng: &mut R,
     ) {

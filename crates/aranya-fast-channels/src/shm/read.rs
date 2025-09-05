@@ -154,7 +154,7 @@ where
             Some((chan, idx)) => (chan, idx),
         };
 
-        if chan.label != label_id {
+        if chan.label_id != label_id {
             return Err(crate::Error::InvalidLabel(label_id));
         }
 
@@ -241,7 +241,7 @@ where
             Some((chan, idx)) => (chan, idx),
         };
 
-        if chan.label != label_id {
+        if chan.label_id != label_id {
             return Err(crate::Error::InvalidLabel(label_id));
         }
 

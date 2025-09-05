@@ -1153,7 +1153,7 @@ pub fn test_open_different_label<T: TestImpl, A: Aead>() {
             .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
 
         // Rewrite the header to use a different label.
-        DataHeaderBuilder::new().id(second.1).encode(&mut dst);
+        DataHeaderBuilder::new().label_id(second.1).encode(&mut dst);
 
         dst
     };
@@ -1162,7 +1162,7 @@ pub fn test_open_different_label<T: TestImpl, A: Aead>() {
         .open(first.0, first.1, &mut dst[..], &ciphertext[..])
         .err()
         .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
-    assert_eq!(err, Error::Authentication,);
+    assert_eq!(err, Error::InvalidLabel(second.1, first.1));
 }
 
 /// Basic negative test for [`Client::open`] when the sequence

@@ -51,7 +51,7 @@ where
         let (key, chan_label_id) = chans.get_mut(&id).ok_or(Error::NotFound(id))?;
 
         if label_id != *chan_label_id {
-            return Err(Error::InvalidLabel(label_id));
+            return Err(Error::InvalidLabel(*chan_label_id, label_id));
         }
 
         let key = key.seal_mut().ok_or(Error::NotFound(id))?;
@@ -66,7 +66,7 @@ where
         let (key, chan_label_id) = chans.get(&id).ok_or(Error::NotFound(id))?;
 
         if label_id != *chan_label_id {
-            return Err(Error::InvalidLabel(label_id));
+            return Err(Error::InvalidLabel(*chan_label_id, label_id));
         }
         let key = key.open().ok_or(Error::NotFound(id))?;
 

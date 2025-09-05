@@ -25,8 +25,8 @@ pub enum Error {
     #[error("channel not found: {0}")]
     NotFound(ChannelId),
     /// Invalid label.
-    #[error("invalid label: {0}")]
-    InvalidLabel(LabelId),
+    #[error("invalid label got: {0} expected: {1}")]
+    InvalidLabel(LabelId, LabelId),
     /// The input is too large.
     #[error("input too large")]
     InputTooLarge,

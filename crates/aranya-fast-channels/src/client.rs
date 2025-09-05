@@ -205,7 +205,7 @@ impl<S: AfcState> Client<S> {
             } = DataHeader::try_parse(header)?;
 
             if label_id_from_header != label_id {
-                return Err(Error::InvalidLabel(label_id));
+                return Err(Error::InvalidLabel(label_id_from_header, label_id));
             }
 
             (label_id_from_header, seq, ciphertext)
@@ -272,7 +272,7 @@ impl<S: AfcState> Client<S> {
             } = DataHeader::try_parse(header)?;
 
             if label_id != label_id_from_header {
-                return Err(Error::InvalidLabel(label_id));
+                return Err(Error::InvalidLabel(label_id_from_header, label_id));
             }
 
             #[allow(clippy::incompatible_msrv)] // clippy#12280
