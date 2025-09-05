@@ -20,8 +20,8 @@ use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Checkpoint, ClientError, ClientState, CmdId, Command, CommandRecall, Engine, Fact,
-    FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
-    Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    FactPerspective, GraphId, Keys, NullSink, Persistence, Perspective, Policy, PolicyId, Prior,
+    Priority, Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 type Bytes = Box<[u8]>;
@@ -99,7 +99,12 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         effect_sink.begin();
 
         // Try to perform action.
-        match policy.call_action(action, &mut perspective, effect_sink) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            effect_sink,
+            Persistence::Ephemeral,
+        ) {
             Ok(_) => {
                 // Success, commit effects
                 effect_sink.commit();
@@ -144,7 +149,13 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         // Try to evaluate command.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(&command, &mut perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            &command,
+            &mut perspective,
+            sink,
+            Persistence::Ephemeral,
+            CommandRecall::None,
+        ) {
             perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
