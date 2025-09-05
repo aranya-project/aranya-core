@@ -155,7 +155,7 @@ where
         };
 
         if chan.label_id != label_id {
-            return Err(crate::Error::InvalidLabel(label_id));
+            return Err(crate::Error::InvalidLabel(chan.label_id, label_id));
         }
 
         let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
@@ -242,7 +242,7 @@ where
         };
 
         if chan.label_id != label_id {
-            return Err(crate::Error::InvalidLabel(label_id));
+            return Err(crate::Error::InvalidLabel(chan.label_id, label_id));
         }
 
         let key = OpenKey::from_raw(&chan.open_key)?;
