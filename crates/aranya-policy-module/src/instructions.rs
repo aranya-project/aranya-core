@@ -3,7 +3,7 @@ use core::{
     num::NonZeroUsize,
 };
 
-use aranya_policy_ast::Identifier;
+use aranya_policy_ast::{Identifier, Text};
 use serde::{Deserialize, Serialize};
 
 mod meta;
@@ -31,7 +31,7 @@ pub enum ExitReason {
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
     /// Execution was aborted gracefully, due an error.
-    Check,
+    Check(Option<Text>),
     /// Execution was aborted due to an unhandled error.
     Panic,
 }
@@ -49,7 +49,10 @@ impl Display for ExitReason {
         match self {
             Self::Normal => f.write_str("normal"),
             Self::Yield => f.write_str("yield"),
-            Self::Check => f.write_str("check"),
+            Self::Check(msg) => match msg {
+                Some(text) => write!(f, "check: {}", text),
+                None => f.write_str("check"),
+            },
             Self::Panic => f.write_str("panic"),
         }
     }

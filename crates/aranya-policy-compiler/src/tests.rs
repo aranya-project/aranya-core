@@ -194,6 +194,21 @@ fn test_function_wrong_color_finish() {
 }
 
 #[test]
+fn test_check_statement() {
+    let text = r#"
+        action test_action() {
+            // Basic check statement
+            check true
+            
+            // Check with else clause
+            check true else "this should not execute"
+        }
+    "#;
+
+    compile_pass(text);
+}
+
+#[test]
 fn test_seal_open_command() {
     let text = r#"
         command Foo {
