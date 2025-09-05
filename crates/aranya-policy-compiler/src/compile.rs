@@ -1349,7 +1349,7 @@ impl<'a> CompileState<'a> {
                     .map_err(|e| self.err(e))?
             }
             ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
-            ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
+            ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check(None))?,
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let inner_type = self.compile_expression(e)?;
@@ -1492,7 +1492,9 @@ impl<'a> CompileState<'a> {
                     // instruction after that - current instruction + 2.
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    self.append_instruction(Instruction::Exit(ExitReason::Check));
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(
+                        s.err_message.clone(),
+                    )));
                 }
                 (
                     StmtKind::Match(s),

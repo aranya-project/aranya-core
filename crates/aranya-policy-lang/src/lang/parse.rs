@@ -1013,8 +1013,14 @@ impl ChunkParser<'_> {
         let pc = descend(item);
         let token = pc.consume()?;
         let expression = self.parse_expression(token)?;
-
-        Ok(CheckStatement { expression })
+        let err_message = pc
+            .consume_optional(Rule::string_literal)
+            .map(|token| Self::parse_string_literal(token))
+            .transpose()?;
+        Ok(CheckStatement {
+            expression,
+            err_message,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.

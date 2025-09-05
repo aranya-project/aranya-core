@@ -1257,3 +1257,18 @@ Next chunk:
         assert_eq!(err.to_string(), expected);
     }
 }
+
+#[test]
+fn test_check_errors() {
+    let cases = [r#"
+        action foo() {
+            check false
+            check false else "failed"
+        }
+        "#];
+
+    for case in cases {
+        let policy = parse_policy_str(case, Version::V2).expect("should parse");
+        insta::assert_json_snapshot!(policy);
+    }
+}
