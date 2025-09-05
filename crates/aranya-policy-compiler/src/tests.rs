@@ -197,3 +197,136 @@ fn test_validate_publish() {
         assert!(validate(&m), "Expected case to be invalid: {}", p);
     }
 }
+
+#[test]
+fn test_recall_blocks() {
+    // Test valid cases
+    let valid_cases = [
+        // Command with no recall blocks
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+        }"#,
+        // Command with one unnamed recall block
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall {
+            }
+        }"#,
+        // Command with one named recall block
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall foo() {
+            }
+        }"#,
+        // Command with one unnamed and one named recall block
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall {
+            }
+            recall foo() {
+            }
+        }"#,
+        // Command with multiple named recall blocks
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall foo() {
+            }
+            recall bar() {
+            }
+            recall baz() {
+            }
+        }"#,
+    ];
+
+    for policy in valid_cases {
+        compile_pass(policy);
+    }
+
+    // Test invalid cases
+    let invalid_cases = [
+        // Command with duplicate named recall blocks
+        (
+            r#"
+            command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall foo() {
+                }
+                recall foo() {
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("recall block 'foo'".to_string()),
+        ),
+        // Command with two unnamed recall blocks
+        (
+            r#"
+            command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall {
+                }
+                recall {
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("recall block 'default'".to_string()),
+        ),
+    ];
+
+    for (policy, expected_error) in invalid_cases {
+        let err = compile_fail(policy);
+        assert_eq!(err, expected_error);
+    }
+}
+
+#[test]
+fn test_check_statement() {
+    let text = r#"
+        action test_action() {
+            // Basic check statement
+            check true
+            
+            // Check with else clause
+            check true
+        }
+    "#;
+
+    compile_pass(text);
+}

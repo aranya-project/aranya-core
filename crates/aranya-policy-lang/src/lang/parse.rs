@@ -1144,10 +1144,15 @@ impl ChunkParser<'_> {
     /// Parse a Rule::check_statement into a CheckStatement.
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
-        let token = pc.consume()?;
-        let expression = self.parse_expression(token)?;
-
-        Ok(CheckStatement { expression })
+        let expression = pc.consume_expression(self)?;
+        let call = pc
+            .consume_optional(Rule::function_call)
+            .map(|call| self.parse_function_call(call))
+            .transpose()?;
+        Ok(CheckStatement {
+            expression,
+            recall: call,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
@@ -1584,12 +1589,47 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::policy_block)?;
         let policy = self.parse_statement_list(token.into_inner())?;
 
-        // 6. Optional recall block
-        let recall = if let Some(token) = pc.consume_optional(Rule::recall_block) {
-            self.parse_statement_list(token.into_inner())?
-        } else {
-            vec![]
-        };
+        // 6. Optional recall blocks (zero or more)
+        let mut recalls = vec![];
+        for token in pc.into_inner() {
+            if token.as_rule() != Rule::recall_block {
+                return Err(ParseError::new(
+                    ParseErrorKind::Unknown,
+                    format!("expected recall block, found `{:?}`", token.as_rule()),
+                    Some(self.to_ast_span(token.as_span())?),
+                ));
+            }
+
+            let recall_span = self.to_ast_span(token.as_span())?;
+            let recall_pc = self.descend(token);
+
+            // Parse optional identifier.
+            let recall_identifier = recall_pc
+                .consume_optional(Rule::identifier)
+                .map(|p| self.parse_ident(p))
+                .transpose()?;
+
+            // Parse optional arguments.
+            let recall_arguments = recall_pc
+                .consume_optional(Rule::function_arguments)
+                .map(|p| -> Result<Vec<FieldDefinition>, ParseError> {
+                    let mut args = vec![];
+                    for field in p.into_inner() {
+                        args.push(self.parse_field_definition(field)?);
+                    }
+                    Ok(args)
+                })
+                .transpose()?;
+
+            let statements = self.parse_statement_list(recall_pc.into_inner())?;
+
+            recalls.push(ast::RecallBlockDefinition {
+                identifier: recall_identifier,
+                arguments: recall_arguments,
+                statements,
+                span: recall_span,
+            });
+        }
 
         Ok(ast::CommandDefinition {
             persistence,
@@ -1599,7 +1639,7 @@ impl ChunkParser<'_> {
             seal,
             open,
             policy,
-            recall,
+            recalls,
             span,
         })
     }
