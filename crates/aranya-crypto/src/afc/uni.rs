@@ -113,14 +113,11 @@ use crate::{
 ///     let version = 4;
 ///     type E = DefaultEngine<Rng, DefaultCipherSuite>;
 ///     let (mut eng, _) = E::from_entropy(Rng);
-///     let label = LabelId::random(&mut eng);
+///     let label_id = LabelId::random(&mut eng);
 ///
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
-///         let ad = AuthData {
-///             version,
-///             label_id: label.to_u32(),
-///         };
+///         let ad = AuthData { version, label_id };
 ///         let seq = seal
 ///             .seal(&mut dst, GOLDEN, &ad)
 ///             .expect("should be able to encrypt plaintext");
@@ -128,10 +125,7 @@ use crate::{
 ///     };
 ///     let plaintext = {
 ///         let mut dst = vec![0u8; ciphertext.len()];
-///         let ad = AuthData {
-///             version,
-///             label_id: label.to_u32(),
-///         };
+///         let ad = AuthData { version, label_id };
 ///         open.open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");
 ///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);

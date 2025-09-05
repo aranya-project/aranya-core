@@ -76,7 +76,7 @@ impl Header {
         let (id_out, rest) = rest
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `NodeId`")?;
-        *id_out = self.label_id.to_u32().to_le_bytes();
+        *id_out = *(self.label_id.as_array());
 
         if !rest.is_empty() {
             bug!("`out` should be exactly `Header::PACKED_SIZE`");
@@ -122,7 +122,7 @@ impl DataHeader {
         let (id_out, rest) = out
             .split_first_chunk_mut()
             .assume("`out` should be large enough for `Label`")?;
-        *id_out = self.label_id.to_u32().to_le_bytes();
+        *id_out = *(self.label_id.as_array());
 
         let (seq_out, rest) = rest
             .split_first_chunk_mut()

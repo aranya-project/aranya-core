@@ -8,6 +8,7 @@ use core::ops::Add;
 use spideroak_crypto::{
     aead::{Aead, OpenError},
     csprng::Random,
+    default::Rng,
     generic_array::ArrayLength,
     hpke::HpkeError,
     typenum::{Sum, U64},
@@ -899,21 +900,21 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 /// Checks that `open` can decrypt ciphertexts from `seal`.
 fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc::OpenKey<CS>) {
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
+    let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
 
     let (ciphertext, seq) = {
         let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<CS>::OVERHEAD];
         let seq = seal
-            .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+            .seal(&mut dst, GOLDEN.as_bytes(), &ad)
             .expect("should be able to encrypt plaintext");
         (dst, seq)
     };
 
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<CS>::OVERHEAD];
-    open.open(&mut plaintext, &ciphertext, &AD, seq)
+    open.open(&mut plaintext, &ciphertext, &ad, seq)
         .expect("decryption failed; keys differ");
 
     assert_eq!(
@@ -933,9 +934,9 @@ fn assert_different_afc_keys<E: Engine>(
     open: &afc::OpenKey<E::CS>,
 ) {
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
+    let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
 
     let (ciphertext, seq) = {
@@ -945,14 +946,14 @@ fn assert_different_afc_keys<E: Engine>(
                 afc::SealKey::from_raw(&Random::random(eng), afc::Seq::ZERO)
                     .expect("should be able to generate random `afc::SealKey`")
             })
-            .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+            .seal(&mut dst, GOLDEN.as_bytes(), &ad)
             .expect("should be able to encrypt plaintext");
         (dst, seq)
     };
 
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
     let err = open
-        .open(&mut plaintext, &ciphertext, &AD, seq)
+        .open(&mut plaintext, &ciphertext, &ad, seq)
         .expect_err("should not be able to decrypt ciphertext with mismatched keys");
     assert_eq!(
         err,
@@ -988,16 +989,16 @@ pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
+    let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     // The upper bound is arbitrary. We obviously cannot test
     // all 2^61-1 integers.
     for idx in 0..u16::MAX {
         let seq = seal
-            .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+            .seal(&mut dst, GOLDEN.as_bytes(), &ad)
             .expect("should be able to encrypt plaintext");
         assert_eq!(seq, afc::Seq::new(u64::from(idx)));
     }
@@ -1013,22 +1014,22 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
+    let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
 
     // The first encryption should succeed since seq < max.
     let seq = seal
-        .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+        .seal(&mut dst, GOLDEN.as_bytes(), &ad)
         .expect("should be able to encrypt plaintext");
     assert_eq!(seq, afc::Seq::new(max - 1));
 
     // All encryptions afterward should fail since seq >=
     // max.
     let err = seal
-        .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+        .seal(&mut dst, GOLDEN.as_bytes(), &ad)
         .expect_err("sequence counter should be exhausted");
     assert_eq!(err, afc::SealError::MessageLimitReached);
 }
@@ -1044,9 +1045,9 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
+    let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
@@ -1054,7 +1055,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     // `afc::OpenKey` should reject the sequence number before
     // attempting to decrypt the ciphertext, but start with
     // a valid ciphertext anyway.
-    seal.seal(&mut ciphertext, GOLDEN.as_bytes(), &AD)
+    seal.seal(&mut ciphertext, GOLDEN.as_bytes(), &ad)
         .expect("should be able to encrypt plaintext");
 
     let exhausted_seq = afc::Seq::new(afc::Seq::max::<
@@ -1062,7 +1063,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     >());
     // Decryption should fail since seq >= max.
     let err = open
-        .open(&mut plaintext, &ciphertext, &AD, exhausted_seq)
+        .open(&mut plaintext, &ciphertext, &ad, exhausted_seq)
         .expect_err("should not be able to decrypt ciphertext with exhausted seq number");
     assert_eq!(
         err,
@@ -1082,20 +1083,20 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const AD: afc::AuthData = afc::AuthData {
+    let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
     for _ in 0..100 {
         let seq = seal
-            .seal(&mut ciphertext, GOLDEN.as_bytes(), &AD)
+            .seal(&mut ciphertext, GOLDEN.as_bytes(), &ad)
             .expect("should be able to encrypt plaintext");
 
         let wrong_seq = afc::Seq::new(seq.to_u64() + 1);
         let err = open
-            .open(&mut plaintext, &ciphertext, &AD, wrong_seq)
+            .open(&mut plaintext, &ciphertext, &ad, wrong_seq)
             .expect_err("should not be able to decrypt ciphertext with the wrong seq number");
         assert_eq!(
             err,
@@ -1116,23 +1117,23 @@ pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
     assert_same_afc_keys(&mut seal, &open);
 
     const GOLDEN: &str = "hello, world!";
-    const GOOD_AD: afc::AuthData = afc::AuthData {
+    let good_ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: 2,
+        label_id: LabelId::random(&mut Rng),
     };
-    const WRONG_AD: afc::AuthData = afc::AuthData {
+    let bad_ad: afc::AuthData = afc::AuthData {
         version: 3,
-        label_id: 4,
+        label_id: LabelId::random(&mut Rng),
     };
 
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let seq = seal
-        .seal(&mut ciphertext, GOLDEN.as_bytes(), &GOOD_AD)
+        .seal(&mut ciphertext, GOLDEN.as_bytes(), &good_ad)
         .expect("should be able to encrypt plaintext");
 
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
     let err = open
-        .open(&mut plaintext, &ciphertext, &WRONG_AD, seq)
+        .open(&mut plaintext, &ciphertext, &bad_ad, seq)
         .expect_err("should not be able to decrypt ciphertext with the wrong `afc::AuthData`");
     assert_eq!(
         err,

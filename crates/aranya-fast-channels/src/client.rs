@@ -159,7 +159,7 @@ impl<S: AfcState> Client<S> {
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
-                label_id: label_id.to_u32(),
+                label_id,
             };
             f(aead, &ad)
         })??;
@@ -321,7 +321,7 @@ impl<S: AfcState> Client<S> {
         let ad = AuthData {
             // TODO(eric): update `AuthData` to use `u16`.
             version: u32::from(Version::current().to_u16()),
-            label_id: label_id.to_u32(),
+            label_id,
         };
         self.state.open(id, label_id, |aead| f(aead, &ad, seq))?
     }
