@@ -52,6 +52,6 @@ Module {
     def 'b'
     get 'b'
     branch 22
-    exit check
+    exit check: default
 <22>:
     return

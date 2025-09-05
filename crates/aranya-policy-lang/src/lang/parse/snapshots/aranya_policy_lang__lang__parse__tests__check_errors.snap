@@ -1,0 +1,114 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
+---
+{
+  "version": "V2",
+  "ffi_imports": [],
+  "facts": [],
+  "actions": [],
+  "effects": [],
+  "structs": [],
+  "enums": [],
+  "commands": [
+    {
+      "persistence": "Persistent",
+      "attributes": [],
+      "identifier": {
+        "name": "Foo",
+        "span": {
+          "start": 17,
+          "end": 20
+        }
+      },
+      "fields": [],
+      "seal": [],
+      "open": [],
+      "policy": [
+        {
+          "kind": {
+            "Check": {
+              "expression": {
+                "kind": {
+                  "Bool": false
+                },
+                "span": {
+                  "start": 66,
+                  "end": 71
+                }
+              },
+              "recall": null
+            }
+          },
+          "span": {
+            "start": 60,
+            "end": 88
+          }
+        },
+        {
+          "kind": {
+            "Check": {
+              "expression": {
+                "kind": {
+                  "Bool": false
+                },
+                "span": {
+                  "start": 94,
+                  "end": 99
+                }
+              },
+              "recall": {
+                "identifier": {
+                  "name": "foo",
+                  "span": {
+                    "start": 110,
+                    "end": 113
+                  }
+                },
+                "arguments": []
+              }
+            }
+          },
+          "span": {
+            "start": 88,
+            "end": 115
+          }
+        }
+      ],
+      "recalls": [
+        {
+          "identifier": null,
+          "arguments": null,
+          "statements": [],
+          "span": {
+            "start": 142,
+            "end": 151
+          }
+        },
+        {
+          "identifier": {
+            "name": "foo",
+            "span": {
+              "start": 171,
+              "end": 174
+            }
+          },
+          "arguments": [],
+          "statements": [],
+          "span": {
+            "start": 164,
+            "end": 179
+          }
+        }
+      ],
+      "span": {
+        "start": 9,
+        "end": 189
+      }
+    }
+  ],
+  "functions": [],
+  "finish_functions": [],
+  "global_lets": [],
+  "text": "\n        command Foo {\n            policy {\n                check false\n                check false or recall foo()\n            }\n            recall {}\n            recall foo() {}\n        }\n        "
+}

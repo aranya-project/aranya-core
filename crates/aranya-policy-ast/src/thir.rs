@@ -207,6 +207,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// The recall block to execute if the check fails
+    pub recall: Option<FunctionCall>,
 }
 }
 

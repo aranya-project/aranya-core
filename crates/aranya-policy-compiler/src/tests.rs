@@ -19,6 +19,18 @@ fn compile_pass(text: &str) -> Module {
     }
 }
 
+/// Helper which parses and compiles, expecting a compile error; returns its
+/// rendered message for substring matching.
+#[track_caller]
+fn compile_fail(text: &str) -> String {
+    let policy = parse_policy_str(text, Version::V2).expect("parse should succeed");
+    let err = Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .expect_err("expected compile to fail");
+    format!("{err}")
+}
+
 #[test]
 fn test_validate_return() {
     let valid = [
@@ -196,4 +208,140 @@ fn test_validate_publish() {
         let m = compile_pass(&p);
         assert!(validate(&m), "Expected case to be invalid: {}", p);
     }
+}
+
+#[test]
+fn test_recall_blocks() {
+    // Test valid cases
+    let valid_cases = [
+        // Command with no recall blocks
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+        }"#,
+        // Command with one unnamed recall block
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall {
+            }
+        }"#,
+        // Command with one named recall block
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall foo() {
+            }
+        }"#,
+        // Command with one unnamed and one named recall block
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall {
+            }
+            recall foo() {
+            }
+        }"#,
+        // Command with multiple named recall blocks
+        r#"
+        command Cmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+            recall foo() {
+            }
+            recall bar() {
+            }
+            recall baz() {
+            }
+        }"#,
+    ];
+
+    for policy in valid_cases {
+        compile_pass(policy);
+    }
+
+    // Test invalid cases
+    let invalid_cases = [
+        // Command with duplicate named recall blocks
+        (
+            r#"
+            command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall foo() {
+                }
+                recall foo() {
+                }
+            }"#,
+            "recall block 'foo'",
+        ),
+        // Command with two unnamed recall blocks
+        (
+            r#"
+            command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall {
+                }
+                recall {
+                }
+            }"#,
+            "recall block 'default'",
+        ),
+    ];
+
+    for (policy, expected_substring) in invalid_cases {
+        let err = compile_fail(policy);
+        assert!(
+            err.contains(expected_substring),
+            "expected error to contain `{expected_substring}`, got:\n{err}"
+        );
+    }
+}
+
+#[test]
+fn test_check_statement() {
+    let text = r#"
+        action test_action() {
+            // Basic check statement
+            check true
+            
+            // Check with else clause
+            check true
+        }
+    "#;
+
+    compile_pass(text);
 }

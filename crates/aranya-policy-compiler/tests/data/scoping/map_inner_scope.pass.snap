@@ -66,13 +66,13 @@ Module {
     const 0
     gt
     branch 14
-    exit check
+    exit check: default
 <14>:
     get 'n'
     const 42
     eq
     branch 19
-    exit check
+    exit check: default
 <19>:
     end
     jump 5

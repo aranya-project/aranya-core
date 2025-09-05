@@ -4,7 +4,7 @@ use aranya_policy_ast::{
     MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind,
     VType, ident, thir,
 };
-use buggy::{Bug, BugExt as _, bug};
+use buggy::{BugExt as _, bug};
 use tracing::warn;
 
 use super::{
@@ -20,20 +20,6 @@ use super::{
 };
 
 impl CompileState<'_> {
-    /// Get the statement context
-    fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
-        let cs = self
-            .statement_context
-            .last()
-            .ok_or_else(|| {
-                self.err(BugError(Bug::new(
-                    "compiling statement without statement context",
-                )))
-            })?
-            .clone();
-        Ok(cs)
-    }
-
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
         self.m.fact_defs.get(&name.inner).ok_or_else(|| {
             let note = format!("fact `{}` not defined", name);
@@ -502,7 +488,7 @@ impl CompileState<'_> {
                 }
                 InternalFunction::Deserialize(e) => {
                     // A bit hacky, but you can't manually define a function named "open".
-                    let struct_name = match self.get_statement_context()? {
+                    let struct_name = match self.get_statement_context()?.clone() {
                         StatementContext::PureFunction(FunctionDefinition {
                             identifier,
                             return_type:
@@ -693,7 +679,7 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Return(ret_expr) => {
-                let ctx = self.get_statement_context()?;
+                let ctx = self.get_statement_context()?.clone();
                 let StatementContext::PureFunction(fd) = ctx else {
                     // TODO(Steve): Add 'InvalidReturn' error.
                     let note = "return expressions can't be used in this context";
@@ -1530,7 +1516,7 @@ impl CompileState<'_> {
         if scope == Scope::Layered {
             self.identifier_types.enter_block();
         }
-        let context = self.get_statement_context()?;
+        let context = self.get_statement_context()?.clone();
         for statement in statements {
             self.map_range(statement.span)?;
             // This match statement matches on a pair of the statement and its allowable
@@ -1577,7 +1563,15 @@ impl CompileState<'_> {
                         );
                         return Err(self.err(err));
                     }
-                    thir::StmtKind::Check(thir::CheckStatement { expression: et })
+                    let recall = s
+                        .recall
+                        .as_ref()
+                        .map(|r| self.lower_function_call(r))
+                        .transpose()?;
+                    thir::StmtKind::Check(thir::CheckStatement {
+                        expression: et,
+                        recall,
+                    })
                 }
                 (
                     StmtKind::Match(s),

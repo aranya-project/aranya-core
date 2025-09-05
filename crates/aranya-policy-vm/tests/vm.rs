@@ -932,7 +932,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check);
+    assert!(matches!(result, ExitReason::Check(_)));
 
     Ok(())
 }
@@ -1468,7 +1468,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check);
+        assert!(matches!(status, ExitReason::Check(_)));
     }
 
     Ok(())
@@ -1566,6 +1566,99 @@ fn test_coalesce_or() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Closes https://github.com/aranya-project/aranya-core/issues/530:
+// "Test that wrapping and unwrapping nested optionals works properly, and
+// we can correctly distinguish e.g. `None` and `Some(None)`."
+#[test]
+#[ignore = "blocked on aranya-project/aranya-core#632 lifting nested-option restriction"]
+fn test_nested_optionals_runtime() -> anyhow::Result<()> {
+    let text = r#"
+        // None of type option[option[int]], produced via the type-checked
+        // function-return path.
+        function outer_none() option[option[int]] {
+            return None
+        }
+
+        // wrap(None) => Some(None);  wrap(Some(v)) => Some(Some(v)).
+        function wrap(x option[int]) option[option[int]] {
+            return Some(x)
+        }
+
+        // None and Some(None) must be observably distinct at the VM level.
+        action distinguish_none_from_some_none() {
+            let outer = outer_none()
+            let some_none = wrap(None)
+
+            check outer is None
+            check !(outer is Some)
+            check some_none is Some
+            check !(some_none is None)
+        }
+
+        // Unwrapping Some(None) yields the inner None — inner-None-ness
+        // is preserved through the wrap/unwrap round-trip.
+        action unwrap_some_none_yields_inner_none() {
+            let some_none = wrap(None)
+            let inner = unwrap some_none
+            check inner is None
+        }
+
+        // Unwrap of Some(Some(v)) yields Some(v); a second unwrap yields v.
+        action double_unwrap_some_some() {
+            let some_some = wrap(Some(42))
+            let inner = unwrap some_some
+            check inner is Some
+            check (unwrap inner) == 42
+        }
+
+        // Equality must distinguish all three nested states.
+        action equality_distinguishes_nested() {
+            let a = outer_none()      // None
+            let b = wrap(None)        // Some(None)
+            let c = wrap(None)        // Some(None)
+            let d = wrap(Some(7))     // Some(Some(7))
+            check a != b
+            check b == c
+            check b != d
+            check a != d
+        }
+
+        // Coalesce (`or`) on Some(None) returns the inner None, not the
+        // fallback. Catches a VM that treats Some(None) as None.
+        action coalesce_outer_some_returns_inner_none() {
+            let some_none = wrap(None)
+            let inner = some_none or Some(99)
+            check inner is None
+        }
+
+        // Coalesce on a None outer falls back.
+        action coalesce_outer_none_returns_fallback() {
+            let outer = outer_none()
+            let inner = outer or Some(7)
+            check inner is Some
+            check (unwrap inner) == 7
+        }
+    "#;
+
+    let mut io = TestIO::new();
+    let machine = compile(text);
+
+    for action in [
+        ident!("distinguish_none_from_some_none"),
+        ident!("unwrap_some_none_yields_inner_none"),
+        ident!("double_unwrap_some_some"),
+        ident!("equality_distinguishes_nested"),
+        ident!("coalesce_outer_some_returns_inner_none"),
+        ident!("coalesce_outer_none_returns_fallback"),
+    ] {
+        let ctx = dummy_ctx_action(action.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action, iter::empty::<Value>())?.success();
+    }
+
+    Ok(())
+}
+
 #[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
@@ -1626,6 +1719,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 ident!("Envelope"),
                 [KVPair::new(ident!("payload"), test_data.into())],
             ),
+            ident!("Foo_recall_default"),
         )?
         .success();
     }
@@ -2352,7 +2446,7 @@ fn test_boolean_short_circuit() {
     }
 
     assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check);
+    assert!(matches!(run("false && todo()"), ExitReason::Check(_)));
     assert_eq!(run("true || todo()"), ExitReason::Normal);
     assert_eq!(run("false || todo()"), ExitReason::Panic);
 }
@@ -2468,7 +2562,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check);
+    assert!(matches!(result, ExitReason::Check(_)));
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(

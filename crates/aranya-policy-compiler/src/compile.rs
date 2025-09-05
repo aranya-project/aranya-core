@@ -25,7 +25,7 @@ use aranya_policy_module::{
     named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{BugExt as _, bug};
+use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
 use tracing::warn;
 
@@ -164,7 +164,7 @@ impl Spanned for StatementContext {
         match self {
             Self::Action(def) => def.span,
             Self::CommandPolicy(def) => def.policy.span(),
-            Self::CommandRecall(def) => def.recall.span(),
+            Self::CommandRecall(def) => def.span,
             Self::PureFunction(def) => def.span,
             Self::Finish(span) => *span,
         }
@@ -225,6 +225,13 @@ impl<'a> CompileState<'a> {
     /// End parsing statements in this context and return to the previous context
     fn exit_statement_context(&mut self) {
         self.statement_context.pop();
+    }
+
+    /// Get the current statement context.
+    pub(super) fn get_statement_context(&self) -> Result<&StatementContext, CompileError> {
+        self.statement_context
+            .last()
+            .ok_or_else(|| self.err(BugError(Bug::new("expected statement context"))))
     }
 
     /// Append an instruction to the program memory, and increment the
@@ -798,7 +805,21 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Not);
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap_option(*e, ExitReason::Check)?,
+            thir::ExprKind::CheckUnwrap(e) => {
+                let name = match self.get_statement_context()? {
+                    StatementContext::CommandPolicy(cmd) => {
+                        self.command_recall_name(&cmd.clone(), None)?
+                    }
+                    StatementContext::CommandRecall(_) => {
+                        return Err(self.err(UnknownError(
+                            "cannot check unwrap expression in command recall block".to_string(),
+                            None,
+                        )));
+                    }
+                    _ => ident!("default"),
+                };
+                self.compile_unwrap_option(*e, ExitReason::Check(name))?
+            }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
@@ -889,14 +910,27 @@ impl<'a> CompileState<'a> {
             }
             thir::StmtKind::Check(s) => {
                 self.compile_typed_expression(s.expression)?;
-                // The current instruction is the branch. The next
-                // instruction is the following panic you arrive at
-                // if the expression is false. The instruction you
-                // branch to if the check succeeds is the
-                // instruction after that - current instruction + 2.
+                // The current instruction is the branch. The next instruction is the following
+                // panic you arrive at if the expression is false. The instruction you branch to
+                // if the check succeeds is the instruction after that - current instruction + 2.
                 let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                 self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                self.append_instruction(Instruction::Exit(ExitReason::Check));
+
+                // push args for command recall
+                let context = self.get_statement_context()?.clone();
+                let n = match &context {
+                    StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
+                        if let Some(fc) = s.recall.as_ref() {
+                            for arg_e in &fc.arguments {
+                                self.compile_typed_expression(arg_e.clone())?;
+                            }
+                        }
+                        let recall_name = s.recall.as_ref().map(|fc| fc.identifier.clone());
+                        self.command_recall_name(cmd, recall_name)?
+                    }
+                    _ => ident!("default"),
+                };
+                self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
             }
             thir::StmtKind::Match(s) => {
                 self.compile_match_statement_or_expression(LanguageContext::Statement(s))?;
@@ -1215,27 +1249,82 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Returns a unique recall block name for the given command and optional name.
+    /// The name follows the format: `<command>_recall_<name>`, where `<name>` is "default" for the default recall block.
+    fn command_recall_name(
+        &self,
+        command: &ast::CommandDefinition,
+        recall_name: Option<Ident>,
+    ) -> Result<Identifier, CompileError> {
+        format!(
+            "{}_recall_{}",
+            command.identifier.as_str(),
+            recall_name
+                .as_ref()
+                .map(|n| n.as_str())
+                .unwrap_or("default")
+        )
+        .try_into()
+        .map_err(|_| {
+            CompileError::new(
+                UnknownError(
+                    format!("invalid recall block name for command '{:?}'", recall_name),
+                    None,
+                ),
+                None,
+            )
+        })
+    }
+
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-        self.compile_function_like(
-            &[param::this(command.identifier.clone()), param::envelope()],
-            None,
-            Span::empty(),
-            &command.recall,
-            Label::new(command.identifier.inner.clone(), LabelType::CommandRecall),
-        )?;
-        if command.recall.is_empty() {
-            // TODO(#544): Handle absent/empty recall properly.
-            // Return for now so that absent/empty recall blocks don't panic.
-            self.append_instruction(Instruction::Return);
-        } else {
-            // Recall blocks should exit via a finish block, so panic if it doesn't.
-            self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        let mut named_blocks = HashSet::new();
+
+        // Compile each recall block
+        for recall_block in &command.recalls {
+            let full_name = self.command_recall_name(&command, recall_block.identifier.clone())?;
+            if !named_blocks.insert(full_name.clone()) {
+                return Err(self.err(UnknownError(
+                    format!(
+                        "recall block '{}' for command '{}' defined more than once",
+                        full_name
+                            .as_str()
+                            .split('_')
+                            .last()
+                            .expect("should have recall name"),
+                        command.identifier.as_str()
+                    ),
+                    Some(recall_block.span),
+                )));
+            }
+
+            self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+            // Recall blocks share the policy block's bindings (`this`, `envelope`)
+            // plus any explicitly declared recall arguments.
+            let mut params: Vec<Param> = vec![
+                param::this(command.identifier.clone()),
+                param::envelope(),
+            ];
+            if let Some(args) = &recall_block.arguments {
+                for arg in args {
+                    params.push(Param {
+                        name: arg.identifier.clone(),
+                        ty: arg.field_type.clone(),
+                    });
+                }
+            }
+            self.compile_function_like(
+                &params,
+                None,
+                recall_block.span,
+                &recall_block.statements,
+                Label::new(full_name, LabelType::CommandRecall),
+            )?;
+            self.append_instruction(Instruction::Exit(ExitReason::Normal));
+            self.exit_statement_context();
         }
-        self.exit_statement_context();
         Ok(())
     }
 
