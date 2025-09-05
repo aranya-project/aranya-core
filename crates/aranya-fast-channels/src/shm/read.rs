@@ -8,6 +8,7 @@ use core::{
 use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
 };
 use buggy::BugExt;
 
@@ -42,7 +43,18 @@ struct Cache<K> {
     idx: Index,
 }
 
+impl<K> core::fmt::Debug for Cache<K> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Cache")
+            .field("id", &self.id)
+            .field("generation", &self.generation)
+            .field("idx", &self.idx)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The reader's view of the shared memory state.
+#[derive(Debug)]
 pub struct ReadState<CS>
 where
     CS: CipherSuite,
@@ -84,7 +96,12 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn seal<F, T>(
+        &self,
+        id: ChannelId,
+        label_id: LabelId,
+        f: F,
+    ) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, crate::Error>,
     {
@@ -136,6 +153,11 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
+
+        if chan.label_id != label_id {
+            return Err(crate::Error::InvalidLabel(chan.label_id, label_id));
+        }
+
         let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
 
         debug!("chan = {chan:p}/{chan:?}");
@@ -171,7 +193,12 @@ where
         Ok(result)
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn open<F, T>(
+        &self,
+        id: ChannelId,
+        label_id: LabelId,
+        f: F,
+    ) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&OpenKey<CS>) -> Result<T, crate::Error>,
     {
@@ -213,6 +240,11 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
+
+        if chan.label_id != label_id {
+            return Err(crate::Error::InvalidLabel(chan.label_id, label_id));
+        }
+
         let key = OpenKey::from_raw(&chan.open_key)?;
 
         let result = f(&key);

@@ -131,12 +131,20 @@ pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) 
 }
 
 custom_id! {
-    /// Uniquely identifies an AQC label.
-    ///
-    /// A label associates an AQC channel with Aranya policy
-    /// rules that govern communication in the channel.
+    /// Uniquely identifies a label.
     #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct LabelId;
+}
+
+impl LabelId {
+    /// Converts the first 4 bytes of an ID into a little endian integer
+    pub fn to_u32(&self) -> u32 {
+        u32::from_le_bytes(
+            self.as_bytes()[0..4]
+                .try_into()
+                .expect("IDs are at least 4 bytes"),
+        )
+    }
 }
 
 /// Computes the ID of a label.
