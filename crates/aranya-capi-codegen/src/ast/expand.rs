@@ -117,11 +117,6 @@ impl Ast {
             let mut items = Vec::<ItemImpl>::new();
             let capi = &ctx.capi;
 
-            fn cfg_attrs(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
-                attrs
-                    .iter()
-                    .filter(|a| a.path().is_ident("cfg") || a.path().is_ident("cfg_attr"))
-            }
             fn mangle(ident: &Ident) -> Ident {
                 format_ident!(
                     "__ENUM_{}",
@@ -293,8 +288,10 @@ impl Ast {
 
             items
         };
+        let cfg = cfg_attrs(&enum_.attrs);
         self.add_hidden_node::<ItemConst>(parse_quote! {
             #[doc = ::core::concat!("Hidden impls, etc. for [`", ::core::stringify!(#name), "`].")]
+            #(#cfg)*
             const _: () = { #(#extra)* };
         });
 
@@ -322,6 +319,8 @@ impl Ast {
     fn expand_struct(&mut self, ctx: &Ctx, mut strukt: Struct) -> Result<()> {
         let span = strukt.struct_token.span();
 
+        let cfg = cfg_attrs(&strukt.attrs).collect::<Vec<_>>();
+
         let old = strukt.ident.clone();
         let underlying = ctx.defs.join(old.clone());
         strukt.ident = strukt.ident.with_prefix(&ctx.ty_prefix);
@@ -339,6 +338,7 @@ impl Ast {
                 } else {
                     None
                 },
+                &cfg,
             )?;
         }
 
@@ -355,6 +355,7 @@ impl Ast {
                 } else {
                     None
                 },
+                &cfg,
             )?;
         }
 
@@ -370,6 +371,7 @@ impl Ast {
                 } else {
                     None
                 },
+                &cfg,
             )?;
         }
 
@@ -925,6 +927,7 @@ impl Ast {
         old: &Ident,
         lifetimes: &Lifetimes,
         no_ext_error: Option<NoExtError>,
+        cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating `init` constructor");
 
@@ -946,6 +949,7 @@ impl Ast {
             ctx,
             parse_quote_spanned! {span=>
                 #doc
+                #(#cfg)*
                 #no_ext_error
                 #[#capi::generated]
                 #[::tracing::instrument(
@@ -963,6 +967,7 @@ impl Ast {
     }
 
     /// Generates a `build` constructor.
+    #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(%builder, %output, ?no_ext_error))]
     fn add_build_constructor(
         &mut self,
@@ -972,6 +977,7 @@ impl Ast {
         output: &Ident,
         lifetimes: &Lifetimes,
         no_ext_error: Option<NoExtError>,
+        cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating `build` constructor");
 
@@ -991,6 +997,7 @@ impl Ast {
             ctx,
             parse_quote_spanned! {span=>
                 #doc
+                #(#cfg)*
                 #no_ext_error
                 #[#capi::generated]
                 #[::tracing::instrument(
@@ -1020,6 +1027,7 @@ impl Ast {
         old: &Ident,
         lifetimes: &Lifetimes,
         no_ext_error: Option<NoExtError>,
+        cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating destructor");
 
@@ -1044,6 +1052,7 @@ impl Ast {
             ctx,
             parse_quote_spanned! {span=>
                 #doc
+                #(#cfg)*
                 #no_ext_error
                 #[#capi::generated]
                 #[#capi::internal::tracing::instrument(
@@ -1835,4 +1844,10 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
     });
 
     tokens
+}
+
+fn cfg_attrs(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
+    attrs
+        .iter()
+        .filter(|a| a.path().is_ident("cfg") || a.path().is_ident("cfg_attr"))
 }
