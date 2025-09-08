@@ -87,7 +87,7 @@ macro_rules! __test_impl {
 
 			test!(test_seal_open_basic);
 			test!(test_seal_open_in_place_basic);
-			// test!(test_multi_client);
+			test!(test_multi_client);
 			test!(test_remove);
 			test!(test_remove_all);
 			test!(test_remove_if);
@@ -210,12 +210,12 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     let mut d = Aranya::<T, _>::new("test_multi_client", max_nodes * label_ids.len(), eng);
 
-    let mut ids = Vec::new();
+    let mut node_ids = Vec::new();
     let mut clients = HashMap::new();
     for _ in 0..max_nodes {
-        let (c, id) = d.new_client(&mut id, label_ids);
-        ids.push(id);
-        clients.insert(id, c);
+        let (c, node_id) = d.new_client(&mut id, label_ids);
+        node_ids.push(node_id);
+        clients.insert(node_id, c);
     }
 
     const GOLDEN: &str = "hello, world!";
@@ -234,8 +234,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
             send_device
                 .common_channels(recv_device)
-                .next()
-                .filter(|(_, lab)| *lab == label_id)
+                .find(|(_, lab)| *lab == label_id)
                 .expect("channel to exist")
         };
 
@@ -274,8 +273,8 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     let mut seqs = HashMap::new();
 
     for label_id in label_ids {
-        for a in &ids {
-            for b in &ids {
+        for a in &node_ids {
+            for b in &node_ids {
                 if a == b {
                     continue;
                 }
@@ -324,7 +323,7 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
 
             // Now that we know it works, delete the channel and try
             // again. It should fail.
-            d.remove(channel_id, id)
+            d.remove(channel_id, id1)
                 .unwrap_or_else(|| panic!("remove({channel_id}, {id}): not found"))
                 .unwrap_or_else(|err| panic!("remove({id}): {err}"));
 
@@ -725,15 +724,14 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
 
         let (channel_id, label_id) = d1
             .common_channels(d2)
-            .next()
-            .filter(|(_, lab)| *lab == label_id)
-            .expect("channel to exist");
+            .find(|(_, lab)| *lab == label_id)
+            .unwrap_or_else(|| panic!("channel does not exist - {id1}-{id2} label: {label_id}"));
 
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
             c1.seal(channel_id, label_id, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
+                .unwrap_or_else(|err| panic!("({id1}->{id2}) seal(channel_id: {channel_id}, label_id: {label_id} ...): {err}"));
             dst
         };
         let (plaintext, got_label, got_seq) = {
@@ -768,17 +766,17 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
     let mut c2 = d.new_client_with_type(
         &mut id,
         [
-            (label1, ChanOp::SealOnly),
-            (label2, ChanOp::OpenOnly),
+            (label1, ChanOp::OpenOnly),
+            (label2, ChanOp::SealOnly),
             (label3, ChanOp::Any),
         ],
     );
     let mut c3 = d.new_client_with_type(
         &mut id,
         [
-            (label1, ChanOp::SealOnly),
-            (label2, ChanOp::OpenOnly),
-            (label3, ChanOp::Any),
+            (label1, ChanOp::Any),
+            (label2, ChanOp::Any),
+            (label3, ChanOp::OpenOnly),
         ],
     );
 
@@ -792,7 +790,7 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
 
     test(&mut c2, &c1, d2, d1, label2);
     test(&mut c2, &c3, d2, d3, label2);
-    test(&mut c2, &c3, d3, d3, label3);
+    test(&mut c2, &c3, d2, d3, label3);
 
     test(&mut c3, &c1, d3, d1, label2);
     test(&mut c3, &c2, d3, d2, label1);
@@ -808,20 +806,20 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
         label_id: LabelId,
     ) {
         let (c1, id1) = c1;
-        let (_, id2) = c2;
+        let (_c2, id2) = c2;
 
-        let (channel_id, label_id) = d1
+        let maybe_channel = d1
             .common_channels(d2)
-            .next()
-            .filter(|(_, lab)| *lab == label_id)
-            .expect("channel to exist");
+            .find(|(_, lab_id)| *lab_id == label_id);
 
-        let mut dst = vec![0u8; overhead(c1)];
-        let err = c1
-            .seal(channel_id, label_id, &mut dst[..], &[])
-            .err()
-            .unwrap_or_else(|| panic!("{id1}::seal({id2}, ...): expected an error"));
-        assert_eq!(err, Error::NotFound(channel_id));
+        if let Some((channel_id, label_id)) = maybe_channel {
+            let mut dst = vec![0u8; overhead(c1)];
+            let err = c1
+                .seal(channel_id, label_id, &mut dst[..], &[])
+                .err()
+                .unwrap_or_else(|| panic!("{id1}::seal({id2}, ...): expected an error"));
+            assert_eq!(err, Error::NotFound(channel_id));
+        }
     }
 
     fn pass<S: AfcState, T: TestImpl, CS: CipherSuite>(
@@ -836,9 +834,8 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
 
         let (channel_id, label_id) = d1
             .common_channels(d2)
-            .next()
-            .filter(|(_, lab)| *lab == label_id)
-            .expect("channel to exist");
+            .find(|(_, lab)| *lab == label_id)
+            .unwrap_or_else(|| panic!("channel does not exist: {id1}->{id2} label: {label_id}"));
 
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
@@ -919,7 +916,6 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
     fail(&mut c1, &c5, d1, d5, label3); // no chans
     fail(&mut c1, &c5, d1, d5, label4); // no chans
 
-    // TODO(fixme)
     pass(&mut c2, &c1, d2, d1, label1); // seal -> open
     pass(&mut c2, &c1, d2, d1, label2); // seal -> bidi
     pass(&mut c2, &c1, d2, d1, label3); // bidi -> open

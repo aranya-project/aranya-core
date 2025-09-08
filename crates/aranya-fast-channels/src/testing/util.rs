@@ -1,5 +1,6 @@
 //! Testing utilities.
 
+use core::panic;
 use std::{
     cell::Cell,
     cmp,
@@ -172,9 +173,8 @@ where
     fn add_channel(
         &mut self,
         channel: TestChan<T, CS>,
-        label: LabelId,
     ) -> Result<(), <T::Aranya<CS> as AranyaState>::Error> {
-        let _ = self.chan_labels.insert((channel.id, label));
+        self.chan_labels.insert((channel.id, channel.label_id));
         self.state.add(channel.id, channel.keys, channel.label_id)
     }
 
@@ -296,7 +296,7 @@ where
                 id.increment();
 
                 // Register the peer.
-                device.add_channel(our_side, label).unwrap_or_else(|err| {
+                device.add_channel(our_side).unwrap_or_else(|err| {
                     panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
                 });
 
@@ -304,7 +304,7 @@ where
                 self.devices
                     .get_mut(peer_id)
                     .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
-                    .add_channel(peer_side, label)
+                    .add_channel(peer_side)
                     .unwrap_or_else(|err| {
                         panic!(
                             "{label}: add({device_id}, ...): unable to register with peer: {err}"
