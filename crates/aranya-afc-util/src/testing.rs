@@ -263,16 +263,15 @@ impl<T: TestImpl> Device<T> {
                 .unwrap_or_else(|err| panic!("seal({channel_id}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label_id, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
-            let (label_id, seq) = opener
+            let seq = opener
                 .afc_client
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({channel_id}, ...): {err}"));
-            (dst, label_id, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label_id, label_id);
         assert_eq!(got_seq, 0);
     }
 

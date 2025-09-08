@@ -82,7 +82,7 @@ pub trait AranyaState {
 /// A unique identifier representing a channel.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
-pub struct ChannelId(u32);
+pub struct ChannelId(pub(crate) u32);
 
 impl ChannelId {
     /// Creates a [`ChannelId`].
@@ -116,11 +116,6 @@ impl ChannelId {
     /// Converts the [`ChannelId`] to its u32 representation.
     pub const fn to_u32(&self) -> u32 {
         self.0
-    }
-
-    /// Increments the [`ChannelId`] counter.
-    pub fn increment(&mut self) {
-        self.0 += 1
     }
 }
 

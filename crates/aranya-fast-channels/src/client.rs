@@ -180,15 +180,14 @@ impl<S: AfcState> Client<S> {
     /// be at least `ciphertext.len() - Client::OVERHEAD` bytes
     /// long.
     ///
-    /// It returns the cryptographically verified label and
-    /// sequence number associated with the ciphertext.
+    /// It returns the sequence number associated with the ciphertext.
     pub fn open(
         &self,
         channel_id: ChannelId,
         label_id: LabelId,
         dst: &mut [u8],
         ciphertext: &[u8],
-    ) -> Result<(LabelId, Seq), Error> {
+    ) -> Result<Seq, Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
@@ -229,7 +228,7 @@ impl<S: AfcState> Client<S> {
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok((label_id, seq))
+        Ok(seq)
     }
 
     /// Decrypts and authenticates the ciphertext `data` received

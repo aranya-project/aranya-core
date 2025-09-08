@@ -79,7 +79,7 @@ test_impl!(#[serial], shm, SharedMemImpl);
 fn test_many_nodes() {
     const MAX_CHANS: usize = 101;
 
-    let label_ids = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
+    let labels = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
 
     type E = TestEngine<DummyAead>;
 
@@ -89,7 +89,7 @@ fn test_many_nodes() {
         path,
         Flag::Create,
         Mode::ReadWrite,
-        MAX_CHANS * label_ids.len(),
+        MAX_CHANS * labels.len(),
         Rng,
     )
     .expect("unable to created shared memory");
@@ -97,19 +97,19 @@ fn test_many_nodes() {
         path,
         Flag::OpenOnly,
         Mode::ReadWrite,
-        MAX_CHANS * label_ids.len(),
+        MAX_CHANS * labels.len(),
     )
     .expect("unable to created shared memory");
 
     // All the channels we've stored in the shared memory.
-    let mut chans = Vec::with_capacity(MAX_CHANS * label_ids.len());
+    let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
 
     let rng = &mut Rng;
     let mut channel_id = ChannelId::new(0);
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
-    for label_id in label_ids {
+    for label_id in labels {
         for _ in 0..MAX_CHANS {
             channel_id.increment();
             let chan = Channel {

@@ -142,15 +142,14 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-            let (label, seq) = c2
+            let seq = c2
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id}");
-        assert_eq!(got_label, label_id, "{label_id}");
         assert_eq!(got_seq, 0, "{label_id}");
     }
 }
@@ -256,18 +255,17 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
             dst
         };
 
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let u1 = clients
                 .get(&recv)
                 .unwrap_or_else(|| panic!("unable to find recv client: {recv}"));
             let mut dst = vec![0u8; ciphertext.len() - overhead(u1)];
-            let (label_id, seq) = u1
+            let seq = u1
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{label_id}: open({send}, ...): {err}"));
-            (dst, label_id, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{send},{recv}");
-        assert_eq!(got_label, label_id, "{send},{recv}");
         assert_eq!(got_seq, want_seq, "{send},{recv}");
     }
 
@@ -681,7 +679,7 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
         };
         let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c1)];
-            let (label_id, seq) = c2
+            let seq = c2
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
             dst.truncate(ciphertext.len() - overhead(&c2));
@@ -735,15 +733,14 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
                 .unwrap_or_else(|err| panic!("({id1}->{id2}) seal(channel_id: {channel_id}, label_id: {label_id} ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
-            let (label, seq) = c2
+            let seq = c2
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label_id}");
-        assert_eq!(got_label, label_id, "{id1},{id2},{label_id}");
         assert_eq!(got_seq, 0, "{id1},{id2},{label_id}");
     }
 
@@ -845,15 +842,14 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
                 .unwrap_or_else(|err| panic!("{id1}::seal({id2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
-            let (label, seq) = c2
+            let seq = c2
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{id2}::open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label_id}");
-        assert_eq!(got_label, label_id, "{id1},{id2},{label_id}");
         assert_eq!(got_seq, 0, "{id1},{id2},{label_id}");
     }
 
@@ -1039,14 +1035,13 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
 
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
             if seq < seq_max {
-                let (plaintext, got_label, got_seq) = {
-                    let (label_id, seq) = c2
+                let (plaintext, got_seq) = {
+                    let seq = c2
                         .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                         .unwrap_or_else(|err| panic!("{seq}: open({id1}, ...): {err}"));
-                    (dst, label_id, seq)
+                    (dst, seq)
                 };
                 assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-                assert_eq!(got_label, label_id);
                 assert_eq!(got_seq, seq);
             } else {
                 let err = c2
@@ -1240,15 +1235,14 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
             }
         };
 
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-            let (label, seq) = c2
+            let seq = c2
                 .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label_id);
         assert_eq!(got_seq, 0);
     }
 }
@@ -1282,15 +1276,14 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
                     .unwrap_or_else(|err| panic!("seal({channel_id}, ...): {err}"));
                 dst
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-                let (label, seq) = c2
+                let seq = c2
                     .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
                     .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-                (dst, label, seq)
+                (dst, seq)
             };
             assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{want_seq},{label_id}");
-            assert_eq!(got_label, label_id, "{want_seq},{label_id}");
             assert_eq!(got_seq, want_seq, "{want_seq},{label_id}");
         }
     }

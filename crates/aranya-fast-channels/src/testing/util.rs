@@ -50,6 +50,13 @@ unsafe extern "C" fn OS_hardware_rand() -> u32 {
     HW_RAND.fetch_add(1, core::sync::atomic::Ordering::SeqCst)
 }
 
+impl ChannelId {
+    /// Increments the [`ChannelId`] counter.
+    pub fn increment(&mut self) {
+        self.0 += 1
+    }
+}
+
 /// A local identifier that associates a [`Channel`] with an
 /// Aranya team member.
 #[derive(

@@ -62,7 +62,6 @@ use crate::{
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
-///
 /// let parent_cmd_id = CmdId::random(&mut eng);
 /// let label_id = LabelId::random(&mut eng);
 ///
@@ -112,8 +111,7 @@ use crate::{
 ///
 ///     let version = 4;
 ///     type E = DefaultEngine<Rng, DefaultCipherSuite>;
-///     let (mut eng, _) = E::from_entropy(Rng);
-///     let label_id = LabelId::random(&mut eng);
+///     let label_id = LabelId::random(&mut Rng);
 ///
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
