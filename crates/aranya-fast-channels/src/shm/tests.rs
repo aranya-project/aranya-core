@@ -105,13 +105,15 @@ fn test_many_nodes() {
     let mut chans = Vec::with_capacity(MAX_CHANS * label_ids.len());
 
     let rng = &mut Rng;
+    let mut channel_id = ChannelId::new(0);
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
     for label_id in label_ids {
-        for i in 0..MAX_CHANS {
+        for _ in 0..MAX_CHANS {
+            channel_id.increment();
             let chan = Channel {
-                id: ChannelId::new(i.try_into().unwrap()),
+                id: channel_id,
                 keys: match util::rand_intn(&mut Rng, 3) {
                     0 => Directed::SealOnly {
                         seal: RawSealKey::random(rng),
@@ -129,7 +131,7 @@ fn test_many_nodes() {
             };
             aranya
                 .add(chan.id, chan.keys.clone(), label_id)
-                .unwrap_or_else(|err| panic!("unable to add node {i}: {err}"));
+                .unwrap_or_else(|err| panic!("unable to add channel {channel_id}: {err}"));
             chans.push(chan);
 
             // Now check that all previously added nodes
