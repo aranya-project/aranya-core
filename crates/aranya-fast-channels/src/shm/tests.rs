@@ -14,10 +14,10 @@ use super::{
     shared::{Index, ShmChan},
 };
 use crate::{
-    state::{AranyaState, Channel, ChannelId, Directed, NodeId},
+    state::{AranyaState, Channel, ChannelId, Directed},
     testing::{
         test_impl,
-        util::{self, DummyAead, States, TestEngine, TestImpl},
+        util::{self, DummyAead, NodeId, States, TestEngine, TestImpl},
     },
 };
 

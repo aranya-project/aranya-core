@@ -136,60 +136,6 @@ impl From<u32> for ChannelId {
     }
 }
 
-/// A local identifier that associates a [`Channel`] with an
-/// Aranya team member.
-// TODO: only used in testing now since it's not part of [`ChannelId`]?
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[repr(transparent)]
-pub struct NodeId(u32);
-
-impl NodeId {
-    /// Creates a [`NodeId`].
-    pub const fn new(id: u32) -> Self {
-        NodeId(id)
-    }
-
-    /// The size in bytes of an ID.
-    pub const SIZE: usize = 4;
-
-    /// Creates a [`NodeId`] from its little-endian
-    /// representation.
-    pub fn from_bytes(b: &[u8]) -> Self {
-        Self::new(LittleEndian::read_u32(b))
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
-        self.put_bytes(&mut b);
-        b
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn put_bytes(&self, dst: &mut [u8]) {
-        LittleEndian::write_u32(dst, self.0);
-    }
-
-    /// Converts the [`NodeId`] to its u32 representation.
-    pub const fn to_u32(&self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for NodeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<u32> for NodeId {
-    fn from(id: u32) -> Self {
-        Self::new(id)
-    }
-}
-
 /// An AFC channel.
 #[derive(Copy, Clone)]
 #[derive_where(Debug)]
@@ -378,12 +324,12 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed, NodeId,
+        AfcState, AranyaState, ChannelId, Directed,
         error::Error,
         memory,
         testing::{
             test_impl,
-            util::{MockImpl, States, TestImpl},
+            util::{MockImpl, NodeId, States, TestImpl},
         },
     };
 

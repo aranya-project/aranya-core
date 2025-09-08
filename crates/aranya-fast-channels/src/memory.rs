@@ -134,12 +134,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        state::NodeId,
-        testing::{
-            test_impl,
-            util::{States, TestImpl},
-        },
+    use crate::testing::{
+        test_impl,
+        util::{NodeId, States, TestImpl},
     };
 
     /// A [`TestImpl`] that uses the memory state.

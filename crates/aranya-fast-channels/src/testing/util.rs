@@ -1,6 +1,6 @@
 //! Testing utilities.
 
-use core::panic;
+use core::{fmt, panic};
 use std::{
     cell::Cell,
     cmp,
@@ -31,13 +31,14 @@ use aranya_crypto::{
     policy::{CmdId, LabelId},
     test_util::TestCs,
 };
+use byteorder::{ByteOrder as _, LittleEndian};
 
 use crate::{
     ChannelId,
     client::Client,
     header::{DataHeader, Header, MsgType, Version},
     memory,
-    state::{AfcState, AranyaState, Channel, Directed, NodeId},
+    state::{AfcState, AranyaState, Channel, Directed},
 };
 
 #[cfg(feature = "trng")]
@@ -47,6 +48,61 @@ static HW_RAND: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::n
 #[unsafe(no_mangle)]
 unsafe extern "C" fn OS_hardware_rand() -> u32 {
     HW_RAND.fetch_add(1, core::sync::atomic::Ordering::SeqCst)
+}
+
+/// A local identifier that associates a [`Channel`] with an
+/// Aranya team member.
+#[derive(
+    Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[repr(transparent)]
+pub struct NodeId(u32);
+
+impl NodeId {
+    /// Creates a [`NodeId`].
+    pub const fn new(id: u32) -> Self {
+        NodeId(id)
+    }
+
+    /// The size in bytes of an ID.
+    pub const SIZE: usize = 4;
+
+    /// Creates a [`NodeId`] from its little-endian
+    /// representation.
+    pub fn from_bytes(b: &[u8]) -> Self {
+        Self::new(LittleEndian::read_u32(b))
+    }
+
+    /// Converts the [`NodeId`] to its little-endian
+    /// representation.
+    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
+        let mut b = [0u8; Self::SIZE];
+        self.put_bytes(&mut b);
+        b
+    }
+
+    /// Converts the [`NodeId`] to its little-endian
+    /// representation.
+    pub fn put_bytes(&self, dst: &mut [u8]) {
+        LittleEndian::write_u32(dst, self.0);
+    }
+
+    /// Converts the [`NodeId`] to its u32 representation.
+    pub const fn to_u32(&self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<u32> for NodeId {
+    fn from(id: u32) -> Self {
+        Self::new(id)
+    }
 }
 
 /// Configuration for a particular test.

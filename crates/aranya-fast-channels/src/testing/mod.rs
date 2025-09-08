@@ -30,8 +30,9 @@ use crate::{
     client::Client,
     error::Error,
     header::DataHeader,
-    state::NodeId,
-    testing::util::{Aranya, ChanOp, DataHeaderBuilder, Device, LimitedAead, TestEngine, TestImpl},
+    testing::util::{
+        Aranya, ChanOp, DataHeaderBuilder, Device, LimitedAead, NodeId, TestEngine, TestImpl,
+    },
 };
 
 /// Performs all of the tests in the [`testing`][crate::testing]
