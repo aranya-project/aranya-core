@@ -1,5 +1,6 @@
 use core::{
     cell::Cell,
+    fmt::{self, Debug, Formatter},
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::atomic::Ordering,
@@ -43,8 +44,8 @@ struct Cache<K> {
     idx: Index,
 }
 
-impl<K> core::fmt::Debug for Cache<K> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<K> Debug for Cache<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Cache")
             .field("id", &self.id)
             .field("generation", &self.generation)

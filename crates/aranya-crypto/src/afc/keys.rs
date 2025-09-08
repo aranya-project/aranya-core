@@ -108,7 +108,7 @@ impl AuthData {
     fn to_bytes(&self) -> [u8; Self::PACKED_SIZE] {
         let mut b = [0u8; Self::PACKED_SIZE];
         LittleEndian::write_u32(&mut b[0..4], self.version);
-        b[4..].clone_from_slice(self.label_id.as_bytes());
+        b[4..].copy_from_slice(self.label_id.as_bytes());
         b
     }
 }
