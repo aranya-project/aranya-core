@@ -165,12 +165,11 @@ impl<S: AfcState> Client<S> {
         })??;
         debug!("seq={seq}");
 
-        DataHeader { seq, label_id }.encode(header)?;
+        DataHeader { seq }.encode(header)?;
 
         Ok(Header {
             version: Version::current(),
             msg_type: MsgType::Data,
-            label_id,
         })
     }
 
@@ -194,21 +193,13 @@ impl<S: AfcState> Client<S> {
         // like so:
         //    ciphertext || tag || header
 
-        let (label_id, seq, ciphertext) = {
+        let (seq, ciphertext) = {
             let (ciphertext, header) = ciphertext
                 .split_last_chunk()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader {
-                label_id: label_id_from_header,
-                seq,
-                ..
-            } = DataHeader::try_parse(header)?;
+            let DataHeader { seq, .. } = DataHeader::try_parse(header)?;
 
-            if label_id_from_header != label_id {
-                return Err(Error::InvalidLabel(label_id_from_header, label_id));
-            }
-
-            (label_id_from_header, seq, ciphertext)
+            (seq, ciphertext)
         };
         debug!(
             "label_id={label_id}  seq={seq} ciphertext=[{:?}; {}] channel_id={channel_id}",
@@ -261,19 +252,11 @@ impl<S: AfcState> Client<S> {
         //    ciphertext || tag || header
 
         // Split `data` into its components.
-        let (label_id, seq, out, tag) = {
+        let (seq, out, tag) = {
             let (rest, header) = data
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
-            let DataHeader {
-                label_id: label_id_from_header,
-                seq,
-                ..
-            } = DataHeader::try_parse(header)?;
-
-            if label_id != label_id_from_header {
-                return Err(Error::InvalidLabel(label_id_from_header, label_id));
-            }
+            let DataHeader { seq, .. } = DataHeader::try_parse(header)?;
 
             #[allow(clippy::incompatible_msrv)] // clippy#12280
             let (ciphertext, tag) = rest
@@ -282,7 +265,7 @@ impl<S: AfcState> Client<S> {
                 // definition we cannot authenticate the
                 // ciphertext.
                 .ok_or(Error::Authentication)?;
-            (label_id_from_header, seq, ciphertext, tag)
+            (seq, ciphertext, tag)
         };
         debug!(
             "channel_id={channel_id} label_id={label_id} data=[{:?}; {}]",

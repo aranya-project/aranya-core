@@ -862,8 +862,6 @@ pub struct HeaderBuilder {
     version: Option<u16>,
     /// The type of message.
     msg_type: Option<u16>,
-    /// The channel's label ID.
-    label_id: Option<LabelId>,
     /// The message sequence number.
     seq: Option<u64>,
 }
@@ -886,12 +884,6 @@ impl HeaderBuilder {
         self
     }
 
-    /// Sets the `label_id` field.
-    pub fn label_id(mut self, label_id: LabelId) -> Self {
-        self.label_id = Some(label_id);
-        self
-    }
-
     /// Sets the `seq` field.
     pub fn seq(mut self, seq: u64) -> Self {
         self.seq = Some(seq);
@@ -906,7 +898,6 @@ impl HeaderBuilder {
         let hdr = Header::try_parse(out).unwrap_or(Header {
             version: Version::V1,
             msg_type: MsgType::Data,
-            label_id: LabelId::default(),
         });
 
         // NB: we have to do this manually because `Header` uses
@@ -921,11 +912,6 @@ impl HeaderBuilder {
             .expect("`out` should be large enough for `MsgType`");
         *msg_typ_out = self.msg_type.unwrap_or(hdr.msg_type.to_u16()).to_le_bytes();
 
-        let (label_id_out, rest) = rest
-            .split_first_chunk_mut()
-            .expect("`out` should be large enough for `LabelId`");
-        *label_id_out = self.label_id.unwrap_or(hdr.label_id).into();
-
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }
 }
@@ -935,8 +921,6 @@ impl HeaderBuilder {
 pub struct DataHeaderBuilder {
     /// The message sequence number.
     seq: Option<u64>,
-    /// The label ID associated with the channel.
-    label_id: Option<LabelId>,
 }
 
 impl DataHeaderBuilder {
@@ -951,12 +935,6 @@ impl DataHeaderBuilder {
         self
     }
 
-    /// Sets the `label_id` field.
-    pub fn label_id(mut self, label_id: LabelId) -> Self {
-        self.label_id = Some(label_id);
-        self
-    }
-
     /// Modifies the header at the end of `buf`.
     pub fn encode(self, buf: &mut [u8]) {
         let (_, out) = buf
@@ -968,11 +946,6 @@ impl DataHeaderBuilder {
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Seq`");
         *seq_out = self.seq.unwrap_or(hdr.seq.to_u64()).to_le_bytes();
-
-        let (label_id_out, rest) = rest
-            .split_first_chunk_mut()
-            .expect("`out` should be large enough for `LabelId`");
-        *label_id_out = *(self.label_id.unwrap_or(hdr.label_id).as_array());
 
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }
