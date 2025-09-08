@@ -159,11 +159,11 @@
 //! // whatever makes sense for your application.
 //!
 //! // Have device2 decrypt the data from device1.
-//! let (label, seq, plaintext) = {
+//! let (seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let (label, seq) =
+//!     let seq =
 //!         afc_client_b.open(client_b_channel_id, label_id, &mut dst[..], &ciphertext[..])?;
-//!     (label, seq, dst)
+//!     (seq, dst)
 //! };
 //!
 //! // TODO(Steve): update?
@@ -175,7 +175,6 @@
 //! // decisions based on them. For example, we could forward the
 //! // plaintext data on to another system that ingests "top
 //! // secret" data.
-//! assert_eq!(label, label_id);
 //! assert_eq!(seq, 0);
 //! assert_eq!(plaintext, GOLDEN.as_bytes());
 //!
