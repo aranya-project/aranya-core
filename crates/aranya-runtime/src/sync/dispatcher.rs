@@ -12,6 +12,8 @@ pub enum SyncHelloType<A> {
         /// Delay in milliseconds between notifications to this subscriber
         /// 0 = notify immediately, 1 = 1 millisecond delay between notifications, etc.
         delay_milliseconds: u64,
+        /// Duration in milliseconds for which the subscription should last
+        duration_milliseconds: u64,
         /// The subscriber's address for receiving hello notifications
         address: A,
     },
