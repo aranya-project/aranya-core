@@ -1,6 +1,6 @@
 //! Testing utilities.
 
-use core::{fmt, panic};
+use core::panic;
 use std::{
     cell::Cell,
     cmp,
@@ -31,7 +31,6 @@ use aranya_crypto::{
     policy::{CmdId, LabelId},
     test_util::TestCs,
 };
-use byteorder::{ByteOrder as _, LittleEndian};
 
 use crate::{
     ChannelId,
@@ -57,60 +56,9 @@ impl ChannelId {
     }
 }
 
-/// A local identifier that associates a [`Channel`] with an
-/// Aranya team member.
-#[derive(
-    Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, serde::Serialize, serde::Deserialize,
-)]
-#[repr(transparent)]
-pub struct NodeId(u32);
-
-impl NodeId {
-    /// Creates a [`NodeId`].
-    pub const fn new(id: u32) -> Self {
-        NodeId(id)
-    }
-
-    /// The size in bytes of an ID.
-    pub const SIZE: usize = 4;
-
-    /// Creates a [`NodeId`] from its little-endian
-    /// representation.
-    pub fn from_bytes(b: &[u8]) -> Self {
-        Self::new(LittleEndian::read_u32(b))
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
-        self.put_bytes(&mut b);
-        b
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn put_bytes(&self, dst: &mut [u8]) {
-        LittleEndian::write_u32(dst, self.0);
-    }
-
-    /// Converts the [`NodeId`] to its u32 representation.
-    pub const fn to_u32(&self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for NodeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<u32> for NodeId {
-    fn from(id: u32) -> Self {
-        Self::new(id)
-    }
-}
+// TODO(Steve): Rename
+/// Index used to look up [devices][Device] in [Aranya::devices]
+pub type NodeId = usize;
 
 /// Configuration for a particular test.
 pub trait TestImpl {
@@ -257,6 +205,7 @@ where
 {
     /// The test name.
     name: String,
+    // TODO(Steve): Replace with Vec
     /// All known Aranya devices.
     pub(crate) devices: HashMap<NodeId, Device<T, E::CS>>,
     /// All peers that have `ChanOp` to the label.
@@ -264,7 +213,7 @@ where
     /// Selects the next `NodeId` for a client.
     ///
     /// TODO(eric): does this need to be `Cell`?
-    next_id: Cell<u32>,
+    next_id: Cell<usize>,
     /// For `T::new_states`.
     max_chans: usize,
     /// The underlying crypto engine.
@@ -316,12 +265,12 @@ where
     where
         I: IntoIterator<Item = (LabelId, ChanOp)>,
     {
-        let device_id = NodeId::new({
+        let device_id = {
             let old = self.next_id.get();
             let new = old + 1;
             self.next_id.set(new);
             new
-        });
+        };
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
