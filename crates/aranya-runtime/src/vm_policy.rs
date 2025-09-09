@@ -404,7 +404,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Check)
+                    Err(EngineError::Panic)
                 }
             },
             Err(e) => {
@@ -637,18 +637,23 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
                         let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
-                        match rs_seal
-                            .call_seal(command_name.clone(), command_struct)
-                            .map_err(|e| {
-                                error!("Cannot seal command: {}", e);
-                                EngineError::Panic
-                            })? {
-                            ExitReason::Normal => (),
-                            r @ ExitReason::Yield
-                            | r @ ExitReason::Check
-                            | r @ ExitReason::Panic => {
-                                error!("Could not seal command: {}", r);
-                                return Err(EngineError::Panic);
+                        let status = rs_seal.call_seal(command_name.clone(), command_struct);
+                        match status {
+                            Ok(reason) => match reason {
+                                ExitReason::Normal => (),
+                                ExitReason::Yield => bug!("unexpected yield"),
+                                ExitReason::Check => {
+                                    info!("Check {}", self.source_location(&rs_seal));
+                                    return Err(EngineError::Check);
+                                }
+                                ExitReason::Panic => {
+                                    info!("Panicked {}", self.source_location(&rs_seal));
+                                    return Err(EngineError::Panic);
+                                }
+                            },
+                            Err(e) => {
+                                error!("\n{e}");
+                                return Err(EngineError::InternalError);
                             }
                         }
 
