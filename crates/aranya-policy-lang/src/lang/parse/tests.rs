@@ -1243,9 +1243,14 @@ Next chunk:
 #[test]
 fn test_check_errors() {
     let cases = [r#"
+        enum Err {
+            Invalid
+        }
+        
         action foo() {
             check false
             check false else "failed"
+            check false else Err::Invalid
         }
         "#];
 
