@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
-assertion_line: 602
 expression: policy
 ---
 {
@@ -549,7 +548,7 @@ expression: policy
                   "end": 723
                 }
               },
-              "err_message": null
+              "err": null
             }
           },
           "span": {
@@ -636,7 +635,7 @@ expression: policy
                               "end": 828
                             }
                           },
-                          "err_message": null
+                          "err": null
                         }
                       },
                       "span": {
@@ -692,7 +691,7 @@ expression: policy
                               "end": 922
                             }
                           },
-                          "err_message": null
+                          "err": null
                         }
                       },
                       "span": {
@@ -796,7 +795,7 @@ expression: policy
                               "end": 1078
                             }
                           },
-                          "err_message": null
+                          "err": null
                         }
                       },
                       "span": {
