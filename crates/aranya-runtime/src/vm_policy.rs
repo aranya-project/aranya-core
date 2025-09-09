@@ -306,11 +306,11 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check(msg) => {
+                ExitReason::Check(err) => {
                     info!(
                         "Check {}: {}",
                         self.source_location(&rs),
-                        msg.unwrap_or_default()
+                        err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
                     );
                     // Construct a new recall context from the policy context
                     let CommandContext::Policy(policy_ctx) = rs.get_context() else {
@@ -363,7 +363,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                         info!(
                             "Recall failed {}: {}",
                             self.source_location(rs),
-                            msg.unwrap_or_default()
+                            msg.map(|v| alloc::format!("{}", v)).unwrap_or_default()
                         );
                         Err(EngineError::Check)
                     }
@@ -406,11 +406,11 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     })?)
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check(msg) => {
+                ExitReason::Check(err) => {
                     info!(
                         "Check {}: {}",
                         self.source_location(&rs),
-                        msg.unwrap_or_default()
+                        err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
                     );
                     Err(EngineError::Check)
                 }
@@ -732,11 +732,11 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             EngineError::InternalError
                         })?;
                     }
-                    ExitReason::Check(msg) => {
+                    ExitReason::Check(err) => {
                         info!(
                             "Check {}: {}",
                             self.source_location(&rs),
-                            msg.unwrap_or_default()
+                            err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
                         );
                         return Err(EngineError::Check);
                     }
