@@ -306,8 +306,12 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
+                ExitReason::Check(err) => {
+                    info!(
+                        "Check {}: {}",
+                        self.source_location(&rs),
+                        err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
+                    );
                     // Construct a new recall context from the policy context
                     let CommandContext::Policy(policy_ctx) = rs.get_context() else {
                         error!(
@@ -355,8 +359,12 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 match rs.call_command_recall(name, self_data, envelope.into()) {
                     Ok(ExitReason::Normal) => Err(EngineError::Check),
                     Ok(ExitReason::Yield) => bug!("unexpected yield"),
-                    Ok(ExitReason::Check) => {
-                        info!("Recall failed: {}", self.source_location(rs));
+                    Ok(ExitReason::Check(msg)) => {
+                        info!(
+                            "Recall failed {}: {}",
+                            self.source_location(rs),
+                            msg.map(|v| alloc::format!("{}", v)).unwrap_or_default()
+                        );
                         Err(EngineError::Check)
                     }
                     Ok(ExitReason::Panic) | Err(_) => {
@@ -398,8 +406,12 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     })?)
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
+                ExitReason::Check(err) => {
+                    info!(
+                        "Check {}: {}",
+                        self.source_location(&rs),
+                        err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
+                    );
                     Err(EngineError::Check)
                 }
                 ExitReason::Panic => {
@@ -645,7 +657,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             })? {
                             ExitReason::Normal => (),
                             r @ ExitReason::Yield
-                            | r @ ExitReason::Check
+                            | r @ ExitReason::Check(_)
                             | r @ ExitReason::Panic => {
                                 error!("Could not seal command: {}", r);
                                 return Err(EngineError::Panic);
@@ -720,8 +732,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             EngineError::InternalError
                         })?;
                     }
-                    ExitReason::Check => {
-                        info!("Check {}", self.source_location(&rs));
+                    ExitReason::Check(err) => {
+                        info!(
+                            "Check {}: {}",
+                            self.source_location(&rs),
+                            err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
+                        );
                         return Err(EngineError::Check);
                     }
                     ExitReason::Panic => {

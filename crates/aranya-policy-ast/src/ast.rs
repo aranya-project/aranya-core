@@ -51,6 +51,12 @@ impl Spanned for Ident {
     }
 }
 
+impl Spanned for Text {
+    fn span(&self) -> Span {
+        Span::empty()
+    }
+}
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -542,6 +548,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// The error to return if the check fails
+    pub err: Option<Expression>,
 }
 }
 

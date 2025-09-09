@@ -538,7 +538,8 @@ expression: policy
                   "start": 687,
                   "end": 717
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -624,7 +625,8 @@ expression: policy
                               "start": 801,
                               "end": 822
                             }
-                          }
+                          },
+                          "err": null
                         }
                       },
                       "span": {
@@ -679,7 +681,8 @@ expression: policy
                               "start": 902,
                               "end": 916
                             }
-                          }
+                          },
+                          "err": null
                         }
                       },
                       "span": {
@@ -782,7 +785,8 @@ expression: policy
                               "start": 1062,
                               "end": 1072
                             }
-                          }
+                          },
+                          "err": null
                         }
                       },
                       "span": {

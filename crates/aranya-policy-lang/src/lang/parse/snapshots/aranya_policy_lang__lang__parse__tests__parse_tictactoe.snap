@@ -948,7 +948,8 @@ expression: policy
                   "start": 931,
                   "end": 951
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -2002,7 +2003,8 @@ expression: policy
                   "start": 3407,
                   "end": 3471
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -2046,7 +2048,8 @@ expression: policy
                   "start": 3538,
                   "end": 3547
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -2090,7 +2093,8 @@ expression: policy
                   "start": 3562,
                   "end": 3571
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -2920,7 +2924,8 @@ expression: policy
                   "start": 5905,
                   "end": 5941
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -2964,7 +2969,8 @@ expression: policy
                   "start": 5956,
                   "end": 5965
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -3008,7 +3014,8 @@ expression: policy
                   "start": 5980,
                   "end": 5989
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {
@@ -3230,7 +3237,8 @@ expression: policy
                   "start": 6005,
                   "end": 6073
                 }
-              }
+              },
+              "err": null
             }
           },
           "span": {

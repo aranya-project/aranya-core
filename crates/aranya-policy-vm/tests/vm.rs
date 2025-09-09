@@ -996,7 +996,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name.clone(), [true])?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Check(None));
 
     Ok(())
 }
@@ -1576,6 +1576,46 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_check_errors() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"action foo() {
+                check false
+            }"#,
+            None,
+        ),
+        (
+            r#"action foo() {
+                check false else "check failed"
+            }"#,
+            Some(Value::String(text!("check failed"))),
+        ),
+        (
+            r#"
+            enum Err { Fail }
+            action foo() {
+                check false else Err::Fail
+            }"#,
+            Some(Value::Enum(ident!("Err"), 0)),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        let policy = parse_policy_str(input, Version::V2)?;
+        let io = RefCell::new(TestIO::new());
+        let module = Compiler::new(&policy).compile()?;
+        let machine = Machine::from_module(module)?;
+        let name = ident!("foo");
+        let ctx = dummy_ctx_action(name.clone());
+        let mut rs = machine.create_run_state(&io, ctx);
+        let result = rs.call_action(name.clone(), iter::empty::<Value>())?;
+
+        assert_eq!(result, ExitReason::Check(expected));
+    }
+    Ok(())
+}
+
+#[test]
 fn test_check_unwrap() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{x int}
@@ -1641,7 +1681,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let ctx = dummy_ctx_open(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let status = rs.call_action(action_name.clone(), iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check);
+        assert_eq!(status, ExitReason::Check(None));
     }
 
     Ok(())
@@ -2496,7 +2536,7 @@ fn test_boolean_short_circuit() {
     }
 
     assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check);
+    assert_eq!(run("false && todo()"), ExitReason::Check(None));
     assert_eq!(run("true || todo()"), ExitReason::Normal);
     assert_eq!(run("false || todo()"), ExitReason::Panic);
 }
