@@ -1,6 +1,6 @@
 ---
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
-assertion_line: 1254
+assertion_line: 1259
 expression: policy
 ---
 {
@@ -13,8 +13,8 @@ expression: policy
       "identifier": {
         "name": "foo",
         "span": {
-          "start": 16,
-          "end": 19
+          "start": 74,
+          "end": 77
         }
       },
       "arguments": [],
@@ -27,16 +27,16 @@ expression: policy
                   "Bool": false
                 },
                 "span": {
-                  "start": 42,
-                  "end": 47
+                  "start": 100,
+                  "end": 105
                 }
               },
-              "err_message": null
+              "err": null
             }
           },
           "span": {
-            "start": 36,
-            "end": 60
+            "start": 94,
+            "end": 118
           }
         },
         {
@@ -47,31 +47,105 @@ expression: policy
                   "Bool": false
                 },
                 "span": {
-                  "start": 66,
-                  "end": 71
+                  "start": 124,
+                  "end": 129
                 }
               },
-              "err_message": "failed"
+              "err": {
+                "kind": {
+                  "String": "failed"
+                },
+                "span": {
+                  "start": 135,
+                  "end": 143
+                }
+              }
             }
           },
           "span": {
-            "start": 60,
-            "end": 85
+            "start": 118,
+            "end": 156
+          }
+        },
+        {
+          "kind": {
+            "Check": {
+              "expression": {
+                "kind": {
+                  "Bool": false
+                },
+                "span": {
+                  "start": 162,
+                  "end": 167
+                }
+              },
+              "err": {
+                "kind": {
+                  "EnumReference": {
+                    "identifier": {
+                      "name": "Err",
+                      "span": {
+                        "start": 173,
+                        "end": 176
+                      }
+                    },
+                    "value": {
+                      "name": "Invalid",
+                      "span": {
+                        "start": 178,
+                        "end": 185
+                      }
+                    }
+                  }
+                },
+                "span": {
+                  "start": 173,
+                  "end": 185
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 156,
+            "end": 194
           }
         }
       ],
       "span": {
-        "start": 9,
-        "end": 95
+        "start": 67,
+        "end": 195
       }
     }
   ],
   "effects": [],
   "structs": [],
-  "enums": [],
+  "enums": [
+    {
+      "identifier": {
+        "name": "Err",
+        "span": {
+          "start": 14,
+          "end": 17
+        }
+      },
+      "variants": [
+        {
+          "name": "Invalid",
+          "span": {
+            "start": 32,
+            "end": 39
+          }
+        }
+      ],
+      "span": {
+        "start": 9,
+        "end": 49
+      }
+    }
+  ],
   "commands": [],
   "functions": [],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n        action foo() {\n            check false\n            check false else \"failed\"\n        }\n        "
+  "text": "\n        enum Err {\n            Invalid\n        }\n        \n        action foo() {\n            check false\n            check false else \"failed\"\n            check false else Err::Invalid\n        }\n        "
 }

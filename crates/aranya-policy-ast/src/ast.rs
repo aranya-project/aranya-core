@@ -615,8 +615,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The error message to display if the check fails
-    pub err_message: Option<Text>,
+    /// The error to return if the check fails
+    pub err: Option<Expression>,
 }
 }
 

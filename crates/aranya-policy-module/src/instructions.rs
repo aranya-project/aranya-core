@@ -3,7 +3,7 @@ use core::{
     num::NonZeroUsize,
 };
 
-use aranya_policy_ast::{Identifier, Text};
+use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 mod meta;
@@ -31,7 +31,7 @@ pub enum ExitReason {
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
     /// Execution was aborted gracefully, due an error.
-    Check(Option<Text>),
+    Check(Option<Value>),
     /// Execution was aborted due to an unhandled error.
     Panic,
 }

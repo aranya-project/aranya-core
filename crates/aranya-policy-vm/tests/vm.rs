@@ -1505,7 +1505,15 @@ fn test_check_errors() -> anyhow::Result<()> {
             r#"action foo() {
                 check false else "check failed"
             }"#,
-            Some(text!("check failed")),
+            Some(Value::String(text!("check failed"))),
+        ),
+        (
+            r#"
+            enum Err { Fail }
+            action foo() {
+                check false else Err::Fail
+            }"#,
+            Some(Value::Enum(ident!("Err"), 0)),
         ),
     ];
 
