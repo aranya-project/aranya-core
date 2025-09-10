@@ -324,7 +324,7 @@ mod test {
         memory,
         testing::{
             test_impl,
-            util::{MockImpl, NodeId, States, TestImpl},
+            util::{DeviceIdx, MockImpl, States, TestImpl},
         },
     };
 
@@ -419,7 +419,7 @@ mod test {
 
         fn new_states<CS: CipherSuite>(
             _name: &str,
-            _node_id: NodeId,
+            _device_idx: DeviceIdx,
             _max_chans: usize,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = DefaultState::<CS>::new();
