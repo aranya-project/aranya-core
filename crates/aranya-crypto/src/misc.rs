@@ -1,6 +1,6 @@
 //! Utility routines for `apq`.
 
-use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
+use core::{borrow::Borrow as _, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use spideroak_crypto::{
@@ -673,7 +673,7 @@ impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
             }
         }
         let pk = deserializer.deserialize_bytes(PkVisitor::<K>(PhantomData))?;
-        Ok(SerdeOwnedKey(pk))
+        Ok(Self(pk))
     }
 }
 

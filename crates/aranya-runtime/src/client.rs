@@ -1,8 +1,8 @@
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 
 use crate::{
-    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective, Policy, Sink,
-    Storage, StorageError, StorageProvider,
+    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
+    Sink, Storage as _, StorageError, StorageProvider,
 };
 
 mod braiding;
@@ -60,8 +60,8 @@ pub struct ClientState<E, SP> {
 
 impl<E, SP> ClientState<E, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(engine: E, provider: SP) -> ClientState<E, SP> {
-        ClientState { engine, provider }
+    pub const fn new(engine: E, provider: SP) -> Self {
+        Self { engine, provider }
     }
 
     /// Provide access to the [`StorageProvider`].
@@ -177,7 +177,7 @@ where
 
         sink.begin();
         match policy.call_action(action, &mut perspective, sink) {
-            Ok(_) => {
+            Ok(()) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
                 sink.commit();

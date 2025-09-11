@@ -23,7 +23,7 @@ use aranya_crypto::{
         oid,
         oid::{Identified, Oid},
         rust::Sha256,
-        subtle::ConstantTimeEq,
+        subtle::ConstantTimeEq as _,
         typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
     },
     default::{DefaultCipherSuite, DefaultEngine},
@@ -723,10 +723,10 @@ where
 
         let got = tuple_hash::<Sha256, _>([nonce, data, additional_data]);
         let min = cmp::min(overhead.len(), got.len());
-        if !bool::from(overhead.ct_eq(&got[..min])) {
-            Err(OpenError::Authentication)
-        } else {
+        if bool::from(overhead.ct_eq(&got[..min])) {
             Ok(())
+        } else {
+            Err(OpenError::Authentication)
         }
     }
 }
@@ -793,24 +793,28 @@ impl HeaderBuilder {
     }
 
     /// Sets the `version` field.
+    #[must_use]
     pub fn version(mut self, v: u16) -> Self {
         self.version = Some(v);
         self
     }
 
     /// Sets the `msg_typ` field.
+    #[must_use]
     pub fn msg_type(mut self, typ: u16) -> Self {
         self.msg_type = Some(typ);
         self
     }
 
     /// Sets the `label` field.
+    #[must_use]
     pub fn label(mut self, label: u32) -> Self {
         self.label = Some(label);
         self
     }
 
     /// Sets the `seq` field.
+    #[must_use]
     pub fn seq(mut self, seq: u64) -> Self {
         self.seq = Some(seq);
         self
@@ -864,12 +868,14 @@ impl DataHeaderBuilder {
     }
 
     /// Sets the `label` field.
+    #[must_use]
     pub fn label(mut self, label: u32) -> Self {
         self.label = Some(label);
         self
     }
 
     /// Sets the `seq` field.
+    #[must_use]
     pub fn seq(mut self, seq: u64) -> Self {
         self.seq = Some(seq);
         self

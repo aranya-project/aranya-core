@@ -1,6 +1,6 @@
 use core::{
     ffi::{CStr, c_char},
-    fmt, str,
+    fmt, ptr, str,
 };
 
 use cfg_if::cfg_if;
@@ -64,7 +64,7 @@ impl Path {
         Self::validate(path)?;
 
         // SAFETY: Path and [u8] must have the same layout.
-        Ok(unsafe { &*(path as *const [u8] as *const Self) })
+        Ok(unsafe { &*(ptr::from_ref::<[u8]>(path) as *const Self) })
     }
 
     pub(crate) fn as_ptr(&self) -> *const c_char {
@@ -96,8 +96,8 @@ impl<'a> TryFrom<&'a str> for &'a Path {
     }
 }
 
-impl AsRef<Path> for Path {
-    fn as_ref(&self) -> &Path {
+impl AsRef<Self> for Path {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -162,7 +162,7 @@ mod alloc_impls {
             Path::validate(&path)?;
 
             // SAFETY: Path and [u8] must have the same layout.
-            Ok(unsafe { Box::from_raw(Box::into_raw(path) as *mut Path) })
+            Ok(unsafe { Self::from_raw(Box::into_raw(path) as *mut Path) })
         }
     }
 
@@ -171,7 +171,7 @@ mod alloc_impls {
             let path = Box::<[u8]>::from(&path.0);
 
             // SAFETY: Path and [u8] must have the same layout.
-            unsafe { Box::from_raw(Box::into_raw(path) as *mut Path) }
+            unsafe { Self::from_raw(Box::into_raw(path) as *mut Path) }
         }
     }
 
@@ -226,6 +226,7 @@ mod alloc_impls {
         use super::*;
 
         #[test]
+        #[allow(clippy::redundant_clone)]
         fn test_boxing() {
             let bytes = b"/asdf\0".as_slice();
             let path: Box<Path> = Path::from_bytes(bytes).unwrap().into();

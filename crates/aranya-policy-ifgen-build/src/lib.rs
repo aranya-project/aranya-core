@@ -6,7 +6,7 @@
 
 use std::{fs, path::Path};
 
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 

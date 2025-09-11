@@ -84,8 +84,8 @@ pub struct TestEngine {
 }
 
 impl TestEngine {
-    pub fn new() -> TestEngine {
-        TestEngine {
+    pub fn new() -> Self {
+        Self {
             policy: TestPolicy::new(0),
         }
     }
@@ -116,7 +116,7 @@ pub struct TestPolicy {
 
 impl TestPolicy {
     pub fn new(serial: u32) -> Self {
-        TestPolicy { serial }
+        Self { serial }
     }
 
     fn origin_check_message(
@@ -137,7 +137,7 @@ impl TestPolicy {
         &self,
         policy_command: &WireProtocol,
         facts: &mut impl FactPerspective,
-        sink: &mut impl Sink<<TestPolicy as Policy>::Effect>,
+        sink: &mut impl Sink<<Self as Policy>::Effect>,
     ) -> Result<(), EngineError> {
         if let WireProtocol::Basic(m) = &policy_command {
             self.origin_check_message(m, facts)?;
@@ -202,7 +202,7 @@ pub struct TestSink {
 
 impl TestSink {
     pub fn new() -> Self {
-        TestSink {
+        Self {
             expect: Vec::new(),
             ignore_expect: false,
         }

@@ -248,7 +248,7 @@ impl<T: ?Sized> Mutex<T> {
             Self::MUTEX_SLEEPING => futex_wake(&self.key, 1)?,
             Self::MUTEX_LOCKED => {}
             _ => ::buggy::bug!("invalid mutex state"),
-        };
+        }
         Ok(())
     }
 }
@@ -257,7 +257,7 @@ impl<T: ?Sized> Mutex<T> {
 mod linux {
     use core::{ptr, sync::atomic::AtomicU32};
 
-    use buggy::{Bug, BugExt};
+    use buggy::{Bug, BugExt as _};
     use libc::{FUTEX_WAIT, FUTEX_WAKE, SYS_futex, c_int, syscall, timespec};
 
     use crate::errno::{Errno, errno};
@@ -282,7 +282,7 @@ mod linux {
 
     pub fn futex_wait(uaddr: &AtomicU32, val: u32) {
         let _ = futex(
-            uaddr as *const AtomicU32,
+            ptr::from_ref::<AtomicU32>(uaddr),
             FUTEX_WAIT,
             val,
             ptr::null_mut(),
@@ -293,7 +293,7 @@ mod linux {
 
     pub fn futex_wake(uaddr: &AtomicU32, cnt: u32) -> Result<(), Bug> {
         futex(
-            uaddr as *const AtomicU32,
+            ptr::from_ref::<AtomicU32>(uaddr),
             FUTEX_WAKE,
             cnt,
             ptr::null_mut(),
@@ -311,6 +311,7 @@ mod macos {
     use core::{
         convert::Infallible,
         ffi::{c_int, c_void},
+        ptr,
         sync::atomic::AtomicU32,
     };
 
@@ -330,7 +331,7 @@ mod macos {
             let rc = unsafe {
                 __ulock_wait(
                     UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
-                    (addr as *const AtomicU32)
+                    ptr::from_ref::<AtomicU32>(addr)
                         .cast::<u32>()
                         .cast_mut()
                         .cast::<c_void>(),
@@ -350,7 +351,7 @@ mod macos {
             let rc = unsafe {
                 __ulock_wake(
                     UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
-                    (addr as *const AtomicU32)
+                    ptr::from_ref::<AtomicU32>(addr)
                         .cast::<u32>()
                         .cast_mut()
                         .cast::<c_void>(),

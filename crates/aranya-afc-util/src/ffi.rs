@@ -10,7 +10,7 @@ use core::result::Result;
 
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
-    KeyStore, KeyStoreExt, UnwrapError, WrapError,
+    KeyStore, KeyStoreExt as _, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
     policy::CmdId,
 };
@@ -253,7 +253,7 @@ impl TryFrom<Value> for Label {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let x: i64 = value.try_into()?;
-        Ok(Label(
+        Ok(Self(
             // TODO(eric): better errors
             u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,
         ))

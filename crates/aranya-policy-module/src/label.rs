@@ -26,13 +26,13 @@ pub enum LabelType {
 impl Display for LabelType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LabelType::Action => write!(f, "action"),
-            LabelType::CommandPolicy => write!(f, "policy"),
-            LabelType::CommandRecall => write!(f, "recall"),
-            LabelType::CommandSeal => write!(f, "seal"),
-            LabelType::CommandOpen => write!(f, "open"),
-            LabelType::Temporary => write!(f, "temp"),
-            LabelType::Function => write!(f, "fn"),
+            Self::Action => write!(f, "action"),
+            Self::CommandPolicy => write!(f, "policy"),
+            Self::CommandRecall => write!(f, "recall"),
+            Self::CommandSeal => write!(f, "seal"),
+            Self::CommandOpen => write!(f, "open"),
+            Self::Temporary => write!(f, "temp"),
+            Self::Function => write!(f, "fn"),
         }
     }
 }
@@ -48,13 +48,13 @@ pub struct Label {
 
 impl Label {
     /// Creates a new named label of the given type.
-    pub fn new(name: Identifier, ltype: LabelType) -> Label {
-        Label { name, ltype }
+    pub fn new(name: Identifier, ltype: LabelType) -> Self {
+        Self { name, ltype }
     }
 
     /// Creates a new temporary label. Used by the compiler.
-    pub fn new_temp(name: Identifier) -> Label {
-        Label {
+    pub fn new_temp(name: Identifier) -> Self {
+        Self {
             name,
             ltype: LabelType::Temporary,
         }

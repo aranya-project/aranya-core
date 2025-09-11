@@ -198,7 +198,7 @@ impl AlgId {
             Self::Decap(_) => "Decap",
             Self::Mac(_) => "Mac",
             Self::Prk(_) => "Prk",
-            Self::Seed(_) => "Seed",
+            Self::Seed(()) => "Seed",
             Self::Signing(_) => "Signing",
         }
     }

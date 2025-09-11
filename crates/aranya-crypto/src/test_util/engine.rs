@@ -3088,7 +3088,6 @@ pub fn test_tls_psk_different_contexts<E: Engine>(eng: &mut E) {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     let psks2 = seed
-        .clone()
         .generate_psks(
             b"different context",
             GroupId::default(),
@@ -3120,7 +3119,6 @@ pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     let psks2 = seed
-        .clone()
         .generate_psks(
             b"context",
             GroupId::random(eng),
@@ -3152,7 +3150,6 @@ pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     let psks2 = seed
-        .clone()
         .generate_psks(
             b"context",
             GroupId::default(),

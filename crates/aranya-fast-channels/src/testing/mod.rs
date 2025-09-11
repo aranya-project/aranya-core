@@ -20,7 +20,7 @@ use std::collections::HashMap;
 
 use aranya_crypto::{
     Aead, Engine, Rng,
-    typenum::{U1, Unsigned},
+    typenum::{U1, Unsigned as _},
 };
 
 use crate::{

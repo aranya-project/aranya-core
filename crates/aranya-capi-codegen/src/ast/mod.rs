@@ -12,7 +12,7 @@ use tracing::{instrument, trace};
 use crate::{
     ctx::Ctx,
     syntax::{self, Item, Node, Type},
-    util::{IdentExt, PathExt},
+    util::{IdentExt as _, PathExt as _},
 };
 
 /// An AST (for some definition of "AST") for a generated C API.
@@ -94,14 +94,14 @@ impl Ast {
     pub(super) fn add_node<T: Into<Node>>(&mut self, node: T) {
         let node = node.into();
         trace!(%node, "adding node");
-        self.nodes.push(node)
+        self.nodes.push(node);
     }
 
     /// Adds nodes to the AST.
     #[instrument(skip_all)]
     pub(super) fn extend(&mut self, nodes: impl IntoIterator<Item = Node>) {
         for node in nodes {
-            self.add_node(node)
+            self.add_node(node);
         }
     }
 

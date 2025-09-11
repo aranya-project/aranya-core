@@ -1,6 +1,6 @@
 // Depending on the configuration, we might not use some of the
 // macros.
-#![allow(unused_macros, dead_code, unused_qualifications, clippy::ptr_as_ptr)]
+#![allow(unused_macros, dead_code, unused_qualifications)]
 
 #[cfg(not(feature = "core_intrinsics"))]
 #[cold]

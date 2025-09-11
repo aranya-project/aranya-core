@@ -19,6 +19,6 @@ impl From<Infallible> for Error {
 impl From<Errno> for StorageError {
     fn from(err: Errno) -> Self {
         error!(?err);
-        StorageError::IoError
+        Self::IoError
     }
 }

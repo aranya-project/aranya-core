@@ -10,8 +10,8 @@ pub struct ActionAnalyzer {
 }
 
 impl ActionAnalyzer {
-    pub fn new() -> ActionAnalyzer {
-        ActionAnalyzer::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

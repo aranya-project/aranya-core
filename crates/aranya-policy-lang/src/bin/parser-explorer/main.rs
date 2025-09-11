@@ -1,6 +1,6 @@
 use std::{
     fs::OpenOptions,
-    io::{BufRead, BufReader, Read, stdin},
+    io::{BufRead as _, BufReader, Read, stdin},
     process::ExitCode,
 };
 
@@ -46,7 +46,7 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             };
             match args.check_mode {
                 true => Ok(String::from("policy is valid")),
-                false => Ok(format!("{:#?}", policy)),
+                false => Ok(format!("{policy:#?}")),
             }
         }
         Mode::Expression => {
@@ -59,11 +59,11 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
 fn output(res: anyhow::Result<String>) -> ExitCode {
     match res {
         Ok(s) => {
-            println!("{}", s);
+            println!("{s}");
             ExitCode::SUCCESS
         }
         Err(e) => {
-            println!("error: {}", e);
+            println!("error: {e}");
             ExitCode::from(1)
         }
     }

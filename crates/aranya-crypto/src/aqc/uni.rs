@@ -3,7 +3,7 @@ use core::{cell::OnceCell, fmt};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
-    csprng::Random,
+    csprng::Random as _,
     import::ImportError,
     kem::Kem,
     subtle::{Choice, ConstantTimeEq},
@@ -268,7 +268,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(UniSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the unirectional channel.
@@ -512,7 +512,7 @@ mod tests {
     /// Golden test for [`UniAuthorSecret`] IDs.
     #[test]
     fn test_uni_author_secret_id() {
-        use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+        use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust};
 
         use crate::{aqc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
 

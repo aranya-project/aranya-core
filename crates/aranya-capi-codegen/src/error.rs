@@ -16,7 +16,7 @@ use std::{
     borrow::Cow,
     error::Error,
     fmt,
-    io::{self, Write},
+    io::{self, Write as _},
     ops::Range,
     path::Path,
 };
@@ -86,7 +86,7 @@ impl BuildError {
                     display_syn_error(stderr, path, source, error);
                 }
             }
-            _ => {
+            Self::Other(_) => {
                 let _ = writeln!(io::stderr(), "{self}");
             }
         }
@@ -101,7 +101,7 @@ fn report(err: impl Error) -> impl fmt::Display {
             let mut error: &dyn Error = &self.0;
 
             while let Some(cause) = error.source() {
-                write!(f, "\n\nCaused by:\n    {}", cause)?;
+                write!(f, "\n\nCaused by:\n    {cause}")?;
                 error = cause;
             }
 

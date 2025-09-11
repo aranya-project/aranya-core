@@ -1,3 +1,4 @@
+#![allow(clippy::result_large_err)]
 use std::{
     borrow::Cow,
     collections::{HashMap, hash_map},
@@ -9,16 +10,16 @@ use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeError(Cow<'static, str>);
 
 impl TypeError {
-    pub(super) fn new(msg: &'static str) -> TypeError {
-        TypeError(Cow::from(msg))
+    pub(super) fn new(msg: &'static str) -> Self {
+        Self(Cow::from(msg))
     }
 
-    pub(super) fn new_owned(msg: String) -> TypeError {
-        TypeError(Cow::from(msg))
+    pub(super) fn new_owned(msg: String) -> Self {
+        Self(Cow::from(msg))
     }
 }
 
@@ -30,7 +31,7 @@ impl Display for TypeError {
 
 impl From<TypeError> for CompileErrorType {
     fn from(value: TypeError) -> Self {
-        CompileErrorType::InvalidType(value.0.into_owned())
+        Self::InvalidType(value.0.into_owned())
     }
 }
 
@@ -54,7 +55,7 @@ impl Display for TypeUnifyError {
 // TODO: Remove and force callers to make better error.
 impl From<TypeUnifyError> for CompileErrorType {
     fn from(err: TypeUnifyError) -> Self {
-        CompileErrorType::InvalidType(err.to_string())
+        Self::InvalidType(err.to_string())
     }
 }
 
@@ -247,8 +248,8 @@ impl Typeish {
 impl Display for Typeish {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Typeish::Known(t) => t.fmt(f),
-            Typeish::Never => f.write_str("never"),
+            Self::Known(t) => t.fmt(f),
+            Self::Never => f.write_str("never"),
         }
     }
 }
@@ -270,22 +271,20 @@ impl NullableVType {
     }
 
     /// Equal types will unify, and null will unify with any optional.
-    fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
+    fn unify(self, rhs: Self) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
-            (ref t @ NullableVType::Type(ref ty), NullableVType::Null)
+            (ref t @ Self::Type(ref ty), Self::Null)
                 if matches!(ty.kind, TypeKind::Optional(_)) =>
             {
                 Ok(t.clone())
             }
-            (NullableVType::Null, ref t @ NullableVType::Type(ref ty))
+            (Self::Null, ref t @ Self::Type(ref ty))
                 if matches!(ty.kind, TypeKind::Optional(_)) =>
             {
                 Ok(t.clone())
             }
-            (NullableVType::Type(left), NullableVType::Type(right)) if left.matches(&right) => {
-                Ok(NullableVType::Type(left))
-            }
-            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
+            (Self::Type(left), Self::Type(right)) if left.matches(&right) => Ok(Self::Type(left)),
+            (Self::Null, Self::Null) => Ok(Self::Null),
             (left, right) => Err(TypeUnifyError {
                 left,
                 right,
@@ -306,8 +305,8 @@ impl Display for DisplayType<'_> {
             TypeKind::Int => f.write_str("int"),
             TypeKind::Bool => f.write_str("bool"),
             TypeKind::Id => f.write_str("id"),
-            TypeKind::Struct(id) => write!(f, "struct {}", id),
-            TypeKind::Enum(id) => write!(f, "enum {}", id),
+            TypeKind::Struct(id) => write!(f, "struct {id}"),
+            TypeKind::Enum(id) => write!(f, "enum {id}"),
             TypeKind::Optional(inner) => write!(f, "optional {}", DisplayType(inner)),
         }
     }
