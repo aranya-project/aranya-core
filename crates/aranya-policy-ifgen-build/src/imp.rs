@@ -76,12 +76,12 @@ pub fn generate_code(target: &CompileTarget) -> String {
     };
 
     let actions = {
-        let sigs = target.action_defs.iter().map(|(id, args)| {
-            let ident = mk_ident(id);
-            let argnames = args.iter().map(|arg| mk_ident(&arg.identifier.name));
-            let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
+        let sigs = target.action_defs.iter().map(|def| {
+            let ident = mk_ident(def.name.as_str());
+            let param_names = def.params.iter().map(|param| mk_ident(param.name.as_str()));
+            let param_types = def.params.iter().map(|param| vtype_to_rtype(&param.ty));
             quote! {
-                fn #ident(&mut self, #(#argnames: #argtypes),*) -> Result<(), ClientError>;
+                fn #ident(&mut self, #(#param_names: #param_types),*) -> Result<(), ClientError>;
             }
         });
         quote! {
@@ -178,9 +178,9 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
 
     let mut found = HashSet::new();
 
-    for args in target.action_defs.values() {
-        for arg in args {
-            visit(&struct_defs, &mut found, &arg.field_type);
+    for def in target.action_defs.iter() {
+        for param in def.params.iter() {
+            visit(&struct_defs, &mut found, &param.ty);
         }
     }
 

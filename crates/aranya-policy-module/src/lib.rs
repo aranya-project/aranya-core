@@ -13,6 +13,7 @@ pub mod ffi;
 mod instructions;
 mod label;
 mod module;
+pub mod named;
 
 pub use aranya_policy_ast as ast;
 pub use codemap::*;

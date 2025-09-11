@@ -21,24 +21,16 @@ mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{ChunkOffset, extract_policy, parse_policy_document};
+pub use markdown::{ChunkOffset, parse_policy_document};
 
 mod keywords;
 use keywords::KEYWORDS;
 
-mod internal {
-    // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
-    use pest_derive::Parser;
-    #[derive(Parser)]
-    #[grammar = "lang/parse/policy.pest"]
-    pub struct PolicyParser;
-}
+#[derive(pest_derive::Parser)]
+#[grammar = "lang/parse/policy.pest"]
+struct PolicyParser;
 
 type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
-
-// Each of the rules in policy.pest becomes an enumerable value here
-// The core parser for policy documents
-pub use internal::{PolicyParser, Rule};
 
 /// Captures the iterator over a Pair's contents, and the span
 /// information for error reporting.
@@ -148,7 +140,7 @@ fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
 
 /// Context information for partial parsing of a chunk of source
 #[derive(Clone)]
-pub struct ChunkParser<'a> {
+struct ChunkParser<'a> {
     offset: usize,
     pratt: &'a PrattParser<Rule>,
     source_len: usize,
@@ -1641,7 +1633,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 }
 
 /// Parse more data into an existing [ast::Policy] object.
-pub fn parse_policy_chunk(
+fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
     start: ChunkOffset,
@@ -1696,6 +1688,16 @@ fn parse_policy_chunk_inner(
     }
 
     Ok(())
+}
+
+pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
+    let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+
+    let token = pairs.next().assume("has tokens")?;
+
+    let pratt = get_pratt_parser();
+    let p = ChunkParser::new(0, &pratt, s.len());
+    p.parse_expression(token)
 }
 
 /// Parse a function or finish function declaration for the FFI
@@ -1787,7 +1789,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | 6        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 7        | `==`, `!=` |
 /// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
-pub fn get_pratt_parser() -> PrattParser<Rule> {
+fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
         .op(Op::infix(Rule::equal, Assoc::Left) | Op::infix(Rule::not_equal, Assoc::Left))

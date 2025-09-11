@@ -6,6 +6,11 @@ use crate::{
     ValueAnalyzer,
 };
 
+/// Post-compilation validation. Ensure:
+/// - action branches publish a command
+/// - variables are assigned before use
+/// - function code paths return values
+/// - commands enter a finish block
 pub fn validate(module: &Module) -> bool {
     let ModuleData::V0(ref m) = module.data;
     let mut failed = false;

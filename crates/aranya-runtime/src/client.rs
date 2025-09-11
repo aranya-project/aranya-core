@@ -204,4 +204,16 @@ where
     pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, E>, ClientError> {
         Session::new(&mut self.provider, storage_id)
     }
+
+    /// Checks if a command with the given address exists in the specified graph.
+    ///
+    /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
+    /// This method is used to determine if we need to sync when a hello message is received.
+    pub fn command_exists(&mut self, storage_id: GraphId, address: Address) -> bool {
+        let Ok(storage) = self.provider.get_storage(storage_id) else {
+            // Graph doesn't exist
+            return false;
+        };
+        storage.get_location(address).unwrap_or(None).is_some()
+    }
 }
