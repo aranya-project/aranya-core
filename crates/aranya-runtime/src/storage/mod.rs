@@ -221,6 +221,20 @@ pub trait Storage {
     /// Returns the segment at the given location.
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
+    /// Returns the address of the command at the given location by first getting the segment,
+    /// then the command, and finally extracting the address.
+    /// This is a convenience method that combines `get_segment`, `Segment::get_command`, and `Command::address`.
+    fn get_command_address_at_location(
+        &self,
+        location: Location,
+    ) -> Result<Option<Address>, StorageError> {
+        let segment = self.get_segment(location)?;
+        match segment.get_command(location) {
+            Some(command) => Ok(Some(command.address()?)),
+            None => Ok(None),
+        }
+    }
+
     /// Returns the head of the graph.
     fn get_head(&self) -> Result<Location, StorageError>;
 

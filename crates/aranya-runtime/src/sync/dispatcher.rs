@@ -32,6 +32,8 @@ pub enum SyncHelloType<A> {
 }
 
 /// The sync type to dispatch.
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum SyncType<A> {
     /// This will include a sync request and be
     /// immediately responded to with a sync response.
@@ -77,6 +79,7 @@ pub enum SyncType<A> {
     Hello(SyncHelloType<A>),
 }
 
+/// The result of attempting to subscribe.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SubscribeResult {
     Success,
