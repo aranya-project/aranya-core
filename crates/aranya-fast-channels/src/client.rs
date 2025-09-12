@@ -58,7 +58,7 @@ impl<S: AfcState> Client<S> {
     /// The resulting ciphertext is written to `dst`, which must
     /// be at least `plaintext.len() + Client::OVERHEAD` bytes
     /// long.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns an error if `label_id` does not match the label ID associated
@@ -102,7 +102,7 @@ impl<S: AfcState> Client<S> {
     /// Encrypts and authenticates `data` for a channel.
     ///
     /// The resulting ciphertext is written in-place to `data`.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns an error if `label_id` does not match the label ID associated
@@ -191,7 +191,7 @@ impl<S: AfcState> Client<S> {
     /// long.
     ///
     /// It returns the sequence number associated with the ciphertext.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns an error if `label_id` does not match the label ID associated
@@ -255,7 +255,7 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns an error if `label_id` does not match the label ID associated

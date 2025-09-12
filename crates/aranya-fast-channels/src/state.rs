@@ -21,7 +21,7 @@ pub trait AfcState {
     type CipherSuite: CipherSuite;
 
     /// Invokes `f` with the channel's encryption key.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns an error if `label_id` does not match the label ID associated
@@ -31,7 +31,7 @@ pub trait AfcState {
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns an error if `label_id` does not match the label ID associated
