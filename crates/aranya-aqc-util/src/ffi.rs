@@ -128,7 +128,7 @@ function create_bidi_channel(
             our_id,
             their_pk,
             their_id,
-            label: label_id.into_id().into(),
+            label: label_id,
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
@@ -182,7 +182,7 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label: label_id.into_id().into(),
+            label: label_id,
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
@@ -216,7 +216,7 @@ function label_id(
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::label_id::<E::CS>(cmd_id, &name, policy_id.into_id().into());
+        let id = policy::label_id::<E::CS>(cmd_id, &name, policy_id);
         Ok(id)
     }
 }
