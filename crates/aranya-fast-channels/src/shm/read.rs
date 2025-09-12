@@ -1,6 +1,6 @@
 use core::{
     cell::Cell,
-    fmt::{self, Debug, Formatter},
+    fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::atomic::Ordering,
@@ -12,6 +12,7 @@ use aranya_crypto::{
     policy::LabelId,
 };
 use buggy::BugExt;
+use derive_where::derive_where;
 
 use super::{
     error::Error,
@@ -27,9 +28,11 @@ use crate::{
 /// The key used for the recent successful invocation of `seal`
 /// or `open`.
 #[derive(Clone)]
+#[derive_where(Debug)]
 struct Cache<K> {
     /// The channel the key is for.
     id: ChannelId,
+    #[derive_where(skip)]
     /// The cached key.
     key: K,
     /// The `ChanList`'s generation when this key was cached.
@@ -42,16 +45,6 @@ struct Cache<K> {
     /// information after the `ChanList`'s generation has
     /// changed.
     idx: Index,
-}
-
-impl<K> Debug for Cache<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Cache")
-            .field("id", &self.id)
-            .field("generation", &self.generation)
-            .field("idx", &self.idx)
-            .finish_non_exhaustive()
-    }
 }
 
 /// The reader's view of the shared memory state.

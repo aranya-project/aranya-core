@@ -58,6 +58,11 @@ impl<S: AfcState> Client<S> {
     /// The resulting ciphertext is written to `dst`, which must
     /// be at least `plaintext.len() + Client::OVERHEAD` bytes
     /// long.
+    /// 
+    /// # Errors
+    ///
+    /// Returns an error if `label_id` does not match the label ID associated
+    /// with the channel.
     pub fn seal(
         &mut self,
         id: ChannelId,
@@ -97,6 +102,11 @@ impl<S: AfcState> Client<S> {
     /// Encrypts and authenticates `data` for a channel.
     ///
     /// The resulting ciphertext is written in-place to `data`.
+    /// 
+    /// # Errors
+    ///
+    /// Returns an error if `label_id` does not match the label ID associated
+    /// with the channel.
     pub fn seal_in_place<T: Buf>(
         &mut self,
         id: ChannelId,
@@ -181,6 +191,11 @@ impl<S: AfcState> Client<S> {
     /// long.
     ///
     /// It returns the sequence number associated with the ciphertext.
+    /// 
+    /// # Errors
+    ///
+    /// Returns an error if `label_id` does not match the label ID associated
+    /// with the channel.
     pub fn open(
         &self,
         channel_id: ChannelId,
@@ -240,6 +255,11 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
+    /// 
+    /// # Errors
+    ///
+    /// Returns an error if `label_id` does not match the label ID associated
+    /// with the channel.
     pub fn open_in_place<T: Buf>(
         &self,
         channel_id: ChannelId,
