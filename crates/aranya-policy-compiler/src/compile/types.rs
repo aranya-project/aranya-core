@@ -1,11 +1,10 @@
 use std::{
     borrow::Cow,
     collections::{HashMap, hash_map},
-    fmt::Display,
+    fmt::{self, Display},
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
-use ast::VType;
+use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
 use crate::{CompileErrorType, compile::CompileState};
 
@@ -24,7 +23,7 @@ impl TypeError {
 }
 
 impl Display for TypeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Type Error: {}", self.0)
     }
 }
@@ -32,6 +31,30 @@ impl Display for TypeError {
 impl From<TypeError> for CompileErrorType {
     fn from(value: TypeError) -> Self {
         CompileErrorType::InvalidType(value.0.into_owned())
+    }
+}
+
+/// Could not unify a pair of types.
+pub struct TypeUnifyError {
+    /// The left type which could not be unified
+    pub left: NullableVType,
+    /// The right type which could not be unified
+    pub right: NullableVType,
+    /// Context message for the cause of the unify error.
+    pub ctx: &'static str,
+}
+
+impl Display for TypeUnifyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { left, right, ctx } = self;
+        write!(f, "{ctx}: {left} != {right}")
+    }
+}
+
+// TODO: Remove and force callers to make better error.
+impl From<TypeUnifyError> for CompileErrorType {
+    fn from(err: TypeUnifyError) -> Self {
+        CompileErrorType::InvalidType(err.to_string())
     }
 }
 
@@ -71,27 +94,21 @@ impl IdentifierTypeStack {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
         }
         let locals = self.locals.last_mut().expect("no function scope");
-        for prev in locals.iter().rev().skip(1) {
+        for prev in locals.iter().rev() {
             if prev.contains_key(&ident) {
                 return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
             }
         }
         let block = locals.last_mut().expect("no block scope");
         match block.entry(ident) {
-            hash_map::Entry::Occupied(o) => match (o.get(), &value) {
-                (Typeish::Type(ty1), Typeish::Type(ty2)) if ty1 != ty2 => {
-                    Err(CompileErrorType::InvalidType(format!(
-                        "Definitions of `{}` do not have the same type: {ty1} != {ty2}",
-                        o.key()
-                    )))
-                }
-                _ => Ok(()),
-            },
+            hash_map::Entry::Occupied(_) => {
+                unreachable!();
+            }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
-                Ok(())
             }
         }
+        Ok(())
     }
 
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
@@ -139,107 +156,180 @@ impl IdentifierTypeStack {
     }
 }
 
-/// This is a calculated type, which may be indeterminate if we don't have all the
-/// information we need to calculate it.
+/// A calculated type, which may be `Never`.
 ///
 /// [`PartialEq`] and [`Eq`] are intentionally not derived, as naive equality doesn't make
-/// sense here. Use [`is_equal()`](Typeish::is_equal),
-/// [`is_indeterminate()`](Typeish::is_indeterminate), and
-/// [`is_maybe()`](Typeish::is_indeterminate).
-//
-// TODO(chip): This _should_
-// eventually go away as every expression should be well-defined by the language. But we're
-// not there yet.
+/// sense here. Use one of the helper methods such as [`Self::unify`] or pattern matching.
 #[must_use]
 #[derive(Debug, Clone)]
 pub enum Typeish {
-    Type(VType),
-    Indeterminate,
+    /// A known type.
+    Known(NullableVType),
+    /// The bottom type, which cannot be instantiated.
+    ///
+    /// This signifies a panic, currently from `todo()` or stubbed FFI.
+    Never,
 }
 
 impl Typeish {
-    /// If `self` is `Type(x)`, map `x` to `y` via `f()`
-    pub fn map_vtype<F>(self, f: F) -> Typeish
-    where
-        F: Fn(VType) -> VType,
-    {
+    /// Is this an instance of this type or a `Never` value?
+    pub fn fits_type(&self, ot: &VType) -> bool {
         match self {
-            Self::Type(t) => Self::Type(f(t)),
-            x => x,
+            Self::Known(t) => t.fits_type(ot),
+            Self::Never => true,
         }
     }
 
-    /// If `self` is `Type(x)`, map `x` to `y` as a Result via `f()`
-    pub fn map_result<F>(self, f: F) -> Result<Typeish, TypeError>
-    where
-        F: Fn(VType) -> Result<Typeish, TypeError>,
-    {
+    /// Checks this [`Typeish`] against an expected [`VType`].
+    ///
+    /// If `self` is `Never`, it will become the expected type.
+    /// Otherwise, it will keep its value if the inner type matches the target,
+    /// or error out otherwise.
+    pub fn check_type(
+        self,
+        target_type: VType,
+        errmsg: &'static str,
+    ) -> Result<Self, TypeUnifyError> {
         match self {
-            Self::Type(t) => f(t),
-            x => Ok(x),
-        }
-    }
-
-    /// Two Typeish's are equal if they're both definite types and are the same type
-    pub fn is_equal(&self, ot: &Typeish) -> bool {
-        match (self, ot) {
-            (Self::Type(x), Self::Type(y)) => x == y,
-            _ => false,
-        }
-    }
-
-    /// Two Typeish's are maybe equal if either one is indeterminate or they are the same
-    /// definite type
-    pub fn is_maybe_equal(&self, ot: &Typeish) -> bool {
-        match (self, ot) {
-            (Self::Type(x), Self::Type(y)) => x == y,
-            _ => true,
-        }
-    }
-
-    /// True if the type is indeterminate
-    pub fn is_indeterminate(&self) -> bool {
-        matches!(self, Self::Indeterminate)
-    }
-
-    /// Is this an instance of this type or an Indeterminate value? Indeterminate types
-    /// always match.
-    pub fn is_maybe(&self, ot: &VType) -> bool {
-        match self {
-            Self::Type(t) => t == ot,
-            _ => true,
-        }
-    }
-
-    /// If self is not indeterminate and not the target type, return a [`TypeError`]
-    pub fn check_type(&self, target_type: VType, errmsg: &'static str) -> Result<(), TypeError> {
-        match self {
-            Self::Type(t) => {
-                if t != &target_type {
-                    Err(TypeError::new(errmsg))
+            Self::Never => Ok(Self::Known(NullableVType::Type(target_type))),
+            Self::Known(ty) => {
+                if ty.fits_type(&target_type) {
+                    Ok(Self::Known(ty))
                 } else {
-                    Ok(())
+                    Err(TypeUnifyError {
+                        left: ty,
+                        right: NullableVType::Type(target_type),
+                        ctx: errmsg,
+                    })
                 }
             }
-            _ => Ok(()),
         }
+    }
+
+    /// Create a known type.
+    pub fn known(vtype: VType) -> Self {
+        Self::Known(NullableVType::Type(vtype))
+    }
+
+    /// Map over a type, preserving indeterminism.
+    pub fn map<F>(self, f: F) -> Self
+    where
+        F: FnOnce(NullableVType) -> NullableVType,
+    {
+        match self {
+            Self::Known(t) => Self::Known(f(t)),
+            Self::Never => Self::Never,
+        }
+    }
+
+    /// Try to map over a type, preserving indeterminism.
+    pub fn try_map<F, R>(self, f: F) -> Result<Self, R>
+    where
+        F: FnOnce(NullableVType) -> Result<NullableVType, R>,
+    {
+        Ok(match self {
+            Self::Known(t) => Self::Known(f(t)?),
+            Self::Never => Self::Never,
+        })
+    }
+
+    /// Tries to unify two types.
+    pub fn unify(self, other: Self) -> Result<Self, TypeUnifyError> {
+        Ok(match (self, other) {
+            (Self::Never, Self::Never) => Self::Never,
+            (Self::Never, Self::Known(t)) => Self::Known(t),
+            (Self::Known(t), Self::Never) => Self::Known(t),
+            (Self::Known(left), Self::Known(right)) => Self::Known(left.unify(right)?),
+        })
     }
 }
 
 impl Display for Typeish {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Typeish::Type(t) => write!(f, "{t}"),
-            Typeish::Indeterminate => write!(f, "indeterminate"),
+            Typeish::Known(t) => t.fmt(f),
+            Typeish::Never => f.write_str("never"),
+        }
+    }
+}
+
+#[must_use]
+#[derive(Debug, Clone)]
+pub enum NullableVType {
+    Type(VType),
+    Null,
+}
+
+impl NullableVType {
+    /// Returns whether the type matches. Null will match any optional.
+    pub fn fits_type(&self, ot: &VType) -> bool {
+        match self {
+            Self::Type(vtype) => vtype.matches(ot),
+            Self::Null => matches!(ot.kind, TypeKind::Optional(_)),
+        }
+    }
+
+    /// Equal types will unify, and null will unify with any optional.
+    fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
+        match (self, rhs) {
+            (ref t @ NullableVType::Type(ref ty), NullableVType::Null)
+                if matches!(ty.kind, TypeKind::Optional(_)) =>
+            {
+                Ok(t.clone())
+            }
+            (NullableVType::Null, ref t @ NullableVType::Type(ref ty))
+                if matches!(ty.kind, TypeKind::Optional(_)) =>
+            {
+                Ok(t.clone())
+            }
+            (NullableVType::Type(left), NullableVType::Type(right)) if left.matches(&right) => {
+                Ok(NullableVType::Type(left))
+            }
+            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
+            (left, right) => Err(TypeUnifyError {
+                left,
+                right,
+                ctx: "type mismatch",
+            }),
+        }
+    }
+}
+
+// Wrapper type for displaying Type since we can't implement Display for external types
+pub struct DisplayType<'a>(pub &'a VType);
+
+impl Display for DisplayType<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0.kind {
+            TypeKind::String => f.write_str("string"),
+            TypeKind::Bytes => f.write_str("bytes"),
+            TypeKind::Int => f.write_str("int"),
+            TypeKind::Bool => f.write_str("bool"),
+            TypeKind::Id => f.write_str("id"),
+            TypeKind::Struct(id) => write!(f, "struct {}", id),
+            TypeKind::Enum(id) => write!(f, "enum {}", id),
+            TypeKind::Optional(inner) => write!(f, "optional {}", DisplayType(inner)),
+        }
+    }
+}
+
+impl Display for NullableVType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Type(vtype) => DisplayType(vtype).fmt(f),
+            Self::Null => f.write_str("null"),
         }
     }
 }
 
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
-    pub(super) fn struct_type(&self, s: &ast::NamedStruct) -> Result<Typeish, TypeError> {
-        if self.m.struct_defs.contains_key(&s.identifier) {
-            Ok(Typeish::Type(VType::Struct(s.identifier.clone())))
+    pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, TypeError> {
+        if self.m.struct_defs.contains_key(&s.identifier.name) {
+            Ok(VType {
+                kind: TypeKind::Struct(s.identifier.clone()),
+                span: s.identifier.span,
+            })
         } else {
             Err(TypeError::new_owned(format!(
                 "Struct `{}` not defined",
@@ -250,9 +340,12 @@ impl CompileState<'_> {
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
-    pub(super) fn query_fact_type(&self, f: &ast::FactLiteral) -> Result<Typeish, TypeError> {
-        if self.m.fact_defs.contains_key(&f.identifier) {
-            Ok(Typeish::Type(VType::Struct(f.identifier.clone())))
+    pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, TypeError> {
+        if self.m.fact_defs.contains_key(&f.identifier.name) {
+            Ok(VType {
+                kind: TypeKind::Struct(f.identifier.clone()),
+                span: f.identifier.span,
+            })
         } else {
             Err(TypeError::new_owned(format!(
                 "Fact `{}` not defined",
@@ -261,23 +354,12 @@ impl CompileState<'_> {
         }
     }
 
-    /// If two types are defined, and are the same, the result is that type. If they are
-    /// different, it is a type error. If either type is indeterminate, the type is
-    /// indeterminate.
     pub(super) fn unify_pair(
         &self,
         left_type: Typeish,
         right_type: Typeish,
-    ) -> Result<Typeish, TypeError> {
-        if left_type.is_equal(&right_type) {
-            Ok(left_type)
-        } else if left_type.is_indeterminate() || right_type.is_indeterminate() {
-            Ok(Typeish::Indeterminate)
-        } else {
-            Err(TypeError::new_owned(format!(
-                "types do not match: {left_type} and {right_type}"
-            )))
-        }
+    ) -> Result<Typeish, TypeUnifyError> {
+        left_type.unify(right_type)
     }
 
     /// Like [`unify_pair`], except additionally the pair is checked against `target_type`
@@ -288,8 +370,14 @@ impl CompileState<'_> {
         right_type: Typeish,
         target_type: VType,
         errmsg: &'static str,
-    ) -> Result<(), TypeError> {
-        self.unify_pair(left_type, right_type)?
-            .check_type(target_type, errmsg)
+    ) -> Result<Typeish, CompileErrorType> {
+        Ok(self.unify_pair(
+            left_type
+                .check_type(target_type.clone(), errmsg)
+                .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
+            right_type
+                .check_type(target_type, errmsg)
+                .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
+        )?)
     }
 }

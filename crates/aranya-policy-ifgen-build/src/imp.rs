@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, VType};
+use aranya_policy_ast::{FieldDefinition, TypeKind, VType};
 use aranya_policy_compiler::compile::target::CompileTarget;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
@@ -17,7 +17,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
         .map(|(id, fields)| {
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
-            let names = fields.iter().map(|f| mk_ident(&f.identifier));
+            let names = fields.iter().map(|f| mk_ident(&f.identifier.name));
             let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
             quote! {
                 #[doc = #doc]
@@ -52,7 +52,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
-        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier));
+        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier.name));
         let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
         quote! {
             #[doc = #doc]
@@ -76,12 +76,12 @@ pub fn generate_code(target: &CompileTarget) -> String {
     };
 
     let actions = {
-        let sigs = target.action_defs.iter().map(|(id, args)| {
-            let ident = mk_ident(id);
-            let argnames = args.iter().map(|arg| mk_ident(&arg.identifier));
-            let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
+        let sigs = target.action_defs.iter().map(|def| {
+            let ident = mk_ident(def.name.as_str());
+            let param_names = def.params.iter().map(|param| mk_ident(param.name.as_str()));
+            let param_types = def.params.iter().map(|param| vtype_to_rtype(&param.ty));
             quote! {
-                fn #ident(&mut self, #(#argnames: #argtypes),*) -> Result<(), ClientError>;
+                fn #ident(&mut self, #(#param_names: #param_types),*) -> Result<(), ClientError>;
             }
         });
         quote! {
@@ -122,21 +122,22 @@ pub fn generate_code(target: &CompileTarget) -> String {
 }
 
 fn vtype_to_rtype(ty: &VType) -> TokenStream {
-    match ty {
-        VType::String => quote! { Text },
-        VType::Bytes => quote! { Vec<u8> },
-        VType::Int => quote! { i64 },
-        VType::Bool => quote! { bool },
-        VType::Id => quote! { Id },
-        VType::Struct(st) => {
-            let ident = mk_ident(st);
+    use aranya_policy_ast::TypeKind;
+    match &ty.kind {
+        TypeKind::String => quote! { Text },
+        TypeKind::Bytes => quote! { Vec<u8> },
+        TypeKind::Int => quote! { i64 },
+        TypeKind::Bool => quote! { bool },
+        TypeKind::Id => quote! { Id },
+        TypeKind::Struct(st) => {
+            let ident = mk_ident(&st.name);
             quote! { #ident }
         }
-        VType::Enum(st) => {
-            let ident = mk_ident(st);
+        TypeKind::Enum(st) => {
+            let ident = mk_ident(&st.name);
             quote! { #ident }
         }
-        VType::Optional(opt) => {
+        TypeKind::Optional(opt) => {
             let inner = vtype_to_rtype(opt);
             quote! {
                 Option<#inner>
@@ -153,18 +154,18 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
         found: &mut HashSet<&'a str>,
         ty: &'a VType,
     ) {
-        match ty {
-            VType::Struct(s) => {
+        match &ty.kind {
+            TypeKind::Struct(s) => {
                 if found.insert(s.as_str()) {
                     for field in struct_defs[s.as_str()] {
                         visit(struct_defs, found, &field.field_type);
                     }
                 }
             }
-            VType::Enum(s) => {
+            TypeKind::Enum(s) => {
                 found.insert(s.as_str());
             }
-            VType::Optional(inner) => visit(struct_defs, found, inner),
+            TypeKind::Optional(inner) => visit(struct_defs, found, inner),
             _ => {}
         }
     }
@@ -177,9 +178,9 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
 
     let mut found = HashSet::new();
 
-    for args in target.action_defs.values() {
-        for arg in args {
-            visit(&struct_defs, &mut found, &arg.field_type);
+    for def in target.action_defs.iter() {
+        for param in def.params.iter() {
+            visit(&struct_defs, &mut found, &param.ty);
         }
     }
 

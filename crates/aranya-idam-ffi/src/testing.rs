@@ -6,8 +6,10 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore, OpenError,
-    SigningKey, subtle::ConstantTimeEq,
+    DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
+    KeyStoreExt as _, OpenError, SigningKey,
+    policy::{CmdId, GroupId},
+    subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -24,8 +26,7 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
-///
+/// use aranya_crypto::{Rng, default::DefaultEngine, keystore::memstore::MemStore};
 /// use aranya_idam_ffi::run_tests;
 ///
 /// run_tests!(default_engine, || -> (DefaultEngine<_, _>, MemStore) {
@@ -81,7 +82,7 @@ where
 {
     const CTX: CommandContext = CommandContext::Policy(PolicyContext {
         name: ident!("dummy"),
-        id: Id::default(),
+        id: CmdId::default(),
         author: DeviceId::default(),
         version: Id::default(),
     });
@@ -122,23 +123,19 @@ where
     pub fn test_encrypt_decrypt_message(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id.into_id(), wrapped)
-                .expect("should be able to insert `SigningKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
                     .expect("should be able to encode `VerifyingKey`");
+            let id = store
+                .insert_key(&mut eng, sk)
+                .expect("should be able to insert `SigningKey`");
             (pk, id)
         };
 
         let ffi = Ffi::new(store);
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
         let ctx = &Self::CTX;
 
@@ -153,12 +150,12 @@ where
                 &mut eng,
                 WANT.to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
         let got = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect("should be able to decrypt message");
         assert_eq!(got, WANT);
     }
@@ -168,16 +165,12 @@ where
     pub fn test_decrypt_message_tampered_with(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id.into_id(), wrapped)
-                .expect("should be able to insert `SigningKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
                     .expect("should be able to encode `VerifyingKey`");
+            let id = store
+                .insert_key(&mut eng, sk)
+                .expect("should be able to insert `SigningKey`");
             (pk, id)
         };
 
@@ -189,7 +182,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let mut ciphertext = ffi
@@ -198,7 +191,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -206,7 +199,7 @@ where
         ciphertext[0] = ciphertext[0].wrapping_add(1);
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt tampered with message");
         assert_eq!(err.kind(), ErrorKind::Crypto);
 
@@ -221,15 +214,12 @@ where
     pub fn test_decrypt_message_different_cmd_name(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id.into_id(), wrapped)
+            let pk =
+                postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
+                    .expect("should be able to encode `VerifyingKey`");
+            let id = store
+                .insert_key(&mut eng, sk)
                 .expect("should be able to insert `SigningKey`");
-            let pk = postcard::to_allocvec(&sk.public().expect("signing key should be valid"))
-                .expect("should be able to encode `VerifyingKey`");
             (pk, id)
         };
         let ffi = Ffi::new(store);
@@ -241,7 +231,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let ciphertext = ffi
@@ -250,19 +240,19 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
         let ctx = CommandContext::Policy(PolicyContext {
             name: ident!("different_name"),
-            id: Id::default(),
+            id: CmdId::default(),
             author: DeviceId::default(),
             version: Id::default(),
         });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different command name",
             );
@@ -278,15 +268,12 @@ where
     pub fn test_decrypt_message_different_parent_cmd_id(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id.into_id(), wrapped)
+            let pk =
+                postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
+                    .expect("should be able to encode `VerifyingKey`");
+            let id = store
+                .insert_key(&mut eng, sk)
                 .expect("should be able to insert `SigningKey`");
-            let pk = postcard::to_allocvec(&sk.public().expect("signing key should be valid"))
-                .expect("should be able to encode `VerifyingKey`");
             (pk, id)
         };
 
@@ -299,7 +286,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::random(&mut eng),
+            head_id: CmdId::random(&mut eng),
         });
 
         let ciphertext = ffi
@@ -308,13 +295,13 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different parent command ID",
             );
@@ -330,14 +317,9 @@ where
     pub fn test_decrypt_message_different_author(mut eng: E, mut store: S) {
         let key_id = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id.into_id(), wrapped)
-                .expect("should be able to insert `SigningKey`");
-            id
+                .insert_key(&mut eng, sk)
+                .expect("should be able to insert `SigningKey`")
         };
 
         let ffi = Ffi::new(store);
@@ -354,7 +336,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let ciphertext = ffi
@@ -363,13 +345,13 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
@@ -385,15 +367,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -408,7 +383,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -418,9 +393,7 @@ where
                 ctx,
                 &mut eng,
                 sealed,
-                sk.id()
-                    .expect("encryption key ID should be valid")
-                    .into_id(),
+                sk.id().expect("encryption key ID should be valid"),
                 group_id,
             )
             .expect("should be able to decrypt `GroupKey`");
@@ -457,15 +430,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -480,7 +446,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -492,9 +458,7 @@ where
                 ctx,
                 &mut eng,
                 sealed,
-                sk.id()
-                    .expect("encryption key ID should be valid")
-                    .into_id(),
+                sk.id().expect("encryption key ID should be valid"),
                 group_id,
             )
             .expect_err("should not be able to decrypt `GroupKey` with tampered ciphertext");
@@ -515,15 +479,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -538,7 +495,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -553,9 +510,7 @@ where
             ctx,
             &mut eng,
             sealed,
-            sk.id()
-                .expect("encryption key ID should be valid")
-                .into_id(),
+            sk.id().expect("encryption key ID should be valid"),
             group_id,
         )
         .expect_err("should not be able to decrypt `GroupKey` with tampered encap");
@@ -569,15 +524,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -592,20 +540,18 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
-        let wrong_group_id = Id::random(&mut eng);
+        let wrong_group_id = GroupId::random(&mut eng);
         let err = ffi
             .open_group_key(
                 ctx,
                 &mut eng,
                 sealed,
-                sk.id()
-                    .expect("encryption key ID should be valid")
-                    .into_id(),
+                sk.id().expect("encryption key ID should be valid"),
                 wrong_group_id,
             )
             .expect_err(
@@ -628,8 +574,7 @@ where
             .public()
             .expect("encryption public key should be valid")
             .id()
-            .expect("encryption key ID should be valid")
-            .into_id();
+            .expect("encryption key ID should be valid");
         let enc_pk =
             postcard::to_allocvec(&sk.public().expect("public encryption key should be valid"))
                 .expect("should be able to encode `EncryptionPublicKey`");
@@ -647,8 +592,7 @@ where
             .public()
             .expect("verifying key should be valid")
             .id()
-            .expect("signing key ID should be valid")
-            .into_id();
+            .expect("signing key ID should be valid");
         let sign_pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
             .expect("should be able to encode `VerifyingKey`");
         let got = ffi
@@ -665,8 +609,7 @@ where
             .public()
             .expect("identity verifying key should be valid")
             .id()
-            .expect("device ID should be valid")
-            .into_id();
+            .expect("device ID should be valid");
         let ident_pk =
             postcard::to_allocvec(&sk.public().expect("identity verifying key should be valid"))
                 .expect("should be able to encode `IdentityVerifyingKey`");

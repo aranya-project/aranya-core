@@ -1,0 +1,195 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
+---
+{
+  "version": "V2",
+  "ffi_imports": [],
+  "facts": [],
+  "actions": [],
+  "effects": [],
+  "structs": [
+    {
+      "identifier": {
+        "name": "Foo",
+        "span": {
+          "start": 7,
+          "end": 10
+        }
+      },
+      "items": [
+        {
+          "Field": {
+            "identifier": {
+              "name": "x",
+              "span": {
+                "start": 25,
+                "end": 26
+              }
+            },
+            "field_type": {
+              "kind": "Int",
+              "span": {
+                "start": 27,
+                "end": 30
+              }
+            }
+          }
+        }
+      ],
+      "span": {
+        "start": 0,
+        "end": 40
+      }
+    }
+  ],
+  "enums": [],
+  "commands": [],
+  "functions": [
+    {
+      "identifier": {
+        "name": "convert",
+        "span": {
+          "start": 59,
+          "end": 66
+        }
+      },
+      "arguments": [
+        {
+          "identifier": {
+            "name": "foo",
+            "span": {
+              "start": 67,
+              "end": 70
+            }
+          },
+          "field_type": {
+            "kind": {
+              "Struct": {
+                "name": "Foo",
+                "span": {
+                  "start": 78,
+                  "end": 81
+                }
+              }
+            },
+            "span": {
+              "start": 71,
+              "end": 81
+            }
+          }
+        }
+      ],
+      "return_type": {
+        "kind": {
+          "Struct": {
+            "name": "Bar",
+            "span": {
+              "start": 90,
+              "end": 93
+            }
+          }
+        },
+        "span": {
+          "start": 83,
+          "end": 93
+        }
+      },
+      "statements": [
+        {
+          "kind": {
+            "Return": {
+              "expression": {
+                "kind": {
+                  "NamedStruct": {
+                    "identifier": {
+                      "name": "Bar",
+                      "span": {
+                        "start": 115,
+                        "end": 118
+                      }
+                    },
+                    "fields": [
+                      [
+                        {
+                          "name": "y",
+                          "span": {
+                            "start": 121,
+                            "end": 122
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Dot": [
+                              {
+                                "kind": {
+                                  "Identifier": {
+                                    "name": "foo",
+                                    "span": {
+                                      "start": 124,
+                                      "end": 127
+                                    }
+                                  }
+                                },
+                                "span": {
+                                  "start": 124,
+                                  "end": 127
+                                }
+                              },
+                              {
+                                "name": "x",
+                                "span": {
+                                  "start": 128,
+                                  "end": 129
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "start": 124,
+                            "end": 129
+                          }
+                        }
+                      ]
+                    ],
+                    "sources": [
+                      {
+                        "name": "baz",
+                        "span": {
+                          "start": 134,
+                          "end": 137
+                        }
+                      },
+                      {
+                        "name": "thud",
+                        "span": {
+                          "start": 142,
+                          "end": 146
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 115,
+                  "end": 148
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 108,
+            "end": 157
+          }
+        }
+      ],
+      "span": {
+        "start": 50,
+        "end": 158
+      }
+    }
+  ],
+  "finish_functions": [],
+  "global_lets": [],
+  "text": "struct Foo {\n            x int\n        }\n\n        function convert(foo struct Foo) struct Bar {\n            return Bar { y: foo.x, ...baz, ...thud }\n        }"
+}

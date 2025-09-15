@@ -1,4 +1,4 @@
-use crate::{Expression, FactDefinition, FieldDefinition, Identifier, VType};
+use crate::{ExprKind, Expression, FactDefinition, FieldDefinition, Identifier, TypeKind};
 
 impl FactDefinition {
     /// Get a key field by name
@@ -16,8 +16,8 @@ impl FieldDefinition {
     /// Is this a hashable type?
     pub fn is_hashable(&self) -> bool {
         matches!(
-            self.field_type,
-            VType::Int | VType::Bool | VType::String | VType::Id | VType::Enum(_)
+            &self.field_type.kind,
+            TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Id | TypeKind::Enum(_)
         )
     }
 }
@@ -25,16 +25,18 @@ impl FieldDefinition {
 impl Expression {
     /// Is this a literal expression?
     pub fn is_literal(&self) -> bool {
-        match self {
-            Expression::Int(_)
-            | Expression::String(_)
-            | Expression::Bool(_)
-            | Expression::EnumReference(_) => true,
-            Expression::Optional(o) => match o {
+        match &self.kind {
+            ExprKind::Int(_)
+            | ExprKind::String(_)
+            | ExprKind::Bool(_)
+            | ExprKind::EnumReference(_) => true,
+            ExprKind::Optional(o) => match o {
                 Some(e) => e.is_literal(),
                 None => true,
             },
-            Expression::NamedStruct(s) => s.fields.iter().all(|(_, e)| e.is_literal()),
+            ExprKind::NamedStruct(s) => {
+                s.fields.iter().all(|(_, e)| e.is_literal()) && s.sources.is_empty()
+            }
             _ => false,
         }
     }

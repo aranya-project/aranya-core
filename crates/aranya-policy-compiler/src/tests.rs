@@ -2,10 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
+use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Label, LabelType, Module, ModuleData, Value,
+    Label, LabelType, Module, ModuleData, Struct, Value,
     ffi::{self, ModuleSchema},
 };
 
@@ -45,8 +45,8 @@ fn test_compile() {
                 a int,
                 b int
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {}
             }
@@ -198,8 +198,8 @@ fn test_seal_open_command() {
     let text = r#"
         command Foo {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
     "#;
@@ -242,7 +242,7 @@ fn test_command_without_open_block() {
     let text = r#"
         command Foo {
             fields {}
-            seal { return None }
+            seal { return todo() }
             policy {}
         }
     "#;
@@ -260,7 +260,7 @@ fn test_command_with_no_return_in_seal_block() {
         command Foo {
             fields {}
             seal { let x = 3 }
-            open { return None }
+            open { return todo() }
             policy {}
         }
     "#;
@@ -274,7 +274,7 @@ fn test_command_with_no_return_in_open_block() {
     let text = r#"
         command Foo {
             fields {}
-            seal { return None }
+            seal { return todo() }
             open { let x = 3 }
             policy {}
         }
@@ -294,30 +294,31 @@ fn test_command_attributes() {
                 s: "abc",
                 priority: Priority::High
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
     "#;
 
     let m = compile_pass(text);
     match m.data {
         ModuleData::V0(m) => {
-            let attrs = m
-                .command_attributes
+            let attrs = &m
+                .command_defs
                 .get("A")
-                .expect("should find command attribute map");
+                .expect("should find command attribute map")
+                .attributes;
             assert_eq!(attrs.len(), 3);
             assert_eq!(
-                attrs.get("i").expect("should find 1st value"),
-                &Value::Int(5)
+                attrs.get("i").expect("should find 1st value").value,
+                Value::Int(5)
             );
             assert_eq!(
-                attrs.get("s").expect("should find 2nd value"),
-                &Value::String(text!("abc"))
+                attrs.get("s").expect("should find 2nd value").value,
+                Value::String(text!("abc"))
             );
             assert_eq!(
-                attrs.get("priority").expect("should find 3nd value"),
-                &Value::Enum(ident!("Priority"), 1)
+                attrs.get("priority").expect("should find 3nd value").value,
+                Value::Enum(ident!("Priority"), 1)
             );
         }
     }
@@ -331,8 +332,8 @@ fn test_command_attributes_should_be_unique() {
             a: 5,
             a: "five"
         }
-        open { return None }
-        seal { return None }
+        open { return todo() }
+        seal { return todo() }
     }
     "#;
     let err = compile_fail(text);
@@ -345,15 +346,15 @@ fn test_command_attributes_must_be_literals() {
         r#"
         command A {
             attributes { i: 2 + 1 }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }"#,
         r#"
         function f() int { return 3 }
         command A {
             attributes { i: f() }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
     "#,
     ];
@@ -374,8 +375,8 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
                 +Baz,
                 c bool
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
     "#;
@@ -384,13 +385,36 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let ModuleData::V0(module) = module.data;
 
-    let want = BTreeMap::from([
-        (ident!("a"), VType::Int),
-        (ident!("b"), VType::String),
-        (ident!("c"), VType::Bool),
-    ]);
+    let want = [
+        (
+            ident!("a"),
+            VType {
+                kind: TypeKind::Int,
+                span: ast::Span::empty(),
+            },
+        ),
+        (
+            ident!("b"),
+            VType {
+                kind: TypeKind::String,
+                span: ast::Span::empty(),
+            },
+        ),
+        (
+            ident!("c"),
+            VType {
+                kind: TypeKind::Bool,
+                span: ast::Span::empty(),
+            },
+        ),
+    ];
     let got = module.command_defs.get("Foo").unwrap();
-    assert_eq!(got, &want);
+    assert!(
+        got.fields
+            .iter()
+            .map(|f| (&f.name.name, &f.ty))
+            .eq(want.iter().map(|(k, v)| (k, v)))
+    );
 
     Ok(())
 }
@@ -405,8 +429,8 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                     +Bar, // Bar is not defined
                     b string
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
                 policy {}
             }
             "#,
@@ -420,8 +444,8 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                     +Bar,
                     a bool // Duplicate field `a`
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
                 policy {}
             }
             "#,
@@ -448,8 +472,8 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
                 a int,
                 a string
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
         "#,
@@ -463,8 +487,8 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
                 +Bar,
                 a string
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
         "#,
@@ -498,12 +522,24 @@ fn test_autodefine_struct() {
 
     let want = vec![
         FieldDefinition {
-            identifier: ident!("a"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("a"),
+                span: ast::Span::new(18, 19),
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span::new(20, 23),
+            },
         },
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span::new(27, 28),
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span::new(29, 32),
+            },
         },
     ];
     let got = module.struct_defs.get("Foo").unwrap();
@@ -563,12 +599,24 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
+                    identifier: ast::Ident {
+                        name: ident!("a"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Int,
+                        span: ast::Span::empty(),
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
+                    identifier: ast::Ident {
+                        name: ident!("b"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::String,
+                        span: ast::Span::empty(),
+                    },
                 },
             ],
         ),
@@ -580,16 +628,34 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
+                    identifier: ast::Ident {
+                        name: ident!("a"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Int,
+                        span: ast::Span::empty(),
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
+                    identifier: ast::Ident {
+                        name: ident!("b"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::String,
+                        span: ast::Span::empty(),
+                    },
                 },
                 FieldDefinition {
-                    identifier: ident!("c"),
-                    field_type: VType::Bool,
+                    identifier: ast::Ident {
+                        name: ident!("c"),
+                        span: ast::Span::empty(),
+                    },
+                    field_type: VType {
+                        kind: TypeKind::Bool,
+                        span: ast::Span::empty(),
+                    },
                 },
             ],
         ),
@@ -619,12 +685,24 @@ fn test_effect_with_field_insertion() {
 
     let foo_want = vec![
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::Bool,
+                span: ast::Span::empty(),
+            },
         },
         FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
+            identifier: ast::Ident {
+                name: ident!("s"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::String,
+                span: ast::Span::empty(),
+            },
         },
     ];
     let foo_got = module.struct_defs.get("Foo").unwrap();
@@ -632,16 +710,34 @@ fn test_effect_with_field_insertion() {
 
     let baz_want = vec![
         FieldDefinition {
-            identifier: ident!("i"),
-            field_type: VType::Int,
+            identifier: ast::Ident {
+                name: ident!("i"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::Int,
+                span: ast::Span::empty(),
+            },
         },
         FieldDefinition {
-            identifier: ident!("b"),
-            field_type: VType::Bool,
+            identifier: ast::Ident {
+                name: ident!("b"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::Bool,
+                span: ast::Span::empty(),
+            },
         },
         FieldDefinition {
-            identifier: ident!("s"),
-            field_type: VType::String,
+            identifier: ast::Ident {
+                name: ident!("s"),
+                span: ast::Span::empty(),
+            },
+            field_type: VType {
+                kind: TypeKind::String,
+                span: ast::Span::empty(),
+            },
         },
     ];
     let baz_got = module.struct_defs.get("Baz").unwrap();
@@ -858,6 +954,22 @@ fn test_fact_bind_value_type() {
 }
 
 #[test]
+fn test_fact_query_disallow_leading_binds() {
+    let text = r#"
+    fact Foo[x int, y int] => {}
+    action test() {
+        check exists Foo[x: ?, y: 42] => {}
+    }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidFactLiteral("leading bind values not allowed".to_string())
+    )
+}
+
+#[test]
 fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
@@ -875,8 +987,8 @@ fn test_fact_update_invalid_to_type() {
         fact Foo[i int] => {a string}
         command test {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     update Foo[i: 1]=>{a: 1} to {a: 0}
@@ -890,13 +1002,32 @@ fn test_fact_update_invalid_to_type() {
 }
 
 #[test]
+fn test_fact_update() {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        command Test {
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    update Foo[i: 1] to {a: "updated"}
+                    update Foo[i: 1]=>{a:"apple"} to {a: "orange"}
+                }
+            }
+        }
+    "#;
+
+    compile_pass(text);
+}
+
+#[test]
 fn test_immutable_fact_can_be_created_and_deleted() {
     let text = r#"
         immutable fact Foo[i int] => {a string}
         command test {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create Foo[i: 1]=>{a: ""}
@@ -915,8 +1046,8 @@ fn test_immutable_fact_cannot_be_updated() {
         immutable fact Foo[i int] => {a string}
         command test {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     update Foo[i: 1]=>{a: 1} to {a: 0}
@@ -960,8 +1091,8 @@ fn finish_block_should_exit() {
         fact Blah[] => {}
         command Foo {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 check true
                 finish {
@@ -989,8 +1120,8 @@ fn test_should_not_allow_bind_key_in_fact_creation() {
 
         command CreateBindKey {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create F[i:?] => {s: "abc"}
@@ -1013,8 +1144,8 @@ fn test_should_not_allow_bind_value_in_fact_creation() {
 
         command CreateBindValue {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create F[i:1] => {s:?}
@@ -1031,18 +1162,63 @@ fn test_should_not_allow_bind_value_in_fact_creation() {
 }
 
 #[test]
+fn test_should_not_allow_bind_key_in_fact_delete() {
+    let text = r#"
+        fact F[i int] => {}
+        command C {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    delete F[i:?]
+                }
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("Cannot delete fact with wildcard keys".to_owned())
+    );
+}
+
+#[test]
 fn test_should_not_allow_bind_key_in_fact_update() {
     let text = r#"
-        fact F[i int] => {s string}
+        fact F[i int] => {}
+        command C {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    update F[i:?] => {} to {}
+                }
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("Cannot update fact with wildcard keys".to_owned())
+    );
+}
+
+#[test]
+fn test_should_not_allow_bind_value_in_fact_update() {
+    let text = r#"
+        fact F[] => {s string}
 
         command CreateBindValue {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
-                    create F[i:1] => {s: ""}
-                    update F[i:?] => {s: ""} to {s: ?}
+                    update F[] => {s: ""} to {s: ?}
                 }
             }
         }
@@ -1133,8 +1309,8 @@ fn test_match_duplicate() {
                 fields {
                     x int
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
             }
 
             action foo(x int) {
@@ -1175,8 +1351,8 @@ fn test_match_alternation_duplicates() {
             fields {
                 x int
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
 
         action foo(x int) {
@@ -1204,8 +1380,8 @@ fn test_match_default_not_last() {
             fields {
                 x int
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
 
         action foo(x int) {
@@ -1244,32 +1420,64 @@ fn test_match_arm_should_be_limited_to_literals() {
             }
         }
         "#,
+        r#"
+            struct Foo {
+                x int,
+                y string,
+            }
+            struct Bar {
+                y string
+            }
+            action foo(x struct Foo) {
+                let b = Bar { y: "y" }
+                match x {
+                    Foo { x: 10, ...b } => {}
+                    _ => {}
+                }
+            }
+        "#,
     ];
 
     for text in policies {
         let err = compile_fail(text);
         assert_eq!(
             err,
-            CompileErrorType::InvalidType(String::from("match arm is not a literal expression"))
+            CompileErrorType::InvalidType(String::from(
+                "match pattern 1 is not a literal expression"
+            ))
         );
     }
 }
 
 #[test]
 fn test_match_expression() {
-    let invalid_cases = vec![(
-        // arms expressions have different types
-        r#"action foo(a int) {
+    let invalid_cases = vec![
+        (
+            // arms expressions have different types
+            r#"action foo(a int) {
                 let x = match a {
                     1 => { :"one" }
                     _ => { :false }
                 }
             }
             "#,
-        CompileErrorType::InvalidType(
-            "match arm expression type mismatch; expected string, got bool".to_string(),
+            CompileErrorType::InvalidType(
+                "match arm expression 2 has type bool, expected string".into(),
+            ),
         ),
-    )];
+        (
+            r#"action f(n int) {
+                let x = match n {
+                    0 => todo()
+                    1 => 1
+                    _ => false
+                }
+            }"#,
+            CompileErrorType::InvalidType(
+                "match arm expression 3 has type bool, expected int".into(),
+            ),
+        ),
+    ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
         assert_eq!(actual, expected);
@@ -1284,19 +1492,11 @@ fn test_match_expression() {
             }
             check b
         }"#,
-        // match expression type is indeterminate
+        // match expression type is optional
         r#"action f(n int) {
-            check match n {
+            let x = match n {
                 0 => None
-                _ => 0
-            }
-        }"#,
-        // TODO: this should fail
-        r#"action f(n int) {
-            check match n {
-                0 => None
-                1 => 1
-                _ => false
+                _ => Some(0)
             }
         }"#,
     ];
@@ -1599,7 +1799,7 @@ fn test_type_errors() {
                     return x + "foo"
                 }
             "#,
-            e: "types do not match: int and string",
+            e: "Cannot do math on non-int types",
         },
         Case {
             t: r#"
@@ -1607,7 +1807,7 @@ fn test_type_errors() {
                     return if 0 { :3 } else { :4 }
                 }
             "#,
-            e: "if condition must be a boolean expression",
+            e: "if condition must be a boolean expression, was type int",
         },
         Case {
             t: r#"
@@ -1665,7 +1865,7 @@ fn test_type_errors() {
                     return -x
                 }
             "#,
-            e: "Cannot negate non-int expression",
+            e: "cannot negate non-int expression of type string",
         },
         Case {
             t: r#"
@@ -1673,7 +1873,7 @@ fn test_type_errors() {
                     return !x
                 }
             "#,
-            e: "Cannot invert non-boolean expression",
+            e: "cannot invert non-boolean expression of type int",
         },
         Case {
             t: r#"
@@ -1727,7 +1927,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "Emit must be given a struct",
+            e: "Cannot emit `int`, must be an effect struct",
         },
         Case {
             t: r#"
@@ -1743,14 +1943,14 @@ fn test_type_errors() {
             t: r#"
                 command Foo {
                     seal {
-                        return None
+                        return todo()
                     }
                     open {
                       return deserialize(3)
                     }
                 }
             "#,
-            e: "Deserializing non-bytes",
+            e: "deserializing int, expected bytes",
         },
         Case {
             t: r#"
@@ -1781,7 +1981,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "match expression is `int` but arm expression 1 is `string`",
+            e: "match pattern 1 has type string, expected type int",
         },
         Case {
             t: r#"
@@ -1790,16 +1990,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "if condition must be boolean",
-        },
-        Case {
-            t: r#"
-                function foo(x int) bool {
-                    if 3 {
-                    }
-                }
-            "#,
-            e: "if condition must be boolean",
+            e: "if condition must be a boolean expression, was type int",
         },
         Case {
             t: r#"
@@ -1837,7 +2028,58 @@ fn test_type_errors() {
                     debug_assert(3)
                 }
             "#,
-            e: "debug assertion must be a boolean expression",
+            e: "debug assertion must be a boolean expression, was type int",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected field `x` of `b` to be a `int`",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(b bool) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `b` to be a struct, but it's a(n) bool",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let maybe_bar = if true {
+                        :Some(b)
+                    } else {
+                        :None
+                    }
+
+
+                    let new_foo = Foo {
+                        y: true,
+                        ...maybe_bar
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `maybe_bar` to be a struct, but it's a(n) optional struct Bar",
         },
         Case {
             t: r#"
@@ -1872,9 +2114,190 @@ fn test_type_errors() {
 }
 
 #[test]
+fn test_struct_composition() {
+    struct Case {
+        t: &'static str,
+        e: Option<&'static str>,
+    }
+
+    let valid_cases = [Case {
+        t: r#"
+                struct Bar { x int, y bool }
+                function baz(b struct Bar) struct Bar {
+                    let other = todo()
+                    let new_bar = Bar {
+                        y: b.y,
+                        ...other
+                    }
+
+                    return new_bar
+                }
+            "#,
+        e: None,
+    }];
+
+    let invalid_cases = [
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string}
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some("Struct Bar must be a subset of Struct Foo"),
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool }
+                struct Thud { x int }
+                function baz(b struct Bar, t struct Thud) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b,
+                        ...t
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some("Struct Thud and Struct Bar have at least 1 field with the same name"),
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(f struct Foo) struct Foo {
+                    let new_foo = Foo {
+                        x: 3,
+                        y: true,
+                        ...f
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some(
+                "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions",
+            ),
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+
+                function baz() struct Foo {
+                    let new_foo = Foo {
+                        ...x
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: Some("not defined: x"),
+        },
+    ];
+
+    for c in valid_cases {
+        let _ = compile_pass(c.t);
+    }
+
+    for (i, c) in invalid_cases.iter().enumerate() {
+        let err = compile_fail(c.t);
+        match compile_fail(c.t) {
+            CompileErrorType::DuplicateSourceFields(_, _) => {}
+            CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
+            CompileErrorType::NotDefined(_) => {}
+            CompileErrorType::NoOpStructComp => {}
+            err => {
+                panic!(
+                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, NoOpStructComp, or NotDefined for case {i}: {err:?} ({err})"
+                );
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e.expect("Failure case"), "#{i}");
+    }
+}
+
+#[test]
+fn test_struct_composition_global_let_and_command_attributes() {
+    let policy_str = r#"
+        struct Foo {
+            x int,
+            y int
+        }
+
+        let foo = Foo { x: 10, y: 20 }
+        let foo2 = Foo { x: 1000, ...foo }
+
+        command Bar {
+            attributes {
+                foo_attr: Foo { ...foo2 },
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let ModuleData::V0(mod_data) = compile_pass(policy_str).data;
+
+    let expected = Value::Struct(Struct {
+        name: ident!("Foo"),
+        fields: BTreeMap::from([
+            (ident!("x"), Value::Int(1000)),
+            (ident!("y"), Value::Int(20)),
+        ]),
+    });
+
+    assert_eq!(*mod_data.globals.get("foo2").unwrap(), expected);
+    assert_eq!(
+        mod_data
+            .command_defs
+            .get("Bar")
+            .unwrap()
+            .attributes
+            .get("foo_attr")
+            .unwrap()
+            .value,
+        expected
+    );
+}
+
+#[test]
+fn test_struct_literal_duplicate_field() {
+    let text = r#"
+        struct S {
+            x int
+        }
+        function f() struct S {
+            return S {
+                x: 1,
+                x: 2,
+            }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("x")));
+}
+
+#[test]
 fn test_optional_types() {
+    let err = compile_fail("function f() bool { return unwrap None }");
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidType("Cannot unwrap None".into())
+    );
+
     let cases = [
-        "42 == unwrap None",
         "42 == unwrap Some(42)",
         "None is Some",
         "None is None",
@@ -1902,10 +2325,23 @@ fn test_duplicate_definitions() {
     let cases = [
         Case {
             t: r#"
+                function f() int {
+                    let x = {
+                        let x = 1
+                        : x
+                    }
+
+                    return x
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
-                        2 => { let z = 4 }
+                        2 => { let x = 4 }
                     }
                     return false
                 }
@@ -1914,40 +2350,84 @@ fn test_duplicate_definitions() {
         },
         Case {
             t: r#"
+                function f(y int) bool {
+                    if y == 0 {
+                        let x = 3
+                    }
+                    else {
+                        let x = 4
+                    }
+
+                    return false
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
                 function f() bool {
-                    // this will fail at runtime but is allowed by the
-                    // compiler because they are the same type
                     let x = 3
                     let x = 4
                     return false
                 }
             "#,
-            e: None,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
                 function f() bool {
-                    // this is allowed because None is indeterminate
                     let x = 3
-                    let x = None
+                    let x = todo()
                     return false
                 }
             "#,
-            e: None,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
                 function f() bool {
-                    // this, however, fails because they are definitely
-                    // different types
                     let x = 3
                     let x = "foo"
                     return false
                 }
-        "#,
-            e: Some(CompileErrorType::InvalidType(
-                "Definitions of `x` do not have the same type: int != string".to_string(),
-            )),
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                action foo(n int) {
+                    let n = n
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('n'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        let x = 4
+                        return x
+                    } else {
+                        return x
+                    }
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+        },
+        Case {
+            t: r#"
+                function f(b bool) int {
+                    let x = 4
+                    if (b) {
+                        return x
+                    } else {
+                        let x = 4
+                        return x
+                    }
+                }
+            "#,
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
     ];
 
@@ -2088,6 +2568,12 @@ fn test_validate_return() {
             }
             // ok
         }"#,
+        r#"function g(n int) int {
+            match n {
+                0 => { return 0 }
+                _ => { return n }
+            }
+        }"#,
     ];
 
     let invalid = [
@@ -2117,6 +2603,116 @@ fn test_validate_return() {
     for p in invalid {
         let m = compile_pass(p);
         assert!(validate(&m));
+    }
+}
+
+#[test]
+fn test_validate_publish() {
+    let concat = |text| {
+        let base = r#"
+            command Foo {
+                fields {
+                    a int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall {
+                    finish {}
+                }
+            }
+        "#;
+        format!("{base}{text}")
+    };
+
+    let valid = [
+        concat(
+            r#"
+            action a() {
+                publish Foo { a: 0 } // ok
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action b() {
+                if true {}
+
+                publish Foo { a: 0 } // ok
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action c() {
+                if true {}
+                else {
+                    publish Foo { a: 0 }
+                }
+                publish Foo { a: 1 }
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action d() {
+                if true {
+                    publish Foo { a: 0 }
+                }
+                else {
+                    publish Foo { a: 1 }
+                }
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action e() {
+                let n = 0
+                match n {
+                    0 => { publish Foo { a: 0 } }
+                    _ => { publish Foo { a: 1 } }
+                }
+            }
+        "#,
+        ),
+    ];
+
+    let invalid = [
+        concat(
+            r#"
+            action f() {
+                if true {
+                    publish Foo { a: 0 }
+                }
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action g() {
+                if true {
+                }
+                else if false {
+                }
+                else {
+                    publish Foo { a: 0 }
+                }
+            }
+        "#,
+        ),
+    ];
+
+    for p in valid {
+        let m = compile_pass(&p);
+        assert!(!validate(&m), "Expected case to be valid: {}", p);
+    }
+
+    for p in invalid {
+        let m = compile_pass(&p);
+        assert!(validate(&m), "Expected case to be invalid: {}", p);
     }
 }
 
@@ -2233,8 +2829,8 @@ fn test_substruct_errors() {
                         y bool,
                         z string,
                     }
-                    seal { return None }
-                    open { return None }
+                    seal { return todo() }
+                    open { return todo() }
                 }
                 struct Bar {
                     x int,
@@ -2260,6 +2856,121 @@ fn test_substruct_errors() {
         assert_eq!(err.to_string(), c.e);
     }
 }
+
+#[test]
+fn test_struct_conversion_errors() {
+    let cases = [
+        (
+            "RHS not defined",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Bar".to_string()),
+        ),
+        (
+            "types don't match",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a bool, b string }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
+        ),
+        (
+            "field names don't match",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a bool, s string }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
+        ),
+        (
+            "different number of fields",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a int, b string, c bool }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
+        ),
+    ];
+
+    for (i, (msg, text, expected)) in cases.into_iter().enumerate() {
+        let err = compile_fail(text);
+        println!("Test case: {msg}");
+        assert_eq!(err, expected, "#{i}");
+    }
+}
+
+#[test]
+fn test_struct_conversion() {
+    let cases = [
+        (
+            "struct to struct",
+            r#"
+            struct Foo {
+                a int,
+                b string,
+            }
+
+            struct Bar {
+                b string,
+                a int,
+            }
+
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+        "#,
+        ),
+        (
+            "struct to command",
+            r#"
+            struct Foo {
+                a int,
+                b string,
+            }
+            command Bar {
+                fields {
+                    a int,
+                    b string,
+                }
+                seal { return todo() }
+                open { return todo() }
+            }
+            action convert() {
+                let bar = Foo { a: 1, b: "test" } as Bar
+                publish bar
+            }
+        "#,
+        ),
+        (
+            "cast to self - noop",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Foo
+            }
+            "#,
+        ),
+    ];
+
+    for (msg, text) in cases {
+        println!("Test case: {msg}");
+        compile_pass(text);
+    }
+}
+
 #[test]
 fn if_expression_block() {
     let text = r#"
@@ -2291,4 +3002,153 @@ fn test_ffi_fail_without_use() {
         .unwrap_or_else(|| panic!("policy compilation should have failed"))
         .err_type();
     assert_eq!(err, CompileErrorType::NotDefined(String::from("test")));
+}
+
+/// See issue #336.
+#[test]
+fn test_function_used_before_definition() {
+    let text = r#"
+        // Returns x^n
+        function pow(x int, n int) int {
+            if n == 0 {
+                // x^0 == x
+                return 1
+            }
+            if n == 1 {
+                // x^1 = x
+                return x
+            }
+            if is_odd(n) {
+                return multiply(x, pow(double(x), divide((n-1), 2)))
+            }
+            return pow(double(x), divide(n, 2))
+        }
+
+        function is_odd(x int) bool {
+            return multiply(divide(x, 2), 2) != x
+        }
+
+        function double(x int) int {
+            return multiply(x, 2)
+        }
+
+        function multiply(x int, y int) int {
+            if x == 0 { return 0 }
+            if y == 0 { return 0 }
+            if x == 1 { return y }
+            if y == 1 { return x }
+            return (x+y) + multiply(x, y-1)
+        }
+
+        function divide(x int, y int) int {
+            check y > 0
+            if x < y { return 0 }
+            let got = divide0(Division {
+                d: y,
+                q: 0,
+                r: x,
+            })
+            return got.q
+        }
+        struct Division {
+            // Divisor
+            d int,
+            // Quotient
+            q int,
+            // Remainder. Starts == dividend
+            r int,
+        }
+        function divide0(args struct Division) struct Division {
+            let d = args.d
+            let q = args.q
+            let r = args.r
+
+            check d > 0
+
+            if r < d {
+                return Division {
+                    d: d,
+                    q: q,
+                    r: r,
+                }
+            }
+            return divide0(Division {
+                d: d,
+                q: q+1,
+                r: r-d,
+            })
+        }
+    "#;
+
+    compile_pass(text);
+}
+
+#[test]
+fn test_action_command_persistence() {
+    let valid_cases = [
+        // Ephemeral action publishing ephemeral command
+        r#"
+            ephemeral command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+            }
+            ephemeral action test() {
+                publish Cmd {}
+            }
+        "#,
+        // Persistent action publishing persistent command
+        r#"
+            command Cmd {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+            }
+            action test() {
+                publish Cmd {}
+            }
+        "#,
+    ];
+    for case in valid_cases {
+        compile_pass(case);
+    }
+
+    let invalid_cases = [
+        // Ephemeral action publishing persistent command
+        (
+            r#"
+                command Cmd {
+                    fields {}
+                    seal { return todo() }
+                    open { return todo() }
+                }
+                ephemeral action test() {
+                    publish Cmd {}
+                }
+            "#,
+            CompileErrorType::InvalidType(
+                "ephemeral action `test` cannot publish persistent command `Cmd`".to_string(),
+            ),
+        ),
+        // Persistent action publishing ephemeral command
+        (
+            r#"
+                ephemeral command Cmd {
+                    fields {}
+                    seal { return todo() }
+                    open { return todo() }
+                }
+                action test() {
+                    publish Cmd {}
+                }
+            "#,
+            CompileErrorType::InvalidType(
+                "persistent action `test` cannot publish ephemeral command `Cmd`".to_string(),
+            ),
+        ),
+    ];
+    for (text, expected) in invalid_cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
 }

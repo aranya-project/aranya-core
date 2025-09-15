@@ -1,4 +1,4 @@
-use aranya_crypto::Id;
+use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::Identifier;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 use buggy::Bug;
@@ -68,15 +68,12 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError>;
 
-    /// Publish a command
-    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>);
-
     /// Create an effect
     fn effect(
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        command: Id,
+        command: CmdId,
         recalled: bool,
     );
 

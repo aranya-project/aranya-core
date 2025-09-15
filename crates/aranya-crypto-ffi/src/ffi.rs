@@ -4,7 +4,8 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    Cmd, Engine, Id, KeyStore, Signature, SigningKey, VerifyingKey, subtle::ConstantTimeEq,
+    Cmd, Engine, KeyStore, KeyStoreExt as _, Signature, SigningKey, SigningKeyId, VerifyingKey,
+    policy::CmdId, subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
@@ -113,22 +114,19 @@ function sign(
         &self,
         ctx: &CommandContext,
         eng: &mut E,
-        our_sign_sk_id: Id,
+        our_sign_sk_id: SigningKeyId,
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
         let CommandContext::Seal(ctx) = ctx else {
             return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
         };
 
-        let sk: SigningKey<E::CS> = {
-            let wrapped = self
-                .store
-                .get(our_sign_sk_id)
-                .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-                .ok_or(KeyNotFound(our_sign_sk_id))?;
-            eng.unwrap(&wrapped)?
-        };
-        debug_assert_eq!(sk.id()?.into_id(), our_sign_sk_id);
+        let sk: SigningKey<E::CS> = self
+            .store
+            .get_key(eng, our_sign_sk_id)
+            .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
+            .ok_or(KeyNotFound(our_sign_sk_id.into()))?;
+        debug_assert_eq!(sk.id()?, our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,
@@ -157,9 +155,9 @@ function verify(
         ctx: &CommandContext,
         _eng: &mut E,
         author_sign_pk: Vec<u8>,
-        parent_id: Id,
+        parent_id: CmdId,
         command_bytes: Vec<u8>,
-        command_id: Id,
+        command_id: CmdId,
         signature: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
         let CommandContext::Open(ctx) = ctx else {
@@ -175,7 +173,7 @@ function verify(
             parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
-        if bool::from(id.ct_eq(&command_id.into())) {
+        if bool::from(id.ct_eq(&command_id)) {
             Ok(command_bytes)
         } else {
             Err(InvalidCmdId(()).into())

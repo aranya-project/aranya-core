@@ -6,6 +6,7 @@ use pest::{
     Span,
     error::{Error as PestError, LineColLocation},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
 
@@ -13,7 +14,7 @@ use crate::lang::parse::Rule;
 ///
 /// If the case contains a String, it is a message describing the item
 /// affected or a general error message.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
@@ -47,64 +48,81 @@ pub enum ParseErrorKind {
     Unknown,
 }
 
-#[derive(Debug, Clone)]
+impl Display for ParseErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseErrorKind::InvalidType => write!(f, "Invalid type"),
+            ParseErrorKind::InvalidStatement => write!(f, "Invalid statement"),
+            ParseErrorKind::InvalidNumber => write!(f, "Invalid number"),
+            ParseErrorKind::InvalidString => write!(f, "Invalid string"),
+            ParseErrorKind::InvalidFunctionCall => write!(f, "Invalid function call"),
+            ParseErrorKind::InvalidMember => write!(f, "Invalid member"),
+            ParseErrorKind::InvalidSubstruct => write!(f, "Invalid substruct operation"),
+            ParseErrorKind::InvalidVersion { found, required } => {
+                write!(
+                    f,
+                    "Invalid policy version {found}, supported version is {required}"
+                )
+            }
+            ParseErrorKind::Expression => write!(f, "Invalid expression"),
+            ParseErrorKind::Syntax => write!(f, "Syntax error"),
+            ParseErrorKind::FrontMatter => write!(f, "Front matter YAML parse error"),
+            ParseErrorKind::ReservedIdentifier => write!(f, "Reserved identifier"),
+            ParseErrorKind::Bug => write!(f, "Bug"),
+            ParseErrorKind::Unknown => write!(f, "Unknown error"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
-    message: String,
+    pub message: String,
+    /// Line and column location of the error, if available.
+    pub location: Option<(usize, usize)>,
 }
 
 impl ParseError {
     pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> ParseError {
-        let prefix = match span {
-            Some(s) => {
-                let text = s.as_str();
-                let (line, col) = s.start_pos().line_col();
-                format!("line {line} column {col}: {text}: ")
-            }
-            None => String::from(""),
-        };
+        let location = span.map(|s| s.start_pos().line_col());
         ParseError {
             kind,
-            message: format!("{prefix}{message}"),
+            message,
+            location,
         }
+    }
+
+    /// Return a new error with a location starting from the given line.
+    pub fn adjust_line_number(mut self, start_line: usize) -> ParseError {
+        if let Some((line, _)) = &mut self.location {
+            *line = line.saturating_add(start_line);
+        }
+        self
     }
 }
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = match &self.kind {
-            ParseErrorKind::InvalidType => "Invalid type",
-            ParseErrorKind::InvalidStatement => "Invalid statement",
-            ParseErrorKind::InvalidNumber => "Invalid number",
-            ParseErrorKind::InvalidString => "Invalid string",
-            ParseErrorKind::InvalidFunctionCall => "Invalid function call",
-            ParseErrorKind::InvalidMember => "Invalid member",
-            ParseErrorKind::InvalidVersion { found, required } => {
-                &{ format!("Invalid policy version {found}, supported version is {required}") }
-            }
-            ParseErrorKind::InvalidSubstruct => "Invalid substruct operation",
-            ParseErrorKind::Expression => "Invalid expression",
-            ParseErrorKind::Syntax => "Syntax error",
-            ParseErrorKind::FrontMatter => "Front matter YAML parse error",
-            ParseErrorKind::ReservedIdentifier => "Reserved identifier",
-            ParseErrorKind::Bug => "Bug",
-            ParseErrorKind::Unknown => "Unknown error",
-        };
-        write!(f, "{prefix}: {}", self.message)
+        write!(f, "{}: ", self.kind)?;
+        if let Some((line, column)) = self.location {
+            write!(f, "line {line} column {column}: ")?;
+        }
+        write!(f, "{}", self.message)?;
+        Ok(())
     }
 }
 
 impl From<PestError<Rule>> for ParseError {
     fn from(e: PestError<Rule>) -> Self {
-        let (line, column) = match e.line_col {
+        let p = match e.line_col {
             LineColLocation::Pos(p) => p,
             LineColLocation::Span(p, _) => p,
         };
-        let message = match e.path() {
-            Some(path) => format!("in {} line {} column {}: {}", path, line, column, e),
-            None => format!("line {} column {}: {}", line, column, e),
-        };
-        ParseError::new(ParseErrorKind::Syntax, message, None)
+        ParseError {
+            kind: ParseErrorKind::Syntax,
+            message: e.to_string(),
+            location: Some(p),
+        }
     }
 }
 

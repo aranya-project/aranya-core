@@ -54,6 +54,6 @@ pub struct GameUpdate {
 /// Implements all supported policy actions.
 #[actions]
 pub trait ActorExt {
-    fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
     fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
+    fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
 }

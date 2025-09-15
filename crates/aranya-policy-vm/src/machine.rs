@@ -12,12 +12,12 @@ use core::{
     fmt::{self, Display},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
-    LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
-    ValueConversionError,
+    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
+    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
+    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
 };
 use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
@@ -25,7 +25,7 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    CommandContext, OpenContext, SealContext,
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -37,16 +37,20 @@ const STACK_SIZE: usize = 100;
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier {
+    if fact.name != schema.identifier.name {
         return false;
     }
 
     for key in fact.keys.iter() {
-        let Some(key_value) = schema.key.iter().find(|k| k.identifier == key.identifier) else {
+        let Some(key_value) = schema
+            .key
+            .iter()
+            .find(|k| k.identifier.name == key.identifier)
+        else {
             return false;
         };
 
-        if key.value.vtype() != key_value.field_type {
+        if !key.value.vtype().matches(&key_value.field_type.kind) {
             return false;
         }
     }
@@ -56,7 +60,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(schema_value) = schema
             .value
             .iter()
-            .find(|v| v.identifier == value.identifier)
+            .find(|v| v.identifier.name == value.identifier)
         else {
             return false;
         };
@@ -65,7 +69,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(value_type) = value.value.vtype() else {
             return false;
         };
-        if value_type != schema_value.field_type {
+        if !value_type.matches(&schema_value.field_type.kind) {
             return false;
         }
     }
@@ -130,17 +134,15 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: NamedMap<ActionDef>,
     /// Command definitions
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: NamedMap<CommandDef>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -156,12 +158,11 @@ impl Machine {
         Machine {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -172,12 +173,11 @@ impl Machine {
         Machine {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -194,7 +194,6 @@ impl Machine {
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
                 enum_defs: m.enum_defs,
-                command_attributes: m.command_attributes,
                 codemap: m.codemap,
                 globals: m.globals,
             }),
@@ -212,7 +211,6 @@ impl Machine {
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs: self.enum_defs,
-                command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
             }),
@@ -272,8 +270,7 @@ impl Machine {
     /// Call a command
     pub fn call_command_policy<M>(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
         ctx: CommandContext,
@@ -282,7 +279,7 @@ impl Machine {
         M: MachineIO<MachineStack>,
     {
         let mut rs = self.create_run_state(io, ctx);
-        rs.call_command_policy(name, this_data, envelope)
+        rs.call_command_policy(this_data, envelope)
     }
 }
 
@@ -368,7 +365,7 @@ where
     }
 
     /// Update the context with a new head ID, e.g. after publishing a command.
-    pub fn update_context_with_new_head(&mut self, new_head_id: Id) -> Result<(), Bug> {
+    pub fn update_context_with_new_head(&mut self, new_head_id: CmdId) -> Result<(), Bug> {
         self.ctx = self.ctx.with_new_head(new_head_id)?;
         Ok(())
     }
@@ -469,20 +466,22 @@ where
                 // Check for struct fields that do not exist in the
                 // definition.
                 for f in &s.fields {
-                    if !fields.iter().any(|v| &v.identifier == f.0) {
+                    if !fields.iter().any(|v| &v.identifier.name == f.0) {
                         return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
                 // types.
                 for f in fields {
-                    match s.fields.get(&f.identifier) {
-                        Some(f) => {
-                            if f.vtype() != f.vtype() {
+                    match s.fields.get(&f.identifier.name) {
+                        Some(v) => {
+                            if !v.fits_type(&f.field_type) {
                                 return Err(mk_err());
                             }
                         }
-                        None => return Err(mk_err()),
+                        None => {
+                            return Err(mk_err());
+                        }
                     }
                 }
 
@@ -517,29 +516,8 @@ where
                 let value = self.scope.get(&key)?;
                 self.ipush(value)?;
             }
-            Instruction::Swap(d) => {
-                if d == 0 {
-                    return Err(self.err(MachineErrorType::InvalidInstruction));
-                }
-                let index1 = self
-                    .stack
-                    .len()
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let index2 = index1
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                self.stack.0.swap(index1, index2);
-            }
-            Instruction::Dup(d) => {
-                let index = self
-                    .stack
-                    .len()
-                    .checked_sub(d)
-                    .ok_or(MachineErrorType::StackUnderflow)?
-                    .checked_sub(1)
-                    .ok_or(MachineErrorType::StackUnderflow)?;
-                let v = self.stack.0[index].clone();
+            Instruction::Dup => {
+                let v = self.stack.peek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -621,16 +599,6 @@ where
                 };
                 self.ipush(r)?;
             }
-            Instruction::And | Instruction::Or => {
-                let a = self.ipop()?;
-                let b = self.ipop()?;
-                let r = match instruction {
-                    Instruction::And => a && b,
-                    Instruction::Or => a || b,
-                    _ => unreachable!(),
-                };
-                self.ipush(r)?;
-            }
             Instruction::Not => {
                 let a: &mut bool = self.ipeek()?;
                 *a = !*a;
@@ -699,7 +667,10 @@ where
                     .struct_defs
                     .get(&s.name)
                     .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
-                if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
+                if !struct_def_fields
+                    .iter()
+                    .any(|f| f.identifier.name == field_name)
+                {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
                 s.fields.insert(field_name, value);
@@ -733,7 +704,7 @@ where
                 for (field_name, field_val) in field_name_value_pairs {
                     let Some(field_defn) = struct_def_fields
                         .iter()
-                        .find(|f| f.identifier == field_name)
+                        .find(|f| f.identifier.name == field_name)
                     else {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
@@ -785,8 +756,8 @@ where
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
-                let fact_from: Fact = self.ipop()?;
-                let replaced_fact = {
+                let mut fact_from: Fact = self.ipop()?;
+                let mut replaced_fact = {
                     let mut iter = self
                         .io
                         .try_borrow()
@@ -796,6 +767,21 @@ where
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
                 };
+
+                if !fact_from.values.is_empty() {
+                    let replaced_fact_values = &mut replaced_fact.1;
+
+                    replaced_fact_values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                    fact_from
+                        .values
+                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+
+                    if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
+                        return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
+                    }
+                }
+
                 self.io
                     .try_borrow_mut()
                     .assume("should be able to borrow io")?
@@ -978,6 +964,56 @@ where
                 self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
+            Instruction::Cast(identifier) => {
+                let value = self.ipop_value()?;
+                match value {
+                    Value::Struct(s) => {
+                        // make sure identifier is a valid struct name
+                        let rhs_struct =
+                            self.machine.struct_defs.get(&identifier).ok_or_else(|| {
+                                self.err(MachineErrorType::NotDefined(alloc::format!(
+                                    "struct `{}`",
+                                    identifier
+                                )))
+                            })?;
+
+                        // Check that all required fields exist and have matching types
+                        for field in rhs_struct {
+                            let field_name = &field.identifier;
+                            let field_type = &field.field_type;
+
+                            // Check if the source struct has this field
+                            let value = s.fields.get(&field_name.name).ok_or_else(|| {
+                                self.err(MachineErrorType::Unknown(alloc::format!(
+                                    "cannot cast to `struct {}`: missing field `{}`",
+                                    identifier,
+                                    field_name
+                                )))
+                            })?;
+
+                            // Check if the type matches
+                            if !value.fits_type(field_type) {
+                                return Err(self.err(MachineErrorType::Unknown(alloc::format!(
+                                    "cannot cast to `struct {}`: field `{}` has wrong type (expected `{}`, found `{}`)",
+                                    identifier, field_name, field_type, value.type_name()
+                                ))));
+                            }
+                        }
+
+                        // replace value on stack with clone, under new name
+                        let mut s = s;
+                        s.name = identifier.clone();
+                        self.ipush(Value::Struct(s))?;
+                    }
+                    _ => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Struct",
+                            value.type_name(),
+                            "Cast LHS",
+                        )));
+                    }
+                }
+            }
         }
 
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
@@ -1033,10 +1069,11 @@ where
     /// Set up machine state for a command policy call
     pub fn setup_command(
         &mut self,
-        name: Identifier,
         label_type: LabelType,
-        this_data: &Struct,
+        this_data: Struct,
     ) -> Result<(), MachineError> {
+        let name = this_data.name.clone();
+
         #[cfg(feature = "bench")]
         self.stopwatch
             .start(format!("setup_command: {}", name).as_str());
@@ -1050,18 +1087,20 @@ where
             .get(&name)
             .ok_or_else(|| self.err(MachineErrorType::NotDefined(name.to_string())))?;
 
-        if this_data.fields.len() != command_def.len() {
+        if this_data.fields.len() != command_def.fields.len() {
             return Err(self.err(MachineErrorType::Unknown(alloc::format!(
                 "command `{}` expects {} field(s), but `this` contains {}",
                 name,
-                command_def.len(),
+                command_def.fields.len(),
                 this_data.fields.len()
             ))));
         }
         for (name, value) in &this_data.fields {
-            let expected_type = command_def
+            let expected_type = &command_def
+                .fields
                 .get(name)
-                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?;
+                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?
+                .ty;
 
             if !value.fits_type(expected_type) {
                 return Err(self.err(MachineErrorType::invalid_type(
@@ -1072,7 +1111,7 @@ where
             }
         }
         self.scope
-            .set(ident!("this"), Value::Struct(this_data.to_owned()))
+            .set(ident!("this"), Value::Struct(this_data))
             .map_err(|e| self.err(e))?;
 
         #[cfg(feature = "bench")]
@@ -1087,11 +1126,14 @@ where
     /// If the command check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandPolicy, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Policy(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandPolicy, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1101,11 +1143,14 @@ where
     /// structs or a MachineError.
     pub fn call_command_recall(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandRecall, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandRecall, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1129,27 +1174,26 @@ where
             .start(format!("setup_action: {}", name).as_str());
 
         // verify number and types of arguments
-        let arg_def = self
+        let action_def = self
             .machine
             .action_defs
             .get(&name)
             .ok_or_else(|| MachineError::new(MachineErrorType::NotDefined(name.to_string())))?;
         let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
-        if args.len() != arg_def.len() {
+        if args.len() != action_def.params.len() {
             return Err(MachineError::new(MachineErrorType::Unknown(
                 alloc::format!(
                     "action `{}` expects {} argument(s), but was called with {}",
                     name,
-                    arg_def.len(),
+                    action_def.params.len(),
                     args.len()
                 ),
             )));
         }
-        for (i, arg) in args.iter().enumerate() {
-            let def_type = &arg_def[i].field_type;
-            if !arg.fits_type(def_type) {
+        for (arg, param) in args.iter().zip(action_def.params.iter()) {
+            if !arg.fits_type(&param.ty) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
-                    def_type.to_string(),
+                    param.ty.to_string(),
                     arg.type_name(),
                     "invalid function argument",
                 )));
@@ -1182,6 +1226,10 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        if !matches!(&self.ctx, CommandContext::Action(ActionContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_action(name, args)?;
         self.run()
     }
@@ -1189,17 +1237,18 @@ where
     /// Call the seal block on this command to produce an envelope. The
     /// seal block is given an implicit parameter `this` and should
     /// return an opaque envelope struct on the stack.
-    pub fn call_seal(
-        &mut self,
-        name: Identifier,
-        this_data: &Struct,
-    ) -> Result<ExitReason, MachineError> {
+    pub fn call_seal(&mut self, this_data: Struct) -> Result<ExitReason, MachineError> {
+        let name = this_data.name.clone();
+        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
-        self.ipush(this_data.to_owned())?;
+        self.ipush(this_data)?;
         self.run()
     }
 
@@ -1209,6 +1258,10 @@ where
         name: Identifier,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()

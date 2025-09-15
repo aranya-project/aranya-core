@@ -20,6 +20,7 @@ use crate::{
     hpke::{self, Mode},
     id::{Id, IdError, custom_id},
     misc::sk_misc,
+    policy::CmdId,
 };
 
 /// Contextual information for a bidirectional AFC channel.
@@ -30,31 +31,16 @@ use crate::{
 /// ```rust
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
-/// use {
-///     core::borrow::{Borrow, BorrowMut},
-///     aranya_crypto::{
-///         afc::{
-///             AuthData,
-///             BidiAuthorSecret,
-///             BidiChannel,
-///             BidiKeys,
-///             BidiPeerEncap,
-///             BidiSecrets,
-///             OpenKey,
-///             SealKey,
-///         },
-///         CipherSuite,
-///         Csprng,
-///         default::{
-///             DefaultCipherSuite,
-///             DefaultEngine,
-///         },
-///         Engine,
-///         Id,
-///         IdentityKey,
-///         EncryptionKey,
-///         Rng,
-///     }
+/// use core::borrow::{Borrow, BorrowMut};
+///
+/// use aranya_crypto::{
+///     CipherSuite, Csprng, EncryptionKey, Engine, IdentityKey, Rng,
+///     afc::{
+///         AuthData, BidiAuthorSecret, BidiChannel, BidiKeys, BidiPeerEncap, BidiSecrets, OpenKey,
+///         SealKey,
+///     },
+///     default::{DefaultCipherSuite, DefaultEngine},
+///     policy::CmdId,
 /// };
 ///
 /// struct Keys<CS: CipherSuite> {
@@ -63,24 +49,20 @@ use crate::{
 /// }
 ///
 /// impl<CS: CipherSuite> Keys<CS> {
-///     fn from_author(
-///         ch: &BidiChannel<'_, CS>,
-///         secret: BidiAuthorSecret<CS>,
-///     ) -> Self {
+///     fn from_author(ch: &BidiChannel<'_, CS>, secret: BidiAuthorSecret<CS>) -> Self {
 ///         let keys = BidiKeys::from_author_secret(ch, secret)
 ///             .expect("should be able to create author keys");
-///         let (seal, open) = keys.into_keys()
+///         let (seal, open) = keys
+///             .into_keys()
 ///             .expect("should be able to convert `BidiKeys`");
 ///         Self { seal, open }
 ///     }
 ///
-///     fn from_peer(
-///         ch: &BidiChannel<'_, CS>,
-///         encap: BidiPeerEncap<CS>,
-///     ) -> Self {
+///     fn from_peer(ch: &BidiChannel<'_, CS>, encap: BidiPeerEncap<CS>) -> Self {
 ///         let keys = BidiKeys::from_peer_encap(ch, encap)
 ///             .expect("should be able to decapsulate peer keys");
-///         let (seal, open) = keys.into_keys()
+///         let (seal, open) = keys
+///             .into_keys()
 ///             .expect("should be able to convert `BidiKeys`");
 ///         Self { seal, open }
 ///     }
@@ -89,14 +71,18 @@ use crate::{
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = Id::random(&mut eng);
+/// let parent_cmd_id = CmdId::random(&mut eng);
 /// let label = 42u32;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
+/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device1 ID should be valid");
 ///
 /// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device2 ID should be valid");
+/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device2 ID should be valid");
 ///
 /// // device1 creates the channel keys and sends the encapsulation
 /// // to device2...
@@ -104,12 +90,14 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &device1_sk,
 ///     our_id: device1_id,
-///     their_pk: &device2_sk.public().expect("receiver encryption public key should be valid"),
+///     their_pk: &device2_sk
+///         .public()
+///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device2_id,
 ///     label,
 /// };
-/// let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &device1_ch)
-///     .expect("unable to create `BidiSecrets`");
+/// let BidiSecrets { author, peer } =
+///     BidiSecrets::new(&mut eng, &device1_ch).expect("unable to create `BidiSecrets`");
 /// let mut device1 = Keys::from_author(&device1_ch, author);
 ///
 /// // ...and device2 decrypts the encapsulation to discover the
@@ -118,7 +106,9 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
 ///     our_id: device2_id,
-///     their_pk: &device1_sk.public().expect("receiver encryption public key should be valid"),
+///     their_pk: &device1_sk
+///         .public()
+///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device1_id,
 ///     label,
 /// };
@@ -133,14 +123,17 @@ use crate::{
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
 ///         let ad = AuthData { version, label };
-///         let seq = a.seal.seal(&mut dst, GOLDEN, &ad)
+///         let seq = a
+///             .seal
+///             .seal(&mut dst, GOLDEN, &ad)
 ///             .expect("should be able to encrypt plaintext");
 ///         (dst, seq)
 ///     };
 ///     let plaintext = {
 ///         let mut dst = vec![0u8; ciphertext.len()];
 ///         let ad = AuthData { version, label };
-///         b.open.open(&mut dst, &ciphertext, &ad, seq)
+///         b.open
+///             .open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");
 ///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);
 ///         dst
@@ -149,11 +142,12 @@ use crate::{
 /// }
 /// test(&mut device1, &device2); // device1 -> device2
 /// test(&mut device2, &device1); // device2 -> device1
+///
 /// # }
 /// ```
 pub struct BidiChannel<'a, CS: CipherSuite> {
     /// The ID of the parent command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// Our secret encryption key.
     pub our_sk: &'a EncryptionKey<CS>,
     /// Our DeviceID.
@@ -204,7 +198,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
 pub(crate) struct Info {
     domain: [u8; 14],
-    parent_cmd_id: Id,
+    parent_cmd_id: CmdId,
     their_id: DeviceId,
     our_id: DeviceId,
     label: U32<BE>,
@@ -447,7 +441,6 @@ mod tests {
     use crate::{
         aranya::{EncryptionKey, IdentityKey},
         default::{DefaultCipherSuite, DefaultEngine, Rng},
-        id::Id,
     };
 
     #[test]
@@ -455,7 +448,7 @@ mod tests {
         type E = DefaultEngine<Rng>;
         type CS = DefaultCipherSuite;
         let (mut eng, _) = E::from_entropy(Rng);
-        let parent_cmd_id = Id::random(&mut eng);
+        let parent_cmd_id = CmdId::random(&mut eng);
         let sk1 = EncryptionKey::<CS>::new(&mut eng);
         let sk2 = EncryptionKey::<CS>::new(&mut eng);
         let label = 123;
@@ -509,7 +502,7 @@ mod tests {
             (
                 "different parent_cmd_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -519,7 +512,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
@@ -532,7 +525,7 @@ mod tests {
             (
                 "different our_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -542,7 +535,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: IdentityKey::<CS>::new(&mut eng)
                         .id()
@@ -557,7 +550,7 @@ mod tests {
             (
                 "different their_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -567,7 +560,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
@@ -582,7 +575,7 @@ mod tests {
             (
                 "different label",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -592,7 +585,7 @@ mod tests {
                     label: 123,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1

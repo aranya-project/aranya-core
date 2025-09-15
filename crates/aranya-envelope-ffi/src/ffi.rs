@@ -2,7 +2,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use aranya_crypto::{Id, engine::Engine};
+use aranya_crypto::{DeviceId, Id, engine::Engine, policy::CmdId};
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
 use crate::error::{Error, WrongContext};
@@ -212,17 +212,17 @@ function new(
         &self,
         ctx: &CommandContext,
         _eng: &mut E,
-        parent_id: Id,
-        author_id: Id,
-        command_id: Id,
+        parent_id: CmdId,
+        author_id: DeviceId,
+        command_id: CmdId,
         signature: Vec<u8>,
         payload: Vec<u8>,
     ) -> Result<Envelope, Error> {
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
-                parent_id,
-                command_id,
-                author_id,
+                parent_id: parent_id.into(),
+                command_id: command_id.into(),
+                author_id: author_id.into(),
                 signature,
                 payload,
             })

@@ -9,6 +9,7 @@ use zerocopy::{
 };
 
 use crate::{
+    CmdId,
     afc::{
         keys::{OpenKey, SealKey, Seq},
         shared::{RawOpenKey, RawSealKey, RootChannelKey},
@@ -31,32 +32,16 @@ use crate::{
 /// ```rust
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
-/// use {
-///     core::borrow::{Borrow, BorrowMut},
-///     aranya_crypto::{
-///         afc::{
-///             AuthData,
-///             OpenKey,
-///             SealKey,
-///             UniAuthorSecret,
-///             UniChannel,
-///             UniOpenKey,
-///             UniPeerEncap,
-///             UniSealKey,
-///             UniSecrets,
-///         },
-///         CipherSuite,
-///         Csprng,
-///         default::{
-///             DefaultCipherSuite,
-///             DefaultEngine,
-///         },
-///         Engine,
-///         Id,
-///         IdentityKey,
-///         EncryptionKey,
-///         Rng,
-///     }
+/// use core::borrow::{Borrow, BorrowMut};
+///
+/// use aranya_crypto::{
+///     CipherSuite, Csprng, EncryptionKey, Engine, IdentityKey, Rng,
+///     afc::{
+///         AuthData, OpenKey, SealKey, UniAuthorSecret, UniChannel, UniOpenKey, UniPeerEncap,
+///         UniSealKey, UniSecrets,
+///     },
+///     default::{DefaultCipherSuite, DefaultEngine},
+///     policy::CmdId,
 /// };
 ///
 /// fn key_from_author<CS: CipherSuite>(
@@ -71,36 +56,42 @@ use crate::{
 /// fn key_from_peer<CS: CipherSuite>(
 ///     ch: &UniChannel<'_, CS>,
 ///     encap: UniPeerEncap<CS>,
-/// ) -> OpenKey<CS>{
-///     let key = UniOpenKey::from_peer_encap(ch, encap)
-///         .expect("should be able to decapsulate peer key");
+/// ) -> OpenKey<CS> {
+///     let key =
+///         UniOpenKey::from_peer_encap(ch, encap).expect("should be able to decapsulate peer key");
 ///     key.into_key().expect("should be able to create `OpenKey`")
 /// }
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = Id::random(&mut eng);
+/// let parent_cmd_id = CmdId::random(&mut eng);
 /// let label = 42u32;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
+/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device1 ID should be valid");
 ///
 /// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device2 ID should be valid");
+/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+///     .id()
+///     .expect("device2 ID should be valid");
 ///
 /// // device1 creates the channel keys and sends the encapsulation
 /// // to device2...
 /// let device1_ch = UniChannel {
 ///     parent_cmd_id,
 ///     our_sk: &device1_sk,
-///     their_pk: &device2_sk.public().expect("receiver encryption key should be valid"),
+///     their_pk: &device2_sk
+///         .public()
+///         .expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
 /// };
-/// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
-///     .expect("unable to create `UniSecrets`");
+/// let UniSecrets { author, peer } =
+///     UniSecrets::new(&mut eng, &device1_ch).expect("unable to create `UniSecrets`");
 /// let mut device1 = key_from_author(&device1_ch, author);
 ///
 /// // ...and device2 decrypts the encapsulation to discover the
@@ -108,7 +99,9 @@ use crate::{
 /// let device2_ch = UniChannel {
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
-///     their_pk: &device1_sk.public().expect("receiver encryption key should be valid"),
+///     their_pk: &device1_sk
+///         .public()
+///         .expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
@@ -124,7 +117,8 @@ use crate::{
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
 ///         let ad = AuthData { version, label };
-///         let seq = seal.seal(&mut dst, GOLDEN, &ad)
+///         let seq = seal
+///             .seal(&mut dst, GOLDEN, &ad)
 ///             .expect("should be able to encrypt plaintext");
 ///         (dst, seq)
 ///     };
@@ -139,11 +133,12 @@ use crate::{
 ///     assert_eq!(&plaintext, GOLDEN);
 /// }
 /// test(&mut device1, &device2); // device1 -> device2
+///
 /// # }
 /// ```
 pub struct UniChannel<'a, CS: CipherSuite> {
     /// The ID of the parent command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// Our secret encryption key.
     pub our_sk: &'a EncryptionKey<CS>,
     /// Their public encryption key.
@@ -179,7 +174,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
 pub(crate) struct Info {
     domain: [u8; 12],
-    parent_cmd_id: Id,
+    parent_cmd_id: CmdId,
     seal_id: DeviceId,
     open_id: DeviceId,
     label: U32<BE>,

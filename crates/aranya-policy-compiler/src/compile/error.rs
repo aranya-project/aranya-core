@@ -54,10 +54,27 @@ pub enum CompileErrorType {
     /// A validation step failed
     #[error("validation failed")]
     Validation,
+    /// Source structs in struct composition have overlapping fields
+    #[error("Struct {0} and Struct {1} have at least 1 field with the same name")]
+    DuplicateSourceFields(Identifier, Identifier),
+    /// The source struct is not a subset of the base struct
+    #[error("Struct {0} must be a subset of Struct {1}")]
+    SourceStructNotSubsetOfBase(Identifier, Identifier),
+    /// It is an error to add a composed struct when all fields are directly specified
+    #[error(
+        "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions"
+    )]
+    NoOpStructComp,
     /// Invalid Substruct operation - The struct on the RHS of the substruct
     /// operator is not a subset of the struct on the LHS of the substruct operator
     #[error("invalid substruct operation: `Struct {0}` must be a strict subset of `Struct {1}`")]
     InvalidSubstruct(Identifier, Identifier),
+    /// Todo found
+    #[error("todo found")]
+    TodoFound,
+    /// Invalid cast - LHS cannot be converted to RHS
+    #[error("invalid cast: `{0}` cannot be converted to `{1}`")]
+    InvalidCast(Identifier, Identifier),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),

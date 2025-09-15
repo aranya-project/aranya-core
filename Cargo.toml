@@ -44,6 +44,8 @@ criterion = { version = "0.6" }
 derive-where = { version = "1", default-features = false }
 errno = { version = "0.3", default-features = false }
 heapless = { version = "0.8", default-features = false }
+fnv = { version = "1", default-features = false }
+indexmap = { version = "2.9", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
@@ -71,6 +73,10 @@ quote = "1.0"
 [profile.dev]
 panic = "abort"
 opt-level = 1
+
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3
 
 [profile.dev-std]
 inherits = "dev"

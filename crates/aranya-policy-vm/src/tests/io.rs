@@ -3,8 +3,9 @@ use alloc::collections::{BTreeMap, btree_map};
 use core::{cell::RefCell, fmt, ops::DerefMut};
 
 use aranya_crypto::{
-    Id, Rng,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    policy::CmdId,
 };
 use aranya_policy_ast::Identifier;
 
@@ -16,7 +17,6 @@ use crate::{
 
 pub struct TestIO {
     pub facts: BTreeMap<(Identifier, FactKeyList), FactValueList>,
-    pub publish_stack: Vec<(Identifier, Vec<KVPair>)>,
     pub effect_stack: Vec<(Identifier, Vec<KVPair>)>,
     pub engine: RefCell<DefaultEngine<Rng, DefaultCipherSuite>>,
     pub print_ffi: PrintFfi,
@@ -27,7 +27,6 @@ impl fmt::Debug for TestIO {
         let module_names = ["print"];
         f.debug_struct("TestIO")
             .field("facts", &self.facts)
-            .field("publish_stack", &self.publish_stack)
             .field("effect_stack", &self.effect_stack)
             .field("modules", &module_names)
             .finish()
@@ -39,7 +38,6 @@ impl TestIO {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
         TestIO {
             facts: BTreeMap::new(),
-            publish_stack: vec![],
             effect_stack: vec![],
             engine: RefCell::new(engine),
             print_ffi: PrintFfi {},
@@ -110,18 +108,11 @@ where
         Ok(Box::new(iter))
     }
 
-    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
-        let mut fields: Vec<_> = fields.into_iter().collect();
-        fields.sort_by(|a, b| a.key().cmp(b.key()));
-        println!("publish {} {{{:?}}}", name, fields);
-        self.publish_stack.push((name, fields));
-    }
-
     fn effect(
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        _command: Id,
+        _command: CmdId,
         _recalled: bool,
     ) {
         let mut fields: Vec<_> = fields.into_iter().collect();

@@ -1603,7 +1603,7 @@ fn should_allow_remove_graph() {
     let head_id_b = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_a.into_id(), head_id_b.into_id());
+    assert_eq!(head_id_a, head_id_b);
 
     // Add our client's public keys to the graph.
     test_model
@@ -1621,7 +1621,7 @@ fn should_allow_remove_graph() {
     let head_id_after_cmd = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_ne!(head_id_a.into_id(), head_id_after_cmd.into_id());
+    assert_ne!(head_id_a, head_id_after_cmd);
 
     // Remove graph from storage.
     test_model
@@ -1650,5 +1650,5 @@ fn should_allow_remove_graph() {
     let head_id_new_sync = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_new_sync.into_id(), head_id_a.into_id());
+    assert_eq!(head_id_new_sync, head_id_a);
 }
