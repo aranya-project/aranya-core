@@ -228,9 +228,7 @@ ephemeral action get_stuff() {
 }
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
-// returns it in a `StuffHappened` effect. As pointed out elsewhere, there is
-// absolutely nothing stopping us from using this command in an on-graph or
-// ephemeral context. We chose to use it strictly in the ephemeral context.
+// returns it in a `StuffHappened` effect.
 ephemeral command GetStuff {
     fields {
         key_a int,
