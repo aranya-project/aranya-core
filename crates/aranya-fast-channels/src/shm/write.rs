@@ -1,11 +1,16 @@
-use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
+use core::{
+    cell::{Cell, RefCell},
+    marker::PhantomData,
+    ops::DerefMut,
+    sync::atomic::Ordering,
+};
 
 use aranya_crypto::{
     CipherSuite, Csprng,
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
-use buggy::BugExt;
+use buggy::{BugExt, bug};
 
 use super::{
     error::{Corrupted, Error, corrupted},
@@ -15,7 +20,6 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    mutex::StdMutex,
     shm::shared::Op,
     state::{AranyaState, ChannelId, Directed},
     util::debug,
@@ -23,9 +27,9 @@ use crate::{
 
 /// The writer's view of the shared memory state.
 #[derive(Debug)]
-pub struct WriteState<CS, R> {
+pub struct WriteState<CS: CipherSuite, R> {
     inner: State<CS>,
-    rng: StdMutex<R>,
+    rng: RefCell<R>,
 
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
@@ -41,11 +45,36 @@ where
     where
         P: AsRef<Path>,
     {
+        let state = State::open(path, flag, mode, max_chans)?;
+        if state.shm().increment_writer_count() > 0 {
+            bug!("More than 1 writer share memory handle open")
+        }
+
         Ok(Self {
-            inner: State::open(path, flag, mode, max_chans)?,
-            rng: StdMutex::new(rng),
+            inner: state,
+            rng: RefCell::new(rng),
             _no_sync: PhantomData,
         })
+    }
+}
+
+impl<CS: CipherSuite, R> Drop for WriteState<CS, R> {
+    fn drop(&mut self) {
+        let count = self.inner.shm().decrement_writer_count();
+        if count <= 1 {
+            self.inner.unmap();
+        }
+    }
+}
+
+impl<CS: CipherSuite, R: Clone> Clone for WriteState<CS, R> {
+    fn clone(&self) -> Self {
+        self.inner.shm().increment_writer_count();
+        Self {
+            inner: self.inner.clone(),
+            rng: self.rng.clone(),
+            _no_sync: PhantomData,
+        }
     }
 }
 
@@ -64,7 +93,7 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
     ) -> Result<ChannelId, Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
+        let mut rng = self.rng.try_borrow_mut().assume("already borrowed")?;
 
         let id = {
             // NB: This cannot reasonably overflow.
@@ -136,7 +165,7 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
     ) -> Result<(), Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
+        let mut rng = self.rng.try_borrow_mut().assume("already borrowed")?;
 
         let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;

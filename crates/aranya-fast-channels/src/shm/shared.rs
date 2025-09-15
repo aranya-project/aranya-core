@@ -90,6 +90,7 @@ fn getpagesize() -> Result<Option<usize>, PageSizeError> {
 
 /// Used by both `ReadState` and `WriteState`.
 #[derive(Debug)]
+#[derive_where(Clone)]
 pub(super) struct State<CS> {
     ptr: Mapping<SharedMem<CS>>,
     /// The maximum number of channels supported by the shared
@@ -210,6 +211,10 @@ impl<CS: CipherSuite> State<CS> {
     /// Reports whether `off` is a known valid offset.
     const fn valid_offset(&self, off: usize) -> bool {
         off == self.side_a || off == self.side_b
+    }
+
+    pub(super) fn unmap(&mut self) {
+        self.ptr.unmap();
     }
 
     #[cfg(test)]
@@ -579,6 +584,10 @@ pub(super) struct SharedMem<CS> {
     ///
     /// `write_off` always refers to the opposite of `read_off`.
     pub write_off: CacheAligned<AtomicUsize>,
+    /// The number of live readers.
+    pub reader_count: CacheAligned<AtomicUsize>,
+    /// The number of live writers.
+    pub writer_count: CacheAligned<AtomicUsize>,
     /// In memory, this is actually two fields:
     ///
     /// ```ignore
@@ -619,6 +628,8 @@ impl<CS: CipherSuite> SharedMem<CS> {
             page_aligned: layout.page_aligned,
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
+            reader_count: CacheAligned::new(AtomicUsize::new(0)),
+            writer_count: CacheAligned::new(AtomicUsize::new(0)),
             sides: PhantomData,
         };
         // SAFETY: ptr is valid for writes and properly
@@ -696,6 +707,30 @@ impl<CS: CipherSuite> SharedMem<CS> {
         };
         list.check()?;
         Ok(&list.data)
+    }
+
+    /// Increments [Self::reader_count] by 1.
+    /// Returns the previous count.
+    pub(crate) fn increment_reader_count(&self) -> usize {
+        self.reader_count.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Decrements [Self::reader_count] by 1.
+    /// Returns the previous count.
+    pub(crate) fn decrement_reader_count(&self) -> usize {
+        self.reader_count.fetch_sub(1, Ordering::SeqCst)
+    }
+
+    /// Increments [Self::writer_count] by 1.
+    /// Returns the previous count.
+    pub(crate) fn increment_writer_count(&self) -> usize {
+        self.writer_count.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Decrements [Self::writer_count] by 1.
+    /// Returns the previous count.
+    pub(crate) fn decrement_writer_count(&self) -> usize {
+        self.writer_count.fetch_sub(1, Ordering::SeqCst)
     }
 }
 
