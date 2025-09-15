@@ -226,23 +226,25 @@ fn get_command_priorities(
     machine: &Machine,
 ) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
-    for (name, attrs) in &machine.command_attributes {
+    for def in machine.command_defs.iter() {
+        let name = &def.name;
+        let attrs = &def.attributes;
         let finalize = attrs
             .get("finalize")
-            .map(|attr| match *attr {
+            .map(|attr| match attr.value {
                 Value::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name.as_str(),
                     "finalize",
                     "Bool",
-                    &attr.type_name(),
+                    &attr.value.type_name(),
                 )),
             })
             .transpose()?
             == Some(true);
         let priority: Option<u32> = attrs
             .get("priority")
-            .map(|attr| match *attr {
+            .map(|attr| match attr.value {
                 Value::Int(b) => b.try_into().map_err(|_| {
                     AttributeError::int_range(
                         name.as_str(),
@@ -255,17 +257,17 @@ fn get_command_priorities(
                     name.as_str(),
                     "priority",
                     "Int",
-                    &attr.type_name(),
+                    &attr.value.type_name(),
                 )),
             })
             .transpose()?;
         match (finalize, priority) {
             (false, None) => {}
             (false, Some(p)) => {
-                priority_map.insert(name.clone(), VmPriority::Basic(p));
+                priority_map.insert(name.name.clone(), VmPriority::Basic(p));
             }
             (true, None) => {
-                priority_map.insert(name.clone(), VmPriority::Finalize);
+                priority_map.insert(name.name.clone(), VmPriority::Finalize);
             }
             (true, Some(_)) => {
                 return Err(AttributeError::exclusive(
@@ -472,7 +474,7 @@ impl From<VmPriority> for Priority {
 
 impl<E> VmPolicy<E> {
     fn get_command_priority(&self, name: &Identifier) -> VmPriority {
-        debug_assert!(self.machine.command_defs.contains_key(name));
+        debug_assert!(self.machine.command_defs.contains(name));
         self.priority_map.get(name).copied().unwrap_or_default()
     }
 }
