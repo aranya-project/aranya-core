@@ -120,7 +120,7 @@ function create_uni_channel(
     their_pk bytes,
     seal_id id,
     open_id id,
-    label id,
+    label_id id,
 ) struct AfcUniChannel
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
@@ -132,7 +132,7 @@ function create_uni_channel(
         their_pk: Vec<u8>,
         seal_id: DeviceId,
         open_id: DeviceId,
-        label: LabelId,
+        label_id: LabelId,
     ) -> Result<AfcUniChannel, FfiError> {
         let our_sk = &self
             .store
@@ -147,7 +147,7 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label_id: label.into_id().into(),
+            label_id,
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
