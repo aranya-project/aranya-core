@@ -14,10 +14,6 @@ not added to the graph of commands and do not persist any changes to the factDB.
 Hence, they are also not delivered through syncs and should be transmitted via
 some other mechanism.
 
-It should be noted that there is no syntactic difference between on-graph and
-ephemeral commands currently. They could in theory be used interchangeably,
-however they are almost always created with a particular flavor in mind.
-
 ```policy
 use envelope
 
