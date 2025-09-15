@@ -3,8 +3,6 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
-use core::fmt;
-
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
@@ -120,14 +118,6 @@ impl From<MergeIds> for (Address, Address) {
     }
 }
 
-/// Whether to execute a command's recall block on command failure
-pub enum CommandRecall {
-    /// Don't recall command
-    None,
-    /// Recall if the command fails with a [`aranya_policy_vm::ExitReason::Check`]
-    OnCheck,
-}
-
 /// [`Policy`] evaluates actions and [`Command`]s on the graph, emitting effects
 /// as a result.
 pub trait Policy {
@@ -147,8 +137,7 @@ pub trait Policy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-        persistence: Persistence,
-        recall: CommandRecall,
+        placement: CommandPlacement,
     ) -> Result<(), EngineError>;
 
     /// Process an action checking each published command against the policy and emitting
@@ -159,7 +148,7 @@ pub trait Policy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        persistence: Persistence,
+        placement: ActionPlacement,
     ) -> Result<(), EngineError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -171,17 +160,22 @@ pub trait Policy {
     ) -> Result<Self::Command<'a>, EngineError>;
 }
 
+/// Describes the placement when calling an action.
 #[derive(Copy, Clone, Debug)]
-pub enum Persistence {
-    Persistent,
-    Ephemeral,
+pub enum ActionPlacement {
+    /// The action is being called on-graph and will be persisted.
+    OnGraph,
+    /// The action is being called off-graph in an ephemeral session.
+    OffGraph,
 }
 
-impl fmt::Display for Persistence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Persistent => "persistent",
-            Self::Ephemeral => "ephemeral",
-        })
-    }
+#[derive(Copy, Clone, Debug)]
+/// Describes the placement when evaluating a command.
+pub enum CommandPlacement {
+    /// The command is being evaluated in its original location in the graph.
+    OnGraphAtOrigin,
+    /// The command is being evaluated during a braid of the graph.
+    OnGraphInBraid,
+    /// The command is being evaluated off-graph in an ephemeral session.
+    OffGraph,
 }

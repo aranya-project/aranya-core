@@ -2,7 +2,7 @@ use buggy::{Bug, BugExt};
 
 use crate::{
     Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective, Policy, Sink,
-    Storage, StorageError, StorageProvider,
+    Storage, StorageError, StorageProvider, engine::ActionPlacement,
 };
 
 mod braiding;
@@ -91,12 +91,7 @@ where
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
         policy
-            .call_action(
-                action,
-                &mut perspective,
-                sink,
-                crate::Persistence::Persistent,
-            )
+            .call_action(action, &mut perspective, sink, ActionPlacement::OnGraph)
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
 
@@ -181,12 +176,7 @@ where
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(
-            action,
-            &mut perspective,
-            sink,
-            crate::Persistence::Persistent,
-        ) {
+        match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(_) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
