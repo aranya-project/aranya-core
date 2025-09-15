@@ -25,7 +25,7 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    CommandContext, OpenContext, SealContext,
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -270,8 +270,7 @@ impl Machine {
     /// Call a command
     pub fn call_command_policy<M>(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
         ctx: CommandContext,
@@ -280,7 +279,7 @@ impl Machine {
         M: MachineIO<MachineStack>,
     {
         let mut rs = self.create_run_state(io, ctx);
-        rs.call_command_policy(name, this_data, envelope)
+        rs.call_command_policy(this_data, envelope)
     }
 }
 
@@ -1070,10 +1069,11 @@ where
     /// Set up machine state for a command policy call
     pub fn setup_command(
         &mut self,
-        name: Identifier,
         label_type: LabelType,
-        this_data: &Struct,
+        this_data: Struct,
     ) -> Result<(), MachineError> {
+        let name = this_data.name.clone();
+
         #[cfg(feature = "bench")]
         self.stopwatch
             .start(format!("setup_command: {}", name).as_str());
@@ -1111,7 +1111,7 @@ where
             }
         }
         self.scope
-            .set(ident!("this"), Value::Struct(this_data.to_owned()))
+            .set(ident!("this"), Value::Struct(this_data))
             .map_err(|e| self.err(e))?;
 
         #[cfg(feature = "bench")]
@@ -1126,11 +1126,14 @@ where
     /// If the command check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandPolicy, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Policy(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandPolicy, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1140,11 +1143,14 @@ where
     /// structs or a MachineError.
     pub fn call_command_recall(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandRecall, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandRecall, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1220,6 +1226,10 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        if !matches!(&self.ctx, CommandContext::Action(ActionContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_action(name, args)?;
         self.run()
     }
@@ -1227,11 +1237,12 @@ where
     /// Call the seal block on this command to produce an envelope. The
     /// seal block is given an implicit parameter `this` and should
     /// return an opaque envelope struct on the stack.
-    pub fn call_seal(
-        &mut self,
-        name: Identifier,
-        this_data: Struct,
-    ) -> Result<ExitReason, MachineError> {
+    pub fn call_seal(&mut self, this_data: Struct) -> Result<ExitReason, MachineError> {
+        let name = this_data.name.clone();
+        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
@@ -1247,6 +1258,10 @@ where
         name: Identifier,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()
