@@ -17,11 +17,11 @@ use crate::{
     state::{AranyaState, Channel, ChannelId, Directed},
     testing::{
         test_impl,
-        util::{self, DummyAead, NodeId, States, TestEngine, TestImpl},
+        util::{self, DeviceIdx, DummyAead, States, TestEngine, TestImpl},
     },
 };
 
-fn make_path(name: &str, id: NodeId) -> Box<Path> {
+fn make_path(name: &str, id: DeviceIdx) -> Box<Path> {
     let id = format!("{name}-{id}");
     let hash = &Sha256::hash(id.as_bytes())[..8];
     let path = format!("/{}\x00", hex::encode(hash));
@@ -38,7 +38,7 @@ impl TestImpl for SharedMemImpl {
 
     fn new_states<CS: CipherSuite>(
         name: &str,
-        id: NodeId,
+        id: DeviceIdx,
         max_chans: usize,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
         let path = make_path(name, id);

@@ -31,7 +31,7 @@ use crate::{
     error::Error,
     header::DataHeader,
     testing::util::{
-        Aranya, ChanOp, DataHeaderBuilder, Device, LimitedAead, NodeId, TestEngine, TestImpl,
+        Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, LimitedAead, TestEngine, TestImpl,
     },
 };
 
@@ -131,8 +131,8 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
@@ -164,8 +164,8 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
@@ -210,27 +210,27 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     let mut d = Aranya::<T, _>::new("test_multi_client", max_nodes * label_ids.len(), eng);
 
-    let mut node_ids = Vec::new();
-    let mut clients = HashMap::new();
+    let mut device_idxs = Vec::new();
+    let mut clients = Vec::new();
     for _ in 0..max_nodes {
-        let (c, node_id) = d.new_client(&mut id, label_ids);
-        node_ids.push(node_id);
-        clients.insert(node_id, c);
+        let (c, device_idx) = d.new_client(&mut id, label_ids);
+        device_idxs.push(device_idx);
+        clients.insert(device_idx, c);
     }
 
     const GOLDEN: &str = "hello, world!";
 
     fn test<T: TestImpl, S: AfcState, CS: CipherSuite>(
-        clients: &mut HashMap<NodeId, Client<S>>,
-        devices: &HashMap<NodeId, Device<T, CS>>,
-        send: NodeId,
-        recv: NodeId,
+        clients: &mut [Client<S>],
+        devices: &[Device<T, CS>],
+        send: DeviceIdx,
+        recv: DeviceIdx,
         label_id: LabelId,
-        seqs: &mut HashMap<(NodeId, NodeId, LabelId), u64>,
+        seqs: &mut HashMap<(DeviceIdx, DeviceIdx, LabelId), u64>,
     ) {
         let (channel_id, label_id) = {
-            let send_device = devices.get(&send).expect("device to exist");
-            let recv_device = devices.get(&recv).expect("device to exist");
+            let send_device = devices.get(send).expect("device to exist");
+            let recv_device = devices.get(recv).expect("device to exist");
 
             send_device
                 .common_channels(recv_device)
@@ -247,7 +247,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
         let ciphertext = {
             let u0 = clients
-                .get_mut(&send)
+                .get_mut(send)
                 .unwrap_or_else(|| panic!("unable to find send client {send}"));
             let mut dst = vec![0u8; GOLDEN.len() + overhead(u0)];
             u0.seal(channel_id, label_id, &mut dst[..], GOLDEN.as_bytes())
@@ -257,7 +257,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
         let (plaintext, got_seq) = {
             let u1 = clients
-                .get(&recv)
+                .get(recv)
                 .unwrap_or_else(|| panic!("unable to find recv client: {recv}"));
             let mut dst = vec![0u8; ciphertext.len() - overhead(u1)];
             let seq = u1
@@ -272,8 +272,8 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     let mut seqs = HashMap::new();
 
     for label_id in label_ids {
-        for a in &node_ids {
-            for b in &node_ids {
+        for a in &device_idxs {
+            for b in &device_idxs {
                 if a == b {
                     continue;
                 }
@@ -295,9 +295,9 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
     let (c2, id2) = d.new_client(&mut id, label_ids);
     let (c3, id3) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
-    let d3 = d.devices.get(&id3).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -349,9 +349,9 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let (c2, id2) = d.new_client(&mut id, label_ids);
     let (c3, id3) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
-    let d3 = d.devices.get(&id3).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -407,9 +407,9 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let (c2, id2) = d.new_client(&mut id, label_ids);
     let (c3, id3) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
-    let d3 = d.devices.get(&id3).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -474,9 +474,9 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let (c2, id2) = d.new_client(&mut id, label_ids);
     let (c3, id3) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
-    let d3 = d.devices.get(&id3).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -536,9 +536,9 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
     let (c2, id2) = d.new_client(&mut id, label_ids);
     let (c3, id3) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
-    let d3 = d.devices.get(&id3).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
 
@@ -606,9 +606,9 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
     let (c2, id2) = d.new_client(&mut id, label_ids);
     let (c3, id3) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
-    let d3 = d.devices.get(&id3).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -662,8 +662,8 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, [label_id]);
     let (c2, id2) = d.new_client(&mut id, [label_id]);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     const GOLDEN: &str = "hello";
 
@@ -712,8 +712,8 @@ where
 /// A basic positive test for unidirectional channels.
 pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
     fn test<S: AfcState, T: TestImpl, CS: CipherSuite>(
-        c1: &mut (Client<S>, NodeId),
-        c2: &(Client<S>, NodeId),
+        c1: &mut (Client<S>, DeviceIdx),
+        c2: &(Client<S>, DeviceIdx),
         d1: &Device<T, CS>,
         d2: &Device<T, CS>,
         label_id: LabelId,
@@ -778,9 +778,9 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
         ],
     );
 
-    let d1 = d.devices.get(&c1.1).expect("device to exist");
-    let d2 = d.devices.get(&c2.1).expect("device to exist");
-    let d3 = d.devices.get(&c3.1).expect("device to exist");
+    let d1 = d.devices.get(c1.1).expect("device to exist");
+    let d2 = d.devices.get(c2.1).expect("device to exist");
+    let d3 = d.devices.get(c3.1).expect("device to exist");
 
     test(&mut c1, &c2, d1, d2, label1);
     test(&mut c1, &c3, d1, d3, label1);
@@ -797,8 +797,8 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
 /// A positive and negative test for unidirectional channels.
 pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
     fn fail<S: AfcState, T: TestImpl, CS: CipherSuite>(
-        c1: &mut (Client<S>, NodeId),
-        c2: &(Client<S>, NodeId),
+        c1: &mut (Client<S>, DeviceIdx),
+        c2: &(Client<S>, DeviceIdx),
         d1: &Device<T, CS>,
         d2: &Device<T, CS>,
         label_id: LabelId,
@@ -821,8 +821,8 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
     }
 
     fn pass<S: AfcState, T: TestImpl, CS: CipherSuite>(
-        c1: &mut (Client<S>, NodeId),
-        c2: &(Client<S>, NodeId),
+        c1: &mut (Client<S>, DeviceIdx),
+        c2: &(Client<S>, DeviceIdx),
         d1: &Device<T, CS>,
         d2: &Device<T, CS>,
         label_id: LabelId,
@@ -890,11 +890,11 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
     let mut c4 = d.new_client_with_type(&mut id, [(label4, ChanOp::Any)]);
     let mut c5 = d.new_client_with_type(&mut id, []);
 
-    let d1 = d.devices.get(&c1.1).expect("device to exist");
-    let d2 = d.devices.get(&c2.1).expect("device to exist");
-    let d3 = d.devices.get(&c3.1).expect("device to exist");
-    let d4 = d.devices.get(&c4.1).expect("device to exist");
-    let d5 = d.devices.get(&c5.1).expect("device to exist");
+    let d1 = d.devices.get(c1.1).expect("device to exist");
+    let d2 = d.devices.get(c2.1).expect("device to exist");
+    let d3 = d.devices.get(c3.1).expect("device to exist");
+    let d4 = d.devices.get(c4.1).expect("device to exist");
+    let d5 = d.devices.get(c5.1).expect("device to exist");
 
     fail(&mut c1, &c2, d1, d2, label1); // open -> seal
     fail(&mut c1, &c2, d1, d2, label2); // bidi -> seal
@@ -1006,8 +1006,8 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
 
@@ -1065,8 +1065,8 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
@@ -1098,8 +1098,8 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
@@ -1130,8 +1130,8 @@ pub fn test_open_different_label<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     let common_channels: Vec<_> = d1.common_channels(d2).collect();
     let [first, second, ..] = common_channels[..] else {
@@ -1165,8 +1165,8 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
@@ -1214,8 +1214,8 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, open_labels);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     for (channel_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
@@ -1259,8 +1259,8 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     let (mut c1, id1) = d.new_client(&mut id, label_ids);
     let (c2, id2) = d.new_client(&mut id, label_ids);
 
-    let d1 = d.devices.get(&id1).expect("device to exist");
-    let d2 = d.devices.get(&id2).expect("device to exist");
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
 

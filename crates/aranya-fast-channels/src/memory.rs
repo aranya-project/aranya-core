@@ -136,7 +136,7 @@ mod tests {
     use super::*;
     use crate::testing::{
         test_impl,
-        util::{NodeId, States, TestImpl},
+        util::{DeviceIdx, States, TestImpl},
     };
 
     /// A [`TestImpl`] that uses the memory state.
@@ -149,7 +149,7 @@ mod tests {
 
         fn new_states<CS: CipherSuite>(
             _name: &str,
-            _id: NodeId,
+            _id: DeviceIdx,
             _max_chans: usize,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = State::<CS>::new();

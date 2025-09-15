@@ -1,10 +1,9 @@
 //! Testing utilities.
 
-use core::{fmt, panic};
+use core::panic;
 use std::{
-    cell::Cell,
     cmp,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     iter::{self, IntoIterator},
     marker::PhantomData,
     mem,
@@ -31,7 +30,6 @@ use aranya_crypto::{
     policy::{CmdId, LabelId},
     test_util::TestCs,
 };
-use byteorder::{ByteOrder as _, LittleEndian};
 
 use crate::{
     ChannelId,
@@ -57,60 +55,8 @@ impl ChannelId {
     }
 }
 
-/// A local identifier that associates a [`Channel`] with an
-/// Aranya team member.
-#[derive(
-    Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, serde::Serialize, serde::Deserialize,
-)]
-#[repr(transparent)]
-pub struct NodeId(u32);
-
-impl NodeId {
-    /// Creates a [`NodeId`].
-    pub const fn new(id: u32) -> Self {
-        NodeId(id)
-    }
-
-    /// The size in bytes of an ID.
-    pub const SIZE: usize = 4;
-
-    /// Creates a [`NodeId`] from its little-endian
-    /// representation.
-    pub fn from_bytes(b: &[u8]) -> Self {
-        Self::new(LittleEndian::read_u32(b))
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
-        self.put_bytes(&mut b);
-        b
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn put_bytes(&self, dst: &mut [u8]) {
-        LittleEndian::write_u32(dst, self.0);
-    }
-
-    /// Converts the [`NodeId`] to its u32 representation.
-    pub const fn to_u32(&self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for NodeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<u32> for NodeId {
-    fn from(id: u32) -> Self {
-        Self::new(id)
-    }
-}
+/// Index used to look up [devices][Device] in [Aranya::devices]
+pub(crate) type DeviceIdx = usize;
 
 /// Configuration for a particular test.
 pub trait TestImpl {
@@ -126,7 +72,7 @@ pub trait TestImpl {
     /// `name` is the name of the test.
     fn new_states<CS: CipherSuite>(
         name: &str,
-        id: NodeId,
+        id: DeviceIdx,
         max_chans: usize,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>>;
 
@@ -258,13 +204,9 @@ where
     /// The test name.
     name: String,
     /// All known Aranya devices.
-    pub(crate) devices: HashMap<NodeId, Device<T, E::CS>>,
+    pub(crate) devices: Vec<Device<T, E::CS>>,
     /// All peers that have `ChanOp` to the label.
-    peers: Vec<(NodeId, LabelId, ChanOp)>,
-    /// Selects the next `NodeId` for a client.
-    ///
-    /// TODO(eric): does this need to be `Cell`?
-    next_id: Cell<u32>,
+    peers: Vec<(DeviceIdx, LabelId, ChanOp)>,
     /// For `T::new_states`.
     max_chans: usize,
     /// The underlying crypto engine.
@@ -285,9 +227,8 @@ where
 
         Self {
             name: name.to_owned(),
-            devices: HashMap::with_capacity(max_chans),
+            devices: Vec::with_capacity(max_chans),
             peers: Vec::with_capacity(max_chans),
-            next_id: Cell::new(0),
             max_chans,
             eng,
         }
@@ -299,7 +240,7 @@ where
         &mut self,
         id: &mut ChannelId,
         labels: I,
-    ) -> (Client<T::Afc<E::CS>>, NodeId)
+    ) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
         I: IntoIterator<Item = LabelId>,
     {
@@ -312,16 +253,11 @@ where
         &mut self,
         id: &mut ChannelId,
         labels: I,
-    ) -> (Client<T::Afc<E::CS>>, NodeId)
+    ) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
         I: IntoIterator<Item = (LabelId, ChanOp)>,
     {
-        let device_id = NodeId::new({
-            let old = self.next_id.get();
-            let new = old + 1;
-            self.next_id.set(new);
-            new
-        });
+        let device_id = self.devices.len();
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
@@ -347,7 +283,7 @@ where
             for (peer_id, peer_type) in peers {
                 let peer = self
                     .devices
-                    .get(peer_id)
+                    .get(*peer_id)
                     .unwrap_or_else(|| panic!("`states.get` does not have {peer_id}"));
 
                 let (our_side, peer_side) = {
@@ -365,7 +301,7 @@ where
 
                 // Register with the peer.
                 self.devices
-                    .get_mut(peer_id)
+                    .get_mut(*peer_id)
                     .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
                     .add_channel(peer_side)
                     .unwrap_or_else(|err| {
@@ -376,7 +312,7 @@ where
             }
             self.peers.push((device_id, label, device_type));
         }
-        self.devices.insert(device_id, device);
+        self.devices.push(device);
 
         (client, device_id)
     }
@@ -516,9 +452,9 @@ where
     pub fn remove(
         &self,
         id: ChannelId,
-        device_id: NodeId,
+        device_id: DeviceIdx,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&device_id)?;
+        let aranya = self.devices.get(device_id)?;
         Some(aranya.state.remove(id))
     }
 
@@ -526,9 +462,9 @@ where
     #[allow(clippy::type_complexity)]
     pub fn remove_all(
         &self,
-        id: NodeId,
+        id: DeviceIdx,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&id)?;
+        let aranya = self.devices.get(id)?;
         Some(aranya.state.remove_all())
     }
 
@@ -536,10 +472,10 @@ where
     #[allow(clippy::type_complexity)]
     pub fn remove_if(
         &self,
-        device_id: NodeId,
+        device_id: DeviceIdx,
         f: impl FnMut(ChannelId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&device_id)?;
+        let aranya = self.devices.get(device_id)?;
         Some(aranya.state.remove_if(f))
     }
 
@@ -550,9 +486,9 @@ where
     pub fn exists(
         &self,
         id: ChannelId,
-        device_id: NodeId,
+        device_id: DeviceIdx,
     ) -> Option<Result<bool, <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.devices.get(&device_id)?;
+        let aranya = self.devices.get(device_id)?;
         Some(aranya.state.exists(id))
     }
 }
@@ -572,7 +508,7 @@ impl TestImpl for MockImpl {
 
     fn new_states<CS: CipherSuite>(
         _name: &str,
-        _node_id: NodeId,
+        _device_idx: DeviceIdx,
         _max_chans: usize,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
         let afc = memory::State::<CS>::new();
