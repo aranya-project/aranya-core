@@ -46,6 +46,9 @@ impl Path {
         if first != &b'/' {
             return bad_path("path missing leading '/'");
         }
+        if rest.is_empty() {
+            return bad_path("path is missing name");
+        }
         if rest.contains(&b'/') {
             return bad_path("path has more than one '/'");
         }
@@ -322,6 +325,8 @@ mod alloc_impls {
 
     #[cfg(test)]
     mod test {
+        use serde_test::{Compact, assert_de_tokens_error};
+
         use super::*;
 
         #[test]
@@ -350,6 +355,9 @@ mod alloc_impls {
 
             assert_de_tokens(&path.clone().readable(), &[Token::String("/asdf")]);
             assert_de_tokens(&path.clone().compact(), &[Token::ByteBuf(b"/asdf")]);
+
+            // Ensure errors are caught in deserialization. Other cases tested directly in `test_path_invalid`.
+            assert_de_tokens_error::<Compact<Box<Path>>>(&[Token::Str("")], "path is empty");
         }
 
         #[test]
@@ -367,6 +375,23 @@ mod alloc_impls {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_path_invalid() {
+        fn fail(path: &[u8]) {
+            <&Path>::try_from(path).unwrap_err();
+        }
+
+        fail(b"");
+        fail(b"/");
+        fail(b"/x\0\0");
+        fail(b"/\0x\0");
+        fail(b"\0");
+        fail(b"/\0");
+        fail(b"//x\0");
+        fail(b"/x/\0");
+        fail(format!("/{}\0", "x".repeat(Path::NAME_MAX)).as_bytes());
+    }
 
     #[test]
     fn test_path_ser_utf8() {
