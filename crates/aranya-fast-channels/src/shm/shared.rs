@@ -588,6 +588,10 @@ pub(super) struct SharedMem<CS> {
     pub reader_count: CacheAligned<AtomicUsize>,
     /// The number of live writers.
     pub writer_count: CacheAligned<AtomicUsize>,
+    #[cfg(feature = "std")]
+    reader_pid: CacheAligned<AtomicU32>,
+    #[cfg(feature = "std")]
+    writer_pid: CacheAligned<AtomicU32>,
     /// In memory, this is actually two fields:
     ///
     /// ```ignore
@@ -630,6 +634,10 @@ impl<CS: CipherSuite> SharedMem<CS> {
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
             reader_count: CacheAligned::new(AtomicUsize::new(0)),
             writer_count: CacheAligned::new(AtomicUsize::new(0)),
+            #[cfg(feature = "std")]
+            reader_pid: CacheAligned::new(AtomicU32::new(0)),
+            #[cfg(feature = "std")]
+            writer_pid: CacheAligned::new(AtomicU32::new(0)),
             sides: PhantomData,
         };
         // SAFETY: ptr is valid for writes and properly
@@ -731,6 +739,29 @@ impl<CS: CipherSuite> SharedMem<CS> {
     /// Returns the previous count.
     pub(crate) fn decrement_writer_count(&self) -> usize {
         self.writer_count.fetch_sub(1, Ordering::SeqCst)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<CS: CipherSuite> SharedMem<CS> {
+    /// Writes the PID of this process to [Self::writer_pid].
+    pub(crate) fn set_writer_pid(&self) {
+        let pid = std::process::id();
+        self.writer_pid.swap(pid, Ordering::SeqCst);
+    }
+
+    /// Writes the PID of this process to [Self::reader_pid]
+    pub(crate) fn set_reader_pid(&self) {
+        let pid = std::process::id();
+        self.reader_pid.swap(pid, Ordering::SeqCst);
+    }
+
+    pub(crate) fn get_writer_pid(&self) -> u32 {
+        self.writer_pid.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn get_reader_pid(&self) -> u32 {
+        self.reader_pid.load(Ordering::SeqCst)
     }
 }
 
