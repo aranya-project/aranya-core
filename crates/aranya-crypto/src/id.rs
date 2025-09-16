@@ -1,7 +1,5 @@
 //! [`Id`]s and generation of [`custom_id`] types.
 
-#![forbid(unsafe_code)]
-
 use core::{
     fmt::{self, Debug, Display},
     hash::Hash,
@@ -259,6 +257,48 @@ impl<'de> Deserialize<'de> for Id {
         }
     }
 }
+
+impl rkyv::Archive for Id {
+    type Archived = Self;
+    type Resolver = ();
+
+    fn resolve(&self, _: Self::Resolver, out: rkyv::Place<Self::Archived>) {
+        out.write(*self)
+    }
+}
+
+impl<S: rkyv::rancor::Fallible + ?Sized> rkyv::Serialize<S> for Id {
+    #[inline]
+    fn serialize(&self, _: &mut S) -> Result<Self::Resolver, S::Error> {
+        Ok(())
+    }
+}
+
+impl<D: rkyv::rancor::Fallible + ?Sized> rkyv::Deserialize<Self, D> for Id {
+    #[inline]
+    fn deserialize(&self, _: &mut D) -> Result<Self, D::Error> {
+        Ok(*self)
+    }
+}
+
+// SAFETY: All bit patterns are valid for `Id`.
+#[allow(unsafe_code)]
+unsafe impl<C> rkyv::bytecheck::CheckBytes<C> for Id
+where
+    C: rkyv::rancor::Fallible + ?Sized,
+{
+    unsafe fn check_bytes(_value: *const Self, _context: &mut C) -> Result<(), C::Error> {
+        Ok(())
+    }
+}
+
+// SAFETY: `Id` contains no padding or uninit bytes.
+#[allow(unsafe_code)]
+unsafe impl rkyv::traits::NoUndef for Id {}
+
+// SAFETY: `Id` has a consistent layout and no interior mutability.
+#[allow(unsafe_code)]
+unsafe impl rkyv::Portable for Id {}
 
 /// Creates a custom [`Id`].
 #[macro_export]
