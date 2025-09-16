@@ -93,7 +93,7 @@ where
     fn seal<F, T>(
         &self,
         id: ChannelId,
-        label_id: LabelId,
+        _label_id: LabelId,
         f: F,
     ) -> Result<Result<T, crate::Error>, crate::Error>
     where
@@ -147,10 +147,6 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
-
-        if chan.label_id != label_id {
-            return Err(crate::Error::InvalidLabel(chan.label_id, label_id));
-        }
 
         let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
 
