@@ -259,7 +259,7 @@ impl<T: TestImpl> Device<T> {
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
             sealer
                 .afc_client
-                .seal(channel_id, label_id, &mut dst[..], GOLDEN.as_bytes())
+                .seal(channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({channel_id}, ...): {err}"));
             dst
         };
@@ -277,12 +277,12 @@ impl<T: TestImpl> Device<T> {
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_wrong_direction(sealer: &mut Self, channel_id: ChannelId, label_id: LabelId) {
+    fn test_wrong_direction(sealer: &mut Self, channel_id: ChannelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
         let err = sealer
             .afc_client
-            .seal(channel_id, label_id, &mut dst[..], GOLDEN.as_bytes())
+            .seal(channel_id, &mut dst[..], GOLDEN.as_bytes())
             .expect_err("should have failed");
         assert_eq!(err, aranya_fast_channels::Error::NotFound(channel_id));
     }
@@ -549,7 +549,7 @@ where
     }
 
     Device::test_roundtrip(&mut author, &mut peer, channel_id, label_id);
-    Device::test_wrong_direction(&mut peer, channel_id, label_id);
+    Device::test_wrong_direction(&mut peer, channel_id);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -657,5 +657,5 @@ where
     }
 
     Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
-    Device::test_wrong_direction(&mut author, channel_id, label_id);
+    Device::test_wrong_direction(&mut author, channel_id);
 }

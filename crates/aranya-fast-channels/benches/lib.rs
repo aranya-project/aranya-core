@@ -152,12 +152,11 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let (id, label_id) = *chans.last().unwrap();
+				let (id, _label_id) = *chans.last().unwrap();
 				g.bench_function(BenchmarkId::new("seal_hit", *size), |b| {
 					b.iter(|| {
 						black_box(client.seal(
 							black_box(id),
-							black_box(label_id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -169,11 +168,10 @@ macro_rules! bench_impl {
 				// never cached.
 				let mut iter = chans.iter().cycle().copied();
 				g.bench_function(BenchmarkId::new("seal_miss", *size), |b| {
-					let (id, label_id) = iter.next().expect("should repeat");
+					let (id, _label_id) = iter.next().expect("should repeat");
 					b.iter(|| {
 						black_box(client.seal(
 							black_box(id),
-							black_box(label_id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -185,7 +183,7 @@ macro_rules! bench_impl {
 				// always cached.
 				let (id, label_id) = *chans.last().unwrap();
 				client
-					.seal(id, label_id, &mut ciphertext, &input)
+					.seal(id, &mut ciphertext, &input)
 					.expect("open_hit: unable to encrypt");
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
 					b.iter(|| {

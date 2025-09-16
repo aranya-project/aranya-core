@@ -32,6 +32,8 @@ use crate::{
 struct Cache<K> {
     /// The channel the key is for.
     id: ChannelId,
+    /// The label ID associated with the channel.
+    label_id: LabelId,
     #[derive_where(skip)]
     /// The cached key.
     key: K,
@@ -92,7 +94,7 @@ where
 
     fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
-        F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, crate::Error>,
+        F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, crate::Error>,
     {
         let mutex = self.inner.load_read_list()?;
 
@@ -116,7 +118,7 @@ where
                         c.key.seq()
                     );
 
-                    return Ok(f(&mut c.key));
+                    return Ok(f(&mut c.key, c.label_id));
                 }
                 // The generations are different, so
                 // optimistically use `idx` to try and speed up
@@ -147,12 +149,15 @@ where
 
         debug!("chan = {chan:p}/{chan:?}");
 
-        let result = f(&mut key);
+        let label_id = chan.label_id;
+
+        let result = f(&mut key, label_id);
         if likely!(result.is_ok()) {
             // Encryption was successful (it usually is), so
             // update the cache.
             let new = Cache {
                 id,
+                label_id,
                 key: CachedSealKey {
                     key,
                     id: chan.key_id,
@@ -237,6 +242,7 @@ where
             // Decryption was successful, so update the cache.
             *cache = Some(Cache {
                 id,
+                label_id,
                 key,
                 // The list is currently locked (precluding
                 // writes to `list.generation`), so we don't *need*

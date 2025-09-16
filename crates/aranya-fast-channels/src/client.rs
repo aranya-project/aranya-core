@@ -66,7 +66,6 @@ impl<S: AfcState> Client<S> {
     pub fn seal(
         &mut self,
         id: ChannelId,
-        label_id: LabelId,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -87,7 +86,7 @@ impl<S: AfcState> Client<S> {
             .split_last_chunk_mut()
             .assume("we've already checked that `dst` contains enough space")?;
 
-        self.do_seal(id, label_id, header, |aead, ad| {
+        self.do_seal(id, header, |aead, ad| {
             aead.seal(out, plaintext, ad).map_err(Into::into)
         })
         // This isn't necessary since AEAD encryption shouldn't
@@ -107,12 +106,7 @@ impl<S: AfcState> Client<S> {
     ///
     /// Returns an error if `label_id` does not match the label ID associated
     /// with the channel.
-    pub fn seal_in_place<T: Buf>(
-        &mut self,
-        id: ChannelId,
-        label_id: LabelId,
-        data: &mut T,
-    ) -> Result<Header, Error> {
+    pub fn seal_in_place<T: Buf>(&mut self, id: ChannelId, data: &mut T) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
         // over allocate, though, since we don't know if we'll be
         // performing future allocations.
@@ -134,7 +128,7 @@ impl<S: AfcState> Client<S> {
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
 
-        self.do_seal(id, label_id, header, |aead, ad| {
+        self.do_seal(id, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
         })
         // This isn't strictly necessary since AEAD
@@ -151,7 +145,6 @@ impl<S: AfcState> Client<S> {
     fn do_seal<F>(
         &mut self,
         id: ChannelId,
-        label_id: LabelId,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>
@@ -163,7 +156,7 @@ impl<S: AfcState> Client<S> {
     {
         debug!("finding seal info: id={id}");
 
-        let seq = self.state.seal(id, |aead| {
+        let seq = self.state.seal(id, |aead, label_id| {
             debug!("encrypting id={id}");
 
             let ad = AuthData {

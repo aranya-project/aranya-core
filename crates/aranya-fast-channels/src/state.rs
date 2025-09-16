@@ -28,7 +28,7 @@ pub trait AfcState {
     /// with the channel.
     fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>;
+        F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
     ///
@@ -362,7 +362,7 @@ mod test {
 
         fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
-            F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
+            F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
             self.state.seal(id, f)
         }
