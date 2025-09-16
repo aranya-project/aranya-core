@@ -148,7 +148,6 @@
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
 //!     afc_client_a.seal(
 //!         client_a_channel_id,
-//!         label_id,
 //!         &mut dst[..],
 //!         GOLDEN.as_bytes(),
 //!     )?;
