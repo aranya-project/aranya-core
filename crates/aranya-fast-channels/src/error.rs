@@ -3,7 +3,6 @@ use core::{alloc::LayoutError, convert::Infallible};
 use aranya_crypto::{
     ImportError,
     afc::{OpenError, SealError},
-    policy::LabelId,
 };
 use buggy::Bug;
 
@@ -24,9 +23,6 @@ pub enum Error {
     /// The channel could not be found.
     #[error("channel not found: {0}")]
     NotFound(ChannelId),
-    /// Invalid label.
-    #[error("invalid label got: {0} expected: {1}")]
-    InvalidLabel(LabelId, LabelId),
     /// The input is too large.
     #[error("input too large")]
     InputTooLarge,
