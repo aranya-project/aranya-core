@@ -2,6 +2,7 @@
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
+    policy::LabelId,
     zeroize::Zeroize,
 };
 use buggy::BugExt;
@@ -183,7 +184,7 @@ impl<S: AfcState> Client<S> {
         channel_id: ChannelId,
         dst: &mut [u8],
         ciphertext: &[u8],
-    ) -> Result<Seq, Error> {
+    ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
@@ -213,18 +214,20 @@ impl<S: AfcState> Client<S> {
             return Err(Error::BufferTooSmall);
         }
 
-        self.do_open(channel_id, seq, |aead, ad, seq| {
-            aead.open(dst, ciphertext, ad, seq).map_err(Into::into)
-        })
-        // For safety's sake, overwrite the output buffer if
-        // decryption fails. A good AEAD implementation
-        // should already do this, but it doesn't hurt to be
-        // extra careful.
-        .inspect_err(|_| dst.zeroize())?;
+        let label_id = self
+            .do_open(channel_id, seq, |aead, ad, seq| {
+                aead.open(dst, ciphertext, ad, seq)?;
+                Ok(ad.label_id)
+            })
+            // For safety's sake, overwrite the output buffer if
+            // decryption fails. A good AEAD implementation
+            // should already do this, but it doesn't hurt to be
+            // extra careful.
+            .inspect_err(|_| dst.zeroize())?;
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok(seq)
+        Ok((label_id, seq))
     }
 
     /// Decrypts and authenticates the ciphertext `data` received
@@ -241,7 +244,11 @@ impl<S: AfcState> Client<S> {
     ///
     /// Returns an error if `label_id` does not match the label ID associated
     /// with the channel.
-    pub fn open_in_place<T: Buf>(&self, channel_id: ChannelId, data: &mut T) -> Result<Seq, Error> {
+    pub fn open_in_place<T: Buf>(
+        &self,
+        channel_id: ChannelId,
+        data: &mut T,
+    ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
@@ -269,20 +276,22 @@ impl<S: AfcState> Client<S> {
         );
 
         let plaintext_len = out.len();
-        self.do_open(channel_id, seq, |aead, ad, seq| {
-            aead.open_in_place(out, tag, ad, seq).map_err(Into::into)
-        })
-        // On success, get rid of the header and tag.
-        .inspect(|()| data.truncate(plaintext_len))
-        // For safety's sake, overwrite the output buffer if
-        // decryption fails. A good AEAD implementation should
-        // already do this, but it doesn't hurt to be extra
-        // careful.
-        .inspect_err(|_| data.zeroize())?;
+        let label_id = self
+            .do_open(channel_id, seq, |aead, ad, seq| {
+                aead.open_in_place(out, tag, ad, seq)?;
+                Ok(ad.label_id)
+            })
+            // On success, get rid of the header and tag.
+            .inspect(|_| data.truncate(plaintext_len))
+            // For safety's sake, overwrite the output buffer if
+            // decryption fails. A good AEAD implementation should
+            // already do this, but it doesn't hurt to be extra
+            // careful.
+            .inspect_err(|_| data.zeroize())?;
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok(seq)
+        Ok((label_id, seq))
     }
 
     /// Invokes `f` with the key for `id`.
