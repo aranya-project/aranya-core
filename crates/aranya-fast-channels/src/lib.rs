@@ -146,11 +146,7 @@
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!     afc_client_a.seal(
-//!         client_a_channel_id,
-//!         &mut dst[..],
-//!         GOLDEN.as_bytes(),
-//!     )?;
+//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
 //!     dst
 //! };
 //!
