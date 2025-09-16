@@ -163,7 +163,7 @@ impl<S: AfcState> Client<S> {
     {
         debug!("finding seal info: id={id}");
 
-        let seq = self.state.seal(id, label_id, |aead| {
+        let seq = self.state.seal(id, |aead| {
             debug!("encrypting id={id}");
 
             let ad = AuthData {

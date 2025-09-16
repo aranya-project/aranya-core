@@ -43,16 +43,12 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, label_id: LabelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
     {
         let mut chans = self.chans.lock().assume("poisoned")?;
-        let (key, chan_label_id) = chans.get_mut(&id).ok_or(Error::NotFound(id))?;
-
-        if label_id != *chan_label_id {
-            return Err(Error::InvalidLabel(*chan_label_id, label_id));
-        }
+        let (key, _) = chans.get_mut(&id).ok_or(Error::NotFound(id))?;
 
         let key = key.seal_mut().ok_or(Error::NotFound(id))?;
         Ok(f(key))

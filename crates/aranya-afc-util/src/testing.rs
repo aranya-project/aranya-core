@@ -277,26 +277,6 @@ impl<T: TestImpl> Device<T> {
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_bad_label(
-        sealer: &mut Self,
-        channel_id: ChannelId,
-        bad_label: LabelId,
-        expected_label: LabelId,
-    ) {
-        const GOLDEN: &str = "hello, world!";
-        let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
-        let err = sealer
-            .afc_client
-            .seal(channel_id, bad_label, &mut dst[..], GOLDEN.as_bytes())
-            .expect_err("should have failed");
-        assert_eq!(
-            err,
-            aranya_fast_channels::Error::InvalidLabel(expected_label, bad_label)
-        );
-    }
-
-    /// Tests the case where `label` has not been assigned to
-    /// `sealer`.
     fn test_wrong_direction(sealer: &mut Self, channel_id: ChannelId, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
@@ -462,10 +442,6 @@ where
 
     Device::test_roundtrip(&mut author, &mut peer, channel_id, label_id);
     Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
-
-    let bad_label = LabelId::random(&mut Rng);
-    Device::test_bad_label(&mut author, channel_id, bad_label, label_id);
-    Device::test_bad_label(&mut peer, channel_id, bad_label, label_id);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -573,7 +549,6 @@ where
     }
 
     Device::test_roundtrip(&mut author, &mut peer, channel_id, label_id);
-    Device::test_bad_label(&mut author, channel_id, LabelId::random(&mut Rng), label_id);
     Device::test_wrong_direction(&mut peer, channel_id, label_id);
 }
 
@@ -682,6 +657,5 @@ where
     }
 
     Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
-    Device::test_bad_label(&mut peer, channel_id, LabelId::random(&mut Rng), label_id);
     Device::test_wrong_direction(&mut author, channel_id, label_id);
 }

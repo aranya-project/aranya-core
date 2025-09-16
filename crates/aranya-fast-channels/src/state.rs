@@ -26,7 +26,7 @@ pub trait AfcState {
     ///
     /// Returns an error if `label_id` does not match the label ID associated
     /// with the channel.
-    fn seal<F, T>(&self, id: ChannelId, label_id: LabelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>;
 
@@ -360,16 +360,11 @@ mod test {
     {
         type CipherSuite = CS;
 
-        fn seal<F, T>(
-            &self,
-            id: ChannelId,
-            label_id: LabelId,
-            f: F,
-        ) -> Result<Result<T, Error>, Error>
+        fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
         {
-            self.state.seal(id, label_id, f)
+            self.state.seal(id, f)
         }
 
         fn open<F, T>(

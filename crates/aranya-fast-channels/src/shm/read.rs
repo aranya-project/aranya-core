@@ -90,12 +90,7 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(
-        &self,
-        id: ChannelId,
-        _label_id: LabelId,
-        f: F,
-    ) -> Result<Result<T, crate::Error>, crate::Error>
+    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, crate::Error>,
     {
