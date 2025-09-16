@@ -173,12 +173,8 @@ impl<S: AfcState> Client<S> {
     /// be at least `ciphertext.len() - Client::OVERHEAD` bytes
     /// long.
     ///
-    /// It returns the sequence number associated with the ciphertext.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `label_id` does not match the label ID associated
-    /// with the channel.
+    /// It returns the cryptographically verified label and
+    /// sequence number associated with the ciphertext.
     pub fn open(
         &self,
         channel_id: ChannelId,
@@ -239,11 +235,6 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `label_id` does not match the label ID associated
-    /// with the channel.
     pub fn open_in_place<T: Buf>(
         &self,
         channel_id: ChannelId,
