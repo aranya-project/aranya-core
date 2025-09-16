@@ -46,9 +46,18 @@ where
         P: AsRef<Path>,
     {
         let state = State::open(path, flag, mode, max_chans)?;
-        if state.shm().increment_writer_count() > 0 {
+        let shm = state.shm();
+        if shm.increment_writer_count() > 0 {
+            #[cfg(feature = "std")]
+            {
+                let pid = shm.get_writer_pid();
+                debug!("Process with ID: {pid}, has an open writer handle");
+            }
             bug!("More than 1 writer share memory handle open")
         }
+
+        #[cfg(feature = "std")]
+        shm.set_writer_pid();
 
         Ok(Self {
             inner: state,
