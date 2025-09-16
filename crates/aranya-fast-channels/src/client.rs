@@ -2,7 +2,6 @@
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
-    policy::LabelId,
     zeroize::Zeroize,
 };
 use buggy::BugExt;
@@ -182,7 +181,6 @@ impl<S: AfcState> Client<S> {
     pub fn open(
         &self,
         channel_id: ChannelId,
-        label_id: LabelId,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<Seq, Error> {
@@ -199,7 +197,7 @@ impl<S: AfcState> Client<S> {
             (seq, ciphertext)
         };
         debug!(
-            "label_id={label_id}  seq={seq} ciphertext=[{:?}; {}] channel_id={channel_id}",
+            "seq={seq} ciphertext=[{:?}; {}] channel_id={channel_id}",
             ciphertext.as_ptr(),
             ciphertext.len()
         );
@@ -215,7 +213,7 @@ impl<S: AfcState> Client<S> {
             return Err(Error::BufferTooSmall);
         }
 
-        self.do_open(channel_id, label_id, seq, |aead, ad, seq| {
+        self.do_open(channel_id, seq, |aead, ad, seq| {
             aead.open(dst, ciphertext, ad, seq).map_err(Into::into)
         })
         // For safety's sake, overwrite the output buffer if
@@ -243,12 +241,7 @@ impl<S: AfcState> Client<S> {
     ///
     /// Returns an error if `label_id` does not match the label ID associated
     /// with the channel.
-    pub fn open_in_place<T: Buf>(
-        &self,
-        channel_id: ChannelId,
-        label_id: LabelId,
-        data: &mut T,
-    ) -> Result<(LabelId, Seq), Error> {
+    pub fn open_in_place<T: Buf>(&self, channel_id: ChannelId, data: &mut T) -> Result<Seq, Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
@@ -270,13 +263,13 @@ impl<S: AfcState> Client<S> {
             (seq, ciphertext, tag)
         };
         debug!(
-            "channel_id={channel_id} label_id={label_id} data=[{:?}; {}]",
+            "channel_id={channel_id} data=[{:?}; {}]",
             out.as_ptr(),
             out.len()
         );
 
         let plaintext_len = out.len();
-        self.do_open(channel_id, label_id, seq, |aead, ad, seq| {
+        self.do_open(channel_id, seq, |aead, ad, seq| {
             aead.open_in_place(out, tag, ad, seq).map_err(Into::into)
         })
         // On success, get rid of the header and tag.
@@ -289,11 +282,11 @@ impl<S: AfcState> Client<S> {
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok((label_id, seq))
+        Ok(seq)
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: ChannelId, label_id: LabelId, seq: Seq, f: F) -> Result<T, Error>
+    fn do_open<F, T>(&self, id: ChannelId, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -303,12 +296,14 @@ impl<S: AfcState> Client<S> {
     {
         debug!("decrypting: id={id}");
 
-        let ad = AuthData {
-            // TODO(eric): update `AuthData` to use `u16`.
-            version: u32::from(Version::current().to_u16()),
-            label_id,
-        };
-        self.state.open(id, label_id, |aead| f(aead, &ad, seq))?
+        self.state.open(id, |aead, label_id| {
+            let ad = AuthData {
+                // TODO(eric): update `AuthData` to use `u16`.
+                version: u32::from(Version::current().to_u16()),
+                label_id,
+            };
+            f(aead, &ad, seq)
+        })?
     }
 }
 

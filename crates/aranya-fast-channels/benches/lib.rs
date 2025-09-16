@@ -119,7 +119,7 @@ macro_rules! bench_impl {
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
 
-			let chans: [(ChannelId, LabelId); USED_CHANS] = array::from_fn(|i| {
+			let chans: [ChannelId; USED_CHANS] = array::from_fn(|i| {
 				let label = LabelId::random(&mut Rng);
 
 				// Use the same key to simplify the decryption
@@ -136,7 +136,7 @@ macro_rules! bench_impl {
                     open,
                 };
 				aranya.add(id, keys, label).unwrap();
-				(id, label)
+				id
 			});
 			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 
@@ -152,7 +152,7 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let (id, _label_id) = *chans.last().unwrap();
+				let id = *chans.last().unwrap();
 				g.bench_function(BenchmarkId::new("seal_hit", *size), |b| {
 					b.iter(|| {
 						black_box(client.seal(
@@ -168,7 +168,7 @@ macro_rules! bench_impl {
 				// never cached.
 				let mut iter = chans.iter().cycle().copied();
 				g.bench_function(BenchmarkId::new("seal_miss", *size), |b| {
-					let (id, _label_id) = iter.next().expect("should repeat");
+					let id = iter.next().expect("should repeat");
 					b.iter(|| {
 						black_box(client.seal(
 							black_box(id),
@@ -181,7 +181,7 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let (id, label_id) = *chans.last().unwrap();
+				let id = *chans.last().unwrap();
 				client
 					.seal(id, &mut ciphertext, &input)
 					.expect("open_hit: unable to encrypt");
@@ -189,7 +189,6 @@ macro_rules! bench_impl {
 					b.iter(|| {
 						let _ = black_box(client.open(
 							black_box(id),
-							black_box(label_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						))
@@ -204,10 +203,9 @@ macro_rules! bench_impl {
 					b.iter(|| {
 						// Ignore failures instead of creating
 						// N ciphertexts.
-						let (_channel_id, label_id) = iter.next().expect("should repeat");
+						let id = iter.next().expect("should repeat");
 						let _ = client.open(
-							black_box(id),
-							black_box(*label_id),
+							black_box(*id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						);

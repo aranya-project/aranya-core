@@ -156,8 +156,7 @@
 //! // Have device2 decrypt the data from device1.
 //! let (seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let seq =
-//!         afc_client_b.open(client_b_channel_id, label_id, &mut dst[..], &ciphertext[..])?;
+//!     let seq = afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
 //!     (seq, dst)
 //! };
 //!

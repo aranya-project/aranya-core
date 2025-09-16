@@ -26,14 +26,9 @@ pub trait AfcState {
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `label_id` does not match the label ID associated
-    /// with the channel.
-    fn open<F, T>(&self, id: ChannelId, label_id: LabelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>;
+        F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Error>;
@@ -362,16 +357,11 @@ mod test {
             self.state.seal(id, f)
         }
 
-        fn open<F, T>(
-            &self,
-            id: ChannelId,
-            label_id: LabelId,
-            f: F,
-        ) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
-            F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>,
+            F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.open(id, label_id, f)
+            self.state.open(id, f)
         }
 
         fn exists(&self, id: ChannelId) -> Result<bool, Error> {

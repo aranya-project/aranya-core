@@ -183,14 +183,9 @@ where
         Ok(result)
     }
 
-    fn open<F, T>(
-        &self,
-        id: ChannelId,
-        label_id: LabelId,
-        f: F,
-    ) -> Result<Result<T, crate::Error>, crate::Error>
+    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
-        F: FnOnce(&OpenKey<CS>) -> Result<T, crate::Error>,
+        F: FnOnce(&OpenKey<CS>, LabelId) -> Result<T, crate::Error>,
     {
         let mutex = self.inner.load_read_list()?;
 
@@ -212,7 +207,7 @@ where
                     // so we can use it.
                     debug!("cache hit: id={id} generation={generation}");
 
-                    return Ok(f(&c.key));
+                    return Ok(f(&c.key, c.label_id));
                 }
                 // The generations are different, so
                 // optimistically use `idx` to try and speed up
@@ -231,13 +226,10 @@ where
             Some((chan, idx)) => (chan, idx),
         };
 
-        if chan.label_id != label_id {
-            return Err(crate::Error::InvalidLabel(chan.label_id, label_id));
-        }
-
         let key = OpenKey::from_raw(&chan.open_key)?;
+        let label_id = chan.label_id;
 
-        let result = f(&key);
+        let result = f(&key, label_id);
         if result.is_ok() {
             // Decryption was successful, so update the cache.
             *cache = Some(Cache {

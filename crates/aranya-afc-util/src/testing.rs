@@ -248,12 +248,7 @@ impl<T: TestImpl> Device<T> {
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
-    fn test_roundtrip(
-        sealer: &mut Self,
-        opener: &mut Self,
-        channel_id: ChannelId,
-        label_id: LabelId,
-    ) {
+    fn test_roundtrip(sealer: &mut Self, opener: &mut Self, channel_id: ChannelId) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
@@ -267,7 +262,7 @@ impl<T: TestImpl> Device<T> {
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
             let seq = opener
                 .afc_client
-                .open(channel_id, label_id, &mut dst[..], &ciphertext[..])
+                .open(channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({channel_id}, ...): {err}"));
             (dst, seq)
         };
@@ -440,8 +435,8 @@ where
             .expect("peer should be able to add channel");
     }
 
-    Device::test_roundtrip(&mut author, &mut peer, channel_id, label_id);
-    Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
+    Device::test_roundtrip(&mut author, &mut peer, channel_id);
+    Device::test_roundtrip(&mut peer, &mut author, channel_id);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -548,7 +543,7 @@ where
             .expect("peer should be able to add channel");
     }
 
-    Device::test_roundtrip(&mut author, &mut peer, channel_id, label_id);
+    Device::test_roundtrip(&mut author, &mut peer, channel_id);
     Device::test_wrong_direction(&mut peer, channel_id);
 }
 
@@ -656,6 +651,6 @@ where
             .expect("peer should be able to add channel");
     }
 
-    Device::test_roundtrip(&mut peer, &mut author, channel_id, label_id);
+    Device::test_roundtrip(&mut peer, &mut author, channel_id);
     Device::test_wrong_direction(&mut author, channel_id);
 }

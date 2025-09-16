@@ -54,19 +54,15 @@ where
         Ok(f(key, *chan_label_id))
     }
 
-    fn open<F, T>(&self, id: ChannelId, label_id: LabelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>,
+        F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let chans = self.chans.lock().assume("poisoned")?;
         let (key, chan_label_id) = chans.get(&id).ok_or(Error::NotFound(id))?;
-
-        if label_id != *chan_label_id {
-            return Err(Error::InvalidLabel(*chan_label_id, label_id));
-        }
         let key = key.open().ok_or(Error::NotFound(id))?;
 
-        Ok(f(key))
+        Ok(f(key, *chan_label_id))
     }
 
     fn exists(&self, id: ChannelId) -> Result<bool, Error> {
