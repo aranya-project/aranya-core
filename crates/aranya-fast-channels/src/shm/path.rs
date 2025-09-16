@@ -18,7 +18,7 @@ const fn bad_path(msg: &'static str) -> Result<(), InvalidPathError> {
 
 /// A borrowed shared memory path.
 ///
-/// It's like `&str`, but syntactically valid.
+/// It's like `&CStr`, but syntactically valid.
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct Path(CStr);
