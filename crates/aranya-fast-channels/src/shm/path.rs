@@ -211,11 +211,27 @@ mod alloc_impls {
         }
     }
 
+    impl TryFrom<&[u8]> for Box<Path> {
+        type Error = InvalidPathError;
+
+        fn try_from(path: &[u8]) -> Result<Self, Self::Error> {
+            <&Path>::try_from(path).map(Self::from)
+        }
+    }
+
     impl TryFrom<Vec<u8>> for Box<Path> {
         type Error = InvalidPathError;
 
         fn try_from(path: Vec<u8>) -> Result<Self, Self::Error> {
             path.into_boxed_slice().try_into()
+        }
+    }
+
+    impl TryFrom<&str> for Box<Path> {
+        type Error = InvalidPathError;
+
+        fn try_from(path: &str) -> Result<Self, Self::Error> {
+            <&Path>::try_from(path).map(Self::from)
         }
     }
 
@@ -232,6 +248,14 @@ mod alloc_impls {
 
         fn try_from(path: Box<str>) -> Result<Self, Self::Error> {
             path.into_boxed_bytes().try_into()
+        }
+    }
+
+    impl TryFrom<&CStr> for Box<Path> {
+        type Error = InvalidPathError;
+
+        fn try_from(path: &CStr) -> Result<Self, Self::Error> {
+            <&Path>::try_from(path).map(Self::from)
         }
     }
 
