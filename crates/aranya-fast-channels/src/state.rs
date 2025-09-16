@@ -82,7 +82,7 @@ pub trait AranyaState {
 /// A unique identifier representing a channel.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
-pub struct ChannelId(pub(crate) u32);
+pub struct ChannelId(u32);
 
 impl ChannelId {
     /// Creates a [`ChannelId`].

@@ -51,7 +51,7 @@ unsafe extern "C" fn OS_hardware_rand() -> u32 {
 impl ChannelId {
     /// Increments the [`ChannelId`] counter.
     pub fn increment(&mut self) {
-        self.0 += 1
+        *self = ChannelId::new(self.to_u32() + 1);
     }
 }
 
