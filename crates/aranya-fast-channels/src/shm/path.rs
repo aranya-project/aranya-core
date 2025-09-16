@@ -271,6 +271,10 @@ mod alloc_impls {
                     self.visit_byte_buf(v.into_bytes())
                 }
                 fn visit_bytes<E: de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                    #[allow(
+                        clippy::arithmetic_side_effects,
+                        reason = "isize::MAX + 1 < usize::MAX"
+                    )]
                     let mut bytes: Vec<u8> = Vec::with_capacity(v.len() + 1);
                     bytes.extend_from_slice(v);
                     bytes.push(0);
