@@ -11,7 +11,7 @@ use aranya_crypto::{
     afc::{OpenKey, SealKey},
     policy::LabelId,
 };
-use buggy::BugExt;
+use buggy::{BugExt, bug};
 use derive_where::derive_where;
 
 use super::{
@@ -77,12 +77,47 @@ where
     where
         P: AsRef<Path>,
     {
+        let state = State::open(path, flag, mode, max_chans)?;
+        let shm = state.shm();
+        if shm.increment_reader_count() > 0 {
+            #[cfg(feature = "std")]
+            {
+                let pid = shm.get_reader_pid();
+                debug!("Process with ID: {pid}, has an open reader handle");
+            }
+            bug!("More than 1 reader shared memory handle open")
+        }
+
+        #[cfg(feature = "std")]
+        shm.set_reader_pid();
+
         Ok(Self {
-            inner: State::open(path, flag, mode, max_chans)?,
+            inner: state,
             last_seal: StdMutex::new(None),
             last_open: StdMutex::new(None),
             _no_sync: PhantomData,
         })
+    }
+}
+
+impl<CS: CipherSuite> Drop for ReadState<CS> {
+    fn drop(&mut self) {
+        let count = self.inner.shm().decrement_reader_count();
+        if count <= 1 {
+            self.inner.unmap();
+        }
+    }
+}
+
+impl<CS: CipherSuite> Clone for ReadState<CS> {
+    fn clone(&self) -> Self {
+        self.inner.shm().increment_reader_count();
+        Self {
+            inner: self.inner.clone(),
+            last_seal: StdMutex::default(),
+            last_open: StdMutex::default(),
+            _no_sync: PhantomData,
+        }
     }
 }
 
