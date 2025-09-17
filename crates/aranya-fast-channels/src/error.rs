@@ -6,7 +6,7 @@ use aranya_crypto::{
 };
 use buggy::Bug;
 
-use crate::{buf::AllocError, errno::Errno, header::HeaderError, state::ChannelId};
+use crate::{ChannelId, buf::AllocError, errno::Errno, header::HeaderError};
 
 /// Shorthand for `Result`s that use [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;

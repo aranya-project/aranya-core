@@ -25,10 +25,8 @@ std = [
 	"aranya-crypto/std",
 	"aranya-fast-channels/std",
 	"aranya-policy-vm/std",
-	"indexmap?/std",
 	"postcard/use-std",
 	"serde/std",
-	"siphasher?/std",
 	"spin/std",
 	"thiserror/std",
 	"tracing/std",
@@ -39,9 +37,6 @@ testing = [
 	"alloc",
 
 	"aranya-crypto/memstore",
-
-	"dep:indexmap",
-	"dep:siphasher",
 ]
 
 [dependencies]
@@ -49,10 +44,8 @@ aranya-crypto = { version = "0.9.0", path = "../aranya-crypto", default-features
 aranya-fast-channels = { version = "0.11.0", path = "../aranya-fast-channels", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.12.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
 buggy = { version = "0.1.0", default-features = false }
-indexmap = { workspace = true, default-features = false, optional = true }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-siphasher = { version = "1", default-features = false, optional = true }
 spin = { workspace = true, default-features = false, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
