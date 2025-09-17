@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.12.0...aranya-policy-compiler-v0.13.0) - 2025-09-17
+
+### Other
+
+- Added README, improve documentation ([#394](https://github.com/aranya-project/aranya-core/pull/394))
+- add `NamedMap` and def types for action and command ([#387](https://github.com/aranya-project/aranya-core/pull/387))
+- Fix #371: Allow first form of `update` statement, which doesn't have a value block. ([#389](https://github.com/aranya-project/aranya-core/pull/389))
+- Fix #314: Disallow duplicate field definitions in fact literals. ([#382](https://github.com/aranya-project/aranya-core/pull/382))
+- add location info to all AST items ([#366](https://github.com/aranya-project/aranya-core/pull/366))
+- Fix #201: Disallow leading bind values in queries. ([#362](https://github.com/aranya-project/aranya-core/pull/362))
+
 ## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.11.0...aranya-policy-compiler-v0.12.0) - 2025-08-19
 
 ### Other

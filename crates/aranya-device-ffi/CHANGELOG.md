@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-device-ffi-v0.12.0...aranya-device-ffi-v0.13.0) - 2025-09-17
+
+### Other
+
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
 ## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-device-ffi-v0.11.0...aranya-device-ffi-v0.12.0) - 2025-08-19
 
 ### Other
