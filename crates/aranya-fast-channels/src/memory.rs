@@ -10,22 +10,24 @@ use alloc::{collections::BTreeMap, sync::Arc};
 use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
 };
 use buggy::{Bug, BugExt};
 use derive_where::derive_where;
 
 use crate::{
+    ChannelId,
     error::Error,
     mutex::StdMutex,
-    state::{AfcState, AranyaState, ChannelId, Directed},
+    state::{AfcState, AranyaState, Directed},
 };
 
 /// An im-memory implementation of [`AfcState`] and
 /// [`AranyaState`].
-#[derive_where(Clone, Default)]
+#[derive_where(Clone, Debug, Default)]
 pub struct State<CS: CipherSuite> {
     #[allow(clippy::type_complexity)]
-    chans: Arc<StdMutex<BTreeMap<ChannelId, Directed<SealKey<CS>, OpenKey<CS>>>>>,
+    chans: Arc<StdMutex<BTreeMap<ChannelId, (Directed<SealKey<CS>, OpenKey<CS>>, LabelId)>>>,
 }
 
 impl<CS: CipherSuite> State<CS> {
@@ -43,28 +45,24 @@ where
 
     fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
+        F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let mut chans = self.chans.lock().assume("poisoned")?;
-        let key = chans
-            .get_mut(&id)
-            .ok_or(Error::NotFound(id))?
-            .seal_mut()
-            .ok_or(Error::NotFound(id))?;
-        Ok(f(key))
+        let (key, chan_label_id) = chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+
+        let key = key.seal_mut().ok_or(Error::NotFound(id))?;
+        Ok(f(key, *chan_label_id))
     }
 
     fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>,
+        F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let chans = self.chans.lock().assume("poisoned")?;
-        let key = chans
-            .get(&id)
-            .ok_or(Error::NotFound(id))?
-            .open()
-            .ok_or(Error::NotFound(id))?;
-        Ok(f(key))
+        let (key, chan_label_id) = chans.get(&id).ok_or(Error::NotFound(id))?;
+        let key = key.open().ok_or(Error::NotFound(id))?;
+
+        Ok(f(key, *chan_label_id))
     }
 
     fn exists(&self, id: ChannelId) -> Result<bool, Error> {
@@ -86,8 +84,12 @@ where
         &self,
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
     ) -> Result<(), Self::Error> {
-        self.chans.lock().assume("poisoned")?.insert(id, keys);
+        self.chans
+            .lock()
+            .assume("poisoned")?
+            .insert(id, (keys, label_id));
         Ok(())
     }
 
@@ -124,12 +126,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        state::NodeId,
-        testing::{
-            test_impl,
-            util::{States, TestImpl},
-        },
+    use crate::testing::{
+        test_impl,
+        util::{DeviceIdx, States, TestImpl},
     };
 
     /// A [`TestImpl`] that uses the memory state.
@@ -142,7 +141,7 @@ mod tests {
 
         fn new_states<CS: CipherSuite>(
             _name: &str,
-            _id: NodeId,
+            _id: DeviceIdx,
             _max_chans: usize,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = State::<CS>::new();
