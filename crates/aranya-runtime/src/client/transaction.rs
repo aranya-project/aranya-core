@@ -103,15 +103,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 let (braid, last_common_ancestor) =
                     make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
-                let mut perspective = storage
-                    .new_merge_perspective(
-                        left_loc,
-                        right_loc,
-                        last_common_ancestor,
-                        policy_id,
-                        braid,
-                    )?
-                    .assume("trx heads should exist in storage")?;
+                let mut perspective = storage.new_merge_perspective(
+                    left_loc,
+                    right_loc,
+                    last_common_ancestor,
+                    policy_id,
+                    braid,
+                )?;
                 perspective.add_command(&command)?;
 
                 let segment = storage.write(perspective)?;
@@ -269,11 +267,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let (braid, last_common_ancestor) =
             make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
-        let mut perspective = storage
-            .new_merge_perspective(left_loc, right_loc, last_common_ancestor, policy_id, braid)?
-            .assume(
-                "we already found left and right locations above and we only call this with merge command",
-            )?;
+        let mut perspective = storage.new_merge_perspective(
+            left_loc,
+            right_loc,
+            last_common_ancestor,
+            policy_id,
+            braid,
+        )?;
         perspective.add_command(command)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
@@ -316,11 +316,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             .ok_or(ClientError::NoSuchParent(parent.id))?;
 
         // Get a new perspective and store it in the transaction.
-        let p = self.perspective.insert(
-            storage
-                .get_linear_perspective(loc)?
-                .assume("location should already be in storage")?,
-        );
+        let p = self
+            .perspective
+            .insert(storage.get_linear_perspective(loc)?);
 
         self.phead = Some(parent.id);
         self.heads.remove(&parent);

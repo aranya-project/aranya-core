@@ -131,10 +131,7 @@ pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) 
 }
 
 custom_id! {
-    /// Uniquely identifies an AQC label.
-    ///
-    /// A label associates an AQC channel with Aranya policy
-    /// rules that govern communication in the channel.
+    /// Uniquely identifies a label.
     #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct LabelId;
 }

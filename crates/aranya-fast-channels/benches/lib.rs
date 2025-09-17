@@ -14,11 +14,12 @@ use aranya_crypto::{
         rust::HkdfSha256,
     },
     default::DefaultCipherSuite,
+    policy::LabelId,
     test_util::TestCs,
     typenum::{U0, U16},
 };
 use aranya_fast_channels::{
-    AranyaState, ChannelId, Client, Directed, Label, NodeId,
+    AranyaState, ChannelId, Client, Directed,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
 };
@@ -119,8 +120,7 @@ macro_rules! bench_impl {
 				.expect("should not fail");
 
 			let chans: [ChannelId; USED_CHANS] = array::from_fn(|i| {
-				let node_id = NodeId::new(i as u32);
-				let label = Label::new(0);
+				let label = LabelId::random(&mut Rng);
 
 				// Use the same key to simplify the decryption
 				// benchmarks.
@@ -130,12 +130,12 @@ macro_rules! bench_impl {
 					base_nonce: seal.base_nonce,
 				};
 
-				let id = ChannelId::new(node_id, label);
+				let id = ChannelId::new(i as u32);
 				let keys = Directed::Bidirectional {
                     seal,
                     open,
                 };
-				aranya.add(id, keys).unwrap();
+				aranya.add(id, keys, label).unwrap();
 				id
 			});
 			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
@@ -168,9 +168,10 @@ macro_rules! bench_impl {
 				// never cached.
 				let mut iter = chans.iter().cycle().copied();
 				g.bench_function(BenchmarkId::new("seal_miss", *size), |b| {
+					let id = iter.next().expect("should repeat");
 					b.iter(|| {
 						black_box(client.seal(
-							black_box(iter.next().expect("should repeat")),
+							black_box(id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -187,7 +188,7 @@ macro_rules! bench_impl {
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
 					b.iter(|| {
 						let _ = black_box(client.open(
-							black_box(id.node_id()),
+							black_box(id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						))
@@ -202,8 +203,9 @@ macro_rules! bench_impl {
 					b.iter(|| {
 						// Ignore failures instead of creating
 						// N ciphertexts.
+						let id = iter.next().expect("should repeat");
 						let _ = client.open(
-							black_box(iter.next().expect("should repeat").node_id()),
+							black_box(*id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						);

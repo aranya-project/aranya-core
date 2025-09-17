@@ -108,6 +108,7 @@ thiserror = { workspace = true }
 aranya-fast-channels = { path = ".", features = ["testing"] }
 
 criterion = { workspace = true }
+serde_test = { version = "1" }
 serial_test = { version = "3.1.1" }
 
 
