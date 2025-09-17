@@ -186,18 +186,7 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError> {
-        let segment = self.get_segment(location)?;
-        let command = segment
-            .get_command(location)
-            .ok_or(StorageError::CommandOutOfBounds(location))?;
-        Ok(command.id())
-    }
-
-    fn get_linear_perspective(
-        &self,
-        parent: Location,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    fn get_linear_perspective(&self, parent: Location) -> Result<Self::Perspective, StorageError> {
         let segment = self.get_segment(parent)?;
         let command = segment
             .get_command(parent)
@@ -230,7 +219,7 @@ impl Storage for MemStorage {
             .assume("must not overflow")?;
         let perspective = MemPerspective::new(prior, parents, policy, prior_facts, max_cut);
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_fact_perspective(
@@ -260,7 +249,7 @@ impl Storage for MemStorage {
         _last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: MemFactIndex,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    ) -> Result<Self::Perspective, StorageError> {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
 
@@ -292,7 +281,7 @@ impl Storage for MemStorage {
 
         let perspective = MemPerspective::new(prior, parents, policy_id, braid.into(), max_cut);
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_segment(&self, location: Location) -> Result<MemSegment, StorageError> {
@@ -537,16 +526,14 @@ impl Segment for MemSegment {
             .collect()
     }
 
-    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError> {
-        for (i, command) in self.commands.iter().enumerate() {
-            if command.command.max_cut == max_cut {
-                return Ok(Some(Location {
-                    segment: self.index,
-                    command: i,
-                }));
-            }
-        }
-        Ok(None)
+    fn get_by_address(&self, address: Address) -> Option<Location> {
+        self.commands
+            .iter()
+            .position(|cmd| cmd.command.max_cut == address.max_cut && cmd.command.id == address.id)
+            .map(|i| Location {
+                segment: self.index,
+                command: i,
+            })
     }
 
     fn longest_max_cut(&self) -> Result<usize, StorageError> {
