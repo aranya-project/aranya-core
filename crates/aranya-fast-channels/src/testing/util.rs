@@ -11,6 +11,7 @@ use std::{
 };
 
 use aranya_crypto::{
+    CipherSuite, EncryptionKey, Engine, IdentityKey,
     afc::{
         BidiChannel, BidiChannelId, BidiKeys, BidiSecrets, UniChannel, UniChannelId, UniOpenKey,
         UniSealKey, UniSecrets,
@@ -31,16 +32,15 @@ use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     policy::{CmdId, LabelId},
     test_util::TestCs,
-    CipherSuite, EncryptionKey, Engine, IdentityKey,
 };
 use derive_where::derive_where;
 
 use crate::{
+    ChannelId,
     client::Client,
     header::{DataHeader, Header, MsgType, Version},
     memory,
     state::{AfcState, AranyaState, Directed},
-    ChannelId,
 };
 
 #[cfg(feature = "trng")]

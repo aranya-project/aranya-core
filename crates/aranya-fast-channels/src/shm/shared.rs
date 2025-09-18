@@ -2,27 +2,27 @@ use core::{
     alloc::Layout,
     fmt,
     marker::PhantomData,
-    mem::{size_of, MaybeUninit},
+    mem::{MaybeUninit, size_of},
     ptr, slice, str,
     sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering},
 };
 
 use aranya_crypto::{
+    CipherSuite, Csprng, Random,
     afc::{RawOpenKey, RawSealKey, Seq},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     policy::LabelId,
-    CipherSuite, Csprng, Random,
 };
 use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 
 use super::{
-    align::{is_aligned_to, layout_repeat, CacheAligned},
+    align::{CacheAligned, is_aligned_to, layout_repeat},
     error::{
-        bad_chan_direction, bad_chan_magic, bad_chanlist_magic, bad_page_alignment,
-        bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version, corrupted,
-        Corrupted, Error, LayoutError,
+        Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
+        bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
+        corrupted,
     },
     le::{U32, U64},
     path::{Flag, Mode, Path},
@@ -30,7 +30,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    errno::{errno, Errno},
+    errno::{Errno, errno},
     mutex::Mutex,
     state::{ChannelId, Directed},
     util::{const_assert, debug},

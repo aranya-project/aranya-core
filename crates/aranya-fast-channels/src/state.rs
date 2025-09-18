@@ -4,10 +4,10 @@ use core::{
 };
 
 use aranya_crypto::{
+    CipherSuite,
     afc::{OpenKey, SealKey},
     policy::LabelId,
     subtle::ConstantTimeEq,
-    CipherSuite,
 };
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -295,20 +295,20 @@ impl<S, O> Debug for Directed<S, O> {
 #[cfg(test)]
 mod test {
     use aranya_crypto::{
+        CipherSuite, Rng,
         afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
         policy::LabelId,
-        CipherSuite, Rng,
     };
     use derive_where::derive_where;
 
     use crate::{
+        AfcState, AranyaState, ChannelId, Directed,
         error::Error,
         memory,
         testing::{
             test_impl,
             util::{DeviceIdx, MockImpl, States, TestImpl},
         },
-        AfcState, AranyaState, ChannelId, Directed,
     };
 
     test_impl!(mock, MockImpl);

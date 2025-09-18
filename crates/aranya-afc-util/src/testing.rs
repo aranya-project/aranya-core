@@ -16,17 +16,17 @@ use core::{
 };
 
 use aranya_crypto::{
+    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
-    keystore::{memstore, Entry, Occupied, Vacant},
+    keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, KeyStoreExt as _, Rng,
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client};
-use aranya_policy_vm::{ident, ActionContext, CommandContext};
+use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
 use crate::{
@@ -290,10 +290,10 @@ impl<T: TestImpl> Device<T> {
 /// # Example
 ///
 /// ```rust
-/// use aranya_afc_util::testing::{test_all, Device, MemStore, TestImpl};
+/// use aranya_afc_util::testing::{Device, MemStore, TestImpl, test_all};
 /// use aranya_crypto::{
-///     default::{DefaultCipherSuite, DefaultEngine},
 ///     Rng,
+///     default::{DefaultCipherSuite, DefaultEngine},
 /// };
 /// use aranya_fast_channels::memory::State;
 ///
