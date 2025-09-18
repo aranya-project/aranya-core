@@ -79,8 +79,7 @@ where
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
             if side.len >= side.cap {
-                // The channel wasn't found and we're out
-                // of space.
+                // We're out of space.
                 return Err(Error::OutOfSpace);
             }
 
