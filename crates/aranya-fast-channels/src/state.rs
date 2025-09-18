@@ -97,6 +97,7 @@ pub struct ChannelId(u64);
 
 impl ChannelId {
     /// Creates a [`ChannelId`].
+    #[cfg(any(test, feature = "sdlib", feature = "posix", feature = "memory"))]
     pub(crate) const fn new(id: u64) -> Self {
         ChannelId(id)
     }
