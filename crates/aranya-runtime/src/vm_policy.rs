@@ -121,14 +121,15 @@ use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    OpenContext, PolicyContext, RunState, Stack, Struct, Value, ast::Identifier,
+    OpenContext, PolicyContext, RunState, Stack, Struct, Value,
+    ast::{Identifier, Persistence},
 };
 use buggy::{BugExt, bug};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
-    CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
+    ActionPlacement, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior, Priority,
     command::{CmdId, Command},
     engine::{EngineError, NullSink, Policy, Sink},
 };
@@ -292,7 +293,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
-        recall: CommandRecall,
+        placement: CommandPlacement,
     ) -> Result<(), EngineError>
     where
         P: FactPerspective,
@@ -308,6 +309,17 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
+
+                    match placement {
+                        CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
+                            // Immediate check failure.
+                            return Err(EngineError::Check);
+                        }
+                        CommandPlacement::OnGraphInBraid => {
+                            // Perform recall.
+                        }
+                    }
+
                     // Construct a new recall context from the policy context
                     let CommandContext::Policy(policy_ctx) = rs.get_context() else {
                         error!(
@@ -318,7 +330,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
                     rs.set_context(recall_ctx);
-                    self.recall_internal(recall, &mut rs, this_data, envelope)
+                    self.recall_internal(&mut rs, this_data, envelope)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -334,7 +346,6 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
 
     fn recall_internal<M>(
         &self,
-        recall: CommandRecall,
         rs: &mut RunState<'_, M>,
         this_data: Struct,
         envelope: Envelope<'_>,
@@ -342,20 +353,17 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     where
         M: MachineIO<MachineStack>,
     {
-        match recall {
-            CommandRecall::None => Err(EngineError::Check),
-            CommandRecall::OnCheck => match rs.call_command_recall(this_data, envelope.into()) {
-                Ok(ExitReason::Normal) => Err(EngineError::Check),
-                Ok(ExitReason::Yield) => bug!("unexpected yield"),
-                Ok(ExitReason::Check) => {
-                    info!("Recall failed: {}", self.source_location(rs));
-                    Err(EngineError::Check)
-                }
-                Ok(ExitReason::Panic) | Err(_) => {
-                    info!("Recall panicked: {}", self.source_location(rs));
-                    Err(EngineError::Panic)
-                }
-            },
+        match rs.call_command_recall(this_data, envelope.into()) {
+            Ok(ExitReason::Normal) => Err(EngineError::Check),
+            Ok(ExitReason::Yield) => bug!("unexpected yield"),
+            Ok(ExitReason::Check) => {
+                info!("Recall failed: {}", self.source_location(rs));
+                Err(EngineError::Check)
+            }
+            Ok(ExitReason::Panic) | Err(_) => {
+                info!("Recall panicked: {}", self.source_location(rs));
+                Err(EngineError::Panic)
+            }
         }
     }
 
@@ -495,7 +503,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-        recall: CommandRecall,
+        placement: CommandPlacement,
     ) -> Result<(), EngineError> {
         let unpacked: VmProtocolData<'_> = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
@@ -561,6 +569,29 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         }
 
         if let Some((envelope, kind, author_id)) = command_info {
+            let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
+                error!("unknown command {kind}");
+                EngineError::InternalError
+            })?;
+
+            match (placement, &def.persistence) {
+                (CommandPlacement::OnGraphAtOrigin, Persistence::Persistent) => {}
+                (CommandPlacement::OnGraphInBraid, Persistence::Persistent) => {}
+                (CommandPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
+                (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral(_)) => {
+                    error!("cannot evaluate ephemeral command on-graph");
+                    return Err(EngineError::InternalError);
+                }
+                (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral(_)) => {
+                    error!("cannot evaluate ephemeral command in braid");
+                    return Err(EngineError::InternalError);
+                }
+                (CommandPlacement::OffGraph, Persistence::Persistent) => {
+                    error!("cannot evaluate persistent command off-graph");
+                    return Err(EngineError::InternalError);
+                }
+            }
+
             let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
             let fields: Vec<KVPair> = command_struct
                 .fields
@@ -573,7 +604,15 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 author: author_id,
                 version: CmdId::default().into(),
             });
-            self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
+            self.evaluate_rule(
+                kind,
+                fields.as_slice(),
+                envelope,
+                facts,
+                sink,
+                ctx,
+                placement,
+            )?
         }
         Ok(())
     }
@@ -584,8 +623,28 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        action_placement: ActionPlacement,
     ) -> Result<(), EngineError> {
         let VmAction { name, args } = action;
+
+        let def = self
+            .machine
+            .action_defs
+            .get(&name)
+            .ok_or(EngineError::InternalError)?;
+
+        match (action_placement, &def.persistence) {
+            (ActionPlacement::OnGraph, Persistence::Persistent) => {}
+            (ActionPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
+            (ActionPlacement::OnGraph, Persistence::Ephemeral(_)) => {
+                error!("cannot call ephemeral action on-graph");
+                return Err(EngineError::InternalError);
+            }
+            (ActionPlacement::OffGraph, Persistence::Persistent) => {
+                error!("cannot call persistent action off-graph");
+                return Err(EngineError::InternalError);
+            }
+        }
 
         let parent = match facts.head_address()? {
             Prior::None => None,
@@ -602,6 +661,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             name: name.clone(),
             head_id: ctx_parent.id,
         });
+        let command_placement = match action_placement {
+            ActionPlacement::OnGraph => CommandPlacement::OnGraphAtOrigin,
+            ActionPlacement::OffGraph => CommandPlacement::OffGraph,
+        };
         {
             let mut rs = self.machine.create_run_state(&io, ctx);
             let mut exit_reason = match args {
@@ -691,7 +754,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             &new_command,
                             *RefCell::borrow_mut(Rc::borrow(&facts)),
                             *RefCell::borrow_mut(Rc::borrow(&sink)),
-                            CommandRecall::None,
+                            command_placement,
                         )?;
                         RefCell::borrow_mut(Rc::borrow(&facts))
                             .add_command(&new_command)
