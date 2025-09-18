@@ -350,18 +350,14 @@ impl PartialEq<Op> for ChanDirection {
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
-    /// Padding.
-    /// TODO(eric): This is only needed for 64-bit systems.
-    pub _pad0: [u8; 4],
-    /// The channel's ID.
-    pub channel_id: U64,
-    /// The channel's label.
-    pub label_id: LabelId,
     /// Describes the direction that data flows in the channel.
     pub direction: U32,
-    // TODO(eric): Padding for 64-bit systems?
+    /// The channel's ID.
+    pub channel_id: U64,
     /// The current encryption sequence counter.
     pub seq: U64,
+    /// The channel's label.
+    pub label_id: LabelId,
     /// The key/nonce used to encrypt data for the channel peer.
     #[derive_where(skip(Debug))]
     pub seal_key: RawSealKey<CS>,
@@ -409,12 +405,11 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // a ciphertext.
         let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(rng));
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
+        let key_id = KeyId::new(&seal_key, &open_key);
         let chan = Self {
             magic: Self::MAGIC,
-            _pad0: [0u8; 4],
-            channel_id: id.to_u64().into(),
-            label_id,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
+            channel_id: id.to_u64().into(),
             // For the same reason that we randomize keys,
             // manually exhaust the sequence number.
             seq: if keys.seal().is_some() {
@@ -422,9 +417,10 @@ impl<CS: CipherSuite> ShmChan<CS> {
             } else {
                 U64::MAX
             },
-            key_id: KeyId::new(&seal_key, &open_key),
+            label_id,
             seal_key,
             open_key,
+            key_id,
         };
         ptr.write(chan);
     }
@@ -561,11 +557,6 @@ pub(super) struct SharedMem<CS> {
     version: U32,
     /// The total size of this object, including trailing data.
     size: U64,
-    /// `true` if this object and its [`ChanList`]s are page
-    /// aligned.
-    page_aligned: bool,
-    /// Padding for `page_aligned`.
-    _pad1: [u8; 7],
     /// The size in bytes of the keys stored in each
     /// [`ChanList`].
     key_size: U64,
@@ -577,6 +568,9 @@ pub(super) struct SharedMem<CS> {
     /// Invariant: only the writer reads from or writes to this
     /// field.
     pub next_chan_id: AtomicU64,
+    /// `true` if this object and its [`ChanList`]s are page
+    /// aligned.
+    page_aligned: bool,
     /// The offset of either `side_a` or `side_b`.
     ///
     /// `read_off` always refers to the opposite of `write_off`.
@@ -619,11 +613,10 @@ impl<CS: CipherSuite> SharedMem<CS> {
             magic: Self::MAGIC,
             version: Self::VERSION,
             size: layout.size64(),
-            page_aligned: layout.page_aligned,
-            _pad1: [0u8; 7],
             key_size: Self::KEY_SIZE,
             nonce_size: Self::NONCE_SIZE,
             next_chan_id: AtomicU64::new(0),
+            page_aligned: layout.page_aligned,
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
             sides: PhantomData,
@@ -732,8 +725,6 @@ struct ChanList<CS> {
     ///
     /// Should be [`Self::MAGIC`].
     magic: U32,
-    /// Padding for `magic`.
-    _pad0: [u8; 4],
     /// The locked list data.
     data: Mutex<ChanListData<CS>>,
 }
@@ -791,10 +782,8 @@ impl<CS: CipherSuite> ChanList<CS> {
     fn new(max_chans: usize) -> Self {
         Self {
             magic: ChanList::<CS>::MAGIC,
-            _pad0: [0u8; 4],
             data: Mutex::new(ChanListData {
                 generation: AtomicU32::new(0),
-                _pad0: [0u8; 4],
                 len: U64::new(0),
                 cap: U64::new(max_chans as u64),
                 chans: PhantomData,
@@ -819,8 +808,6 @@ pub(super) struct ChanListData<CS> {
     /// Putting it as the first field significantly decreases the
     /// size of the struct.
     pub generation: AtomicU32,
-    /// Padding for `generation`.
-    _pad0: [u8; 4],
     /// The current number of channels.
     pub len: U64,
     /// The maximum number of channels.
