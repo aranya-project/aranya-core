@@ -209,11 +209,6 @@ where
 
     /// Returns the [`ChannelId`] for a particular channel.
     pub fn get_local_channel_id(&self, id: GlobalChannelId) -> Option<ChannelId> {
-        self.try_get_local_channel_id(id)
-    }
-
-    /// Returns the [`ChannelId`] for a particular channel.
-    pub fn try_get_local_channel_id(&self, id: GlobalChannelId) -> Option<ChannelId> {
         self.chans.get(&id).map(|v| v.0)
     }
 
