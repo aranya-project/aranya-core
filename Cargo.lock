@@ -579,7 +579,6 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
- "spideroak-base58",
  "spin 0.10.0",
  "tempfile",
  "test-log",
