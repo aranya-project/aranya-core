@@ -114,18 +114,6 @@ impl fmt::Display for ChannelId {
     }
 }
 
-impl From<ChannelId> for u64 {
-    fn from(id: ChannelId) -> Self {
-        id.0
-    }
-}
-
-impl From<u64> for ChannelId {
-    fn from(id: u64) -> Self {
-        Self::new(id)
-    }
-}
-
 /// An AFC channel.
 #[derive(Copy, Clone)]
 #[derive_where(Debug)]
