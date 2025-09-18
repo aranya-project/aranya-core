@@ -113,15 +113,51 @@ action increment() {
     }
 }
 
-action incrementFour(n int) {
+ephemeral command IncrementEphemeral {
+    fields {
+        key int,
+        amount int,
+    }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+    policy {
+        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        check stuff.y > 0
+        let new_y = stuff.y + this.amount
+        finish {
+            update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
+            emit StuffHappened{x: this.key, y: new_y}
+        }
+    }
+
+    recall {
+        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        finish {
+            emit OutOfRange {
+                value: stuff.y,
+                increment: this.amount,
+            }
+        }
+    }
+}
+
+ephemeral action increment_ephemeral() {
+    publish IncrementEphemeral {
+        key: 1,
+        amount: 1
+    }
+}
+
+
+ephemeral action incrementFour(n int) {
     check n == 4
-    publish Increment {
+    publish IncrementEphemeral {
         key: 1,
         amount: n,
     }
 }
 
-action lookup(k int, v int, expected bool) {
+ephemeral action lookup(k int, v int, expected bool) {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some }
@@ -453,7 +489,12 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
             // increment
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
             session
-                .action(&cs, &mut sink, &mut msg_sink, vm_action!(increment()))
+                .action(
+                    &cs,
+                    &mut sink,
+                    &mut msg_sink,
+                    vm_action!(increment_ephemeral()),
+                )
                 .expect("failed session action");
 
             // reject incrementFour(33)

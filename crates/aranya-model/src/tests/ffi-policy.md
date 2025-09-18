@@ -15,10 +15,6 @@ This policy also supplies sample ephemeral commands, `CreateGreeting` and
 commands and do not persist any changes to the factDB. Hence, they are also not
 delivered through syncs and should be transmitted via some other mechanism.
 
-It should be noted that there is no syntactic difference between on-graph and
-ephemeral commands currently. They could in theory be used interchangeably,
-however they are almost always created with a particular flavor in mind.
-
 ```policy
 use idam
 use perspective
@@ -339,7 +335,7 @@ command Decrement {
 
 // The `create_greeting` action calls the command `CreateGreeting`. Passing in
 // the hardcoded greeting key and the message value.
-action create_greeting(v string) {
+ephemeral action create_greeting(v string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
@@ -348,7 +344,7 @@ action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-command CreateGreeting {
+ephemeral command CreateGreeting {
     fields {
         key string,
         value string,
@@ -369,7 +365,7 @@ command CreateGreeting {
 
 // The `verify_hello` action calls the command `VerifyGreeting` that will verify
 // the Message fact contains "hello".
-action verify_hello() {
+ephemeral action verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",
@@ -380,7 +376,7 @@ action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-command VerifyGreeting {
+ephemeral command VerifyGreeting {
     fields {
         key string,
         value string,

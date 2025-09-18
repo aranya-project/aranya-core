@@ -1191,7 +1191,10 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     let (cmds, effects) = test_model.session_actions(
         Device::A,
         Graph::X,
-        [vm_action!(create_action(5)), vm_action!(increment(3))],
+        [
+            vm_action!(create_action_ephemeral(5)),
+            vm_action!(increment_ephemeral(3)),
+        ],
     )?;
 
     assert_eq!(
@@ -1207,7 +1210,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     for cmd in cmds {
         session.receive(&cmd)?;
     }
-    session.action(vm_action!(increment(7)))?;
+    session.action(vm_action!(increment_ephemeral(7)))?;
 
     let (cmds, effects) = session.observe();
     assert_eq!(
@@ -1222,7 +1225,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     // Receive commands from client B on a new session,
     // and then perform an action afterward.
     let mut session = test_model.session(Device::A, Graph::X)?;
-    session.action(vm_action!(create_action(2)))?;
+    session.action(vm_action!(create_action_ephemeral(2)))?;
     for cmd in cmds {
         session.receive(&cmd)?;
     }
@@ -1449,10 +1452,10 @@ fn test_storage_fact_creturns_correct_index() {
     for _ in 0..5 {
         for _ in 0..5 {
             test_model
-                .action(Device::A, Graph::X, vm_action!(get_stuff()))
+                .action(Device::A, Graph::X, vm_action!(get_stuff_on_graph()))
                 .unwrap();
             test_model
-                .action(Device::B, Graph::X, vm_action!(get_stuff()))
+                .action(Device::B, Graph::X, vm_action!(get_stuff_on_graph()))
                 .unwrap();
         }
         test_model.sync(Graph::X, Device::A, Device::B).unwrap();
