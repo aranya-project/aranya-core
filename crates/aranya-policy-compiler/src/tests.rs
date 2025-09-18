@@ -302,22 +302,23 @@ fn test_command_attributes() {
     let m = compile_pass(text);
     match m.data {
         ModuleData::V0(m) => {
-            let attrs = m
-                .command_attributes
+            let attrs = &m
+                .command_defs
                 .get("A")
-                .expect("should find command attribute map");
+                .expect("should find command attribute map")
+                .attributes;
             assert_eq!(attrs.len(), 3);
             assert_eq!(
-                attrs.get("i").expect("should find 1st value"),
-                &Value::Int(5)
+                attrs.get("i").expect("should find 1st value").value,
+                Value::Int(5)
             );
             assert_eq!(
-                attrs.get("s").expect("should find 2nd value"),
-                &Value::String(text!("abc"))
+                attrs.get("s").expect("should find 2nd value").value,
+                Value::String(text!("abc"))
             );
             assert_eq!(
-                attrs.get("priority").expect("should find 3nd value"),
-                &Value::Enum(ident!("Priority"), 1)
+                attrs.get("priority").expect("should find 3nd value").value,
+                Value::Enum(ident!("Priority"), 1)
             );
         }
     }
@@ -384,7 +385,7 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let ModuleData::V0(module) = module.data;
 
-    let want = BTreeMap::from([
+    let want = [
         (
             ident!("a"),
             VType {
@@ -406,9 +407,14 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
                 span: ast::Span::empty(),
             },
         ),
-    ]);
+    ];
     let got = module.command_defs.get("Foo").unwrap();
-    assert_eq!(got, &want);
+    assert!(
+        got.fields
+            .iter()
+            .map(|f| (&f.name.name, &f.ty))
+            .eq(want.iter().map(|(k, v)| (k, v)))
+    );
 
     Ok(())
 }
@@ -993,6 +999,25 @@ fn test_fact_update_invalid_to_type() {
 
     let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
+}
+
+#[test]
+fn test_fact_update() {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        command Test {
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    update Foo[i: 1] to {a: "updated"}
+                    update Foo[i: 1]=>{a:"apple"} to {a: "orange"}
+                }
+            }
+        }
+    "#;
+
+    compile_pass(text);
 }
 
 #[test]
@@ -2234,12 +2259,14 @@ fn test_struct_composition_global_let_and_command_attributes() {
 
     assert_eq!(*mod_data.globals.get("foo2").unwrap(), expected);
     assert_eq!(
-        *mod_data
-            .command_attributes
+        mod_data
+            .command_defs
             .get("Bar")
             .unwrap()
+            .attributes
             .get("foo_attr")
-            .unwrap(),
+            .unwrap()
+            .value,
         expected
     );
 }

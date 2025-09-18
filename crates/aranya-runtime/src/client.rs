@@ -1,4 +1,4 @@
-use buggy::{Bug, BugExt};
+use buggy::Bug;
 
 use crate::{
     Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective, Policy, Sink,
@@ -145,13 +145,11 @@ where
         Ok(())
     }
 
-    /// Returns the ID of the head of the graph.
-    pub fn head_id(&mut self, storage_id: GraphId) -> Result<CmdId, ClientError> {
+    /// Returns the address of the head of the graph.
+    pub fn head_address(&mut self, storage_id: GraphId) -> Result<Address, ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
-
-        let head = storage.get_head()?;
-        let id = storage.get_command_id(head)?;
-        Ok(id)
+        let address = storage.get_head_address()?;
+        Ok(address)
     }
 
     /// Performs an `action`, writing the results to `sink`.
@@ -165,9 +163,7 @@ where
 
         let head = storage.get_head()?;
 
-        let mut perspective = storage
-            .get_linear_perspective(head)?
-            .assume("can always get perspective at head")?;
+        let mut perspective = storage.get_linear_perspective(head)?;
 
         let policy_id = perspective.policy();
         let policy = self.engine.get_policy(policy_id)?;
@@ -203,5 +199,17 @@ where
     /// Create an ephemeral [`Session`] associated with this client.
     pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, E>, ClientError> {
         Session::new(&mut self.provider, storage_id)
+    }
+
+    /// Checks if a command with the given address exists in the specified graph.
+    ///
+    /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
+    /// This method is used to determine if we need to sync when a hello message is received.
+    pub fn command_exists(&mut self, storage_id: GraphId, address: Address) -> bool {
+        let Ok(storage) = self.provider.get_storage(storage_id) else {
+            // Graph doesn't exist
+            return false;
+        };
+        storage.get_location(address).unwrap_or(None).is_some()
     }
 }

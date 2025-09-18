@@ -400,7 +400,7 @@ where
             .state
             .get_mut();
 
-        let id = state.head_id(*storage_id)?;
+        let id = state.head_address(*storage_id)?.id;
 
         Ok(id)
     }

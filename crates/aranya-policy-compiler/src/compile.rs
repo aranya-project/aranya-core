@@ -18,8 +18,8 @@ use aranya_policy_ast::{
     StructItem, TypeKind, VType, ident,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
+    Meta, Module, Param, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt, bug};
@@ -1546,7 +1546,7 @@ impl<'a> CompileState<'a> {
                                 kind: TypeKind::Struct(ref ident),
                                 ..
                             }) => {
-                                if !self.m.command_defs.contains_key(ident.as_str()) {
+                                if !self.m.command_defs.contains(ident.as_str()) {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "Struct `{ident}` is not a Command struct",
                                     )));
@@ -1674,6 +1674,8 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Create);
                 }
                 (StmtKind::Update(s), StatementContext::Finish) => {
+                    // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
+
                     // ensure fact is mutable
                     let fact_def = self.get_fact_def(&s.fact.identifier)?;
                     if fact_def.immutable {
@@ -1695,7 +1697,7 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    self.verify_fact_against_schema(&s.fact, true)?;
+                    self.verify_fact_against_schema(&s.fact, false)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup);
 
@@ -2062,13 +2064,20 @@ impl<'a> CompileState<'a> {
         )?;
         self.map_range(action_node.span)?;
 
-        // check for duplicate args
-        if let Some(identifier) = find_duplicate(&action_node.arguments, |a| &a.identifier.name) {
-            return Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(identifier.to_string()),
-                action_node.span.start(),
-                self.m.codemap.as_ref(),
-            ));
+        let mut params = NamedMap::new();
+        for param in &action_node.arguments {
+            params
+                .insert(Param {
+                    name: param.identifier.clone(),
+                    ty: param.field_type.clone(),
+                })
+                .map_err(|_| {
+                    CompileError::from_locator(
+                        CompileErrorType::AlreadyDefined(param.identifier.to_string()),
+                        action_node.span.start(),
+                        self.m.codemap.as_ref(),
+                    )
+                })?;
         }
 
         for arg in action_node.arguments.iter().rev() {
@@ -2079,20 +2088,19 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Return);
         self.identifier_types.exit_function();
 
-        match self
-            .m
+        self.m
             .action_defs
-            .entry(action_node.identifier.name.clone())
-        {
-            Entry::Vacant(e) => {
-                e.insert(action_node.arguments.clone());
-            }
-            Entry::Occupied(_) => {
-                return Err(self.err(CompileErrorType::AlreadyDefined(
+            .insert(ActionDef {
+                name: action_node.identifier.clone(),
+                persistence: action_node.persistence.clone(),
+                params,
+            })
+            .map_err(|_| {
+                self.err(CompileErrorType::AlreadyDefined(
                     action_node.identifier.to_string(),
-                )));
-            }
-        }
+                ))
+            })?;
+
         Ok(())
     }
 
@@ -2383,36 +2391,25 @@ impl<'a> CompileState<'a> {
         self.compile_command_open(command, command.span.start())?;
 
         // attributes
-        let mut attr_values = BTreeMap::new();
+        let mut attributes = NamedMap::new();
         for (name, value_expr) in &command.attributes {
-            match attr_values.entry(name.name.clone()) {
-                Entry::Vacant(e) => {
-                    let value = self.expression_value(value_expr)?;
-                    e.insert(value);
-                }
-                Entry::Occupied(_) => {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(name.to_string())));
-                }
-            }
-        }
-        if !attr_values.is_empty() {
-            self.m
-                .command_attributes
-                .insert(command.identifier.name.clone(), attr_values);
+            let value = self.expression_value(value_expr)?;
+            attributes
+                .insert(Attribute {
+                    name: name.clone(),
+                    value,
+                })
+                .map_err(|_| self.err(CompileErrorType::AlreadyDefined(name.to_string())))?;
         }
 
         // fields
-        if self.m.command_defs.contains_key(&command.identifier.name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                command.identifier.to_string(),
-            )));
-        }
+        let mut fields = NamedMap::new();
+
         let has_struct_refs = command
             .fields
             .iter()
             .any(|item| matches!(item, StructItem::StructRef(_)));
 
-        let mut map = BTreeMap::new();
         for si in &command.fields {
             match si {
                 StructItem::Field(f) => {
@@ -2425,7 +2422,12 @@ impl<'a> CompileState<'a> {
                     } else {
                         f.field_type.clone()
                     };
-                    map.insert(f.identifier.name.clone(), field_type);
+                    fields
+                        .insert(Field {
+                            name: f.identifier.clone(),
+                            ty: field_type,
+                        })
+                        .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
                     let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
@@ -2437,14 +2439,30 @@ impl<'a> CompileState<'a> {
                             kind: fd.field_type.kind.clone(),
                             span: Span::default(),
                         };
-                        map.insert(fd.identifier.name.clone(), field_type);
+                        fields
+                            .insert(Field {
+                                name: fd.identifier.clone(),
+                                ty: field_type,
+                            })
+                            .assume("duplicates are prevented by compile_struct")?;
                     }
                 }
             }
         }
+
         self.m
             .command_defs
-            .insert(command.identifier.name.clone(), map);
+            .insert(CommandDef {
+                name: command.identifier.clone(),
+                persistence: command.persistence.clone(),
+                attributes,
+                fields,
+            })
+            .map_err(|_| {
+                self.err(CompileErrorType::AlreadyDefined(
+                    command.identifier.to_string(),
+                ))
+            })?;
 
         Ok(())
     }
