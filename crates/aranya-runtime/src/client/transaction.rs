@@ -5,9 +5,9 @@ use buggy::{BugExt, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, CmdId, Command, CommandRecall, Engine, EngineError, GraphId, Location,
+    Address, ClientError, CmdId, Command, Engine, EngineError, GraphId, Location,
     MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider,
+    Storage, StorageError, StorageProvider, engine::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -220,7 +220,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(command, perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            command,
+            perspective,
+            sink,
+            CommandPlacement::OnGraphAtOrigin,
+        ) {
             perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
@@ -349,7 +354,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Get an empty perspective and run the init command.
         let mut perspective = provider.new_perspective(policy_id);
         sink.begin();
-        if let Err(e) = policy.call_rule(command, &mut perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            command,
+            &mut perspective,
+            sink,
+            CommandPlacement::OnGraphAtOrigin,
+        ) {
             sink.rollback();
             // We don't need to revert perspective since we just drop it.
             return Err(e.into());
@@ -392,7 +402,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
             &command,
             &mut braid_perspective,
             sink,
-            CommandRecall::OnCheck,
+            CommandPlacement::OnGraphInBraid,
         );
 
         // If the command failed in an uncontrolled way, rollback
@@ -446,6 +456,7 @@ mod test {
     use super::*;
     use crate::{
         ClientState, Keys, MergeIds, Priority,
+        engine::{ActionPlacement, CommandPlacement},
         memory::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -493,7 +504,7 @@ mod test {
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _recall: CommandRecall,
+            _placement: CommandPlacement,
         ) -> Result<(), EngineError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
@@ -523,6 +534,7 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
+            _placement: ActionPlacement,
         ) -> Result<(), EngineError> {
             unimplemented!()
         }
