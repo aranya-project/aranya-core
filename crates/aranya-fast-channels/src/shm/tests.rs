@@ -14,7 +14,7 @@ use super::{
     shared::{Index, ShmChan},
 };
 use crate::{
-    state::{AranyaState, Channel, ChannelId, Directed},
+    state::{AranyaState, Channel, Directed},
     testing::{
         test_impl,
         util::{self, DeviceIdx, DummyAead, States, TestEngine, TestImpl},
@@ -105,33 +105,28 @@ fn test_many_nodes() {
     let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
 
     let rng = &mut Rng;
-    let mut channel_id = ChannelId::new(0);
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
     for label_id in labels {
-        for _ in 0..MAX_CHANS {
-            channel_id.increment();
-            let chan = Channel {
-                id: channel_id,
-                keys: match util::rand_intn(&mut Rng, 3) {
-                    0 => Directed::SealOnly {
-                        seal: RawSealKey::random(rng),
-                    },
-                    1 => Directed::OpenOnly {
-                        open: RawOpenKey::random(rng),
-                    },
-                    2 => Directed::Bidirectional {
-                        seal: RawSealKey::random(rng),
-                        open: RawOpenKey::random(rng),
-                    },
-                    v => unreachable!("{v}"),
+        for idx in 0..MAX_CHANS {
+            let keys = match util::rand_intn(&mut Rng, 3) {
+                0 => Directed::SealOnly {
+                    seal: RawSealKey::random(rng),
                 },
-                label_id,
+                1 => Directed::OpenOnly {
+                    open: RawOpenKey::random(rng),
+                },
+                2 => Directed::Bidirectional {
+                    seal: RawSealKey::random(rng),
+                    open: RawOpenKey::random(rng),
+                },
+                v => unreachable!("{v}"),
             };
-            aranya
-                .add(chan.id, chan.keys.clone(), label_id)
-                .unwrap_or_else(|err| panic!("unable to add channel {channel_id}: {err}"));
+            let id = aranya
+                .add(keys.clone(), label_id)
+                .unwrap_or_else(|err| panic!("unable to add channel {idx}: {err}"));
+            let chan = Channel { id, keys, label_id };
             chans.push(chan);
 
             // Now check that all previously added nodes

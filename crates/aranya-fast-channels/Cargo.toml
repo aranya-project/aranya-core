@@ -23,6 +23,8 @@ default = []
 # Enable allocations.
 alloc = [
 	"aranya-crypto/alloc",
+
+	"serde/alloc",
 ]
 
 # Use the simple CAS-based mutex.
@@ -50,7 +52,9 @@ sdlib = ["libc"]
 # Use std.
 std = [
 	"alloc",
+
 	"aranya-crypto/std",
+	"serde/std",
 	"thiserror/std",
 ]
 
@@ -89,7 +93,6 @@ try_find = []
 aranya-crypto = { version = "0.10.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
-byteorder = { version = "1", default-features = false }
 cfg-if = { workspace = true }
 const_format = { version = "0.2.31", features = ["assertcp"] }
 derive-where = { workspace = true }
