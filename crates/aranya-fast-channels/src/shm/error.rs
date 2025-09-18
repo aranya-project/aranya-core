@@ -30,9 +30,6 @@ pub enum Error {
     /// The nodes could not be represented in memory.
     #[error(transparent)]
     Layout(#[from] LayoutError),
-    /// The channel already exists.
-    #[error("channel {0} already exists")]
-    AlreadyExists(ChannelId),
     /// The channel was not found.
     #[error("channel {0} not found")]
     NotFound(ChannelId),
