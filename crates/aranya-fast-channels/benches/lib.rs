@@ -4,7 +4,6 @@
 use std::{array, hint::black_box, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
-    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
     afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{
         aead::{Aead, AeadKey, IndCca2, Lifetime},
@@ -16,14 +15,15 @@ use aranya_crypto::{
     default::DefaultCipherSuite,
     policy::LabelId,
     test_util::TestCs,
-    typenum::{U0, U16},
+    typenum::U16,
+    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
 };
 use aranya_fast_channels::{
-    AranyaState, ChannelId, Client, Directed,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
+    AranyaState, ChannelId, Client, Directed,
 };
-use criterion::{BenchmarkId, Criterion, Throughput, criterion_main};
+use criterion::{criterion_main, BenchmarkId, Criterion, Throughput};
 
 pub struct NoopAead;
 
@@ -32,7 +32,7 @@ impl Aead for NoopAead {
 
     type KeySize = U16;
     type NonceSize = U16;
-    type Overhead = U0;
+    type Overhead = U16;
 
     const MAX_PLAINTEXT_SIZE: u64 = u64::MAX - Self::OVERHEAD as u64;
     const MAX_ADDITIONAL_DATA_SIZE: u64 = u64::MAX;
@@ -119,7 +119,7 @@ macro_rules! bench_impl {
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
 
-			let chans: [ChannelId; USED_CHANS] = array::from_fn(|i| {
+			let chans: [ChannelId; USED_CHANS] = array::from_fn(|_| {
 				let label = LabelId::random(&mut Rng);
 
 				// Use the same key to simplify the decryption
@@ -130,13 +130,11 @@ macro_rules! bench_impl {
 					base_nonce: seal.base_nonce,
 				};
 
-				let id = ChannelId::new(i as u32);
 				let keys = Directed::Bidirectional {
                     seal,
                     open,
                 };
-				aranya.add(id, keys, label).unwrap();
-				id
+				aranya.add(keys, label).unwrap()
 			});
 			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 

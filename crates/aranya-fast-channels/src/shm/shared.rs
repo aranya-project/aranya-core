@@ -2,27 +2,27 @@ use core::{
     alloc::Layout,
     fmt,
     marker::PhantomData,
-    mem::{MaybeUninit, size_of},
+    mem::{size_of, MaybeUninit},
     ptr, slice, str,
-    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
+    sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering},
 };
 
 use aranya_crypto::{
-    CipherSuite, Csprng, Random,
     afc::{RawOpenKey, RawSealKey, Seq},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     policy::LabelId,
+    CipherSuite, Csprng, Random,
 };
 use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 
 use super::{
-    align::{CacheAligned, is_aligned_to, layout_repeat},
+    align::{is_aligned_to, layout_repeat, CacheAligned},
     error::{
-        Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
-        bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
-        corrupted,
+        bad_chan_direction, bad_chan_magic, bad_chanlist_magic, bad_page_alignment,
+        bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version, corrupted,
+        Corrupted, Error, LayoutError,
     },
     le::{U32, U64},
     path::{Flag, Mode, Path},
@@ -30,7 +30,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    errno::{Errno, errno},
+    errno::{errno, Errno},
     mutex::Mutex,
     state::{ChannelId, Directed},
     util::{const_assert, debug},
@@ -350,13 +350,16 @@ impl PartialEq<Op> for ChanDirection {
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
+    /// Padding.
+    /// TODO(eric): This is only needed for 64-bit systems.
+    pub _pad0: [u8; 4],
     /// The channel's ID.
-    pub channel_id: U32,
+    pub channel_id: U64,
     /// The channel's label.
     pub label_id: LabelId,
     /// Describes the direction that data flows in the channel.
     pub direction: U32,
-
+    // TODO(eric): Padding for 64-bit systems?
     /// The current encryption sequence counter.
     pub seq: U64,
     /// The key/nonce used to encrypt data for the channel peer.
@@ -408,7 +411,8 @@ impl<CS: CipherSuite> ShmChan<CS> {
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
         let chan = Self {
             magic: Self::MAGIC,
-            channel_id: id.to_u32().into(),
+            _pad0: [0u8; 4],
+            channel_id: id.to_u64().into(),
             label_id,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
             // For the same reason that we randomize keys,
@@ -475,7 +479,12 @@ impl<CS: CipherSuite> ShmChan<CS> {
 
     /// Updates the sequence number.
     pub fn set_seq(&mut self, seq: Seq) {
-        debug_assert!(seq.to_u64() > self.seq.into());
+        debug_assert!(
+            seq.to_u64() > self.seq.into(),
+            "{} <= {}",
+            seq.to_u64(),
+            self.seq.into()
+        );
 
         self.seq = seq.to_u64().into();
     }
@@ -563,6 +572,11 @@ pub(super) struct SharedMem<CS> {
     /// The size in bytes of the nonces stored in each
     /// [`ChanList`].
     nonce_size: U64,
+    /// The next channel ID.
+    ///
+    /// Invariant: only the writer reads from or writes to this
+    /// field.
+    pub next_chan_id: AtomicU64,
     /// The offset of either `side_a` or `side_b`.
     ///
     /// `read_off` always refers to the opposite of `write_off`.
@@ -609,6 +623,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
             _pad1: [0u8; 7],
             key_size: Self::KEY_SIZE,
             nonce_size: Self::NONCE_SIZE,
+            next_chan_id: AtomicU64::new(0),
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
             sides: PhantomData,
