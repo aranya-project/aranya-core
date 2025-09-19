@@ -2221,38 +2221,74 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
-            self.wp,
-        )?;
-        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("this"),
-                Typeish::known(VType {
-                    kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::default(),
-                }),
-            )
-            .map_err(|e| self.err(e))?;
-        self.identifier_types
-            .add(
-                ident!("envelope"),
-                Typeish::known(VType {
-                    kind: TypeKind::Struct(Ident {
-                        name: ident!("Envelope"),
+        // Validate recall block naming rules
+        let mut named_blocks = HashSet::new();
+        let mut unnamed_count = 0;
+
+        for recall_block in &command.recalls {
+            if let Some(ref identifier) = recall_block.identifier {
+                // Check for duplicate named blocks
+                if !named_blocks.insert(identifier.name.clone()) {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(
+                        identifier.name.to_string(),
+                    )));
+                }
+            } else {
+                // Check for multiple unnamed blocks
+                unnamed_count += 1;
+                if unnamed_count > 1 {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(
+                        "unnamed recall block".to_string(),
+                    )));
+                }
+            }
+        }
+
+        // Compile each recall block
+        for recall_block in &command.recalls {
+            let label_name = if let Some(ref identifier) = recall_block.identifier {
+                format!("{}_{}", command.identifier.name, identifier.name)
+            } else {
+                // For unnamed recall blocks, just use the command name
+                command.identifier.name.to_string()
+            }
+            .try_into()
+            .map_err(|e| {
+                self.err(CompileErrorType::Unknown(format!(
+                    "Invalid label name: {}",
+                    e
+                )))
+            })?;
+            self.define_label(Label::new(label_name, LabelType::CommandRecall), self.wp)?;
+            self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+            self.identifier_types.enter_function();
+            self.identifier_types
+                .add(
+                    ident!("this"),
+                    Typeish::known(VType {
+                        kind: TypeKind::Struct(command.identifier.clone()),
                         span: Span::default(),
                     }),
-                    span: Span::default(),
-                }),
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("envelope")));
-        self.compile_statements(&command.recall, Scope::Same)?;
-        self.identifier_types.exit_function();
-        self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                )
+                .map_err(|e| self.err(e))?;
+            self.identifier_types
+                .add(
+                    ident!("envelope"),
+                    Typeish::known(VType {
+                        kind: TypeKind::Struct(Ident {
+                            name: ident!("Envelope"),
+                            span: Span::default(),
+                        }),
+                        span: Span::default(),
+                    }),
+                )
+                .map_err(|e| self.err(e))?;
+            self.append_instruction(Instruction::Def(ident!("envelope")));
+            self.compile_statements(&recall_block.statements, Scope::Same)?;
+            self.identifier_types.exit_function();
+            self.exit_statement_context();
+            self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        }
         Ok(())
     }
 

@@ -1412,7 +1412,7 @@ impl ChunkParser<'_> {
         let mut attributes = vec![];
         let mut fields = vec![];
         let mut policy = vec![];
-        let mut recall = vec![];
+        let mut recalls = vec![];
         let mut seal = vec![];
         let mut open = vec![];
         for token in pc.into_inner() {
@@ -1454,8 +1454,21 @@ impl ChunkParser<'_> {
                     policy = self.parse_statement_list(pairs)?;
                 }
                 Rule::recall_block => {
-                    let pairs = token.into_inner();
-                    recall = self.parse_statement_list(pairs)?;
+                    let span = self.to_ast_span(token.as_span())?;
+                    let pc = descend(token);
+
+                    // Check if there's an identifier (named recall block) or just statements (unnamed)
+                    let identifier = pc
+                        .consume_optional(Rule::identifier)
+                        .map(|p| self.parse_ident(p))
+                        .transpose()?;
+                    let statements = self.parse_statement_list(pc.into_inner())?;
+
+                    recalls.push(ast::RecallBlockDefinition {
+                        identifier,
+                        statements,
+                        span,
+                    });
                 }
                 Rule::seal_block => {
                     let pairs = token.into_inner();
@@ -1483,7 +1496,7 @@ impl ChunkParser<'_> {
             seal,
             open,
             policy,
-            recall,
+            recalls,
             span,
         })
     }

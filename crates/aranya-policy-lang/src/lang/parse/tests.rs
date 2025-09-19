@@ -882,7 +882,7 @@ fn parse_serialize_deserialize() {
             identifier: ident!("Foo").at(8..11),
             fields: vec![],
             policy: vec![],
-            recall: vec![],
+            recalls: vec![],
             seal: vec![
                 StmtKind::Return(ast::ReturnStatement {
                     expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(

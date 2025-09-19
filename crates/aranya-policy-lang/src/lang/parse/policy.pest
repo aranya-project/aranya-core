@@ -325,7 +325,7 @@ fields_block = { "fields" ~ struct_def }
 policy_block = { "policy" ~ statement_block }
 // The recall statement defines a block of statements that will be
 // executed when a command of this type is recalled.
-recall_block = { "recall" ~ statement_block }
+recall_block = { "recall" ~ identifier? ~ statement_block }
 // The seal block is a pure function with an implicit `this` parameter
 // like the policy/recall blocks. It returns an envelope object.
 seal_block = { "seal" ~ statement_block }
