@@ -98,7 +98,17 @@ where
         from_values: impl IntoIterator<Item = FactValue>,
         to_values: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
-        todo!()
+        let keys = keys.into_iter().collect();
+        let old = self
+            .facts
+            .get_mut(&(name, keys))
+            .ok_or(MachineIOError::FactNotFound)?;
+        let from_values: Vec<_> = from_values.into_iter().collect();
+        if !from_values.is_empty() && *old != from_values {
+            return Err(MachineIOError::FactUpdateMismatch);
+        }
+        *old = to_values.into_iter().collect();
+        Ok(())
     }
 
     fn fact_query(
