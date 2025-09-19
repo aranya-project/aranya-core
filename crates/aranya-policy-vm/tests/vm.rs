@@ -11,8 +11,8 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
-    MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
-    RunState, SealContext, Stack, Struct, Value, ident, text,
+    MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack, Module, OpenContext,
+    PolicyContext, RunState, SealContext, Stack, Struct, Value, ident, text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -504,7 +504,10 @@ fn test_invalid_update() -> anyhow::Result<()> {
 
     // Incrementing from a value other than '0' is invalid
     let err = run(10).unwrap_err().downcast::<MachineError>()?;
-    assert_eq!(err.err_type, MachineErrorType::InvalidFact(ident!("Foo")));
+    assert_eq!(
+        err.err_type,
+        MachineErrorType::IO(MachineIOError::FactUpdateMismatch)
+    );
 
     Ok(())
 }
