@@ -19,7 +19,7 @@ use aranya_policy_module::{
     Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
     UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]
@@ -758,8 +758,9 @@ where
                 let fact_to: Fact = self.ipop()?;
                 let fact_from: Fact = self.ipop()?;
 
-                // TODO
-                assert_eq!(fact_from.keys, fact_to.keys);
+                if fact_from.keys != fact_to.keys {
+                    bug!("fact update keys are different");
+                }
 
                 self.io
                     .try_borrow_mut()
