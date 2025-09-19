@@ -49,7 +49,7 @@ where
     /// Iterates over the results of a fact query.
     type QueryIterator: Iterator<Item = Result<(FactKeyList, FactValueList), MachineIOError>>;
 
-    /// Insert a fact
+    /// Insert a new fact.
     fn fact_insert(
         &mut self,
         name: Identifier,
@@ -57,14 +57,16 @@ where
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError>;
 
-    /// Delete a fact
+    /// Delete an existing fact.
     fn fact_delete(
         &mut self,
         name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError>;
 
-    /// Delete a fact
+    /// Update an existing fact.
+    ///
+    /// If `from_values` is not empty, the existing fact must match those values.
     fn fact_update(
         &mut self,
         name: Identifier,
@@ -73,14 +75,14 @@ where
         to_values: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError>;
 
-    /// Query a fact
+    /// Query facts.
     fn fact_query(
         &self,
         name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError>;
 
-    /// Create an effect
+    /// Emit an effect.
     fn effect(
         &mut self,
         name: Identifier,
