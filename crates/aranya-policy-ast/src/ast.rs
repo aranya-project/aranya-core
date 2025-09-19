@@ -946,6 +946,23 @@ impl<T: Spanned> Spanned for StructItem<T> {
     }
 }
 
+/// A recall block definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecallBlockDefinition {
+    /// The name of the recall block (None for unnamed blocks)
+    pub identifier: Option<Ident>,
+    /// The recall rule statements for this block
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for RecallBlockDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
@@ -963,8 +980,8 @@ pub struct CommandDefinition {
     pub open: Vec<Statement>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
-    /// The recall rule statements for this command
-    pub recall: Vec<Statement>,
+    /// The named recall blocks for this command
+    pub recalls: Vec<RecallBlockDefinition>,
     /// The source location of this definition
     pub span: Span,
 }
