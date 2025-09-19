@@ -181,6 +181,16 @@ where
         }
     }
 
+    fn fact_update(
+        &mut self,
+        name: Identifier,
+        keys: impl IntoIterator<Item = FactKey>,
+        from_values: impl IntoIterator<Item = FactValue>,
+        to_values: impl IntoIterator<Item = FactValue>,
+    ) -> Result<(), MachineIOError> {
+        todo!()
+    }
+
     fn fact_query(
         &self,
         name: Identifier,

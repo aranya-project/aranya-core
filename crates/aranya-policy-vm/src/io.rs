@@ -18,6 +18,9 @@ pub enum MachineIOError {
     /// Attempt to access a fact that does not exist)
     #[error("fact not found")]
     FactNotFound,
+    /// Source values of fact update did not match
+    #[error("fact update value mismatch")]
+    FactUpdateMismatch,
     /// Some internal operation has failed
     #[error("internal error")]
     Internal,
@@ -59,6 +62,15 @@ where
         &mut self,
         name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
+    ) -> Result<(), MachineIOError>;
+
+    /// Delete a fact
+    fn fact_update(
+        &mut self,
+        name: Identifier,
+        keys: impl IntoIterator<Item = FactKey>,
+        from_values: impl IntoIterator<Item = FactValue>,
+        to_values: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError>;
 
     /// Query a fact

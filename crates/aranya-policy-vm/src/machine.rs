@@ -756,40 +756,20 @@ where
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
-                let mut fact_from: Fact = self.ipop()?;
-                let mut replaced_fact = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact_from.name.clone(), fact_from.keys)?;
-                    iter.next().ok_or_else(|| {
-                        self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
-                    })??
-                };
+                let fact_from: Fact = self.ipop()?;
 
-                if !fact_from.values.is_empty() {
-                    let replaced_fact_values = &mut replaced_fact.1;
-
-                    replaced_fact_values
-                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
-                    fact_from
-                        .values
-                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
-
-                    if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
-                        return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
-                    }
-                }
+                // TODO
+                assert_eq!(fact_from.keys, fact_to.keys);
 
                 self.io
                     .try_borrow_mut()
                     .assume("should be able to borrow io")?
-                    .fact_delete(fact_from.name, replaced_fact.0)?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
+                    .fact_update(
+                        fact_from.name,
+                        fact_from.keys,
+                        fact_from.values,
+                        fact_to.values,
+                    )?;
             }
             Instruction::Emit => {
                 let s: Struct = self.ipop()?;
