@@ -1171,258 +1171,267 @@ expression: policy
           }
         }
       ],
-      "recall": [
+      "recalls": [
         {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "envelope_id",
-                "span": {
-                  "start": 1505,
-                  "end": 1516
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 1519,
-                        "end": 1527
-                      }
-                    },
-                    "identifier": {
-                      "name": "command_id",
-                      "span": {
-                        "start": 1529,
-                        "end": 1539
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
+          "identifier": null,
+          "statements": [
+            {
+              "kind": {
+                "Let": {
+                  "identifier": {
+                    "name": "envelope_id",
+                    "span": {
+                      "start": 1505,
+                      "end": 1516
+                    }
+                  },
+                  "expression": {
+                    "kind": {
+                      "ForeignFunctionCall": {
+                        "module": {
+                          "name": "envelope",
+                          "span": {
+                            "start": 1519,
+                            "end": 1527
+                          }
+                        },
+                        "identifier": {
+                          "name": "command_id",
+                          "span": {
+                            "start": 1529,
+                            "end": 1539
+                          }
+                        },
+                        "arguments": [
+                          {
+                            "kind": {
+                              "Identifier": {
+                                "name": "envelope",
+                                "span": {
+                                  "start": 1540,
+                                  "end": 1548
+                                }
+                              }
+                            },
                             "span": {
                               "start": 1540,
                               "end": 1548
                             }
                           }
-                        },
-                        "span": {
-                          "start": 1540,
-                          "end": 1548
-                        }
+                        ]
                       }
-                    ]
+                    },
+                    "span": {
+                      "start": 1519,
+                      "end": 1549
+                    }
                   }
-                },
-                "span": {
-                  "start": 1519,
-                  "end": 1549
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 1501,
-            "end": 1566
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "author",
-                "span": {
-                  "start": 1570,
-                  "end": 1576
                 }
               },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 1579,
-                        "end": 1587
-                      }
-                    },
-                    "identifier": {
-                      "name": "author_id",
-                      "span": {
-                        "start": 1589,
-                        "end": 1598
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
+              "span": {
+                "start": 1501,
+                "end": 1566
+              }
+            },
+            {
+              "kind": {
+                "Let": {
+                  "identifier": {
+                    "name": "author",
+                    "span": {
+                      "start": 1570,
+                      "end": 1576
+                    }
+                  },
+                  "expression": {
+                    "kind": {
+                      "ForeignFunctionCall": {
+                        "module": {
+                          "name": "envelope",
+                          "span": {
+                            "start": 1579,
+                            "end": 1587
+                          }
+                        },
+                        "identifier": {
+                          "name": "author_id",
+                          "span": {
+                            "start": 1589,
+                            "end": 1598
+                          }
+                        },
+                        "arguments": [
+                          {
+                            "kind": {
+                              "Identifier": {
+                                "name": "envelope",
+                                "span": {
+                                  "start": 1599,
+                                  "end": 1607
+                                }
+                              }
+                            },
                             "span": {
                               "start": 1599,
                               "end": 1607
                             }
                           }
-                        },
-                        "span": {
-                          "start": 1599,
-                          "end": 1607
-                        }
+                        ]
                       }
-                    ]
+                    },
+                    "span": {
+                      "start": 1579,
+                      "end": 1608
+                    }
                   }
-                },
-                "span": {
-                  "start": 1579,
-                  "end": 1608
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 1566,
-            "end": 1625
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "new_x",
-                "span": {
-                  "start": 1629,
-                  "end": 1634
                 }
               },
-              "expression": {
-                "kind": {
-                  "Add": [
-                    {
-                      "kind": {
-                        "Identifier": {
-                          "name": "x",
+              "span": {
+                "start": 1566,
+                "end": 1625
+              }
+            },
+            {
+              "kind": {
+                "Let": {
+                  "identifier": {
+                    "name": "new_x",
+                    "span": {
+                      "start": 1629,
+                      "end": 1634
+                    }
+                  },
+                  "expression": {
+                    "kind": {
+                      "Add": [
+                        {
+                          "kind": {
+                            "Identifier": {
+                              "name": "x",
+                              "span": {
+                                "start": 1637,
+                                "end": 1638
+                              }
+                            }
+                          },
                           "span": {
                             "start": 1637,
                             "end": 1638
                           }
-                        }
-                      },
-                      "span": {
-                        "start": 1637,
-                        "end": 1638
-                      }
-                    },
-                    {
-                      "kind": {
-                        "Identifier": {
-                          "name": "count",
+                        },
+                        {
+                          "kind": {
+                            "Identifier": {
+                              "name": "count",
+                              "span": {
+                                "start": 1641,
+                                "end": 1646
+                              }
+                            }
+                          },
                           "span": {
                             "start": 1641,
                             "end": 1646
                           }
                         }
-                      },
-                      "span": {
-                        "start": 1641,
-                        "end": 1646
-                      }
+                      ]
+                    },
+                    "span": {
+                      "start": 1637,
+                      "end": 1646
                     }
-                  ]
-                },
-                "span": {
-                  "start": 1637,
-                  "end": 1646
+                  }
                 }
+              },
+              "span": {
+                "start": 1625,
+                "end": 1663
               }
-            }
-          },
-          "span": {
-            "start": 1625,
-            "end": 1663
-          }
-        },
-        {
-          "kind": {
-            "Finish": [
-              {
-                "kind": {
-                  "Create": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1699,
-                          "end": 1700
-                        }
-                      },
-                      "key_fields": [
-                        [
-                          {
-                            "name": "v",
+            },
+            {
+              "kind": {
+                "Finish": [
+                  {
+                    "kind": {
+                      "Create": {
+                        "fact": {
+                          "identifier": {
+                            "name": "F",
                             "span": {
-                              "start": 1701,
-                              "end": 1702
+                              "start": 1699,
+                              "end": 1700
                             }
                           },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "hello"
+                          "key_fields": [
+                            [
+                              {
+                                "name": "v",
+                                "span": {
+                                  "start": 1701,
+                                  "end": 1702
+                                }
                               },
-                              "span": {
-                                "start": 1704,
-                                "end": 1711
+                              {
+                                "Expression": {
+                                  "kind": {
+                                    "String": "hello"
+                                  },
+                                  "span": {
+                                    "start": 1704,
+                                    "end": 1711
+                                  }
+                                }
                               }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": [
-                        [
-                          {
-                            "name": "x",
-                            "span": {
-                              "start": 1715,
-                              "end": 1716
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "x",
+                            ]
+                          ],
+                          "value_fields": [
+                            [
+                              {
+                                "name": "x",
+                                "span": {
+                                  "start": 1715,
+                                  "end": 1716
+                                }
+                              },
+                              {
+                                "Expression": {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "x",
+                                      "span": {
+                                        "start": 1718,
+                                        "end": 1719
+                                      }
+                                    }
+                                  },
                                   "span": {
                                     "start": 1718,
                                     "end": 1719
                                   }
                                 }
-                              },
-                              "span": {
-                                "start": 1718,
-                                "end": 1719
                               }
-                            }
-                          }
-                        ],
-                        [
-                          {
-                            "name": "y",
-                            "span": {
-                              "start": 1721,
-                              "end": 1722
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Negative": {
+                            ],
+                            [
+                              {
+                                "name": "y",
+                                "span": {
+                                  "start": 1721,
+                                  "end": 1722
+                                }
+                              },
+                              {
+                                "Expression": {
                                   "kind": {
-                                    "Identifier": {
-                                      "name": "x",
+                                    "Negative": {
+                                      "kind": {
+                                        "Identifier": {
+                                          "name": "x",
+                                          "span": {
+                                            "start": 1725,
+                                            "end": 1726
+                                          }
+                                        }
+                                      },
                                       "span": {
                                         "start": 1725,
                                         "end": 1726
@@ -1430,226 +1439,226 @@ expression: policy
                                     }
                                   },
                                   "span": {
-                                    "start": 1725,
+                                    "start": 1724,
                                     "end": 1726
                                   }
                                 }
-                              },
-                              "span": {
-                                "start": 1724,
-                                "end": 1726
                               }
-                            }
-                          }
-                        ]
-                      ]
-                    }
-                  }
-                },
-                "span": {
-                  "start": 1692,
-                  "end": 1727
-                }
-              },
-              {
-                "kind": {
-                  "Update": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1755,
-                          "end": 1756
+                            ]
+                          ]
                         }
-                      },
-                      "key_fields": [],
-                      "value_fields": [
-                        [
-                          {
-                            "name": "x",
+                      }
+                    },
+                    "span": {
+                      "start": 1692,
+                      "end": 1727
+                    }
+                  },
+                  {
+                    "kind": {
+                      "Update": {
+                        "fact": {
+                          "identifier": {
+                            "name": "F",
                             "span": {
-                              "start": 1761,
-                              "end": 1762
+                              "start": 1755,
+                              "end": 1756
                             }
                           },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "x",
+                          "key_fields": [],
+                          "value_fields": [
+                            [
+                              {
+                                "name": "x",
+                                "span": {
+                                  "start": 1761,
+                                  "end": 1762
+                                }
+                              },
+                              {
+                                "Expression": {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "x",
+                                      "span": {
+                                        "start": 1764,
+                                        "end": 1765
+                                      }
+                                    }
+                                  },
                                   "span": {
                                     "start": 1764,
                                     "end": 1765
                                   }
                                 }
-                              },
-                              "span": {
-                                "start": 1764,
-                                "end": 1765
                               }
-                            }
-                          }
-                        ]
-                      ]
-                    },
-                    "to": [
-                      [
-                        {
-                          "name": "x",
-                          "span": {
-                            "start": 1771,
-                            "end": 1772
-                          }
+                            ]
+                          ]
                         },
-                        {
-                          "Expression": {
-                            "kind": {
-                              "Identifier": {
-                                "name": "new_x",
+                        "to": [
+                          [
+                            {
+                              "name": "x",
+                              "span": {
+                                "start": 1771,
+                                "end": 1772
+                              }
+                            },
+                            {
+                              "Expression": {
+                                "kind": {
+                                  "Identifier": {
+                                    "name": "new_x",
+                                    "span": {
+                                      "start": 1774,
+                                      "end": 1779
+                                    }
+                                  }
+                                },
                                 "span": {
                                   "start": 1774,
                                   "end": 1779
                                 }
                               }
-                            },
-                            "span": {
-                              "start": 1774,
-                              "end": 1779
                             }
-                          }
-                        }
-                      ]
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 1748,
-                  "end": 1780
-                }
-              },
-              {
-                "kind": {
-                  "Delete": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1808,
-                          "end": 1809
-                        }
-                      },
-                      "key_fields": [
-                        [
-                          {
-                            "name": "v",
+                          ]
+                        ]
+                      }
+                    },
+                    "span": {
+                      "start": 1748,
+                      "end": 1780
+                    }
+                  },
+                  {
+                    "kind": {
+                      "Delete": {
+                        "fact": {
+                          "identifier": {
+                            "name": "F",
                             "span": {
-                              "start": 1810,
-                              "end": 1811
+                              "start": 1808,
+                              "end": 1809
                             }
                           },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "hello"
+                          "key_fields": [
+                            [
+                              {
+                                "name": "v",
+                                "span": {
+                                  "start": 1810,
+                                  "end": 1811
+                                }
                               },
-                              "span": {
-                                "start": 1813,
-                                "end": 1820
+                              {
+                                "Expression": {
+                                  "kind": {
+                                    "String": "hello"
+                                  },
+                                  "span": {
+                                    "start": 1813,
+                                    "end": 1820
+                                  }
+                                }
                               }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": null
+                            ]
+                          ],
+                          "value_fields": null
+                        }
+                      }
+                    },
+                    "span": {
+                      "start": 1801,
+                      "end": 1842
                     }
-                  }
-                },
-                "span": {
-                  "start": 1801,
-                  "end": 1842
-                }
-              },
-              {
-                "kind": {
-                  "Emit": {
+                  },
+                  {
                     "kind": {
-                      "NamedStruct": {
-                        "identifier": {
-                          "name": "Added",
-                          "span": {
-                            "start": 1847,
-                            "end": 1852
-                          }
-                        },
-                        "fields": [
-                          [
-                            {
-                              "name": "x",
+                      "Emit": {
+                        "kind": {
+                          "NamedStruct": {
+                            "identifier": {
+                              "name": "Added",
                               "span": {
-                                "start": 1879,
-                                "end": 1880
+                                "start": 1847,
+                                "end": 1852
                               }
                             },
-                            {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "new_x",
+                            "fields": [
+                              [
+                                {
+                                  "name": "x",
+                                  "span": {
+                                    "start": 1879,
+                                    "end": 1880
+                                  }
+                                },
+                                {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "new_x",
+                                      "span": {
+                                        "start": 1882,
+                                        "end": 1887
+                                      }
+                                    }
+                                  },
                                   "span": {
                                     "start": 1882,
                                     "end": 1887
                                   }
                                 }
-                              },
-                              "span": {
-                                "start": 1882,
-                                "end": 1887
-                              }
-                            }
-                          ],
-                          [
-                            {
-                              "name": "y",
-                              "span": {
-                                "start": 1913,
-                                "end": 1914
-                              }
-                            },
-                            {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "count",
+                              ],
+                              [
+                                {
+                                  "name": "y",
+                                  "span": {
+                                    "start": 1913,
+                                    "end": 1914
+                                  }
+                                },
+                                {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "count",
+                                      "span": {
+                                        "start": 1916,
+                                        "end": 1921
+                                      }
+                                    }
+                                  },
                                   "span": {
                                     "start": 1916,
                                     "end": 1921
                                   }
                                 }
-                              },
-                              "span": {
-                                "start": 1916,
-                                "end": 1921
-                              }
-                            }
-                          ]
-                        ],
-                        "sources": []
+                              ]
+                            ],
+                            "sources": []
+                          }
+                        },
+                        "span": {
+                          "start": 1847,
+                          "end": 1944
+                        }
                       }
                     },
                     "span": {
-                      "start": 1847,
-                      "end": 1944
+                      "start": 1842,
+                      "end": 1961
                     }
                   }
-                },
-                "span": {
-                  "start": 1842,
-                  "end": 1961
-                }
+                ]
+              },
+              "span": {
+                "start": 1663,
+                "end": 1962
               }
-            ]
-          },
+            }
+          ],
           "span": {
-            "start": 1663,
-            "end": 1962
+            "start": 1476,
+            "end": 1976
           }
         }
       ],
@@ -1696,7 +1705,7 @@ expression: policy
       "seal": [],
       "open": [],
       "policy": [],
-      "recall": [],
+      "recalls": [],
       "span": {
         "start": 2233,
         "end": 2321
