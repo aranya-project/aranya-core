@@ -131,7 +131,7 @@ checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "aranya-afc-util"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",
