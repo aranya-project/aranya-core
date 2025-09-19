@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.13.1"
+version = "0.14.0"
 dependencies = [
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
