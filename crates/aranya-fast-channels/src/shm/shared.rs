@@ -710,6 +710,11 @@ impl<CS: CipherSuite> SharedMem<CS> {
         Ok(&list.data)
     }
 
+    /// Sets [Self::reader_count] to 1.
+    pub(crate) fn init_reader_count(&self) {
+        self.reader_count.store(1, Ordering::SeqCst);
+    }
+
     /// Increments [Self::reader_count] by 1.
     /// Returns the previous count.
     pub(crate) fn increment_reader_count(&self) -> usize {

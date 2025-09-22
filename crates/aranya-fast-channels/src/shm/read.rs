@@ -80,7 +80,8 @@ where
         let state = State::open(path, flag, mode, max_chans)?;
         state.ptr.try_lock_reader_pid()?;
 
-        // TODO(Steve): set reader count to 0
+        let shm = state.shm();
+        shm.init_reader_count();
 
         #[cfg(feature = "std")]
         {
