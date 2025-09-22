@@ -1260,20 +1260,17 @@ Next chunk:
 
 #[test]
 fn test_check_errors() {
-    let cases = [r#"
-        enum Err {
-            Invalid
+    let text = r#"
+        command Foo {
+            policy {
+                check false
+                check false or recall foo
+            }
+            recall {}
+            recall foo {}
         }
-        
-        action foo() {
-            check false
-            check false else "failed"
-            check false else Err::Invalid
-        }
-        "#];
+        "#;
 
-    for case in cases {
-        let policy = parse_policy_str(case, Version::V2).expect("should parse");
-        insta::assert_json_snapshot!(policy);
-    }
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    insta::assert_json_snapshot!(policy);
 }
