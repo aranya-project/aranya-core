@@ -100,6 +100,7 @@ pub(super) struct Mapping<T> {
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
 
+// TODO(Steve): implement try_lock
 impl<T> Mapping<T> {
     pub(crate) fn unmap(&self) {
         let _ = unmap(self.id);

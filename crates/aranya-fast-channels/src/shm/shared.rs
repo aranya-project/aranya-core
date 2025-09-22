@@ -2,7 +2,7 @@ use core::{
     alloc::Layout,
     fmt,
     marker::PhantomData,
-    mem::{MaybeUninit, size_of},
+    mem::{MaybeUninit, offset_of, size_of, size_of_val},
     ptr, slice, str,
     sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering},
 };
@@ -92,7 +92,7 @@ fn getpagesize() -> Result<Option<usize>, PageSizeError> {
 #[derive(Debug)]
 #[derive_where(Clone)]
 pub(super) struct State<CS> {
-    ptr: Mapping<SharedMem<CS>>,
+    pub(super) ptr: Mapping<SharedMem<CS>>,
     /// The maximum number of channels supported by the shared
     /// memory.
     max_chans: usize,
@@ -554,6 +554,8 @@ impl ShmLayout {
 )]
 #[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
+    reader_pid: CacheAligned<AtomicU32>,
+    writer_pid: CacheAligned<AtomicU32>,
     /// Identifies this memory as a [`SharedMem`].
     ///
     /// Should be [`Self::MAGIC`].
@@ -586,10 +588,6 @@ pub(super) struct SharedMem<CS> {
     pub write_off: CacheAligned<AtomicUsize>,
     /// The number of live readers.
     pub reader_count: CacheAligned<AtomicUsize>,
-    #[cfg(feature = "std")]
-    reader_pid: CacheAligned<AtomicU32>,
-    #[cfg(feature = "std")]
-    writer_pid: CacheAligned<AtomicU32>,
     /// In memory, this is actually two fields:
     ///
     /// ```ignore
@@ -631,9 +629,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
             reader_count: CacheAligned::new(AtomicUsize::new(0)),
-            #[cfg(feature = "std")]
             reader_pid: CacheAligned::new(AtomicU32::new(0)),
-            #[cfg(feature = "std")]
             writer_pid: CacheAligned::new(AtomicU32::new(0)),
             sides: PhantomData,
         };
@@ -740,9 +736,19 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let pid = std::process::id();
         self.reader_pid.swap(pid, Ordering::SeqCst);
     }
+}
 
-    pub(crate) fn get_reader_pid(&self) -> u32 {
-        self.reader_pid.load(Ordering::SeqCst)
+impl<CS: CipherSuite> Mapping<SharedMem<CS>> {
+    pub(super) fn try_lock_writer_pid(&self) -> Result<(), Error> {
+        let start = offset_of!(SharedMem<CS>, writer_pid);
+        let len = size_of_val(&self.as_ref().writer_pid);
+        self.try_lock(start, len)
+    }
+
+    pub(super) fn try_lock_reader_pid(&self) -> Result<(), Error> {
+        let start = offset_of!(SharedMem<CS>, reader_pid);
+        let len = size_of_val(&self.as_ref().reader_pid);
+        self.try_lock(start, len)
     }
 }
 

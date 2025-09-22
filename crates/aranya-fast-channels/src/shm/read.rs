@@ -11,7 +11,7 @@ use aranya_crypto::{
     afc::{OpenKey, SealKey},
     policy::LabelId,
 };
-use buggy::{BugExt, bug};
+use buggy::BugExt;
 use derive_where::derive_where;
 
 use super::{
@@ -78,18 +78,15 @@ where
         P: AsRef<Path>,
     {
         let state = State::open(path, flag, mode, max_chans)?;
-        let shm = state.shm();
-        if shm.increment_reader_count() > 0 {
-            #[cfg(feature = "std")]
-            {
-                let pid = shm.get_reader_pid();
-                debug!("Process with ID: {pid}, has an open reader handle");
-            }
-            bug!("More than 1 reader shared memory handle open")
-        }
+        state.ptr.try_lock_reader_pid()?;
+
+        // TODO(Steve): set reader count to 0
 
         #[cfg(feature = "std")]
-        shm.set_reader_pid();
+        {
+            let shm = state.shm();
+            shm.set_reader_pid();
+        }
 
         Ok(Self {
             inner: state,

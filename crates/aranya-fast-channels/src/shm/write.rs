@@ -42,10 +42,13 @@ where
         P: AsRef<Path>,
     {
         let state = State::open(path, flag, mode, max_chans)?;
-        let shm = state.shm();
+        state.ptr.try_lock_writer_pid()?;
 
         #[cfg(feature = "std")]
-        shm.set_writer_pid();
+        {
+            let shm = state.shm();
+            shm.set_writer_pid();
+        }
 
         Ok(Self {
             inner: state,
