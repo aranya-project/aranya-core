@@ -15,9 +15,9 @@ use core::{
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
-    LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
-    ValueConversionError,
+    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
+    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
+    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
 };
 use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
@@ -25,7 +25,7 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    CommandContext, OpenContext, SealContext,
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -134,17 +134,15 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: NamedMap<ActionDef>,
     /// Command definitions
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: NamedMap<CommandDef>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -160,12 +158,11 @@ impl Machine {
         Machine {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -176,12 +173,11 @@ impl Machine {
         Machine {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -198,7 +194,6 @@ impl Machine {
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
                 enum_defs: m.enum_defs,
-                command_attributes: m.command_attributes,
                 codemap: m.codemap,
                 globals: m.globals,
             }),
@@ -216,7 +211,6 @@ impl Machine {
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs: self.enum_defs,
-                command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
             }),
@@ -276,8 +270,7 @@ impl Machine {
     /// Call a command
     pub fn call_command_policy<M>(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
         ctx: CommandContext,
@@ -286,7 +279,7 @@ impl Machine {
         M: MachineIO<MachineStack>,
     {
         let mut rs = self.create_run_state(io, ctx);
-        rs.call_command_policy(name, this_data, envelope)
+        rs.call_command_policy(this_data, envelope)
     }
 }
 
@@ -1076,10 +1069,11 @@ where
     /// Set up machine state for a command policy call
     pub fn setup_command(
         &mut self,
-        name: Identifier,
         label_type: LabelType,
-        this_data: &Struct,
+        this_data: Struct,
     ) -> Result<(), MachineError> {
+        let name = this_data.name.clone();
+
         #[cfg(feature = "bench")]
         self.stopwatch
             .start(format!("setup_command: {}", name).as_str());
@@ -1093,18 +1087,20 @@ where
             .get(&name)
             .ok_or_else(|| self.err(MachineErrorType::NotDefined(name.to_string())))?;
 
-        if this_data.fields.len() != command_def.len() {
+        if this_data.fields.len() != command_def.fields.len() {
             return Err(self.err(MachineErrorType::Unknown(alloc::format!(
                 "command `{}` expects {} field(s), but `this` contains {}",
                 name,
-                command_def.len(),
+                command_def.fields.len(),
                 this_data.fields.len()
             ))));
         }
         for (name, value) in &this_data.fields {
-            let expected_type = command_def
+            let expected_type = &command_def
+                .fields
                 .get(name)
-                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?;
+                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?
+                .ty;
 
             if !value.fits_type(expected_type) {
                 return Err(self.err(MachineErrorType::invalid_type(
@@ -1115,7 +1111,7 @@ where
             }
         }
         self.scope
-            .set(ident!("this"), Value::Struct(this_data.to_owned()))
+            .set(ident!("this"), Value::Struct(this_data))
             .map_err(|e| self.err(e))?;
 
         #[cfg(feature = "bench")]
@@ -1130,11 +1126,14 @@ where
     /// If the command check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandPolicy, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Policy(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandPolicy, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1144,11 +1143,14 @@ where
     /// structs or a MachineError.
     pub fn call_command_recall(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandRecall, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandRecall, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1172,27 +1174,26 @@ where
             .start(format!("setup_action: {}", name).as_str());
 
         // verify number and types of arguments
-        let arg_def = self
+        let action_def = self
             .machine
             .action_defs
             .get(&name)
             .ok_or_else(|| MachineError::new(MachineErrorType::NotDefined(name.to_string())))?;
         let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
-        if args.len() != arg_def.len() {
+        if args.len() != action_def.params.len() {
             return Err(MachineError::new(MachineErrorType::Unknown(
                 alloc::format!(
                     "action `{}` expects {} argument(s), but was called with {}",
                     name,
-                    arg_def.len(),
+                    action_def.params.len(),
                     args.len()
                 ),
             )));
         }
-        for (i, arg) in args.iter().enumerate() {
-            let def_type = &arg_def[i].field_type;
-            if !arg.fits_type(def_type) {
+        for (arg, param) in args.iter().zip(action_def.params.iter()) {
+            if !arg.fits_type(&param.ty) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
-                    def_type.to_string(),
+                    param.ty.to_string(),
                     arg.type_name(),
                     "invalid function argument",
                 )));
@@ -1225,6 +1226,10 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        if !matches!(&self.ctx, CommandContext::Action(ActionContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_action(name, args)?;
         self.run()
     }
@@ -1232,11 +1237,12 @@ where
     /// Call the seal block on this command to produce an envelope. The
     /// seal block is given an implicit parameter `this` and should
     /// return an opaque envelope struct on the stack.
-    pub fn call_seal(
-        &mut self,
-        name: Identifier,
-        this_data: Struct,
-    ) -> Result<ExitReason, MachineError> {
+    pub fn call_seal(&mut self, this_data: Struct) -> Result<ExitReason, MachineError> {
+        let name = this_data.name.clone();
+        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
@@ -1252,6 +1258,10 @@ where
         name: Identifier,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()

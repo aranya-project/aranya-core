@@ -5,6 +5,7 @@ use aranya_crypto::{
     CipherSuite, Engine, Random, Rng,
     afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     dangerous::spideroak_crypto::{hash::Hash, rust::Sha256},
+    policy::LabelId,
 };
 use serial_test::serial;
 
@@ -13,14 +14,14 @@ use super::{
     shared::{Index, ShmChan},
 };
 use crate::{
-    state::{AranyaState, Channel, ChannelId, Directed, Label, NodeId},
+    state::{AranyaState, Channel, Directed},
     testing::{
         test_impl,
-        util::{self, DummyAead, States, TestEngine, TestImpl},
+        util::{self, DeviceIdx, DummyAead, States, TestEngine, TestImpl},
     },
 };
 
-fn make_path(name: &str, id: NodeId) -> Box<Path> {
+fn make_path(name: &str, id: DeviceIdx) -> Box<Path> {
     let id = format!("{name}-{id}");
     let hash = &Sha256::hash(id.as_bytes())[..8];
     let path = format!("/{}\x00", hex::encode(hash));
@@ -37,7 +38,7 @@ impl TestImpl for SharedMemImpl {
 
     fn new_states<CS: CipherSuite>(
         name: &str,
-        id: NodeId,
+        id: DeviceIdx,
         max_chans: usize,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
         let path = make_path(name, id);
@@ -78,7 +79,7 @@ test_impl!(#[serial], shm, SharedMemImpl);
 fn test_many_nodes() {
     const MAX_CHANS: usize = 101;
 
-    let labels = [Label::new(0), Label::new(42)];
+    let labels = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
 
     type E = TestEngine<DummyAead>;
 
@@ -107,27 +108,25 @@ fn test_many_nodes() {
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
-    for label in labels {
-        for i in 0..MAX_CHANS {
-            let chan = Channel {
-                id: ChannelId::new(NodeId::new(u32::try_from(i).unwrap()), label),
-                keys: match util::rand_intn(&mut Rng, 3) {
-                    0 => Directed::SealOnly {
-                        seal: RawSealKey::random(rng),
-                    },
-                    1 => Directed::OpenOnly {
-                        open: RawOpenKey::random(rng),
-                    },
-                    2 => Directed::Bidirectional {
-                        seal: RawSealKey::random(rng),
-                        open: RawOpenKey::random(rng),
-                    },
-                    v => unreachable!("{v}"),
+    for label_id in labels {
+        for idx in 0..MAX_CHANS {
+            let keys = match util::rand_intn(&mut Rng, 3) {
+                0 => Directed::SealOnly {
+                    seal: RawSealKey::random(rng),
                 },
+                1 => Directed::OpenOnly {
+                    open: RawOpenKey::random(rng),
+                },
+                2 => Directed::Bidirectional {
+                    seal: RawSealKey::random(rng),
+                    open: RawOpenKey::random(rng),
+                },
+                v => unreachable!("{v}"),
             };
-            aranya
-                .add(chan.id, chan.keys.clone())
-                .unwrap_or_else(|err| panic!("unable to add node {i}: {err}"));
+            let id = aranya
+                .add(keys.clone(), label_id)
+                .unwrap_or_else(|err| panic!("unable to add channel {idx}: {err}"));
+            let chan = Channel { id, keys, label_id };
             chans.push(chan);
 
             // Now check that all previously added nodes

@@ -6,10 +6,12 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Identifier};
-use ast::FactDefinition;
 use serde::{Deserialize, Serialize};
 
-use crate::{CodeMap, Instruction, Label, Value};
+use crate::{
+    CodeMap, Instruction, Label, Value,
+    named::{NamedMap, named},
+};
 
 /// Identifies a [`Module`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -103,19 +105,73 @@ pub struct ModuleV0 {
     /// Labels
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: NamedMap<ActionDef>,
     /// Command definitions
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: NamedMap<CommandDef>,
     /// Fact definitions
-    pub fact_defs: BTreeMap<Identifier, FactDefinition>,
+    pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
     /// Struct definitions
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data
     pub globals: BTreeMap<Identifier, Value>,
 }
+
+/// An action definition.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ActionDef {
+    /// The name of the action.
+    pub name: ast::Ident,
+    /// The persistence of the action.
+    pub persistence: ast::Persistence,
+    /// The parameters of the action.
+    pub params: NamedMap<Param>,
+}
+named!(ActionDef);
+
+/// An action or function parameter.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Param {
+    /// The name of the parameter.
+    pub name: ast::Ident,
+    /// The type of the parameter.
+    pub ty: ast::VType,
+}
+named!(Param);
+
+/// A command definition.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CommandDef {
+    /// The name of the command.
+    pub name: ast::Ident,
+    /// The persistence of the command.
+    pub persistence: ast::Persistence,
+    /// The attributes of the command.
+    pub attributes: NamedMap<Attribute>,
+    /// The fields of the command.
+    pub fields: NamedMap<Field>,
+}
+named!(CommandDef);
+
+/// A command attribute.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Attribute {
+    /// The name of the attribute.
+    pub name: ast::Ident,
+    /// The value of the attribute.
+    pub value: Value,
+}
+named!(Attribute);
+
+/// A struct or command field.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Field {
+    /// The name of the field
+    pub name: ast::Ident,
+    /// The type of the field
+    pub ty: ast::VType,
+}
+named!(Field);

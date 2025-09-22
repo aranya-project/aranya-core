@@ -3,6 +3,7 @@ use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Orderin
 use aranya_crypto::{
     CipherSuite, Csprng,
     afc::{RawOpenKey, RawSealKey},
+    policy::LabelId,
 };
 use buggy::BugExt;
 
@@ -21,6 +22,7 @@ use crate::{
 };
 
 /// The writer's view of the shared memory state.
+#[derive(Debug)]
 pub struct WriteState<CS, R> {
     inner: State<CS>,
     rng: StdMutex<R>,
@@ -59,51 +61,45 @@ where
 
     fn add(
         &self,
-        id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
-    ) -> Result<(), Error> {
+        label_id: LabelId,
+    ) -> Result<ChannelId, Error> {
         let mut rng = self.rng.lock().assume("poisoned")?;
 
-        let (write_off, idx, grow) = {
+        let id = {
+            // NB: This cannot reasonably overflow.
+            let next = self.inner.shm().next_chan_id.fetch_add(1, Ordering::SeqCst);
+            ChannelId::new(next)
+        };
+
+        let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
             // of borrowing rules.
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            let (idx, chan, grow) = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, chan)) => (i, chan.as_uninit_mut(), false),
-                None => {
-                    if side.len >= side.cap {
-                        // The channel wasn't found and we're out
-                        // of space.
-                        return Err(Error::OutOfSpace);
-                    }
-                    let len = usize::try_from(side.len)
-                        .map_err(|_| corrupted("`len` larger than `usize::MAX`"))?;
-                    let chan = side.raw_at(len)?;
-                    (len, chan, true)
-                }
-            };
-            debug!("adding chan {id} at {idx} grow={grow}");
+            if side.len >= side.cap {
+                // We're out of space.
+                return Err(Error::OutOfSpace);
+            }
 
-            ShmChan::<CS>::init(chan, id, &keys, rng.deref_mut());
+            let idx = usize::try_from(side.len)
+                .map_err(|_| corrupted("`side.len` larger than `usize::MAX`"))?;
+            let chan = side.raw_at(idx)?;
+            debug!("adding chan {id} at {idx}");
+
+            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("write side generation={}", generation + 1);
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
-            if grow {
-                side.len += 1;
-            }
+            side.len += 1;
             assert!(side.len <= side.cap);
             debug!("write side len={}", side.len);
 
-            (off, idx, grow)
+            (off, idx)
         };
 
         let read_off = {
@@ -112,18 +108,70 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("read side generation={}", generation + 1);
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
-            if grow {
-                side.len += 1;
-            }
+            side.len += 1;
             assert!(side.len <= side.cap);
             debug!("read side len={}", side.len);
+
+            off
+        };
+
+        self.inner
+            .shm()
+            .write_off
+            .store(read_off.into(), Ordering::SeqCst);
+
+        Ok(id)
+    }
+
+    fn update(
+        &self,
+        id: ChannelId,
+        keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
+    ) -> Result<(), Error> {
+        let mut rng = self.rng.lock().assume("poisoned")?;
+
+        let (write_off, idx) = {
+            let off = self.inner.write_off(self.inner.shm())?;
+            // Load state after loading the write offset because
+            // of borrowing rules.
+            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
+
+            let (idx, chan) = match side
+                .try_iter_mut()?
+                .enumerate()
+                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
+            {
+                Some((i, chan)) => (i, chan.as_uninit_mut()),
+                None => return Err(Error::NotFound(id)),
+            };
+            debug!("adding chan {id} at {idx}");
+
+            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
+
+            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
+            debug!("write side generation={}", generation + 1);
+
+            (off, idx)
+        };
+
+        let read_off = {
+            // Swap the pointers: the reader will now see the
+            // updated list.
+            let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
+            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
+
+            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
+
+            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
+            debug!("read side generation={}", generation + 1);
 
             off
         };

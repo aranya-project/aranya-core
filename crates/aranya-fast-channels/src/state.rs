@@ -6,9 +6,9 @@ use core::{
 use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
     subtle::ConstantTimeEq,
 };
-use byteorder::{ByteOrder, LittleEndian};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
@@ -22,12 +22,12 @@ pub trait AfcState {
     /// Invokes `f` with the channel's encryption key.
     fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>;
+        F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
     fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>;
+        F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Error>;
@@ -47,11 +47,21 @@ pub trait AranyaState {
     /// The type of key used to decrypt messages.
     type OpenKey;
 
-    /// Adds or updates a channel.
+    /// Adds a new channel.
     fn add(
+        &self,
+        keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
+    ) -> Result<ChannelId, Self::Error>;
+
+    /// Updates a channel.
+    ///
+    /// It is an error if the channel does not exist.
+    fn update(
         &self,
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
     ) -> Result<(), Self::Error>;
 
     /// Removes an existing channel.
@@ -77,163 +87,31 @@ pub trait AranyaState {
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
 }
 
-/// Uniquely identifies a channel for a particular [`AfcState`]
-/// and [`AranyaState`].
+/// Uniquely identifies a channel inside the shared state.
 ///
-/// It has two primary parts: a [`NodeId`] that identifies the
-/// team member and a [`Label`] that identifies the set of policy
-/// rules that govern the channel.
-///
-/// A [`Channel`] must be enabled in Aranya before it can be
-/// used. Otherwise, methods like
-/// [`Client::seal`][crate::Client::seal] will be unable to find
-/// it.
+/// This is strictly a local identifier.
+// TODO(eric): Make this 32 bits on 32-bit platforms?
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub struct ChannelId {
-    node_id: NodeId,
-    label: Label,
-}
+#[repr(transparent)]
+pub struct ChannelId(u64);
 
 impl ChannelId {
-    /// Creates a channel.
-    pub const fn new(id: NodeId, label: Label) -> Self {
-        ChannelId { node_id: id, label }
+    /// Creates a [`ChannelId`].
+    #[cfg(any(test, feature = "sdlib", feature = "posix", feature = "memory"))]
+    pub(crate) const fn new(id: u64) -> Self {
+        ChannelId(id)
     }
 
-    /// Returns the team member's ID.
-    pub const fn node_id(&self) -> NodeId {
-        self.node_id
-    }
-
-    /// Returns the channel's label.
-    pub const fn label(&self) -> Label {
-        self.label
-    }
-
-    /// Converts the ID to bytes.
-    pub fn to_bytes(&self) -> [u8; 8] {
-        let mut b = [0u8; 8];
-        self.node_id().put_bytes(&mut b[..4]);
-        self.label().put_bytes(&mut b[4..]);
-        b
+    /// Converts the [`ChannelId`] to its `u64` representation.
+    #[cfg(any(feature = "sdlib", feature = "posix"))]
+    pub(crate) const fn to_u64(self) -> u64 {
+        self.0
     }
 }
 
 impl fmt::Display for ChannelId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "ChannelId(node_id={}, label={})",
-            self.node_id, self.label
-        )
-    }
-}
-
-/// A local identifier that associates a [`Channel`] with an
-/// Aranya team member.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[repr(transparent)]
-pub struct NodeId(u32);
-
-impl NodeId {
-    /// Creates a [`NodeId`].
-    pub const fn new(id: u32) -> Self {
-        NodeId(id)
-    }
-
-    /// The size in bytes of an ID.
-    pub const SIZE: usize = 4;
-
-    /// Creates a [`NodeId`] from its little-endian
-    /// representation.
-    pub fn from_bytes(b: &[u8]) -> Self {
-        Self::new(LittleEndian::read_u32(b))
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
-        self.put_bytes(&mut b);
-        b
-    }
-
-    /// Converts the [`NodeId`] to its little-endian
-    /// representation.
-    pub fn put_bytes(&self, dst: &mut [u8]) {
-        LittleEndian::write_u32(dst, self.0);
-    }
-
-    /// Converts the [`NodeId`] to its u32 representation.
-    pub const fn to_u32(&self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for NodeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl From<u32> for NodeId {
-    fn from(id: u32) -> Self {
-        Self::new(id)
-    }
-}
-
-/// Associates a [`Channel`] with Aranya policy rules that govern
-/// communication in the channel.
-///
-/// Labels are defined inside Aranya policy.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[repr(transparent)]
-pub struct Label(u32);
-
-impl Label {
-    /// Creates a [`Label`] from its policy source ID.
-    pub const fn new(label: u32) -> Self {
-        Self(label)
-    }
-
-    /// The size in bytes of a label.
-    pub const SIZE: usize = 4;
-
-    /// Creates a label from its little-endian
-    /// representation.
-    pub fn from_bytes(b: &[u8]) -> Self {
-        Label::new(LittleEndian::read_u32(b))
-    }
-
-    /// Converts the [`Label`] to its little-endian
-    /// representation.
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
-        self.put_bytes(&mut b);
-        b
-    }
-
-    /// Converts the [`Label`] to its little-endian
-    /// representation.
-    pub fn put_bytes(&self, dst: &mut [u8]) {
-        LittleEndian::write_u32(dst, self.to_u32());
-    }
-
-    /// Converts the label to a `u32`.
-    pub const fn to_u32(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for Label {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_u32())
-    }
-}
-
-impl From<u32> for Label {
-    fn from(id: u32) -> Self {
-        Self::new(id)
     }
 }
 
@@ -245,6 +123,8 @@ pub struct Channel<S, O> {
     pub id: ChannelId,
     /// The channel's encryption keys.
     pub keys: Directed<S, O>,
+    /// Uniquely identifies the label.
+    pub label_id: LabelId,
 }
 
 impl<S, O> Channel<S, O> {
@@ -253,6 +133,7 @@ impl<S, O> Channel<S, O> {
         Channel {
             id: self.id,
             keys: self.keys.as_ref(),
+            label_id: self.label_id,
         }
     }
 }
@@ -416,17 +297,17 @@ mod test {
     use aranya_crypto::{
         CipherSuite, Rng,
         afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
+        policy::LabelId,
     };
-    use buggy::Bug;
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed, NodeId,
+        AfcState, AranyaState, ChannelId, Directed,
         error::Error,
         memory,
         testing::{
             test_impl,
-            util::{MockImpl, States, TestImpl},
+            util::{DeviceIdx, MockImpl, States, TestImpl},
         },
     };
 
@@ -454,14 +335,14 @@ mod test {
 
         fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
-            F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
+            F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
             self.state.seal(id, f)
         }
 
         fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
-            F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>,
+            F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
             self.state.open(id, f)
         }
@@ -479,14 +360,24 @@ mod test {
 
         type SealKey = SealKey<CS>;
         type OpenKey = OpenKey<CS>;
-        type Error = Bug;
+        type Error = Error;
 
         fn add(
             &self,
+            keys: Directed<Self::SealKey, Self::OpenKey>,
+            label_id: LabelId,
+        ) -> Result<ChannelId, Self::Error> {
+            let id = self.state.add(keys, label_id)?;
+            Ok(id)
+        }
+
+        fn update(
+            &self,
             id: ChannelId,
             keys: Directed<Self::SealKey, Self::OpenKey>,
+            label_id: LabelId,
         ) -> Result<(), Self::Error> {
-            self.state.add(id, keys)?;
+            self.state.update(id, keys, label_id)?;
             Ok(())
         }
 
@@ -510,7 +401,7 @@ mod test {
 
         fn new_states<CS: CipherSuite>(
             _name: &str,
-            _node_id: NodeId,
+            _device_idx: DeviceIdx,
             _max_chans: usize,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = DefaultState::<CS>::new();
