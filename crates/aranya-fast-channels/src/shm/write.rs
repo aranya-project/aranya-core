@@ -1,16 +1,11 @@
-use core::{
-    cell::{Cell, RefCell},
-    marker::PhantomData,
-    ops::DerefMut,
-    sync::atomic::Ordering,
-};
+use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
 
 use aranya_crypto::{
     CipherSuite, Csprng,
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
-use buggy::{BugExt, bug};
+use buggy::BugExt;
 
 use super::{
     error::{Corrupted, Error, corrupted},
@@ -20,6 +15,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    mutex::StdMutex,
     shm::shared::Op,
     state::{AranyaState, ChannelId, Directed},
     util::debug,
@@ -29,7 +25,7 @@ use crate::{
 #[derive(Debug)]
 pub struct WriteState<CS: CipherSuite, R> {
     inner: State<CS>,
-    rng: RefCell<R>,
+    rng: StdMutex<R>,
 
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
@@ -47,43 +43,15 @@ where
     {
         let state = State::open(path, flag, mode, max_chans)?;
         let shm = state.shm();
-        if shm.increment_writer_count() > 0 {
-            #[cfg(feature = "std")]
-            {
-                let pid = shm.get_writer_pid();
-                debug!("Process with ID: {pid}, has an open writer handle");
-            }
-            bug!("More than 1 writer share memory handle open")
-        }
 
         #[cfg(feature = "std")]
         shm.set_writer_pid();
 
         Ok(Self {
             inner: state,
-            rng: RefCell::new(rng),
+            rng: StdMutex::new(rng),
             _no_sync: PhantomData,
         })
-    }
-}
-
-impl<CS: CipherSuite, R> Drop for WriteState<CS, R> {
-    fn drop(&mut self) {
-        let count = self.inner.shm().decrement_writer_count();
-        if count <= 1 {
-            self.inner.unmap();
-        }
-    }
-}
-
-impl<CS: CipherSuite, R: Clone> Clone for WriteState<CS, R> {
-    fn clone(&self) -> Self {
-        self.inner.shm().increment_writer_count();
-        Self {
-            inner: self.inner.clone(),
-            rng: self.rng.clone(),
-            _no_sync: PhantomData,
-        }
     }
 }
 
@@ -102,7 +70,7 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
     ) -> Result<ChannelId, Error> {
-        let mut rng = self.rng.try_borrow_mut().assume("already borrowed")?;
+        let mut rng = self.rng.lock().assume("already borrowed")?;
 
         let id = {
             // NB: This cannot reasonably overflow.
@@ -174,7 +142,7 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
     ) -> Result<(), Error> {
-        let mut rng = self.rng.try_borrow_mut().assume("already borrowed")?;
+        let mut rng = self.rng.lock().assume("already borrowed")?;
 
         let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;

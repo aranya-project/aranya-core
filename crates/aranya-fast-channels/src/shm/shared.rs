@@ -586,8 +586,6 @@ pub(super) struct SharedMem<CS> {
     pub write_off: CacheAligned<AtomicUsize>,
     /// The number of live readers.
     pub reader_count: CacheAligned<AtomicUsize>,
-    /// The number of live writers.
-    pub writer_count: CacheAligned<AtomicUsize>,
     #[cfg(feature = "std")]
     reader_pid: CacheAligned<AtomicU32>,
     #[cfg(feature = "std")]
@@ -633,7 +631,6 @@ impl<CS: CipherSuite> SharedMem<CS> {
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
             reader_count: CacheAligned::new(AtomicUsize::new(0)),
-            writer_count: CacheAligned::new(AtomicUsize::new(0)),
             #[cfg(feature = "std")]
             reader_pid: CacheAligned::new(AtomicU32::new(0)),
             #[cfg(feature = "std")]
@@ -728,18 +725,6 @@ impl<CS: CipherSuite> SharedMem<CS> {
     pub(crate) fn decrement_reader_count(&self) -> usize {
         self.reader_count.fetch_sub(1, Ordering::SeqCst)
     }
-
-    /// Increments [Self::writer_count] by 1.
-    /// Returns the previous count.
-    pub(crate) fn increment_writer_count(&self) -> usize {
-        self.writer_count.fetch_add(1, Ordering::SeqCst)
-    }
-
-    /// Decrements [Self::writer_count] by 1.
-    /// Returns the previous count.
-    pub(crate) fn decrement_writer_count(&self) -> usize {
-        self.writer_count.fetch_sub(1, Ordering::SeqCst)
-    }
 }
 
 #[cfg(feature = "std")]
@@ -754,10 +739,6 @@ impl<CS: CipherSuite> SharedMem<CS> {
     pub(crate) fn set_reader_pid(&self) {
         let pid = std::process::id();
         self.reader_pid.swap(pid, Ordering::SeqCst);
-    }
-
-    pub(crate) fn get_writer_pid(&self) -> u32 {
-        self.writer_pid.load(Ordering::SeqCst)
     }
 
     pub(crate) fn get_reader_pid(&self) -> u32 {
