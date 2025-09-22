@@ -2558,6 +2558,7 @@ checksum = "19f5c3e5da784cd8c69d32cdc84673f3204536ca56e1fa01be31a74b92c932ac"
 dependencies = [
  "bytecheck",
  "hashbrown",
+ "indexmap",
  "munge",
  "ptr_meta",
  "rancor",

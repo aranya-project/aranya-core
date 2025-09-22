@@ -121,7 +121,17 @@ pub struct ModuleV0 {
 }
 
 /// An action definition.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct ActionDef {
     /// The name of the action.
     pub name: ast::Ident,
@@ -133,7 +143,17 @@ pub struct ActionDef {
 named!(ActionDef);
 
 /// An action or function parameter.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Param {
     /// The name of the parameter.
     pub name: ast::Ident,
@@ -143,7 +163,17 @@ pub struct Param {
 named!(Param);
 
 /// A command definition.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct CommandDef {
     /// The name of the command.
     pub name: ast::Ident,
@@ -157,7 +187,17 @@ pub struct CommandDef {
 named!(CommandDef);
 
 /// A command attribute.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Attribute {
     /// The name of the attribute.
     pub name: ast::Ident,
@@ -167,7 +207,17 @@ pub struct Attribute {
 named!(Attribute);
 
 /// A struct or command field.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Field {
     /// The name of the field
     pub name: ast::Ident,

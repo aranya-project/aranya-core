@@ -112,7 +112,17 @@ impl fmt::Display for Version {
 }
 
 /// Persistence mode for commands and actions
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Persistence {
     /// Persisted on-graph (default behavior)
     Persistent,
