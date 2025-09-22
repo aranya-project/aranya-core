@@ -1,24 +1,30 @@
 ---
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
-assertion_line: 1259
 expression: policy
 ---
 {
   "version": "V2",
   "ffi_imports": [],
   "facts": [],
-  "actions": [
+  "actions": [],
+  "effects": [],
+  "structs": [],
+  "enums": [],
+  "commands": [
     {
       "persistence": "Persistent",
+      "attributes": [],
       "identifier": {
-        "name": "foo",
+        "name": "Foo",
         "span": {
-          "start": 74,
-          "end": 77
+          "start": 17,
+          "end": 20
         }
       },
-      "arguments": [],
-      "statements": [
+      "fields": [],
+      "seal": [],
+      "open": [],
+      "policy": [
         {
           "kind": {
             "Check": {
@@ -27,16 +33,16 @@ expression: policy
                   "Bool": false
                 },
                 "span": {
-                  "start": 100,
-                  "end": 105
+                  "start": 66,
+                  "end": 71
                 }
               },
-              "err": null
+              "recall_block": null
             }
           },
           "span": {
-            "start": 94,
-            "end": 118
+            "start": 60,
+            "end": 88
           }
         },
         {
@@ -47,105 +53,57 @@ expression: policy
                   "Bool": false
                 },
                 "span": {
-                  "start": 124,
-                  "end": 129
+                  "start": 94,
+                  "end": 99
                 }
               },
-              "err": {
-                "kind": {
-                  "String": "failed"
-                },
+              "recall_block": {
+                "name": "foo",
                 "span": {
-                  "start": 135,
-                  "end": 143
+                  "start": 110,
+                  "end": 113
                 }
               }
             }
           },
           "span": {
-            "start": 118,
-            "end": 156
-          }
-        },
-        {
-          "kind": {
-            "Check": {
-              "expression": {
-                "kind": {
-                  "Bool": false
-                },
-                "span": {
-                  "start": 162,
-                  "end": 167
-                }
-              },
-              "err": {
-                "kind": {
-                  "EnumReference": {
-                    "identifier": {
-                      "name": "Err",
-                      "span": {
-                        "start": 173,
-                        "end": 176
-                      }
-                    },
-                    "value": {
-                      "name": "Invalid",
-                      "span": {
-                        "start": 178,
-                        "end": 185
-                      }
-                    }
-                  }
-                },
-                "span": {
-                  "start": 173,
-                  "end": 185
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 156,
-            "end": 194
+            "start": 88,
+            "end": 113
           }
         }
       ],
-      "span": {
-        "start": 67,
-        "end": 195
-      }
-    }
-  ],
-  "effects": [],
-  "structs": [],
-  "enums": [
-    {
-      "identifier": {
-        "name": "Err",
-        "span": {
-          "start": 14,
-          "end": 17
-        }
-      },
-      "variants": [
+      "recalls": [
         {
-          "name": "Invalid",
+          "identifier": null,
+          "statements": [],
           "span": {
-            "start": 32,
-            "end": 39
+            "start": 140,
+            "end": 149
+          }
+        },
+        {
+          "identifier": {
+            "name": "foo",
+            "span": {
+              "start": 169,
+              "end": 172
+            }
+          },
+          "statements": [],
+          "span": {
+            "start": 162,
+            "end": 175
           }
         }
       ],
       "span": {
         "start": 9,
-        "end": 49
+        "end": 185
       }
     }
   ],
-  "commands": [],
   "functions": [],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n        enum Err {\n            Invalid\n        }\n        \n        action foo() {\n            check false\n            check false else \"failed\"\n            check false else Err::Invalid\n        }\n        "
+  "text": "\n        command Foo {\n            policy {\n                check false\n                check false or recall foo\n            }\n            recall {}\n            recall foo {}\n        }\n        "
 }

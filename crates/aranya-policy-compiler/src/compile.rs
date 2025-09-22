@@ -1492,12 +1492,8 @@ impl<'a> CompileState<'a> {
                     // instruction after that - current instruction + 2.
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    let err = s
-                        .err
-                        .clone()
-                        .map(|e| self.expression_value(&e))
-                        .transpose()?;
-                    self.append_instruction(Instruction::Exit(ExitReason::Check(err)));
+                    let recall_block = s.recall_block.clone().map(|id| id.name);
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(recall_block)));
                 }
                 (
                     StmtKind::Match(s),
