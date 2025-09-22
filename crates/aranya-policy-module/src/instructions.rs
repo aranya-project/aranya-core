@@ -30,8 +30,8 @@ pub enum ExitReason {
     Normal,
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
-    /// Execution was aborted gracefully, due an error.
-    Check(Option<Value>),
+    /// Execution was aborted gracefully, due an error. The argument is the recall block to execute.
+    Check(Option<Identifier>),
     /// Execution was aborted due to an unhandled error.
     Panic,
 }
