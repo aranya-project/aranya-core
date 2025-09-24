@@ -356,12 +356,8 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check(err) => {
-                    info!(
-                        "Check {}: {}",
-                        self.source_location(&rs),
-                        err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
-                    );
+                ExitReason::Check(recall_block) => {
+                    info!("Check {recall_block}: {}", self.source_location(&rs));
 
                     match placement {
                         CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
@@ -406,20 +402,21 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     where
         M: MachineIO<MachineStack>,
     {
-        match rs.call_command_recall(this_data, envelope.into()) {
-            Ok(ExitReason::Normal) => Err(EngineError::Check),
-            Ok(ExitReason::Yield) => bug!("unexpected yield"),
-            Ok(ExitReason::Check(msg)) => {
-                info!(
-                    "Recall failed {}: {}",
-                    self.source_location(rs),
-                    msg.map(|v| alloc::format!("{}", v)).unwrap_or_default()
-                );
-                Err(EngineError::Check)
-            }
-            Ok(ExitReason::Panic) | Err(_) => {
-                info!("Recall panicked: {}", self.source_location(rs));
-                Err(EngineError::Panic)
+        match recall {
+            CommandRecall::None => Err(EngineError::Check),
+            CommandRecall::OnCheck => {
+                match rs.call_command_recall(name, self_data, envelope.into()) {
+                    Ok(ExitReason::Normal) => Err(EngineError::Check),
+                    Ok(ExitReason::Yield) => bug!("unexpected yield"),
+                    Ok(ExitReason::Check(recall)) => {
+                        info!("Recall failed {}: {}", self.source_location(rs), recall);
+                        Err(EngineError::Check)
+                    }
+                    Ok(ExitReason::Panic) | Err(_) => {
+                        info!("Recall panicked: {}", self.source_location(rs));
+                        Err(EngineError::Panic)
+                    }
+                }
             }
         }
     }
@@ -454,12 +451,8 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     })?)
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check(err) => {
-                    info!(
-                        "Check {}: {}",
-                        self.source_location(&rs),
-                        err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
-                    );
+                ExitReason::Check(recall) => {
+                    info!("Check {}: {}", self.source_location(&rs), recall);
                     Err(EngineError::Check)
                 }
                 ExitReason::Panic => {
@@ -814,12 +807,8 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             EngineError::InternalError
                         })?;
                     }
-                    ExitReason::Check(err) => {
-                        info!(
-                            "Check {}: {}",
-                            self.source_location(&rs),
-                            err.map(|v| alloc::format!("{}", v)).unwrap_or_default()
-                        );
+                    ExitReason::Check(recall) => {
+                        info!("Check {recall}: {}", self.source_location(&rs));
                         return Err(EngineError::Check);
                     }
                     ExitReason::Panic => {

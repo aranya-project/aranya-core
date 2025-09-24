@@ -1349,7 +1349,9 @@ impl<'a> CompileState<'a> {
                     .map_err(|e| self.err(e))?
             }
             ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
-            ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check(None))?, // TODO
+            ExprKind::CheckUnwrap(e) => {
+                self.compile_unwrap(e, ExitReason::Check(ident!("default")))?
+            }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let inner_type = self.compile_expression(e)?;
@@ -1469,13 +1471,7 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
-                (
-                    StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                (StmtKind::Check(s), StatementContext::CommandPolicy(cmd)) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
                         kind: TypeKind::Bool,
@@ -1492,8 +1488,21 @@ impl<'a> CompileState<'a> {
                     // instruction after that - current instruction + 2.
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    let recall_block = s.recall_block.clone().map(|id| id.name);
-                    self.append_instruction(Instruction::Exit(ExitReason::Check(recall_block)));
+
+                    // Make sure named recall block exists
+                    cmd.recalls
+                        .iter()
+                        .find(|c| c.identifier == s.recall_block)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::Unknown(format!(
+                                "recall block not found: {}",
+                                s.recall_block
+                            )))
+                        })?;
+
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(
+                        s.recall_block.name.clone(),
+                    )));
                 }
                 (
                     StmtKind::Match(s),
@@ -2222,19 +2231,19 @@ impl<'a> CompileState<'a> {
         let mut unnamed_count = 0;
 
         for recall_block in &command.recalls {
-            if let Some(ref identifier) = recall_block.identifier {
-                // Check for duplicate named blocks
-                if !named_blocks.insert(identifier.name.clone()) {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(
-                        identifier.name.to_string(),
-                    )));
-                }
-            } else {
-                // Check for multiple unnamed blocks
+            if recall_block.identifier.name.as_str() == "default" {
+                // Check for multiple unnamed blocks (using default identifier)
                 unnamed_count += 1;
                 if unnamed_count > 1 {
                     return Err(self.err(CompileErrorType::AlreadyDefined(
                         "unnamed recall block".to_string(),
+                    )));
+                }
+            } else {
+                // Check for duplicate named blocks
+                if !named_blocks.insert(recall_block.identifier.name.clone()) {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(
+                        recall_block.identifier.name.to_string(),
                     )));
                 }
             }
@@ -2242,11 +2251,14 @@ impl<'a> CompileState<'a> {
 
         // Compile each recall block
         for recall_block in &command.recalls {
-            let label_name = if let Some(ref identifier) = recall_block.identifier {
-                format!("{}_{}", command.identifier.name, identifier.name)
-            } else {
-                // For unnamed recall blocks, just use the command name
+            let label_name = if recall_block.identifier.name.as_str() == "default" {
+                // For unnamed recall blocks (using default identifier), just use the command name
                 command.identifier.name.to_string()
+            } else {
+                format!(
+                    "{}_{}",
+                    command.identifier.name, recall_block.identifier.name
+                )
             }
             .try_into()
             .map_err(|e| {

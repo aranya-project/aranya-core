@@ -201,7 +201,7 @@ fn test_check_statement() {
             check true
             
             // Check with else clause
-            check true else "this should not execute"
+            check true
         }
     "#;
 
@@ -3251,7 +3251,7 @@ fn test_recall_blocks() {
                 recall foo {
                 }
             }"#,
-            CompileErrorType::AlreadyDefined("foo".to_string()),
+            CompileErrorType::AlreadyDefined("recall block 'foo'".to_string()),
         ),
         // Command with two unnamed recall blocks
         (
@@ -3268,7 +3268,7 @@ fn test_recall_blocks() {
                 recall {
                 }
             }"#,
-            CompileErrorType::AlreadyDefined("unnamed recall block".to_string()),
+            CompileErrorType::AlreadyDefined("recall block 'default'".to_string()),
         ),
     ];
 
