@@ -1274,3 +1274,45 @@ fn test_check_errors() {
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
     insta::assert_json_snapshot!(policy);
 }
+
+#[test]
+fn test_recalls() {
+    let cases = [
+        (
+            r#"command Foo {
+                policy {}
+            }"#,
+            vec![],
+        ),
+        (
+            r#"command Foo {
+                recall {}
+            }"#,
+            vec!["default"],
+        ),
+        (
+            r#"command Foo {
+                recall {}
+                recall foo {}
+            }"#,
+            vec!["default", "foo"],
+        ),
+        (
+            r#"command Foo {
+                recall {}
+                recall foo {}
+                recall bar {}
+            }"#,
+            vec!["default", "foo", "bar"],
+        ),
+    ];
+    for (src, expected) in cases {
+        let policy = parse_policy_str(src, Version::V2).expect("should parse");
+        let recalls = policy.commands[0]
+            .recalls
+            .iter()
+            .map(|c| c.identifier.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(recalls, expected);
+    }
+}

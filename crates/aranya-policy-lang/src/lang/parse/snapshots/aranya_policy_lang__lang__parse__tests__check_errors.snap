@@ -37,7 +37,13 @@ expression: policy
                   "end": 71
                 }
               },
-              "recall_block": null
+              "recall_block": {
+                "name": "default",
+                "span": {
+                  "start": 60,
+                  "end": 88
+                }
+              }
             }
           },
           "span": {
@@ -74,7 +80,13 @@ expression: policy
       ],
       "recalls": [
         {
-          "identifier": null,
+          "identifier": {
+            "name": "default",
+            "span": {
+              "start": 140,
+              "end": 149
+            }
+          },
           "statements": [],
           "span": {
             "start": 140,

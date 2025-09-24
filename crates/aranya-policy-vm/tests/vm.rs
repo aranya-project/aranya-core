@@ -979,7 +979,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check(None));
+    assert_eq!(result, ExitReason::Check(ident!("default")));
 
     Ok(())
 }
@@ -1496,24 +1496,24 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 fn test_check_errors() -> anyhow::Result<()> {
     let cases = [
         (
-            r#"action foo() {
-                check false
+            r#"command Foo {
+                policy {
+                    check false
+                }
+                recall {
+                }
             }"#,
-            None,
+            ident!("default"),
         ),
         (
-            r#"action foo() {
-                check false else "check failed"
+            r#"command Foo {
+                policy {
+                    check false or recall bar()
+                }
+                recall bar() {
+                }
             }"#,
-            Some(Value::String(text!("check failed"))),
-        ),
-        (
-            r#"
-            enum Err { Fail }
-            action foo() {
-                check false else Err::Fail
-            }"#,
-            Some(Value::Enum(ident!("Err"), 0)),
+            ident!("bar"),
         ),
     ];
 
@@ -1598,7 +1598,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check(None));
+        assert_eq!(status, ExitReason::Check(ident!("default")));
     }
 
     Ok(())
@@ -2429,7 +2429,7 @@ fn test_boolean_short_circuit() {
     }
 
     assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check(None));
+    assert_eq!(run("false && todo()"), ExitReason::Check(ident!("default")));
     assert_eq!(run("true || todo()"), ExitReason::Normal);
     assert_eq!(run("false || todo()"), ExitReason::Panic);
 }

@@ -548,7 +548,13 @@ expression: policy
                   "end": 723
                 }
               },
-              "err": null
+              "recall_block": {
+                "name": "default",
+                "span": {
+                  "start": 681,
+                  "end": 734
+                }
+              }
             }
           },
           "span": {
@@ -635,7 +641,13 @@ expression: policy
                               "end": 828
                             }
                           },
-                          "err": null
+                          "recall_block": {
+                            "name": "default",
+                            "span": {
+                              "start": 795,
+                              "end": 843
+                            }
+                          }
                         }
                       },
                       "span": {
@@ -691,7 +703,13 @@ expression: policy
                               "end": 922
                             }
                           },
-                          "err": null
+                          "recall_block": {
+                            "name": "default",
+                            "span": {
+                              "start": 896,
+                              "end": 937
+                            }
+                          }
                         }
                       },
                       "span": {
@@ -795,7 +813,13 @@ expression: policy
                               "end": 1078
                             }
                           },
-                          "err": null
+                          "recall_block": {
+                            "name": "default",
+                            "span": {
+                              "start": 1056,
+                              "end": 1089
+                            }
+                          }
                         }
                       },
                       "span": {
@@ -1195,7 +1219,13 @@ expression: policy
       ],
       "recalls": [
         {
-          "identifier": null,
+          "identifier": {
+            "name": "default",
+            "span": {
+              "start": 1476,
+              "end": 1976
+            }
+          },
           "statements": [
             {
               "kind": {

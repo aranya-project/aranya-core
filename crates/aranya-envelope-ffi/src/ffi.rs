@@ -104,7 +104,7 @@ function parent_id(envelope_input struct Envelope) id
         envelope_input: Envelope,
     ) -> Result<BaseId, Error> {
         match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall { .. } => {
                 Ok(envelope_input.parent_id)
             }
             _ => Err(WrongContext(
@@ -124,7 +124,7 @@ function author_id(envelope_input struct Envelope) id
         envelope_input: Envelope,
     ) -> Result<BaseId, Error> {
         match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall { .. } => {
                 Ok(envelope_input.author_id)
             }
             _ => Err(WrongContext(
@@ -145,7 +145,7 @@ function command_id(envelope_input struct Envelope) id
         envelope_input: Envelope,
     ) -> Result<BaseId, Error> {
         match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall { .. } => {
                 Ok(envelope_input.command_id)
             }
             _ => Err(WrongContext(
@@ -166,7 +166,7 @@ function signature(envelope_input struct Envelope) bytes
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall { .. } => {
                 Ok(envelope_input.signature)
             }
             _ => Err(WrongContext(
@@ -187,7 +187,7 @@ function payload(envelope_input struct Envelope) bytes
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall { .. } => {
                 Ok(envelope_input.payload)
             }
             _ => Err(WrongContext(
