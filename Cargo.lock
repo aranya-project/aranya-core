@@ -214,6 +214,7 @@ dependencies = [
  "ciborium-io",
  "const_format",
  "elain",
+ "fnv",
  "libc",
  "thiserror 2.0.7",
  "tracing",
