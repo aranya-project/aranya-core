@@ -4,6 +4,7 @@
 use core::{
     alloc::Layout,
     ffi::{c_int, c_void},
+    mem::MaybeUninit,
     ptr,
 };
 
@@ -12,6 +13,7 @@ use cfg_if::cfg_if;
 use derive_where::derive_where;
 use libc::{
     MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR, off_t,
+    pid_t, pthread_mutex_t,
 };
 
 use super::{
@@ -84,6 +86,15 @@ impl<T: Sync> AsRef<T> for Mapping<T> {
         // dereferenceable, the data is initialized, we do not
         // violate aliasing rules.
         unsafe { self.ptr.as_ref() }
+    }
+}
+
+impl<T: Sync> AsMut<T> for Mapping<T> {
+    fn as_mut(&mut self) -> &mut T {
+        // SAFETY: the pointer is aligned, the pointer is
+        // dereferenceable, the data is initialized, we do not
+        // violate aliasing rules.
+        unsafe { &mut (*self.ptr.as_ptr()) }
     }
 }
 
@@ -169,5 +180,169 @@ fn ftruncate(fd: c_int, len: usize) -> Result<(), Error> {
         Err(Error::Errno(errno()))
     } else {
         Ok(())
+    }
+}
+
+// See kill(1).
+fn is_process_alive(pid: pid_t) -> bool {
+    // TODO(Steve): Is this the correct way to handle PIDs < 0?
+    if pid <= 0 {
+        return false;
+    }
+
+    // SAFETY: FFI call, no invariants.
+    unsafe { libc::kill(pid, 0) == 0 }
+}
+
+/// See `pthread_mutexattr_init(3)`.
+///
+/// See `pthread_mutexattr_setpshared(3)`.
+///
+/// See `pthread_mutexattr_setrobust(3)`.
+///
+/// See `pthread_mutexattr_destroy(3)`.
+fn init_lock(mutex: *mut pthread_mutex_t) -> Result<(), Error> {
+    let mut attr = MaybeUninit::uninit();
+
+    // SAFETY: FFI call, no invariants.
+    if unsafe { libc::pthread_mutexattr_init(attr.as_mut_ptr()) } < 0 {
+        return Err(Error::Errno(errno()));
+    }
+
+    // SAFETY: Initialized in the call above.
+    let mut attr = unsafe { attr.assume_init() };
+
+    // SAFETY: FFI call, no invariants.
+    if unsafe { libc::pthread_mutexattr_setpshared(&mut attr, libc::PTHREAD_PROCESS_SHARED) } < 0 {
+        return Err(Error::Errno(errno()));
+    }
+
+    // SAFETY: FFI call, no invariants.
+    if unsafe { libc::pthread_mutex_init(mutex, &attr) } < 0 {
+        return Err(Error::Errno(errno()));
+    }
+
+    // SAFETY: FFI call, no invariants.
+    if unsafe { libc::pthread_mutexattr_destroy(&mut attr) } < 0 {
+        return Err(Error::Errno(errno()));
+    }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub(crate) struct Mutex {
+    inner: MaybeUninit<pthread_mutex_t>,
+    owner_pid: pid_t,
+    lock_held: bool,
+    initialized: bool,
+}
+
+impl Mutex {
+    /// SAFETY: `ptr` must be a valid pointer to an initialized [Mutex][Self]
+    pub(crate) unsafe fn init(ptr: *mut Self) -> Result<(), Error> {
+        // SAFETY: the caller must uphold the safety contract for `init`.
+        unsafe {
+            init_lock((*ptr).inner.as_mut_ptr())?;
+
+            ptr::write_volatile(&raw mut (*ptr).initialized, true);
+            ptr::write_volatile(&raw mut (*ptr).owner_pid, 0);
+            ptr::write_volatile(&raw mut (*ptr).lock_held, false);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn try_lock(&mut self) -> Result<(), Error> {
+        // SAFETY: references are properly aligned and point to initialized values of type `T`
+        let initialized = unsafe { ptr::read_volatile(&self.initialized) };
+        if !initialized {
+            // TODO: Proper error type
+            buggy::bug!("Tried to lock an unintialized Mutex!")
+        }
+
+        // SAFETY: references are properly aligned and point to initialized values of type `T`
+        let (lock_held, owner_pid) = unsafe {
+            (
+                ptr::read_volatile(&self.lock_held),
+                ptr::read_volatile(&self.owner_pid),
+            )
+        };
+        if lock_held && owner_pid > 0 && !is_process_alive(owner_pid) {
+            // Owner process died while holding the lock
+            // so we destroy it.
+            // Note: Potential race condition here.
+            // SAFETY: FFI call, no invariants.
+            if unsafe { libc::pthread_mutex_destroy(self.inner.as_mut_ptr()) } < 0 {
+                return Err(Error::Errno(errno()));
+            }
+
+            // re-initialize the lock
+            // SAFETY: `self` is initialized
+            unsafe {
+                Self::init(self)?;
+            }
+        }
+
+        // SAFETY: FFI call (libc::get_pid), no invariants.
+        if unsafe { libc::pthread_mutex_trylock(self.inner.as_mut_ptr()) != 0 } {
+            // TODO: Proper error type
+            buggy::bug!("Already locked!")
+        }
+
+        self.set_lock_flag_and_pid(true);
+
+        Ok(())
+    }
+
+    pub(crate) fn try_unlock(&mut self) -> Result<(), Error> {
+        // SAFETY: references are properly aligned and point to initialized values of type `T`
+        let initialized = unsafe { ptr::read_volatile(&self.initialized) };
+        if !initialized {
+            // TODO: Proper error type
+            buggy::bug!("Tried to unlock an unintialized Mutex!")
+        }
+
+        // Only unlock if we're the owner
+        // SAFETY: references are properly aligned and point to initialized values of type `T`
+        let owner_pid = unsafe { ptr::read_volatile(&self.owner_pid) };
+
+        // SAFETY: FFI call (libc::get_pid), no invariants.
+        if owner_pid != unsafe { libc::getpid() } {
+            // TODO: Proper error type
+            buggy::bug!("Not the owner of this mutex!")
+        }
+
+        // SAFETY: FFI call (libc::get_pid), no invariants.
+        let result = unsafe { libc::pthread_mutex_unlock(self.inner.as_mut_ptr()) };
+        if result != 0 {
+            // TODO: Proper error type
+            buggy::bug!("Cound not unlock!")
+        }
+
+        self.set_lock_flag_and_pid(false);
+
+        Ok(())
+    }
+
+    fn set_lock_flag_and_pid(&mut self, held: bool) {
+        // SAFETY: references are properly aligned and point to initialized values of type `T`.
+        // SAFETY: FFI call (libc::get_pid), no invariants.
+        unsafe {
+            ptr::write_volatile(&mut self.lock_held, held);
+            ptr::write_volatile(&mut self.owner_pid, libc::getpid());
+        }
+    }
+}
+
+impl Default for Mutex {
+    fn default() -> Self {
+        Self {
+            inner: MaybeUninit::uninit(),
+            initialized: false,
+            owner_pid: 0,
+            lock_held: false,
+        }
     }
 }

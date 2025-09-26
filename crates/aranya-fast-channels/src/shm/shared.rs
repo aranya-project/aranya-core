@@ -40,7 +40,7 @@ cfg_if! {
     if #[cfg(feature = "sdlib")] {
         use super::sdlib::Mapping;
     } else {
-        use super::posix::Mapping;
+        use super::posix::{self, Mapping};
     }
 }
 
@@ -116,7 +116,7 @@ impl<CS: CipherSuite> State<CS> {
         let layout = SharedMem::<CS>::layout(max_chans)?;
         let ptr = Mapping::open(path.as_ref(), flag, mode, layout.layout)?;
         if flag == Flag::Create {
-            SharedMem::init(ptr.as_ptr(), max_chans, &layout);
+            SharedMem::init(ptr.as_ptr(), max_chans, &layout)?;
         };
         let state = Self {
             ptr,
@@ -157,6 +157,11 @@ impl<CS: CipherSuite> State<CS> {
     /// Returns the inner [`SharedMem`].
     pub(super) fn shm(&self) -> &SharedMem<CS> {
         self.ptr.as_ref()
+    }
+
+    /// Returns a mutable reference to the inner [`SharedMem`].
+    pub(super) fn shm_mut(&mut self) -> &mut SharedMem<CS> {
+        self.ptr.as_mut()
     }
 
     /// Loads the [`ChanList`] at the current `read_off`.
@@ -549,6 +554,8 @@ impl ShmLayout {
 )]
 #[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
+    /// Lock to determine writer access.
+    pub(crate) writer_access: posix::Mutex,
     /// Identifies this memory as a [`SharedMem`].
     ///
     /// Should be [`Self::MAGIC`].
@@ -601,7 +608,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
     const NONCE_SIZE: U64 = U64::new(<CS::Aead as Aead>::NONCE_SIZE as u64);
 
     /// Initializes the memory at `ptr`.
-    pub fn init(ptr: *mut Self, max_chans: usize, layout: &ShmLayout) {
+    pub fn init(ptr: *mut Self, max_chans: usize, layout: &ShmLayout) -> Result<(), Error> {
         // Zero everything. This simplifies the following
         // code.
         //
@@ -610,6 +617,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         unsafe { (ptr.cast::<u8>()).write_bytes(0, layout.size()) };
 
         let shm = Self {
+            writer_access: posix::Mutex::default(),
             magic: Self::MAGIC,
             version: Self::VERSION,
             size: layout.size64(),
@@ -625,6 +633,12 @@ impl<CS: CipherSuite> SharedMem<CS> {
         // aligned.
         unsafe { ptr.write(shm) };
 
+        // SAFETY: ptr is a pointer to an initialized `posix::Mutex`
+        unsafe {
+            let writer_lock = &raw mut (*ptr).writer_access;
+            posix::Mutex::init(writer_lock)?;
+        }
+
         // SAFETY: the offsets come directly from memory laid out
         // with `Layout`.
         unsafe {
@@ -639,6 +653,8 @@ impl<CS: CipherSuite> SharedMem<CS> {
         // We do not need to do anything with the
         // trailing data since we've already set it to
         // all zeros.
+
+        Ok(())
     }
 
     /// Returns its memory layout.

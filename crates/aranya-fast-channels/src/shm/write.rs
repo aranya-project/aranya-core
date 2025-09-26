@@ -23,7 +23,7 @@ use crate::{
 
 /// The writer's view of the shared memory state.
 #[derive(Debug)]
-pub struct WriteState<CS, R> {
+pub struct WriteState<CS: CipherSuite, R> {
     inner: State<CS>,
     rng: StdMutex<R>,
 
@@ -41,11 +41,22 @@ where
     where
         P: AsRef<Path>,
     {
+        let mut state = State::open(path, flag, mode, max_chans)?;
+        let lock = &mut state.shm_mut().writer_access;
+        lock.try_lock()?;
+
         Ok(Self {
-            inner: State::open(path, flag, mode, max_chans)?,
+            inner: state,
             rng: StdMutex::new(rng),
             _no_sync: PhantomData,
         })
+    }
+}
+
+impl<CS: CipherSuite, R> Drop for WriteState<CS, R> {
+    fn drop(&mut self) {
+        let lock = &mut self.inner.shm_mut().writer_access;
+        let _ = lock.try_unlock();
     }
 }
 
