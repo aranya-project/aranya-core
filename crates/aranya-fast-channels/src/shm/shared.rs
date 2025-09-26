@@ -2,7 +2,7 @@ use core::{
     alloc::Layout,
     fmt,
     marker::PhantomData,
-    mem::{MaybeUninit, offset_of, size_of, size_of_val},
+    mem::{MaybeUninit, size_of},
     ptr, slice, str,
     sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering},
 };
@@ -90,9 +90,8 @@ fn getpagesize() -> Result<Option<usize>, PageSizeError> {
 
 /// Used by both `ReadState` and `WriteState`.
 #[derive(Debug)]
-#[derive_where(Clone)]
 pub(super) struct State<CS> {
-    pub(super) ptr: Mapping<SharedMem<CS>>,
+    ptr: Mapping<SharedMem<CS>>,
     /// The maximum number of channels supported by the shared
     /// memory.
     max_chans: usize,
@@ -211,10 +210,6 @@ impl<CS: CipherSuite> State<CS> {
     /// Reports whether `off` is a known valid offset.
     const fn valid_offset(&self, off: usize) -> bool {
         off == self.side_a || off == self.side_b
-    }
-
-    pub(super) fn unmap(&mut self) {
-        self.ptr.unmap();
     }
 
     #[cfg(test)]
@@ -554,8 +549,6 @@ impl ShmLayout {
 )]
 #[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
-    reader_pid: CacheAligned<AtomicU32>,
-    writer_pid: CacheAligned<AtomicU32>,
     /// Identifies this memory as a [`SharedMem`].
     ///
     /// Should be [`Self::MAGIC`].
@@ -586,8 +579,6 @@ pub(super) struct SharedMem<CS> {
     ///
     /// `write_off` always refers to the opposite of `read_off`.
     pub write_off: CacheAligned<AtomicUsize>,
-    /// The number of live readers.
-    pub reader_count: CacheAligned<AtomicUsize>,
     /// In memory, this is actually two fields:
     ///
     /// ```ignore
@@ -628,9 +619,6 @@ impl<CS: CipherSuite> SharedMem<CS> {
             page_aligned: layout.page_aligned,
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
-            reader_count: CacheAligned::new(AtomicUsize::new(0)),
-            reader_pid: CacheAligned::new(AtomicU32::new(0)),
-            writer_pid: CacheAligned::new(AtomicU32::new(0)),
             sides: PhantomData,
         };
         // SAFETY: ptr is valid for writes and properly
@@ -708,52 +696,6 @@ impl<CS: CipherSuite> SharedMem<CS> {
         };
         list.check()?;
         Ok(&list.data)
-    }
-
-    /// Sets [Self::reader_count] to 1.
-    pub(crate) fn init_reader_count(&self) {
-        self.reader_count.store(1, Ordering::SeqCst);
-    }
-
-    /// Increments [Self::reader_count] by 1.
-    /// Returns the previous count.
-    pub(crate) fn increment_reader_count(&self) -> usize {
-        self.reader_count.fetch_add(1, Ordering::SeqCst)
-    }
-
-    /// Decrements [Self::reader_count] by 1.
-    /// Returns the previous count.
-    pub(crate) fn decrement_reader_count(&self) -> usize {
-        self.reader_count.fetch_sub(1, Ordering::SeqCst)
-    }
-}
-
-#[cfg(feature = "std")]
-impl<CS: CipherSuite> SharedMem<CS> {
-    /// Writes the PID of this process to [Self::writer_pid].
-    pub(crate) fn set_writer_pid(&self) {
-        let pid = std::process::id();
-        self.writer_pid.swap(pid, Ordering::SeqCst);
-    }
-
-    /// Writes the PID of this process to [Self::reader_pid]
-    pub(crate) fn set_reader_pid(&self) {
-        let pid = std::process::id();
-        self.reader_pid.swap(pid, Ordering::SeqCst);
-    }
-}
-
-impl<CS: CipherSuite> Mapping<SharedMem<CS>> {
-    pub(super) fn try_lock_writer_pid(&self) -> Result<(), Error> {
-        let start = offset_of!(SharedMem<CS>, writer_pid);
-        let len = size_of_val(&self.as_ref().writer_pid);
-        self.try_lock(start, len)
-    }
-
-    pub(super) fn try_lock_reader_pid(&self) -> Result<(), Error> {
-        let start = offset_of!(SharedMem<CS>, reader_pid);
-        let len = size_of_val(&self.as_ref().reader_pid);
-        self.try_lock(start, len)
     }
 }
 

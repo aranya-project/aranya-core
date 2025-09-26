@@ -77,45 +77,12 @@ where
     where
         P: AsRef<Path>,
     {
-        let state = State::open(path, flag, mode, max_chans)?;
-        state.ptr.try_lock_reader_pid()?;
-
-        let shm = state.shm();
-        shm.init_reader_count();
-
-        #[cfg(feature = "std")]
-        {
-            let shm = state.shm();
-            shm.set_reader_pid();
-        }
-
         Ok(Self {
-            inner: state,
+            inner: State::open(path, flag, mode, max_chans)?,
             last_seal: StdMutex::new(None),
             last_open: StdMutex::new(None),
             _no_sync: PhantomData,
         })
-    }
-}
-
-impl<CS: CipherSuite> Drop for ReadState<CS> {
-    fn drop(&mut self) {
-        let count = self.inner.shm().decrement_reader_count();
-        if count <= 1 {
-            self.inner.unmap();
-        }
-    }
-}
-
-impl<CS: CipherSuite> Clone for ReadState<CS> {
-    fn clone(&self) -> Self {
-        self.inner.shm().increment_reader_count();
-        Self {
-            inner: self.inner.clone(),
-            last_seal: StdMutex::default(),
-            last_open: StdMutex::default(),
-            _no_sync: PhantomData,
-        }
     }
 }
 

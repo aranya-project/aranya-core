@@ -11,8 +11,7 @@ use buggy::BugExt;
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 use libc::{
-    F_SETLK, F_WRLCK, MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE,
-    S_IRUSR, S_IWUSR, SEEK_SET, flock, off_t,
+    MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR, off_t,
 };
 
 use super::{
@@ -57,7 +56,7 @@ where
 }
 
 /// Memory mapped shared memory.
-#[derive_where(Clone, Debug)]
+#[derive_where(Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,
@@ -65,7 +64,6 @@ pub(super) struct Mapping<T> {
     base: *mut c_void,
     /// How the mapping is laid out.
     layout: Layout,
-    fd: c_int,
 }
 
 // SAFETY: `Mapping` is !Send by default because it contains raw
@@ -73,8 +71,8 @@ pub(super) struct Mapping<T> {
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
 
-impl<T> Mapping<T> {
-    pub(super) fn unmap(&mut self) {
+impl<T> Drop for Mapping<T> {
+    fn drop(&mut self) {
         // SAFETY: FFI call, no invariants.
         let _ = unsafe { libc::munmap(self.base, self.layout.size()) };
     }
@@ -139,28 +137,9 @@ impl<T> Mapping<T> {
                 let ptr = Aligned::new(base.cast::<T>(), layout)
                     // TODO(eric): better error here.
                     .ok_or(invalid_argument("unable to align mapping"))?;
-                Ok(Mapping {
-                    ptr,
-                    base,
-                    layout,
-                    fd: fd.0,
-                })
+                Ok(Mapping { ptr, base, layout })
             }
         }
-    }
-
-    pub(crate) fn try_lock(&self, start: usize, len: usize) -> Result<(), Error> {
-        let f_lock = flock {
-            l_type: F_WRLCK,
-            l_whence: SEEK_SET
-                .try_into()
-                .assume("`SEEK_SET` is 0 so this should not fail")?,
-            l_start: off_t::try_from(start).assume("`start` should fit inside `off_t`")?,
-            l_len: off_t::try_from(len).assume("`len` should fit inside `off_t`")?,
-            // TODO(Steve): FIXME
-            l_pid: 0,
-        };
-        fcntl_locking(self.fd, F_SETLK, f_lock)
     }
 }
 
@@ -187,16 +166,6 @@ fn ftruncate(fd: c_int, len: usize) -> Result<(), Error> {
     let len = off_t::try_from(len).assume("`len` should fit inside `off_t`")?;
     // SAFETY: FFI call, no invariants.
     if unsafe { libc::ftruncate(fd, len) } < 0 {
-        Err(Error::Errno(errno()))
-    } else {
-        Ok(())
-    }
-}
-
-/// See `fcntl_locking(2)`.
-fn fcntl_locking(fd: c_int, op: c_int, f_lock: flock) -> Result<(), Error> {
-    // SAFETY: FFI call, no invariants.
-    if unsafe { libc::fcntl(fd, op, &f_lock) } < 0 {
         Err(Error::Errno(errno()))
     } else {
         Ok(())

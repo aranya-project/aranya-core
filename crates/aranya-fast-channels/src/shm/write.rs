@@ -23,7 +23,7 @@ use crate::{
 
 /// The writer's view of the shared memory state.
 #[derive(Debug)]
-pub struct WriteState<CS: CipherSuite, R> {
+pub struct WriteState<CS, R> {
     inner: State<CS>,
     rng: StdMutex<R>,
 
@@ -41,17 +41,8 @@ where
     where
         P: AsRef<Path>,
     {
-        let state = State::open(path, flag, mode, max_chans)?;
-        state.ptr.try_lock_writer_pid()?;
-
-        #[cfg(feature = "std")]
-        {
-            let shm = state.shm();
-            shm.set_writer_pid();
-        }
-
         Ok(Self {
-            inner: state,
+            inner: State::open(path, flag, mode, max_chans)?,
             rng: StdMutex::new(rng),
             _no_sync: PhantomData,
         })
@@ -73,7 +64,7 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
     ) -> Result<ChannelId, Error> {
-        let mut rng = self.rng.lock().assume("already borrowed")?;
+        let mut rng = self.rng.lock().assume("poisoned")?;
 
         let id = {
             // NB: This cannot reasonably overflow.
@@ -145,7 +136,7 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
     ) -> Result<(), Error> {
-        let mut rng = self.rng.lock().assume("already borrowed")?;
+        let mut rng = self.rng.lock().assume("poisoned")?;
 
         let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;
