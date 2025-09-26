@@ -87,7 +87,7 @@ fn unmap(id: c_int) -> Result<(), Errno> {
 }
 
 /// Shared data mapping.
-#[derive_where(Debug)]
+#[derive_where(Clone, Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,

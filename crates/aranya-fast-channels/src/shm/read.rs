@@ -68,6 +68,17 @@ where
     _no_sync: PhantomData<Cell<()>>,
 }
 
+impl<CS: CipherSuite> Clone for ReadState<CS> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            last_seal: StdMutex::default(),
+            last_open: StdMutex::default(),
+            _no_sync: PhantomData,
+        }
+    }
+}
+
 impl<CS> ReadState<CS>
 where
     CS: CipherSuite,
