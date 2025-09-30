@@ -24,7 +24,15 @@ pub trait Named {
 /// A mapping of named values which preserves insertion order.
 ///
 /// `V` must implement [`Named`].
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 #[serde(transparent)]
 #[serde(bound(
     serialize = "V: serde::Serialize + Named",
@@ -107,7 +115,16 @@ impl<V: Named + PartialEq> PartialEq for NamedMap<V> {
 }
 impl<V: Named + Eq> Eq for NamedMap<V> {}
 
-#[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 #[serde(transparent)]
 struct ByName<V>(V);
 
