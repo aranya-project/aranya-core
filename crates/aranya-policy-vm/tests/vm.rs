@@ -1577,6 +1577,9 @@ fn test_check_errors() -> anyhow::Result<()> {
     let cases = [
         (
             r#"command Foo {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
                 policy {
                     check false
                 }
@@ -1587,10 +1590,13 @@ fn test_check_errors() -> anyhow::Result<()> {
         ),
         (
             r#"command Foo {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
                 policy {
-                    check false or recall bar()
+                    check false or recall bar
                 }
-                recall bar() {
+                recall bar {
                 }
             }"#,
             ident!("bar"),
@@ -1602,10 +1608,11 @@ fn test_check_errors() -> anyhow::Result<()> {
         let io = RefCell::new(TestIO::new());
         let module = Compiler::new(&policy).compile()?;
         let machine = Machine::from_module(module)?;
-        let name = ident!("foo");
-        let ctx = dummy_ctx_action(name.clone());
+        let name = ident!("Foo");
+        let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        let result = rs.call_action(name.clone(), iter::empty::<Value>())?;
+        let self_struct = Struct::new(name.clone(), &[]);
+        let result = rs.call_command_policy(self_struct, dummy_envelope())?;
 
         assert_eq!(result, ExitReason::Check(expected));
     }
@@ -1703,7 +1710,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             }
 
             recall {
-                check envelope.payload == this.test
+                check envelope.payload == this.test // FIXME can't use check in recall
             }
         }
     "#;
@@ -1744,6 +1751,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 ident!("Envelope"),
                 [KVPair::new(ident!("payload"), test_data.clone().into())],
             ),
+            ident!("default"),
         )?
         .success();
     }
