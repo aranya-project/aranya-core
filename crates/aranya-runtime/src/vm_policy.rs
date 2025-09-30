@@ -379,7 +379,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
                     rs.set_context(recall_ctx);
-                    self.recall_internal(&mut rs, this_data, envelope)
+                    self.recall_internal(&mut rs, this_data, envelope, recall_block)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -398,25 +398,26 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         rs: &mut RunState<'_, M>,
         this_data: Struct,
         envelope: Envelope<'_>,
+        recall_block_name: Identifier,
     ) -> Result<(), EngineError>
     where
         M: MachineIO<MachineStack>,
     {
-        match recall {
-            CommandRecall::None => Err(EngineError::Check),
-            CommandRecall::OnCheck => {
-                match rs.call_command_recall(name, self_data, envelope.into()) {
-                    Ok(ExitReason::Normal) => Err(EngineError::Check),
-                    Ok(ExitReason::Yield) => bug!("unexpected yield"),
-                    Ok(ExitReason::Check(recall)) => {
-                        info!("Recall failed {}: {}", self.source_location(rs), recall);
-                        Err(EngineError::Check)
-                    }
-                    Ok(ExitReason::Panic) | Err(_) => {
-                        info!("Recall panicked: {}", self.source_location(rs));
-                        Err(EngineError::Panic)
-                    }
-                }
+        // NOTE Can recall actually fail?
+        match rs.call_command_recall(this_data, envelope.into(), recall_block_name) {
+            Ok(ExitReason::Normal) => Err(EngineError::Check),
+            Ok(ExitReason::Yield) => bug!("unexpected yield"),
+            Ok(ExitReason::Check(recall_block)) => {
+                info!(
+                    "Recall failed: {}: {}",
+                    self.source_location(rs),
+                    recall_block
+                );
+                Err(EngineError::Check)
+            }
+            Ok(ExitReason::Panic) | Err(_) => {
+                info!("Recall panicked: {}", self.source_location(rs));
+                Err(EngineError::Panic)
             }
         }
     }

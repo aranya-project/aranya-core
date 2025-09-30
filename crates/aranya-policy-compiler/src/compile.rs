@@ -1471,6 +1471,35 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
+                // HACK this should be removed when we have asserts. check is only valid in command contexts
+                (
+                    StmtKind::Check(s),
+                    StatementContext::Action(_)
+                    | StatementContext::PureFunction(_)
+                    | StatementContext::CommandRecall(_),
+                ) => {
+                    let et = self.compile_expression(&s.expression)?;
+                    if !et.fits_type(&VType {
+                        kind: TypeKind::Bool,
+                        span: s.expression.span,
+                    }) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "check must have boolean expression",
+                        ))));
+                    }
+                    // The current instruction is the branch. The next
+                    // instruction is the following panic you arrive at
+                    // if the expression is false. The instruction you
+                    // branch to if the check succeeds is the
+                    // instruction after that - current instruction + 2.
+                    let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
+                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
+
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(
+                        s.recall_block.name.clone(),
+                    )));
+                }
+                // END HACK
                 (StmtKind::Check(s), StatementContext::CommandPolicy(cmd)) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
@@ -1490,15 +1519,18 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
 
                     // Make sure named recall block exists
-                    cmd.recalls
-                        .iter()
-                        .find(|c| c.identifier == s.recall_block)
-                        .ok_or_else(|| {
-                            self.err(CompileErrorType::Unknown(format!(
-                                "recall block not found: {}",
-                                s.recall_block
-                            )))
-                        })?;
+                    // NOTE Unnamed checks do not require recall blocks. But a check without recall is suspicious, and we should warn about it.
+                    if s.recall_block.name.as_str() != "default" {
+                        cmd.recalls
+                            .iter()
+                            .find(|c| c.identifier.name == s.recall_block.name)
+                            .ok_or_else(|| {
+                                self.err(CompileErrorType::Unknown(format!(
+                                    "command {}: recall block not found: {}",
+                                    cmd.identifier.name, s.recall_block
+                                )))
+                            })?;
+                    }
 
                     self.append_instruction(Instruction::Exit(ExitReason::Check(
                         s.recall_block.name.clone(),
@@ -2226,47 +2258,24 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        // Validate recall block naming rules
         let mut named_blocks = HashSet::new();
-        let mut unnamed_count = 0;
-
-        for recall_block in &command.recalls {
-            if recall_block.identifier.name.as_str() == "default" {
-                // Check for multiple unnamed blocks (using default identifier)
-                unnamed_count += 1;
-                if unnamed_count > 1 {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(
-                        "unnamed recall block".to_string(),
-                    )));
-                }
-            } else {
-                // Check for duplicate named blocks
-                if !named_blocks.insert(recall_block.identifier.name.clone()) {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(
-                        recall_block.identifier.name.to_string(),
-                    )));
-                }
-            }
-        }
 
         // Compile each recall block
         for recall_block in &command.recalls {
-            let label_name = if recall_block.identifier.name.as_str() == "default" {
-                // For unnamed recall blocks (using default identifier), just use the command name
-                command.identifier.name.to_string()
-            } else {
-                format!(
-                    "{}_{}",
-                    command.identifier.name, recall_block.identifier.name
-                )
+            // Check for duplicate recall block names
+            if !named_blocks.insert(&recall_block.identifier.name) {
+                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                    "recall block '{}'",
+                    recall_block.identifier.name
+                ))));
             }
+
+            let label_name: Identifier = format!(
+                "{}_{}",
+                command.identifier.name, recall_block.identifier.name
+            )
             .try_into()
-            .map_err(|e| {
-                self.err(CompileErrorType::Unknown(format!(
-                    "Invalid label name: {}",
-                    e
-                )))
-            })?;
+            .expect("valid identifier");
             self.define_label(Label::new(label_name, LabelType::CommandRecall), self.wp)?;
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
             self.identifier_types.enter_function();
