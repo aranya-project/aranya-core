@@ -1076,15 +1076,25 @@ where
     pub fn setup_command(&mut self, label: Label, this_data: Struct) -> Result<(), MachineError> {
         #[cfg(feature = "bench")]
         self.stopwatch
-            .start(format!("setup_command: {}", label.name()).as_str());
+            .start(format!("setup_command: {}", label.name).as_str());
 
         self.setup_function(&label)?;
+
+        // FIXME In recall contexts, the label looks like "<command>_<recall>",
+        // so we have to extract the command name. It feels hacky... we need to
+        // refactor the API a bit.
+        let command_name = label
+            .name
+            .as_str()
+            .split('_')
+            .next()
+            .ok_or_else(|| self.err(MachineErrorType::Unknown("command name".into())))?;
 
         // Verify 'this' arg matches command's fields
         let command_def = self
             .machine
             .command_defs
-            .get(&label.name.as_str())
+            .get(command_name)
             .ok_or_else(|| self.err(MachineErrorType::NotDefined(label.name.to_string())))?;
 
         if this_data.fields.len() != command_def.fields.len() {
