@@ -1470,7 +1470,7 @@ impl ChunkParser<'_> {
                         .transpose()?
                         .unwrap_or_else(|| Ident {
                             name: ident!("default"),
-                            span: span,
+                            span,
                         });
                     let statements = self.parse_statement_list(pc.into_inner())?;
 
