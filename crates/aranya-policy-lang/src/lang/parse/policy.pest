@@ -260,6 +260,8 @@ publish_statement = { "publish" ~ expression }
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
 // The check statement evaluates an expression and fails if it is false
 check_statement = { "check" ~ expression }
+// Assert statement checks if an expression is true, and fails if it is not
+assert_statement = { "assert" ~ expression }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
@@ -299,6 +301,7 @@ statements = _{
     publish_statement |
     let_statement |
     check_statement |
+    assert_statement |
     match_statement |
     if_statement |
     finish_statement |

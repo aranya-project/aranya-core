@@ -1191,37 +1191,52 @@ expression: policy
       ],
       "recall": [
         {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "envelope_id",
-                "span": {
-                  "start": 1529,
-                  "end": 1540
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 1543,
-                        "end": 1551
-                      }
-                    },
-                    "identifier": {
-                      "name": "command_id",
-                      "span": {
-                        "start": 1553,
-                        "end": 1563
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
+          "identifier": {
+            "name": "default",
+            "span": {
+              "start": 1476,
+              "end": 1976
+            }
+          },
+          "statements": [
+            {
+              "kind": {
+                "Let": {
+                  "identifier": {
+                    "name": "envelope_id",
+                    "span": {
+                      "start": 1505,
+                      "end": 1516
+                    }
+                  },
+                  "expression": {
+                    "kind": {
+                      "ForeignFunctionCall": {
+                        "module": {
+                          "name": "envelope",
+                          "span": {
+                            "start": 1519,
+                            "end": 1527
+                          }
+                        },
+                        "identifier": {
+                          "name": "command_id",
+                          "span": {
+                            "start": 1529,
+                            "end": 1539
+                          }
+                        },
+                        "arguments": [
+                          {
+                            "kind": {
+                              "Identifier": {
+                                "name": "envelope",
+                                "span": {
+                                  "start": 1540,
+                                  "end": 1548
+                                }
+                              }
+                            },
                             "span": {
                               "start": 1564,
                               "end": 1572

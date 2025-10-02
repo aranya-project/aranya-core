@@ -612,6 +612,15 @@ pub struct CheckStatement {
 }
 }
 
+spanned! {
+/// Check that a boolean expression is true, and fail otherwise
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssertStatement {
+    /// The boolean expression being checked
+    pub expression: Expression,
+}
+}
+
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
@@ -793,6 +802,8 @@ pub enum StmtKind {
     Let(LetStatement),
     /// A [CheckStatement]
     Check(CheckStatement),
+    /// An [AssertStatement]
+    Assert(AssertStatement),
     /// A [MatchStatement]
     Match(MatchStatement),
     /// An [IfStatement],
