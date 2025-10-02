@@ -7,7 +7,8 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::zeroize::Zeroize as _;
+#[allow(clippy::unused_trait_names, reason = "used in docs")]
+use aranya_crypto::zeroize::Zeroize;
 use buggy::{Bug, BugExt as _};
 
 /// Unable to allocate memory.
