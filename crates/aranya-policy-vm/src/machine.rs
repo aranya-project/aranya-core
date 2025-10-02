@@ -1067,30 +1067,34 @@ where
     }
 
     /// Set up machine state for a command policy call
-    pub fn setup_command(
-        &mut self,
-        label_type: LabelType,
-        this_data: Struct,
-    ) -> Result<(), MachineError> {
-        let name = this_data.name.clone();
-
+    pub fn setup_command(&mut self, label: Label, this_data: Struct) -> Result<(), MachineError> {
         #[cfg(feature = "bench")]
         self.stopwatch
-            .start(format!("setup_command: {}", name).as_str());
+            .start(format!("setup_command: {}", label.name).as_str());
 
-        self.setup_function(&Label::new(name.clone(), label_type))?;
+        self.setup_function(&label)?;
+
+        // FIXME In recall contexts, the label looks like "<command>_<recall>",
+        // so we have to extract the command name. It feels hacky... we need to
+        // refactor the API a bit.
+        let command_name = label
+            .name
+            .as_str()
+            .split('_')
+            .next()
+            .ok_or_else(|| self.err(MachineErrorType::Unknown("command name".into())))?;
 
         // Verify 'this' arg matches command's fields
         let command_def = self
             .machine
             .command_defs
-            .get(&name)
-            .ok_or_else(|| self.err(MachineErrorType::NotDefined(name.to_string())))?;
+            .get(command_name)
+            .ok_or_else(|| self.err(MachineErrorType::NotDefined(label.name.to_string())))?;
 
         if this_data.fields.len() != command_def.fields.len() {
             return Err(self.err(MachineErrorType::Unknown(alloc::format!(
                 "command `{}` expects {} field(s), but `this` contains {}",
-                name,
+                label.name,
                 command_def.fields.len(),
                 this_data.fields.len()
             ))));
@@ -1133,7 +1137,10 @@ where
         {
             return Err(MachineErrorType::ContextMismatch.into());
         }
-        self.setup_command(LabelType::CommandPolicy, this_data)?;
+        self.setup_command(
+            Label::new(this_data.name.clone(), LabelType::CommandPolicy),
+            this_data,
+        )?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1145,12 +1152,16 @@ where
         &mut self,
         this_data: Struct,
         envelope: Struct,
+        recall_block_name: Identifier,
     ) -> Result<ExitReason, MachineError> {
         if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
         {
             return Err(MachineErrorType::ContextMismatch.into());
         }
-        self.setup_command(LabelType::CommandRecall, this_data)?;
+        let label_name = alloc::format!("{}_{}", this_data.name, recall_block_name)
+            .parse::<Identifier>()
+            .expect("Failed to create identifier from concatenated string");
+        self.setup_command(Label::new(label_name, LabelType::CommandRecall), this_data)?;
         self.ipush(envelope)?;
         self.run()
     }

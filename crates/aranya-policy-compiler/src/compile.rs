@@ -1347,7 +1347,9 @@ impl<'a> CompileState<'a> {
                     .map_err(|e| self.err(e))?
             }
             ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
-            ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
+            ExprKind::CheckUnwrap(e) => {
+                self.compile_unwrap(e, ExitReason::Check(ident!("default")))?
+            }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let inner_type = self.compile_expression(e)?;
@@ -1465,11 +1467,11 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
+                // HACK this should be removed when we have asserts. check is only valid in command contexts
                 (
                     StmtKind::Check(s),
                     StatementContext::Action(_)
                     | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
                     | StatementContext::CommandRecall(_),
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
@@ -1488,7 +1490,47 @@ impl<'a> CompileState<'a> {
                     // instruction after that - current instruction + 2.
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    self.append_instruction(Instruction::Exit(ExitReason::Check));
+
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(
+                        s.recall_block.name.clone(),
+                    )));
+                }
+                // END HACK
+                (StmtKind::Check(s), StatementContext::CommandPolicy(cmd)) => {
+                    let et = self.compile_expression(&s.expression)?;
+                    if !et.fits_type(&VType {
+                        kind: TypeKind::Bool,
+                        span: s.expression.span,
+                    }) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "check must have boolean expression",
+                        ))));
+                    }
+                    // The current instruction is the branch. The next
+                    // instruction is the following panic you arrive at
+                    // if the expression is false. The instruction you
+                    // branch to if the check succeeds is the
+                    // instruction after that - current instruction + 2.
+                    let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
+                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
+
+                    // Make sure named recall block exists
+                    // NOTE Unnamed checks do not require recall blocks. But a check without recall is suspicious, and we should warn about it.
+                    if s.recall_block.name.as_str() != "default" {
+                        cmd.recalls
+                            .iter()
+                            .find(|c| c.identifier.name == s.recall_block.name)
+                            .ok_or_else(|| {
+                                self.err(CompileErrorType::Unknown(format!(
+                                    "command {}: recall block not found: {}",
+                                    cmd.identifier.name, s.recall_block
+                                )))
+                            })?;
+                    }
+
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(
+                        s.recall_block.name.clone(),
+                    )));
                 }
                 (
                     StmtKind::Match(s),
@@ -2215,38 +2257,54 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
-            self.wp,
-        )?;
-        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("this"),
-                Typeish::known(VType {
-                    kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::default(),
-                }),
+        let mut named_blocks = HashSet::new();
+
+        // Compile each recall block
+        for recall_block in &command.recalls {
+            // Check for duplicate recall block names
+            if !named_blocks.insert(&recall_block.identifier.name) {
+                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                    "recall block '{}'",
+                    recall_block.identifier.name
+                ))));
+            }
+
+            let label_name: Identifier = format!(
+                "{}_{}",
+                command.identifier.name, recall_block.identifier.name
             )
-            .map_err(|e| self.err(e))?;
-        self.identifier_types
-            .add(
-                ident!("envelope"),
-                Typeish::known(VType {
-                    kind: TypeKind::Struct(Ident {
-                        name: ident!("Envelope"),
+            .try_into()
+            .expect("valid identifier");
+            self.define_label(Label::new(label_name, LabelType::CommandRecall), self.wp)?;
+            self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+            self.identifier_types.enter_function();
+            self.identifier_types
+                .add(
+                    ident!("this"),
+                    Typeish::known(VType {
+                        kind: TypeKind::Struct(command.identifier.clone()),
                         span: Span::default(),
                     }),
-                    span: Span::default(),
-                }),
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("envelope")));
-        self.compile_statements(&command.recall, Scope::Same)?;
-        self.identifier_types.exit_function();
-        self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                )
+                .map_err(|e| self.err(e))?;
+            self.identifier_types
+                .add(
+                    ident!("envelope"),
+                    Typeish::known(VType {
+                        kind: TypeKind::Struct(Ident {
+                            name: ident!("Envelope"),
+                            span: Span::default(),
+                        }),
+                        span: Span::default(),
+                    }),
+                )
+                .map_err(|e| self.err(e))?;
+            self.append_instruction(Instruction::Def(ident!("envelope")));
+            self.compile_statements(&recall_block.statements, Scope::Same)?;
+            self.identifier_types.exit_function();
+            self.exit_statement_context();
+            self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        }
         Ok(())
     }
 
