@@ -14,13 +14,13 @@ use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     csprng::{Csprng, Random},
     generic_array::{ArrayLength, GenericArray},
-    hex::ToHex,
+    hex::ToHex as _,
     import::{Import, ImportError},
-    kem::DecapKey,
-    keys::PublicKey,
-    signer::{SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    kem::DecapKey as _,
+    keys::PublicKey as _,
+    signer::{SigningKey as _, VerifyingKey as _},
     typenum::{Sum, U64},
-    zeroize::{Zeroize, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop},
 };
 use zerocopy::{
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
@@ -29,7 +29,7 @@ use zerocopy::{
 
 use crate::{
     aranya::{Encap, Signature},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     error::Error,
     hpke::{self, Mode},
     id::{IdError, custom_id},
@@ -141,7 +141,7 @@ pub struct TopicKey<CS: CipherSuite> {
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
 impl<CS: CipherSuite> Drop for TopicKey<CS> {
     fn drop(&mut self) {
-        self.seed.zeroize()
+        self.seed.zeroize();
     }
 }
 
@@ -659,7 +659,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
 
 #[cfg(test)]
 mod tests {
-    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust, signer::Signer};
+    use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust, signer::Signer};
 
     use super::*;
     use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};

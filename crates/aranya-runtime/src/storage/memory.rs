@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::ops::{Bound, Deref};
 
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use vec1::Vec1;
 
 use crate::{
@@ -24,7 +24,7 @@ impl MemCommand {
     fn from_cmd<C: Command>(command: &C, max_cut: usize) -> Self {
         let policy = command.policy().map(Box::from);
 
-        MemCommand {
+        Self {
             priority: command.priority(),
             id: command.id(),
             parent: command.parent(),
@@ -67,8 +67,8 @@ pub struct MemStorageProvider {
 }
 
 impl MemStorageProvider {
-    pub const fn new() -> MemStorageProvider {
-        MemStorageProvider {
+    pub const fn new() -> Self {
+        Self {
             storage: BTreeMap::new(),
         }
     }
@@ -158,8 +158,8 @@ impl MemStorage {
         }
 
         let segment = MemSegmentInner {
-            prior,
             index,
+            prior,
             policy,
             commands,
             facts,
@@ -389,7 +389,7 @@ impl Query for MemFactIndex {
         let mut prior = Some(self.deref());
         while let Some(facts) = prior {
             if let Some(slot) = facts.map.get(name).and_then(|m| m.get(keys)) {
-                return Ok(slot.as_ref().cloned());
+                return Ok(slot.clone());
             }
             prior = facts.prior.as_deref();
         }
@@ -461,7 +461,7 @@ impl Deref for MemSegment {
 
 impl From<MemSegmentInner> for MemSegment {
     fn from(segment: MemSegmentInner) -> Self {
-        MemSegment(Arc::new(segment))
+        Self(Arc::new(segment))
     }
 }
 
@@ -598,7 +598,7 @@ pub struct MemFactPerspective {
 }
 
 impl MemFactPerspective {
-    fn new(prior_facts: FactPerspectivePrior) -> MemFactPerspective {
+    fn new(prior_facts: FactPerspectivePrior) -> Self {
         Self {
             map: NamedFactMap::new(),
             prior: prior_facts,

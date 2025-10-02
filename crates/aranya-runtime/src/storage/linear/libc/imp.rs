@@ -1,11 +1,11 @@
 use alloc::sync::Arc;
-use core::{cmp::Ordering, hash::Hasher};
+use core::{cmp::Ordering, hash::Hasher as _};
 
 use aranya_libc::{
     self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
     O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 
@@ -342,11 +342,11 @@ impl File {
                 Err(e) => return Err(e.into()),
             }
         }
-        if !buf.is_empty() {
+        if buf.is_empty() {
+            Ok(())
+        } else {
             error!(remaining = buf.len(), "could not fill buffer");
             Err(StorageError::IoError)
-        } else {
-            Ok(())
         }
     }
 

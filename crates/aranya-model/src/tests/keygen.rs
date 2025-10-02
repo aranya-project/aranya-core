@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use aranya_crypto::{
-    CipherSuite, DeviceId, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt,
+    CipherSuite, DeviceId, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt as _,
     SigningKey, SigningKeyId, VerifyingKey,
 };
 use derive_where::derive_where;

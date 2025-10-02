@@ -29,7 +29,7 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
     let name = t.ident.clone();
 
     let definition = if generated {
-        let vis = t.vis.clone();
+        let vis = &t.vis;
 
         let attrs: Vec<Attribute> = t
             .attrs

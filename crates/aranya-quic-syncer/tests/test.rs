@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
+use std::{net::SocketAddr, ops::DerefMut as _, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use aranya_crypto::Rng;
@@ -9,7 +9,7 @@ use aranya_runtime::{
     storage::{StorageProvider, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use s2n_quic::{Server, provider::congestion_controller::Bbr};
 use tokio::sync::{Mutex as TMutex, mpsc};
 
@@ -24,8 +24,8 @@ async fn test_sync() -> Result<()> {
     let server_addr1 = get_server(cert.clone(), key.clone())?;
     let syncer1 = Arc::new(TMutex::new(Syncer::new(
         &*cert.clone(),
-        client1.clone(),
-        sink1.clone(),
+        Arc::clone(&client1),
+        Arc::clone(&sink1),
         tx,
         server_addr1.local_addr()?,
     )?));
@@ -39,7 +39,7 @@ async fn test_sync() -> Result<()> {
         sink1.lock().await.deref_mut(),
     )?;
 
-    let addr1 = spawn_syncer(syncer1.clone(), rx, server_addr1)?;
+    let addr1 = spawn_syncer(Arc::clone(&syncer1), rx, server_addr1)?;
     tokio::time::sleep(Duration::from_millis(100)).await;
     syncer1.lock().await.push(storage_id)?;
 
@@ -60,8 +60,8 @@ async fn test_sync() -> Result<()> {
     let server_addr2 = get_server(cert.clone(), key)?;
     let mut syncer2 = Syncer::new(
         &*cert,
-        client2.clone(),
-        sink2.clone(),
+        Arc::clone(&client2),
+        Arc::clone(&sink2),
         tx,
         server_addr2.local_addr()?,
     )?;
@@ -89,8 +89,8 @@ async fn test_sync_subscribe() -> Result<()> {
     let server_addr1 = get_server(cert.clone(), key.clone())?;
     let syncer1 = Arc::new(TMutex::new(Syncer::new(
         &*cert.clone(),
-        client1.clone(),
-        sink1.clone(),
+        Arc::clone(&client1),
+        Arc::clone(&sink1),
         tx1,
         server_addr1.local_addr()?,
     )?));
@@ -101,8 +101,8 @@ async fn test_sync_subscribe() -> Result<()> {
     let server_addr2 = get_server(cert.clone(), key.clone())?;
     let syncer2 = Arc::new(TMutex::new(Syncer::new(
         &*cert,
-        client2.clone(),
-        sink2.clone(),
+        Arc::clone(&client2),
+        Arc::clone(&sink2),
         tx2,
         server_addr2.local_addr()?,
     )?));
@@ -113,8 +113,8 @@ async fn test_sync_subscribe() -> Result<()> {
         sink1.lock().await.deref_mut(),
     )?;
 
-    let addr1 = spawn_syncer(syncer1.clone(), rx1, server_addr1)?;
-    let addr2 = spawn_syncer(syncer2.clone(), rx2, server_addr2)?;
+    let addr1 = spawn_syncer(Arc::clone(&syncer1), rx1, server_addr1)?;
+    let addr2 = spawn_syncer(Arc::clone(&syncer2), rx2, server_addr2)?;
 
     for i in 0..6 {
         sink2.lock().await.add_expectation(TestEffect::Got(i));
