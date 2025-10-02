@@ -1469,13 +1469,7 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
-                (
-                    StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                (StmtKind::Check(s), StatementContext::CommandPolicy(_)) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
                         kind: TypeKind::Bool,
@@ -1493,6 +1487,21 @@ impl<'a> CompileState<'a> {
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
                     self.append_instruction(Instruction::Exit(ExitReason::Check));
+                }
+                (
+                    StmtKind::Assert(s),
+                    StatementContext::Action(_) | StatementContext::PureFunction(_),
+                ) => {
+                    let et = self.compile_expression(&s.expression)?;
+                    if !et.fits_type(&VType {
+                        kind: TypeKind::Bool,
+                        span: s.expression.span,
+                    }) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "assert must have boolean expression",
+                        ))));
+                    }
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
                 (
                     StmtKind::Match(s),

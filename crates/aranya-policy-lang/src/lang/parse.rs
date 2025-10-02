@@ -1,12 +1,12 @@
 use std::{cell::RefCell, fmt};
 
 use aranya_policy_ast::{
-    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
-    EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
-    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version, ident,
+    self as ast, AssertStatement, CheckStatement, CreateStatement, DeleteStatement,
+    EffectFieldDefinition, EnumDefinition, EnumReference, ExprKind, Expression, FactField,
+    FactLiteral, FieldDefinition, ForeignFunctionCall, FunctionCall, Ident, IfStatement,
+    InternalFunction, LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm,
+    MatchPattern, MatchStatement, NamedStruct, Persistence, ReturnStatement, Statement, StmtKind,
+    Text, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -1017,6 +1017,14 @@ impl ChunkParser<'_> {
         Ok(CheckStatement { expression })
     }
 
+    /// Parse a Rule::assert_statement into an AssertStatement.
+    fn parse_assert_statement(&self, item: Pair<'_, Rule>) -> Result<AssertStatement, ParseError> {
+        let pc = descend(item);
+        let token = pc.consume()?;
+        let expression = self.parse_expression(token)?;
+        Ok(AssertStatement { expression })
+    }
+
     /// Parse a Rule::match_statement into a MatchStatement.
     fn parse_match_statement(&self, item: Pair<'_, Rule>) -> Result<MatchStatement, ParseError> {
         let pc = descend(item);
@@ -1143,7 +1151,7 @@ impl ChunkParser<'_> {
         Ok(expression)
     }
 
-    /// Parse a list of statements inside a finish block.
+    /// Parse a list of statements inside a block.
     ///
     /// Valid in this context:
     /// - [CreateStatement](ast::CreateStatement)
@@ -1161,6 +1169,7 @@ impl ChunkParser<'_> {
                     StmtKind::Publish(self.parse_publish_statement(statement)?)
                 }
                 Rule::check_statement => StmtKind::Check(self.parse_check_statement(statement)?),
+                Rule::assert_statement => StmtKind::Assert(self.parse_assert_statement(statement)?),
                 Rule::match_statement => StmtKind::Match(self.parse_match_statement(statement)?),
                 Rule::if_statement => StmtKind::If(self.parse_if_statement(statement)?),
                 Rule::return_statement => StmtKind::Return(self.parse_return_statement(statement)?),
