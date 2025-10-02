@@ -1043,14 +1043,11 @@ where
                 self.stopwatch.stop();
             }
 
-            match result {
-                MachineStatus::Executing => continue,
-                MachineStatus::Exited(reason) => {
-                    #[cfg(feature = "bench")]
-                    bench_aggregate(&mut self.stopwatch);
-                    return Ok(reason);
-                }
-            };
+            if let MachineStatus::Exited(reason) = result {
+                #[cfg(feature = "bench")]
+                bench_aggregate(&mut self.stopwatch);
+                return Ok(reason);
+            }
         }
     }
 

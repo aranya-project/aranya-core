@@ -287,8 +287,8 @@ type MaxCut = usize;
 /// A segment can be one of three types. This might be encoded in a future version of the API.
 /// * init   - This segment is the first segment of the graph and begins with an init command.
 /// * linear - This segment has a single prior command and is simply a sequence of linear commands.
-/// * merge  - This segment merges two other segments and thus begins with a merge command.
-///            A merge segment has a braid as it's prior facts.
+/// * merge  - This segment merges two other segments and thus begins with a merge command. A merge
+///   segment has a braid as it's prior facts.
 ///
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {

@@ -35,7 +35,7 @@ use hsm::{Hsm, HsmError, KeyId};
 #[cfg(feature = "trng")]
 #[unsafe(no_mangle)]
 extern "C" fn OS_hardware_rand() -> u32 {
-    use ::rand::RngCore;
+    use ::rand::RngCore as _;
     ::rand::rngs::OsRng.next_u32()
 }
 

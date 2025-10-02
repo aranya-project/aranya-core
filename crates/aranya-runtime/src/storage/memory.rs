@@ -803,7 +803,7 @@ pub mod graphviz {
 
     use std::{fs::File, io::BufWriter};
 
-    use dot_writer::{Attributes, DotWriter, Style};
+    use dot_writer::{Attributes as _, DotWriter, Style};
 
     #[allow(clippy::wildcard_imports)]
     use super::*;
@@ -864,7 +864,7 @@ pub mod graphviz {
                         Prior::Merge(..) => {
                             node.set("shape", "hexagon", false);
                         }
-                    };
+                    }
                 }
                 if i > 0 {
                     let previous = i.checked_sub(1).expect("i must be > 0");

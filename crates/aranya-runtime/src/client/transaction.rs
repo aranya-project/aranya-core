@@ -525,7 +525,7 @@ mod test {
                 );
             } else {
                 facts.insert("seq".into(), Keys::default(), data.into());
-            };
+            }
             Ok(())
         }
 
@@ -613,7 +613,7 @@ mod test {
             // We don't actually need any policy bytes, but the
             // transaction/storage requires it on init commands.
             match self.prior {
-                Prior::None { .. } => Some(b""),
+                Prior::None => Some(b""),
                 _ => None,
             }
         }

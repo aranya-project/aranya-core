@@ -76,6 +76,7 @@ impl IdentifierTypeStack {
     }
 
     /// Add an identifier-type mapping to the global variables
+    #[allow(clippy::result_large_err)]
     pub fn add_global(&mut self, name: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
         match self.globals.entry(name) {
             hash_map::Entry::Occupied(o) => {
@@ -89,6 +90,7 @@ impl IdentifierTypeStack {
     }
 
     /// Add an identifier-type mapping to the current scope
+    #[allow(clippy::result_large_err)]
     pub fn add(&mut self, ident: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
         if self.globals.contains_key(&ident) {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
@@ -113,6 +115,7 @@ impl IdentifierTypeStack {
 
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
+    #[allow(clippy::result_large_err)]
     pub fn get(&self, name: &Identifier) -> Result<Typeish, CompileErrorType> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
@@ -185,6 +188,7 @@ impl Typeish {
     /// If `self` is `Never`, it will become the expected type.
     /// Otherwise, it will keep its value if the inner type matches the target,
     /// or error out otherwise.
+    #[allow(clippy::result_large_err)]
     pub fn check_type(
         self,
         target_type: VType,
@@ -234,6 +238,7 @@ impl Typeish {
     }
 
     /// Tries to unify two types.
+    #[allow(clippy::result_large_err)]
     pub fn unify(self, other: Self) -> Result<Self, TypeUnifyError> {
         Ok(match (self, other) {
             (Self::Never, Self::Never) => Self::Never,
@@ -270,6 +275,7 @@ impl NullableVType {
     }
 
     /// Equal types will unify, and null will unify with any optional.
+    #[allow(clippy::result_large_err)]
     fn unify(self, rhs: Self) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
             (ref t @ Self::Type(ref ty), Self::Null)
@@ -352,6 +358,7 @@ impl CompileState<'_> {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub(super) fn unify_pair(
         &self,
         left_type: Typeish,
@@ -362,6 +369,7 @@ impl CompileState<'_> {
 
     /// Like [`unify_pair`], except additionally the pair is checked against `target_type`
     /// and an error is produced if they don't match.
+    #[allow(clippy::result_large_err)]
     pub(super) fn unify_pair_as(
         &self,
         left_type: Typeish,

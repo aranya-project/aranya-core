@@ -248,7 +248,7 @@ impl<T: ?Sized> Mutex<T> {
             Self::MUTEX_SLEEPING => futex_wake(&self.key, 1)?,
             Self::MUTEX_LOCKED => {}
             _ => ::buggy::bug!("invalid mutex state"),
-        };
+        }
         Ok(())
     }
 }
@@ -311,6 +311,7 @@ mod macos {
     use core::{
         convert::Infallible,
         ffi::{c_int, c_void},
+        ptr,
         sync::atomic::AtomicU32,
     };
 
@@ -330,7 +331,7 @@ mod macos {
             let rc = unsafe {
                 __ulock_wait(
                     UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
-                    (addr as *const AtomicU32)
+                    ptr::from_ref::<AtomicU32>(addr)
                         .cast::<u32>()
                         .cast_mut()
                         .cast::<c_void>(),
@@ -350,7 +351,7 @@ mod macos {
             let rc = unsafe {
                 __ulock_wake(
                     UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
-                    (addr as *const AtomicU32)
+                    ptr::from_ref::<AtomicU32>(addr)
                         .cast::<u32>()
                         .cast_mut()
                         .cast::<c_void>(),

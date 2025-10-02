@@ -14,10 +14,10 @@ pub struct Errno(::errno::Errno);
 impl Errno {
     #[cfg(feature = "libc")]
     #[allow(missing_docs)]
-    pub const EINTR: Errno = Errno(::errno::Errno(libc::EINTR));
+    pub const EINTR: Self = Self(::errno::Errno(libc::EINTR));
     #[cfg(feature = "libc")]
     #[allow(missing_docs)]
-    pub const EAGAIN: Errno = Errno(::errno::Errno(libc::EAGAIN));
+    pub const EAGAIN: Self = Self(::errno::Errno(libc::EAGAIN));
 
     /// Returns the underlying code.
     #[inline]
