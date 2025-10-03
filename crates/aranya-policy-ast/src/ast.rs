@@ -829,6 +829,7 @@ pub enum StmtKind {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
@@ -908,7 +909,7 @@ impl Spanned for StructDefinition {
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
-    /// Named struct from whose fields to add to the current struct
+    /// Named struct whose fields to add to the current struct
     StructRef(Ident),
 }
 
