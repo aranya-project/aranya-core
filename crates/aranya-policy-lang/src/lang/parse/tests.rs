@@ -1013,7 +1013,7 @@ fn test_if_statement() -> anyhow::Result<()> {
 
             if 0 {
                 assert 1
-                assert 1 + 1 // FIXME `assert` can't parse expressions for some reason
+                assert 1 + 1 
             } else if 2 {
                 assert 3
             } else if 4 {
