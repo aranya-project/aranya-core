@@ -253,7 +253,7 @@ fn parse_errors() -> Result<(), ParseError> {
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
-                action_call, publish_statement, let_statement, check_statement, match_statement, \
+                action_call, publish_statement, let_statement, check_statement, assert_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, return_statement, or debug_assert",
         ),
@@ -1002,24 +1002,24 @@ fn test_if_statement() -> anyhow::Result<()> {
     let text = r#"
         action test() {
             if 0 {
-                check 1
+                assert 1
             }
 
             if 0 {
-                check 1
+                assert 1
             } else {
-                check 2
+                assert 2
             }
 
             if 0 {
-                check 1
-                check 1 + 1
+                assert 1
+                assert 1 + 1 
             } else if 2 {
-                check 3
+                assert 3
             } else if 4 {
-                check 5
+                assert 5
             } else {
-                check 6
+                assert 6
             }
         }
     "#;
