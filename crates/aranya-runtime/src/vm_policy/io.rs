@@ -6,12 +6,12 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::{Id, policy::CmdId};
+use aranya_crypto::{policy::CmdId, Id};
 use aranya_policy_vm::{
-    CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
-    MachineIO, MachineIOError, MachineStack,
     ast::{Identifier, Text},
     ffi::FfiModule,
+    CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
+    MachineIO, MachineIOError, MachineStack,
 };
 use buggy::BugExt;
 use spin::Mutex;

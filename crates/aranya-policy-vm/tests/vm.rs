@@ -5,14 +5,14 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{policy::CmdId, DeviceId, Id};
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
+    ident, text, ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
     MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
-    RunState, SealContext, Stack, Struct, Value, ident, text,
+    RunState, SealContext, Stack, Struct, Value,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
