@@ -871,11 +871,11 @@ impl<T> Valid<T> {
         let Some(ptr) = NonNull::new(ptr) else {
             return Err(InvalidPtr::Null);
         };
-        if ptr.is_aligned() {
-            Ok(Self { ptr })
-        } else {
-            Err(InvalidPtr::Unaligned)
+
+        if !ptr.is_aligned() {
+            return Err(InvalidPtr::Unaligned);
         }
+        Ok(Self { ptr })
     }
 }
 

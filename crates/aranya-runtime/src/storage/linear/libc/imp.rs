@@ -342,12 +342,11 @@ impl File {
                 Err(e) => return Err(e.into()),
             }
         }
-        if buf.is_empty() {
-            Ok(())
-        } else {
+        if !buf.is_empty() {
             error!(remaining = buf.len(), "could not fill buffer");
-            Err(StorageError::IoError)
+            return Err(StorageError::IoError);
         }
+        Ok(())
     }
 
     fn write_all(&self, mut offset: i64, mut buf: &[u8]) -> Result<(), StorageError> {

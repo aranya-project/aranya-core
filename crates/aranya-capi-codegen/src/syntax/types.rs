@@ -1470,14 +1470,13 @@ impl Unit {
     #[instrument(skip_all)]
     pub(crate) fn parse(_ctx: &Ctx, tuple: syn::TypeTuple) -> Result<Self> {
         trace!("parsing `Unit`");
-
-        if tuple.elems.is_empty() {
-            Ok(Self {
-                paren_token: tuple.paren_token,
-            })
-        } else {
-            Err(Error::new_spanned(&tuple, "only `()` is supported"))
+        if !tuple.elems.is_empty() {
+            return Err(Error::new_spanned(&tuple, "only `()` is supported"));
         }
+
+        Ok(Self {
+            paren_token: tuple.paren_token,
+        })
     }
 
     /// Creates a unit with a span.

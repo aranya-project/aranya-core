@@ -99,14 +99,13 @@ fn get_lit_str2(
     }) = value
     {
         let suffix = lit.suffix();
-        if suffix.is_empty() {
-            Ok(lit.clone())
-        } else {
-            Err(Error::new(
+        if !suffix.is_empty() {
+            return Err(Error::new(
                 lit.span(),
                 format!("unexpected suffix `{}` on string literal", suffix),
-            ))
+            ));
         }
+        Ok(lit.clone())
     } else {
         Err(Error::new(
             expr.span(),

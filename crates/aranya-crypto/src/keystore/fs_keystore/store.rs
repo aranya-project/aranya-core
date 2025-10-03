@@ -364,11 +364,11 @@ fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
             Err(e) => return Err(e.into()),
         }
     }
-    if buf.is_empty() {
-        Ok(())
-    } else {
-        Err(UnexpectedEof.into())
+
+    if !buf.is_empty() {
+        return Err(UnexpectedEof.into());
     }
+    Ok(())
 }
 
 /// Writes the entirety of `buf` to `fd`.

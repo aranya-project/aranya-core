@@ -1,5 +1,3 @@
-#![warn(clippy::arithmetic_side_effects)]
-
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
