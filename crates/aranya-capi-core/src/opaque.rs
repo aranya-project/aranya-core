@@ -1,6 +1,7 @@
 use core::{
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
+    ptr,
 };
 
 use crate::{
@@ -154,6 +155,6 @@ where
 {
     // SAFETY: `*Opaque<_, _, T>` is a valid `*T`
     unsafe {
-        core::mem::transmute::<&mut MaybeUninit<Opaque<SIZE, ALIGN, T>>, &mut MaybeUninit<T>>(out)
+        &mut *ptr::from_mut::<MaybeUninit<Opaque<SIZE, ALIGN, T>>>(out).cast::<MaybeUninit<T>>()
     }
 }

@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
-use std::{io::Write, path::Path};
+use std::{io::Write as _, path::Path};
 
 use aranya_policy_compiler::Compiler;
 use aranya_policy_ifgen_build::generate_code;

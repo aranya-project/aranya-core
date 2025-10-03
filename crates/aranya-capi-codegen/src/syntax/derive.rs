@@ -40,7 +40,7 @@ impl Derives {
     }
 
     pub(super) fn append(&mut self, mut other: Self) {
-        self.0.append(&mut other.0)
+        self.0.append(&mut other.0);
     }
 }
 
@@ -54,7 +54,7 @@ impl ToTokens for Derives {
                 None
             }
         });
-        tokens.extend(traits)
+        tokens.extend(traits);
     }
 }
 
@@ -107,7 +107,7 @@ impl ToTokens for Derive {
         let what = &self.what;
         tokens.extend(quote_spanned! {self.span=>
             #what
-        })
+        });
     }
 }
 
@@ -160,6 +160,6 @@ impl ToTokens for DeriveTrait {
             Debug => quote!(::core::fmt::Debug),
             Eq => quote!(::core::cmp::Eq),
             PartialEq => quote!(::core::cmp::PartialEq),
-        })
+        });
     }
 }

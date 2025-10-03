@@ -361,7 +361,7 @@ fn test_command_attributes_must_be_literals() {
 
     for text in texts {
         let err = compile_fail(text);
-        assert!(matches!(err, CompileErrorType::InvalidExpression(_)))
+        assert!(matches!(err, CompileErrorType::InvalidExpression(_)));
     }
 }
 
@@ -966,7 +966,7 @@ fn test_fact_query_disallow_leading_binds() {
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral("leading bind values not allowed".to_string())
-    )
+    );
 }
 
 #[test]

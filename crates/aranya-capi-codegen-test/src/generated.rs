@@ -71,7 +71,7 @@ pub type PrefixTestConfigInheritance2 = self::__hidden::PrefixTestConfigInherita
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit0() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit0() } {
         __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
@@ -79,7 +79,7 @@ pub extern "C" fn prefix_test_unit_unit0() {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_unit_unit0() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_unit0() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -91,7 +91,7 @@ fn __tramp_prefix_test_unit_unit0() -> () {
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit1() } {
         __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
@@ -99,7 +99,7 @@ pub extern "C" fn prefix_test_unit_unit1() -> () {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_unit1() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -111,7 +111,7 @@ fn __tramp_prefix_test_unit_unit1() -> () {
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_result_unit_error() } {
         __pattern => {
             match __pattern {
@@ -135,7 +135,7 @@ pub extern "C" fn prefix_test_unit_result_unit_error_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_result_unit_error() } {
         __pattern => {
             match __pattern {
@@ -159,7 +159,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
     crate::Error,
 > {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_result_unit_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -171,7 +171,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -181,7 +181,7 @@ pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -193,7 +193,7 @@ fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u16_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -205,7 +205,7 @@ pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u16_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -217,7 +217,7 @@ fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u32_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -229,7 +229,7 @@ pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -241,7 +241,7 @@ fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u64_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -253,7 +253,7 @@ pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u64_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -265,7 +265,7 @@ fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_usize_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -277,7 +277,7 @@ pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_usize_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -289,7 +289,7 @@ fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -299,7 +299,7 @@ pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -311,7 +311,7 @@ fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i16_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -323,7 +323,7 @@ pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i16_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -335,7 +335,7 @@ fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i32_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -347,7 +347,7 @@ pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -359,7 +359,7 @@ fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i64_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -371,7 +371,7 @@ pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i64_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -383,7 +383,7 @@ fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_isize_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -395,7 +395,7 @@ pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_isize_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -407,7 +407,7 @@ fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u8_u8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -417,7 +417,7 @@ pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primit
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u8_u8(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -431,7 +431,7 @@ pub extern "C" fn prefix_test_u16_u16(
     _a: ::core::primitive::u16,
 ) -> ::core::primitive::u16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u16_u16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -441,7 +441,7 @@ pub extern "C" fn prefix_test_u16_u16(
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive::u16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u16_u16(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -455,7 +455,7 @@ pub extern "C" fn prefix_test_u32_u32(
     _a: ::core::primitive::u32,
 ) -> ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u32_u32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -465,7 +465,7 @@ pub extern "C" fn prefix_test_u32_u32(
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u32_u32(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -479,7 +479,7 @@ pub extern "C" fn prefix_test_u64_u64(
     _a: ::core::primitive::u64,
 ) -> ::core::primitive::u64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u64_u64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -489,7 +489,7 @@ pub extern "C" fn prefix_test_u64_u64(
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive::u64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u64_u64(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -503,7 +503,7 @@ pub extern "C" fn prefix_test_usize_usize(
     _a: ::core::primitive::usize,
 ) -> ::core::primitive::usize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -517,7 +517,7 @@ fn __tramp_prefix_test_usize_usize(
     _a: ::core::primitive::usize,
 ) -> ::core::primitive::usize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_usize_usize(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -529,7 +529,7 @@ fn __tramp_prefix_test_usize_usize(
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i8_i8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -539,7 +539,7 @@ pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primit
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i8_i8(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -553,7 +553,7 @@ pub extern "C" fn prefix_test_i16_i16(
     _a: ::core::primitive::i16,
 ) -> ::core::primitive::i16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i16_i16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -563,7 +563,7 @@ pub extern "C" fn prefix_test_i16_i16(
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive::i16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i16_i16(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -577,7 +577,7 @@ pub extern "C" fn prefix_test_i32_i32(
     _a: ::core::primitive::i32,
 ) -> ::core::primitive::i32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i32_i32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -587,7 +587,7 @@ pub extern "C" fn prefix_test_i32_i32(
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive::i32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i32_i32(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -601,7 +601,7 @@ pub extern "C" fn prefix_test_i64_i64(
     _a: ::core::primitive::i64,
 ) -> ::core::primitive::i64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i64_i64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
@@ -611,7 +611,7 @@ pub extern "C" fn prefix_test_i64_i64(
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive::i64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i64_i64(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -625,7 +625,7 @@ pub extern "C" fn prefix_test_isize_isize(
     _a: ::core::primitive::isize,
 ) -> ::core::primitive::isize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -639,7 +639,7 @@ fn __tramp_prefix_test_isize_isize(
     _a: ::core::primitive::isize,
 ) -> ::core::primitive::isize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_isize_isize(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -654,7 +654,7 @@ pub extern "C" fn prefix_test_u8_u8_u8(
     _b: ::core::primitive::u8,
 ) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u8_u8_u8(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -670,7 +670,7 @@ fn __tramp_prefix_test_u8_u8_u8(
     _b: ::core::primitive::u8,
 ) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u8_u8_u8(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -685,7 +685,7 @@ pub extern "C" fn prefix_test_u16_u16_u16(
     _b: ::core::primitive::u16,
 ) -> ::core::primitive::u16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u16_u16_u16(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -701,7 +701,7 @@ fn __tramp_prefix_test_u16_u16_u16(
     _b: ::core::primitive::u16,
 ) -> ::core::primitive::u16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u16_u16_u16(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -716,7 +716,7 @@ pub extern "C" fn prefix_test_u32_u32_u32(
     _b: ::core::primitive::u32,
 ) -> ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u32_u32_u32(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -732,7 +732,7 @@ fn __tramp_prefix_test_u32_u32_u32(
     _b: ::core::primitive::u32,
 ) -> ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u32_u32_u32(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -747,7 +747,7 @@ pub extern "C" fn prefix_test_u64_u64_u64(
     _b: ::core::primitive::u64,
 ) -> ::core::primitive::u64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_u64_u64_u64(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -763,7 +763,7 @@ fn __tramp_prefix_test_u64_u64_u64(
     _b: ::core::primitive::u64,
 ) -> ::core::primitive::u64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_u64_u64_u64(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -778,7 +778,7 @@ pub extern "C" fn prefix_test_usize_usize_usize(
     _b: ::core::primitive::usize,
 ) -> ::core::primitive::usize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_usize_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -794,7 +794,7 @@ fn __tramp_prefix_test_usize_usize_usize(
     _b: ::core::primitive::usize,
 ) -> ::core::primitive::usize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_usize_usize_usize(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -809,7 +809,7 @@ pub extern "C" fn prefix_test_i8_i8_i8(
     _b: ::core::primitive::i8,
 ) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i8_i8_i8(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -825,7 +825,7 @@ fn __tramp_prefix_test_i8_i8_i8(
     _b: ::core::primitive::i8,
 ) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i8_i8_i8(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -840,7 +840,7 @@ pub extern "C" fn prefix_test_i16_i16_i16(
     _b: ::core::primitive::i16,
 ) -> ::core::primitive::i16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i16_i16_i16(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -856,7 +856,7 @@ fn __tramp_prefix_test_i16_i16_i16(
     _b: ::core::primitive::i16,
 ) -> ::core::primitive::i16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i16_i16_i16(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -871,7 +871,7 @@ pub extern "C" fn prefix_test_i32_i32_i32(
     _b: ::core::primitive::i32,
 ) -> ::core::primitive::i32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i32_i32_i32(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -887,7 +887,7 @@ fn __tramp_prefix_test_i32_i32_i32(
     _b: ::core::primitive::i32,
 ) -> ::core::primitive::i32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i32_i32_i32(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -902,7 +902,7 @@ pub extern "C" fn prefix_test_i64_i64_i64(
     _b: ::core::primitive::i64,
 ) -> ::core::primitive::i64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_i64_i64_i64(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -918,7 +918,7 @@ fn __tramp_prefix_test_i64_i64_i64(
     _b: ::core::primitive::i64,
 ) -> ::core::primitive::i64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_i64_i64_i64(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -933,7 +933,7 @@ pub extern "C" fn prefix_test_isize_isize_isize(
     _b: ::core::primitive::isize,
 ) -> ::core::primitive::isize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_isize_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -949,7 +949,7 @@ fn __tramp_prefix_test_isize_isize_isize(
     _b: ::core::primitive::isize,
 ) -> ::core::primitive::isize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_isize_isize_isize(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -961,7 +961,7 @@ fn __tramp_prefix_test_isize_isize_isize(
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_enum_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -993,7 +993,7 @@ pub extern "C" fn prefix_test_enum_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_enum_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -1025,7 +1025,7 @@ fn __tramp_prefix_test_enum_unit(
         __capi::to_inner!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_enum_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1037,7 +1037,7 @@ fn __tramp_prefix_test_enum_unit(
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_enum() } {
         __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
@@ -1045,7 +1045,7 @@ pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_enum() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1066,7 +1066,7 @@ pub extern "C" fn prefix_test_enum_enum(
     __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_enum_enum(
             __capi::internal::util::check_valid_input_ty_val(a),
@@ -1101,7 +1101,7 @@ pub extern "C" fn prefix_test_enum_enum_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_enum_enum(
             __capi::internal::util::check_valid_input_ty_val(a),
@@ -1140,7 +1140,7 @@ fn __tramp_prefix_test_enum_enum(
         __capi::to_inner_mut!(__output)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_enum_enum(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1164,7 +1164,7 @@ pub extern "C" fn prefix_test_enum_result_enum_error(
     __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_enum_result_enum_error(
             __capi::internal::util::check_valid_input_ty_val(a),
@@ -1206,7 +1206,7 @@ pub extern "C" fn prefix_test_enum_result_enum_error_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_enum_result_enum_error(
             __capi::internal::util::check_valid_input_ty_val(a),
@@ -1259,7 +1259,7 @@ fn __tramp_prefix_test_enum_result_enum_error(
         __capi::to_inner_mut!(__output)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_enum_result_enum_error(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1281,7 +1281,7 @@ fn __tramp_prefix_test_enum_result_enum_error(
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_struct_unit(
             __capi::internal::util::check_valid_input_ty_val(_a),
@@ -1295,7 +1295,7 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
     #[allow(clippy::let_with_type_underscore)]
     let _a: _ = __capi::to_inner!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1307,7 +1307,7 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_struct() } {
         __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
@@ -1315,7 +1315,7 @@ pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_struct() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1333,7 +1333,7 @@ fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
 )]
 pub extern "C" fn prefix_test_ref_struct_unit(_a: *const PrefixStruct) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_struct_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1365,7 +1365,7 @@ pub extern "C" fn prefix_test_ref_struct_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_struct_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1397,7 +1397,7 @@ fn __tramp_prefix_test_ref_struct_unit(
         __capi::to_inner_ref!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ref_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1412,7 +1412,7 @@ fn __tramp_prefix_test_ref_struct_unit(
 )]
 pub extern "C" fn prefix_test_ptr_struct_unit(_a: *const PrefixStruct) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ptr_struct_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1426,7 +1426,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
     #[allow(clippy::let_with_type_underscore)]
     let _a: *const _ = __capi::to_inner_ptr!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ptr_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1438,7 +1438,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
 #[::tracing::instrument(level = "trace", fields(a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_struct_struct(
             __capi::internal::util::check_valid_input_ty_val(a),
@@ -1452,7 +1452,7 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     #[allow(clippy::let_with_type_underscore)]
     let a: _ = __capi::to_inner!(a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_struct_struct(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1472,7 +1472,7 @@ pub extern "C" fn prefix_test_unit_result_struct_error(
     __output: *mut ::core::mem::MaybeUninit<PrefixStruct>,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_unit_result_struct_error(
             __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
@@ -1511,7 +1511,7 @@ pub extern "C" fn prefix_test_unit_result_struct_error_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_unit_result_struct_error(
             __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
@@ -1557,7 +1557,7 @@ fn __tramp_prefix_test_unit_result_struct_error(
         __capi::to_inner_mut!(__output)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_result_struct_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1584,7 +1584,7 @@ pub extern "C" fn prefix_test_optional_ref_struct(
     _a: *const PrefixStruct,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_optional_ref_struct(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1616,7 +1616,7 @@ pub extern "C" fn prefix_test_optional_ref_struct_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_optional_ref_struct(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1648,7 +1648,7 @@ fn __tramp_prefix_test_optional_ref_struct(
         __capi::to_inner!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_optional_ref_struct(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1665,7 +1665,7 @@ pub extern "C" fn prefix_test_optional_mut_ref_struct(
     _a: *mut PrefixStruct,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_optional_mut_ref_struct(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -1697,7 +1697,7 @@ pub extern "C" fn prefix_test_optional_mut_ref_struct_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_optional_mut_ref_struct(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -1729,7 +1729,7 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
         __capi::to_inner!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_optional_mut_ref_struct(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1746,7 +1746,7 @@ pub extern "C" fn prefix_test_ref_safestruct_unit(
     _a: *const PrefixSafeStruct,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_safestruct_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1778,7 +1778,7 @@ pub extern "C" fn prefix_test_ref_safestruct_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_safestruct_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1810,7 +1810,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
         __capi::to_inner_ref!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ref_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1825,7 +1825,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
 )]
 pub extern "C" fn prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ptr_safestruct_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -1839,7 +1839,7 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
     #[allow(clippy::let_with_type_underscore)]
     let _a: *const _ = __capi::to_inner_ptr!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ptr_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1856,7 +1856,7 @@ pub extern "C" fn prefix_test_unit_result_safestruct_error(
     __output: *mut ::core::mem::MaybeUninit<PrefixSafeStruct>,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_unit_result_safestruct_error(
             __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
@@ -1895,7 +1895,7 @@ pub extern "C" fn prefix_test_unit_result_safestruct_error_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_unit_result_safestruct_error(
             __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
@@ -1941,7 +1941,7 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
         __capi::to_inner_mut!(__output)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_unit_result_safestruct_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1968,7 +1968,7 @@ pub extern "C" fn prefix_test_ownedptr_u32_unit(
     _a: *mut ::core::primitive::u32,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ownedptr_u32_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2000,7 +2000,7 @@ pub extern "C" fn prefix_test_ownedptr_u32_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ownedptr_u32_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2032,7 +2032,7 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
         __capi::to_inner!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2049,7 +2049,7 @@ pub extern "C" fn prefix_test_ownedptr_struct_unit(
     _a: *mut PrefixStruct,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ownedptr_struct_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2081,7 +2081,7 @@ pub extern "C" fn prefix_test_ownedptr_struct_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ownedptr_struct_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2113,7 +2113,7 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
         __capi::to_inner!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2130,7 +2130,7 @@ pub extern "C" fn prefix_test_ownedptr_safestruct_unit(
     _a: *mut PrefixSafeStruct,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ownedptr_safestruct_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2162,7 +2162,7 @@ pub extern "C" fn prefix_test_ownedptr_safestruct_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ownedptr_safestruct_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2194,7 +2194,7 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
         __capi::to_inner!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2211,7 +2211,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_unit(
     _a: *const *const *const *const ::core::primitive::u32,
 ) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -2225,7 +2225,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
     _a: *const *const *const *const ::core::primitive::u32,
 ) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2242,7 +2242,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
     a: *const *const *const *const ::core::primitive::u32,
 ) -> *const *const *const *const ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
             __capi::internal::util::check_valid_input_ty_const_ptr(a),
@@ -2256,7 +2256,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
     a: *const *const *const *const ::core::primitive::u32,
 ) -> *const *const *const *const ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2274,7 +2274,7 @@ pub extern "C" fn prefix_test_slice_u8_unit(
     _a_len: ::core::primitive::usize,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_slice_u8_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -2309,7 +2309,7 @@ pub extern "C" fn prefix_test_slice_u8_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_slice_u8_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -2343,7 +2343,7 @@ fn __tramp_prefix_test_slice_u8_unit(
         __capi::to_inner_slice!(_a)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_slice_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2358,7 +2358,7 @@ fn __tramp_prefix_test_slice_u8_unit(
 )]
 pub extern "C" fn prefix_test_ref_arr_u8_unit(_a: *const [u8; 64]) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_arr_u8_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -2390,7 +2390,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_arr_u8_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
@@ -2418,7 +2418,7 @@ fn __tramp_prefix_test_ref_arr_u8_unit(
 ) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
     let _a: &[u8; 64] = __capi::try_as_ref!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ref_arr_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2439,7 +2439,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_ret(
     __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_arr_u8_ret(
             __capi::internal::util::check_valid_input_ty_const_ptr(a),
@@ -2474,7 +2474,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_ret_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_ref_arr_u8_ret(
             __capi::internal::util::check_valid_input_ty_const_ptr(a),
@@ -2509,7 +2509,7 @@ fn __tramp_prefix_test_ref_arr_u8_ret(
         __capi::to_inner_mut!(__output)
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_ref_arr_u8_ret(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2527,7 +2527,7 @@ fn __tramp_prefix_test_ref_arr_u8_ret(
 )]
 pub extern "C" fn prefix_test_mut_ref_arr_u8_unit(_a: *mut [u8; 64]) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_mut_ref_arr_u8_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2559,7 +2559,7 @@ pub extern "C" fn prefix_test_mut_ref_arr_u8_unit_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_test_mut_ref_arr_u8_unit(
             __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
@@ -2587,7 +2587,7 @@ fn __tramp_prefix_test_mut_ref_arr_u8_unit(
 ) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
     let _a: &mut [u8; 64] = __capi::try_as_mut!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_mut_ref_arr_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2610,7 +2610,7 @@ pub extern "C" fn prefix_ext_error_init(
     out: *mut ::core::mem::MaybeUninit<PrefixExtError>,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_ext_error_init(
             __capi::internal::util::check_valid_input_ty_mut_ptr(out),
@@ -2655,7 +2655,7 @@ pub extern "C" fn prefix_ext_error_init_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_ext_error_init(
             __capi::internal::util::check_valid_input_ty_mut_ptr(out),
@@ -2699,7 +2699,7 @@ fn __tramp_prefix_ext_error_init(
         out
     );
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { self::ext_error_init(out) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2726,7 +2726,7 @@ fn ext_error_init(
 )]
 pub extern "C" fn prefix_ext_error_cleanup(ptr: *mut PrefixExtError) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_ext_error_cleanup(
             __capi::internal::util::check_valid_input_ty_mut_ptr(ptr),
@@ -2770,7 +2770,7 @@ pub extern "C" fn prefix_ext_error_cleanup_ext(
     __ext_err: *mut PrefixExtError,
 ) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match {
         __tramp_prefix_ext_error_cleanup(
             __capi::internal::util::check_valid_input_ty_mut_ptr(ptr),
@@ -2814,7 +2814,7 @@ fn __tramp_prefix_ext_error_cleanup(
         ptr
     );
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { self::ext_error_cleanup(ptr) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2840,7 +2840,7 @@ fn ext_error_cleanup(
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_cfg_inheritance() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_cfg_inheritance() } {
         __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
@@ -2849,7 +2849,7 @@ pub extern "C" fn prefix_test_cfg_inheritance() {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_cfg_inheritance() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_cfg_inheritance() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2862,7 +2862,7 @@ fn __tramp_prefix_test_cfg_inheritance() -> () {
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_cfg_inheritance2() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { __tramp_prefix_test_cfg_inheritance2() } {
         __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
@@ -2871,7 +2871,7 @@ pub extern "C" fn prefix_test_cfg_inheritance2() {
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_test_cfg_inheritance2() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(unused_braces)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
     match { crate::defs::test_cfg_inheritance2() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2982,11 +2982,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
-            })
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
+            });
         }
     }
     #[automatically_derived]
@@ -3120,11 +3118,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
-            })
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
+            });
         }
     }
     #[automatically_derived]
@@ -3243,11 +3239,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
-            })
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
+            });
         }
     }
     #[automatically_derived]
@@ -3419,11 +3413,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
-            })
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
+            });
         }
     }
     #[automatically_derived]
@@ -3572,11 +3564,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                ::core::mem::transmute::<
-                    &mut ::core::mem::MaybeUninit<Self>,
-                    &mut ::core::mem::MaybeUninit<Inner>,
-                >(out)
-            })
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
+            });
         }
     }
     #[automatically_derived]

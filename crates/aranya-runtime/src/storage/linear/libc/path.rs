@@ -2,7 +2,7 @@
 
 use core::{fmt, ops::Deref};
 
-use aranya_crypto::id::{String32, ToBase58};
+use aranya_crypto::id::{String32, ToBase58 as _};
 use aranya_libc::Path;
 
 use crate::GraphId;

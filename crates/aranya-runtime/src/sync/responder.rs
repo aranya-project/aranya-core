@@ -1,7 +1,7 @@
 use alloc::vec;
 use core::mem;
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
@@ -11,8 +11,8 @@ use super::{
 };
 use crate::{
     StorageError, SyncType,
-    command::{Address, CmdId, Command},
-    storage::{GraphId, Location, Segment, Storage, StorageProvider},
+    command::{Address, CmdId, Command as _},
+    storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
 };
 
 #[derive(Default, Debug)]
@@ -22,7 +22,7 @@ pub struct PeerCache {
 
 impl PeerCache {
     pub const fn new() -> Self {
-        PeerCache { heads: Vec::new() }
+        Self { heads: Vec::new() }
     }
 
     pub fn heads(&self) -> &[Address] {
@@ -62,7 +62,7 @@ impl PeerCache {
                 .push(command)
                 .ok()
                 .assume("command locations should not be full")?;
-        };
+        }
         Ok(())
     }
 }
@@ -130,20 +130,15 @@ impl SyncResponseMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum SyncResponderState {
+    #[default]
     New,
     Start,
     Send,
     Idle,
     Reset,
     Stopped,
-}
-
-impl Default for SyncResponderState {
-    fn default() -> Self {
-        Self::New
-    }
 }
 
 #[derive(Default)]
@@ -162,7 +157,7 @@ pub struct SyncResponder<A> {
 impl<A: Serialize + Clone> SyncResponder<A> {
     /// Create a new [`SyncResponder`].
     pub fn new(server_address: A) -> Self {
-        SyncResponder {
+        Self {
             session_id: None,
             storage_id: None,
             state: SyncResponderState::New,
@@ -219,7 +214,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                         response_cache.add_command(storage, *command, cmd_loc)?;
                     }
                 }
-                self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage)?;
 
                 self.get_next(target, provider)?
             }
@@ -269,7 +264,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             SyncRequestMessage::EndSession { .. } => {
                 self.state = SyncResponderState::Stopped;
             }
-        };
+        }
 
         Ok(())
     }
@@ -411,7 +406,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 return Err(e.into());
             }
         };
-        self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

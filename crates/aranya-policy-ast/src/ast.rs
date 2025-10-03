@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
@@ -94,8 +94,8 @@ impl FromStr for Version {
     #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "1" => Ok(Version::V1),
-            "2" => Ok(Version::V2),
+            "1" => Ok(Self::V1),
+            "2" => Ok(Self::V2),
             _ => Err(InvalidVersion),
         }
     }
@@ -307,7 +307,7 @@ impl FieldDefinition {
 /// An identifier and its type and dynamic effect marker
 ///
 /// A variant used exclusively for Effects
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectFieldDefinition {
     /// the field's name
     pub identifier: Ident,
@@ -382,7 +382,7 @@ pub struct NamedStruct {
 }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
@@ -401,7 +401,7 @@ impl Spanned for EnumDefinition {
 
 spanned! {
 /// A reference to an enumeration, e.g. `Color::Red`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
     pub identifier: Ident,
@@ -411,7 +411,7 @@ pub struct EnumReference {
 }
 
 /// How many facts to expect when counting
-#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FactCountType {
     /// Up to
     UpTo(Span),
@@ -575,7 +575,7 @@ pub enum ExprKind {
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FunctionDecl {
     /// The identifier of the function
     pub identifier: Ident,
@@ -618,8 +618,8 @@ pub enum MatchPattern {
 impl Spanned for MatchPattern {
     fn span(&self) -> Span {
         match self {
-            MatchPattern::Default(span) => *span,
-            MatchPattern::Values(values) => values.span(),
+            Self::Default(span) => *span,
+            Self::Values(values) => values.span(),
         }
     }
 }
@@ -662,7 +662,7 @@ pub struct MatchExpression {
 }
 
 /// A container for a statement or expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LanguageContext<A, B> {
     /// statement
     Statement(A),
@@ -677,8 +677,8 @@ where
 {
     fn span(&self) -> Span {
         match self {
-            LanguageContext::Statement(stmt) => stmt.span(),
-            LanguageContext::Expression(expr) => expr.span(),
+            Self::Statement(stmt) => stmt.span(),
+            Self::Expression(expr) => expr.span(),
         }
     }
 }
@@ -870,7 +870,7 @@ impl Spanned for ActionDefinition {
 }
 
 /// An effect definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectDefinition {
     /// The name of the effect
     pub identifier: Ident,
@@ -887,7 +887,7 @@ impl Spanned for EffectDefinition {
 }
 
 /// A struct definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StructDefinition {
     /// The name of the struct
     pub identifier: Ident,
@@ -904,7 +904,7 @@ impl Spanned for StructDefinition {
 }
 
 /// Struct field or insertion reference
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
@@ -916,8 +916,8 @@ impl<T> StructItem<T> {
     /// Get the field definition from this struct item
     pub fn field(&self) -> Option<&T> {
         match self {
-            StructItem::Field(f) => Some(f),
-            StructItem::StructRef(_) => None,
+            Self::Field(f) => Some(f),
+            Self::StructRef(_) => None,
         }
     }
 }
@@ -1052,8 +1052,8 @@ pub struct Policy {
 
 impl Policy {
     /// Create a new `Policy` with the given source text.
-    pub fn new(version: Version, text: &str) -> Policy {
-        Policy {
+    pub fn new(version: Version, text: &str) -> Self {
+        Self {
             version,
             text: text.to_owned(),
             ..Default::default()

@@ -40,7 +40,7 @@ pub struct PolicyId(usize);
 
 impl PolicyId {
     pub fn new(id: usize) -> Self {
-        PolicyId(id)
+        Self(id)
     }
 }
 

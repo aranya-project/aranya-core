@@ -1,7 +1,7 @@
 //! An effect handler for AFC.
 
 use aranya_crypto::{
-    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt as _,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },

@@ -10,8 +10,8 @@ pub struct FinishAnalyzer {
 }
 
 impl FinishAnalyzer {
-    pub fn new() -> FinishAnalyzer {
-        FinishAnalyzer::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

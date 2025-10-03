@@ -10,9 +10,9 @@
 //! Peer 2
 //! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
 
-use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
+use std::{fs, io, net::SocketAddr, ops::DerefMut as _, sync::Arc, thread, time};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
@@ -117,8 +117,8 @@ async fn run(options: Opt) -> Result<()> {
     let (tx1, _) = mpsc::unbounded_channel();
     let syncer = Arc::new(TMutex::new(Syncer::new(
         &cert[..],
-        client.clone(),
-        sink.clone(),
+        Arc::clone(&client),
+        Arc::clone(&sink),
         tx1,
         server.local_addr()?,
     )?));
@@ -135,7 +135,7 @@ async fn run(options: Opt) -> Result<()> {
                 sink.lock().await.deref_mut(),
             )
             .context("sync error")?;
-        println!("Storage id: {}", storage_id)
+        println!("Storage id: {}", storage_id);
     } else if let Some(id) = options.storage_id {
         storage_id = id;
     } else {
@@ -143,7 +143,7 @@ async fn run(options: Opt) -> Result<()> {
     }
 
     let (_, rx1) = mpsc::unbounded_channel();
-    let task = tokio::spawn(run_syncer(syncer.clone(), server, rx1));
+    let task = tokio::spawn(run_syncer(Arc::clone(&syncer), server, rx1));
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(
@@ -193,7 +193,7 @@ impl Sink<TestEffect> for PrintSink {
     fn consume(&mut self, effect: TestEffect) {
         match effect {
             TestEffect::Got(g) => {
-                println!("received {}", g)
+                println!("received {}", g);
             }
         }
     }

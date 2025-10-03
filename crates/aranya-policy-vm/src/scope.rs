@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, string::ToString, vec, vec::Vec};
+use alloc::{collections::BTreeMap, string::ToString as _, vec, vec::Vec};
 
 use aranya_policy_ast::Identifier;
 use aranya_policy_module::Value;

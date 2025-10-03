@@ -1,6 +1,6 @@
 use std::{
     fs::OpenOptions,
-    io::{BufRead, BufReader, Read, stdin},
+    io::{BufRead as _, BufReader, Read, stdin},
     process::ExitCode,
 };
 

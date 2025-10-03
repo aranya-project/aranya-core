@@ -1,10 +1,10 @@
 #![allow(clippy::panic)]
 
-use std::{fs::OpenOptions, io::Read};
+use std::{fs::OpenOptions, io::Read as _};
 
 use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
 use ast::Expression;
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{
     ChunkParser, ParseError, ParseErrorKind, PolicyParser, Rule, Version, ast, get_pratt_parser,
@@ -332,7 +332,7 @@ fn parse_optional() {
     ];
     for (case, is_valid) in optional_types {
         let r = PolicyParser::parse(Rule::optional_t, case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r)
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
 }
 
@@ -930,7 +930,7 @@ fn parse_keyword_collision() -> anyhow::Result<()> {
 
     for text in texts {
         let policy = parse_policy_str(text, Version::V2);
-        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier))
+        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier));
     }
     Ok(())
 }

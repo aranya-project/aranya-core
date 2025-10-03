@@ -10,7 +10,7 @@ use core::result::Result;
 
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
-    KeyStore, KeyStoreExt, UnwrapError, WrapError,
+    KeyStore, KeyStoreExt as _, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
     policy::{CmdId, LabelId},
 };

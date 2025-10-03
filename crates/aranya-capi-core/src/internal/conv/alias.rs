@@ -3,6 +3,7 @@
 use core::{
     marker::PhantomData,
     mem::{self, ManuallyDrop, MaybeUninit, needs_drop},
+    ptr,
 };
 
 /// A marker trait that signals that the type is bit-for-bit
@@ -133,7 +134,7 @@ where
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound. `t` is a ref, so the pointer is never null
     // or unaligned.
-    unsafe { &*(t as *const T as *const U) }
+    unsafe { &*ptr::from_ref::<T>(t).cast::<U>() }
 }
 
 /// Casts `&mut T` to `&mut U`.
@@ -150,7 +151,7 @@ where
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound. `t` is an exclusive ref, so the pointer is
     // never null or unaligned.
-    unsafe { &mut *(t as *mut T as *mut U) }
+    unsafe { &mut *ptr::from_mut::<T>(t).cast::<U>() }
 }
 
 /// Casts `*const T` to `*const U`.
@@ -164,7 +165,7 @@ where
         assert!(align_of::<T>() == align_of::<U>());
         assert!(needs_drop::<T>() == needs_drop::<U>());
     }
-    t as *const U
+    t.cast::<U>()
 }
 
 /// Converts `*mut T` to `*mut U`.
@@ -178,7 +179,7 @@ where
         assert!(align_of::<T>() == align_of::<U>());
         assert!(needs_drop::<T>() == needs_drop::<U>());
     }
-    t as *mut U
+    t.cast::<U>()
 }
 
 /// Converts `&[T]` to `&[U]`.
@@ -194,7 +195,7 @@ where
     }
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound.
-    unsafe { &*(t as *const [T] as *const [U]) }
+    unsafe { &*(ptr::from_ref::<[T]>(t) as *const [U]) }
 }
 
 /// Converts `&mut [T]` to `&mut [U]`.
@@ -210,7 +211,7 @@ where
     }
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound.
-    unsafe { &mut *(t as *mut [T] as *mut [U]) }
+    unsafe { &mut *(ptr::from_mut::<[T]>(t) as *mut [U]) }
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::File, io::Write};
+use std::{collections::HashSet, fs::File, io::Write as _};
 
 use aranya_policy_lang::{
     ast::{
@@ -14,7 +14,7 @@ use syn::{
     PatType, Path, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_quote,
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 
 use crate::attr::{Attr, Symbol, get_lit_str};
@@ -248,7 +248,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         //    __some_func,
         //    __another_func,
         //    ...
-        let variants = funcs.iter().map(|f| f.variant()).collect::<Vec<_>>();
+        let variants = funcs.iter().map(Func::variant).collect::<Vec<_>>();
 
         // The `__Func` variants mapped from `usize`:
         //    const __some_func = Self::some_func as usize;
@@ -572,7 +572,7 @@ impl FfiExportAttr {
                     Err(meta.error(format!("unknown attr: {path}")))
                 }
             })?,
-        };
+        }
         attrs.remove(idx);
 
         let def = def
@@ -691,7 +691,7 @@ impl Func {
             ReturnType::Default => {
                 return Err(Error::new(item.span(), "Rust function cannot return `()`"));
             }
-            _ => vtype.clone(),
+            ReturnType::Type(_, _) => vtype,
         };
 
         Ok(Some(Self {
@@ -750,7 +750,7 @@ impl ToTokens for VTypeTokens<'_> {
                 quote!(Optional(&#vm::ffi::Type::#vtype))
             }
         };
-        tokens.extend(item)
+        tokens.extend(item);
     }
 }
 
@@ -798,6 +798,6 @@ impl ToTokens for TypeTokens<'_> {
                 quote!(::core::option::Option<#vtype>)
             }
         };
-        tokens.extend(item)
+        tokens.extend(item);
     }
 }

@@ -41,15 +41,15 @@ impl Repr {
 
     pub const fn as_str(&self) -> &str {
         match self {
-            Repr::Static(s) => s,
-            Repr::Inline { bytes, len } => {
+            Self::Static(s) => s,
+            Self::Inline { bytes, len } => {
                 debug_assert!((*len as usize) <= MAX_INLINE);
                 // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
                 let s = unsafe { slice::from_raw_parts(bytes.as_ptr(), *len as usize) };
                 // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
                 unsafe { core::str::from_utf8_unchecked(s) }
             }
-            Repr::Heap(s) => s.as_ref(),
+            Self::Heap(s) => s.as_ref(),
         }
     }
 }
@@ -88,7 +88,7 @@ impl Ord for Repr {
 
 impl core::hash::Hash for Repr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
+        self.as_str().hash(state);
     }
 }
 
@@ -128,7 +128,7 @@ impl rkyv::Archive for Repr {
     fn resolve(&self, resolver: Self::Resolver, out: rkyv::Place<Self::Archived>) {
         // SAFETY: `ArchivedRepr` has the same layout as `ArchivedString`.
         let out = unsafe { out.cast_unchecked::<ArchivedString>() };
-        ArchivedString::resolve_from_str(self.as_str(), resolver, out)
+        ArchivedString::resolve_from_str(self.as_str(), resolver, out);
     }
 }
 
@@ -194,7 +194,7 @@ mod arc {
                     v.as_ptr(),
                     ptr::addr_of_mut!((*ptr.as_ptr()).data).cast::<u8>(),
                     v.len(),
-                )
+                );
             }
 
             Self { ptr }
@@ -213,12 +213,12 @@ mod arc {
 
     impl ArcStrInner {
         /// Allocate an uninitialized `ArcStrInner`.
-        fn allocate(len: usize) -> NonNull<ArcStrInner> {
+        fn allocate(len: usize) -> NonNull<Self> {
             let layout = Self::layout(len);
 
             // SAFETY: layout is nonzero.
             let ptr = unsafe { alloc::alloc::alloc(layout) };
-            let ptr = ptr::slice_from_raw_parts_mut(ptr, len) as *mut ArcStrInner;
+            let ptr = ptr::slice_from_raw_parts_mut(ptr, len) as *mut Self;
             let Some(ptr) = NonNull::new(ptr) else {
                 alloc::alloc::handle_alloc_error(layout);
             };
@@ -243,7 +243,7 @@ mod arc {
             // See `std::sync::Arc` for details.
             assert!(old <= MAX_REFCOUNT);
 
-            ArcStr { ptr: self.ptr }
+            Self { ptr: self.ptr }
         }
     }
 

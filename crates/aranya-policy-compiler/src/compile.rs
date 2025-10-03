@@ -14,15 +14,15 @@ use std::{
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
     FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
-    MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned, Statement, StmtKind,
-    StructItem, TypeKind, VType, ident,
+    MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement,
+    StmtKind, StructItem, TypeKind, VType, ident,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
     Meta, Module, Param, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -68,11 +68,11 @@ pub enum StatementContext {
 impl fmt::Display for StatementContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StatementContext::Action(_) => write!(f, "action"),
-            StatementContext::CommandPolicy(_) => write!(f, "command policy block"),
-            StatementContext::CommandRecall(_) => write!(f, "command recall block"),
-            StatementContext::PureFunction(_) => write!(f, "pure function"),
-            StatementContext::Finish => write!(f, "finish block/function"),
+            Self::Action(_) => write!(f, "action"),
+            Self::CommandPolicy(_) => write!(f, "command policy block"),
+            Self::CommandRecall(_) => write!(f, "command recall block"),
+            Self::PureFunction(_) => write!(f, "pure function"),
+            Self::Finish => write!(f, "finish block/function"),
         }
     }
 }
@@ -159,7 +159,7 @@ impl<'a> CompileState<'a> {
 
         // ensure key identifiers are unique
         let mut identifiers = BTreeSet::new();
-        for key in fact.key.iter() {
+        for key in &fact.key {
             if !key.is_hashable() {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "Fact `{}` key field `{}` is not orderable; must be int, bool, string, or id",
@@ -174,7 +174,7 @@ impl<'a> CompileState<'a> {
         }
 
         // ensure value identifiers are unique
-        for value in fact.value.iter() {
+        for value in &fact.value {
             if !identifiers.insert(&value.identifier.name) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
                     value.identifier.to_string(),
@@ -631,11 +631,8 @@ impl<'a> CompileState<'a> {
                             DisplayType(def_field_type)
                         ))));
                     }
-                } else {
-                    // Skip bind values
-                    continue;
+                    self.append_instruction(Instruction::FactValueSet((**k).clone()));
                 }
-                self.append_instruction(Instruction::FactValueSet((**k).clone()));
             }
         }
         Ok(())
@@ -1195,7 +1192,7 @@ impl<'a> CompileState<'a> {
                         self.append_instruction(Instruction::Const(Value::Bool(true)));
                     }
                     _ => unreachable!(),
-                };
+                }
 
                 self.define_label(end, self.wp)?;
 
@@ -1371,7 +1368,7 @@ impl<'a> CompileState<'a> {
                             kind: TypeKind::Bool,
                             span: expression.span,
                         })),
-                        _ => Err(TypeError::new(
+                        NullableVType::Type(_) => Err(TypeError::new(
                             "`is` must operate on an optional expression",
                         )),
                     })
@@ -1407,7 +1404,7 @@ impl<'a> CompileState<'a> {
                 e.identifier.name, e.value.name
             )))
         })?;
-        Ok(Value::Enum(e.identifier.name.to_owned(), *value))
+        Ok(Value::Enum(e.identifier.name.clone(), *value))
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -1630,7 +1627,7 @@ impl<'a> CompileState<'a> {
                     // Consume results...
                     let top_label = self.anonymous_label();
                     let end_label = self.anonymous_label();
-                    self.define_label(top_label.to_owned(), self.wp)?;
+                    self.define_label(top_label.clone(), self.wp)?;
                     // Fetch next result
                     self.append_instruction(Instruction::Block);
                     self.append_instruction(Instruction::QueryNext(
@@ -2167,7 +2164,9 @@ impl<'a> CompileState<'a> {
                     ..
                 }) => Ok(NullableVType::Type(*t)),
                 NullableVType::Null => Err(TypeError::new("Cannot unwrap None")),
-                _ => Err(TypeError::new("Cannot unwrap non-option expression")),
+                NullableVType::Type(_) => {
+                    Err(TypeError::new("Cannot unwrap non-option expression"))
+                }
             })
             .map_err(|err| self.err(err.into()))
     }
@@ -2625,7 +2624,7 @@ impl<'a> CompileState<'a> {
         match s {
             LanguageContext::Statement(s) => {
                 for (i, arm) in s.arms.iter().enumerate() {
-                    let arm_start = arm_labels[i].to_owned();
+                    let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
                     // Drop expression value (It's still around because of the Dup)
@@ -2641,7 +2640,7 @@ impl<'a> CompileState<'a> {
             }
             LanguageContext::Expression(e) => {
                 for (i, arm) in e.arms.iter().enumerate() {
-                    let arm_start = arm_labels[i].to_owned();
+                    let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
                     // Drop expression value (It's still around because of the Dup)
@@ -2728,7 +2727,7 @@ impl<'a> CompileState<'a> {
                     })
                     .collect();
                 let ident = Ident {
-                    name: s.name.to_owned(),
+                    name: s.name.clone(),
                     span: Span::default(),
                 };
                 self.define_struct(ident, &fields)?;
@@ -2995,17 +2994,20 @@ impl<'a> Compiler<'a> {
     }
 
     /// Sets the FFI modules
+    #[must_use]
     pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
         self.ffi_modules = ffi_modules;
         self
     }
 
     /// Enables or disables debug mode
+    #[must_use]
     pub fn debug(mut self, is_debug: bool) -> Self {
         self.is_debug = is_debug;
         self
     }
 
+    #[must_use]
     pub fn stub_ffi(mut self, flag: bool) -> Self {
         self.stub_ffi = flag;
         self

@@ -9,16 +9,16 @@ use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeError(Cow<'static, str>);
 
 impl TypeError {
-    pub(super) fn new(msg: &'static str) -> TypeError {
-        TypeError(Cow::from(msg))
+    pub(super) fn new(msg: &'static str) -> Self {
+        Self(Cow::from(msg))
     }
 
-    pub(super) fn new_owned(msg: String) -> TypeError {
-        TypeError(Cow::from(msg))
+    pub(super) fn new_owned(msg: String) -> Self {
+        Self(Cow::from(msg))
     }
 }
 
@@ -30,7 +30,7 @@ impl Display for TypeError {
 
 impl From<TypeError> for CompileErrorType {
     fn from(value: TypeError) -> Self {
-        CompileErrorType::InvalidType(value.0.into_owned())
+        Self::InvalidType(value.0.into_owned())
     }
 }
 
@@ -54,7 +54,7 @@ impl Display for TypeUnifyError {
 // TODO: Remove and force callers to make better error.
 impl From<TypeUnifyError> for CompileErrorType {
     fn from(err: TypeUnifyError) -> Self {
-        CompileErrorType::InvalidType(err.to_string())
+        Self::InvalidType(err.to_string())
     }
 }
 
@@ -76,6 +76,7 @@ impl IdentifierTypeStack {
     }
 
     /// Add an identifier-type mapping to the global variables
+    #[allow(clippy::result_large_err)]
     pub fn add_global(&mut self, name: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
         match self.globals.entry(name) {
             hash_map::Entry::Occupied(o) => {
@@ -89,6 +90,7 @@ impl IdentifierTypeStack {
     }
 
     /// Add an identifier-type mapping to the current scope
+    #[allow(clippy::result_large_err)]
     pub fn add(&mut self, ident: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
         if self.globals.contains_key(&ident) {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
@@ -113,6 +115,7 @@ impl IdentifierTypeStack {
 
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
+    #[allow(clippy::result_large_err)]
     pub fn get(&self, name: &Identifier) -> Result<Typeish, CompileErrorType> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
@@ -185,6 +188,7 @@ impl Typeish {
     /// If `self` is `Never`, it will become the expected type.
     /// Otherwise, it will keep its value if the inner type matches the target,
     /// or error out otherwise.
+    #[allow(clippy::result_large_err)]
     pub fn check_type(
         self,
         target_type: VType,
@@ -234,6 +238,7 @@ impl Typeish {
     }
 
     /// Tries to unify two types.
+    #[allow(clippy::result_large_err)]
     pub fn unify(self, other: Self) -> Result<Self, TypeUnifyError> {
         Ok(match (self, other) {
             (Self::Never, Self::Never) => Self::Never,
@@ -247,8 +252,8 @@ impl Typeish {
 impl Display for Typeish {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Typeish::Known(t) => t.fmt(f),
-            Typeish::Never => f.write_str("never"),
+            Self::Known(t) => t.fmt(f),
+            Self::Never => f.write_str("never"),
         }
     }
 }
@@ -270,22 +275,21 @@ impl NullableVType {
     }
 
     /// Equal types will unify, and null will unify with any optional.
-    fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
+    #[allow(clippy::result_large_err)]
+    fn unify(self, rhs: Self) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
-            (ref t @ NullableVType::Type(ref ty), NullableVType::Null)
+            (ref t @ Self::Type(ref ty), Self::Null)
                 if matches!(ty.kind, TypeKind::Optional(_)) =>
             {
                 Ok(t.clone())
             }
-            (NullableVType::Null, ref t @ NullableVType::Type(ref ty))
+            (Self::Null, ref t @ Self::Type(ref ty))
                 if matches!(ty.kind, TypeKind::Optional(_)) =>
             {
                 Ok(t.clone())
             }
-            (NullableVType::Type(left), NullableVType::Type(right)) if left.matches(&right) => {
-                Ok(NullableVType::Type(left))
-            }
-            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
+            (Self::Type(left), Self::Type(right)) if left.matches(&right) => Ok(Self::Type(left)),
+            (Self::Null, Self::Null) => Ok(Self::Null),
             (left, right) => Err(TypeUnifyError {
                 left,
                 right,
@@ -354,6 +358,7 @@ impl CompileState<'_> {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub(super) fn unify_pair(
         &self,
         left_type: Typeish,
@@ -364,6 +369,7 @@ impl CompileState<'_> {
 
     /// Like [`unify_pair`], except additionally the pair is checked against `target_type`
     /// and an error is produced if they don't match.
+    #[allow(clippy::result_large_err)]
     pub(super) fn unify_pair_as(
         &self,
         left_type: Typeish,

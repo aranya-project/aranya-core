@@ -30,7 +30,7 @@ pub mod testing;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
@@ -278,7 +278,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 impl<W: Write> LinearStorage<W> {
     fn get_skip(
         &self,
-        segment: <LinearStorage<W> as Storage>::Segment,
+        segment: <Self as Storage>::Segment,
         max_cut: usize,
     ) -> Result<Option<(Location, usize)>, StorageError> {
         let mut head = segment;
@@ -855,7 +855,7 @@ impl<R: Read> Query for LinearFactIndex<R> {
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(v) = facts.facts.get(name).and_then(|m| m.get(keys)) {
-                return Ok(v.as_ref().cloned());
+                return Ok(v.clone());
             }
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
@@ -1031,7 +1031,7 @@ impl<R: Read> QueryMut for LinearPerspective<R> {
 
     fn delete(&mut self, name: String, keys: Keys) {
         self.facts.delete(name.clone(), keys.clone());
-        self.current_updates.push((name, keys, None))
+        self.current_updates.push((name, keys, None));
     }
 }
 
@@ -1108,9 +1108,9 @@ impl<R: Read> Perspective for LinearPerspective<R> {
 impl From<Prior<Address>> for Prior<CmdId> {
     fn from(p: Prior<Address>) -> Self {
         match p {
-            Prior::None => Prior::None,
-            Prior::Single(l) => Prior::Single(l.id),
-            Prior::Merge(l, r) => Prior::Merge(l.id, r.id),
+            Prior::None => Self::None,
+            Prior::Single(l) => Self::Single(l.id),
+            Prior::Merge(l, r) => Self::Merge(l.id, r.id),
         }
     }
 }

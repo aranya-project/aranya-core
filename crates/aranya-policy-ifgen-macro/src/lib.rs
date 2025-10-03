@@ -1,7 +1,5 @@
 //! Proc macros used on policy structs, effects, and actions.
 
-#![warn(clippy::arithmetic_side_effects)]
-#![warn(clippy::wildcard_imports)]
 // TODO(jdygert): #![warn(missing_docs)]
 
 use proc_macro::TokenStream;

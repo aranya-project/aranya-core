@@ -7,7 +7,7 @@ use core::{
     fmt,
     mem::MaybeUninit,
     ops::Deref,
-    slice, str,
+    ptr, slice, str,
 };
 
 /// The input to `Path` is missing a null byte.
@@ -55,7 +55,7 @@ impl Path {
     fn from_raw_bytes(path: &[u8]) -> &Self {
         // SAFETY: `&[u8]` and `&Self` have the same
         // memory layout.
-        unsafe { &*(path as *const [u8] as *const Self) }
+        unsafe { &*(ptr::from_ref::<[u8]>(path) as *const Self) }
     }
 
     /// Create a `Path` from bytes that end with a null
@@ -142,7 +142,7 @@ impl Path {
 
     /// Creates an owned [`PathBuf`] with `path` joined to
     /// `self`.
-    pub fn join<P: AsRef<Path>>(&self, path: P) -> PathBuf {
+    pub fn join<P: AsRef<Self>>(&self, path: P) -> PathBuf {
         PathBuf::from_iter([self, path.as_ref()])
     }
 
@@ -277,8 +277,8 @@ impl_cmp_raw!(<> Path, [u8]);
 impl_cmp_raw!(<'a> Path, &'a [u8]);
 impl_cmp_raw!(<'a> &'a Path, [u8]);
 
-impl AsRef<Path> for Path {
-    fn as_ref(&self) -> &Path {
+impl AsRef<Self> for Path {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -450,7 +450,7 @@ where
 {
     fn extend<I: IntoIterator<Item = P>>(&mut self, iter: I) {
         for elem in iter {
-            self.push(elem.as_ref())
+            self.push(elem.as_ref());
         }
     }
 }
@@ -469,6 +469,7 @@ impl fmt::Debug for PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use core::ptr;
 
     use super::*;
 
@@ -476,7 +477,7 @@ mod tests {
         ($path:literal) => {{
             let path: &[u8] = $path.as_ref();
             // SAFETY: `&Path` has the same size as `&[u8]`.
-            unsafe { &*(path as *const [u8] as *const Path) }
+            unsafe { &*(ptr::from_ref::<[u8]>(path) as *const Path) }
         }};
     }
 

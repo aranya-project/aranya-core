@@ -203,7 +203,7 @@ impl SafeTag {
 macro_rules! try_as_ref {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::ptr::{CStrKind, DefaultKind, SafeKind};
+        use $crate::internal::conv::ptr::{CStrKind as _, DefaultKind as _, SafeKind as _};
         match $crate::internal::conv::ptr::const_assert_is_const_ptr($ptr) {
             // SAFETY: See the macro's docs.
             v => match unsafe { (&&v).kind().try_from_ptr(v) } {
@@ -230,7 +230,7 @@ macro_rules! try_as_ref {
 macro_rules! try_as_mut {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::ptr::{CStrKind, DefaultKind, SafeKind};
+        use $crate::internal::conv::ptr::{CStrKind as _, DefaultKind as _, SafeKind as _};
         match $crate::internal::conv::ptr::const_assert_is_mut_ptr($ptr) {
             // SAFETY: See the macro's docs.
             v => match unsafe { (&&v).kind().try_from_mut_ptr(v) } {
@@ -256,7 +256,7 @@ macro_rules! try_as_mut {
 macro_rules! try_as_uninit_mut {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::ptr::{CStrKind, DefaultKind, SafeKind};
+        use $crate::internal::conv::ptr::{CStrKind as _, DefaultKind as _, SafeKind as _};
         match $crate::internal::conv::ptr::const_assert_is_mut_ptr::<::core::mem::MaybeUninit<_>>(
             $ptr,
         ) {
@@ -284,7 +284,7 @@ macro_rules! try_as_uninit_mut {
 macro_rules! as_mut {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::ptr::{CStrKind, DefaultKind, SafeKind};
+        use $crate::internal::conv::ptr::{CStrKind as _, DefaultKind as _, SafeKind as _};
         match $crate::internal::conv::ptr::const_assert_is_mut_ptr($ptr) {
             // SAFETY: See the macro's docs.
             v => unsafe { (&&v).kind().try_from_mut_ptr(v) },
@@ -299,7 +299,7 @@ macro_rules! as_mut {
 macro_rules! try_consume {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::ptr::{CStrKind, DefaultKind, SafeKind};
+        use $crate::internal::conv::ptr::{CStrKind as _, DefaultKind as _, SafeKind as _};
         match $crate::internal::conv::ptr::const_assert_is_mut_ptr($ptr) {
             // SAFETY: See the macro's docs.
             v => match unsafe { (&&v).kind().try_from_owned_ptr(v) } {
@@ -320,7 +320,7 @@ macro_rules! try_consume {
 macro_rules! try_consume_opt {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::ptr::{CStrKind, DefaultKind, SafeKind};
+        use $crate::internal::conv::ptr::{CStrKind as _, DefaultKind as _, SafeKind as _};
         match $crate::internal::conv::ptr::const_assert_is_mut_ptr($ptr) {
             // SAFETY: See the macro's docs.
             v => match unsafe { (&&v).kind().try_from_owned_ptr(v) } {

@@ -102,8 +102,8 @@ impl<'a> TryFrom<&'a str> for &'a Path {
     }
 }
 
-impl AsRef<Path> for Path {
-    fn as_ref(&self) -> &Path {
+impl AsRef<Self> for Path {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -195,7 +195,7 @@ mod alloc_impls {
             Path::validate(&path)?;
 
             // SAFETY: Path and CStr have the same layout.
-            Ok(unsafe { Box::from_raw(Box::into_raw(path) as *mut Path) })
+            Ok(unsafe { Self::from_raw(Box::into_raw(path) as *mut Path) })
         }
     }
 
@@ -204,7 +204,7 @@ mod alloc_impls {
             let path = Box::<CStr>::from(&path.0);
 
             // SAFETY: Path and CStr have the same layout.
-            unsafe { Box::from_raw(Box::into_raw(path) as *mut Path) }
+            unsafe { Self::from_raw(Box::into_raw(path) as *mut Path) }
         }
     }
 
@@ -339,13 +339,13 @@ mod alloc_impls {
             let path: Box<Path> = (Box::<[u8]>::from(bytes)).try_into().unwrap();
             assert_eq!(path.as_ref().0, *cstr);
 
-            let path: Box<Path> = path.clone();
+            let path: Box<Path> = path;
             assert_eq!(path.as_ref().0, *cstr);
         }
 
         #[test]
         fn test_boxed_path_serde_utf8() {
-            use serde_test::{Configure, Token, assert_de_tokens, assert_tokens};
+            use serde_test::{Configure as _, Token, assert_de_tokens, assert_tokens};
 
             let bytes = b"/asdf\0".as_slice();
             let path: Box<Path> = Path::from_bytes(bytes).unwrap().into();
@@ -354,7 +354,7 @@ mod alloc_impls {
             assert_tokens(&path.clone().compact(), &[Token::Bytes(b"/asdf")]);
 
             assert_de_tokens(&path.clone().readable(), &[Token::String("/asdf")]);
-            assert_de_tokens(&path.clone().compact(), &[Token::ByteBuf(b"/asdf")]);
+            assert_de_tokens(&path.compact(), &[Token::ByteBuf(b"/asdf")]);
 
             // Ensure errors are caught in deserialization. Other cases tested directly in `test_path_invalid`.
             assert_de_tokens_error::<Compact<Box<Path>>>(&[Token::Str("")], "path is empty");
@@ -362,12 +362,12 @@ mod alloc_impls {
 
         #[test]
         fn test_boxed_path_serde_non_utf8() {
-            use serde_test::{Configure, Token, assert_tokens};
+            use serde_test::{Configure as _, Token, assert_tokens};
 
             let bytes = b"/\xFF\0".as_slice();
             let path: Box<Path> = Path::from_bytes(bytes).unwrap().into();
 
-            assert_tokens(&path.clone().readable(), &[Token::Bytes(b"/\xFF")]);
+            assert_tokens(&path.readable(), &[Token::Bytes(b"/\xFF")]);
         }
     }
 }
@@ -395,7 +395,7 @@ mod test {
 
     #[test]
     fn test_path_ser_utf8() {
-        use serde_test::{Configure, Token, assert_ser_tokens};
+        use serde_test::{Configure as _, Token, assert_ser_tokens};
 
         let bytes = b"/asdf\0".as_slice();
         let path: &Path = Path::from_bytes(bytes).unwrap();
@@ -406,7 +406,7 @@ mod test {
 
     #[test]
     fn test_path_ser_non_utf8() {
-        use serde_test::{Configure, Token, assert_ser_tokens};
+        use serde_test::{Configure as _, Token, assert_ser_tokens};
 
         let bytes = b"/\xFF\0".as_slice();
         let path: &Path = Path::from_bytes(bytes).unwrap();

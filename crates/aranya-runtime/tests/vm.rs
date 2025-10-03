@@ -3,7 +3,7 @@
 
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::ffi::FfiModule;
+use aranya_policy_vm::ffi::FfiModule as _;
 use aranya_runtime::{
     testing::vm::{self, TestEngine},
     vm_policy::testing::TestFfiEnvelope,
@@ -22,20 +22,20 @@ fn new_engine() -> TestEngine {
 
 #[test]
 fn test_vmpolicy() {
-    vm::test_vmpolicy(new_engine()).unwrap()
+    vm::test_vmpolicy(new_engine()).unwrap();
 }
 
 #[test]
 fn test_query_fact_value() {
-    vm::test_query_fact_value(new_engine()).unwrap()
+    vm::test_query_fact_value(new_engine()).unwrap();
 }
 
 #[test]
 fn test_aranya_session() {
-    vm::test_aranya_session(new_engine()).unwrap()
+    vm::test_aranya_session(new_engine()).unwrap();
 }
 
 #[test]
 fn test_effect_metadata() {
-    vm::test_effect_metadata(new_engine(), new_engine()).unwrap()
+    vm::test_effect_metadata(new_engine(), new_engine()).unwrap();
 }

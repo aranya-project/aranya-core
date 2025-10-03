@@ -99,7 +99,7 @@ impl ChannelId {
     /// Creates a [`ChannelId`].
     #[cfg(any(test, feature = "sdlib", feature = "posix", feature = "memory"))]
     pub(crate) const fn new(id: u64) -> Self {
-        ChannelId(id)
+        Self(id)
     }
 
     /// Converts the [`ChannelId`] to its `u64` representation.
@@ -256,18 +256,18 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Directed::SealOnly { seal: lhs }, Directed::SealOnly { seal: rhs }) => {
+            (Self::SealOnly { seal: lhs }, Self::SealOnly { seal: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
-            (Directed::OpenOnly { open: lhs }, Directed::OpenOnly { open: rhs }) => {
+            (Self::OpenOnly { open: lhs }, Self::OpenOnly { open: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
             (
-                Directed::Bidirectional {
+                Self::Bidirectional {
                     seal: lhs_seal,
                     open: lhs_open,
                 },
-                Directed::Bidirectional {
+                Self::Bidirectional {
                     seal: rhs_seal,
                     open: rhs_open,
                 },

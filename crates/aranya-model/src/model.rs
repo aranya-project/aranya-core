@@ -195,7 +195,7 @@ pub trait Model {
 }
 
 /// Holds a collection of effect data.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[derive_where(Default)]
 pub struct VecSink<E> {
     /// Effects from executing a policy action.
@@ -261,7 +261,7 @@ impl Sink<&[u8]> for MsgSink {
     fn begin(&mut self) {}
 
     fn consume(&mut self, effect: &[u8]) {
-        self.cmds.push(effect.into())
+        self.cmds.push(effect.into());
     }
 
     fn rollback(&mut self) {}
@@ -317,7 +317,7 @@ where
 {
     /// Creates a new [`RuntimeModel`]
     pub fn new(client_factory: CF) -> Self {
-        RuntimeModel::<CF, CID, GID> {
+        Self {
             clients: BTreeMap::default(),
             storage_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),
@@ -533,7 +533,7 @@ where
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
                     request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
-                };
+                }
             }
         }
 

@@ -28,7 +28,7 @@ pub enum MachineIOError {
 
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {
-        MachineError::new(MachineErrorType::IO(value))
+        Self::new(MachineErrorType::IO(value))
     }
 }
 

@@ -8,9 +8,9 @@ use aranya_policy_ast::{
     NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
     UpdateStatement, VType, Version, ident,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use pest::{
-    Parser, Span,
+    Parser as _, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
@@ -770,7 +770,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_expression_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let span = self.to_ast_span(token.as_span())?;
@@ -779,7 +779,7 @@ impl ChunkParser<'_> {
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
-                        .map(|token| self.parse_expression(token.to_owned()))
+                        .map(|token| self.parse_expression(token.clone()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     MatchPattern::Values(values)
@@ -1010,7 +1010,7 @@ impl ChunkParser<'_> {
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_arm);
-            let pc = descend(arm.to_owned());
+            let pc = descend(arm.clone());
             let token = pc.consume()?;
 
             let span = self.to_ast_span(token.as_span())?;
@@ -1020,7 +1020,7 @@ impl ChunkParser<'_> {
                     let values = token
                         .into_inner()
                         .map(|token| {
-                            let expr = self.parse_expression(token.to_owned())?;
+                            let expr = self.parse_expression(token.clone())?;
                             Ok(expr)
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
@@ -1322,7 +1322,7 @@ impl ChunkParser<'_> {
         for field in pc.into_inner() {
             match field.as_rule() {
                 Rule::field_definition => {
-                    items.push(ast::StructItem::Field(self.parse_field_definition(field)?))
+                    items.push(ast::StructItem::Field(self.parse_field_definition(field)?));
                 }
                 Rule::field_insertion => {
                     let ident = descend(field).consume_ident(self)?;
@@ -1674,7 +1674,7 @@ fn parse_policy_chunk_inner(
                 .finish_functions
                 .push(p.parse_finish_function_definition(item)?),
             Rule::global_let_statement => {
-                policy.global_lets.push(p.parse_global_let_statement(item)?)
+                policy.global_lets.push(p.parse_global_let_statement(item)?);
             }
             Rule::EOI => (),
             _ => {
@@ -1746,7 +1746,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
 }
 
 /// A series of Struct or Enum definitions for the FFI
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FfiTypes {
     pub structs: Vec<ast::StructDefinition>,
     pub enums: Vec<EnumDefinition>,

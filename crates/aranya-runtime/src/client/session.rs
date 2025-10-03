@@ -13,7 +13,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use yoke::{Yoke, Yokeable};
@@ -21,7 +21,7 @@ use yoke::{Yoke, Yokeable};
 use crate::{
     Address, Checkpoint, ClientError, ClientState, CmdId, Command, Engine, Fact, FactPerspective,
     GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut,
-    Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
     engine::{ActionPlacement, CommandPlacement},
 };
 
@@ -106,7 +106,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             effect_sink,
             ActionPlacement::OffGraph,
         ) {
-            Ok(_) => {
+            Ok(()) => {
                 // Success, commit effects
                 effect_sink.commit();
                 Ok(())
