@@ -23,7 +23,7 @@ pub(super) fn derive(item: TokenStream) -> Result<TokenStream> {
         let mut reprs: Vec<_> = item
             .attrs
             .iter()
-            .filter_map(|a| a.path().is_ident("repr").then_some(a.parse_args::<Repr>()))
+            .filter_map(|a| a.path().is_ident("repr").then(|| a.parse_args::<Repr>()))
             .collect::<Result<_>>()?;
         if reprs.len() > 1 {
             return Err(Error::new_spanned(
