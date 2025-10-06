@@ -1020,24 +1020,24 @@ fn test_if_statement() -> anyhow::Result<()> {
     let text = r#"
         action test() {
             if 0 {
-                assert 1
+                assert 1, "1"
             }
 
             if 0 {
-                assert 1
+                assert 1, "1"
             } else {
-                assert 2
+                assert 2, "2"
             }
 
             if 0 {
-                assert 1
-                assert saturating_add(1, 1)
+                assert 1, "1"
+                assert saturating_add(1, 1), "1 + 1"
             } else if 2 {
-                assert 3
+                assert 3, "3"
             } else if 4 {
-                assert 5
+                assert 5, "5"
             } else {
-                assert 6
+                assert 6, "6"
             }
         }
     "#;
