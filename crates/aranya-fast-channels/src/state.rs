@@ -19,13 +19,16 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    type SealCtx: SealCtx<Self::CipherSuite>;
+    type OpenCtx: OpenCtx<Self::CipherSuite>;
+
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
@@ -85,6 +88,120 @@ pub trait AranyaState {
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
+}
+
+pub(crate) mod private {
+    // This is used to prevent `set_open_key` and `set_seal_key` from being callable by `ChannelCtx`
+    // implementations,
+    pub struct Internal;
+}
+
+/// The "seal context" associated with a channel
+pub trait SealCtx<CS: CipherSuite> {
+    /// Returns the "seal key", if one exists.
+    fn seal_key(&mut self) -> Option<&mut SealKey<CS>>;
+
+    /// Replaces the "seal" key.
+    fn set_seal_key(&mut self, new: SealKey<CS>, _: private::Internal);
+
+    /// Returns the channel ID associated with this [`ChannelCtx`]
+    fn channel_id(&self) -> ChannelId;
+
+    /// Returns the label ID associated with this [`ChannelCtx`]
+    fn label_id(&self) -> LabelId;
+
+    #[cfg(test)]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self>;
+}
+
+/// The "open context" associated with a channel
+pub trait OpenCtx<CS: CipherSuite> {
+    /// Returns the "open key", if one exists.
+    fn open_key(&self) -> Option<&OpenKey<CS>>;
+
+    /// Replaces the "open" key.
+    fn set_open_key(&mut self, new: OpenKey<CS>, _: private::Internal);
+
+    /// Returns the channel ID associated with this [`ChannelCtx`]
+    fn channel_id(&self) -> ChannelId;
+
+    /// Returns the label ID associated with this [`ChannelCtx`]
+    fn label_id(&self) -> LabelId;
+}
+
+/// Implementation of [`SealCtx`]
+pub struct SealCtxImpl<CS: CipherSuite> {
+    id: ChannelId,
+    label_id: LabelId,
+    seal_key: Option<SealKey<CS>>,
+}
+
+impl<CS: CipherSuite> SealCtxImpl<CS> {
+    /// Creates a new [`SealCtxImpl`]
+    pub fn new(id: ChannelId, label_id: LabelId, seal_key: Option<SealKey<CS>>) -> Self {
+        Self {
+            id,
+            label_id,
+            seal_key,
+        }
+    }
+}
+
+impl<CS: CipherSuite> SealCtx<CS> for SealCtxImpl<CS> {
+    fn channel_id(&self) -> ChannelId {
+        self.id
+    }
+
+    fn label_id(&self) -> LabelId {
+        self.label_id
+    }
+
+    fn seal_key(&mut self) -> Option<&mut SealKey<CS>> {
+        self.seal_key.as_mut()
+    }
+
+    fn set_seal_key(&mut self, new: SealKey<CS>, _: private::Internal) {
+        self.seal_key.replace(new);
+    }
+
+    #[cfg(test)]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self> {
+        Box::new(Self::new(id, label_id, None))
+    }
+}
+
+pub struct OpenCtxImpl<CS: CipherSuite> {
+    id: ChannelId,
+    label_id: LabelId,
+    open_key: Option<OpenKey<CS>>,
+}
+
+impl<CS: CipherSuite> OpenCtxImpl<CS> {
+    pub fn new(id: ChannelId, label_id: LabelId, open_key: Option<OpenKey<CS>>) -> Self {
+        Self {
+            id,
+            label_id,
+            open_key,
+        }
+    }
+}
+
+impl<CS: CipherSuite> OpenCtx<CS> for OpenCtxImpl<CS> {
+    fn channel_id(&self) -> ChannelId {
+        self.id
+    }
+
+    fn label_id(&self) -> LabelId {
+        self.label_id
+    }
+
+    fn open_key(&self) -> Option<&OpenKey<CS>> {
+        self.open_key.as_ref()
+    }
+
+    fn set_open_key(&mut self, new: OpenKey<CS>, _: private::Internal) {
+        self.open_key.replace(new);
+    }
 }
 
 /// Uniquely identifies a channel inside the shared state.
@@ -302,7 +419,7 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed,
+        AfcState, AranyaState, ChannelId, Directed, SealCtxImpl,
         error::Error,
         memory,
         testing::{
@@ -332,6 +449,8 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
+        type SealCtx = SealCtxImpl<Self::CipherSuite>;
+        type OpenCtx = OpenCtxImpl<Self::CipherSuite>;
 
         fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
         where

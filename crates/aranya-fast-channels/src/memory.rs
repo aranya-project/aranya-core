@@ -19,7 +19,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    ChannelId,
+    ChannelId, OpenCtx as _, OpenCtxImpl, SealCtx, SealCtxImpl,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -51,27 +51,49 @@ where
     CS: CipherSuite,
 {
     type CipherSuite = CS;
+    type SealCtx = SealCtxImpl<Self::CipherSuite>;
+    type OpenCtx = OpenCtxImpl<Self::CipherSuite>;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    // TODO: Fix. Should update ctx
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let mut inner = self.inner.lock().assume("poisoned")?;
-        let (key, chan_label_id) = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        let id = ctx.channel_id();
 
-        let key = key.seal_mut().ok_or(Error::NotFound(id))?;
-        Ok(f(key, *chan_label_id))
+        let chan_label_id = ctx.label_id();
+        let key = match ctx.seal_key() {
+            Some(key) => key,
+            None => inner
+                .chans
+                .get_mut(&id)
+                .and_then(|(keys, _label_id)| keys.seal_mut())
+                .ok_or(Error::NotFound(id))?,
+        };
+
+        Ok(f(key, chan_label_id))
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    // TODO: Fix. Should update ctx
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let inner = self.inner.lock().assume("poisoned")?;
-        let (key, chan_label_id) = inner.chans.get(&id).ok_or(Error::NotFound(id))?;
-        let key = key.open().ok_or(Error::NotFound(id))?;
+        let id = ctx.channel_id();
 
-        Ok(f(key, *chan_label_id))
+        let inner = self.inner.lock().assume("poisoned")?;
+        let chan_label_id = ctx.label_id();
+        let key = match ctx.open_key() {
+            Some(key) => key,
+            None => inner
+                .chans
+                .get(&id)
+                .and_then(|(keys, _label_id)| keys.open())
+                .ok_or(Error::NotFound(id))?,
+        };
+
+        Ok(f(key, chan_label_id))
     }
 
     fn exists(&self, id: ChannelId) -> Result<bool, Error> {
