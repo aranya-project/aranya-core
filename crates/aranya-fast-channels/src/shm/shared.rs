@@ -354,8 +354,6 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     pub direction: U32,
     /// The channel's ID.
     pub channel_id: U64,
-    /// The current encryption sequence counter.
-    pub seq: U64,
     /// The channel's label.
     pub label_id: LabelId,
     /// The key/nonce used to encrypt data for the channel peer.
@@ -410,13 +408,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
             magic: Self::MAGIC,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
             channel_id: id.to_u64().into(),
-            // For the same reason that we randomize keys,
-            // manually exhaust the sequence number.
-            seq: if keys.seal().is_some() {
-                U64::new(0)
-            } else {
-                U64::MAX
-            },
             label_id,
             seal_key,
             open_key,
@@ -466,23 +457,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         self.check()?;
 
         ChanDirection::try_from_u32(self.direction.into()).ok_or(bad_chan_direction(self.direction))
-    }
-
-    /// Returns the encryption sequence number.
-    pub fn seq(&self) -> Seq {
-        Seq::new(self.seq.into())
-    }
-
-    /// Updates the sequence number.
-    pub fn set_seq(&mut self, seq: Seq) {
-        debug_assert!(
-            seq.to_u64() > self.seq.into(),
-            "{} <= {}",
-            seq.to_u64(),
-            self.seq.into()
-        );
-
-        self.seq = seq.to_u64().into();
     }
 
     /// Performs basic sanity checking.
