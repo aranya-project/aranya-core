@@ -3,7 +3,7 @@
 use core::{fmt, ops::Deref};
 
 use aranya_libc::Path;
-use spideroak_base58::{String32, ToBase58};
+use spideroak_base58::{String32, ToBase58 as _};
 
 use crate::GraphId;
 

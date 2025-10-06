@@ -17,6 +17,7 @@ mod unwrapped_tests {
 
     #[test]
     fn test_unwrapped() {
+        #[allow(dead_code)]
         struct Seed<CS> {
             seed: [u8; 64],
             _marker: PhantomData<CS>,

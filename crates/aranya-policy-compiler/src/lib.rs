@@ -1,5 +1,4 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![warn(clippy::arithmetic_side_effects)]
 
 pub mod compile;
 mod tests;

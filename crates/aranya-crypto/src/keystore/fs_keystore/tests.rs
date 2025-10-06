@@ -5,7 +5,7 @@ use tempfile::tempdir;
 
 use super::{RootDeleted, Store};
 use crate::{
-    KeyStore,
+    KeyStore as _,
     default::DefaultCipherSuite,
     engine::WrappedKey,
     id::{Id, Identified},

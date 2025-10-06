@@ -8,7 +8,7 @@ pub use aranya_id::*;
 use buggy::Bug;
 use spideroak_crypto::{csprng::Csprng, signer::PkError};
 
-use crate::{CipherSuite, CipherSuiteExt};
+use crate::ciphersuite::{CipherSuite, CipherSuiteExt as _};
 
 /// Extension trait for IDs.
 pub trait IdExt: Sized {
@@ -86,7 +86,7 @@ impl From<Bug> for IdError {
 
 impl From<PkError> for IdError {
     fn from(err: PkError) -> Self {
-        IdError::new(err.msg())
+        Self::new(err.msg())
     }
 }
 

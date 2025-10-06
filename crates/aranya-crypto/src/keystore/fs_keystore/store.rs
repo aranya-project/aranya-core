@@ -2,7 +2,7 @@
 
 use core::{ffi::CStr, marker::PhantomData, ops::Deref};
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use cfg_if::cfg_if;
 use ciborium as cbor;
 use ciborium_io::{Read, Write};
@@ -12,7 +12,7 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
-use spideroak_base58::{String32, ToBase58};
+use spideroak_base58::{String32, ToBase58 as _};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
@@ -123,7 +123,7 @@ impl KeyStore for Store {
                     // It doesn't exist yet, so create it.
                 }
                 Err(err) => return Err(err.into()),
-            };
+            }
             match Exclusive::create_new(&self.root, &*alias) {
                 Ok(fd) => {
                     break Entry::Vacant(VacantEntry::new(self.root.as_fd(), fd, alias));
@@ -363,11 +363,11 @@ fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
             Err(e) => return Err(e.into()),
         }
     }
+
     if !buf.is_empty() {
-        Err(UnexpectedEof.into())
-    } else {
-        Ok(())
+        return Err(UnexpectedEof.into());
     }
+    Ok(())
 }
 
 /// Writes the entirety of `buf` to `fd`.

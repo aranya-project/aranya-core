@@ -4,7 +4,7 @@
 use std::{array, hint::black_box, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
-    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
+    CipherSuite, Csprng as _, OpenError, Random as _, Rng, SealError,
     afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{
         aead::{Aead, AeadKey, IndCca2, Lifetime},
@@ -20,7 +20,7 @@ use aranya_crypto::{
     typenum::U16,
 };
 use aranya_fast_channels::{
-    AranyaState, ChannelId, Client, Directed,
+    AranyaState as _, ChannelId, Client, Directed,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
 };

@@ -1,8 +1,8 @@
 use core::{cell::OnceCell, iter};
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use derive_where::derive_where;
-use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
+use spideroak_crypto::{csprng::Random as _, import::ImportError, kem::Kem};
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
@@ -279,7 +279,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(UniSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the unirectional channel.
@@ -402,7 +402,7 @@ impl<CS: CipherSuite> UniOpenKey<CS> {
 
 #[cfg(test)]
 mod tests {
-    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+    use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust};
 
     use super::*;
     use crate::{afc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};

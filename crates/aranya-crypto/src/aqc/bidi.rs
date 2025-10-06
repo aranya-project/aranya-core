@@ -3,7 +3,7 @@ use core::{cell::OnceCell, fmt, iter};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
-    csprng::Random,
+    csprng::Random as _,
     import::ImportError,
     kem::Kem,
     subtle::{Choice, ConstantTimeEq},
@@ -290,7 +290,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(BidiSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the bidirectional channel.
@@ -675,7 +675,7 @@ mod tests {
     /// Golden test for [`BidiAuthorSecret`] IDs.
     #[test]
     fn test_bidi_author_secret_id() {
-        use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+        use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust};
 
         use crate::{aqc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
 

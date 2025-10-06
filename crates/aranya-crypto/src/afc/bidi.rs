@@ -1,8 +1,8 @@
 use core::{cell::OnceCell, iter};
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use derive_where::derive_where;
-use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
+use spideroak_crypto::{csprng::Random as _, import::ImportError, kem::Kem};
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
@@ -308,7 +308,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             id: OnceCell::new(),
         };
 
-        Ok(BidiSecrets { author, peer })
+        Ok(Self { author, peer })
     }
 
     /// Uniquely identifies the bidirectional channel.
@@ -604,7 +604,7 @@ mod tests {
     /// Golden test for [`BidiAuthorSecret`] IDs.
     #[test]
     fn test_bidi_author_secret_id() {
-        use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+        use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust};
 
         use crate::{afc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
 

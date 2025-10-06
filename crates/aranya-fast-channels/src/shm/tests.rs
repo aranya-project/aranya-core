@@ -2,9 +2,9 @@
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
 use aranya_crypto::{
-    CipherSuite, Engine, Random, Rng,
+    CipherSuite, Engine, Random as _, Rng,
     afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
-    dangerous::spideroak_crypto::{hash::Hash, rust::Sha256},
+    dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256},
     id::IdExt as _,
     policy::LabelId,
 };

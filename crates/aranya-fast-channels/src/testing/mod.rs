@@ -22,7 +22,7 @@ use aranya_crypto::{
     Aead, CipherSuite, Engine, Rng,
     id::IdExt as _,
     policy::LabelId,
-    typenum::{U1, Unsigned},
+    typenum::{U1, Unsigned as _},
 };
 
 use crate::{

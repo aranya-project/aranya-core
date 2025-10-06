@@ -68,6 +68,6 @@ impl ExtendedError for ExtError {
     where
         E: Into<Self::Error>,
     {
-        self.err = err.map(Into::into)
+        self.err = err.map(Into::into);
     }
 }

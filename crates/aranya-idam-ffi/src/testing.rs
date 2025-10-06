@@ -10,7 +10,7 @@ use aranya_crypto::{
     KeyStoreExt as _, OpenError, SigningKey,
     id::IdExt as _,
     policy::{CmdId, GroupId},
-    subtle::ConstantTimeEq,
+    subtle::ConstantTimeEq as _,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -420,7 +420,7 @@ where
         assert!(
             bool::from(got.ct_eq(&want)),
             "`GroupKeys` differ, but have same ID"
-        )
+        );
     }
 
     /// Tests that we reject encrypted `GroupKey`s where the
@@ -449,7 +449,7 @@ where
 
         let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
-            .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
+            .seal_group_key(ctx, &mut eng, want.wrapped, pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
         sealed.ciphertext[0] = sealed.ciphertext[0].wrapping_add(1);
@@ -498,7 +498,7 @@ where
 
         let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
-            .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
+            .seal_group_key(ctx, &mut eng, want.wrapped, pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
         // We don't know the structure of `v`, so clobber the
@@ -543,7 +543,7 @@ where
 
         let group_id = GroupId::random(&mut eng);
         let sealed = ffi
-            .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
+            .seal_group_key(ctx, &mut eng, want.wrapped, pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
         let wrong_group_id = GroupId::random(&mut eng);

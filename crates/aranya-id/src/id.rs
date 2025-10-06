@@ -208,8 +208,8 @@ impl rkyv::Archive for Id {
     type Archived = Self;
     type Resolver = ();
 
-    fn resolve(&self, _: Self::Resolver, out: rkyv::Place<Self::Archived>) {
-        out.write(*self)
+    fn resolve(&self, (): Self::Resolver, out: rkyv::Place<Self::Archived>) {
+        out.write(*self);
     }
 }
 

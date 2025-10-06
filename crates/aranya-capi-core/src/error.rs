@@ -106,7 +106,7 @@ where
     type Error = <<T as Deref>::Target as ExtendedError>::Error;
 
     fn set<E: Into<Self::Error>>(&mut self, err: Option<E>) {
-        (**self).set(err)
+        (**self).set(err);
     }
 }
 

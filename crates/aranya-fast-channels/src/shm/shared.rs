@@ -13,7 +13,7 @@ use aranya_crypto::{
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     policy::LabelId,
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 
@@ -117,7 +117,7 @@ impl<CS: CipherSuite> State<CS> {
         let ptr = Mapping::open(path.as_ref(), flag, mode, layout.layout)?;
         if flag == Flag::Create {
             SharedMem::init(ptr.as_ptr(), max_chans, &layout);
-        };
+        }
         let state = Self {
             ptr,
             max_chans,
@@ -270,7 +270,7 @@ pub(super) struct Index(pub(super) usize);
 pub(super) struct Offset(usize);
 
 impl From<Offset> for usize {
-    fn from(val: Offset) -> usize {
+    fn from(val: Offset) -> Self {
         val.0
     }
 }
@@ -429,7 +429,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn as_uninit_mut(&mut self) -> &mut MaybeUninit<Self> {
         // SAFETY: `self` and `MaybeUninit<Self>` have the same
         // memory layout.
-        unsafe { &mut *(self as *mut ShmChan<CS>).cast::<MaybeUninit<ShmChan<CS>>>() }
+        unsafe { &mut *ptr::from_mut::<Self>(self).cast::<MaybeUninit<Self>>() }
     }
 
     #[cfg(test)]
@@ -690,7 +690,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         // SAFETY: ptr is non-null, suitably aligned, and won't
         // wrap.
         let list = unsafe {
-            let ptr = (self as *const SharedMem<CS>).byte_add(off.into());
+            let ptr = ptr::from_ref::<Self>(self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
             &*ptr
         };
@@ -781,7 +781,7 @@ impl<CS: CipherSuite> ChanList<CS> {
     /// `max_chans`.
     fn new(max_chans: usize) -> Self {
         Self {
-            magic: ChanList::<CS>::MAGIC,
+            magic: Self::MAGIC,
             data: Mutex::new(ChanListData {
                 generation: AtomicU32::new(0),
                 len: U64::new(0),
