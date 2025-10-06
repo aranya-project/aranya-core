@@ -2,7 +2,6 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]
-#![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 mod id;

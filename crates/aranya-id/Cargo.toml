@@ -29,6 +29,7 @@ proptest = ["dep:proptest"]
 spideroak-base58 = { workspace = true, default-features = false }
 
 proptest = { workspace = true, default-features = false, optional = true }
+rkyv = { workspace = true, default-features = false }
 serde = { workspace = true, default-features = false }
 subtle = { version = "2", default-features = false }
 zerocopy = { workspace = true, default-features = false }

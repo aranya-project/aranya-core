@@ -6,7 +6,17 @@ use serde_derive::{Deserialize, Serialize};
 use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Ident {
     /// The identifier name
     pub name: Identifier,
@@ -102,7 +112,17 @@ impl fmt::Display for Version {
 }
 
 /// Persistence mode for commands and actions
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Persistence {
     /// Persisted on-graph (default behavior)
     Persistent,
@@ -141,7 +161,17 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct VType {
     /// The type kind
     pub kind: TypeKind,
@@ -169,7 +199,28 @@ impl Spanned for VType {
 }
 
 /// The kind of a [`VType`].
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
 pub enum TypeKind {
     /// A character (UTF-8) string
     String,
@@ -186,7 +237,7 @@ pub enum TypeKind {
     /// Named enumeration
     Enum(Ident),
     /// An optional type of some other type
-    Optional(Box<VType>),
+    Optional(#[rkyv(omit_bounds)] Box<VType>),
 }
 
 impl TypeKind {
@@ -226,7 +277,17 @@ spanned! {
 ///
 /// Field definitions are used in Command fields, fact
 /// key/value fields, and action/function arguments.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct FieldDefinition {
     /// the field's name
     pub identifier: Ident,
@@ -757,7 +818,17 @@ pub enum StmtKind {
 }
 
 /// A schema definition for a fact
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,

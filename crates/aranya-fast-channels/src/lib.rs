@@ -96,15 +96,10 @@
 //! };
 //! let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &ch1)?;
 //!
-//! let client_a_channel_id = ChannelId::new(30);
-//!
 //! // Inform device1 about device2.
 //! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?.into_raw_keys();
-//! aranya_client_a.add(
-//!     client_a_channel_id,
-//!     Directed::Bidirectional { seal, open },
-//!     label_id,
-//! );
+//! let client_a_channel_id =
+//!     aranya_client_a.add(Directed::Bidirectional { seal, open }, label_id)?;
 //!
 //! let ch2 = BidiChannel {
 //!     parent_cmd_id: ch1.parent_cmd_id,
@@ -115,15 +110,10 @@
 //!     label_id,
 //! };
 //!
-//! let client_b_channel_id = ChannelId::new(42);
-//!
 //! // Inform device2 about device1.
 //! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?.into_raw_keys();
-//! aranya_client_b.add(
-//!     client_b_channel_id,
-//!     Directed::Bidirectional { seal, open },
-//!     label_id,
-//! );
+//! let client_b_channel_id =
+//!     aranya_client_b.add(Directed::Bidirectional { seal, open }, label_id)?;
 //!
 //! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")

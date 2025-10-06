@@ -9,7 +9,6 @@ use aranya_crypto::{
     policy::LabelId,
     subtle::ConstantTimeEq,
 };
-use byteorder::{ByteOrder, LittleEndian};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
@@ -48,8 +47,17 @@ pub trait AranyaState {
     /// The type of key used to decrypt messages.
     type OpenKey;
 
-    /// Adds or updates a channel.
+    /// Adds a new channel.
     fn add(
+        &self,
+        keys: Directed<Self::SealKey, Self::OpenKey>,
+        label_id: LabelId,
+    ) -> Result<ChannelId, Self::Error>;
+
+    /// Updates a channel.
+    ///
+    /// It is an error if the channel does not exist.
+    fn update(
         &self,
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
@@ -79,42 +87,24 @@ pub trait AranyaState {
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
 }
 
-/// A unique identifier representing a channel.
+/// Uniquely identifies a channel inside the shared state.
+///
+/// This is strictly a local identifier.
+// TODO(eric): Make this 32 bits on 32-bit platforms?
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
-pub struct ChannelId(u32);
+pub struct ChannelId(u64);
 
 impl ChannelId {
     /// Creates a [`ChannelId`].
-    pub const fn new(id: u32) -> Self {
+    #[cfg(any(test, feature = "sdlib", feature = "posix", feature = "memory"))]
+    pub(crate) const fn new(id: u64) -> Self {
         ChannelId(id)
     }
 
-    /// The size in bytes of an ID.
-    pub const SIZE: usize = 4;
-
-    /// Creates a [`ChannelId`] from its little-endian
-    /// representation.
-    pub fn from_bytes(b: &[u8]) -> Self {
-        Self::new(LittleEndian::read_u32(b))
-    }
-
-    /// Converts the [`ChannelId`] to its little-endian
-    /// representation.
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
-        self.put_bytes(&mut b);
-        b
-    }
-
-    /// Converts the [`ChannelId`] to its little-endian
-    /// representation.
-    pub fn put_bytes(&self, dst: &mut [u8]) {
-        LittleEndian::write_u32(dst, self.0);
-    }
-
-    /// Converts the [`ChannelId`] to its u32 representation.
-    pub const fn to_u32(&self) -> u32 {
+    /// Converts the [`ChannelId`] to its `u64` representation.
+    #[cfg(any(feature = "sdlib", feature = "posix"))]
+    pub(crate) const fn to_u64(self) -> u64 {
         self.0
     }
 }
@@ -122,12 +112,6 @@ impl ChannelId {
 impl fmt::Display for ChannelId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl From<u32> for ChannelId {
-    fn from(id: u32) -> Self {
-        Self::new(id)
     }
 }
 
@@ -315,7 +299,6 @@ mod test {
         afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
         policy::LabelId,
     };
-    use buggy::Bug;
     use derive_where::derive_where;
 
     use crate::{
@@ -377,15 +360,24 @@ mod test {
 
         type SealKey = SealKey<CS>;
         type OpenKey = OpenKey<CS>;
-        type Error = Bug;
+        type Error = Error;
 
         fn add(
+            &self,
+            keys: Directed<Self::SealKey, Self::OpenKey>,
+            label_id: LabelId,
+        ) -> Result<ChannelId, Self::Error> {
+            let id = self.state.add(keys, label_id)?;
+            Ok(id)
+        }
+
+        fn update(
             &self,
             id: ChannelId,
             keys: Directed<Self::SealKey, Self::OpenKey>,
             label_id: LabelId,
         ) -> Result<(), Self::Error> {
-            self.state.add(id, keys, label_id)?;
+            self.state.update(id, keys, label_id)?;
             Ok(())
         }
 

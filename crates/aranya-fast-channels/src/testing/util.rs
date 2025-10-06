@@ -1,18 +1,21 @@
 //! Testing utilities.
 
-use core::panic;
 use std::{
     cmp,
-    collections::HashSet,
+    collections::HashMap,
     iter::{self, IntoIterator},
     marker::PhantomData,
     mem,
     num::NonZeroU16,
+    panic,
 };
 
 use aranya_crypto::{
     CipherSuite, EncryptionKey, Engine, IdentityKey,
-    afc::{BidiChannel, BidiKeys, BidiSecrets, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
+    afc::{
+        BidiChannel, BidiChannelId, BidiKeys, BidiSecrets, UniChannel, UniChannelId, UniOpenKey,
+        UniSealKey, UniSecrets,
+    },
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
         csprng::Csprng,
@@ -31,13 +34,14 @@ use aranya_crypto::{
     policy::{CmdId, LabelId},
     test_util::TestCs,
 };
+use derive_where::derive_where;
 
 use crate::{
     ChannelId,
     client::Client,
     header::{DataHeader, Header, MsgType, Version},
     memory,
-    state::{AfcState, AranyaState, Channel, Directed},
+    state::{AfcState, AranyaState, Directed},
 };
 
 #[cfg(feature = "trng")]
@@ -49,15 +53,29 @@ unsafe extern "C" fn OS_hardware_rand() -> u32 {
     HW_RAND.fetch_add(1, core::sync::atomic::Ordering::SeqCst)
 }
 
-impl ChannelId {
-    /// Increments the [`ChannelId`] counter.
-    pub fn increment(&mut self) {
-        *self = ChannelId::new(self.to_u32() + 1);
+/// Index used to look up [devices][Device] in [Aranya::devices]
+pub(crate) type DeviceIdx = usize;
+
+/// Uniquely identifies a channel.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum GlobalChannelId {
+    /// A bidirectional channel.
+    Bidi(BidiChannelId),
+    /// A unidirectional channel.
+    Uni(UniChannelId),
+}
+
+impl From<BidiChannelId> for GlobalChannelId {
+    fn from(id: BidiChannelId) -> Self {
+        Self::Bidi(id)
     }
 }
 
-/// Index used to look up [devices][Device] in [Aranya::devices]
-pub(crate) type DeviceIdx = usize;
+impl From<UniChannelId> for GlobalChannelId {
+    fn from(id: UniChannelId) -> Self {
+        Self::Uni(id)
+    }
+}
 
 /// Configuration for a particular test.
 pub trait TestImpl {
@@ -163,7 +181,7 @@ where
     ident_sk: IdentityKey<CS>,
     enc_sk: EncryptionKey<CS>,
     state: T::Aranya<CS>,
-    chan_labels: HashSet<(ChannelId, LabelId)>,
+    chans: HashMap<GlobalChannelId, (ChannelId, LabelId)>,
 }
 
 impl<T, CS> Device<T, CS>
@@ -176,23 +194,33 @@ where
             ident_sk: IdentityKey::new(rng),
             enc_sk: EncryptionKey::new(rng),
             state,
-            chan_labels: HashSet::new(),
+            chans: HashMap::new(),
         }
     }
 
+    /// Records that the device has a channel with `id`.
     fn add_channel(
         &mut self,
-        channel: TestChan<T, CS>,
-    ) -> Result<(), <T::Aranya<CS> as AranyaState>::Error> {
-        self.chan_labels.insert((channel.id, channel.label_id));
-        self.state.add(channel.id, channel.keys, channel.label_id)
+        chan: TestChan<T, CS>,
+    ) -> Result<ChannelId, <T::Aranya<CS> as AranyaState>::Error> {
+        let local_id = self.state.add(chan.keys, chan.label_id)?;
+        self.chans.insert(chan.id, (local_id, chan.label_id));
+        Ok(local_id)
     }
 
+    /// Returns the [`ChannelId`] for a particular channel.
+    pub fn get_local_channel_id(&self, id: GlobalChannelId) -> Option<ChannelId> {
+        self.chans.get(&id).map(|v| v.0)
+    }
+
+    /// Returns the channels that the two devices have in common.
     pub fn common_channels<'a>(
         &'a self,
         other: &'a Self,
-    ) -> impl Iterator<Item = (ChannelId, LabelId)> {
-        self.chan_labels.intersection(&other.chan_labels).cloned()
+    ) -> impl Iterator<Item = (GlobalChannelId, LabelId)> + 'a {
+        self.chans
+            .iter()
+            .filter_map(|(gid, (_, label))| other.chans.get(gid).map(|_| (*gid, *label)))
     }
 }
 
@@ -235,26 +263,27 @@ where
         }
     }
 
-    /// Create a [`Client`] that has `ChanOp` to a particular
-    /// label.
-    pub fn new_client<I>(
-        &mut self,
-        id: &mut ChannelId,
-        labels: I,
-    ) -> (Client<T::Afc<E::CS>>, DeviceIdx)
+    /// Create a [`Client`] that has [`ChanOp::Any`] for
+    /// a particular label.
+    ///
+    /// This creates a channel between the new client and all
+    /// existing clients. The type of channel (bidi or uni)
+    /// depends on the `ChanOp` of both peers.
+    pub fn new_client<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
         I: IntoIterator<Item = LabelId>,
     {
-        self.new_client_with_type(id, labels.into_iter().zip(iter::repeat(ChanOp::Any)))
+        self.new_client_with_type(labels.into_iter().zip(iter::repeat(ChanOp::Any)))
     }
 
-    /// Create a [`Client`] that has `ChanOp` to a particular
-    /// label.
-    pub fn new_client_with_type<I>(
-        &mut self,
-        id: &mut ChannelId,
-        labels: I,
-    ) -> (Client<T::Afc<E::CS>>, DeviceIdx)
+    /// Create a [`Client`] that has [`ChanOp::Any`] for
+    /// a particular label.
+    ///
+    /// This creates a channel between the new client and all
+    /// existing clients. The type of channel (bidi or uni)
+    /// depends on the `ChanOp` of both peers.
+    // TODO(eric): rename to `new_client_with_ops` or something.
+    pub fn new_client_with_type<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
         I: IntoIterator<Item = (LabelId, ChanOp)>,
     {
@@ -290,10 +319,8 @@ where
                 let (our_side, peer_side) = {
                     let author = (&device, device_type);
                     let peer = (peer, *peer_type);
-                    Self::new_channel(&mut self.eng, *id, author, peer, label)
+                    Self::new_channel(&mut self.eng, author, peer, label)
                 };
-                // Increment the channel ID so each channel ID is unique.
-                id.increment();
 
                 // Register the peer.
                 device.add_channel(our_side).unwrap_or_else(|err| {
@@ -320,7 +347,6 @@ where
 
     fn new_channel(
         eng: &mut E,
-        id: ChannelId,
         author: (&Device<T, E::CS>, ChanOp),
         peer: (&Device<T, E::CS>, ChanOp),
         label: LabelId,
@@ -329,10 +355,10 @@ where
         let (peer, peer_op) = (peer.0, peer.1);
         let (author_op, peer_op) = ChanOp::disambiguate(author_op, peer_op);
         match ChanOp::disambiguate(author_op, peer_op) {
-            (ChanOp::Any, ChanOp::Any) => Self::new_bidi_channel(eng, id, author, peer, label),
-            (ChanOp::SealOnly, _) => Self::new_uni_channel(eng, id, author, peer, label),
+            (ChanOp::Any, ChanOp::Any) => Self::new_bidi_channel(eng, author, peer, label),
+            (ChanOp::SealOnly, _) => Self::new_uni_channel(eng, author, peer, label),
             (ChanOp::OpenOnly, _) => {
-                let (mut seal, mut open) = Self::new_uni_channel(eng, id, peer, author, label);
+                let (mut seal, mut open) = Self::new_uni_channel(eng, peer, author, label);
                 // We've swapped `author` and `peer`, so swap
                 // them back.
                 mem::swap(&mut seal, &mut open);
@@ -342,14 +368,16 @@ where
         }
     }
 
+    /// Creates a bidirectional channel between author and peer.
+    ///
+    /// It returns the channel information for (author, peer).
     fn new_bidi_channel(
         eng: &mut E,
-        id: ChannelId,
         author: &Device<T, E::CS>,
         peer: &Device<T, E::CS>,
         label_id: LabelId,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
-        let (author_keys, peer_keys) = {
+        let (author_keys, peer_keys, id) = {
             let author_cfg = BidiChannel {
                 parent_cmd_id: CmdId::random(eng),
                 our_sk: &author.enc_sk,
@@ -367,13 +395,15 @@ where
                 label_id,
             };
 
-            let BidiSecrets { author, peer } =
+            let secrets =
                 BidiSecrets::new(eng, &author_cfg).expect("should be able to create `BidiSecrets`");
-            let author_keys = BidiKeys::from_author_secret(&author_cfg, author)
+            let id = GlobalChannelId::Bidi(secrets.id());
+
+            let author_keys = BidiKeys::from_author_secret(&author_cfg, secrets.author)
                 .expect("should be able to decrypt author's `BidiKeys`");
-            let peer_keys = BidiKeys::from_peer_encap(&peer_cfg, peer)
+            let peer_keys = BidiKeys::from_peer_encap(&peer_cfg, secrets.peer)
                 .expect("should be able to decrypt peer's `BidiKeys`");
-            (author_keys, peer_keys)
+            (author_keys, peer_keys, id)
         };
 
         let author_ch = {
@@ -395,14 +425,16 @@ where
         (author_ch, peer_ch)
     }
 
+    /// Creates a unidirectional channel between author and peer.
+    ///
+    /// It returns the channel information for (author, peer).
     fn new_uni_channel(
         eng: &mut E,
-        id: ChannelId,
         seal: &Device<T, E::CS>,
         open: &Device<T, E::CS>,
         label_id: LabelId,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
-        let (seal_key, open_key) = {
+        let (seal_key, open_key, id) = {
             let seal_cfg = UniChannel {
                 parent_cmd_id: CmdId::random(eng),
                 our_sk: &seal.enc_sk,
@@ -420,13 +452,15 @@ where
                 label_id,
             };
 
-            let UniSecrets { author, peer } =
+            let secrets =
                 UniSecrets::new(eng, &seal_cfg).expect("should be able to create `UniSecrets`");
-            let seal_key = UniSealKey::from_author_secret(&seal_cfg, author)
+            let id = GlobalChannelId::Uni(secrets.id());
+
+            let seal_key = UniSealKey::from_author_secret(&seal_cfg, secrets.author)
                 .expect("should be able to decrypt author's `UniSealKey`");
-            let open_key = UniOpenKey::from_peer_encap(&open_cfg, peer)
+            let open_key = UniOpenKey::from_peer_encap(&open_cfg, secrets.peer)
                 .expect("should be able to decrypt peer's `UniOpenKey`");
-            (seal_key, open_key)
+            (seal_key, open_key, id)
         };
 
         let seal_ch = Channel {
@@ -444,6 +478,15 @@ where
             label_id,
         };
         (seal_ch, open_ch)
+    }
+
+    /// Gets the local channel ID for a device from a global channel ID
+    pub fn get_local_channel_id(
+        &self,
+        device_id: DeviceIdx,
+        global_id: GlobalChannelId,
+    ) -> Option<ChannelId> {
+        self.devices.get(device_id)?.get_local_channel_id(global_id)
     }
 
     /// Removes a channel for `id`.
@@ -492,6 +535,18 @@ where
         let aranya = self.devices.get(device_id)?;
         Some(aranya.state.exists(id))
     }
+}
+
+/// The cryptographic information for a channel.
+#[derive(Copy, Clone)]
+#[derive_where(Debug)]
+pub(crate) struct Channel<S, O> {
+    /// Uniquely identifies the channel.
+    pub id: GlobalChannelId,
+    /// The channel's encryption keys.
+    pub keys: Directed<S, O>,
+    /// Uniquely identifies the label.
+    pub label_id: LabelId,
 }
 
 type TestChan<T, CS> = Channel<

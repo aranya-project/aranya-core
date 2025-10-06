@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.13.0...aranya-runtime-v0.14.0) - 2025-09-18
+
+### Other
+
+- check persistence when calling actions ([#380](https://github.com/aranya-project/aranya-core/pull/380))
+
 ## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.12.0...aranya-runtime-v0.13.0) - 2025-09-17
 
 ### Other

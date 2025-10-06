@@ -16,7 +16,7 @@ use core::{
 };
 
 use aranya_crypto::{
-    CipherSuite, Csprng, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
     IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
@@ -249,22 +249,24 @@ impl<T: TestImpl> Device<T> {
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
-    fn test_roundtrip(sealer: &mut Self, opener: &mut Self, channel_id: ChannelId) {
+    fn test_roundtrip(sealer: (&mut Self, ChannelId), opener: (&mut Self, ChannelId)) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
+            let (sealer, chan_id) = sealer;
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
             sealer
                 .afc_client
-                .seal(channel_id, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({channel_id}, ...): {err}"));
+                .seal(chan_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({chan_id}, ...): {err}"));
             dst
         };
         let (plaintext, got_seq) = {
+            let (opener, chan_id) = opener;
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
             let (_, seq) = opener
                 .afc_client
-                .open(channel_id, &mut dst[..], &ciphertext[..])
-                .unwrap_or_else(|err| panic!("open({channel_id}, ...): {err}"));
+                .open(chan_id, &mut dst[..], &ciphertext[..])
+                .unwrap_or_else(|err| panic!("open({chan_id}, ...): {err}"));
             (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
@@ -360,11 +362,6 @@ where
     let mut author = T::new();
     let mut peer = T::new();
 
-    let channel_id = {
-        let mut buf = [0; 4];
-        Rng.fill_bytes(&mut buf);
-        ChannelId::new(u32::from_le_bytes(buf))
-    };
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
@@ -389,7 +386,7 @@ where
 
     // This is called by the author of the channel after
     // receiving the effect.
-    {
+    let author_chan_id = {
         let keys = author
             .handler
             .bidi_channel_created(
@@ -408,13 +405,13 @@ where
 
         author
             .afc_state
-            .add(channel_id, keys.into(), label_id)
-            .expect("author should be able to add channel");
-    }
+            .add(keys.into(), label_id)
+            .expect("author should be able to add channel")
+    };
 
     // This is called by the channel peer after receiving the
     // effect.
-    {
+    let peer_chan_id = {
         let keys = peer
             .handler
             .bidi_channel_received(
@@ -432,12 +429,12 @@ where
             .expect("peer should be able to load bidi keys");
 
         peer.afc_state
-            .add(channel_id, keys.into(), label_id)
-            .expect("peer should be able to add channel");
-    }
+            .add(keys.into(), label_id)
+            .expect("peer should be able to add channel")
+    };
 
-    Device::test_roundtrip(&mut author, &mut peer, channel_id);
-    Device::test_roundtrip(&mut peer, &mut author, channel_id);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    Device::test_roundtrip((&mut peer, peer_chan_id), (&mut author, author_chan_id));
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -464,11 +461,6 @@ where
     let mut author = T::new();
     let mut peer = T::new();
 
-    let channel_id = {
-        let mut buf = [0; 4];
-        Rng.fill_bytes(&mut buf);
-        ChannelId::new(u32::from_le_bytes(buf))
-    };
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
@@ -493,7 +485,7 @@ where
 
     // This is called by the author of the channel after
     // receiving the effect.
-    {
+    let author_chan_id = {
         let keys = author
             .handler
             .uni_channel_created(
@@ -514,13 +506,13 @@ where
 
         author
             .afc_state
-            .add(channel_id, keys.into(), label_id)
-            .expect("author should be able to add channel");
-    }
+            .add(keys.into(), label_id)
+            .expect("author should be able to add channel")
+    };
 
     // This is called by the channel peer after receiving the
     // effect.
-    {
+    let peer_chan_id = {
         let keys = peer
             .handler
             .uni_channel_received(
@@ -540,12 +532,12 @@ where
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
         peer.afc_state
-            .add(channel_id, keys.into(), label_id)
-            .expect("peer should be able to add channel");
-    }
+            .add(keys.into(), label_id)
+            .expect("peer should be able to add channel")
+    };
 
-    Device::test_roundtrip(&mut author, &mut peer, channel_id);
-    Device::test_wrong_direction(&mut peer, channel_id);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    Device::test_wrong_direction(&mut peer, peer_chan_id);
 }
 
 /// A basic positive test for creating a unidirectional channel
@@ -572,11 +564,6 @@ where
     let mut author = T::new(); // open only
     let mut peer = T::new(); // seal only
 
-    let channel_id = {
-        let mut buf = [0; 4];
-        Rng.fill_bytes(&mut buf);
-        ChannelId::new(u32::from_le_bytes(buf))
-    };
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
@@ -601,7 +588,7 @@ where
 
     // This is called by the author of the channel after
     // receiving the effect.
-    {
+    let author_chan_id = {
         let keys = author
             .handler
             .uni_channel_created(
@@ -622,13 +609,13 @@ where
 
         author
             .afc_state
-            .add(channel_id, keys.into(), label_id)
-            .expect("author should be able to add channel");
-    }
+            .add(keys.into(), label_id)
+            .expect("author should be able to add channel")
+    };
 
     // This is called by the channel peer after receiving the
     // effect.
-    {
+    let peer_chan_id = {
         let keys = peer
             .handler
             .uni_channel_received(
@@ -648,10 +635,10 @@ where
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
         peer.afc_state
-            .add(channel_id, keys.into(), label_id)
-            .expect("peer should be able to add channel");
-    }
+            .add(keys.into(), label_id)
+            .expect("peer should be able to add channel")
+    };
 
-    Device::test_roundtrip(&mut peer, &mut author, channel_id);
-    Device::test_wrong_direction(&mut author, channel_id);
+    Device::test_roundtrip((&mut peer, peer_chan_id), (&mut author, author_chan_id));
+    Device::test_wrong_direction(&mut author, author_chan_id);
 }
