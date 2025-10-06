@@ -18,6 +18,7 @@ aranya-crypto = { version = "0.10.0", path = "../aranya-crypto", default-feature
 aranya-libc = { version = "0.3.2", path = "../aranya-libc", default-features = false, optional = true }
 aranya-policy-vm = { version = "0.13.0", path = "../aranya-policy-vm" }
 
+spideroak-base58 = { workspace = true }
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }

@@ -14,6 +14,7 @@ use aranya_crypto::{
         rust::HkdfSha256,
     },
     default::DefaultCipherSuite,
+    id::IdExt as _,
     policy::LabelId,
     test_util::TestCs,
     typenum::U16,

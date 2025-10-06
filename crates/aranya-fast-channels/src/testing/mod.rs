@@ -20,6 +20,7 @@ use std::collections::HashMap;
 
 use aranya_crypto::{
     Aead, CipherSuite, Engine, Rng,
+    id::IdExt as _,
     policy::LabelId,
     typenum::{U1, Unsigned},
 };
