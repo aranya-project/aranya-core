@@ -1,8 +1,4 @@
-use aranya_capi_core::{
-    InvalidArg,
-    prelude::*,
-    safe::{TypeId, Typed},
-};
+use aranya_capi_core::{InvalidArg, prelude::*};
 
 pub fn test_unit_unit0() {}
 #[allow(clippy::unused_unit)]
@@ -114,10 +110,6 @@ pub fn test_enum_result_enum_error(a: Enum) -> Result<Enum, crate::Error> {
 pub struct Struct {
     pub a: u32,
     // pub b: Enum,
-}
-
-impl Typed for Struct {
-    const TYPE_ID: TypeId = TypeId::new(1234);
 }
 
 pub fn test_struct_unit(_a: Struct) {}

@@ -4,7 +4,7 @@ extern crate aranya_capi_core as __capi;
 use __capi::Builder;
 use __capi::internal::tracing;
 mod __imports {
-    pub(super) use aranya_capi_core::{InvalidArg, prelude::*, safe::{TypeId, Typed}};
+    pub(super) use aranya_capi_core::{InvalidArg, prelude::*};
 }
 #[derive(::core::marker::Copy)]
 #[derive(::core::clone::Clone)]

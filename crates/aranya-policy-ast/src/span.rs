@@ -7,7 +7,18 @@ use core::{
 use serde_derive::{Deserialize, Serialize};
 
 /// A range in the source text.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Span {
     // [start, end)
     start: usize,

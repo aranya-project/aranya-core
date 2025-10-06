@@ -1,7 +1,7 @@
 pub use core::str::Utf8Error;
 use core::{mem::MaybeUninit, ptr, slice, str};
 
-use crate::safe::{TypeId, Typed, Valid};
+use crate::safe::Valid;
 
 // TODO
 // unsafe impl AllowedAsConstPtr for Utf8Str {}
@@ -121,8 +121,4 @@ impl Default for Utf8Str {
         // SAFETY: The lifetime is `'static`.
         unsafe { Self::new("") }
     }
-}
-
-impl Typed for Utf8Str {
-    const TYPE_ID: TypeId = TypeId::new(0xfcf564a);
 }
