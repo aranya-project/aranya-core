@@ -212,16 +212,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::safe::TypeId;
 
     #[test]
     fn test_assertions() {
         #[derive(Copy, Clone)]
         #[allow(dead_code)] // used in constant assertions
         struct Dummy;
-        impl Typed for Dummy {
-            const TYPE_ID: TypeId = TypeId::new(0);
-        }
         unsafe impl Input for Dummy {}
         unsafe impl ByConstPtr for Dummy {}
         unsafe impl ByMutPtr for Dummy {}

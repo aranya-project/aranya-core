@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{Command, CommandId, Priority},
+    command::{CmdId, Command, Priority},
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
 
@@ -14,7 +14,7 @@ mod dispatcher;
 mod requester;
 mod responder;
 
-pub use dispatcher::{SubscribeResult, SyncType};
+pub use dispatcher::{SubscribeResult, SyncHelloType, SyncType};
 pub use requester::{SyncRequestMessage, SyncRequester};
 pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
 
@@ -44,7 +44,7 @@ pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RES
 /// Represents high-level data of a command.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommandMeta {
-    id: CommandId,
+    id: CmdId,
     priority: Priority,
     parent: Prior<Address>,
     policy_length: u32,
@@ -86,7 +86,7 @@ pub enum SyncError {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
     priority: Priority,
-    id: CommandId,
+    id: CmdId,
     parent: Prior<Address>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
@@ -98,7 +98,7 @@ impl<'a> Command for SyncCommand<'a> {
         self.priority.clone()
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         self.id
     }
 

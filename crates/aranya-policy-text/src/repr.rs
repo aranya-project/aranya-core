@@ -1,11 +1,15 @@
 //! String representation adapted from `compact_str`.
 
 use core::{
-    mem::{transmute, MaybeUninit},
+    mem::{MaybeUninit, transmute},
     ptr,
 };
 
 use cfg_if::cfg_if;
+use rkyv::{
+    rancor::{Fallible, Source},
+    string::{ArchivedString, StringResolver},
+};
 
 /// Smart string representation.
 ///
@@ -242,6 +246,49 @@ impl serde::Serialize for Repr {
         S: serde::Serializer,
     {
         self.as_str().serialize(serializer)
+    }
+}
+
+#[derive(
+    Debug, PartialEq, Eq, Hash, PartialOrd, Ord, rkyv::Portable, rkyv::bytecheck::CheckBytes,
+)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(transparent)]
+pub struct ArchivedRepr(ArchivedString);
+
+impl rkyv::Archive for Repr {
+    type Archived = ArchivedRepr;
+    type Resolver = StringResolver;
+
+    fn resolve(&self, resolver: Self::Resolver, out: rkyv::Place<Self::Archived>) {
+        // SAFETY: `ArchivedRepr` has the same layout as `ArchivedString`.
+        let out = unsafe { out.cast_unchecked::<ArchivedString>() };
+        ArchivedString::resolve_from_str(self.as_str(), resolver, out)
+    }
+}
+
+impl<S> rkyv::Serialize<S> for Repr
+where
+    S: Fallible<Error: Source> + ?Sized,
+    str: rkyv::SerializeUnsized<S>,
+{
+    fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
+        ArchivedString::serialize_from_str(self.as_str(), serializer)
+    }
+}
+
+impl<D> rkyv::Deserialize<Repr, D> for ArchivedRepr
+where
+    D: Fallible + ?Sized,
+{
+    fn deserialize(&self, _deserializer: &mut D) -> Result<Repr, <D as Fallible>::Error> {
+        Ok(Repr::from_str(self.0.as_str()))
+    }
+}
+
+impl ArchivedRepr {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 

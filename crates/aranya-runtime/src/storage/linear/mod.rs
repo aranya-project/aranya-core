@@ -35,9 +35,9 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Address, Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys,
-    Location, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    Storage, StorageError, StorageProvider,
+    Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
+    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -87,7 +87,7 @@ struct SegmentRepr {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CommandData {
-    id: CommandId,
+    id: CmdId,
     priority: Priority,
     policy: Option<Bytes>,
     data: Bytes,
@@ -95,7 +95,7 @@ struct CommandData {
 }
 
 pub struct LinearCommand<'a> {
-    id: &'a CommandId,
+    id: &'a CmdId,
     parent: Prior<Address>,
     priority: Priority,
     policy: Option<&'a [u8]>,
@@ -397,18 +397,7 @@ impl<F: Write> Storage for LinearStorage<F> {
     type Segment = LinearSegment<F::ReadOnly>;
     type FactIndex = LinearFactIndex<F::ReadOnly>;
 
-    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError> {
-        let seg = self.get_segment(location)?;
-        let cmd = seg
-            .get_command(location)
-            .ok_or(StorageError::CommandOutOfBounds(location))?;
-        Ok(cmd.id())
-    }
-
-    fn get_linear_perspective(
-        &self,
-        parent: Location,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    fn get_linear_perspective(&self, parent: Location) -> Result<Self::Perspective, StorageError> {
         let segment = self.get_segment(parent)?;
         let command = segment
             .get_command(parent)
@@ -454,7 +443,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             None,
         );
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_fact_perspective(
@@ -502,7 +491,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: Self::FactIndex,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    ) -> Result<Self::Perspective, StorageError> {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
         let left_segment = self.get_segment(left)?;
@@ -538,7 +527,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             Some(last_common_ancestor),
         );
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
@@ -797,23 +786,16 @@ impl<R: Read> Segment for LinearSegment<R> {
             .collect()
     }
 
-    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError> {
-        if max_cut >= self.repr.max_cut
-            && max_cut
-                <= self
-                    .repr
-                    .max_cut
-                    .checked_add(self.repr.commands.len())
-                    .assume("must not overflow")?
-        {
-            return Ok(Some(Location::new(
-                self.repr.offset,
-                max_cut
-                    .checked_sub(self.repr.max_cut)
-                    .assume("must not overflow")?,
-            )));
+    fn get_by_address(&self, address: Address) -> Option<Location> {
+        if address.max_cut < self.repr.max_cut {
+            return None;
         }
-        Ok(None)
+        let idx = address.max_cut.checked_sub(self.repr.max_cut)?;
+        let cmd = self.repr.commands.get(idx)?;
+        if cmd.id != address.id {
+            return None;
+        }
+        Some(Location::new(self.repr.offset, idx))
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
@@ -1102,7 +1084,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         Ok(self.commands.len())
     }
 
-    fn includes(&self, id: CommandId) -> bool {
+    fn includes(&self, id: CmdId) -> bool {
         self.commands.iter().any(|cmd| cmd.id == id)
     }
 
@@ -1123,7 +1105,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
     }
 }
 
-impl From<Prior<Address>> for Prior<CommandId> {
+impl From<Prior<Address>> for Prior<CmdId> {
     fn from(p: Prior<Address>) -> Self {
         match p {
             Prior::None => Prior::None,
@@ -1138,7 +1120,7 @@ impl Command for LinearCommand<'_> {
         self.priority.clone()
     }
 
-    fn id(&self) -> CommandId {
+    fn id(&self) -> CmdId {
         *self.id
     }
 

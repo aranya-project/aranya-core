@@ -4,6 +4,7 @@
 use aranya_crypto::{
     DeviceId, Id,
     default::{DefaultEngine, Rng},
+    policy::CmdId,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext, ident,
@@ -15,7 +16,7 @@ use crate::FfiPerspective;
 fn test_head_id() {
     let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
     let perspective = FfiPerspective {};
-    let head_id = Id::default();
+    let head_id = CmdId::default();
 
     {
         let context = CommandContext::Action(ActionContext {
@@ -51,7 +52,7 @@ fn test_head_id() {
     {
         let context = CommandContext::Policy(PolicyContext {
             name: ident!("policy"),
-            id: Id::default(),
+            id: CmdId::default(),
             author: DeviceId::default(),
             version: Id::default(),
         });
@@ -69,7 +70,7 @@ fn test_head_id() {
     {
         let context = CommandContext::Recall(PolicyContext {
             name: ident!("recall"),
-            id: Id::default(),
+            id: CmdId::default(),
             author: DeviceId::default(),
             version: Id::default(),
         });

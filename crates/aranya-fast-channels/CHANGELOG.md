@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.12.0...aranya-fast-channels-v0.13.0) - 2025-09-18
+
+### Other
+
+- generate `ChannelId`s internally ([#410](https://github.com/aranya-project/aranya-core/pull/410))
+
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.11.0...aranya-fast-channels-v0.12.0) - 2025-09-17
+
+### Other
+
+- update crate docs ([#408](https://github.com/aranya-project/aranya-core/pull/408))
+- use label id in ffis and shm ([#383](https://github.com/aranya-project/aranya-core/pull/383))
+- add serde impls to shm path ([#406](https://github.com/aranya-project/aranya-core/pull/406))
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.10.0...aranya-fast-channels-v0.11.0) - 2025-08-19
+
+### Other
+
+- Format code in doc comments ([#341](https://github.com/aranya-project/aranya-core/pull/341))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.9.0...aranya-fast-channels-v0.10.0) - 2025-06-18
 
 ### Other

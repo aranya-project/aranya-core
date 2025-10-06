@@ -66,10 +66,13 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CommandId, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command, EngineError, GraphId,
+    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
     StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    testing::{
+        protocol::{TestActions, TestEffect, TestEngine, TestSink},
+        short_b58,
+    },
 };
 
 fn default_repeat() -> u64 {
@@ -113,6 +116,7 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
             storage_id: _,
             address: _,
         } => unimplemented!(),
+        SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
 }
@@ -787,9 +791,9 @@ impl Display for Parent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             Prior::Merge(a, b) => {
-                write!(f, "Merge({}, {})", &a.id.short_b58(), &b.id.short_b58())
+                write!(f, "Merge({}, {})", short_b58(a.id), short_b58(b.id))
             }
-            Prior::Single(a) => write!(f, "Single({})", &a.id.short_b58()),
+            Prior::Single(a) => write!(f, "Single({})", short_b58(a.id)),
             Prior::None => write!(f, "None"),
         }
     }
@@ -811,7 +815,7 @@ where
         for command in commands.iter().rev() {
             debug!(
                 "id: {} location {:?} max_cut: {} parent: {}",
-                &command.id().short_b58(),
+                short_b58(command.id()),
                 storage
                     .get_location(command.address()?)?
                     .assume("location must exist"),
@@ -825,7 +829,7 @@ where
 }
 
 /// Walk the graph and yield all visited IDs.
-fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
+fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
     let mut visited = BTreeSet::new();
     let mut stack = vec![storage.get_head().unwrap()];
     let mut segment = None;
@@ -856,7 +860,7 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
 fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
     for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
         if a != b {
-            error!(a = %a.short_b58(), b = %b.short_b58(), "graph mismatch");
+            error!(a = %short_b58(a), b = %short_b58(b), "graph mismatch");
             return false;
         }
     }

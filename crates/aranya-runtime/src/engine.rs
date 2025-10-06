@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address,
-    command::{Command, CommandId},
+    command::{CmdId, Command},
     storage::{FactPerspective, Perspective},
 };
 
@@ -104,8 +104,8 @@ impl MergeIds {
     }
 }
 
-impl From<MergeIds> for (CommandId, CommandId) {
-    /// Convert [`MergeIds`] into an ordered pair of [`CommandId`]s.
+impl From<MergeIds> for (CmdId, CmdId) {
+    /// Convert [`MergeIds`] into an ordered pair of [`CmdId`]s.
     fn from(value: MergeIds) -> Self {
         (value.left.id, value.right.id)
     }
@@ -116,14 +116,6 @@ impl From<MergeIds> for (Address, Address) {
     fn from(value: MergeIds) -> Self {
         (value.left, value.right)
     }
-}
-
-/// Whether to execute a command's recall block on command failure
-pub enum CommandRecall {
-    /// Don't recall command
-    None,
-    /// Recall if the command fails with a [`aranya_policy_vm::ExitReason::Check`]
-    OnCheck,
 }
 
 /// [`Policy`] evaluates actions and [`Command`]s on the graph, emitting effects
@@ -145,7 +137,7 @@ pub trait Policy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-        recall: CommandRecall,
+        placement: CommandPlacement,
     ) -> Result<(), EngineError>;
 
     /// Process an action checking each published command against the policy and emitting
@@ -156,6 +148,7 @@ pub trait Policy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        placement: ActionPlacement,
     ) -> Result<(), EngineError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -165,4 +158,24 @@ pub trait Policy {
         target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, EngineError>;
+}
+
+/// Describes the placement when calling an action.
+#[derive(Copy, Clone, Debug)]
+pub enum ActionPlacement {
+    /// The action is being called on-graph and will be persisted.
+    OnGraph,
+    /// The action is being called off-graph in an ephemeral session.
+    OffGraph,
+}
+
+#[derive(Copy, Clone, Debug)]
+/// Describes the placement when evaluating a command.
+pub enum CommandPlacement {
+    /// The command is being evaluated in its original location in the graph.
+    OnGraphAtOrigin,
+    /// The command is being evaluated during a braid of the graph.
+    OnGraphInBraid,
+    /// The command is being evaluated off-graph in an ephemeral session.
+    OffGraph,
 }

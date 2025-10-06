@@ -8,7 +8,7 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    id::{Id, custom_id},
+    id::custom_id,
 };
 
 custom_id! {
@@ -25,6 +25,7 @@ custom_id! {
 
 custom_id! {
     /// The ID of a policy command.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct CmdId;
 }
 
@@ -68,7 +69,7 @@ pub struct Cmd<'a> {
     /// E.g., `AddDevice`.
     pub name: &'a str,
     /// The parent command in the graph.
-    pub parent_id: &'a Id,
+    pub parent_id: &'a CmdId,
 }
 
 impl Cmd<'_> {
@@ -130,10 +131,7 @@ pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) 
 }
 
 custom_id! {
-    /// Uniquely identifies an AQC label.
-    ///
-    /// A label associates an AQC channel with Aranya policy
-    /// rules that govern communication in the channel.
+    /// Uniquely identifies a label.
     #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct LabelId;
 }
@@ -162,7 +160,7 @@ mod tests {
     use spideroak_crypto::{ed25519::Ed25519, rust};
 
     use super::*;
-    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{Id, default::DhKemP256HkdfSha256, test_util::TestCs};
 
     type CS = TestCs<
         rust::Aes256Gcm,

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.6.0...aranya-policy-ifgen-build-v0.7.0) - 2025-09-17
+
+### Other
+
+- add `NamedMap` and def types for action and command ([#387](https://github.com/aranya-project/aranya-core/pull/387))
+- add location info to all AST items ([#366](https://github.com/aranya-project/aranya-core/pull/366))
+
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.5.0...aranya-policy-ifgen-build-v0.6.0) - 2025-08-19
+
+### Other
+
+- stub ffi for compilation ([#330](https://github.com/aranya-project/aranya-core/pull/330))
+- use compile target to handle struct composition ([#235](https://github.com/aranya-project/aranya-core/pull/235))
+- Close #186: Implement struct field insertion. ([#192](https://github.com/aranya-project/aranya-core/pull/192))
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.4.3...aranya-policy-ifgen-build-v0.5.0) - 2025-06-18
 
 ### Other

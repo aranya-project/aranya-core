@@ -19,18 +19,20 @@ pub mod util;
 use std::collections::HashMap;
 
 use aranya_crypto::{
-    Aead, Engine, Rng,
+    Aead, CipherSuite, Engine, Rng,
+    policy::LabelId,
     typenum::{U1, Unsigned},
 };
 
 use crate::{
-    AfcState,
+    AfcState, ChannelId,
     buf::FixedBuf,
     client::Client,
     error::Error,
     header::DataHeader,
-    state::{ChannelId, Label, NodeId},
-    testing::util::{Aranya, ChanOp, DataHeaderBuilder, LimitedAead, TestEngine, TestImpl},
+    testing::util::{
+        Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, LimitedAead, TestEngine, TestImpl,
+    },
 };
 
 /// Performs all of the tests in the [`testing`][crate::testing]
@@ -105,7 +107,6 @@ macro_rules! __test_impl {
             // Negative tests.
 			test!(test_open_truncated_tag);
 			test!(test_open_modified_tag);
-			test!(test_open_different_label);
 			test!(test_open_different_seq);
 			test!(test_seal_unknown_channel_label);
 		}
@@ -122,63 +123,77 @@ const fn overhead<S: AfcState>(_: &Client<S>) -> usize {
 /// Basic positive test for [`Client::seal`] and
 /// [`Client::open`].
 pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_seal_open_basic", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_seal_open_basic", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
 
-    for label in labels {
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+
+    for (global_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
-            let ch2 = ChannelId::new(id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-            let (label, seq) = c2
-                .open(id1, &mut dst[..], &ciphertext[..])
+            let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id2} should have channel for global_id {global_id:?}")
+            });
+            let (_, seq) = c2
+                .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label}");
-        assert_eq!(got_label, label, "{label}");
-        assert_eq!(got_seq, 0, "{label}");
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id}");
+        assert_eq!(got_seq, 0, "{label_id}");
     }
 }
 
 /// Basic positive test for [`Client::seal_in_place`] and
 /// [`Client::open_in_place`].
 pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_seal_open_in_place_basic", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_seal_open_in_place_basic", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
 
-    for label in labels {
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+
+    for (global_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
-            let ch2 = ChannelId::new(id2, label);
             let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
             data.extend_from_slice(GOLDEN.as_bytes());
-            c1.seal_in_place(ch2, &mut data)
-                .unwrap_or_else(|err| panic!("seal_in_place({ch2}, ...): {err}"));
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            c1.seal_in_place(d1_channel_id, &mut data)
+                .unwrap_or_else(|err| panic!("seal_in_place({id2}, ...): {err}"));
             data
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut data = ciphertext.clone();
-            let (label, seq) = c2
-                .open_in_place(id1, &mut data)
+            let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id2} should have channel for global_id {global_id:?}")
+            });
+            let (_, seq) = c2
+                .open_in_place(d2_channel_id, &mut data)
                 .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-            (data, label, seq)
+            (data, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label}");
-        assert_eq!(got_label, label, "{label}");
-        assert_eq!(got_seq, 0, "{label}");
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id}");
+        assert_eq!(got_seq, 0, "{label_id}");
     }
 }
 
@@ -197,29 +212,40 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     eprintln!("# testing with {max_nodes} nodes");
 
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_multi_client", max_nodes * labels.len(), eng);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_multi_client", max_nodes * label_ids.len(), eng);
 
-    let mut ids = Vec::new();
-    let mut clients = HashMap::new();
+    let mut device_idxs = Vec::new();
+    let mut clients = Vec::new();
     for _ in 0..max_nodes {
-        let (c, id) = d.new_client(labels);
-        ids.push(id);
-        clients.insert(id, c);
+        let (c, device_idx) = d.new_client(label_ids);
+        device_idxs.push(device_idx);
+        clients.insert(device_idx, c);
     }
 
     const GOLDEN: &str = "hello, world!";
 
-    fn test<S: AfcState>(
-        clients: &mut HashMap<NodeId, Client<S>>,
-        send: NodeId,
-        recv: NodeId,
-        label: Label,
-        seqs: &mut HashMap<(NodeId, NodeId, Label), u64>,
+    fn test<T: TestImpl, S: AfcState, CS: CipherSuite>(
+        clients: &mut [Client<S>],
+        devices: &[Device<T, CS>],
+        send: DeviceIdx,
+        recv: DeviceIdx,
+        label_id: LabelId,
+        seqs: &mut HashMap<(DeviceIdx, DeviceIdx, LabelId), u64>,
     ) {
+        let (global_id, label_id) = {
+            let send_device = devices.get(send).expect("device to exist");
+            let recv_device = devices.get(recv).expect("device to exist");
+
+            send_device
+                .common_channels(recv_device)
+                .find(|(_, lab)| *lab == label_id)
+                .expect("channel to exist")
+        };
+
         let want_seq = *seqs
-            .entry((send, recv, label))
+            .entry((send, recv, label_id))
             .and_modify(|seq| {
                 *seq += 1;
             })
@@ -227,39 +253,53 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
         let ciphertext = {
             let u0 = clients
-                .get_mut(&send)
+                .get_mut(send)
                 .unwrap_or_else(|| panic!("unable to find send client {send}"));
-            let ch = ChannelId::new(recv, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(u0)];
-            u0.seal(ch, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("{label}: seal({ch}, ...): {err}"));
+            let send_channel_id = devices
+                .get(send)
+                .expect("device to exist")
+                .get_local_channel_id(global_id)
+                .unwrap_or_else(|| {
+                    panic!("send device should have channel for global_id {global_id:?}")
+                });
+            u0.seal(send_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("{label_id}: seal({recv}, ...): {err}"));
             dst
         };
 
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let u1 = clients
-                .get(&recv)
+                .get(recv)
                 .unwrap_or_else(|| panic!("unable to find recv client: {recv}"));
             let mut dst = vec![0u8; ciphertext.len() - overhead(u1)];
-            let (label, seq) = u1
-                .open(send, &mut dst[..], &ciphertext[..])
-                .unwrap_or_else(|err| panic!("{label}: open({send}, ...): {err}"));
-            (dst, label, seq)
+            let recv_channel_id = devices
+                .get(recv)
+                .expect("device to exist")
+                .get_local_channel_id(global_id)
+                .unwrap_or_else(|| {
+                    panic!("recv device should have channel for global_id {global_id:?}")
+                });
+            let (_, seq) = u1
+                .open(recv_channel_id, &mut dst[..], &ciphertext[..])
+                .unwrap_or_else(|err| panic!("{label_id}: open({send}, ...): {err}"));
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{send},{recv}");
-        assert_eq!(got_label, label, "{send},{recv}");
         assert_eq!(got_seq, want_seq, "{send},{recv}");
     }
 
     let mut seqs = HashMap::new();
-    for label in labels {
-        for a in &ids {
-            for b in &ids {
+
+    for label_id in label_ids {
+        for a in &device_idxs {
+            for b in &device_idxs {
                 if a == b {
                     continue;
                 }
-                test(&mut clients, *a, *b, label, &mut seqs);
-                test(&mut clients, *b, *a, label, &mut seqs);
+
+                test(&mut clients, &d.devices, *a, *b, label_id, &mut seqs);
+                test(&mut clients, &d.devices, *b, *a, label_id, &mut seqs);
             }
         }
     }
@@ -267,83 +307,99 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
 /// Basic positive test for removing a channel.
 pub fn test_remove<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_remove", 2 * labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-    let (c3, id3) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_remove", 2 * label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+    let (c3, id3) = d.new_client(label_ids);
 
-    for label in labels {
-        const GOLDEN: &str = "hello, world!";
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
-            let ch = ChannelId::new(id, label);
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
+
+    const GOLDEN: &str = "hello, world!";
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (global_id, _label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
+            let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-                let (label, seq) = c
-                    .open_in_place(id1, &mut data)
+                let (_, seq) = c
+                    .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label, seq)
+                (data, seq)
             };
             assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-            assert_eq!(got_label, label);
             assert_eq!(got_seq, 0);
 
             // Now that we know it works, delete the channel and try
             // again. It should fail.
-            d.remove(id1, ch)
-                .unwrap_or_else(|| panic!("remove({id1}, {ch}): not found"))
-                .unwrap_or_else(|err| panic!("remove({ch}): {err}"));
+            d.remove(d1_channel_id, id1)
+                .unwrap_or_else(|| panic!("remove({d1_channel_id}, {id}): not found"))
+                .unwrap_or_else(|err| panic!("remove({id}): {err}"));
 
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .err()
-                    .unwrap_or_else(|| panic!("seal_in_place({ch}) should panic"))
+                    .unwrap_or_else(|| panic!("seal_in_place({id}) should panic"))
             };
-            assert_eq!(err, Error::NotFound(ch));
+            assert_eq!(err, Error::NotFound(d1_channel_id));
         }
     }
 }
 
 /// Basic positive test for removing all channels.
 pub fn test_remove_all<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_remove_all", 2 * labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-    let (c3, id3) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_remove_all", 2 * label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+    let (c3, id3) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for label in labels {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (global_id, label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
+            let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch = ChannelId::new(id, label);
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-                let (label, seq) = c
-                    .open_in_place(id1, &mut data)
+                let (_, seq) = c
+                    .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label, seq)
+                (data, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
-            assert_eq!(got_label, label, "{label},{id}");
-            assert_eq!(got_seq, 0, "{label},{id}");
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id},{id}");
+            assert_eq!(got_seq, 0);
         }
     }
 
@@ -353,78 +409,96 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
         .unwrap_or_else(|| panic!("remove_all({id1}): not found"))
         .unwrap_or_else(|err| panic!("remove_all({id1}): {err}"));
 
-    for label in labels {
-        for id in [id2, id3] {
-            let ch = ChannelId::new(id, label);
+    for device in [d2, d3] {
+        for (global_id, label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .err()
-                    .unwrap_or_else(|| panic!("seal_in_place({ch}) should panic"))
+                    .unwrap_or_else(|| {
+                        panic!("seal_in_place({d1_channel_id} {label_id} should panic")
+                    })
             };
-            assert_eq!(err, Error::NotFound(ch));
+            assert_eq!(err, Error::NotFound(d1_channel_id));
         }
     }
 }
 
 /// Basic positive test for removing channels matching condition.
 pub fn test_remove_if<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_remove_if", 2 * labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-    let (c3, id3) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_remove_if", 2 * label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+    let (c3, id3) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for label in labels {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (global_id, label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
+            let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch = ChannelId::new(id, label);
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-                let (label, seq) = c
-                    .open_in_place(id1, &mut data)
+                let (_, seq) = c
+                    .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label, seq)
+                (data, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
-            assert_eq!(got_label, label, "{label},{id}");
-            assert_eq!(got_seq, 0, "{label},{id}");
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id},{id}");
+            assert_eq!(got_seq, 0, "{label_id},{id}");
         }
     }
 
-    for label in labels {
-        for id in [id2, id3] {
-            let ch = ChannelId::new(id, label);
+    for (id, device) in [(id2, d2), (id3, d3)] {
+        for (global_id, _label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
             // Now that we know it works, delete the channel and try
             // again. It should fail.
-            d.remove_if(id1, |v| v == ch)
-                .unwrap_or_else(|| panic!("remove_if({id1}, {ch}): not found"))
-                .unwrap_or_else(|err| panic!("remove_if({ch}): {err}"));
+            d.remove_if(id1, |v| v == d1_channel_id)
+                .unwrap_or_else(|| panic!("remove_if({id1}, {id}): not found"))
+                .unwrap_or_else(|err| panic!("remove_if({id}): {err}"));
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .err()
-                    .unwrap_or_else(|| panic!("seal_in_place({ch}) should panic"))
+                    .unwrap_or_else(|| panic!("seal_in_place({id}) should panic"))
             };
-            assert_eq!(err, Error::NotFound(ch));
+            assert_eq!(err, Error::NotFound(d1_channel_id));
 
             // Test that other channel still works
             if id == id2 {
-                let ch3 = ChannelId::new(id3, label);
-                let mut data: Vec<u8> = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
-                data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch3, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch3}, ...): {err}"));
+                for (global_id, _label_id) in d1.common_channels(d3) {
+                    let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                        panic!("device should have channel for global_id {global_id:?}")
+                    });
+                    let mut data: Vec<u8> = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
+                    data.extend_from_slice(GOLDEN.as_bytes());
+                    c1.seal_in_place(d1_channel_id, &mut data)
+                        .unwrap_or_else(|err| panic!("seal_in_place({id3}, ...): {err}"));
+                }
             }
         }
     }
@@ -432,34 +506,42 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
 
 /// Test removing channels when there are no channels to remove.
 pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_remove_no_channels", 2 * labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-    let (c3, id3) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_remove_no_channels", 2 * label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+    let (c3, id3) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for label in labels {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (global_id, label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
+            let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch = ChannelId::new(id, label);
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-                let (label, seq) = c
-                    .open_in_place(id1, &mut data)
+                let (_, seq) = c
+                    .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label, seq)
+                (data, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
-            assert_eq!(got_label, label, "{label},{id}");
-            assert_eq!(got_seq, 0, "{label},{id}");
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id},{id}");
+            assert_eq!(got_seq, 0, "{label_id},{id}");
         }
     }
 
@@ -475,69 +557,87 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
         .unwrap_or_else(|| panic!("remove_all({id1}): not found"))
         .unwrap_or_else(|err| panic!("remove_all({id1}): {err}"));
 
-    for label in labels {
-        for id in [id2, id3] {
-            let ch = ChannelId::new(id, label);
-            let err = {
-                let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
-                data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .err()
-                    .unwrap_or_else(|| panic!("seal_in_place({ch}) should panic"))
-            };
-            assert_eq!(err, Error::NotFound(ch));
-        }
+    for (global_id, label_id) in d1.common_channels(d2).chain(d1.common_channels(d3)) {
+        let d1_channel_id = d1
+            .get_local_channel_id(global_id)
+            .unwrap_or_else(|| panic!("device should have channel for global_id {global_id:?}"));
+        let err = {
+            let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
+            data.extend_from_slice(GOLDEN.as_bytes());
+            c1.seal_in_place(d1_channel_id, &mut data)
+                .err()
+                .unwrap_or_else(|| panic!("seal_in_place({d1_channel_id},{label_id}) should panic"))
+        };
+        assert_eq!(err, Error::NotFound(d1_channel_id));
     }
 }
 
 /// Basic positive test for checking if expected channels exist.
 pub fn test_channels_exist<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-    let (c3, id3) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+    let (c3, id3) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for label in labels {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (global_id, label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id} should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch = ChannelId::new(id, label);
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-                let (label, seq) = c
-                    .open_in_place(id1, &mut data)
+                let (_, seq) = c
+                    .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label, seq)
+                (data, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
-            assert_eq!(got_label, label, "{label},{id}");
-            assert_eq!(got_seq, 0, "{label},{id}");
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id},{id}");
+            assert_eq!(got_seq, 0, "{label_id},{id}");
         }
     }
 
     let ids = [id1, id2, id3];
-    for label in labels {
-        for i in 0..ids.len() {
-            for j in 0..ids.len() {
-                if i == j {
-                    continue;
-                }
-                let ida = ids[i];
-                let idb = ids[j];
-                // Verify that expected labels exist.
-                let ch: ChannelId = ChannelId::new(idb, label);
+    let devices = [d1, d2, d3];
+    for i in 0..ids.len() {
+        for j in 0..ids.len() {
+            if i == j {
+                continue;
+            }
+            let _ida = ids[i];
+            let idb = ids[j];
+
+            let common_channels = devices[i].common_channels(devices[j]);
+            // Verify that expected labels exist.
+
+            for (global_id, label_id) in common_channels {
+                let device_channel_id =
+                    devices[j]
+                        .get_local_channel_id(global_id)
+                        .unwrap_or_else(|| {
+                            panic!("device {idb} should have channel for global_id {global_id:?}")
+                        });
                 let result = d
-                    .exists(ida, ch)
-                    .unwrap_or_else(|| panic!("exists({idb}, {label}): not found"))
-                    .unwrap_or_else(|err| panic!("exists({label}): {err}"));
+                    .exists(device_channel_id, idb)
+                    .unwrap_or_else(|| panic!("exists({device_channel_id}, {label_id}): not found"))
+                    .unwrap_or_else(|err| panic!("exists({label_id}): {err}"));
                 assert!(result);
             }
         }
@@ -546,53 +646,66 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
 
 /// Basic negative test for checking that channels that were not
 /// created do not exist.
+// TODO: Remove this test?
 pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
-    let labels = [Label::new(0), Label::new(42)];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_channels_not_exist", 2 * labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-    let (c3, id3) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let unused_labels = [
+        LabelId::random(&mut eng),
+        LabelId::random(&mut eng),
+        LabelId::random(&mut eng),
+    ];
+
+    let mut d = Aranya::<T, _>::new("test_channels_not_exist", 2 * label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+    let (c3, id3) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+    let d3 = d.devices.get(id3).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
-    for label in labels {
-        for (c, id) in [(&c2, id2), (&c3, id3)] {
+    for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
+        for (global_id, label_id) in d1.common_channels(device) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id} should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch = ChannelId::new(id, label);
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(ch, &mut data)
-                    .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-                let (label, seq) = c
-                    .open_in_place(id1, &mut data)
+                let (_, seq) = c
+                    .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label, seq)
+                (data, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
-            assert_eq!(got_label, label, "{label},{id}");
-            assert_eq!(got_seq, 0, "{label},{id}");
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label_id},{id}");
+            assert_eq!(got_seq, 0, "{label_id},{id}");
         }
     }
 
     let ids = [id1, id2, id3];
-    let unused_labels = [Label::new(1020), Label::new(2010), Label::new(30)];
-    for label in unused_labels {
+    for label_id in unused_labels {
         for i in 0..ids.len() {
             for j in 0..ids.len() {
                 if i == j {
                     continue;
                 }
-                let ida = ids[i];
+                let _ida = ids[i];
                 let idb = ids[j];
-                let ch = ChannelId::new(idb, label);
                 let result = d
-                    .exists(ida, ch)
-                    .unwrap_or_else(|| panic!("exists({idb}, {label}): not found"))
-                    .unwrap_or_else(|err| panic!("exists({label}): {err}"));
+                    .exists(ChannelId::new(9999), idb)
+                    .unwrap_or_else(|| panic!("exists({idb}, {label_id}): not found"))
+                    .unwrap_or_else(|err| panic!("exists({label_id}): {err}"));
                 assert!(!result);
             }
         }
@@ -602,34 +715,45 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
 /// A test for issue #112, where [`Client`] would fail if the
 /// output buffer was not exactly the right size.
 pub fn test_issue112<T: TestImpl, A: Aead>() {
-    const LABEL: Label = Label::new(0);
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_id = LabelId::random(&mut eng);
     let mut d = Aranya::<T, TestEngine<A>>::new("test_issue_112", 1, eng);
-    let (mut c1, id1) = d.new_client([LABEL]);
-    let (c2, id2) = d.new_client([LABEL]);
+    let (mut c1, id1) = d.new_client([label_id]);
+    let (c2, id2) = d.new_client([label_id]);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     const GOLDEN: &str = "hello";
-    let ciphertext = {
-        let ch2 = ChannelId::new(id2, LABEL);
-        let len = GOLDEN.len() + overhead(&c1) + 100;
-        let mut dst = vec![0u8; len];
-        let mut buf = FixedBuf::from_slice_mut(&mut dst, len).expect("dst should be <= len");
-        c1.seal(ch2, &mut buf, GOLDEN.as_bytes())
-            .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
-        dst.truncate(GOLDEN.len() + overhead(&c1));
-        dst
-    };
-    let (plaintext, got_label, got_seq) = {
-        let mut dst = vec![0u8; ciphertext.len() - overhead(&c1)];
-        let (label, seq) = c2
-            .open(id1, &mut dst[..], &ciphertext[..])
-            .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-        dst.truncate(ciphertext.len() - overhead(&c2));
-        (dst, label, seq)
-    };
-    assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-    assert_eq!(got_label, LABEL);
-    assert_eq!(got_seq, 0);
+
+    for (global_id, label_id) in d1.common_channels(d2) {
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
+        let ciphertext = {
+            let len = GOLDEN.len() + overhead(&c1) + 100;
+            let mut dst = vec![0u8; len];
+            let mut buf = FixedBuf::from_slice_mut(&mut dst, len).expect("dst should be <= len");
+            c1.seal(d1_channel_id, &mut buf, GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
+            dst.truncate(GOLDEN.len() + overhead(&c1));
+            dst
+        };
+        let (plaintext, got_label, got_seq) = {
+            let mut dst = vec![0u8; ciphertext.len() - overhead(&c1)];
+            let (_, seq) = c2
+                .open(d2_channel_id, &mut dst[..], &ciphertext[..])
+                .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
+            dst.truncate(ciphertext.len() - overhead(&c2));
+            (dst, label_id, seq)
+        };
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes());
+        assert_eq!(got_label, label_id);
+        assert_eq!(got_seq, 0);
+    }
 }
 
 /// Tests that `Client` is `Send`.
@@ -643,232 +767,303 @@ where
 {
     fn is_send<T: Send>(_v: T) {}
 
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label = LabelId::random(&mut eng);
     let mut d = Aranya::<T, _>::new("test_client_send", 1, eng);
-    let (c, _) = d.new_client([Label::new(0)]);
+    let (c, _) = d.new_client([label]);
     is_send(c);
 }
 
 /// A basic positive test for unidirectional channels.
 pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
-    fn test<S: AfcState>(c1: &mut (Client<S>, NodeId), c2: &(Client<S>, NodeId), label: Label) {
+    fn test<S: AfcState, T: TestImpl, CS: CipherSuite>(
+        c1: &mut (Client<S>, DeviceIdx),
+        c2: &(Client<S>, DeviceIdx),
+        d1: &Device<T, CS>,
+        d2: &Device<T, CS>,
+        label_id: LabelId,
+    ) {
         let (c1, id1) = c1;
         let (c2, id2) = c2;
 
+        let (global_id, label_id) = d1
+            .common_channels(d2)
+            .find(|(_, lab)| *lab == label_id)
+            .unwrap_or_else(|| panic!("channel does not exist - {id1}-{id2} label: {label_id}"));
+
         const GOLDEN: &str = "hello, world!";
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
         let ciphertext = {
-            let ch2 = ChannelId::new(*id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
-            c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("({id1}->{id2}) seal(channel_id: {d1_channel_id}, label_id: {label_id} ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
-            let (label, seq) = c2
-                .open(*id1, &mut dst[..], &ciphertext[..])
+            let (_, seq) = c2
+                .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label}");
-        assert_eq!(got_label, label, "{id1},{id2},{label}");
-        assert_eq!(got_seq, 0, "{id1},{id2},{label}");
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label_id}");
+        assert_eq!(got_seq, 0, "{id1},{id2},{label_id}");
     }
 
-    const LABEL1: Label = Label::new(1);
-    const LABEL2: Label = Label::new(2);
-    const LABEL3: Label = Label::new(3);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label1 = LabelId::random(&mut eng);
+    let label2 = LabelId::random(&mut eng);
+    let label3 = LabelId::random(&mut eng);
 
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_unidirectional_pos", 6, eng);
 
     let mut c1 = d.new_client_with_type([
-        (LABEL1, ChanOp::SealOnly),
-        (LABEL2, ChanOp::OpenOnly),
-        (LABEL3, ChanOp::Any),
+        (label1, ChanOp::SealOnly),
+        (label2, ChanOp::OpenOnly),
+        (label3, ChanOp::Any),
     ]);
     let mut c2 = d.new_client_with_type([
-        (LABEL1, ChanOp::OpenOnly),
-        (LABEL2, ChanOp::SealOnly),
-        (LABEL3, ChanOp::Any),
+        (label1, ChanOp::OpenOnly),
+        (label2, ChanOp::SealOnly),
+        (label3, ChanOp::Any),
     ]);
     let mut c3 = d.new_client_with_type([
-        (LABEL1, ChanOp::Any),
-        (LABEL2, ChanOp::Any),
-        (LABEL3, ChanOp::OpenOnly),
+        (label1, ChanOp::Any),
+        (label2, ChanOp::Any),
+        (label3, ChanOp::OpenOnly),
     ]);
 
-    test(&mut c1, &c2, LABEL1);
-    test(&mut c1, &c3, LABEL1);
-    test(&mut c1, &c3, LABEL3);
+    let d1 = d.devices.get(c1.1).expect("device to exist");
+    let d2 = d.devices.get(c2.1).expect("device to exist");
+    let d3 = d.devices.get(c3.1).expect("device to exist");
 
-    test(&mut c2, &c1, LABEL2);
-    test(&mut c2, &c3, LABEL2);
-    test(&mut c2, &c3, LABEL3);
+    test(&mut c1, &c2, d1, d2, label1);
+    test(&mut c1, &c3, d1, d3, label1);
+    test(&mut c1, &c3, d1, d3, label3);
 
-    test(&mut c3, &c1, LABEL2);
-    test(&mut c3, &c2, LABEL1);
+    test(&mut c2, &c1, d2, d1, label2);
+    test(&mut c2, &c3, d2, d3, label2);
+    test(&mut c2, &c3, d2, d3, label3);
+
+    test(&mut c3, &c1, d3, d1, label2);
+    test(&mut c3, &c2, d3, d2, label1);
 }
 
 /// A positive and negative test for unidirectional channels.
 pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
-    fn fail<S: AfcState>(c1: &mut (Client<S>, NodeId), c2: &(Client<S>, NodeId), label: Label) {
+    fn fail<S: AfcState, T: TestImpl, CS: CipherSuite>(
+        c1: &mut (Client<S>, DeviceIdx),
+        c2: &(Client<S>, DeviceIdx),
+        d1: &Device<T, CS>,
+        d2: &Device<T, CS>,
+        label_id: LabelId,
+    ) {
         let (c1, id1) = c1;
-        let (_, id2) = c2;
+        let (_c2, id2) = c2;
 
-        let ch = ChannelId::new(*id2, label);
-        let mut dst = vec![0u8; overhead(c1)];
-        let err = c1
-            .seal(ch, &mut dst[..], &[])
-            .err()
-            .unwrap_or_else(|| panic!("{id1}::seal({ch}, ...): expected an error"));
-        assert_eq!(err, Error::NotFound(ch));
+        let maybe_channel = d1
+            .common_channels(d2)
+            .find(|(_, lab_id)| *lab_id == label_id);
+
+        if let Some((global_id, _label_id)) = maybe_channel {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            let mut dst = vec![0u8; overhead(c1)];
+            let err = c1
+                .seal(d1_channel_id, &mut dst[..], &[])
+                .err()
+                .unwrap_or_else(|| panic!("{id1}::seal({id2}, ...): expected an error"));
+            assert_eq!(err, Error::NotFound(d1_channel_id));
+        }
     }
 
-    fn pass<S: AfcState>(c1: &mut (Client<S>, NodeId), c2: &(Client<S>, NodeId), label: Label) {
+    fn pass<S: AfcState, T: TestImpl, CS: CipherSuite>(
+        c1: &mut (Client<S>, DeviceIdx),
+        c2: &(Client<S>, DeviceIdx),
+        d1: &Device<T, CS>,
+        d2: &Device<T, CS>,
+        label_id: LabelId,
+    ) {
         let (c1, id1) = c1;
         let (c2, id2) = c2;
 
+        let (global_id, label_id) = d1
+            .common_channels(d2)
+            .find(|(_, lab)| *lab == label_id)
+            .unwrap_or_else(|| panic!("channel does not exist: {id1}->{id2} label: {label_id}"));
+
         const GOLDEN: &str = "hello, world!";
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
         let ciphertext = {
-            let ch2 = ChannelId::new(*id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
-            c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("{id1}::seal({ch2}, ...): {err}"));
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("{id1}::seal({id2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
-            let (label, seq) = c2
-                .open(*id1, &mut dst[..], &ciphertext[..])
+            let (_, seq) = c2
+                .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{id2}::open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label}");
-        assert_eq!(got_label, label, "{id1},{id2},{label}");
-        assert_eq!(got_seq, 0, "{id1},{id2},{label}");
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label_id}");
+        assert_eq!(got_seq, 0, "{id1},{id2},{label_id}");
     }
 
-    const LABEL1: Label = Label::new(1);
-    const LABEL2: Label = Label::new(2);
-    const LABEL3: Label = Label::new(3);
-    const LABEL4: Label = Label::new(4);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label1 = LabelId::random(&mut eng);
+    let label2 = LabelId::random(&mut eng);
+    let label3 = LabelId::random(&mut eng);
+    let label4 = LabelId::random(&mut eng);
 
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_unidirectional_exhaustive", 6, eng);
 
     let mut c1 = d.new_client_with_type([
-        (LABEL1, ChanOp::OpenOnly),
-        (LABEL2, ChanOp::Any),
-        (LABEL3, ChanOp::OpenOnly),
+        (label1, ChanOp::OpenOnly),
+        (label2, ChanOp::Any),
+        (label3, ChanOp::OpenOnly),
     ]);
     let mut c2 = d.new_client_with_type([
-        (LABEL1, ChanOp::SealOnly),
-        (LABEL2, ChanOp::SealOnly),
-        (LABEL3, ChanOp::Any),
+        (label1, ChanOp::SealOnly),
+        (label2, ChanOp::SealOnly),
+        (label3, ChanOp::Any),
     ]);
     let mut c3 = d.new_client_with_type([
-        (LABEL1, ChanOp::OpenOnly),
-        (LABEL2, ChanOp::SealOnly),
-        (LABEL3, ChanOp::OpenOnly),
+        (label1, ChanOp::OpenOnly),
+        (label2, ChanOp::SealOnly),
+        (label3, ChanOp::OpenOnly),
     ]);
-    let mut c4 = d.new_client_with_type([(LABEL4, ChanOp::Any)]);
+    let mut c4 = d.new_client_with_type([(label4, ChanOp::Any)]);
     let mut c5 = d.new_client_with_type([]);
 
-    fail(&mut c1, &c2, LABEL1); // open -> seal
-    fail(&mut c1, &c2, LABEL2); // bidi -> seal
-    fail(&mut c1, &c2, LABEL3); // open -> bidi
-    fail(&mut c1, &c2, LABEL4); // no chans
-    fail(&mut c1, &c3, LABEL1); // open -> open
-    fail(&mut c1, &c3, LABEL2); // bidi -> seal
-    fail(&mut c1, &c3, LABEL3); // open -> open
-    fail(&mut c1, &c3, LABEL4); // no chans
-    fail(&mut c1, &c4, LABEL1); // no chans
-    fail(&mut c1, &c4, LABEL2); // no chans
-    fail(&mut c1, &c4, LABEL3); // no chans
-    fail(&mut c1, &c4, LABEL4); // no chans
-    fail(&mut c1, &c5, LABEL1); // no chans
-    fail(&mut c1, &c5, LABEL2); // no chans
-    fail(&mut c1, &c5, LABEL3); // no chans
-    fail(&mut c1, &c5, LABEL4); // no chans
+    let d1 = d.devices.get(c1.1).expect("device to exist");
+    let d2 = d.devices.get(c2.1).expect("device to exist");
+    let d3 = d.devices.get(c3.1).expect("device to exist");
+    let d4 = d.devices.get(c4.1).expect("device to exist");
+    let d5 = d.devices.get(c5.1).expect("device to exist");
 
-    pass(&mut c2, &c1, LABEL1); // seal -> open
-    pass(&mut c2, &c1, LABEL2); // seal -> bidi
-    pass(&mut c2, &c1, LABEL3); // bidi -> open
-    fail(&mut c2, &c1, LABEL4); // no chans
-    pass(&mut c2, &c3, LABEL1); // seal -> open
-    fail(&mut c2, &c3, LABEL2); // seal -> seal
-    pass(&mut c2, &c3, LABEL3); // bidi -> open
-    fail(&mut c2, &c3, LABEL4); // no chans
-    fail(&mut c2, &c4, LABEL1); // no chans
-    fail(&mut c2, &c4, LABEL2); // no chans
-    fail(&mut c2, &c4, LABEL3); // no chans
-    fail(&mut c2, &c4, LABEL4); // no chans
-    fail(&mut c2, &c5, LABEL1); // no chans
-    fail(&mut c2, &c5, LABEL2); // no chans
-    fail(&mut c2, &c5, LABEL3); // no chans
-    fail(&mut c2, &c5, LABEL4); // no chans
+    fail(&mut c1, &c2, d1, d2, label1); // open -> seal
+    fail(&mut c1, &c2, d1, d2, label2); // bidi -> seal
+    fail(&mut c1, &c2, d1, d2, label3); // open -> bidi
+    fail(&mut c1, &c2, d1, d2, label4); // no chans
+    fail(&mut c1, &c3, d1, d3, label1); // open -> open
+    fail(&mut c1, &c3, d1, d3, label2); // bidi -> seal
+    fail(&mut c1, &c3, d1, d3, label3); // open -> open
+    fail(&mut c1, &c3, d1, d3, label4); // no chans
+    fail(&mut c1, &c4, d1, d4, label1); // no chans
+    fail(&mut c1, &c4, d1, d4, label2); // no chans
+    fail(&mut c1, &c4, d1, d4, label3); // no chans
+    fail(&mut c1, &c4, d1, d4, label4); // no chans
+    fail(&mut c1, &c5, d1, d5, label1); // no chans
+    fail(&mut c1, &c5, d1, d5, label2); // no chans
+    fail(&mut c1, &c5, d1, d5, label3); // no chans
+    fail(&mut c1, &c5, d1, d5, label4); // no chans
 
-    fail(&mut c3, &c1, LABEL1); // open -> open
-    pass(&mut c3, &c1, LABEL2); // seal -> bidi
-    fail(&mut c3, &c1, LABEL3); // open -> open
-    fail(&mut c3, &c1, LABEL4); // no chans
-    fail(&mut c3, &c2, LABEL1); // open -> seal
-    fail(&mut c3, &c2, LABEL2); // seal -> seal
-    fail(&mut c3, &c2, LABEL3); // open -> bidi
-    fail(&mut c3, &c2, LABEL4); // no chans
-    fail(&mut c3, &c4, LABEL1); // no chans
-    fail(&mut c3, &c4, LABEL2); // no chans
-    fail(&mut c3, &c4, LABEL3); // no chans
-    fail(&mut c3, &c4, LABEL4); // no chans
-    fail(&mut c3, &c5, LABEL1); // no chans
-    fail(&mut c3, &c5, LABEL2); // no chans
-    fail(&mut c3, &c5, LABEL3); // no chans
-    fail(&mut c3, &c5, LABEL4); // no chans
+    pass(&mut c2, &c1, d2, d1, label1); // seal -> open
+    pass(&mut c2, &c1, d2, d1, label2); // seal -> bidi
+    pass(&mut c2, &c1, d2, d1, label3); // bidi -> open
+    fail(&mut c2, &c1, d2, d1, label4); // no chans
 
-    fail(&mut c4, &c1, LABEL1); // no chans
-    fail(&mut c4, &c1, LABEL2); // no chans
-    fail(&mut c4, &c1, LABEL3); // no chans
-    fail(&mut c4, &c1, LABEL4); // no chans
-    fail(&mut c4, &c2, LABEL1); // no chans
-    fail(&mut c4, &c2, LABEL2); // no chans
-    fail(&mut c4, &c2, LABEL3); // no chans
-    fail(&mut c4, &c2, LABEL4); // no chans
-    fail(&mut c4, &c3, LABEL1); // no chans
-    fail(&mut c4, &c3, LABEL2); // no chans
-    fail(&mut c4, &c3, LABEL3); // no chans
-    fail(&mut c4, &c3, LABEL4); // no chans
-    fail(&mut c4, &c5, LABEL1); // no chans
-    fail(&mut c4, &c5, LABEL2); // no chans
-    fail(&mut c4, &c5, LABEL3); // no chans
-    fail(&mut c4, &c5, LABEL4); // no chans
+    pass(&mut c2, &c3, d2, d3, label1); // seal -> open
+    fail(&mut c2, &c3, d2, d3, label2); // seal -> seal
+    pass(&mut c2, &c3, d2, d3, label3); // bidi -> open
+    fail(&mut c2, &c3, d2, d3, label4); // no chans
 
-    fail(&mut c5, &c1, LABEL1); // no chans
-    fail(&mut c5, &c1, LABEL2); // no chans
-    fail(&mut c5, &c1, LABEL3); // no chans
-    fail(&mut c5, &c1, LABEL4); // no chans
-    fail(&mut c5, &c2, LABEL1); // no chans
-    fail(&mut c5, &c2, LABEL2); // no chans
-    fail(&mut c5, &c2, LABEL3); // no chans
-    fail(&mut c5, &c2, LABEL4); // no chans
-    fail(&mut c5, &c3, LABEL1); // no chans
-    fail(&mut c5, &c3, LABEL2); // no chans
-    fail(&mut c5, &c3, LABEL3); // no chans
-    fail(&mut c5, &c3, LABEL4); // no chans
-    fail(&mut c5, &c4, LABEL1); // no chans
-    fail(&mut c5, &c4, LABEL2); // no chans
-    fail(&mut c5, &c4, LABEL3); // no chans
-    fail(&mut c5, &c4, LABEL4); // no chans
+    fail(&mut c2, &c4, d2, d4, label1); // no chans
+    fail(&mut c2, &c4, d2, d4, label2); // no chans
+    fail(&mut c2, &c4, d2, d4, label3); // no chans
+    fail(&mut c2, &c4, d2, d4, label4); // no chans
+
+    fail(&mut c2, &c5, d2, d5, label1); // no chans
+    fail(&mut c2, &c5, d2, d5, label2); // no chans
+    fail(&mut c2, &c5, d2, d5, label3); // no chans
+    fail(&mut c2, &c5, d2, d5, label4); // no chans
+
+    fail(&mut c3, &c1, d3, d1, label1); // open -> open
+    pass(&mut c3, &c1, d3, d1, label2); // seal -> bidi
+    fail(&mut c3, &c1, d3, d1, label3); // open -> open
+    fail(&mut c3, &c1, d3, d1, label4); // no chans
+
+    fail(&mut c3, &c2, d3, d2, label1); // open -> seal
+    fail(&mut c3, &c2, d3, d2, label2); // seal -> seal
+    fail(&mut c3, &c2, d3, d2, label3); // open -> bidi
+    fail(&mut c3, &c2, d3, d2, label4); // no chans
+
+    fail(&mut c3, &c4, d3, d4, label1); // no chans
+    fail(&mut c3, &c4, d3, d4, label2); // no chans
+    fail(&mut c3, &c4, d3, d4, label3); // no chans
+    fail(&mut c3, &c4, d3, d4, label4); // no chans
+
+    fail(&mut c3, &c5, d3, d5, label1); // no chans
+    fail(&mut c3, &c5, d3, d5, label2); // no chans
+    fail(&mut c3, &c5, d3, d5, label3); // no chans
+    fail(&mut c3, &c5, d3, d5, label4); // no chans
+
+    fail(&mut c4, &c1, d4, d1, label1); // no chans
+    fail(&mut c4, &c1, d4, d1, label2); // no chans
+    fail(&mut c4, &c1, d4, d1, label3); // no chans
+    fail(&mut c4, &c1, d4, d1, label4); // no chans
+
+    fail(&mut c4, &c2, d4, d2, label1); // no chans
+    fail(&mut c4, &c2, d4, d2, label2); // no chans
+    fail(&mut c4, &c2, d4, d2, label3); // no chans
+    fail(&mut c4, &c2, d4, d2, label4); // no chans
+
+    fail(&mut c4, &c3, d4, d3, label1); // no chans
+    fail(&mut c4, &c3, d4, d3, label2); // no chans
+    fail(&mut c4, &c3, d4, d3, label3); // no chans
+    fail(&mut c4, &c3, d4, d3, label4); // no chans
+
+    fail(&mut c4, &c5, d4, d5, label1); // no chans
+    fail(&mut c4, &c5, d4, d5, label2); // no chans
+    fail(&mut c4, &c5, d4, d5, label3); // no chans
+    fail(&mut c4, &c5, d4, d5, label4); // no chans
+
+    fail(&mut c5, &c1, d5, d1, label1); // no chans
+    fail(&mut c5, &c1, d5, d1, label2); // no chans
+    fail(&mut c5, &c1, d5, d1, label3); // no chans
+    fail(&mut c5, &c1, d5, d1, label4); // no chans
+
+    fail(&mut c5, &c2, d5, d2, label1); // no chans
+    fail(&mut c5, &c2, d5, d2, label2); // no chans
+    fail(&mut c5, &c2, d5, d2, label3); // no chans
+    fail(&mut c5, &c2, d5, d2, label4); // no chans
+
+    fail(&mut c5, &c3, d5, d3, label1); // no chans
+    fail(&mut c5, &c3, d5, d3, label2); // no chans
+    fail(&mut c5, &c3, d5, d3, label3); // no chans
+    fail(&mut c5, &c3, d5, d3, label4); // no chans
+
+    fail(&mut c5, &c4, d5, d4, label1); // no chans
+    fail(&mut c5, &c4, d5, d4, label2); // no chans
+    fail(&mut c5, &c4, d5, d4, label3); // no chans
+    fail(&mut c5, &c4, d5, d4, label4); // no chans
 }
 
 /// A positive test for when keys expire.
 pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     type N = U1;
-    let labels = [Label::new(0)];
-    let (eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_key_expiry", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng)];
+
+    let mut d = Aranya::<T, _>::new("test_key_expiry", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
 
@@ -877,19 +1072,24 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     assert!(seq_max > 0);
 
     for seq in 0..=seq_max {
-        for label in labels {
+        for (global_id, _label_id) in d1.common_channels(d2) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id2} should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch2 = ChannelId::new(id2, label);
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
 
-                let res = c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes());
+                let res = c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes());
                 if seq < seq_max {
-                    res.unwrap_or_else(|err| panic!("{seq}: seal({ch2}, ...): {err}"));
+                    res.unwrap_or_else(|err| panic!("{seq}: seal({d1_channel_id}, ...): {err}"));
                     dst
                 } else {
-                    let err = res
-                        .err()
-                        .unwrap_or_else(|| panic!("{seq}: seal({ch2}, ...): should have failed"));
+                    let err = res.err().unwrap_or_else(|| {
+                        panic!("{seq}: seal({d1_channel_id}, ...): should have failed")
+                    });
                     assert_eq!(err, Error::KeyExpired);
                     continue;
                 }
@@ -897,18 +1097,17 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
 
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
             if seq < seq_max {
-                let (plaintext, got_label, got_seq) = {
-                    let (label, seq) = c2
-                        .open(id1, &mut dst[..], &ciphertext[..])
+                let (plaintext, got_seq) = {
+                    let (_, seq) = c2
+                        .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                         .unwrap_or_else(|err| panic!("{seq}: open({id1}, ...): {err}"));
-                    (dst, label, seq)
+                    (dst, seq)
                 };
                 assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-                assert_eq!(got_label, label);
                 assert_eq!(got_seq, seq);
             } else {
                 let err = c2
-                    .open(id1, &mut dst[..], &ciphertext[..])
+                    .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                     .err()
                     .unwrap_or_else(|| panic!("{seq}: open({id1}, ...): should have failed"));
                 assert_eq!(err, Error::KeyExpired);
@@ -920,26 +1119,34 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
 /// Basic negative test for [`Client::open`] when the tag is
 /// truncated.
 pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
-    let labels = [1u32.into(), 2u32.into()];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_open_truncated_tag", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_open_truncated_tag", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
 
-    for label in labels {
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+
+    for (global_id, _label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
         let ciphertext = {
-            let ch2 = ChannelId::new(id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
             // Remove the first byte in the tag.
             dst.remove(GOLDEN.len());
             dst
         };
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
         let err = c2
-            .open(id1, &mut dst[..], &ciphertext[..])
+            .open(d2_channel_id, &mut dst[..], &ciphertext[..])
             .err()
             .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
         assert_eq!(err, Error::Authentication,);
@@ -949,78 +1156,63 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
 /// Basic negative test for [`Client::open`] when the tag has
 /// been modified.
 pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
-    let labels = [1u32.into(), 2u32.into()];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_open_modified_tag", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_open_modified_tag", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
 
-    for label in labels {
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+
+    for (global_id, _label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
         let ciphertext = {
-            let ch2 = ChannelId::new(id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst[GOLDEN.len()] = dst[GOLDEN.len()].wrapping_add(1);
             dst
         };
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
         let err = c2
-            .open(id1, &mut dst[..], &ciphertext[..])
+            .open(d2_channel_id, &mut dst[..], &ciphertext[..])
             .err()
             .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
         assert_eq!(err, Error::Authentication,);
     }
 }
 
-/// Basic negative test for [`Client::open`] when the label
-/// differs.
-pub fn test_open_different_label<T: TestImpl, A: Aead>() {
-    let labels = [1u32.into(), 2u32.into()];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_open_different_label", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
-
-    const GOLDEN: &str = "hello, world!";
-    let ciphertext = {
-        let ch2 = ChannelId::new(id2, labels[0]);
-        let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-        c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-            .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
-
-        // Rewrite the header to use a different label.
-        DataHeaderBuilder::new()
-            .label(labels[1].to_u32())
-            .encode(&mut dst);
-
-        dst
-    };
-    let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-    let err = c2
-        .open(id1, &mut dst[..], &ciphertext[..])
-        .err()
-        .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
-    assert_eq!(err, Error::Authentication,);
-}
-
 /// Basic negative test for [`Client::open`] when the sequence
 /// number differs.
 pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
-    let labels = [1u32.into(), 2u32.into()];
-    let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_open_different_seq", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_open_different_seq", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
 
-    for label in labels {
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+
+    for (global_id, _label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
         let ciphertext = {
-            let ch2 = ChannelId::new(id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
 
             // Rewrite the header to use a different sequence
             // number.
@@ -1034,7 +1226,7 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
         };
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
         let err = c2
-            .open(id1, &mut dst[..], &ciphertext[..])
+            .open(d2_channel_id, &mut dst[..], &ciphertext[..])
             .err()
             .unwrap_or_else(|| panic!("open({id1}, ...): should have failed"));
         assert_eq!(err, Error::Authentication);
@@ -1044,53 +1236,57 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
 /// Basic negative test for [`Client::seal`] when the channel
 /// does not exist because the label is incorrect.
 pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
-    let labels = [
-        Label::new(1),
-        Label::new(2),
-        Label::new(3),
-        Label::new(4),
-        Label::new(5),
+    let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
+    let label_ids = [
+        LabelId::random(&mut eng),
+        LabelId::random(&mut eng),
+        LabelId::random(&mut eng),
+        LabelId::random(&mut eng),
+        LabelId::random(&mut eng),
     ];
     // Take every other label.
-    let open_labels = labels
-        .iter()
-        .take_while(|label| label.to_u32() % 2 == 0)
-        .copied()
-        .collect::<Vec<_>>();
+    let open_labels = [label_ids[0], label_ids[2], label_ids[4]];
 
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_open_unknown_channel_label", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(open_labels.clone());
+    let mut d = Aranya::<T, _>::new("test_open_unknown_channel_label", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(open_labels);
 
-    for label in labels {
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
+
+    for (global_id, label_id) in d1.common_channels(d2) {
         const GOLDEN: &str = "hello, world!";
+        let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id1} should have channel for global_id {global_id:?}")
+        });
+        let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+            panic!("device {id2} should have channel for global_id {global_id:?}")
+        });
         let ciphertext = {
-            let ch2 = ChannelId::new(id2, label);
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
 
-            let res = c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes());
-            if open_labels.contains(&label) {
-                res.unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+            let res = c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes());
+            if open_labels.contains(&label_id) {
+                res.unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
                 dst
             } else {
                 let err = res
                     .err()
-                    .unwrap_or_else(|| panic!("seal({ch2}, ...): should have failed"));
-                assert_eq!(err, Error::NotFound(ch2));
+                    .unwrap_or_else(|| panic!("seal({d1_channel_id}, ...): should have failed"));
+                assert_eq!(err, Error::NotFound(d1_channel_id));
                 continue;
             }
         };
 
-        let (plaintext, got_label, got_seq) = {
+        let (plaintext, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-            let (label, seq) = c2
-                .open(id1, &mut dst[..], &ciphertext[..])
+            let (_, seq) = c2
+                .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label, seq)
+            (dst, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label);
         assert_eq!(got_seq, 0);
     }
 }
@@ -1100,11 +1296,14 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
 // but explicit.
 pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     type N = U1;
-    let labels = [Label::new(0)];
-    let (eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
-    let mut d = Aranya::<T, _>::new("test_monotonic_seq_by_one", labels.len(), eng);
-    let (mut c1, id1) = d.new_client(labels);
-    let (c2, id2) = d.new_client(labels);
+    let (mut eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
+    let label_ids = [LabelId::random(&mut eng)];
+    let mut d = Aranya::<T, _>::new("test_monotonic_seq_by_one", label_ids.len(), eng);
+    let (mut c1, id1) = d.new_client(label_ids);
+    let (c2, id2) = d.new_client(label_ids);
+
+    let d1 = d.devices.get(id1).expect("device to exist");
+    let d2 = d.devices.get(id2).expect("device to exist");
 
     const GOLDEN: &str = "hello, world!";
 
@@ -1113,24 +1312,28 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     assert!(seq_max > 0);
 
     for want_seq in 0..seq_max {
-        for label in labels {
+        for (global_id, label_id) in d1.common_channels(d2) {
+            let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id1} should have channel for global_id {global_id:?}")
+            });
+            let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
+                panic!("device {id2} should have channel for global_id {global_id:?}")
+            });
             let ciphertext = {
-                let ch2 = ChannelId::new(id2, label);
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-                c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
-                    .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+                c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
+                    .unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
                 dst
             };
-            let (plaintext, got_label, got_seq) = {
+            let (plaintext, got_seq) = {
                 let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-                let (label, seq) = c2
-                    .open(id1, &mut dst[..], &ciphertext[..])
+                let (_, seq) = c2
+                    .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                     .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-                (dst, label, seq)
+                (dst, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{want_seq},{label}");
-            assert_eq!(got_label, label, "{want_seq},{label}");
-            assert_eq!(got_seq, want_seq, "{want_seq},{label}");
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{want_seq},{label_id}");
+            assert_eq!(got_seq, want_seq, "{want_seq},{label_id}");
         }
     }
 }

@@ -377,13 +377,10 @@ mod tests {
     use core::ptr;
 
     use super::*;
-    use crate::{error::InvalidArg, safe::TypeId};
+    use crate::error::InvalidArg;
 
     #[derive(Debug, Default, Eq, PartialEq)]
     struct Dummy(u32);
-    impl Typed for Dummy {
-        const TYPE_ID: TypeId = TypeId::new(0);
-    }
 
     /// Test specialization for [`try_as_ref`].
     #[test]

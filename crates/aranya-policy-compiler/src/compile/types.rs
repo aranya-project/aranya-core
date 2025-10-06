@@ -4,8 +4,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
-use ast::VType;
+use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
 use crate::{CompileErrorType, compile::CompileState};
 
@@ -95,15 +94,15 @@ impl IdentifierTypeStack {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
         }
         let locals = self.locals.last_mut().expect("no function scope");
-        for prev in locals.iter().rev().skip(1) {
+        for prev in locals.iter().rev() {
             if prev.contains_key(&ident) {
                 return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
             }
         }
         let block = locals.last_mut().expect("no block scope");
         match block.entry(ident) {
-            hash_map::Entry::Occupied(o) => {
-                let _type: Typeish = o.get().clone().unify(value)?; // can we disallow this yet?
+            hash_map::Entry::Occupied(_) => {
+                unreachable!();
             }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
@@ -265,17 +264,25 @@ impl NullableVType {
     /// Returns whether the type matches. Null will match any optional.
     pub fn fits_type(&self, ot: &VType) -> bool {
         match self {
-            Self::Type(vtype) => vtype == ot,
-            Self::Null => matches!(ot, VType::Optional(_)),
+            Self::Type(vtype) => vtype.matches(ot),
+            Self::Null => matches!(ot.kind, TypeKind::Optional(_)),
         }
     }
 
     /// Equal types will unify, and null will unify with any optional.
     fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
-            (t @ NullableVType::Type(VType::Optional(_)), NullableVType::Null)
-            | (NullableVType::Null, t @ NullableVType::Type(VType::Optional(_))) => Ok(t),
-            (NullableVType::Type(left), NullableVType::Type(right)) if left == right => {
+            (ref t @ NullableVType::Type(ref ty), NullableVType::Null)
+                if matches!(ty.kind, TypeKind::Optional(_)) =>
+            {
+                Ok(t.clone())
+            }
+            (NullableVType::Null, ref t @ NullableVType::Type(ref ty))
+                if matches!(ty.kind, TypeKind::Optional(_)) =>
+            {
+                Ok(t.clone())
+            }
+            (NullableVType::Type(left), NullableVType::Type(right)) if left.matches(&right) => {
                 Ok(NullableVType::Type(left))
             }
             (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
@@ -288,10 +295,28 @@ impl NullableVType {
     }
 }
 
+// Wrapper type for displaying Type since we can't implement Display for external types
+pub struct DisplayType<'a>(pub &'a VType);
+
+impl Display for DisplayType<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0.kind {
+            TypeKind::String => f.write_str("string"),
+            TypeKind::Bytes => f.write_str("bytes"),
+            TypeKind::Int => f.write_str("int"),
+            TypeKind::Bool => f.write_str("bool"),
+            TypeKind::Id => f.write_str("id"),
+            TypeKind::Struct(id) => write!(f, "struct {}", id),
+            TypeKind::Enum(id) => write!(f, "enum {}", id),
+            TypeKind::Optional(inner) => write!(f, "optional {}", DisplayType(inner)),
+        }
+    }
+}
+
 impl Display for NullableVType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Type(vtype) => vtype.fmt(f),
+            Self::Type(vtype) => DisplayType(vtype).fmt(f),
             Self::Null => f.write_str("null"),
         }
     }
@@ -299,9 +324,12 @@ impl Display for NullableVType {
 
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
-    pub(super) fn struct_type(&self, s: &ast::NamedStruct) -> Result<VType, TypeError> {
-        if self.m.struct_defs.contains_key(&s.identifier) {
-            Ok(VType::Struct(s.identifier.clone()))
+    pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, TypeError> {
+        if self.m.struct_defs.contains_key(&s.identifier.name) {
+            Ok(VType {
+                kind: TypeKind::Struct(s.identifier.clone()),
+                span: s.identifier.span,
+            })
         } else {
             Err(TypeError::new_owned(format!(
                 "Struct `{}` not defined",
@@ -312,9 +340,12 @@ impl CompileState<'_> {
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
-    pub(super) fn query_fact_type(&self, f: &ast::FactLiteral) -> Result<VType, TypeError> {
-        if self.m.fact_defs.contains_key(&f.identifier) {
-            Ok(VType::Struct(f.identifier.clone()))
+    pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, TypeError> {
+        if self.m.fact_defs.contains_key(&f.identifier.name) {
+            Ok(VType {
+                kind: TypeKind::Struct(f.identifier.clone()),
+                span: f.identifier.span,
+            })
         } else {
             Err(TypeError::new_owned(format!(
                 "Fact `{}` not defined",

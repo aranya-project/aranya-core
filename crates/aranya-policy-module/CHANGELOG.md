@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.12.0...aranya-policy-module-v0.13.0) - 2025-09-17
+
+### Other
+
+- add `NamedMap` and def types for action and command ([#387](https://github.com/aranya-project/aranya-core/pull/387))
+- add location info to all AST items ([#366](https://github.com/aranya-project/aranya-core/pull/366))
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.11.0...aranya-policy-module-v0.12.0) - 2025-08-19
+
+### Other
+
+- Close #193: Allow a struct to be cast to another struct with the same schema ([#261](https://github.com/aranya-project/aranya-core/pull/261))
+- Format code in doc comments ([#341](https://github.com/aranya-project/aranya-core/pull/341))
+- short circuit for boolean operators ([#349](https://github.com/aranya-project/aranya-core/pull/349))
+- improve keystore typed ID usage ([#361](https://github.com/aranya-project/aranya-core/pull/361))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.10.0...aranya-policy-module-v0.11.0) - 2025-06-18
 
 ### Other

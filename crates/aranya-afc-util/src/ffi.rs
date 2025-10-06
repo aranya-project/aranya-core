@@ -9,15 +9,12 @@ use alloc::vec::Vec;
 use core::result::Result;
 
 use aranya_crypto::{
-    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
+    policy::{CmdId, LabelId},
 };
-use aranya_policy_vm::{
-    CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
-    ValueConversionError,
-    ffi::{Type, ffi},
-};
+use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, MachineIOError, ffi::ffi};
 use buggy::Bug;
 use spin::Mutex;
 
@@ -73,22 +70,20 @@ function create_bidi_channel(
     our_id id,
     their_enc_pk bytes,
     their_id id,
-    label int,
+    label_id id,
 ) struct AfcBidiChannel
 "#)]
     pub(crate) fn create_bidi_channel<E: Engine>(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: CmdId,
         our_enc_key_id: EncryptionKeyId,
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
         their_id: DeviceId,
-        label: Label,
+        label_id: LabelId,
     ) -> Result<AfcBidiChannel, FfiError> {
-        let label: aranya_fast_channels::Label = label.into();
-
         let our_sk = &self
             .store
             .lock()
@@ -102,7 +97,7 @@ function create_bidi_channel(
             our_id,
             their_pk,
             their_id,
-            label: label.to_u32(),
+            label_id,
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
@@ -125,22 +120,20 @@ function create_uni_channel(
     their_pk bytes,
     seal_id id,
     open_id id,
-    label int,
+    label_id id,
 ) struct AfcUniChannel
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
         seal_id: DeviceId,
         open_id: DeviceId,
-        label: Label,
+        label_id: LabelId,
     ) -> Result<AfcUniChannel, FfiError> {
-        let label: aranya_fast_channels::Label = label.into();
-
         let our_sk = &self
             .store
             .lock()
@@ -154,7 +147,7 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label: label.to_u32(),
+            label_id,
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
@@ -224,37 +217,5 @@ impl From<UnwrapError> for FfiError {
 impl From<Bug> for FfiError {
     fn from(bug: Bug) -> Self {
         Self::Bug(bug)
-    }
-}
-
-/// An AFC label.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct Label(u32);
-
-impl From<Label> for aranya_fast_channels::Label {
-    fn from(label: Label) -> Self {
-        label.0.into()
-    }
-}
-
-impl From<aranya_fast_channels::Label> for Label {
-    fn from(label: aranya_fast_channels::Label) -> Self {
-        Self(label.to_u32())
-    }
-}
-
-impl Typed for Label {
-    const TYPE: Type<'static> = Type::Int;
-}
-
-impl TryFrom<Value> for Label {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let x: i64 = value.try_into()?;
-        Ok(Label(
-            // TODO(eric): better errors
-            u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,
-        ))
     }
 }
