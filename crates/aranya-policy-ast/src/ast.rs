@@ -61,6 +61,37 @@ impl Spanned for Ident {
     }
 }
 
+/// A text literal with source location information.
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct Txt {
+    /// The text value
+    pub text: Text,
+    /// The source location of this text literal
+    pub span: Span,
+}
+
+impl Spanned for Txt {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl fmt::Display for Txt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.text.fmt(f)
+    }
+}
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -618,6 +649,8 @@ spanned! {
 pub struct AssertStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// The error message to display if the assertion fails
+    pub message: Txt,
 }
 }
 

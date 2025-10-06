@@ -77,7 +77,7 @@ function Role_Device() string {
 function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_device_id == device_keys.device_id
+    assert got_device_id == device_keys.device_id, "invalid device id"
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 

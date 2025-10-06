@@ -6,7 +6,7 @@ use aranya_policy_ast::{
     FactLiteral, FieldDefinition, ForeignFunctionCall, FunctionCall, Ident, IfStatement,
     InternalFunction, LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm,
     MatchPattern, MatchStatement, NamedStruct, Persistence, ReturnStatement, Statement, StmtKind,
-    Text, TypeKind, UpdateStatement, VType, Version, ident,
+    Text, Txt, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -1021,8 +1021,19 @@ impl ChunkParser<'_> {
     fn parse_assert_statement(&self, item: Pair<'_, Rule>) -> Result<AssertStatement, ParseError> {
         let pc = descend(item);
         let token = pc.consume()?;
+        // expression to evaluate
         let expression = self.parse_expression(token)?;
-        Ok(AssertStatement { expression })
+        // error message, if expression is false
+        let message_token = pc.consume_of_type(Rule::string_literal)?;
+        let span = self.to_ast_span(message_token.as_span())?;
+        let message = Self::parse_string_literal(message_token)?;
+        Ok(AssertStatement {
+            expression,
+            message: Txt {
+                text: message,
+                span,
+            },
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
