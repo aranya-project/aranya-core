@@ -16,6 +16,7 @@ fnv = { workspace = true, default-features = false }
 indexmap = { workspace = true, default-features = false, features = ["serde"] }
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
+rkyv = { workspace = true, features = ["alloc", "indexmap-2"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 thiserror = { workspace = true }
 
