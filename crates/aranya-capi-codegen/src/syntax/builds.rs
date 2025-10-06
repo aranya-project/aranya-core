@@ -35,6 +35,6 @@ impl ToTokens for Builds {
         let ty = &self.ty;
         tokens.extend(quote! {
             #[capi::builds(#ty)]
-        })
+        });
     }
 }

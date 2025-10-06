@@ -32,6 +32,6 @@ impl FfiDevice {
 impl FfiDevice {
     /// Constructor for FfiDevice that initializes it with a DeviceId
     pub const fn new(id: DeviceId) -> Self {
-        FfiDevice { id }
+        Self { id }
     }
 }

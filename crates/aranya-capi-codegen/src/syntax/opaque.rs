@@ -101,6 +101,6 @@ impl ToTokens for Opaque {
         // TODO(eric): `capi`?
         tokens.extend(quote! {
             #[#capi::opaque(size = #size, align = #align, generated = #generated)]
-        })
+        });
     }
 }

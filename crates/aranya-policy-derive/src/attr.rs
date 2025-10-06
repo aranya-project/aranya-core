@@ -5,7 +5,7 @@ use std::fmt;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{
-    Error, Expr, ExprLit, Ident, Lit, LitStr, Path, meta::ParseNestedMeta, spanned::Spanned,
+    Error, Expr, ExprLit, Ident, Lit, LitStr, Path, meta::ParseNestedMeta, spanned::Spanned as _,
 };
 
 /// An attribute name,
@@ -100,13 +100,12 @@ fn get_lit_str2(
     {
         let suffix = lit.suffix();
         if !suffix.is_empty() {
-            Err(Error::new(
+            return Err(Error::new(
                 lit.span(),
                 format!("unexpected suffix `{}` on string literal", suffix),
-            ))
-        } else {
-            Ok(lit.clone())
+            ));
         }
+        Ok(lit.clone())
     } else {
         Err(Error::new(
             expr.span(),
