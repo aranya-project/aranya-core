@@ -827,7 +827,7 @@ fn test_enum_reference() {
 fn test_undefined_fact() {
     let text = r#"
         action test() {
-            check exists Foo[]
+            assert exists Foo[], "Foo exists"
         }
     "#;
 
