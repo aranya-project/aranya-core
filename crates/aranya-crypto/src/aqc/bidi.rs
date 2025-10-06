@@ -22,6 +22,7 @@ use crate::{
     hpke::{self, Mode},
     id::{Id, IdError, custom_id},
     misc::sk_misc,
+    policy::{CmdId, LabelId},
     tls::CipherSuiteId,
 };
 
@@ -40,14 +41,15 @@ use crate::{
 ///         CipherSuiteId,
 ///     },
 ///     default::{DefaultCipherSuite, DefaultEngine},
+///     policy::{CmdId, LabelId},
 ///     subtle::ConstantTimeEq,
 /// };
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = Id::random(&mut eng);
-/// let label = Id::random(&mut eng);
+/// let parent_cmd_id = CmdId::random(&mut eng);
+/// let label = LabelId::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
@@ -113,7 +115,7 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
     /// restriction may be lifted in the future.
     pub psk_length_in_bytes: u16,
     /// The ID of the parent command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// Our secret encryption key.
     pub our_sk: &'a EncryptionKey<CS>,
     /// Our DeviceID.
@@ -123,7 +125,7 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
     /// Their DeviceID.
     pub their_id: DeviceId,
     /// The policy label applied to the channel.
-    pub label: Id,
+    pub label: LabelId,
 }
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
@@ -169,10 +171,10 @@ pub(crate) struct Info {
     /// Always "AqcBidiPsk-v1".
     domain: [u8; 13],
     psk_length_in_bytes: U16<BE>,
-    parent_cmd_id: Id,
+    parent_cmd_id: CmdId,
     seal_id: DeviceId,
     open_id: DeviceId,
-    label: Id,
+    label: LabelId,
 }
 
 /// A bidirectional channel author's secret.
@@ -497,7 +499,6 @@ mod tests {
     use crate::{
         aranya::{EncryptionKey, IdentityKey},
         default::{DefaultCipherSuite, DefaultEngine, Rng},
-        id::Id,
     };
 
     #[test]
@@ -505,10 +506,10 @@ mod tests {
         type E = DefaultEngine<Rng>;
         type CS = DefaultCipherSuite;
         let (mut eng, _) = E::from_entropy(Rng);
-        let parent_cmd_id = Id::random(&mut eng);
+        let parent_cmd_id = CmdId::random(&mut eng);
         let sk1 = EncryptionKey::<CS>::new(&mut eng);
         let sk2 = EncryptionKey::<CS>::new(&mut eng);
-        let label = Id::random(&mut eng);
+        let label = LabelId::random(&mut eng);
         let ch1 = BidiChannel {
             psk_length_in_bytes: 32,
             parent_cmd_id,
@@ -555,15 +556,15 @@ mod tests {
             .id()
             .expect("device2 Id should be valid");
 
-        let parent_cmd_id = Id::random(&mut eng);
-        let label = Id::random(&mut eng);
+        let parent_cmd_id = CmdId::random(&mut eng);
+        let label = LabelId::random(&mut eng);
 
         let cases = [
             (
                 "different parent_cmd_id",
                 BidiChannel {
                     psk_length_in_bytes: 32,
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -574,7 +575,7 @@ mod tests {
                 },
                 BidiChannel {
                     psk_length_in_bytes: 32,
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
@@ -649,7 +650,7 @@ mod tests {
                         .public()
                         .expect("receiver encryption public key should be valid"),
                     their_id: device2_id,
-                    label: Id::random(&mut eng),
+                    label: LabelId::random(&mut eng),
                 },
                 BidiChannel {
                     parent_cmd_id,
@@ -660,7 +661,7 @@ mod tests {
                         .public()
                         .expect("receiver encryption public key should be valid"),
                     their_id: device1_id,
-                    label: Id::random(&mut eng),
+                    label: LabelId::random(&mut eng),
                 },
             ),
         ];

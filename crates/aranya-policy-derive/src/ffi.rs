@@ -2,7 +2,8 @@ use std::{collections::HashSet, fs::File, io::Write};
 
 use aranya_policy_lang::{
     ast::{
-        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType,
+        EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, TypeKind,
+        VType,
     },
     lang,
 };
@@ -58,8 +59,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let vm: Path = parse_quote!(_policy_vm);
 
     let structdefs = structs.iter().map(|d| {
-        let name = &d.inner.identifier.as_str();
-        let fields = d.inner.items.iter().map(|arg| match arg {
+        let name = &d.identifier.as_str();
+        let fields = d.items.iter().map(|arg| match arg {
             StructItem::Field(arg) => {
                 let name = &arg.identifier.as_str();
                 let vtype = VTypeTokens::new(&arg.field_type, &vm);
@@ -168,8 +169,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     });
 
     let enum_defs = enums.iter().map(|d| {
-        let name = d.inner.identifier.as_str();
-        let variants = d.inner.variants.iter().map(|v| v.as_str());
+        let name = d.identifier.as_str();
+        let variants = d.variants.iter().map(|v| v.as_str());
         quote! {
             #vm::ffi::Enum {
                 name: #vm::ident!(#name),
@@ -477,8 +478,8 @@ const DEF: Symbol = Symbol("def");
 /// The `#[ffi]` attribute.
 struct FfiAttr {
     module: String,
-    structs: Vec<AstNode<StructDefinition>>,
-    enums: Vec<AstNode<EnumDefinition>>,
+    structs: Vec<StructDefinition>,
+    enums: Vec<EnumDefinition>,
 }
 
 impl Parse for FfiAttr {
@@ -662,12 +663,14 @@ impl Func {
                     };
 
                     // arg name should match definition
-                    if !ident.to_string().starts_with("_") && *ident != def.identifier {
+                    if !ident.to_string().starts_with("_")
+                        && def.identifier.name != ident.to_string().as_str()
+                    {
                         return Err(Error::new_spanned(
                             ident,
                             format!(
                                 "arg identifier `{ident}` should match definition (`{}`)",
-                                def.identifier
+                                def.identifier.name
                             ),
                         ));
                     }
@@ -728,21 +731,21 @@ impl<'a> VTypeTokens<'a> {
 impl ToTokens for VTypeTokens<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let vm = self.vm;
-        let item = match self.vtype {
-            VType::String => quote!(String),
-            VType::Bytes => quote!(Bytes),
-            VType::Int => quote!(Int),
-            VType::Bool => quote!(Bool),
-            VType::Id => quote!(Id),
-            VType::Struct(name) => {
+        let item = match &self.vtype.kind {
+            TypeKind::String => quote!(String),
+            TypeKind::Bytes => quote!(Bytes),
+            TypeKind::Int => quote!(Int),
+            TypeKind::Bool => quote!(Bool),
+            TypeKind::Id => quote!(Id),
+            TypeKind::Struct(name) => {
                 let name = name.as_str();
                 quote!(Struct(#name))
             }
-            VType::Enum(name) => {
+            TypeKind::Enum(name) => {
                 let name = name.as_str();
                 quote!(Enum(#name))
             }
-            VType::Optional(vtype) => {
+            TypeKind::Optional(vtype) => {
                 let vtype = VTypeTokens::new(vtype, vm);
                 quote!(Optional(&#vm::ffi::Type::#vtype))
             }
@@ -776,21 +779,21 @@ impl ToTokens for TypeTokens<'_> {
         let alloc = self.alloc;
         let crypto = self.crypto;
         let vm = self.vm;
-        let item = match self.vtype {
-            VType::String => quote!(#vm::Text),
-            VType::Bytes => quote!(#alloc::vec::Vec<u8>),
-            VType::Int => quote!(i64),
-            VType::Bool => quote!(bool),
-            VType::Id => quote!(#crypto::Id),
-            VType::Struct(name) => {
+        let item = match &self.vtype.kind {
+            TypeKind::String => quote!(#vm::Text),
+            TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
+            TypeKind::Int => quote!(i64),
+            TypeKind::Bool => quote!(bool),
+            TypeKind::Id => quote!(#crypto::Id),
+            TypeKind::Struct(name) => {
                 let ident = format_ident!("{name}");
                 quote!(#ident)
             }
-            VType::Enum(name) => {
+            TypeKind::Enum(name) => {
                 let ident = format_ident!("{name}");
                 quote!(#ident)
             }
-            VType::Optional(vtype) => {
+            TypeKind::Optional(vtype) => {
                 let vtype = TypeTokens::new(vtype, alloc, crypto, vm);
                 quote!(::core::option::Option<#vtype>)
             }

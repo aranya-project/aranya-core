@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.7.0...aranya-aqc-util-v0.8.0) - 2025-09-17
+
+### Other
+
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.6.0...aranya-aqc-util-v0.7.0) - 2025-08-19
+
+### Other
+
+- Format code in doc comments ([#341](https://github.com/aranya-project/aranya-core/pull/341))
+- improve keystore typed ID usage ([#361](https://github.com/aranya-project/aranya-core/pull/361))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.5.0...aranya-aqc-util-v0.6.0) - 2025-06-18
 
 ### Other

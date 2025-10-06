@@ -131,17 +131,15 @@ checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "aranya-afc-util"
-version = "0.11.0"
+version = "0.14.0"
 dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
  "aranya-fast-channels",
  "aranya-policy-vm",
  "buggy",
- "indexmap",
  "postcard",
  "serde",
- "siphasher",
  "spin 0.10.0",
  "thiserror 2.0.7",
  "tracing",
@@ -149,7 +147,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-aqc-util"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "aranya-aqc-util",
  "aranya-crypto",
@@ -175,7 +173,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-codegen"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -207,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -216,6 +214,7 @@ dependencies = [
  "ciborium-io",
  "const_format",
  "elain",
+ "fnv",
  "libc",
  "thiserror 2.0.7",
  "tracing",
@@ -225,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-macro"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "aranya-capi-codegen",
  "proc-macro2",
@@ -236,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "aranya-crypto",
  "buggy",
@@ -250,6 +249,7 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "rand 0.8.5",
+ "rkyv",
  "rustix",
  "serde",
  "serde_json",
@@ -264,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-device-ffi"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-envelope-ffi"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -295,12 +295,11 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.10.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
  "buggy",
- "byteorder",
  "cfg-if",
  "const_format",
  "criterion",
@@ -311,13 +310,14 @@ dependencies = [
  "libc",
  "log",
  "serde",
+ "serde_test",
  "serial_test",
  "thiserror 2.0.7",
 ]
 
 [[package]]
 name = "aranya-idam-ffi"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-idam-ffi",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-libc"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "cfg-if",
  "errno",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-perspective-ffi"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -372,9 +372,10 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ast"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "aranya-policy-text",
+ "rkyv",
  "serde",
  "serde_derive",
  "thiserror 2.0.7",
@@ -382,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -398,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",
@@ -409,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.11.0"
+version = "0.14.0"
 dependencies = [
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
@@ -424,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-build"
-version = "0.5.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -438,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-macro"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -447,37 +448,43 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-lang"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
  "buggy",
  "clap",
+ "insta",
  "markdown",
  "pest",
  "pest_derive",
  "serde",
+ "serde_json",
  "serde_yaml",
 ]
 
 [[package]]
 name = "aranya-policy-module"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-ast",
+ "fnv",
+ "indexmap",
  "proptest",
  "proptest-derive",
+ "rkyv",
  "serde",
  "thiserror 2.0.7",
 ]
 
 [[package]]
 name = "aranya-policy-text"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aranya-policy-text-macro",
  "proptest",
+ "rkyv",
  "serde",
  "thiserror 2.0.7",
 ]
@@ -494,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.11.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "aranya-crypto",
@@ -548,7 +555,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.11.0"
+version = "0.14.0"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",
@@ -692,7 +699,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "regex",
@@ -738,7 +745,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "786a307d683a5bf92e6fd5fd69a7eb613751668d1d8d67d802846dfe367c62c8"
 dependencies = [
  "memchr",
- "regex-automata 0.4.9",
+ "regex-automata",
  "serde",
 ]
 
@@ -756,6 +763,29 @@ name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
+
+[[package]]
+name = "bytecheck"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50690fb3370fb9fe3550372746084c46f2ac8c9685c583d2be10eefd89d3d1a3"
+dependencies = [
+ "bytecheck_derive",
+ "ptr_meta",
+ "rancor",
+ "simdutf8",
+]
+
+[[package]]
+name = "bytecheck_derive"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efb7846e0cb180355c2dec69e721edafa36919850f1a9f52ffba4ebc0393cb71"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "byteorder"
@@ -1697,6 +1727,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "insta"
+version = "1.43.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "154934ea70c58054b556dd430b99a98c2a7ff5309ac9891597e339b5c28f4371"
+dependencies = [
+ "console",
+ "once_cell",
+ "serde",
+ "similar",
+]
+
+[[package]]
 name = "intrusive-collections"
 version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1860,11 +1902,11 @@ dependencies = [
 
 [[package]]
 name = "matchers"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
+checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
 dependencies = [
- "regex-automata 0.1.10",
+ "regex-automata",
 ]
 
 [[package]]
@@ -1927,6 +1969,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 
 [[package]]
+name = "munge"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64142d38c84badf60abf06ff9bd80ad2174306a5b11bd4706535090a30a419df"
+dependencies = [
+ "munge_macro",
+]
+
+[[package]]
+name = "munge_macro"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bb5c1d8184f13f7d0ccbeeca0def2f9a181bce2624302793005f5ca8aa62e5e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1938,12 +2000,11 @@ dependencies = [
 
 [[package]]
 name = "nu-ansi-term"
-version = "0.46.0"
+version = "0.50.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
+checksum = "d4a28e057d01f97e61255210fcff094d74ed0466038633e95017f5beb68e4399"
 dependencies = [
- "overload",
- "winapi",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2007,12 +2068,6 @@ name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
-
-[[package]]
-name = "overload"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "p256"
@@ -2254,7 +2309,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_xorshift",
- "regex-syntax 0.8.5",
+ "regex-syntax",
  "rusty-fork",
  "tempfile",
  "unarray",
@@ -2265,6 +2320,26 @@ name = "proptest-derive"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee1c9ac207483d5e7db4940700de86a9aae46ef90c48b57f99fe7edb8345e49"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "ptr_meta"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe9e76f66d3f9606f44e45598d155cb13ecf09f4a28199e48daf8c8fc937ea90"
+dependencies = [
+ "ptr_meta_derive",
+]
+
+[[package]]
+name = "ptr_meta_derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca414edb151b4c8d125c12566ab0d74dc9cdba36fb80eb7b848c15f495fd32d1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2284,6 +2359,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "rancor"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caf5f7161924b9d1cea0e4cabc97c372cea92b5f927fc13c6bca67157a0ad947"
+dependencies = [
+ "ptr_meta",
 ]
 
 [[package]]
@@ -2427,17 +2511,8 @@ checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.9",
- "regex-syntax 0.8.5",
-]
-
-[[package]]
-name = "regex-automata"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
-dependencies = [
- "regex-syntax 0.6.29",
+ "regex-automata",
+ "regex-syntax",
 ]
 
 [[package]]
@@ -2448,20 +2523,23 @@ checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.8.5",
+ "regex-syntax",
 ]
-
-[[package]]
-name = "regex-syntax"
-version = "0.6.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
+
+[[package]]
+name = "rend"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a35e8a6bf28cd121053a66aa2e6a2e3eaffad4a60012179f0e864aa5ffeff215"
+dependencies = [
+ "bytecheck",
+]
 
 [[package]]
 name = "rfc6979"
@@ -2471,6 +2549,34 @@ checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac",
  "subtle",
+]
+
+[[package]]
+name = "rkyv"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19f5c3e5da784cd8c69d32cdc84673f3204536ca56e1fa01be31a74b92c932ac"
+dependencies = [
+ "bytecheck",
+ "hashbrown",
+ "indexmap",
+ "munge",
+ "ptr_meta",
+ "rancor",
+ "rend",
+ "rkyv_derive",
+ "tinyvec",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4270433626cffc9c4c1d3707dd681f2a2718d3d7b09ad754bec137acecda8d22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -2773,6 +2879,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_test"
+version = "1.0.177"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f901ee573cab6b3060453d2d5f0bae4e6d628c23c0a962ff9b5f1d7c8d4f1ed"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_yaml"
 version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2854,6 +2969,12 @@ dependencies = [
  "digest",
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "simdutf8"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "similar"
@@ -3199,6 +3320,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09b3661f17e86524eccd4371ab0429194e0d7c008abb45f7a7495b1719463c71"
+dependencies = [
+ "tinyvec_macros",
+]
+
+[[package]]
+name = "tinyvec_macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
 name = "tokio"
 version = "1.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3281,14 +3417,14 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.19"
+version = "0.3.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8189decb5ac0fa7bc8b96b7cb9b2701d60d48805aca84a238004d665fcc4008"
+checksum = "2054a14f5307d601f88daf0553e1cbf472acc4f2c51afab632431cdcd72124d5"
 dependencies = [
  "matchers",
  "nu-ansi-term",
  "once_cell",
- "regex",
+ "regex-automata",
  "sharded-slab",
  "smallvec",
  "thread_local",
@@ -3663,9 +3799,9 @@ dependencies = [
 
 [[package]]
 name = "yoke"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "120e6aef9aa629e3d4f52dc8cc43a015c7724194c97dfaf45180d2daf2b77f40"
+checksum = "5f41bb01b8226ef4bfd589436a297c53d118f65921786300e427be8d487695cc"
 dependencies = [
  "serde",
  "stable_deref_trait",
@@ -3675,9 +3811,9 @@ dependencies = [
 
 [[package]]
 name = "yoke-derive"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2380878cad4ac9aac1e2435f3eb4020e8374b5f13c296cb75b4620ff8e229154"
+checksum = "38da3c9736e16c5d3c8c597a9aaa5d1fa565d0532ae05e27c24aa62fb32c0ab6"
 dependencies = [
  "proc-macro2",
  "quote",

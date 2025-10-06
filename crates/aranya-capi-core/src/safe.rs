@@ -97,7 +97,7 @@ impl<T: Typed> Safe<T> {
     pub fn init(out: &mut MaybeUninit<Self>, v: T) {
         let addr = out as *mut MaybeUninit<Self> as usize;
         out.write(Self {
-            id: T::TYPE_ID,
+            id: T::id(),
             flags: Flags::INIT,
             addr,
             inner: MaybeUninit::new(v),
@@ -107,7 +107,7 @@ impl<T: Typed> Safe<T> {
 
     /// Is the type ID correct?
     fn is_valid(&self) -> bool {
-        self.id == T::TYPE_ID
+        self.id == T::id()
     }
 
     /// Is the type initialized?
@@ -139,7 +139,7 @@ impl<T: Typed> Safe<T> {
         if !self.is_valid() {
             error!(
                 got = %self.id,
-                want = %T::TYPE_ID,
+                want = %T::id(),
                 name = self.name(),
                 "invalid type ID",
             );
@@ -169,7 +169,7 @@ impl<T: Typed> Safe<T> {
             if !self.is_valid() {
                 error!(
                     got = %self.id,
-                    want = %T::TYPE_ID,
+                    want = %T::id(),
                     name = self.name(),
                     "invalid type ID",
                 );
@@ -294,7 +294,7 @@ impl<T: Typed + Default> InitDefault for Safe<T> {
 impl<T: Typed> Drop for Safe<T> {
     fn drop(&mut self) {
         tracing::debug!(addr = self as *mut Safe<T> as usize, "dropping");
-        debug_assert_eq!(self.id, T::TYPE_ID);
+        debug_assert_eq!(self.id, T::id());
 
         if !self.is_valid() {
             // We shouldn't ever hit this code path. But `Drop`
@@ -354,14 +354,25 @@ impl<T: Typed + fmt::Debug> fmt::Debug for Safe<T> {
     }
 }
 
-impl<T: Typed> Typed for Safe<T> {
-    const TYPE_ID: TypeId = T::TYPE_ID;
-}
-
 /// Implemented by types that can be used with [`Safe`].
 pub trait Typed {
     /// Uniquely identifies the type.
-    const TYPE_ID: TypeId;
+    fn id() -> TypeId;
+}
+
+impl<T: core::any::Any> Typed for T {
+    fn id() -> TypeId {
+        let mut id = {
+            let mut hasher = fnv::FnvHasher::default();
+            core::any::TypeId::of::<T>().hash(&mut hasher);
+            hasher.finish() as u32
+        };
+        // This is very unlikely but it doesn't hurt to check.
+        if id == 0 {
+            id = !0;
+        };
+        TypeId(id)
+    }
 }
 
 /// Uniquely identifies types.
@@ -1061,9 +1072,6 @@ mod tests {
         const fn new(x: u32) -> Self {
             Self { _pad: x }
         }
-    }
-    impl Typed for Dummy {
-        const TYPE_ID: TypeId = TypeId::new(42);
     }
 
     /// Tests that we detect when a `Safe` is copied.

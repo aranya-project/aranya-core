@@ -7,7 +7,9 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
-    KeyStoreExt as _, OpenError, SigningKey, subtle::ConstantTimeEq,
+    KeyStoreExt as _, OpenError, SigningKey,
+    policy::{CmdId, GroupId},
+    subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -80,7 +82,7 @@ where
 {
     const CTX: CommandContext = CommandContext::Policy(PolicyContext {
         name: ident!("dummy"),
-        id: Id::default(),
+        id: CmdId::default(),
         author: DeviceId::default(),
         version: Id::default(),
     });
@@ -133,7 +135,7 @@ where
         let ffi = Ffi::new(store);
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
         let ctx = &Self::CTX;
 
@@ -153,7 +155,7 @@ where
             )
             .expect("should be able to encrypt message");
         let got = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect("should be able to decrypt message");
         assert_eq!(got, WANT);
     }
@@ -180,7 +182,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let mut ciphertext = ffi
@@ -197,7 +199,7 @@ where
         ciphertext[0] = ciphertext[0].wrapping_add(1);
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt tampered with message");
         assert_eq!(err.kind(), ErrorKind::Crypto);
 
@@ -229,7 +231,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let ciphertext = ffi
@@ -245,12 +247,12 @@ where
 
         let ctx = CommandContext::Policy(PolicyContext {
             name: ident!("different_name"),
-            id: Id::default(),
+            id: CmdId::default(),
             author: DeviceId::default(),
             version: Id::default(),
         });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different command name",
             );
@@ -284,7 +286,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::random(&mut eng),
+            head_id: CmdId::random(&mut eng),
         });
 
         let ciphertext = ffi
@@ -299,7 +301,7 @@ where
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different parent command ID",
             );
@@ -334,7 +336,7 @@ where
 
         let action_ctx = CommandContext::Action(ActionContext {
             name: ident!("dummy_action"),
-            head_id: Id::default(),
+            head_id: CmdId::default(),
         });
 
         let ciphertext = ffi
@@ -349,7 +351,7 @@ where
             .expect("should be able to encrypt message");
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
@@ -381,7 +383,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -444,7 +446,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -493,7 +495,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -538,12 +540,12 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = Id::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
-        let wrong_group_id = Id::random(&mut eng);
+        let wrong_group_id = GroupId::random(&mut eng);
         let err = ffi
             .open_group_key(
                 ctx,
@@ -572,8 +574,7 @@ where
             .public()
             .expect("encryption public key should be valid")
             .id()
-            .expect("encryption key ID should be valid")
-            .into_id();
+            .expect("encryption key ID should be valid");
         let enc_pk =
             postcard::to_allocvec(&sk.public().expect("public encryption key should be valid"))
                 .expect("should be able to encode `EncryptionPublicKey`");
@@ -591,8 +592,7 @@ where
             .public()
             .expect("verifying key should be valid")
             .id()
-            .expect("signing key ID should be valid")
-            .into_id();
+            .expect("signing key ID should be valid");
         let sign_pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
             .expect("should be able to encode `VerifyingKey`");
         let got = ffi
@@ -609,8 +609,7 @@ where
             .public()
             .expect("identity verifying key should be valid")
             .id()
-            .expect("device ID should be valid")
-            .into_id();
+            .expect("device ID should be valid");
         let ident_pk =
             postcard::to_allocvec(&sk.public().expect("identity verifying key should be valid"))
                 .expect("should be able to encode `IdentityVerifyingKey`");

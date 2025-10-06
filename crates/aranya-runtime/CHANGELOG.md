@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.13.0...aranya-runtime-v0.14.0) - 2025-09-18
+
+### Other
+
+- check persistence when calling actions ([#380](https://github.com/aranya-project/aranya-core/pull/380))
+
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.12.0...aranya-runtime-v0.13.0) - 2025-09-17
+
+### Other
+
+- add duration to hello subscription ([#404](https://github.com/aranya-project/aranya-core/pull/404))
+- clean up API ([#403](https://github.com/aranya-project/aranya-core/pull/403))
+- clean up calling interface and check context ([#388](https://github.com/aranya-project/aranya-core/pull/388))
+- add `NamedMap` and def types for action and command ([#387](https://github.com/aranya-project/aranya-core/pull/387))
+- add sync hello to dispatcher ([#372](https://github.com/aranya-project/aranya-core/pull/372))
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.11.0...aranya-runtime-v0.12.0) - 2025-08-19
+
+### Other
+
+- update `yoke@0.8.0` ([#325](https://github.com/aranya-project/aranya-core/pull/325))
+- fix syncing with multiple messages ([#345](https://github.com/aranya-project/aranya-core/pull/345))
+- Format code in doc comments ([#341](https://github.com/aranya-project/aranya-core/pull/341))
+- remove unused method `MachineIO::publish` ([#367](https://github.com/aranya-project/aranya-core/pull/367))
+- improve type checking of None and Indeterminate ([#321](https://github.com/aranya-project/aranya-core/pull/321))
+- use rustfmt 2024 style ([#256](https://github.com/aranya-project/aranya-core/pull/256))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.10.0...aranya-runtime-v0.11.0) - 2025-06-18
 
 ### Other

@@ -5,7 +5,7 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, Id, policy::CmdId};
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
@@ -20,14 +20,14 @@ use ciborium as cbor;
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
     CommandContext::Action(ActionContext {
         name,
-        head_id: Id::default(),
+        head_id: CmdId::default(),
     })
 }
 
 fn dummy_ctx_seal(name: Identifier) -> CommandContext {
     CommandContext::Seal(SealContext {
         name,
-        head_id: Id::default(),
+        head_id: CmdId::default(),
     })
 }
 
@@ -38,8 +38,17 @@ fn dummy_ctx_open(name: Identifier) -> CommandContext {
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     CommandContext::Policy(PolicyContext {
         name,
-        id: Id::default(),
-        author: Id::default().into(),
+        id: CmdId::default(),
+        author: DeviceId::default(),
+        version: Id::default(),
+    })
+}
+
+fn dummy_ctx_recall(name: Identifier) -> CommandContext {
+    CommandContext::Recall(PolicyContext {
+        name,
+        id: CmdId::default(),
+        author: DeviceId::default(),
         version: Id::default(),
     })
 }
@@ -150,8 +159,14 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x"),
-            field_type: ast::VType::Int
+            identifier: ast::Ident {
+                name: ident!("x"),
+                span: ast::Span::new(34, 35)
+            },
+            field_type: ast::VType {
+                kind: ast::TypeKind::Int,
+                span: ast::Span::new(36, 39)
+            }
         }])
     );
 
@@ -258,7 +273,7 @@ fn test_action_call_action() -> anyhow::Result<()> {
     let mut published = Vec::new();
 
     let action_name = ident!("bar");
-    let ctx = dummy_ctx_policy(action_name.clone());
+    let ctx = dummy_ctx_action(action_name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
     call_action(
         &mut rs,
@@ -291,14 +306,14 @@ fn test_command_policy() -> anyhow::Result<()> {
     let ctx = dummy_ctx_policy(name.clone());
     let io = RefCell::new(TestIO::new());
 
-    let self_data = Struct {
-        name: ident!("Bar"),
+    let this_data = Struct {
+        name,
         fields: vec![(ident!("a"), Value::Int(3)), (ident!("b"), Value::Int(4))]
             .into_iter()
             .collect(),
     };
     machine
-        .call_command_policy(name.clone(), &self_data, dummy_envelope(), &io, ctx)
+        .call_command_policy(this_data, dummy_envelope(), &io, ctx)
         .expect("Could not call command policy")
         .success();
 
@@ -322,18 +337,12 @@ fn test_command_invalid_this() {
     // invalid field count
     {
         let io = RefCell::new(TestIO::new());
-        let self_data = Struct {
-            name: ident!("Bar"),
+        let this_data = Struct {
+            name: name.clone(),
             fields: vec![(ident!("b"), Value::Int(4))].into_iter().collect(),
         };
         let err = machine
-            .call_command_policy(
-                name.clone(),
-                &self_data,
-                dummy_envelope(),
-                &io,
-                ctx.to_owned(),
-            )
+            .call_command_policy(this_data, dummy_envelope(), &io, ctx.to_owned())
             .unwrap_err()
             .err_type;
         assert_eq!(
@@ -347,20 +356,14 @@ fn test_command_invalid_this() {
     // invalid field name
     {
         let io = RefCell::new(TestIO::new());
-        let self_data = Struct {
-            name: ident!("Bar"),
+        let this_data = Struct {
+            name: name.clone(),
             fields: vec![(ident!("aaa"), Value::Int(3)), (ident!("b"), Value::Int(4))]
                 .into_iter()
                 .collect(),
         };
         let err = machine
-            .call_command_policy(
-                name.clone(),
-                &self_data,
-                dummy_envelope(),
-                &io,
-                ctx.to_owned(),
-            )
+            .call_command_policy(this_data, dummy_envelope(), &io, ctx.to_owned())
             .unwrap_err()
             .err_type;
         assert_eq!(err, MachineErrorType::InvalidStructMember(ident!("aaa")));
@@ -369,8 +372,8 @@ fn test_command_invalid_this() {
     // invalid type
     {
         let io = RefCell::new(TestIO::new());
-        let self_data = Struct {
-            name: ident!("Bar"),
+        let this_data = Struct {
+            name,
             fields: vec![
                 (ident!("a"), Value::Int(3)),
                 (ident!("b"), Value::Bool(false)),
@@ -379,7 +382,7 @@ fn test_command_invalid_this() {
             .collect(),
         };
         let err = machine
-            .call_command_policy(name.clone(), &self_data, dummy_envelope(), &io, ctx)
+            .call_command_policy(this_data, dummy_envelope(), &io, ctx)
             .unwrap_err()
             .err_type;
         assert_eq!(
@@ -408,7 +411,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name.clone(), [(KVPair::new_int(ident!("a"), 3))]);
         machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+            .call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
             .success();
     }
 
@@ -421,7 +424,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name.clone(), &[]);
         machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+            .call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
             .success();
     }
 
@@ -445,20 +448,63 @@ fn test_fact_query() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name.clone(), [KVPair::new_int(ident!("a"), 3)]);
         machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+            .call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
             .success();
 
         let name = ident!("Increment");
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name.clone(), &[]);
         machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+            .call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
             .success();
     }
 
     let fk = (ident!("Foo"), vec![]);
     let fv = vec![FactValue::new(ident!("x"), Value::Int(4))];
     assert_eq!(io.borrow().facts[&fk], fv);
+
+    Ok(())
+}
+
+#[test]
+fn test_invalid_update() -> anyhow::Result<()> {
+    fn run(initial_value: i64) -> anyhow::Result<ExitReason> {
+        let policy = parse_policy_str(POLICY_TEST_UPDATE.trim(), Version::V2)?;
+
+        let module = Compiler::new(&policy)
+            .ffi_modules(TestIO::FFI_SCHEMAS)
+            .compile()?;
+        let mut machine = Machine::from_module(module)?;
+        let io = RefCell::new(TestIO::new());
+
+        let exit = {
+            let name = ident!("Set");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct =
+                Struct::new(name.clone(), [KVPair::new_int(ident!("a"), initial_value)]);
+            machine
+                .call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
+                .success();
+
+            let name = ident!("Increment");
+            let ctx = dummy_ctx_policy(name.clone());
+            let self_struct = Struct::new(name.clone(), &[]);
+            machine.call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
+        };
+
+        let fk = (ident!("Foo"), vec![]);
+        let fv = vec![FactValue::new(ident!("x"), Value::Int(initial_value + 1))];
+        assert_eq!(io.borrow().facts[&fk], fv);
+
+        Ok(exit)
+    }
+
+    // Incrementing from '0' is valid
+    assert_eq!(run(0).unwrap(), ExitReason::Normal);
+
+    // Incrementing from a value other than '0' is invalid
+    let err = run(10).unwrap_err().downcast::<MachineError>()?;
+    assert_eq!(err.err_type, MachineErrorType::InvalidFact(ident!("Foo")));
 
     Ok(())
 }
@@ -516,7 +562,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -612,7 +658,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -622,7 +668,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -632,7 +678,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -642,7 +688,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -652,7 +698,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -731,7 +777,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 KVPair::new(ident!("x"), Value::Int(2)),
             ],
         );
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -741,7 +787,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(cmd_name.clone(), [KVPair::new(ident!("a"), a)]);
-        rs.call_command_policy(cmd_name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
 
@@ -823,15 +869,15 @@ fn test_query_partial_key() -> anyhow::Result<()> {
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name.clone());
+        let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_command_policy(cmd_name.clone(), &this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, dummy_envelope())?
             .success();
     }
 
     {
         let action_name = ident!("test_query");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -839,7 +885,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_exists");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -884,15 +930,15 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name.clone());
+        let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_command_policy(cmd_name.clone(), &this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, dummy_envelope())?
             .success();
     }
 
     {
         let action_name = ident!("test_query");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -915,7 +961,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     )?;
 
     let name = ident!("test");
-    let ctx = dummy_ctx_policy(name.clone());
+    let ctx = dummy_ctx_action(name.clone());
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
@@ -1434,7 +1480,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name.clone(), [KVPair::new(ident!("x"), Value::Int(3))]);
         machine
-            .call_command_policy(name.clone(), &self_struct, dummy_envelope(), &io, ctx)?
+            .call_command_policy(self_struct, dummy_envelope(), &io, ctx)?
             .success();
     }
 
@@ -1497,7 +1543,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
     let this_bytes: Vec<u8> = {
         let ctx = dummy_ctx_seal(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_seal(name.clone(), this_struct.clone())?.success();
+        rs.call_seal(this_struct.clone())?.success();
         let result = rs.consume_return()?;
         let mut envelope: Struct = result.try_into()?;
         let payload = envelope
@@ -1573,15 +1619,15 @@ fn test_check_unwrap() -> anyhow::Result<()> {
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name.clone());
+        let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_command_policy(cmd_name.clone(), &this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, dummy_envelope())?
             .success();
     }
 
     {
         let action_name = ident!("test_existing");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
@@ -1589,7 +1635,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
     {
         let action_name = ident!("test_nonexistent");
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let status = rs.call_action(action_name.clone(), iter::empty::<Value>())?;
         assert_eq!(status, ExitReason::Check);
@@ -1633,8 +1679,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_command_policy(
-            name.clone(),
-            &Struct::new(
+            Struct::new(
                 ident!("Foo"),
                 [KVPair::new(ident!("test"), test_data.clone().into())],
             ),
@@ -1648,11 +1693,10 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 
     {
         let name = ident!("Foo");
-        let ctx = dummy_ctx_policy(name.clone());
+        let ctx = dummy_ctx_recall(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_command_recall(
-            name.clone(),
-            &Struct::new(
+            Struct::new(
                 ident!("Foo"),
                 [KVPair::new(ident!("test"), test_data.clone().into())],
             ),
@@ -1702,7 +1746,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
         io: &RefCell<TestIO>,
         action_name: Identifier,
     ) -> Result<ExitReason, MachineError> {
-        let ctx = dummy_ctx_open(action_name.clone());
+        let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(io, ctx);
         rs.call_action(action_name.clone(), iter::empty::<Value>())
     }
@@ -1893,7 +1937,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
     let io = RefCell::new(TestIO::new());
     let mut published = Vec::new();
     let name = ident!("test");
-    let ctx = dummy_ctx_policy(name.clone());
+    let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&io, ctx);
     call_action(
         &mut rs,
@@ -2114,7 +2158,7 @@ fn test_map() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let self_struct = Struct::new(name.clone(), &[]);
-        rs.call_command_policy(name.clone(), &self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, dummy_envelope())?
             .success();
     }
     {
@@ -2225,12 +2269,8 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             let mut rs = machine.create_run_state(&io, ctx);
 
             assert_eq!(
-                rs.call_command_policy(
-                    name.clone(),
-                    &Struct::new(name.clone(), args),
-                    dummy_envelope()
-                )
-                .map_err(|e| e.err_type),
+                rs.call_command_policy(Struct::new(name.clone(), args), dummy_envelope())
+                    .map_err(|e| e.err_type),
                 expected
             );
         }
@@ -2337,6 +2377,67 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_struct_composition() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Foo {
+            fields {
+                x int,
+                y bool,
+                z string,
+            }
+            seal { return todo() }
+            open { return todo() }
+        }
+        struct Bar {
+            x int,
+            y bool,
+            z string,
+        }
+        action baz(source struct Bar, x int) {
+            publish Foo { x: x, ...source }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let mut published = Vec::new();
+    let action_name = ident!("baz");
+    let ctx = dummy_ctx_action(action_name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    call_action(
+        &mut rs,
+        &mut published,
+        action_name,
+        [
+            Value::Struct(Struct::new(
+                ident!("Bar"),
+                [
+                    (ident!("x"), Value::Int(30)),
+                    (ident!("y"), Value::Bool(false)),
+                    (ident!("z"), Value::String(text!("lorem"))),
+                ],
+            )),
+            Value::Int(10),
+        ],
+    )?
+    .success();
+    drop(rs);
+
+    let lorem = Value::String(text!("lorem"));
+
+    assert_eq!(
+        published,
+        [vm_struct!(Foo {
+            x: 10,
+            y: false,
+            z: lorem,
+        })]
+    );
+    Ok(())
+}
+
+#[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
         let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
@@ -2417,4 +2518,72 @@ fn test_comparison_operators() {
     check("2 >= 1");
     check("!(2 < 1)");
     check("!(2 <= 1)");
+}
+
+#[test]
+fn test_struct_conversion() -> anyhow::Result<()> {
+    let policy = r#"
+        struct Foo { y string, x int }
+
+        command Bar {
+            fields { x int, y string }
+            seal { return todo() }
+            open { return todo() }
+        }
+
+        function new_foo(x int, y string) struct Foo {
+            return Foo { y:y, x: x }
+        }
+
+        action test() {
+            let foo = Foo { y: "abc", x: 42 }
+            publish foo as Bar // var reference
+            publish Foo { y: "b", x: 1 } as Bar // struct literal
+            publish new_foo(5, "def") as Bar // function return value
+            publish Bar { x: 100, y: "xyz" } as Bar
+        }
+        "#;
+
+    let policy = parse_policy_str(policy, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(ident!("test"));
+    let mut rs = machine.create_run_state(&io, ctx);
+    let mut published = Vec::new();
+    let _ = call_action(
+        &mut rs,
+        &mut published,
+        ident!("test"),
+        iter::empty::<Value>(),
+    )?;
+    assert_eq!(
+        published[0],
+        vm_struct!(Bar {
+            x: Value::Int(42),
+            y: Value::String(text!("abc")),
+        })
+    );
+    assert_eq!(
+        published[1],
+        vm_struct!(Bar {
+            x: Value::Int(1),
+            y: Value::String(text!("b")),
+        })
+    );
+    assert_eq!(
+        published[2],
+        vm_struct!(Bar {
+            x: Value::Int(5),
+            y: Value::String(text!("def")),
+        })
+    );
+    assert_eq!(
+        published[3],
+        vm_struct!(Bar {
+            x: Value::Int(100),
+            y: Value::String(text!("xyz")),
+        })
+    );
+    Ok(())
 }

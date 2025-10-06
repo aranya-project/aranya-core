@@ -1190,7 +1190,10 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     let (cmds, effects) = test_model.session_actions(
         Device::A,
         Graph::X,
-        [vm_action!(create_action(5)), vm_action!(increment(3))],
+        [
+            vm_action!(create_action_ephemeral(5)),
+            vm_action!(increment_ephemeral(3)),
+        ],
     )?;
 
     assert_eq!(
@@ -1206,7 +1209,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     for cmd in cmds {
         session.receive(&cmd)?;
     }
-    session.action(vm_action!(increment(7)))?;
+    session.action(vm_action!(increment_ephemeral(7)))?;
 
     let (cmds, effects) = session.observe();
     assert_eq!(
@@ -1221,7 +1224,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     // Receive commands from client B on a new session,
     // and then perform an action afterward.
     let mut session = test_model.session(Device::A, Graph::X)?;
-    session.action(vm_action!(create_action(2)))?;
+    session.action(vm_action!(create_action_ephemeral(2)))?;
     for cmd in cmds {
         session.receive(&cmd)?;
     }
@@ -1448,10 +1451,10 @@ fn test_storage_fact_creturns_correct_index() {
     for _ in 0..5 {
         for _ in 0..5 {
             test_model
-                .action(Device::A, Graph::X, vm_action!(get_stuff()))
+                .action(Device::A, Graph::X, vm_action!(get_stuff_on_graph()))
                 .unwrap();
             test_model
-                .action(Device::B, Graph::X, vm_action!(get_stuff()))
+                .action(Device::B, Graph::X, vm_action!(get_stuff_on_graph()))
                 .unwrap();
         }
         test_model.sync(Graph::X, Device::A, Device::B).unwrap();
@@ -1603,7 +1606,7 @@ fn should_allow_remove_graph() {
     let head_id_b = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_a.into_id(), head_id_b.into_id());
+    assert_eq!(head_id_a, head_id_b);
 
     // Add our client's public keys to the graph.
     test_model
@@ -1621,7 +1624,7 @@ fn should_allow_remove_graph() {
     let head_id_after_cmd = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_ne!(head_id_a.into_id(), head_id_after_cmd.into_id());
+    assert_ne!(head_id_a, head_id_after_cmd);
 
     // Remove graph from storage.
     test_model
@@ -1650,5 +1653,5 @@ fn should_allow_remove_graph() {
     let head_id_new_sync = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_new_sync.into_id(), head_id_a.into_id());
+    assert_eq!(head_id_new_sync, head_id_a);
 }

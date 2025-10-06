@@ -5,8 +5,9 @@ use aranya_crypto::{
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
+    policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{Directed, Label};
+use aranya_fast_channels::Directed;
 use serde::{Deserialize, Serialize};
 
 use crate::{shared::decode_enc_pk, transform::Transform};
@@ -70,7 +71,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.author_id,
             their_pk,
             their_id: effect.peer_id,
-            label: effect.label.to_u32(),
+            label_id: effect.label_id,
         };
 
         let (seal, open) = Transform::transform((&ch, secret)).map_err(|err| {
@@ -113,7 +114,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.peer_id,
             their_pk,
             their_id: effect.author_id,
-            label: effect.label.to_u32(),
+            label_id: effect.label_id,
         };
 
         let (seal, open) = Transform::transform((&ch, encap)).map_err(|err| {
@@ -128,7 +129,7 @@ impl<S: KeyStore> Handler<S> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BidiChannelCreated<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -138,7 +139,7 @@ pub struct BidiChannelCreated<'a> {
     /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub peer_enc_pk: &'a [u8],
     /// The AFC channel label.
-    pub label: Label,
+    pub label_id: LabelId,
     /// The unique key identifier for the [`BidiAuthorSecret`].
     pub key_id: BidiKeyId,
 }
@@ -147,7 +148,7 @@ pub struct BidiChannelCreated<'a> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BidiChannelReceived<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
@@ -157,7 +158,7 @@ pub struct BidiChannelReceived<'a> {
     /// The channel peer's encryption key ID.
     pub peer_enc_key_id: EncryptionKeyId,
     /// The AFC channel label.
-    pub label: Label,
+    pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
 }
@@ -230,7 +231,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.open_id,
             our_sk,
             their_pk,
-            label: effect.label.to_u32(),
+            label_id: effect.label_id,
         };
 
         if self.device_id == effect.seal_id {
@@ -276,7 +277,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.open_id,
             our_sk,
             their_pk,
-            label: effect.label.to_u32(),
+            label_id: effect.label_id,
         };
 
         if self.device_id == effect.seal_id {
@@ -291,7 +292,7 @@ impl<S: KeyStore> Handler<S> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UniChannelCreated<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
@@ -303,7 +304,7 @@ pub struct UniChannelCreated<'a> {
     /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub peer_enc_pk: &'a [u8],
     /// The AFC channel label.
-    pub label: Label,
+    pub label_id: LabelId,
     /// The unique key identifier for the [`UniAuthorSecret`].
     pub key_id: UniKeyId,
 }
@@ -312,7 +313,7 @@ pub struct UniChannelCreated<'a> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UniChannelReceived<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
@@ -324,7 +325,7 @@ pub struct UniChannelReceived<'a> {
     /// The channel peer's encryption key ID.
     pub peer_enc_key_id: EncryptionKeyId,
     /// The AFC channel label.
-    pub label: Label,
+    pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
 }
