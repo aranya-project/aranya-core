@@ -3,6 +3,8 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+use alloc::string::String;
+
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
@@ -21,8 +23,8 @@ pub enum EngineError {
     Write,
     #[error("check error")]
     Check,
-    #[error("panic")]
-    Panic,
+    #[error("panic: {0}")]
+    Panic(String),
     #[error("internal error")]
     InternalError,
     #[error(transparent)]

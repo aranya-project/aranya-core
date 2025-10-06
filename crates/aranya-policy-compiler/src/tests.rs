@@ -810,8 +810,8 @@ fn test_enum_reference() {
         enum Result { OK, Err }
         action test() {
             let ok = Result::OK
-            check ok == Result::OK
-            check ok != Result::Err
+            assert ok == Result::OK, "ok"
+            assert ok != Result::Err, "!err"
 
             match ok {
                 Result::OK => {}
@@ -840,7 +840,7 @@ fn test_fact_invalid_key_name() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[k: 1]
+            assert exists Foo[k: 1], "Foo exists"
         }
     "#;
 
@@ -856,7 +856,7 @@ fn test_fact_incomplete_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[]
+            assert exists Foo[], "Foo exists"
         }
     "#;
 
@@ -872,7 +872,7 @@ fn test_fact_nonexistent_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i:0, j:1]
+            assert exists Foo[i:0, j:1], "Foo exists"
         }
     "#;
 
@@ -888,7 +888,7 @@ fn test_fact_invalid_key_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i: "1"]
+            assert exists Foo[i: "1"], "Foo exists"
         }
     "#;
 
@@ -901,7 +901,7 @@ fn test_fact_duplicate_key() {
     let text = r#"
         fact Foo[i int, j int] => {a string}
         action test() {
-            check exists Foo[i: 1, i: 2]
+            assert exists Foo[i: 1, i: 2], "Foo exists"
         }
     "#;
 
@@ -917,7 +917,7 @@ fn test_fact_invalid_value_name() {
     let text = r#"
     fact Foo[k int]=>{x int}
     action test() {
-        check exists Foo[k: saturating_add(1, 1)]=>{y: 5}
+        check exists Foo[k: saturating_add(1, 1)]=>{y: 5}, "Foo exists"
     }
     "#;
 
@@ -933,7 +933,7 @@ fn test_fact_invalid_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i: 1] => {a: true}
+            assert exists Foo[i: 1] => {a: true}, "Foo exists"
         }
     "#;
 
@@ -946,7 +946,7 @@ fn test_fact_bind_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i: 1] => {a: ?}
+            assert exists Foo[i: 1] => {a: ?}, "Foo exists"
         }
     "#;
 
@@ -958,7 +958,7 @@ fn test_fact_query_disallow_leading_binds() {
     let text = r#"
     fact Foo[x int, y int] => {}
     action test() {
-        check exists Foo[x: ?, y: 42] => {}
+        assert exists Foo[x: ?, y: 42] => {}, "Foo exists"
     }
     "#;
 
@@ -974,7 +974,7 @@ fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
         action test() {
-            check exists Foo[i: 1] => {a: saturating_add(1, 1)}
+            check exists Foo[i: 1] => {a: saturating_add(1, 1)}, "Foo exists"
         }
     "#;
 
@@ -1490,7 +1490,7 @@ fn test_match_expression() {
                 0 => false
                 _ => true
             }
-            check b
+            assert b, "b"
         }"#,
         // match expression type is optional
         r#"action f(n int) {
@@ -1671,8 +1671,8 @@ fn test_map_identifier_scope() {
             action pets() {
                 let n = 42
                 map Pet[name:?] as p {
-                    check p.age > 0
-                    check n == 42
+                    assert p.age > 0, "p.age > 0"
+                    assert n == 42, "n == 42"
                 }
             }
         "#;
@@ -1685,7 +1685,7 @@ fn test_map_identifier_scope() {
             r#"
             fact Pet[name string]=>{age int}
             action pets() {
-                check p == None
+                assert p == None, "p == None"
                 map Pet[name:?] as p {}
             }
         "#,
@@ -1697,7 +1697,7 @@ fn test_map_identifier_scope() {
             fact Pet[name string]=>{age int}
             action pets() {
                 map Pet[name:?] as p {}
-                check p == None
+                assert p == None, "p == None"
             }
         "#,
             CompileErrorType::NotDefined(String::from("Unknown identifier `p`")),
@@ -1710,7 +1710,7 @@ fn test_map_identifier_scope() {
                 map Pet[name:?] as p {
                     let n = 42
                 }
-                check n == 42 // should not be accessible outside the block
+                assert n == 42, "n == 42" // should not be accessible outside the block
             }
         "#,
             CompileErrorType::NotDefined(String::from("Unknown identifier `n`")),
@@ -3033,7 +3033,7 @@ fn test_function_used_before_definition() {
         }
 
         function divide(x int, y int) int {
-            check y > 0
+            assert y > 0, "y > 0"
             if x < y { return 0 }
             let got = divide0(Division {
                 d: y,
@@ -3055,7 +3055,7 @@ fn test_function_used_before_definition() {
             let q = args.q
             let r = args.r
 
-            check d > 0
+            assert d > 0, "d > 0"
 
             if r < d {
                 return Division {

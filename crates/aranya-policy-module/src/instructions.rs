@@ -3,7 +3,7 @@ use core::{
     num::NonZeroUsize,
 };
 
-use aranya_policy_ast::Identifier;
+use aranya_policy_ast::{Identifier, Text};
 use serde::{Deserialize, Serialize};
 
 mod meta;
@@ -33,7 +33,7 @@ pub enum ExitReason {
     /// Execution was aborted gracefully, due an error.
     Check,
     /// Execution was aborted due to an unhandled error.
-    Panic,
+    Panic(Text),
 }
 
 impl ExitReason {
@@ -50,7 +50,7 @@ impl Display for ExitReason {
             Self::Normal => f.write_str("normal"),
             Self::Yield => f.write_str("yield"),
             Self::Check => f.write_str("check"),
-            Self::Panic => f.write_str("panic"),
+            Self::Panic(msg) => write!(f, "panic: {msg}"),
         }
     }
 }
