@@ -285,8 +285,6 @@ enum ChanDirection {
     SealOnly = 1,
     /// See [`Directed::OpenOnly`].
     OpenOnly = 2,
-    /// See [`Directed::Bidirectional`].
-    Bidirectional = 3,
 }
 
 impl ChanDirection {
@@ -299,10 +297,6 @@ impl ChanDirection {
         const_assert!(ChanDirection::OpenOnly.matches(Op::Open));
         const_assert!(!ChanDirection::OpenOnly.matches(Op::Seal));
         const_assert!(ChanDirection::OpenOnly.matches(Op::Any));
-
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Seal));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Open));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Any));
 
         // Ideally, we'd write this using `matches`. But the
         // compiler isn't smart enough to turn it into a bitmask,
@@ -320,7 +314,6 @@ impl ChanDirection {
         match dir {
             Directed::SealOnly { .. } => Self::SealOnly,
             Directed::OpenOnly { .. } => Self::OpenOnly,
-            Directed::Bidirectional { .. } => Self::Bidirectional,
         }
     }
 
@@ -330,7 +323,6 @@ impl ChanDirection {
         match v {
             1 => Some(Self::SealOnly),
             2 => Some(Self::OpenOnly),
-            3 => Some(Self::Bidirectional),
             _ => None,
         }
     }
