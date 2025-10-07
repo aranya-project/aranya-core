@@ -3,9 +3,9 @@ pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
     policy::LabelId,
-    zeroize::Zeroize,
+    zeroize::Zeroize as _,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 
 #[allow(unused_imports)]
 use crate::features::*;
@@ -28,7 +28,7 @@ pub struct Client<S> {
 impl<S> Client<S> {
     /// Create a [`Client`].
     pub const fn new(state: S) -> Self {
-        Client { state }
+        Self { state }
     }
 
     /// Returns the current state.

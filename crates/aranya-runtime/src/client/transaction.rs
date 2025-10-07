@@ -1,13 +1,13 @@
 use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
     Address, ClientError, CmdId, Command, Engine, EngineError, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider, engine::CommandPlacement,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyId, Prior, Revertable as _,
+    Segment as _, Sink, Storage, StorageError, StorageProvider, engine::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -198,7 +198,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     self.add_merge(storage, engine, sink, command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
-            };
+            }
         }
 
         Ok(count)
@@ -455,7 +455,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MergeIds, Priority,
+        ClientState, Keys, MergeIds, Perspective, Policy, Priority,
         engine::{ActionPlacement, CommandPlacement},
         memory::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -525,7 +525,7 @@ mod test {
                 );
             } else {
                 facts.insert("seq".into(), Keys::default(), data.into());
-            };
+            }
             Ok(())
         }
 
@@ -613,7 +613,7 @@ mod test {
             // We don't actually need any policy bytes, but the
             // transaction/storage requires it on init commands.
             match self.prior {
-                Prior::None { .. } => Some(b""),
+                Prior::None => Some(b""),
                 _ => None,
             }
         }
@@ -809,7 +809,7 @@ mod test {
     }
 
     fn lookup(storage: &impl Storage, name: &str) -> Option<Box<[u8]>> {
-        use crate::Query;
+        use crate::Query as _;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
         p.query(name, &Keys::default()).unwrap()
@@ -990,6 +990,6 @@ mod test {
             "i" < finalize "fff2";
         };
         let err = gb.commit().expect_err("merge should fail");
-        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}")
+        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
     }
 }

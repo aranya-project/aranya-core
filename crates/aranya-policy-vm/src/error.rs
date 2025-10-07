@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, string::String};
+use alloc::{borrow::ToOwned as _, string::String};
 use core::{convert::Infallible, fmt};
 
 use aranya_policy_ast::Identifier;
@@ -12,7 +12,7 @@ use crate::io::MachineIOError;
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
 // more fine grained types.
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MachineErrorType {
     /// Stack underflow - an operation tried to consume a value from an
     /// empty stack.
@@ -120,17 +120,15 @@ impl From<ValueConversionError> for MachineErrorType {
     fn from(value: ValueConversionError) -> Self {
         match value {
             ValueConversionError::InvalidType { want, got, msg } => {
-                MachineErrorType::InvalidType { want, got, msg }
+                Self::InvalidType { want, got, msg }
             }
-            ValueConversionError::InvalidStructMember(s) => {
-                MachineErrorType::InvalidStructMember(s)
-            }
-            ValueConversionError::OutOfRange => MachineErrorType::InvalidType {
+            ValueConversionError::InvalidStructMember(s) => Self::InvalidStructMember(s),
+            ValueConversionError::OutOfRange => Self::InvalidType {
                 want: "Int".to_owned(),
                 got: "Int".to_owned(),
                 msg: "out of range".to_owned(),
             },
-            ValueConversionError::BadState => MachineErrorType::BadState("value conversion error"),
+            ValueConversionError::BadState => Self::BadState("value conversion error"),
         }
     }
 }
@@ -156,8 +154,8 @@ pub struct MachineError {
 
 impl MachineError {
     /// Creates a `MachineError`.
-    pub fn new(err_type: MachineErrorType) -> MachineError {
-        MachineError {
+    pub fn new(err_type: MachineErrorType) -> Self {
+        Self {
             err_type,
             source: None,
         }
@@ -207,7 +205,7 @@ impl fmt::Display for MachineError {
 
 impl From<MachineErrorType> for MachineError {
     fn from(value: MachineErrorType) -> Self {
-        MachineError::new(value)
+        Self::new(value)
     }
 }
 
@@ -219,6 +217,6 @@ impl From<Infallible> for MachineError {
 
 impl From<Bug> for MachineError {
     fn from(bug: Bug) -> Self {
-        MachineError::new(MachineErrorType::Bug(bug))
+        Self::new(MachineErrorType::Bug(bug))
     }
 }

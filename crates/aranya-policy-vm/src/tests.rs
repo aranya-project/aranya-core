@@ -17,7 +17,7 @@ use crate::{
     ActionContext, CodeMap, CommandContext, ExitReason, Fact, Instruction, Label, LabelType,
     MachineError, PolicyContext, Struct, Target, Value,
     error::MachineErrorType,
-    io::{MachineIO, MachineIOError},
+    io::{MachineIO as _, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
 };
@@ -70,7 +70,7 @@ fn test_add() {
         (-10, 20, 10),
     ];
 
-    for t in tups.iter() {
+    for t in &tups {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
@@ -95,7 +95,7 @@ fn test_add_overflow() {
         (i64::MAX / 2, (i64::MAX / 2) + 2),
     ];
 
-    for p in pairs.iter() {
+    for p in &pairs {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
@@ -117,7 +117,7 @@ fn test_sub() {
     // expect t.0-t.1==t.2
     let tups: [(i64, i64, i64); 4] = [(5, 3, 2), (5, 8, -3), (-10, 8, -18), (-10, -5, -5)];
 
-    for t in tups.iter() {
+    for t in &tups {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
@@ -144,7 +144,7 @@ fn test_sub_overflow() {
         (i64::MAX, -1),
     ];
 
-    for p in pairs.iter() {
+    for p in &pairs {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
@@ -166,8 +166,8 @@ struct TestStack {
 }
 
 impl TestStack {
-    pub fn new() -> TestStack {
-        TestStack { stack: vec![] }
+    pub fn new() -> Self {
+        Self { stack: vec![] }
     }
 }
 
@@ -580,7 +580,7 @@ fn test_errors() {
             );
             Ok(())
         },
-        ctx.to_owned(),
+        ctx.clone(),
     );
 
     // InvalidAddress: Set PC to a label of the wrong type

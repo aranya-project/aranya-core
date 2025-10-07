@@ -7,7 +7,7 @@ use aranya_crypto::{
 };
 use aranya_policy_vm::{
     self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
-    Stack, Text, Typed, Value, ValueConversionError,
+    Stack as _, Text, Typed, Value, ValueConversionError,
     ffi::{FfiModule, Type, ffi},
     ident, text,
 };
@@ -62,7 +62,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
     where
         V: Into<Value>,
     {
-        self.stack.push(v).expect("should not fail")
+        self.stack.push(v).expect("should not fail");
     }
 
     fn pop<V>(&mut self) -> Result<V, MachineErrorType>
@@ -90,7 +90,7 @@ impl Typed for Label {
 
 impl From<Label> for Value {
     fn from(label: Label) -> Self {
-        Value::Int(label.0.into())
+        Self::Int(label.0.into())
     }
 }
 
@@ -108,7 +108,7 @@ impl TryFrom<Value> for Label {
                 ));
             }
         };
-        Ok(Label(
+        Ok(Self(
             u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,
         ))
     }
@@ -118,7 +118,7 @@ struct Overflow;
 
 impl From<Overflow> for MachineError {
     fn from(_err: Overflow) -> Self {
-        MachineError::new(MachineErrorType::IntegerOverflow)
+        Self::new(MachineErrorType::IntegerOverflow)
     }
 }
 

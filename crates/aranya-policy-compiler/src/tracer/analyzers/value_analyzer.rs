@@ -19,9 +19,9 @@ impl ValueAnalyzer {
     pub fn new(
         globals: impl IntoIterator<Item = Identifier>,
         predefined: impl IntoIterator<Item = Identifier>,
-    ) -> ValueAnalyzer {
+    ) -> Self {
         let initial_set = predefined.into_iter().collect();
-        ValueAnalyzer {
+        Self {
             globals: globals.into_iter().collect(),
             value_sets: vec![initial_set],
         }

@@ -60,7 +60,7 @@ impl From<&Type<'_>> for VType {
             }),
             Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
         };
-        VType {
+        Self {
             kind,
             span: Span::empty(),
         }
@@ -90,7 +90,7 @@ pub struct Func<'a> {
 }
 
 /// An argument to a foreign function.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Arg<'a> {
     /// The argument's name.
     pub name: Identifier,

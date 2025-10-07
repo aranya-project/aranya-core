@@ -18,7 +18,7 @@ use core::{
 
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, KeyStoreExt as _, Random, Rng,
+    IdentityKey, KeyStore, KeyStoreExt as _, Random as _, Rng,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant, memstore},
@@ -42,7 +42,7 @@ fn encode_enc_pk<CS: CipherSuite>(pk: &EncryptionPublicKey<CS>) -> Vec<u8> {
 fn shuffle<T>(data: &mut [T]) {
     shuffle_by(data.len(), |i, j| {
         data.swap(i, j);
-    })
+    });
 }
 
 fn shuffle_by<F>(n: usize, mut swap: F)

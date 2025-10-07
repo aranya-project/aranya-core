@@ -1,7 +1,7 @@
 //! An effect handler for AQC.
 
 use aranya_crypto::{
-    DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
+    DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt as _,
     aqc::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
