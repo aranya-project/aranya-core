@@ -917,7 +917,7 @@ fn test_fact_invalid_value_name() {
     let text = r#"
     fact Foo[k int]=>{x int}
     action test() {
-        check exists Foo[k: saturating_add(1, 1)]=>{y: 5}, "Foo exists"
+        assert exists Foo[k: 1]=>{y: 5}, "Foo exists"
     }
     "#;
 
@@ -974,7 +974,7 @@ fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
         action test() {
-            check exists Foo[i: 1] => {a: saturating_add(1, 1)}, "Foo exists"
+            assert exists Foo[i: 1] => {a: saturating_add(1, 1)}, "Foo exists"
         }
     "#;
 
