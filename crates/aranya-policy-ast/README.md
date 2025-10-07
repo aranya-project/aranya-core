@@ -26,7 +26,7 @@ let module = Compiler::new(&policy).compile()?;
 ## Features
 
 - **`std`** - Enable standard library support (default: disabled)
-- **`proptest`** - Enable property testing support for AST nodes
+- **`proptest`** - Enable property testing support for AST nodes (default: disabled)
 
 ## Serialization
 
