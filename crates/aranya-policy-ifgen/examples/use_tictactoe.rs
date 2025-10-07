@@ -3,7 +3,7 @@
 pub mod tictactoe;
 
 use aranya_policy_ifgen::{Actor, ClientError, Id, VmAction};
-use tictactoe::{ActorExt, Players};
+use tictactoe::{ActorExt as _, Players};
 
 struct PrintClient;
 impl Actor for PrintClient {

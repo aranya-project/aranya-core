@@ -5,7 +5,7 @@ use core::convert::Infallible;
 
 use aranya_crypto::{
     Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
+    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
     policy::{self, CmdId, GroupId, RoleId},

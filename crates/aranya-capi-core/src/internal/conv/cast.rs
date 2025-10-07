@@ -35,7 +35,7 @@ macro_rules! __hide {
 macro_rules! to_inner {
     ($v:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $v {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -49,7 +49,7 @@ macro_rules! to_inner {
 macro_rules! to_inner_ref {
     ($xref:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_ref($xref) {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -63,7 +63,7 @@ macro_rules! to_inner_ref {
 macro_rules! to_inner_mut {
     ($xref:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref($xref) {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -77,7 +77,7 @@ macro_rules! to_inner_mut {
 macro_rules! to_inner_ptr {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_const_ptr($ptr) {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -91,7 +91,7 @@ macro_rules! to_inner_ptr {
 macro_rules! to_inner_mut_ptr {
     ($ptr:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref_ptr($ptr) {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -105,7 +105,7 @@ macro_rules! to_inner_mut_ptr {
 macro_rules! to_inner_slice {
     ($slice:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice($slice) {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -119,7 +119,7 @@ macro_rules! to_inner_slice {
 macro_rules! to_inner_slice_mut {
     ($slice:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, ToInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice_mut($slice) {
             v => $crate::__hide!(v).kind().to_inner(v),
         }
@@ -133,7 +133,7 @@ macro_rules! to_inner_slice_mut {
 macro_rules! from_inner {
     ($v:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $v {
             v => $crate::__hide!(v => $ty).kind().from_inner::<$ty>(v),
         }
@@ -147,14 +147,14 @@ macro_rules! from_inner {
 macro_rules! from_inner_ref {
     ($xref:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_ref($xref) {
             v => $crate::__hide!(v => &$ty).kind().from_inner(v),
         }
     }};
     ($xref:expr, $ty:expr $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_ref($xref) {
             v => $crate::__hide!(v => &$ty).kind().from_inner(v),
         }
@@ -168,7 +168,7 @@ macro_rules! from_inner_ref {
 macro_rules! from_inner_mut {
     ($xref:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref($xref) {
             v => $crate::__hide!(v => &mut $ty).kind().from_inner(v),
         }
@@ -182,7 +182,7 @@ macro_rules! from_inner_mut {
 macro_rules! from_inner_ptr {
     ($ptr:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_const_ptr($ptr) {
             v => $crate::__hide!(v => *const $ty).kind().from_inner(v),
         }
@@ -196,7 +196,7 @@ macro_rules! from_inner_ptr {
 macro_rules! from_inner_mut_ptr {
     ($ptr:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref_ptr($ptr) {
             v => $crate::__hide!(v => *mut $ty).kind().from_inner(v),
         }
@@ -210,7 +210,7 @@ macro_rules! from_inner_mut_ptr {
 macro_rules! from_inner_slice {
     ($slice:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice($slice) {
             v => $crate::__hide!(v => &[$ty]).kind().from_inner(v),
         }
@@ -224,7 +224,7 @@ macro_rules! from_inner_slice {
 macro_rules! from_inner_slice_mut {
     ($slice:expr => $ty:ty $(,)?) => {{
         #[allow(unused_imports)]
-        use $crate::internal::conv::cast::{DefaultKind, FromInnerKind};
+        use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice_mut($slice) {
             v => $crate::__hide!(v => &mut [$ty]).kind().from_inner(v),
         }
@@ -477,6 +477,7 @@ mod tests {
 
         #[derive(Copy, Clone, Debug, Default)]
         #[repr(transparent)]
+        #[allow(dead_code)]
         struct C(B);
         unsafe impl NewType for C {
             type Inner = A;

@@ -95,7 +95,7 @@ pub struct Safe<T: Typed> {
 impl<T: Typed> Safe<T> {
     /// Writes an initialized `Safe` to `out`.
     pub fn init(out: &mut MaybeUninit<Self>, v: T) {
-        let addr = out as *mut MaybeUninit<Self> as usize;
+        let addr = ptr::from_mut::<MaybeUninit<Self>>(out) as usize;
         out.write(Self {
             id: T::id(),
             flags: Flags::INIT,
@@ -117,7 +117,7 @@ impl<T: Typed> Safe<T> {
 
     /// Did the address change?
     fn addr_changed(&self) -> bool {
-        self.addr != self as *const Self as usize
+        self.addr != ptr::from_ref::<Self>(self) as usize
     }
 
     #[cfg(not(debug_assertions))]
@@ -150,7 +150,7 @@ impl<T: Typed> Safe<T> {
         } else if self.addr_changed() {
             error!(
                 old = %Hex(self.addr),
-                new = %Hex(self as *const Self as usize),
+                new = %Hex(ptr::from_ref::<Self>(self) as usize),
                 id = %self.id,
                 name = self.name(),
                 "address changed"
@@ -180,7 +180,7 @@ impl<T: Typed> Safe<T> {
             } else if self.addr_changed() {
                 warn!(
                     old = %Hex(self.addr),
-                    new = %Hex(self as *const Self as usize),
+                    new = %Hex(ptr::from_ref::<Self>(self) as usize),
                     id = %self.id,
                     name = self.name(),
                     "address changed"
@@ -287,13 +287,13 @@ impl<T: Typed> Safe<T> {
 
 impl<T: Typed + Default> InitDefault for Safe<T> {
     fn init_default(out: &mut MaybeUninit<Self>) {
-        Self::init(out, T::default())
+        Self::init(out, T::default());
     }
 }
 
 impl<T: Typed> Drop for Safe<T> {
     fn drop(&mut self) {
-        tracing::debug!(addr = self as *mut Safe<T> as usize, "dropping");
+        tracing::debug!(addr = ptr::from_mut::<Self>(self) as usize, "dropping");
         debug_assert_eq!(self.id, T::id());
 
         if !self.is_valid() {
@@ -370,7 +370,7 @@ impl<T: core::any::Any> Typed for T {
         // This is very unlikely but it doesn't hurt to check.
         if id == 0 {
             id = !0;
-        };
+        }
         TypeId(id)
     }
 }
@@ -872,11 +872,11 @@ impl<T> Valid<T> {
         let Some(ptr) = NonNull::new(ptr) else {
             return Err(InvalidPtr::Null);
         };
+
         if !ptr.is_aligned() {
-            Err(InvalidPtr::Unaligned)
-        } else {
-            Ok(Self { ptr })
+            return Err(InvalidPtr::Unaligned);
         }
+        Ok(Self { ptr })
     }
 }
 
@@ -886,7 +886,7 @@ impl<T: ?Sized> Valid<T> {
         Self {
             // SAFETY: `v` is a reference, so it is always
             // non-null and suitably aligned.
-            ptr: unsafe { NonNull::new_unchecked((v as *const T).cast_mut()) },
+            ptr: unsafe { NonNull::new_unchecked(ptr::from_ref::<T>(v).cast_mut()) },
         }
     }
 
@@ -895,7 +895,7 @@ impl<T: ?Sized> Valid<T> {
         Self {
             // SAFETY: `v` is a reference, so it is always
             // non-null and suitably aligned.
-            ptr: unsafe { NonNull::new_unchecked(v as *mut T) },
+            ptr: unsafe { NonNull::new_unchecked(ptr::from_mut::<T>(v)) },
         }
     }
 
@@ -1008,7 +1008,7 @@ impl<T: ?Sized> PartialOrd for Valid<T> {
 
 impl<T: ?Sized> Hash for Valid<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ptr().hash(state)
+        self.as_ptr().hash(state);
     }
 }
 

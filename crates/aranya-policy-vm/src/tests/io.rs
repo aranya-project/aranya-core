@@ -1,6 +1,6 @@
 extern crate alloc;
 use alloc::collections::{BTreeMap, btree_map};
-use core::{cell::RefCell, fmt, ops::DerefMut};
+use core::{cell::RefCell, fmt, ops::DerefMut as _};
 
 use aranya_crypto::{
     Rng,
@@ -12,7 +12,7 @@ use aranya_policy_ast::Identifier;
 use super::ffi::*;
 use crate::{
     CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair, MachineError,
-    MachineErrorType, MachineIO, MachineIOError, Stack, ffi::FfiModule,
+    MachineErrorType, MachineIO, MachineIOError, Stack, ffi::FfiModule as _,
 };
 
 pub struct TestIO {
@@ -36,7 +36,7 @@ impl fmt::Debug for TestIO {
 impl TestIO {
     pub fn new() -> Self {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
-        TestIO {
+        Self {
             facts: BTreeMap::new(),
             effect_stack: vec![],
             engine: RefCell::new(engine),
