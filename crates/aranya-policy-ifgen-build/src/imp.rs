@@ -86,9 +86,11 @@ pub fn generate_code(target: &CompileTarget) -> String {
             .iter()
             .map(|def| {
                 match def.persistence {
-                    Persistence::Persistent => persistent_actions.push(mk_ident(def.name.as_str())),
+                    Persistence::Persistent => {
+                        persistent_actions.push(mk_ident(def.name.as_str()));
+                    }
                     Persistence::Ephemeral(_) => {
-                        ephemeral_actions.push(mk_ident(def.name.as_str()))
+                        ephemeral_actions.push(mk_ident(def.name.as_str()));
                     }
                 }
                 let interface = match def.persistence {

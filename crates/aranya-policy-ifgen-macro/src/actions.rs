@@ -14,7 +14,7 @@ impl syn::parse::Parse for Attrs {
         assert_eq!(name, "interface");
         input.parse::<syn::Token![=]>()?;
         let value: syn::Path = input.parse()?;
-        Ok(Attrs { interface: value })
+        Ok(Self { interface: value })
     }
 }
 

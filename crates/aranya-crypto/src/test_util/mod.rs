@@ -212,7 +212,7 @@ impl<T: Mac> crypto::mac::Mac for MacWithDefaults<T> {
     }
 
     fn update(&mut self, data: &[u8]) {
-        self.0.update(data)
+        self.0.update(data);
     }
 
     fn tag(self) -> Self::Tag {

@@ -41,7 +41,7 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
-use core::{fmt::Display, ops::Div};
+use core::{fmt::Display, ops::Div as _};
 use std::{
     fmt,
     sync::{Mutex, MutexGuard},
@@ -240,7 +240,7 @@ pub fn bench_aggregate(stopwatch: &mut Stopwatch) {
     }
     if !stopwatch.measurement_stack.is_empty() {
         println!("Incomplete measurements:");
-        for (name, _) in stopwatch.measurement_stack.iter() {
+        for (name, _) in &stopwatch.measurement_stack {
             println!("{name}");
         }
     }

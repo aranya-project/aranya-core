@@ -12,13 +12,13 @@ impl PrintClient {
     fn act(&mut self, action: impl Actionable<Interface = tictactoe::Persistent>) {
         action.with_action(|action| {
             println!("Calling persistent action {action}");
-        })
+        });
     }
 
     fn session_act(&mut self, action: impl Actionable<Interface = tictactoe::Ephemeral>) {
         action.with_action(|action| {
             println!("Calling ephemeral action {action}");
-        })
+        });
     }
 }
 

@@ -1,7 +1,7 @@
 use core::{cmp::Ordering, fmt};
 
 use buggy::Bug;
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder as _, LittleEndian};
 pub use spideroak_crypto::hpke::MessageLimitReached;
 use spideroak_crypto::{
     aead,
@@ -43,7 +43,7 @@ impl Seq {
 }
 
 impl From<Seq> for u64 {
-    fn from(seq: Seq) -> u64 {
+    fn from(seq: Seq) -> Self {
         seq.to_u64()
     }
 }

@@ -2,7 +2,7 @@ use derive_where::derive_where;
 use spideroak_crypto::{
     csprng::{Csprng, Random},
     import::{ExportError, Import, ImportError},
-    kem::{DecapKey, Kem},
+    kem::{DecapKey as _, Kem},
     keys::{SecretKey, SecretKeyBytes},
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
@@ -158,7 +158,7 @@ mod test_misc {
         fn from(key: RawSealKey<CS>) -> Self {
             Self {
                 key: key.key.clone(),
-                base_nonce: key.base_nonce.clone(),
+                base_nonce: key.base_nonce,
             }
         }
     }
@@ -167,7 +167,7 @@ mod test_misc {
         fn from(key: RawOpenKey<CS>) -> Self {
             Self {
                 key: key.key.clone(),
-                base_nonce: key.base_nonce.clone(),
+                base_nonce: key.base_nonce,
             }
         }
     }
