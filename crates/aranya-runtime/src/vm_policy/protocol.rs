@@ -14,31 +14,15 @@ use crate::{
     command::{CmdId, Command, Priority},
 };
 
-/// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.
+/// The data inside a [`VmProtocol`]. It gets serialized and deserialized over the wire.
 #[derive(Debug, Serialize, Deserialize)]
-pub enum VmProtocolData<'a> {
-    Init {
-        policy: [u8; 8],
-        author_id: DeviceId,
-        kind: Identifier,
-        #[serde(borrow)]
-        serialized_fields: &'a [u8],
-        #[serde(borrow)]
-        signature: &'a [u8],
-    },
-    Merge {
-        left: Address,
-        right: Address,
-    },
-    Basic {
-        parent: Address,
-        author_id: DeviceId,
-        kind: Identifier,
-        #[serde(borrow)]
-        serialized_fields: &'a [u8],
-        #[serde(borrow)]
-        signature: &'a [u8],
-    },
+pub struct VmProtocolData<'a> {
+    pub author_id: DeviceId,
+    pub kind: Identifier,
+    #[serde(borrow)]
+    pub serialized_fields: &'a [u8],
+    #[serde(borrow)]
+    pub signature: &'a [u8],
 }
 
 /// The Command implementation as used by the VM. It deserializes the interior data into a
@@ -46,30 +30,12 @@ pub enum VmProtocolData<'a> {
 /// access to that.
 #[derive(Debug)]
 pub struct VmProtocol<'a> {
-    /// Reference to the serialized data underlying the command
-    data: &'a [u8],
-    /// The ID of the command
-    id: CmdId,
-    /// The deserialized data
-    unpacked: VmProtocolData<'a>,
-    /// The command's priority.
-    priority: Priority,
-}
-
-impl<'a> VmProtocol<'a> {
-    pub fn new(
-        data: &'a [u8],
-        id: CmdId,
-        unpacked: VmProtocolData<'a>,
-        priority: Priority,
-    ) -> Self {
-        VmProtocol {
-            data,
-            id,
-            unpacked,
-            priority,
-        }
-    }
+    pub id: CmdId,
+    pub priority: Priority,
+    pub parent: Prior<Address>,
+    pub policy: Option<[u8; 8]>,
+    /// Serialized [`VmProtocolData`].
+    pub data: &'a [u8],
 }
 
 impl Command for VmProtocol<'_> {
@@ -82,18 +48,11 @@ impl Command for VmProtocol<'_> {
     }
 
     fn parent(&self) -> Prior<Address> {
-        match self.unpacked {
-            VmProtocolData::Init { .. } => Prior::None,
-            VmProtocolData::Merge { left, right, .. } => Prior::Merge(left, right),
-            VmProtocolData::Basic { parent, .. } => Prior::Single(parent),
-        }
+        self.parent
     }
 
     fn policy(&self) -> Option<&[u8]> {
-        match self.unpacked {
-            VmProtocolData::Init { ref policy, .. } => Some(policy),
-            _ => None,
-        }
+        self.policy.as_ref().map(|p| &p[..])
     }
 
     fn bytes(&self) -> &[u8] {
