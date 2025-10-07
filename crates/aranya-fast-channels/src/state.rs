@@ -110,7 +110,7 @@ pub trait SealCtx<CS: CipherSuite> {
     /// Returns the label ID associated with this [`ChannelCtx`]
     fn label_id(&self) -> LabelId;
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     fn new(id: ChannelId, label_id: LabelId) -> Box<Self>;
 }
 
@@ -127,6 +127,9 @@ pub trait OpenCtx<CS: CipherSuite> {
 
     /// Returns the label ID associated with this [`ChannelCtx`]
     fn label_id(&self) -> LabelId;
+
+    #[cfg(any(test, feature = "testing"))]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self>;
 }
 
 /// Implementation of [`SealCtx`]
@@ -164,7 +167,7 @@ impl<CS: CipherSuite> SealCtx<CS> for SealCtxImpl<CS> {
         self.seal_key.replace(new);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     fn new(id: ChannelId, label_id: LabelId) -> Box<Self> {
         Box::new(Self::new(id, label_id, None))
     }
@@ -201,6 +204,11 @@ impl<CS: CipherSuite> OpenCtx<CS> for OpenCtxImpl<CS> {
 
     fn set_open_key(&mut self, new: OpenKey<CS>, _: private::Internal) {
         self.open_key.replace(new);
+    }
+
+    #[cfg(any(test, feature = "testing"))]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self> {
+        Box::new(Self::new(id, label_id, None))
     }
 }
 
