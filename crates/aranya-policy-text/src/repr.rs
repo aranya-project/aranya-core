@@ -120,7 +120,7 @@ impl Repr {
                 ptr::copy_nonoverlapping(s.as_ptr(), bytes.as_mut_ptr().cast::<u8>(), len);
             }
             // SAFETY: Same size and `Repr` is all `MaybeUninit`.
-            unsafe { transmute::<[MaybeUninit<u8>; MAX_INLINE], Repr>(bytes) }
+            unsafe { transmute::<[MaybeUninit<u8>; MAX_INLINE], Self>(bytes) }
         } else {
             Self {
                 ptr: MaybeUninit::new(arc::create(s)),
@@ -223,7 +223,7 @@ impl Ord for Repr {
 
 impl core::hash::Hash for Repr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
+        self.as_str().hash(state);
     }
 }
 
@@ -263,7 +263,7 @@ impl rkyv::Archive for Repr {
     fn resolve(&self, resolver: Self::Resolver, out: rkyv::Place<Self::Archived>) {
         // SAFETY: `ArchivedRepr` has the same layout as `ArchivedString`.
         let out = unsafe { out.cast_unchecked::<ArchivedString>() };
-        ArchivedString::resolve_from_str(self.as_str(), resolver, out)
+        ArchivedString::resolve_from_str(self.as_str(), resolver, out);
     }
 }
 
@@ -392,7 +392,7 @@ mod test {
         assert_eq!(repr, repr2);
         drop(repr);
         assert_eq!(repr2.as_str(), s);
-        drop(repr2)
+        drop(repr2);
     }
 
     proptest! {

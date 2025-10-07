@@ -1,10 +1,8 @@
-#![warn(clippy::arithmetic_side_effects)]
-
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
-    io::{Read, stdin},
+    io::{Read as _, stdin},
 };
 
 use aranya_crypto::{DeviceId, Id, policy::CmdId};
@@ -15,7 +13,7 @@ use aranya_policy_vm::{
     Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
     MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
-use clap::{ArgGroup, Parser, ValueEnum, arg};
+use clap::{ArgGroup, Parser, ValueEnum};
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
 enum Mode {
@@ -119,7 +117,7 @@ struct MachExpIO {
 
 impl MachExpIO {
     fn new() -> Self {
-        MachExpIO {
+        Self {
             facts: HashMap::new(),
             effects: vec![],
         }
@@ -139,7 +137,7 @@ impl Iterator for MachExpQueryIterator {
         self.iter
             .next()
             .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
-            .map(|((_, k), v)| Ok((k.clone(), v.clone())))
+            .map(|((_, k), v)| Ok((k, v)))
     }
 }
 
@@ -203,7 +201,7 @@ where
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
-        self.effects.push((name, fields))
+        self.effects.push((name, fields));
     }
 
     fn call(

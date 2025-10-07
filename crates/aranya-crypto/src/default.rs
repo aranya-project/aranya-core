@@ -4,7 +4,7 @@ use derive_where::derive_where;
 pub use spideroak_crypto::default::Rng;
 use spideroak_crypto::{
     aead::{Aead, Nonce, Tag},
-    csprng::{Csprng, Random},
+    csprng::{Csprng, Random as _},
     ed25519,
     generic_array::GenericArray,
     import::Import,
@@ -19,7 +19,7 @@ use spideroak_crypto::{
 };
 
 use crate::{
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::{
         self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
         WrongKeyType,
@@ -98,7 +98,7 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
 
 impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
-        self.rng.fill_bytes(dst)
+        self.rng.fill_bytes(dst);
     }
 }
 
@@ -180,7 +180,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
             (AlgId::Prk(_), Ciphertext::Prk(data)) => {
                 RawSecret::Prk(Prk::new(SecretKeyBytes::new(data.clone())))
             }
-            (AlgId::Seed(_), Ciphertext::Seed(data)) => {
+            (AlgId::Seed(()), Ciphertext::Seed(data)) => {
                 RawSecret::Seed(Import::<_>::import(data.as_slice())?)
             }
             (AlgId::Signing(_), Ciphertext::Signing(data)) => {
