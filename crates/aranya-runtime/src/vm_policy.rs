@@ -129,7 +129,8 @@ use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
-    ActionPlacement, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior, Priority,
+    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior,
+    Priority,
     command::{CmdId, Command},
     engine::{EngineError, NullSink, Policy, Sink},
 };
@@ -505,58 +506,20 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
     ) -> Result<(), EngineError> {
-        let unpacked: VmProtocolData<'_> = postcard::from_bytes(command.bytes()).map_err(|e| {
+        let VmProtocolData {
+            author_id,
+            kind,
+            serialized_fields,
+            signature,
+        } = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
-        let (command_info, expected_priority) = {
-            match unpacked {
-                VmProtocolData::Init {
-                    author_id,
-                    kind,
-                    serialized_fields,
-                    signature,
-                    ..
-                } => (
-                    Some((
-                        Envelope {
-                            parent_id: CmdId::default(),
-                            author_id,
-                            command_id: command.id(),
-                            payload: Cow::Borrowed(serialized_fields),
-                            signature: Cow::Borrowed(signature),
-                        },
-                        kind,
-                        author_id,
-                    )),
-                    Priority::Init,
-                ),
-                VmProtocolData::Basic {
-                    parent,
-                    kind,
-                    author_id,
-                    serialized_fields,
-                    signature,
-                } => {
-                    let priority = self.get_command_priority(&kind).into();
-                    (
-                        Some((
-                            Envelope {
-                                parent_id: parent.id,
-                                author_id,
-                                command_id: command.id(),
-                                payload: Cow::Borrowed(serialized_fields),
-                                signature: Cow::Borrowed(signature),
-                            },
-                            kind,
-                            author_id,
-                        )),
-                        priority,
-                    )
-                }
-                // Merges always pass because they're an artifact of the graph
-                VmProtocolData::Merge { .. } => (None, Priority::Merge),
-            }
+
+        let (expected_priority, parent_id) = match command.parent() {
+            Prior::None => (Priority::Init, CmdId::default()),
+            Prior::Single(parent) => (self.get_command_priority(&kind).into(), parent.id),
+            Prior::Merge(_, _) => bug!("merge commands are not evaluated"),
         };
 
         if command.priority() != expected_priority {
@@ -568,52 +531,59 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             bug!("Command has invalid priority");
         }
 
-        if let Some((envelope, kind, author_id)) = command_info {
-            let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
-                error!("unknown command {kind}");
-                EngineError::InternalError
-            })?;
+        let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
+            error!("unknown command {kind}");
+            EngineError::InternalError
+        })?;
 
-            match (placement, &def.persistence) {
-                (CommandPlacement::OnGraphAtOrigin, Persistence::Persistent) => {}
-                (CommandPlacement::OnGraphInBraid, Persistence::Persistent) => {}
-                (CommandPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
-                (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral(_)) => {
-                    error!("cannot evaluate ephemeral command on-graph");
-                    return Err(EngineError::InternalError);
-                }
-                (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral(_)) => {
-                    error!("cannot evaluate ephemeral command in braid");
-                    return Err(EngineError::InternalError);
-                }
-                (CommandPlacement::OffGraph, Persistence::Persistent) => {
-                    error!("cannot evaluate persistent command off-graph");
-                    return Err(EngineError::InternalError);
-                }
+        let envelope = Envelope {
+            parent_id,
+            author_id,
+            command_id: command.id(),
+            payload: Cow::Borrowed(serialized_fields),
+            signature: Cow::Borrowed(signature),
+        };
+
+        match (placement, &def.persistence) {
+            (CommandPlacement::OnGraphAtOrigin, Persistence::Persistent) => {}
+            (CommandPlacement::OnGraphInBraid, Persistence::Persistent) => {}
+            (CommandPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
+            (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral(_)) => {
+                error!("cannot evaluate ephemeral command on-graph");
+                return Err(EngineError::InternalError);
             }
-
-            let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
-            let fields: Vec<KVPair> = command_struct
-                .fields
-                .into_iter()
-                .map(|(k, v)| KVPair::new(k, v))
-                .collect();
-            let ctx = CommandContext::Policy(PolicyContext {
-                name: kind.clone(),
-                id: command.id(),
-                author: author_id,
-                version: CmdId::default().into(),
-            });
-            self.evaluate_rule(
-                kind,
-                fields.as_slice(),
-                envelope,
-                facts,
-                sink,
-                ctx,
-                placement,
-            )?;
+            (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral(_)) => {
+                error!("cannot evaluate ephemeral command in braid");
+                return Err(EngineError::InternalError);
+            }
+            (CommandPlacement::OffGraph, Persistence::Persistent) => {
+                error!("cannot evaluate persistent command off-graph");
+                return Err(EngineError::InternalError);
+            }
         }
+
+        let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
+        let fields: Vec<KVPair> = command_struct
+            .fields
+            .into_iter()
+            .map(|(k, v)| KVPair::new(k, v))
+            .collect();
+        let ctx = CommandContext::Policy(PolicyContext {
+            name: kind.clone(),
+            id: command.id(),
+            author: author_id,
+            version: CmdId::default().into(),
+        });
+        self.evaluate_rule(
+            kind,
+            fields.as_slice(),
+            envelope,
+            facts,
+            sink,
+            ctx,
+            placement,
+        )?;
+
         Ok(())
     }
 
@@ -714,39 +684,47 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
-                        let parent = match RefCell::borrow_mut(Rc::borrow(&facts)).head_address()? {
-                            Prior::None => None,
-                            Prior::Single(id) => Some(id),
+                        let parent = RefCell::borrow_mut(Rc::borrow(&facts)).head_address()?;
+
+                        let policy;
+                        let priority;
+                        match parent {
+                            Prior::None => {
+                                // TODO(chip): where does the policy value come from?
+                                policy = Some(0u64.to_le_bytes());
+                                priority = Priority::Init;
+                                // TODO(jdygert): Check priority against attributes once init added.
+                            }
+                            Prior::Single(_) => {
+                                policy = None;
+                                priority = self.get_command_priority(&command_name).into();
+                                if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
+                                    error!(
+                                        "Command {command_name} has invalid priority {priority:?}"
+                                    );
+                                    return Err(EngineError::InternalError);
+                                }
+                            }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         };
 
-                        let priority = if parent.is_some() {
-                            self.get_command_priority(&command_name).into()
-                        } else {
-                            Priority::Init
+                        let data = VmProtocolData {
+                            author_id: envelope.author_id,
+                            kind: command_name.clone(),
+                            serialized_fields: &envelope.payload,
+                            signature: &envelope.signature,
                         };
 
-                        let data = match parent {
-                            None => VmProtocolData::Init {
-                                // TODO(chip): where does the policy value come from?
-                                policy: 0u64.to_le_bytes(),
-                                author_id: envelope.author_id,
-                                kind: command_name.clone(),
-                                serialized_fields: &envelope.payload,
-                                signature: &envelope.signature,
-                            },
-                            Some(parent) => VmProtocolData::Basic {
-                                author_id: envelope.author_id,
-                                parent,
-                                kind: command_name.clone(),
-                                serialized_fields: &envelope.payload,
-                                signature: &envelope.signature,
-                            },
-                        };
                         let wrapped = postcard::to_allocvec(&data)
                             .assume("can serialize vm protocol data")?;
-                        let new_command =
-                            VmProtocol::new(&wrapped, envelope.command_id, data, priority);
+
+                        let new_command = VmProtocol {
+                            id: envelope.command_id,
+                            priority,
+                            parent,
+                            policy,
+                            data: &wrapped,
+                        };
 
                         self.call_rule(
                             &new_command,
@@ -787,17 +765,18 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
     fn merge<'a>(
         &self,
-        target: &'a mut [u8],
+        _target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, EngineError> {
-        let (left, right) = ids.into();
-        let c = VmProtocolData::Merge { left, right };
+        let (left, right): (Address, Address) = ids.into();
         let id = aranya_crypto::merge_cmd_id::<E::CS>(left.id, right.id);
-        let data = postcard::to_slice(&c, target).map_err(|e| {
-            error!("{e}");
-            EngineError::Write
-        })?;
-        Ok(VmProtocol::new(data, id, c, Priority::Merge))
+        Ok(VmProtocol {
+            id,
+            priority: Priority::Merge,
+            parent: Prior::Merge(left, right),
+            policy: None,
+            data: &[],
+        })
     }
 }
 
