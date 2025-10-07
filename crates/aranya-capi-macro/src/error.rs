@@ -1,14 +1,14 @@
 use std::ffi::CString;
 
 use aranya_capi_codegen::{
-    IdentExt, KeyValPair,
+    IdentExt as _, KeyValPair,
     attr::{Attr, Symbol},
     syntax::Repr,
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Error, Ident, ItemEnum, LitCStr, LitStr, Path,
+    Attribute, Error, Ident, ItemEnum, LitCStr, LitStr, Path,
     parse::{Parse, ParseStream, Result},
     parse_quote,
 };
@@ -23,13 +23,8 @@ pub(super) fn derive(item: TokenStream) -> Result<TokenStream> {
         let mut reprs: Vec<_> = item
             .attrs
             .iter()
-            .filter_map(|a| {
-                if !a.path().is_ident("repr") {
-                    None
-                } else {
-                    Some(a.parse_args::<Repr>())
-                }
-            })
+            .filter(|&a| a.path().is_ident("repr"))
+            .map(Attribute::parse_args::<Repr>)
             .collect::<Result<_>>()?;
         if reprs.len() > 1 {
             return Err(Error::new_spanned(

@@ -14,7 +14,7 @@ use crate::{
     VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     engine::{Engine, EngineError, PolicyId, Sink},
     ser_keys,
-    storage::{Query, Storage, StorageProvider, memory::MemStorageProvider},
+    storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
 };
@@ -206,7 +206,7 @@ pub struct TestSink {
 
 impl TestSink {
     pub fn new() -> Self {
-        TestSink { expect: Vec::new() }
+        Self { expect: Vec::new() }
     }
 
     pub fn add_expectation(&mut self, expect: VmEffectData) {
@@ -250,7 +250,7 @@ impl Sink<&[u8]> for MsgSink {
 
     fn consume(&mut self, effect: &[u8]) {
         trace!("sink consume");
-        self.0.push(effect.into())
+        self.0.push(effect.into());
     }
 
     fn rollback(&mut self) {
@@ -288,7 +288,7 @@ impl Sink<VmEffect> for VecSink {
 
     fn consume(&mut self, effect: VmEffect) {
         trace!("sink consume");
-        self.0.push(effect)
+        self.0.push(effect);
     }
 
     fn rollback(&mut self) {
@@ -319,7 +319,7 @@ impl TestEngine {
             })],
         )
         .expect("Could not load policy");
-        TestEngine { policy }
+        Self { policy }
     }
 }
 
@@ -610,7 +610,7 @@ fn test_sync<E, P, S>(
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
             cs2.add_commands(&mut req_transaction, sink, &cmds)
                 .expect("add commands");
-        };
+        }
     }
 
     cs2.commit(&mut req_transaction, sink).expect("commit");

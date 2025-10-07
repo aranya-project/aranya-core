@@ -11,7 +11,7 @@ use aranya_crypto::{
     afc::{OpenKey, SealKey},
     policy::LabelId,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use super::{

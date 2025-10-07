@@ -117,14 +117,14 @@
 extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
-use core::{borrow::Borrow, cell::RefCell, fmt};
+use core::{borrow::Borrow as _, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, PolicyContext, RunState, Stack, Struct, Value,
+    MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
     ast::{Identifier, Persistence},
 };
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 
@@ -615,7 +615,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                     )
                 }
                 // Merges always pass because they're an artifact of the graph
-                _ => (None, Priority::Merge),
+                VmProtocolData::Merge { .. } => (None, Priority::Merge),
             }
         };
 
@@ -672,7 +672,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 sink,
                 ctx,
                 placement,
-            )?
+            )?;
         }
         Ok(())
     }
@@ -756,9 +756,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             EngineError::Panic
                         })? {
                             ExitReason::Normal => (),
-                            r @ ExitReason::Yield
-                            | r @ ExitReason::Check
-                            | r @ ExitReason::Panic => {
+                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
                                 error!("Could not seal command: {}", r);
                                 return Err(EngineError::Panic);
                             }
@@ -841,7 +839,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         info!("Panicked {}", self.source_location(&rs));
                         return Err(EngineError::Panic);
                     }
-                };
+                }
             }
         }
 
