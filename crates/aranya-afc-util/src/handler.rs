@@ -182,13 +182,6 @@ pub struct BidiKeys<S, O> {
     pub open: O,
 }
 
-impl<S, O> From<BidiKeys<S, O>> for Directed<S, O> {
-    fn from(key: BidiKeys<S, O>) -> Self {
-        let BidiKeys { seal, open } = key;
-        Self::Bidirectional { seal, open }
-    }
-}
-
 // Uni impl.
 impl<S: KeyStore> Handler<S> {
     /// Retrieves the wrapped [`UniAuthorSecret`] and converts it

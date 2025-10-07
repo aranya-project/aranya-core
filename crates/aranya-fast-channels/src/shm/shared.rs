@@ -424,10 +424,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
             ChanDirection::OpenOnly => Directed::OpenOnly {
                 open: &self.open_key,
             },
-            ChanDirection::Bidirectional => Directed::Bidirectional {
-                seal: &self.seal_key,
-                open: &self.open_key,
-            },
         })
     }
 
@@ -1070,11 +1066,7 @@ mod tests {
 
     #[test]
     fn test_chan_direction() {
-        const TYPES: &[ChanDirection] = &[
-            ChanDirection::SealOnly,
-            ChanDirection::OpenOnly,
-            ChanDirection::Bidirectional,
-        ];
+        const TYPES: &[ChanDirection] = &[ChanDirection::SealOnly, ChanDirection::OpenOnly];
         for want in TYPES.iter().copied() {
             let got = ChanDirection::try_from_u32(want.to_u32()).expect("should be `Some`");
             assert_eq!(want, got);

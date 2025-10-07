@@ -396,7 +396,7 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed, SealCtxImpl,
+        AfcState, AranyaState, ChannelId, Directed, OpenCtxImpl, SealCtxImpl,
         error::Error,
         memory,
         testing::{
@@ -429,18 +429,18 @@ mod test {
         type SealCtx = SealCtxImpl<Self::CipherSuite>;
         type OpenCtx = OpenCtxImpl<Self::CipherSuite>;
 
-        fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(id, f)
+            self.state.seal(ctx, f)
         }
 
-        fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.open(id, f)
+            self.state.open(ctx, f)
         }
 
         fn exists(&self, id: ChannelId) -> Result<bool, Error> {

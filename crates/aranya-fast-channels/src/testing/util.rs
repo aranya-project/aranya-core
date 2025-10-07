@@ -3,7 +3,7 @@
 use std::{
     cmp,
     collections::HashMap,
-    iter::{self, IntoIterator},
+    iter::{IntoIterator},
     marker::PhantomData,
     mem,
     num::NonZeroU16,
@@ -13,7 +13,7 @@ use std::{
 use aranya_crypto::{
     CipherSuite, EncryptionKey, Engine, IdentityKey,
     afc::{
-        BidiChannel, BidiChannelId, BidiKeys, BidiSecrets, UniChannel, UniChannelId, UniOpenKey,
+        BidiChannelId, BidiKeys, UniChannel, UniChannelId, UniOpenKey,
         UniSealKey, UniSecrets,
     },
     dangerous::spideroak_crypto::{

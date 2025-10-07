@@ -11,7 +11,7 @@ use core::result::Result;
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt as _, UnwrapError, WrapError,
-    afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
+    afc::{UniChannel, UniSecrets},
     policy::{CmdId, LabelId},
 };
 use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, MachineIOError, ffi::ffi};

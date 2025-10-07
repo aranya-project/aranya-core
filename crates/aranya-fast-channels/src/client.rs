@@ -14,7 +14,7 @@ use crate::{
     buf::Buf,
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
-    state::{AfcState, ChannelId},
+    state::AfcState,
     util::debug,
 };
 

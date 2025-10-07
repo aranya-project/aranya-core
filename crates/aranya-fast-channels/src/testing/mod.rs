@@ -19,19 +19,16 @@ pub mod util;
 use std::collections::HashMap;
 
 use aranya_crypto::{
-    Aead, CipherSuite, Engine, Rng,
+    Aead, CipherSuite, Rng,
     policy::LabelId,
-    typenum::{U1, Unsigned as _},
 };
 
 use crate::{
-    AfcState, ChannelId, OpenCtx, SealCtx, SealCtxImpl,
-    buf::FixedBuf,
+    AfcState, OpenCtx, SealCtx,
     client::Client,
     error::Error,
-    header::DataHeader,
     testing::util::{
-        Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, LimitedAead, TestEngine, TestImpl,
+        Aranya, ChanOp, Device, DeviceIdx, TestEngine, TestImpl,
     },
 };
 
