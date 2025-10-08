@@ -27,6 +27,8 @@ pub struct SealContext {
 pub struct OpenContext {
     /// The name of the command
     pub name: Identifier,
+    /// The ID of the parent of the command
+    pub parent_id: CmdId,
 }
 
 /// Context for Policy and Recall blocks
@@ -38,6 +40,8 @@ pub struct PolicyContext {
     pub id: CmdId,
     /// The ID of the author of the command
     pub author: DeviceId,
+    /// The ID of the parent of the command
+    pub parent_id: CmdId,
     /// The ID of the version of policy and FFI module set
     pub version: Id,
 }
