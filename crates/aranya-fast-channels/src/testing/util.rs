@@ -293,9 +293,9 @@ where
         }
     }
 
-     /// Creates a unidirectional channel between author and peer.
-     /// 
-     /// It returns the channel information for (author, peer).
+    /// Creates a unidirectional channel between author and peer.
+    ///
+    /// It returns the channel information for (author, peer).
     fn new_uni_channel(
         eng: &mut E,
         seal: &Device<T, E::CS>,

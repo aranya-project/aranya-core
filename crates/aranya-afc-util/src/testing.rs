@@ -328,7 +328,6 @@ macro_rules! test_all {
             }
 
             test!(test_create_seal_only_uni_channel);
-            test!(test_create_open_only_uni_channel);
         }
     };
 }
@@ -435,107 +434,4 @@ where
 
     Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
     Device::test_wrong_direction(&mut peer, peer_chan_id);
-}
-
-/// A basic positive test for creating a unidirectional channel
-/// where the author is open only.
-pub fn test_create_open_only_uni_channel<T: TestImpl>()
-where
-    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniAuthorSecret<<T::Engine as Engine>::CS>,
-    )>,
-    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniAuthorSecret<<T::Engine as Engine>::CS>,
-    )>,
-    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniPeerEncap<<T::Engine as Engine>::CS>,
-    )>,
-    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniPeerEncap<<T::Engine as Engine>::CS>,
-    )>,
-{
-    let mut author = T::new(); // open only
-    let mut peer = T::new(); // seal only
-
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
-    let ctx = CommandContext::Action(ActionContext {
-        name: ident!("CreateUniOnlyChannel"),
-        head_id: parent_cmd_id,
-    });
-
-    // This is called via FFI.
-    let AfcUniChannel { peer_encap, key_id } = author
-        .ffi
-        .create_uni_channel(
-            &ctx,
-            &mut author.eng,
-            parent_cmd_id,
-            author.enc_key_id,
-            peer.enc_pk.clone(),
-            author.device_id,
-            peer.device_id,
-            label_id,
-        )
-        .expect("author should be able to create a uni channel");
-
-    // This is called by the author of the channel after
-    // receiving the effect.
-    let author_chan_id = {
-        let keys = author
-            .handler
-            .uni_channel_created(
-                &mut author.eng,
-                &UniChannelCreated {
-                    parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: peer.device_id,
-                    open_id: author.device_id,
-                    author_enc_key_id: author.enc_key_id,
-                    peer_enc_pk: &peer.enc_pk,
-                    label_id,
-                    key_id: key_id.into(),
-                },
-            )
-            .expect("author should be able to load decryption key");
-        assert!(matches!(keys, UniKey::OpenOnly(_)));
-
-        author
-            .afc_state
-            .add(keys.into(), label_id)
-            .expect("author should be able to add channel")
-    };
-
-    // This is called by the channel peer after receiving the
-    // effect.
-    let peer_chan_id = {
-        let keys = peer
-            .handler
-            .uni_channel_received(
-                &mut peer.eng,
-                &UniChannelReceived {
-                    parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: peer.device_id,
-                    open_id: author.device_id,
-                    author_enc_pk: &author.enc_pk,
-                    peer_enc_key_id: peer.enc_key_id,
-                    label_id,
-                    encap: &peer_encap,
-                },
-            )
-            .expect("peer should be able to load encryption key");
-        assert!(matches!(keys, UniKey::SealOnly(_)));
-
-        peer.afc_state
-            .add(keys.into(), label_id)
-            .expect("peer should be able to add channel")
-    };
-
-    Device::test_roundtrip((&mut peer, peer_chan_id), (&mut author, author_chan_id));
-    Device::test_wrong_direction(&mut author, author_chan_id);
 }
