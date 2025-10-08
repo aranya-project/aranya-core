@@ -41,8 +41,6 @@ pub(crate) struct Parser<'a> {
     pub capi_opaque: Option<&'a mut Option<Opaque>>,
     /// `#[capi::error]`
     pub capi_error: Option<&'a mut Option<Error>>,
-    /// `#[capi::ext_error]`
-    pub capi_ext_error: Option<&'a mut Option<ExtError>>,
     /// `#[capi::no_ext_error]`
     pub capi_no_ext_error: Option<&'a mut Option<NoExtError>>,
     /// `#[capi::generated]`
@@ -217,11 +215,6 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
     } else if ident == "error" {
         if let Some(v) = &mut parser.capi_error {
             **v = Some(Error(span));
-            return true;
-        }
-    } else if ident == "ext_error" {
-        if let Some(v) = &mut parser.capi_ext_error {
-            **v = Some(ExtError(span));
             return true;
         }
     } else if ident == "generated" {
@@ -455,7 +448,6 @@ macro_rules! simple_outer_attr {
     };
 }
 simple_outer_attr!(Error, "capi::error");
-simple_outer_attr!(ExtError, "capi::ext_error");
 simple_outer_attr!(Generated, "capi::generated");
 simple_outer_attr!(NoExtError, "capi::no_ext_error");
 simple_outer_attr!(NoMangle, "unsafe(no_mangle)");

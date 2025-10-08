@@ -61,7 +61,7 @@ impl Ast {
         let Alias {
             doc,
             derives,
-            ext_error,
+            no_ext_error,
             mut opaque,
             builds,
             attrs,
@@ -78,7 +78,7 @@ impl Ast {
             doc,
             derives,
             repr: Repr::Transparent,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,
@@ -340,11 +340,7 @@ impl Ast {
                 &old,
                 ty,
                 &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
+                strukt.no_ext_error.clone(),
                 &cfg,
             )?;
         }
@@ -403,7 +399,7 @@ impl Ast {
             let Struct {
                 doc,
                 derives,
-                ext_error,
+                no_ext_error,
                 opaque,
                 builds,
                 attrs,
@@ -416,7 +412,7 @@ impl Ast {
             Alias {
                 doc,
                 derives,
-                ext_error,
+                no_ext_error,
                 opaque,
                 builds,
                 attrs,
