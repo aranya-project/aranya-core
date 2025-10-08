@@ -203,7 +203,7 @@ where
         }
     }
 
-    /// Create a [`Client`] that has [`ChanOp::Any`] for
+    /// Create a [`Client`] that has an [operation][`ChanOp`] for
     /// a particular label.
     ///
     /// This creates a channel between the new client and all
