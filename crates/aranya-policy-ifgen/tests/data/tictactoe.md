@@ -67,4 +67,6 @@ effect GameOver {
     winner id,
     p enum Player,
 }
+
+ephemeral action Temporary(n int, s string) {}
 ```

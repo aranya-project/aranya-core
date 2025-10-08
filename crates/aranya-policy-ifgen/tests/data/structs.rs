@@ -2,14 +2,17 @@
 #![allow(clippy::duplicated_attributes)]
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
+#![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
-    macros::{actions, effect, effects, value},
+    macros::{action, actions, effect, effects, value},
     ClientError, Id, Value, Text,
 };
+pub struct Persistent;
+pub struct Ephemeral;
 /// Admin policy struct.
 #[value]
 pub struct Admin {
@@ -28,9 +31,22 @@ pub struct UserAdded {
     pub uid: Id,
     pub name: Text,
 }
-/// Implements all supported policy actions.
-#[actions]
-pub trait ActorExt {
-    fn add_user(&mut self, uid: Id, name: Text) -> Result<(), ClientError>;
-    fn delete_user(&mut self, admin: Admin, uid: Id) -> Result<(), ClientError>;
+#[actions(interface = Persistent)]
+pub enum PersistentAction {
+    add_user(add_user),
+    delete_user(delete_user),
+}
+#[actions(interface = Ephemeral)]
+pub enum EphemeralAction {}
+/// add_user policy action.
+#[action(interface = Persistent)]
+pub struct add_user {
+    pub uid: Id,
+    pub name: Text,
+}
+/// delete_user policy action.
+#[action(interface = Persistent)]
+pub struct delete_user {
+    pub admin: Admin,
+    pub uid: Id,
 }
