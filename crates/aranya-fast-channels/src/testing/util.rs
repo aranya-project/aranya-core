@@ -1,13 +1,7 @@
 //! Testing utilities.
 
 use std::{
-    cmp,
-    collections::HashMap,
-    iter::{self, IntoIterator},
-    marker::PhantomData,
-    mem,
-    num::NonZeroU16,
-    panic,
+    cmp, collections::HashMap, iter::IntoIterator, marker::PhantomData, mem, num::NonZeroU16, panic,
 };
 
 use aranya_crypto::{
@@ -207,19 +201,6 @@ where
             max_chans,
             eng,
         }
-    }
-
-    /// Create a [`Client`] that has [`ChanOp::Any`] for
-    /// a particular label.
-    ///
-    /// This creates a channel between the new client and all
-    /// existing clients. The type of channel (bidi or uni)
-    /// depends on the `ChanOp` of both peers.
-    pub fn new_client<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
-    where
-        I: IntoIterator<Item = LabelId>,
-    {
-        self.new_client_with_type(labels.into_iter().zip(iter::repeat(ChanOp::Any)))
     }
 
     /// Create a [`Client`] that has [`ChanOp::Any`] for

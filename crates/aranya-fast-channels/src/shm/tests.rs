@@ -3,7 +3,7 @@
 
 use aranya_crypto::{
     CipherSuite, Engine, Random as _, Rng,
-    afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
+    afc::{RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256},
     policy::LabelId,
 };

@@ -126,8 +126,8 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_seal_open_basic", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -164,8 +164,8 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_seal_open_in_place_basic", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -218,9 +218,15 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     let mut device_idxs = Vec::new();
     let mut clients = Vec::new();
-    for _ in 0..max_nodes {
-        let (c, device_idx) = d.new_client(label_ids);
-        device_idxs.push(device_idx);
+    for idx in 0..max_nodes {
+        let op = if idx < (max_nodes / 2) {
+            ChanOp::SealOnly
+        } else {
+            ChanOp::OpenOnly
+        };
+
+        let (c, device_idx) = d.new_client_with_type(label_ids.iter().map(|id| (*id, op)));
+        device_idxs.push((device_idx, op));
         clients.insert(device_idx, c);
     }
 
@@ -292,14 +298,11 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     let mut seqs = HashMap::new();
 
     for label_id in label_ids {
-        for a in &device_idxs {
-            for b in &device_idxs {
-                if a == b {
-                    continue;
+        for (a, a_op) in &device_idxs {
+            for (b, b_op) in &device_idxs {
+                if *a_op == ChanOp::SealOnly && *b_op == ChanOp::OpenOnly {
+                    test(&mut clients, &d.devices, *a, *b, label_id, &mut seqs);
                 }
-
-                test(&mut clients, &d.devices, *a, *b, label_id, &mut seqs);
-                test(&mut clients, &d.devices, *b, *a, label_id, &mut seqs);
             }
         }
     }
@@ -310,9 +313,9 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove", 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
-    let (c3, id3) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
+    let (c3, id3) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -367,9 +370,9 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove_all", 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
-    let (c3, id3) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
+    let (c3, id3) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -433,9 +436,9 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove_if", 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
-    let (c3, id3) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
+    let (c3, id3) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -509,9 +512,9 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove_no_channels", 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
-    let (c3, id3) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
+    let (c3, id3) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -577,9 +580,9 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
-    let (c3, id3) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
+    let (c3, id3) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -657,9 +660,9 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
     ];
 
     let mut d = Aranya::<T, _>::new("test_channels_not_exist", 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
-    let (c3, id3) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
+    let (c3, id3) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -718,8 +721,8 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_id = LabelId::random(&mut eng);
     let mut d = Aranya::<T, TestEngine<A>>::new("test_issue_112", 1, eng);
-    let (mut c1, id1) = d.new_client([label_id]);
-    let (c2, id2) = d.new_client([label_id]);
+    let (mut c1, id1) = d.new_client_with_type([(label_id, ChanOp::SealOnly)]);
+    let (c2, id2) = d.new_client_with_type([(label_id, ChanOp::OpenOnly)]);
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -770,7 +773,10 @@ where
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label = LabelId::random(&mut eng);
     let mut d = Aranya::<T, _>::new("test_client_send", 1, eng);
-    let (c, _) = d.new_client([label]);
+    let (c, _) = d.new_client_with_type([(label, ChanOp::SealOnly)]);
+    is_send(c);
+
+    let (c, _) = d.new_client_with_type([(label, ChanOp::OpenOnly)]);
     is_send(c);
 }
 
@@ -818,40 +824,17 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label1 = LabelId::random(&mut eng);
     let label2 = LabelId::random(&mut eng);
-    let label3 = LabelId::random(&mut eng);
 
     let mut d = Aranya::<T, _>::new("test_unidirectional_pos", 6, eng);
 
-    let mut c1 = d.new_client_with_type([
-        (label1, ChanOp::SealOnly),
-        (label2, ChanOp::OpenOnly),
-        (label3, ChanOp::Any),
-    ]);
-    let mut c2 = d.new_client_with_type([
-        (label1, ChanOp::OpenOnly),
-        (label2, ChanOp::SealOnly),
-        (label3, ChanOp::Any),
-    ]);
-    let mut c3 = d.new_client_with_type([
-        (label1, ChanOp::Any),
-        (label2, ChanOp::Any),
-        (label3, ChanOp::OpenOnly),
-    ]);
+    let mut c1 = d.new_client_with_type([(label1, ChanOp::SealOnly), (label2, ChanOp::OpenOnly)]);
+    let mut c2 = d.new_client_with_type([(label1, ChanOp::OpenOnly), (label2, ChanOp::SealOnly)]);
 
     let d1 = d.devices.get(c1.1).expect("device to exist");
     let d2 = d.devices.get(c2.1).expect("device to exist");
-    let d3 = d.devices.get(c3.1).expect("device to exist");
 
     test(&mut c1, &c2, d1, d2, label1);
-    test(&mut c1, &c3, d1, d3, label1);
-    test(&mut c1, &c3, d1, d3, label3);
-
     test(&mut c2, &c1, d2, d1, label2);
-    test(&mut c2, &c3, d2, d3, label2);
-    test(&mut c2, &c3, d2, d3, label3);
-
-    test(&mut c3, &c1, d3, d1, label2);
-    test(&mut c3, &c2, d3, d2, label1);
 }
 
 /// A positive and negative test for unidirectional channels.
@@ -932,124 +915,97 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
 
     let mut c1 = d.new_client_with_type([
         (label1, ChanOp::OpenOnly),
-        (label2, ChanOp::Any),
+        (label2, ChanOp::OpenOnly),
         (label3, ChanOp::OpenOnly),
     ]);
     let mut c2 = d.new_client_with_type([
         (label1, ChanOp::SealOnly),
         (label2, ChanOp::SealOnly),
-        (label3, ChanOp::Any),
+        (label3, ChanOp::SealOnly),
     ]);
     let mut c3 = d.new_client_with_type([
         (label1, ChanOp::OpenOnly),
         (label2, ChanOp::SealOnly),
         (label3, ChanOp::OpenOnly),
     ]);
-    let mut c4 = d.new_client_with_type([(label4, ChanOp::Any)]);
-    let mut c5 = d.new_client_with_type([]);
+    let mut c4 = d.new_client_with_type([]);
 
     let d1 = d.devices.get(c1.1).expect("device to exist");
     let d2 = d.devices.get(c2.1).expect("device to exist");
     let d3 = d.devices.get(c3.1).expect("device to exist");
     let d4 = d.devices.get(c4.1).expect("device to exist");
-    let d5 = d.devices.get(c5.1).expect("device to exist");
 
+    // c1 -> c2 tests
     fail(&mut c1, &c2, d1, d2, label1); // open -> seal
-    fail(&mut c1, &c2, d1, d2, label2); // bidi -> seal
-    fail(&mut c1, &c2, d1, d2, label3); // open -> bidi
+    fail(&mut c1, &c2, d1, d2, label2); // open -> seal
+    fail(&mut c1, &c2, d1, d2, label3); // open -> seal
     fail(&mut c1, &c2, d1, d2, label4); // no chans
+
+    // c1 -> c3 tests
     fail(&mut c1, &c3, d1, d3, label1); // open -> open
-    fail(&mut c1, &c3, d1, d3, label2); // bidi -> seal
+    fail(&mut c1, &c3, d1, d3, label2); // open -> seal
     fail(&mut c1, &c3, d1, d3, label3); // open -> open
     fail(&mut c1, &c3, d1, d3, label4); // no chans
+
+    // c1 -> c4 tests
     fail(&mut c1, &c4, d1, d4, label1); // no chans
     fail(&mut c1, &c4, d1, d4, label2); // no chans
     fail(&mut c1, &c4, d1, d4, label3); // no chans
     fail(&mut c1, &c4, d1, d4, label4); // no chans
-    fail(&mut c1, &c5, d1, d5, label1); // no chans
-    fail(&mut c1, &c5, d1, d5, label2); // no chans
-    fail(&mut c1, &c5, d1, d5, label3); // no chans
-    fail(&mut c1, &c5, d1, d5, label4); // no chans
 
+    // c2 -> c1 tests
     pass(&mut c2, &c1, d2, d1, label1); // seal -> open
-    pass(&mut c2, &c1, d2, d1, label2); // seal -> bidi
-    pass(&mut c2, &c1, d2, d1, label3); // bidi -> open
+    pass(&mut c2, &c1, d2, d1, label2); // seal -> open
+    pass(&mut c2, &c1, d2, d1, label3); // seal -> open
     fail(&mut c2, &c1, d2, d1, label4); // no chans
 
+    // c2 -> c3 tests
     pass(&mut c2, &c3, d2, d3, label1); // seal -> open
     fail(&mut c2, &c3, d2, d3, label2); // seal -> seal
-    pass(&mut c2, &c3, d2, d3, label3); // bidi -> open
+    pass(&mut c2, &c3, d2, d3, label3); // seal -> open
     fail(&mut c2, &c3, d2, d3, label4); // no chans
 
+    // c2 -> c4 tests
     fail(&mut c2, &c4, d2, d4, label1); // no chans
     fail(&mut c2, &c4, d2, d4, label2); // no chans
     fail(&mut c2, &c4, d2, d4, label3); // no chans
     fail(&mut c2, &c4, d2, d4, label4); // no chans
 
-    fail(&mut c2, &c5, d2, d5, label1); // no chans
-    fail(&mut c2, &c5, d2, d5, label2); // no chans
-    fail(&mut c2, &c5, d2, d5, label3); // no chans
-    fail(&mut c2, &c5, d2, d5, label4); // no chans
-
+    // c3 -> c1 tests
     fail(&mut c3, &c1, d3, d1, label1); // open -> open
-    pass(&mut c3, &c1, d3, d1, label2); // seal -> bidi
+    pass(&mut c3, &c1, d3, d1, label2); // seal -> open
     fail(&mut c3, &c1, d3, d1, label3); // open -> open
     fail(&mut c3, &c1, d3, d1, label4); // no chans
 
+    // c3 -> c2 tests
     fail(&mut c3, &c2, d3, d2, label1); // open -> seal
     fail(&mut c3, &c2, d3, d2, label2); // seal -> seal
-    fail(&mut c3, &c2, d3, d2, label3); // open -> bidi
+    fail(&mut c3, &c2, d3, d2, label3); // open -> seal
     fail(&mut c3, &c2, d3, d2, label4); // no chans
 
+    // c3 -> c4 tests
     fail(&mut c3, &c4, d3, d4, label1); // no chans
     fail(&mut c3, &c4, d3, d4, label2); // no chans
     fail(&mut c3, &c4, d3, d4, label3); // no chans
     fail(&mut c3, &c4, d3, d4, label4); // no chans
 
-    fail(&mut c3, &c5, d3, d5, label1); // no chans
-    fail(&mut c3, &c5, d3, d5, label2); // no chans
-    fail(&mut c3, &c5, d3, d5, label3); // no chans
-    fail(&mut c3, &c5, d3, d5, label4); // no chans
-
+    // c4 -> c1 tests
     fail(&mut c4, &c1, d4, d1, label1); // no chans
     fail(&mut c4, &c1, d4, d1, label2); // no chans
     fail(&mut c4, &c1, d4, d1, label3); // no chans
     fail(&mut c4, &c1, d4, d1, label4); // no chans
 
+    // c4 -> c2 tests
     fail(&mut c4, &c2, d4, d2, label1); // no chans
     fail(&mut c4, &c2, d4, d2, label2); // no chans
     fail(&mut c4, &c2, d4, d2, label3); // no chans
     fail(&mut c4, &c2, d4, d2, label4); // no chans
 
+    // c4 -> c3 tests
     fail(&mut c4, &c3, d4, d3, label1); // no chans
     fail(&mut c4, &c3, d4, d3, label2); // no chans
     fail(&mut c4, &c3, d4, d3, label3); // no chans
     fail(&mut c4, &c3, d4, d3, label4); // no chans
-
-    fail(&mut c4, &c5, d4, d5, label1); // no chans
-    fail(&mut c4, &c5, d4, d5, label2); // no chans
-    fail(&mut c4, &c5, d4, d5, label3); // no chans
-    fail(&mut c4, &c5, d4, d5, label4); // no chans
-
-    fail(&mut c5, &c1, d5, d1, label1); // no chans
-    fail(&mut c5, &c1, d5, d1, label2); // no chans
-    fail(&mut c5, &c1, d5, d1, label3); // no chans
-    fail(&mut c5, &c1, d5, d1, label4); // no chans
-
-    fail(&mut c5, &c2, d5, d2, label1); // no chans
-    fail(&mut c5, &c2, d5, d2, label2); // no chans
-    fail(&mut c5, &c2, d5, d2, label3); // no chans
-    fail(&mut c5, &c2, d5, d2, label4); // no chans
-
-    fail(&mut c5, &c3, d5, d3, label1); // no chans
-    fail(&mut c5, &c3, d5, d3, label2); // no chans
-    fail(&mut c5, &c3, d5, d3, label3); // no chans
-    fail(&mut c5, &c3, d5, d3, label4); // no chans
-
-    fail(&mut c5, &c4, d5, d4, label1); // no chans
-    fail(&mut c5, &c4, d5, d4, label2); // no chans
-    fail(&mut c5, &c4, d5, d4, label3); // no chans
-    fail(&mut c5, &c4, d5, d4, label4); // no chans
 }
 
 /// A positive test for when keys expire.
@@ -1059,8 +1015,8 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let label_ids = [LabelId::random(&mut eng)];
 
     let mut d = Aranya::<T, _>::new("test_key_expiry", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -1122,8 +1078,8 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_open_truncated_tag", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -1159,8 +1115,8 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_open_modified_tag", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -1195,8 +1151,8 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_open_different_seq", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -1249,8 +1205,8 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
 
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_open_unknown_channel_label", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(open_labels);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(open_labels.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
@@ -1299,8 +1255,8 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_monotonic_seq_by_one", label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
-    let (c2, id2) = d.new_client(label_ids);
+    let (mut c1, id1) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::SealOnly)));
+    let (c2, id2) = d.new_client_with_type(label_ids.iter().map(|id| (*id, ChanOp::OpenOnly)));
 
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");

@@ -265,7 +265,7 @@ impl<S, O> Debug for Directed<S, O> {
 mod test {
     use aranya_crypto::{
         CipherSuite, Rng,
-        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
+        afc::{OpenKey, SealKey, UniOpenKey, UniSealKey},
         policy::LabelId,
     };
     use derive_where::derive_where;

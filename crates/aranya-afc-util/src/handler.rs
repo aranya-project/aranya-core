@@ -2,9 +2,7 @@
 
 use aranya_crypto::{
     CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt as _,
-    afc::{
-        BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
-    },
+    afc::{UniAuthorSecret, UniChannel, UniPeerEncap},
     policy::{CmdId, LabelId},
 };
 use aranya_fast_channels::Directed;
