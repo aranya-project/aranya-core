@@ -265,7 +265,7 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error> {
         let shm = self.inner.shm();
 
         let write_off = {
