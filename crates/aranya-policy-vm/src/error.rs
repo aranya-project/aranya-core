@@ -45,10 +45,6 @@ pub enum MachineErrorType {
     /// present in a struct. Parameter is the key name.
     #[error("invalid struct member `{0}`")]
     InvalidStructMember(Identifier),
-    /// Invalid fact - An attempt was made to use a fact in a way
-    /// that does not match the Fact schema.
-    #[error("invalid fact: {0}")]
-    InvalidFact(Identifier),
     /// Invalid schema - An attempt to publish a Command struct or emit
     /// an Effect that does not match its definition.
     #[error("invalid schema: {0}")]
