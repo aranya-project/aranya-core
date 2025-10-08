@@ -19,13 +19,16 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    type SealCtx: SealCtx<Self::CipherSuite>;
+    type OpenCtx: OpenCtx<Self::CipherSuite>;
+
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
@@ -85,6 +88,128 @@ pub trait AranyaState {
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
+}
+
+pub(crate) mod private {
+    // This is used to prevent `set_open_key` and `set_seal_key` from being callable by `ChannelCtx`
+    // implementations,
+    pub struct Internal;
+}
+
+/// The "seal context" associated with a channel
+pub trait SealCtx<CS: CipherSuite> {
+    /// Returns the "seal key", if one exists.
+    fn seal_key(&mut self) -> Option<&mut SealKey<CS>>;
+
+    /// Replaces the "seal" key.
+    fn set_seal_key(&mut self, new: SealKey<CS>, _: private::Internal);
+
+    /// Returns the channel ID associated with this [`ChannelCtx`]
+    fn channel_id(&self) -> ChannelId;
+
+    /// Returns the label ID associated with this [`ChannelCtx`]
+    fn label_id(&self) -> LabelId;
+
+    #[cfg(any(test, feature = "testing"))]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self>;
+}
+
+/// The "open context" associated with a channel
+pub trait OpenCtx<CS: CipherSuite> {
+    /// Returns the "open key", if one exists.
+    fn open_key(&self) -> Option<&OpenKey<CS>>;
+
+    /// Replaces the "open" key.
+    fn set_open_key(&mut self, new: OpenKey<CS>, _: private::Internal);
+
+    /// Returns the channel ID associated with this [`ChannelCtx`]
+    fn channel_id(&self) -> ChannelId;
+
+    /// Returns the label ID associated with this [`ChannelCtx`]
+    fn label_id(&self) -> LabelId;
+
+    #[cfg(any(test, feature = "testing"))]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self>;
+}
+
+/// Implementation of [`SealCtx`]
+pub struct SealCtxImpl<CS: CipherSuite> {
+    id: ChannelId,
+    label_id: LabelId,
+    seal_key: Option<SealKey<CS>>,
+}
+
+impl<CS: CipherSuite> SealCtxImpl<CS> {
+    /// Creates a new [`SealCtxImpl`]
+    pub fn new(id: ChannelId, label_id: LabelId, seal_key: Option<SealKey<CS>>) -> Self {
+        Self {
+            id,
+            label_id,
+            seal_key,
+        }
+    }
+}
+
+impl<CS: CipherSuite> SealCtx<CS> for SealCtxImpl<CS> {
+    fn channel_id(&self) -> ChannelId {
+        self.id
+    }
+
+    fn label_id(&self) -> LabelId {
+        self.label_id
+    }
+
+    fn seal_key(&mut self) -> Option<&mut SealKey<CS>> {
+        self.seal_key.as_mut()
+    }
+
+    fn set_seal_key(&mut self, new: SealKey<CS>, _: private::Internal) {
+        self.seal_key.replace(new);
+    }
+
+    #[cfg(any(test, feature = "testing"))]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self> {
+        Box::new(Self::new(id, label_id, None))
+    }
+}
+
+pub struct OpenCtxImpl<CS: CipherSuite> {
+    id: ChannelId,
+    label_id: LabelId,
+    open_key: Option<OpenKey<CS>>,
+}
+
+impl<CS: CipherSuite> OpenCtxImpl<CS> {
+    pub fn new(id: ChannelId, label_id: LabelId, open_key: Option<OpenKey<CS>>) -> Self {
+        Self {
+            id,
+            label_id,
+            open_key,
+        }
+    }
+}
+
+impl<CS: CipherSuite> OpenCtx<CS> for OpenCtxImpl<CS> {
+    fn channel_id(&self) -> ChannelId {
+        self.id
+    }
+
+    fn label_id(&self) -> LabelId {
+        self.label_id
+    }
+
+    fn open_key(&self) -> Option<&OpenKey<CS>> {
+        self.open_key.as_ref()
+    }
+
+    fn set_open_key(&mut self, new: OpenKey<CS>, _: private::Internal) {
+        self.open_key.replace(new);
+    }
+
+    #[cfg(any(test, feature = "testing"))]
+    fn new(id: ChannelId, label_id: LabelId) -> Box<Self> {
+        Box::new(Self::new(id, label_id, None))
+    }
 }
 
 /// Uniquely identifies a channel inside the shared state.
@@ -151,20 +276,13 @@ pub enum Directed<S, O> {
         /// Used for decryption.
         open: O,
     },
-    /// For bidirectional channels.
-    Bidirectional {
-        /// Used for encryption.
-        seal: S,
-        /// Used for decryption.
-        open: O,
-    },
 }
 
 impl<S, O> Directed<S, O> {
     /// Returns the secret used for encryption.
     pub fn seal(&self) -> Option<&S> {
         match self {
-            Self::SealOnly { seal } | Self::Bidirectional { seal, .. } => Some(seal),
+            Self::SealOnly { seal } => Some(seal),
             Self::OpenOnly { .. } => None,
         }
     }
@@ -172,7 +290,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for encryption.
     pub fn seal_mut(&mut self) -> Option<&mut S> {
         match self {
-            Self::SealOnly { seal } | Self::Bidirectional { seal, .. } => Some(seal),
+            Self::SealOnly { seal } => Some(seal),
             Self::OpenOnly { .. } => None,
         }
     }
@@ -180,7 +298,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for decryption.
     pub fn open(&self) -> Option<&O> {
         match self {
-            Self::OpenOnly { open } | Self::Bidirectional { open, .. } => Some(open),
+            Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
         }
     }
@@ -188,7 +306,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for decryption.
     pub fn open_mut(&mut self) -> Option<&mut O> {
         match self {
-            Self::OpenOnly { open } | Self::Bidirectional { open, .. } => Some(open),
+            Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
         }
     }
@@ -204,10 +322,6 @@ impl<S, O> Directed<&S, &O> {
         match self {
             Self::SealOnly { seal } => Directed::SealOnly { seal: seal.clone() },
             Self::OpenOnly { open } => Directed::OpenOnly { open: open.clone() },
-            Self::Bidirectional { seal, open } => Directed::Bidirectional {
-                seal: seal.clone(),
-                open: open.clone(),
-            },
         }
     }
 }
@@ -218,7 +332,6 @@ impl<S, O> Directed<S, O> {
         match *self {
             Self::SealOnly { ref seal } => Directed::SealOnly { seal },
             Self::OpenOnly { ref open } => Directed::OpenOnly { open },
-            Self::Bidirectional { ref seal, ref open } => Directed::Bidirectional { seal, open },
         }
     }
 
@@ -232,10 +345,6 @@ impl<S, O> Directed<S, O> {
         match self.as_ref() {
             Directed::SealOnly { seal } => Directed::SealOnly { seal: seal.deref() },
             Directed::OpenOnly { open } => Directed::OpenOnly { open: open.deref() },
-            Directed::Bidirectional { seal, open } => Directed::Bidirectional {
-                seal: seal.deref(),
-                open: open.deref(),
-            },
         }
     }
 }
@@ -262,20 +371,6 @@ where
             (Self::OpenOnly { open: lhs }, Self::OpenOnly { open: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
-            (
-                Self::Bidirectional {
-                    seal: lhs_seal,
-                    open: lhs_open,
-                },
-                Self::Bidirectional {
-                    seal: rhs_seal,
-                    open: rhs_open,
-                },
-            ) => {
-                let seal = lhs_seal.ct_eq(rhs_seal);
-                let open = lhs_open.ct_eq(rhs_open);
-                bool::from(seal & open)
-            }
             _ => false,
         }
     }
@@ -287,7 +382,6 @@ impl<S, O> Debug for Directed<S, O> {
         match self {
             Self::SealOnly { .. } => f.write_str("SealOnly { .. }"),
             Self::OpenOnly { .. } => f.write_str("OpenOnly { .. }"),
-            Self::Bidirectional { .. } => f.write_str("Bidirectional { .. }"),
         }
     }
 }
@@ -302,7 +396,7 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed,
+        AfcState, AranyaState, ChannelId, Directed, OpenCtxImpl, SealCtxImpl,
         error::Error,
         memory,
         testing::{
@@ -332,19 +426,21 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
+        type SealCtx = SealCtxImpl<Self::CipherSuite>;
+        type OpenCtx = OpenCtxImpl<Self::CipherSuite>;
 
-        fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(id, f)
+            self.state.seal(ctx, f)
         }
 
-        fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.open(id, f)
+            self.state.open(ctx, f)
         }
 
         fn exists(&self, id: ChannelId) -> Result<bool, Error> {

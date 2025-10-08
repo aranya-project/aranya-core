@@ -110,15 +110,11 @@ fn test_many_nodes() {
     // and m=len(labels).
     for label_id in labels {
         for idx in 0..MAX_CHANS {
-            let keys = match util::rand_intn(&mut Rng, 3) {
+            let keys = match util::rand_intn(&mut Rng, 2) {
                 0 => Directed::SealOnly {
                     seal: RawSealKey::random(rng),
                 },
                 1 => Directed::OpenOnly {
-                    open: RawOpenKey::random(rng),
-                },
-                2 => Directed::Bidirectional {
-                    seal: RawSealKey::random(rng),
                     open: RawOpenKey::random(rng),
                 },
                 v => unreachable!("{v}"),

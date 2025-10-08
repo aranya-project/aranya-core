@@ -10,10 +10,11 @@ use buggy::BugExt as _;
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    OpenCtx as _, SealCtx as _,
     buf::Buf,
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
-    state::{AfcState, ChannelId},
+    state::AfcState,
     util::debug,
 };
 
@@ -60,7 +61,7 @@ impl<S: AfcState> Client<S> {
     /// long.
     pub fn seal(
         &mut self,
-        id: ChannelId,
+        ctx: &mut S::SealCtx,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -81,7 +82,7 @@ impl<S: AfcState> Client<S> {
             .split_last_chunk_mut()
             .assume("we've already checked that `dst` contains enough space")?;
 
-        self.do_seal(id, header, |aead, ad| {
+        self.do_seal(ctx, header, |aead, ad| {
             aead.seal(out, plaintext, ad).map_err(Into::into)
         })
         // This isn't necessary since AEAD encryption shouldn't
@@ -96,7 +97,11 @@ impl<S: AfcState> Client<S> {
     /// Encrypts and authenticates `data` for a channel.
     ///
     /// The resulting ciphertext is written in-place to `data`.
-    pub fn seal_in_place<T: Buf>(&mut self, id: ChannelId, data: &mut T) -> Result<Header, Error> {
+    pub fn seal_in_place<T: Buf>(
+        &mut self,
+        ctx: &mut S::SealCtx,
+        data: &mut T,
+    ) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
         // over allocate, though, since we don't know if we'll be
         // performing future allocations.
@@ -118,7 +123,7 @@ impl<S: AfcState> Client<S> {
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
 
-        self.do_seal(id, header, |aead, ad| {
+        self.do_seal(ctx, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
         })
         // This isn't strictly necessary since AEAD
@@ -134,7 +139,7 @@ impl<S: AfcState> Client<S> {
     /// `id`.
     fn do_seal<F>(
         &mut self,
-        id: ChannelId,
+        ctx: &mut S::SealCtx,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>
@@ -144,9 +149,10 @@ impl<S: AfcState> Client<S> {
             /* ad: */ &AuthData,
         ) -> Result<Seq, Error>,
     {
+        let id = ctx.channel_id();
         debug!("finding seal info: id={id}");
 
-        let seq = self.state.seal(id, |aead, label_id| {
+        let seq = self.state.seal(ctx, |aead, label_id| {
             debug!("encrypting id={id}");
 
             let ad = AuthData {
@@ -177,7 +183,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open(
         &self,
-        channel_id: ChannelId,
+        ctx: &mut S::OpenCtx,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<(LabelId, Seq), Error> {
@@ -193,6 +199,7 @@ impl<S: AfcState> Client<S> {
 
             (seq, ciphertext)
         };
+        let channel_id = ctx.channel_id();
         debug!(
             "seq={seq} ciphertext=[{:?}; {}] channel_id={channel_id}",
             ciphertext.as_ptr(),
@@ -211,7 +218,7 @@ impl<S: AfcState> Client<S> {
         }
 
         let label_id = self
-            .do_open(channel_id, seq, |aead, ad, seq| {
+            .do_open(ctx, seq, |aead, ad, seq| {
                 aead.open(dst, ciphertext, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -237,7 +244,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open_in_place<T: Buf>(
         &self,
-        channel_id: ChannelId,
+        ctx: &mut S::OpenCtx,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
@@ -260,6 +267,7 @@ impl<S: AfcState> Client<S> {
                 .ok_or(Error::Authentication)?;
             (seq, ciphertext, tag)
         };
+        let channel_id = ctx.channel_id();
         debug!(
             "channel_id={channel_id} data=[{:?}; {}]",
             out.as_ptr(),
@@ -268,7 +276,7 @@ impl<S: AfcState> Client<S> {
 
         let plaintext_len = out.len();
         let label_id = self
-            .do_open(channel_id, seq, |aead, ad, seq| {
+            .do_open(ctx, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -286,7 +294,7 @@ impl<S: AfcState> Client<S> {
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: ChannelId, seq: Seq, f: F) -> Result<T, Error>
+    fn do_open<F, T>(&self, ctx: &mut S::OpenCtx, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -294,9 +302,10 @@ impl<S: AfcState> Client<S> {
             /* seq: */ Seq,
         ) -> Result<T, Error>,
     {
+        let id = ctx.channel_id();
         debug!("decrypting: id={id}");
 
-        self.state.open(id, |aead, label_id| {
+        self.state.open(ctx, |aead, label_id| {
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
