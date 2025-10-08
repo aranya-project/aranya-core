@@ -444,6 +444,14 @@ impl<CS: CipherSuite> ShmChan<CS> {
         Ok(ChannelId::new(self.channel_id.into()))
     }
 
+    /// Returns the [label ID][LabelId] associated with this channel.
+    #[inline(always)]
+    pub fn label_id(&self) -> Result<LabelId, Corrupted> {
+        self.check()?;
+
+        Ok(self.label_id)
+    }
+
     /// Reports whether this channel matches `op`.
     #[inline(always)]
     pub fn matches(&self, op: Op) -> Result<bool, Corrupted> {
@@ -899,7 +907,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Removes all elements where `f` returns true.
     pub(super) fn remove_if<F>(&mut self, f: &mut F) -> Result<(), Corrupted>
     where
-        F: FnMut(ChannelId) -> bool,
+        F: FnMut(ChannelId, LabelId) -> bool,
     {
         self.check();
 
@@ -907,7 +915,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
         let mut idx = 0;
         while let Some(chan) = self.get(idx)? {
             let id = chan.id()?;
-            if !f(id) {
+            let label_id = chan.label_id()?;
+            if !f(id, label_id) {
                 // Nope, try the next index.
                 idx += 1;
                 continue;

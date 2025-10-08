@@ -133,12 +133,12 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error> {
         self.inner
             .lock()
             .assume("poisoned")?
             .chans
-            .retain(|&id, _| !f(id));
+            .retain(|&id, (_keys, label_id)| !f(id, *label_id));
         Ok(())
     }
 

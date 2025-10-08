@@ -68,20 +68,20 @@ pub trait AranyaState {
     ///
     /// It is not an error if the channel does not exist.
     fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
-        self.remove_if(|v| v == id)
+        self.remove_if(|v, _| v == id)
     }
 
     /// Removes all existing channels.
     ///
     /// It is not an error if the channel does not exist.
     fn remove_all(&self) -> Result<(), Self::Error> {
-        self.remove_if(|_| true)
+        self.remove_if(|_, _| true)
     }
 
-    /// Removes channels where `f(id)` returns true.
+    /// Removes channels where `f(channel_id, label_id)` returns true.
     ///
     /// It is not an error if the channel does not exist.
-    fn remove_if(&self, f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error>;
+    fn remove_if(&self, f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
@@ -350,7 +350,7 @@ mod test {
             Ok(())
         }
 
-        fn remove_if(&self, f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+        fn remove_if(&self, f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error> {
             self.state.remove_if(f)?;
             Ok(())
         }

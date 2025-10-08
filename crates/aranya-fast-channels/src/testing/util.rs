@@ -382,7 +382,7 @@ where
     pub fn remove_if(
         &self,
         device_id: DeviceIdx,
-        f: impl FnMut(ChannelId) -> bool,
+        f: impl FnMut(ChannelId, LabelId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(device_id)?;
         Some(aranya.state.remove_if(f))
