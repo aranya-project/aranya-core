@@ -285,8 +285,6 @@ enum ChanDirection {
     SealOnly = 1,
     /// See [`Directed::OpenOnly`].
     OpenOnly = 2,
-    /// See [`Directed::Bidirectional`].
-    Bidirectional = 3,
 }
 
 impl ChanDirection {
@@ -299,10 +297,6 @@ impl ChanDirection {
         const_assert!(ChanDirection::OpenOnly.matches(Op::Open));
         const_assert!(!ChanDirection::OpenOnly.matches(Op::Seal));
         const_assert!(ChanDirection::OpenOnly.matches(Op::Any));
-
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Seal));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Open));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Any));
 
         // Ideally, we'd write this using `matches`. But the
         // compiler isn't smart enough to turn it into a bitmask,
@@ -320,7 +314,6 @@ impl ChanDirection {
         match dir {
             Directed::SealOnly { .. } => Self::SealOnly,
             Directed::OpenOnly { .. } => Self::OpenOnly,
-            Directed::Bidirectional { .. } => Self::Bidirectional,
         }
     }
 
@@ -330,7 +323,6 @@ impl ChanDirection {
         match v {
             1 => Some(Self::SealOnly),
             2 => Some(Self::OpenOnly),
-            3 => Some(Self::Bidirectional),
             _ => None,
         }
     }
@@ -439,10 +431,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
                 seal: &self.seal_key,
             },
             ChanDirection::OpenOnly => Directed::OpenOnly {
-                open: &self.open_key,
-            },
-            ChanDirection::Bidirectional => Directed::Bidirectional {
-                seal: &self.seal_key,
                 open: &self.open_key,
             },
         })
@@ -1104,11 +1092,7 @@ mod tests {
 
     #[test]
     fn test_chan_direction() {
-        const TYPES: &[ChanDirection] = &[
-            ChanDirection::SealOnly,
-            ChanDirection::OpenOnly,
-            ChanDirection::Bidirectional,
-        ];
+        const TYPES: &[ChanDirection] = &[ChanDirection::SealOnly, ChanDirection::OpenOnly];
         for want in TYPES.iter().copied() {
             let got = ChanDirection::try_from_u32(want.to_u32()).expect("should be `Some`");
             assert_eq!(want, got);

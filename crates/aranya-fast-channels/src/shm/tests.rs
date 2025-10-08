@@ -50,15 +50,6 @@ impl TestImpl for SharedMemImpl {
         States { afc, aranya }
     }
 
-    fn convert_bidi_keys<CS: CipherSuite>(
-        keys: BidiKeys<CS>,
-    ) -> (
-        <Self::Aranya<CS> as AranyaState>::SealKey,
-        <Self::Aranya<CS> as AranyaState>::OpenKey,
-    ) {
-        keys.into_raw_keys()
-    }
-
     fn convert_uni_seal_key<CS: CipherSuite>(
         key: UniSealKey<CS>,
     ) -> <Self::Aranya<CS> as AranyaState>::SealKey {
@@ -110,15 +101,11 @@ fn test_many_nodes() {
     // and m=len(labels).
     for label_id in labels {
         for idx in 0..MAX_CHANS {
-            let keys = match util::rand_intn(&mut Rng, 3) {
+            let keys = match util::rand_intn(&mut Rng, 2) {
                 0 => Directed::SealOnly {
                     seal: RawSealKey::random(rng),
                 },
                 1 => Directed::OpenOnly {
-                    open: RawOpenKey::random(rng),
-                },
-                2 => Directed::Bidirectional {
-                    seal: RawSealKey::random(rng),
                     open: RawOpenKey::random(rng),
                 },
                 v => unreachable!("{v}"),
