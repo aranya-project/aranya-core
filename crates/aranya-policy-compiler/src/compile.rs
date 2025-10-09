@@ -15,7 +15,7 @@ use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
     FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
     MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement,
-    StmtKind, StructItem, TypeKind, VType, ident,
+    StmtKind, StructItem, TypeKind, VType, ident, text,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
@@ -852,7 +852,9 @@ impl<'a> CompileState<'a> {
                     let err = self.err(CompileErrorType::TodoFound);
                     if self.is_debug {
                         warn!("{err}");
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                        self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+                            "todo"
+                        ))));
                         Typeish::Never
                     } else {
                         return Err(err);
@@ -909,7 +911,9 @@ impl<'a> CompileState<'a> {
                     f.identifier.name.clone(),
                 )));
                 if self.stub_ffi {
-                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+                        "FFI call not allowed in stub mode"
+                    ))));
                     Typeish::Never
                 } else {
                     // find module by name
@@ -1343,7 +1347,9 @@ impl<'a> CompileState<'a> {
                     })
                     .map_err(|e| self.err(e))?
             }
-            ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
+            ExprKind::Unwrap(e) => {
+                self.compile_unwrap(e, ExitReason::Panic(text!("unwrap failed")))?
+            }
             ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -1462,13 +1468,7 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
-                (
-                    StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                (StmtKind::Check(s), StatementContext::CommandPolicy(_)) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
                         kind: TypeKind::Bool,
@@ -1486,6 +1486,25 @@ impl<'a> CompileState<'a> {
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
                     self.append_instruction(Instruction::Exit(ExitReason::Check));
+                }
+                (
+                    StmtKind::Assert(s),
+                    StatementContext::Action(_) | StatementContext::PureFunction(_),
+                ) => {
+                    let et = self.compile_expression(&s.expression)?;
+                    if !et.fits_type(&VType {
+                        kind: TypeKind::Bool,
+                        span: s.expression.span,
+                    }) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "assert must have boolean expression",
+                        ))));
+                    }
+                    let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
+                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic(
+                        s.message.text.clone(),
+                    )));
                 }
                 (
                     StmtKind::Match(s),
@@ -1884,7 +1903,9 @@ impl<'a> CompileState<'a> {
                         let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
                         self.append_instruction(Instruction::Branch(Target::Resolved(next)));
                         // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                        self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+                            "debug assertion failed"
+                        ))));
                     }
                 }
                 (_, _) => {
@@ -1981,7 +2002,9 @@ impl<'a> CompileState<'a> {
             return Err(self.err_loc(CompileErrorType::NoReturn, function_node.span.start()));
         }
         // If execution does not hit a return statement, it will panic here.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+            "function did not return"
+        ))));
 
         self.identifier_types.exit_function();
         Ok(())
@@ -2310,7 +2333,9 @@ impl<'a> CompileState<'a> {
         self.identifier_types.exit_function();
         self.exit_statement_context();
         // If there is no return, this is an error. Panic if we get here.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+            "seal did not return"
+        ))));
         Ok(())
     }
 
@@ -2372,7 +2397,9 @@ impl<'a> CompileState<'a> {
         }
         self.identifier_types.exit_function();
         self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+            "open did not return"
+        ))));
         Ok(())
     }
 
@@ -2614,7 +2641,9 @@ impl<'a> CompileState<'a> {
             .iter()
             .any(|p| matches!(p, MatchPattern::Default(_)))
         {
-            self.append_instruction(Instruction::Exit(ExitReason::Panic));
+            self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+                "no match in match statement"
+            ))));
         }
 
         // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
@@ -2683,7 +2712,9 @@ impl<'a> CompileState<'a> {
     /// Compile a policy into instructions inside the given Machine.
     pub fn compile(&mut self) -> Result<(), CompileError> {
         // Panic when running a module without setup.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        self.append_instruction(Instruction::Exit(ExitReason::Panic(text!(
+            "module not initialized"
+        ))));
 
         for struct_def in &self.policy.structs {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
