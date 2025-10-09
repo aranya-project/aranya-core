@@ -8,7 +8,7 @@ use core::{
 };
 
 use aranya_crypto::{
-    CipherSuite, Csprng, Random,
+    CipherSuite, Csprng, DeviceId, Random,
     afc::{RawOpenKey, RawSealKey, Seq},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     policy::LabelId,
@@ -358,6 +358,8 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     pub seq: U64,
     /// The channel's label.
     pub label_id: LabelId,
+    /// The ID of the peer.
+    pub peer_id: DeviceId,
     /// The key/nonce used to encrypt data for the channel peer.
     #[derive_where(skip(Debug))]
     pub seal_key: RawSealKey<CS>,
@@ -385,6 +387,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
         ptr: &mut MaybeUninit<Self>,
         id: ChannelId,
         label_id: LabelId,
+        peer_id: DeviceId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
         rng: &mut R,
     ) {
@@ -418,6 +421,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
                 U64::MAX
             },
             label_id,
+            peer_id,
             seal_key,
             open_key,
             key_id,
@@ -454,6 +458,22 @@ impl<CS: CipherSuite> ShmChan<CS> {
         self.check()?;
 
         Ok(ChannelId::new(self.channel_id.into()))
+    }
+
+    /// Returns the [label ID][LabelId] associated with this channel.
+    #[inline(always)]
+    pub fn label_id(&self) -> Result<LabelId, Corrupted> {
+        self.check()?;
+
+        Ok(self.label_id)
+    }
+
+    /// Returns the [Id of the peer][DeviceId] associated with this channel.
+    #[inline(always)]
+    pub fn peer_id(&self) -> Result<DeviceId, Corrupted> {
+        self.check()?;
+
+        Ok(self.peer_id)
     }
 
     /// Reports whether this channel matches `op`.
@@ -911,7 +931,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Removes all elements where `f` returns true.
     pub(super) fn remove_if<F>(&mut self, f: &mut F) -> Result<(), Corrupted>
     where
-        F: FnMut(ChannelId) -> bool,
+        F: FnMut(ChannelId, LabelId, DeviceId) -> bool,
     {
         self.check();
 
@@ -919,7 +939,9 @@ impl<CS: CipherSuite> ChanListData<CS> {
         let mut idx = 0;
         while let Some(chan) = self.get(idx)? {
             let id = chan.id()?;
-            if !f(id) {
+            let label_id = chan.label_id()?;
+            let peer_id = chan.peer_id()?;
+            if !f(id, label_id, peer_id) {
                 // Nope, try the next index.
                 idx += 1;
                 continue;

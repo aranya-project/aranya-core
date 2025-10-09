@@ -11,7 +11,7 @@ use std::{
 };
 
 use aranya_crypto::{
-    CipherSuite, EncryptionKey, Engine, IdentityKey,
+    CipherSuite, DeviceId, EncryptionKey, Engine, IdentityKey,
     afc::{
         BidiChannel, BidiChannelId, BidiKeys, BidiSecrets, UniChannel, UniChannelId, UniOpenKey,
         UniSealKey, UniSecrets,
@@ -181,6 +181,7 @@ where
     enc_sk: EncryptionKey<CS>,
     state: T::Aranya<CS>,
     chans: HashMap<GlobalChannelId, (ChannelId, LabelId)>,
+    pub(crate) id: DeviceId,
 }
 
 impl<T, CS> Device<T, CS>
@@ -189,11 +190,14 @@ where
     CS: CipherSuite,
 {
     fn new<R: Csprng>(rng: &mut R, state: T::Aranya<CS>) -> Self {
+        let ident_sk = IdentityKey::new(rng);
+        let id = ident_sk.id().expect("can access device ID");
         Self {
-            ident_sk: IdentityKey::new(rng),
+            ident_sk,
             enc_sk: EncryptionKey::new(rng),
             state,
             chans: HashMap::new(),
+            id,
         }
     }
 
@@ -202,7 +206,7 @@ where
         &mut self,
         chan: TestChan<T, CS>,
     ) -> Result<ChannelId, <T::Aranya<CS> as AranyaState>::Error> {
-        let local_id = self.state.add(chan.keys, chan.label_id)?;
+        let local_id = self.state.add(chan.keys, chan.label_id, chan.peer_id)?;
         self.chans.insert(chan.id, (local_id, chan.label_id));
         Ok(local_id)
     }
@@ -411,6 +415,7 @@ where
                 id,
                 keys: Directed::Bidirectional { seal, open },
                 label_id,
+                peer_id: peer.id,
             }
         };
         let peer_ch = {
@@ -419,6 +424,7 @@ where
                 id,
                 keys: Directed::Bidirectional { seal, open },
                 label_id,
+                peer_id: author.id,
             }
         };
         (author_ch, peer_ch)
@@ -468,6 +474,7 @@ where
                 seal: T::convert_uni_seal_key(seal_key),
             },
             label_id,
+            peer_id: open.id,
         };
         let open_ch = Channel {
             id,
@@ -475,6 +482,7 @@ where
                 open: T::convert_uni_open_key(open_key),
             },
             label_id,
+            peer_id: seal.id,
         };
         (seal_ch, open_ch)
     }
@@ -516,7 +524,7 @@ where
     pub fn remove_if(
         &self,
         device_id: DeviceIdx,
-        f: impl FnMut(ChannelId) -> bool,
+        f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(device_id)?;
         Some(aranya.state.remove_if(f))
@@ -546,6 +554,8 @@ pub(crate) struct Channel<S, O> {
     pub keys: Directed<S, O>,
     /// Uniquely identifies the label.
     pub label_id: LabelId,
+    /// ID of the peer associated with this channel
+    pub peer_id: DeviceId,
 }
 
 type TestChan<T, CS> = Channel<
