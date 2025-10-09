@@ -11,7 +11,7 @@ use alloc::{
 };
 
 use aranya_crypto::{
-    CipherSuite,
+    CipherSuite, DeviceId,
     afc::{OpenKey, SealKey},
     policy::LabelId,
 };
@@ -29,7 +29,7 @@ use crate::{
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
     #[allow(clippy::type_complexity)]
-    chans: BTreeMap<ChannelId, (Directed<SealKey<CS>, OpenKey<CS>>, LabelId)>,
+    chans: BTreeMap<ChannelId, (Directed<SealKey<CS>, OpenKey<CS>>, LabelId, DeviceId)>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -57,7 +57,7 @@ where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let mut inner = self.inner.lock().assume("poisoned")?;
-        let (key, chan_label_id) = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        let (key, chan_label_id, _) = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
 
         let key = key.seal_mut().ok_or(Error::NotFound(id))?;
         Ok(f(key, *chan_label_id))
@@ -68,7 +68,7 @@ where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let inner = self.inner.lock().assume("poisoned")?;
-        let (key, chan_label_id) = inner.chans.get(&id).ok_or(Error::NotFound(id))?;
+        let (key, chan_label_id, _) = inner.chans.get(&id).ok_or(Error::NotFound(id))?;
         let key = key.open().ok_or(Error::NotFound(id))?;
 
         Ok(f(key, *chan_label_id))
@@ -98,6 +98,7 @@ where
         &self,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<ChannelId, Self::Error> {
         let mut inner = self.inner.lock().assume("poisoned")?;
         let id = ChannelId::new(inner.next_chan_id);
@@ -105,7 +106,7 @@ where
             .next_chan_id
             .checked_add(1)
             .assume("should not overflow")?;
-        inner.chans.insert(id, (keys, label_id));
+        inner.chans.insert(id, (keys, label_id, peer_id));
         Ok(id)
     }
 
@@ -118,7 +119,10 @@ where
         let mut inner = self.inner.lock().assume("poisoned")?;
         match inner.chans.entry(id) {
             Entry::Vacant(_) => return Err(Error::NotFound(id)),
-            Entry::Occupied(mut e) => e.insert((keys, label_id)),
+            Entry::Occupied(mut e) => {
+                let peer_id = e.get().2;
+                e.insert((keys, label_id, peer_id));
+            }
         };
         Ok(())
     }
@@ -133,12 +137,15 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(
+        &self,
+        mut f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
+    ) -> Result<(), Self::Error> {
         self.inner
             .lock()
             .assume("poisoned")?
             .chans
-            .retain(|&id, (_keys, label_id)| !f(id, *label_id));
+            .retain(|&id, (_keys, label_id, peer_id)| !f(id, *label_id, *peer_id));
         Ok(())
     }
 
