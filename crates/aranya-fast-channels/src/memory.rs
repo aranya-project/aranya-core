@@ -115,12 +115,12 @@ where
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<(), Self::Error> {
         let mut inner = self.inner.lock().assume("poisoned")?;
         match inner.chans.entry(id) {
             Entry::Vacant(_) => return Err(Error::NotFound(id)),
             Entry::Occupied(mut e) => {
-                let peer_id = e.get().2;
                 e.insert((keys, label_id, peer_id));
             }
         };

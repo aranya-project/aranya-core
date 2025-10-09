@@ -143,6 +143,7 @@ where
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<(), Error> {
         let mut rng = self.rng.lock().assume("poisoned")?;
 
@@ -162,8 +163,6 @@ where
             };
             debug!("adding chan {id} at {idx}");
 
-            let peer_id = todo!();
-
             ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
@@ -177,8 +176,6 @@ where
             // updated list.
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
-
-            let peer_id = todo!();
 
             ShmChan::<CS>::init(
                 side.raw_at(idx)?,
