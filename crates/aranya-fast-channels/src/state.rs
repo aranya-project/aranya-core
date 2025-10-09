@@ -4,7 +4,7 @@ use core::{
 };
 
 use aranya_crypto::{
-    CipherSuite,
+    CipherSuite, DeviceId,
     afc::{OpenKey, SealKey},
     policy::LabelId,
     subtle::ConstantTimeEq,
@@ -52,6 +52,7 @@ pub trait AranyaState {
         &self,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<ChannelId, Self::Error>;
 
     /// Updates a channel.
@@ -68,20 +69,23 @@ pub trait AranyaState {
     ///
     /// It is not an error if the channel does not exist.
     fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
-        self.remove_if(|v, _| v == id)
+        self.remove_if(|v, _, _| v == id)
     }
 
     /// Removes all existing channels.
     ///
     /// It is not an error if the channel does not exist.
     fn remove_all(&self) -> Result<(), Self::Error> {
-        self.remove_if(|_, _| true)
+        self.remove_if(|_, _, _| true)
     }
 
-    /// Removes channels where `f(channel_id, label_id)` returns true.
+    /// Removes channels where `f(channel_id, label_id, peer_id)` returns true.
     ///
     /// It is not an error if the channel does not exist.
-    fn remove_if(&self, f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error>;
+    fn remove_if(
+        &self,
+        f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
+    ) -> Result<(), Self::Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
@@ -295,7 +299,7 @@ impl<S, O> Debug for Directed<S, O> {
 #[cfg(test)]
 mod test {
     use aranya_crypto::{
-        CipherSuite, Rng,
+        CipherSuite, DeviceId, Rng,
         afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
         policy::LabelId,
     };
@@ -366,8 +370,9 @@ mod test {
             &self,
             keys: Directed<Self::SealKey, Self::OpenKey>,
             label_id: LabelId,
+            peer_id: DeviceId,
         ) -> Result<ChannelId, Self::Error> {
-            let id = self.state.add(keys, label_id)?;
+            let id = self.state.add(keys, label_id, peer_id)?;
             Ok(id)
         }
 
@@ -381,7 +386,10 @@ mod test {
             Ok(())
         }
 
-        fn remove_if(&self, f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error> {
+        fn remove_if(
+            &self,
+            f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
+        ) -> Result<(), Self::Error> {
             self.state.remove_if(f)?;
             Ok(())
         }
