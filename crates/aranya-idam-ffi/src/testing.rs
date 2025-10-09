@@ -8,6 +8,7 @@ use core::marker::PhantomData;
 use aranya_crypto::{
     DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
     KeyStoreExt as _, OpenError, SigningKey,
+    id::IdExt as _,
     policy::{CmdId, GroupId},
     subtle::ConstantTimeEq as _,
 };

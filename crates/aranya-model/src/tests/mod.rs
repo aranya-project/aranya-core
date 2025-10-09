@@ -7,6 +7,7 @@ use std::{fs, marker::PhantomData};
 use aranya_crypto::{
     DeviceId, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    id::IdExt as _,
     keystore::fs_keystore::Store,
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;

@@ -21,6 +21,7 @@ aranya-policy-vm = { version = "0.13.0", path = "../aranya-policy-vm" }
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+spideroak-base58 = { workspace = true }
 spin = { workspace = true, features = ["spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }

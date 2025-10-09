@@ -22,6 +22,7 @@ use aranya_crypto::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
