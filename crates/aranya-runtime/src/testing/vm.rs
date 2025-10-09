@@ -40,6 +40,9 @@ effect OutOfRange {
 }
 
 command Init {
+    attributes {
+        init: true,
+    }
     fields {
         nonce int,
     }
@@ -57,6 +60,9 @@ action init(nonce int) {
 }
 
 command Create {
+    attributes {
+        priority: 0,
+    }
     fields {
         key int,
         value int,
@@ -79,6 +85,9 @@ action create_action(v int) {
 }
 
 command Increment {
+    attributes {
+        priority: 0,
+    }
     fields {
         key int,
         amount int,
