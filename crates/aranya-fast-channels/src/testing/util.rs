@@ -207,8 +207,8 @@ where
     /// a particular label.
     ///
     /// This creates a channel between the new client and all
-    /// existing clients. The type of channel (bidi or uni)
-    /// depends on the `ChanOp` of both peers.
+    /// existing clients. The direction of the chanel
+    /// depends on the [`ChanOp`] of both peers.
     // TODO(eric): rename to `new_client_with_ops` or something.
     pub fn new_client_with_type<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
