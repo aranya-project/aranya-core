@@ -861,7 +861,7 @@ fn parse_serialize_deserialize() {
             identifier: ident!("Foo").at(8..11),
             fields: vec![],
             policy: vec![],
-            recall: vec![],
+            recalls: vec![],
             seal: vec![
                 StmtKind::Return(ast::ReturnStatement {
                     expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
@@ -1237,5 +1237,64 @@ Next chunk:
     for (policy, expected) in cases {
         let err = parse_policy_document(policy).unwrap_err();
         assert_eq!(err.to_string(), expected);
+    }
+}
+
+#[test]
+fn test_check_errors() {
+    let text = r#"
+        command Foo {
+            policy {
+                check false
+                check false or recall foo
+            }
+            recall {}
+            recall foo {}
+        }
+        "#;
+
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    insta::assert_json_snapshot!(policy);
+}
+
+#[test]
+fn test_recalls() {
+    let cases = [
+        (
+            r#"command Foo {
+                policy {}
+            }"#,
+            vec![],
+        ),
+        (
+            r#"command Foo {
+                recall {}
+            }"#,
+            vec!["default"],
+        ),
+        (
+            r#"command Foo {
+                recall {}
+                recall foo {}
+            }"#,
+            vec!["default", "foo"],
+        ),
+        (
+            r#"command Foo {
+                recall {}
+                recall foo {}
+                recall bar {}
+            }"#,
+            vec!["default", "foo", "bar"],
+        ),
+    ];
+    for (src, expected) in cases {
+        let policy = parse_policy_str(src, Version::V2).expect("should parse");
+        let recalls = policy.commands[0]
+            .recalls
+            .iter()
+            .map(|c| c.identifier.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(recalls, expected);
     }
 }
