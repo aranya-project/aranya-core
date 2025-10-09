@@ -191,12 +191,14 @@ where
     CS: CipherSuite,
 {
     fn new<R: Csprng>(rng: &mut R, state: T::Aranya<CS>) -> Self {
+        let ident_sk = IdentityKey::new(rng);
+        let id = ident_sk.id().expect("can access device ID");
         Self {
-            ident_sk: IdentityKey::new(rng),
+            ident_sk,
             enc_sk: EncryptionKey::new(rng),
             state,
             chans: HashMap::new(),
-            id: DeviceId::random(rng),
+            id,
         }
     }
 
