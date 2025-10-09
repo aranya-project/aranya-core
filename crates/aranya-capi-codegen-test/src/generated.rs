@@ -2635,59 +2635,6 @@ pub extern "C" fn prefix_ext_error_init(
         }
     }
 }
-/// Initializes `PrefixExtError`.
-///
-/// When no longer needed, `out`'s resources must be released
-/// with its cleanup routine.
-///
-/// @relates PrefixExtError
-#[unsafe(no_mangle)]
-#[deny(improper_ctypes_definitions)]
-#[::tracing::instrument(
-    level = "trace",
-    fields(
-        out = %__capi::internal::util::Addr::from_ptr(out),
-        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
-    )
-)]
-pub extern "C" fn prefix_ext_error_init_ext(
-    out: *mut ::core::mem::MaybeUninit<PrefixExtError>,
-    __ext_err: *mut PrefixExtError,
-) -> PrefixError {
-    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
-    match {
-        __tramp_prefix_ext_error_init(
-            __capi::internal::util::check_valid_input_ty_mut_ptr(out),
-        )
-    } {
-        __pattern => {
-            match __pattern {
-                ::core::result::Result::Ok(__pattern) => {
-                    match __pattern {
-                        ::core::result::Result::Ok(()) => {
-                            <PrefixError as __capi::ErrorCode>::SUCCESS
-                        }
-                        ::core::result::Result::Err(err) => {
-                            type __ExtErrTy = PrefixExtError;
-                            __capi::internal::error::handle_ext_error(
-                                err,
-                                __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
-                            )
-                        }
-                    }
-                }
-                ::core::result::Result::Err(err) => {
-                    type __ExtErrTy = PrefixExtError;
-                    __capi::internal::error::handle_ext_error(
-                        err,
-                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
-                    )
-                }
-            }
-        }
-    }
-}
 #[allow(clippy::unused_unit)]
 fn __tramp_prefix_ext_error_init(
     out: *mut ::core::mem::MaybeUninit<PrefixExtError>,
@@ -2746,58 +2693,6 @@ pub extern "C" fn prefix_ext_error_cleanup(ptr: *mut PrefixExtError) -> PrefixEr
                 }
                 ::core::result::Result::Err(ref err) => {
                     __capi::internal::error::convert_err(err)
-                }
-            }
-        }
-    }
-}
-/// Releases any resources associated with `ptr`.
-///
-/// `ptr` must either be null or initialized by `::prefix_ext_error_init`.
-///
-/// @relates PrefixExtError
-#[unsafe(no_mangle)]
-#[deny(improper_ctypes_definitions)]
-#[::tracing::instrument(
-    level = "trace",
-    fields(
-        ptr = %__capi::internal::util::Addr::from_ptr(ptr),
-        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
-    )
-)]
-pub extern "C" fn prefix_ext_error_cleanup_ext(
-    ptr: *mut PrefixExtError,
-    __ext_err: *mut PrefixExtError,
-) -> PrefixError {
-    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
-    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
-    match {
-        __tramp_prefix_ext_error_cleanup(
-            __capi::internal::util::check_valid_input_ty_mut_ptr(ptr),
-        )
-    } {
-        __pattern => {
-            match __pattern {
-                ::core::result::Result::Ok(__pattern) => {
-                    match __pattern {
-                        ::core::result::Result::Ok(()) => {
-                            <PrefixError as __capi::ErrorCode>::SUCCESS
-                        }
-                        ::core::result::Result::Err(err) => {
-                            type __ExtErrTy = PrefixExtError;
-                            __capi::internal::error::handle_ext_error(
-                                err,
-                                __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
-                            )
-                        }
-                    }
-                }
-                ::core::result::Result::Err(err) => {
-                    type __ExtErrTy = PrefixExtError;
-                    __capi::internal::error::handle_ext_error(
-                        err,
-                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
-                    )
                 }
             }
         }
