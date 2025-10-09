@@ -37,6 +37,7 @@ fn test_head_id() {
     {
         let context = CommandContext::Open(OpenContext {
             name: ident!("open"),
+            parent_id: CmdId::default(),
         });
         assert_eq!(
             perspective
@@ -54,6 +55,7 @@ fn test_head_id() {
             name: ident!("policy"),
             id: CmdId::default(),
             author: DeviceId::default(),
+            parent_id: CmdId::default(),
             version: Id::default(),
         });
         assert_eq!(
@@ -72,6 +74,7 @@ fn test_head_id() {
             name: ident!("recall"),
             id: CmdId::default(),
             author: DeviceId::default(),
+            parent_id: CmdId::default(),
             version: Id::default(),
         });
         assert_eq!(

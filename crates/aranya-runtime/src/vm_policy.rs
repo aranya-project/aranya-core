@@ -372,6 +372,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     fn open_command<P>(
         &self,
         name: Identifier,
+        parent_id: CmdId,
         envelope: Envelope<'_>,
         facts: &mut P,
     ) -> Result<Struct, EngineError>
@@ -382,7 +383,10 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         let mut sink = NullSink;
         let sink2 = RefCell::new(&mut sink);
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink2, &self.engine, &self.ffis));
-        let ctx = CommandContext::Open(OpenContext { name: name.clone() });
+        let ctx = CommandContext::Open(OpenContext {
+            name: name.clone(),
+            parent_id,
+        });
         let mut rs = self.machine.create_run_state(&io, ctx);
         let status = rs.call_open(name, envelope.into());
         match status {
@@ -537,7 +541,6 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         })?;
 
         let envelope = Envelope {
-            parent_id,
             author_id,
             command_id: command.id(),
             payload: Cow::Borrowed(serialized_fields),
@@ -562,7 +565,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             }
         }
 
-        let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
+        let command_struct = self.open_command(kind.clone(), parent_id, envelope.clone(), facts)?;
         let fields: Vec<KVPair> = command_struct
             .fields
             .into_iter()
@@ -572,6 +575,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
+            parent_id,
             version: CmdId::default().into(),
         });
         self.evaluate_rule(
