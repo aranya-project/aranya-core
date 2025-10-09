@@ -29,7 +29,9 @@ use spin::Mutex;
 
 use crate::{
     ffi::{AfcUniChannel, Ffi},
-    handler::{Handler, UniChannelCreated, UniChannelReceived, UniKey},
+    handler::{
+        Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived, UniKey,
+    },
     transform::Transform,
 };
 
@@ -328,6 +330,7 @@ macro_rules! test_all {
             }
 
             test!(test_create_seal_only_uni_channel);
+            test!(test_create_open_only_uni_channel);
         }
     };
 }
@@ -434,4 +437,75 @@ where
 
     Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
     Device::test_wrong_direction(&mut peer, peer_chan_id);
+}
+
+/// A negative test for creating a unidirectional channel
+/// where the author is the opener.
+pub fn test_create_open_only_uni_channel<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let mut author = T::new();
+    let peer = T::new();
+
+    let label_id = LabelId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
+    let ctx = CommandContext::Action(ActionContext {
+        name: ident!("CreateOpenOnlyChannel"),
+        head_id: parent_cmd_id,
+    });
+
+    // This is called via FFI.
+    let AfcUniChannel {
+        peer_encap: _,
+        key_id,
+    } = author
+        .ffi
+        .create_uni_channel(
+            &ctx,
+            &mut author.eng,
+            parent_cmd_id,
+            author.enc_key_id,
+            peer.enc_pk.clone(),
+            author.device_id,
+            peer.device_id,
+            label_id,
+        )
+        .expect("author should be able to create a uni channel");
+
+    // This is called by the author of the channel after
+    // receiving the effect.
+    match author
+            .handler
+            .uni_channel_created::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
+                &mut author.eng,
+                &UniChannelCreated {
+                    parent_cmd_id,
+                    author_id: author.device_id,
+                    seal_id: peer.device_id,
+                    open_id: author.device_id, // this causes an error
+                    author_enc_key_id: author.enc_key_id,
+                    peer_enc_pk: &peer.enc_pk,
+                    label_id,
+                    key_id: key_id.into(),
+                },
+            ) {
+                Ok(_) => panic!("author should not be the opener"),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
+            }
 }

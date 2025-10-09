@@ -78,7 +78,7 @@ impl<S: KeyStore> Handler<S> {
         if self.device_id == effect.seal_id {
             UniKey::new(&ch, secret, UniKey::SealOnly)
         } else {
-            UniKey::new(&ch, secret, UniKey::OpenOnly)
+            Err(Error::AuthorIsOpener)
         }
     }
 
@@ -235,6 +235,9 @@ pub enum Error {
     /// Unable to encode/decode a key.
     #[error("unable to encode/decode")]
     Encoding,
+    /// Channels require that the author is the sealer.
+    #[error("Channels require that the author is the sealer")]
+    AuthorIsOpener,
     /// A `crypto` crate error.
     #[error(transparent)]
     Crypto(#[from] aranya_crypto::Error),
