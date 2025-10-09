@@ -63,6 +63,7 @@ pub trait AranyaState {
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<(), Self::Error>;
 
     /// Removes an existing channel.
@@ -381,8 +382,9 @@ mod test {
             id: ChannelId,
             keys: Directed<Self::SealKey, Self::OpenKey>,
             label_id: LabelId,
+            peer_id: DeviceId,
         ) -> Result<(), Self::Error> {
-            self.state.update(id, keys, label_id)?;
+            self.state.update(id, keys, label_id, peer_id)?;
             Ok(())
         }
 
