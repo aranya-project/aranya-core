@@ -133,12 +133,12 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(ChannelId, LabelId) -> bool) -> Result<(), Self::Error> {
         self.inner
             .lock()
             .assume("poisoned")?
             .chans
-            .retain(|&id, _| !f(id));
+            .retain(|&id, (_keys, label_id)| !f(id, *label_id));
         Ok(())
     }
 
@@ -158,7 +158,7 @@ mod tests {
 
     use aranya_crypto::{
         Rng,
-        afc::{BidiKeys, UniOpenKey, UniSealKey},
+        afc::{UniOpenKey, UniSealKey},
     };
 
     use super::*;
@@ -183,18 +183,6 @@ mod tests {
             let afc = State::<CS>::new();
             let aranya = afc.clone();
             States { afc, aranya }
-        }
-
-        fn convert_bidi_keys<CS: CipherSuite>(
-            keys: BidiKeys<CS>,
-        ) -> (
-            <Self::Aranya<CS> as AranyaState>::SealKey,
-            <Self::Aranya<CS> as AranyaState>::OpenKey,
-        ) {
-            let (seal, open) = keys
-                .into_keys()
-                .expect("should be able to create `SealKey` and `OpenKey`");
-            (seal, open)
         }
 
         fn convert_uni_seal_key<CS: CipherSuite>(

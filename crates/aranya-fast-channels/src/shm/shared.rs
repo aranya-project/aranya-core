@@ -285,8 +285,6 @@ enum ChanDirection {
     SealOnly = 1,
     /// See [`Directed::OpenOnly`].
     OpenOnly = 2,
-    /// See [`Directed::Bidirectional`].
-    Bidirectional = 3,
 }
 
 impl ChanDirection {
@@ -299,10 +297,6 @@ impl ChanDirection {
         const_assert!(ChanDirection::OpenOnly.matches(Op::Open));
         const_assert!(!ChanDirection::OpenOnly.matches(Op::Seal));
         const_assert!(ChanDirection::OpenOnly.matches(Op::Any));
-
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Seal));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Open));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Any));
 
         // Ideally, we'd write this using `matches`. But the
         // compiler isn't smart enough to turn it into a bitmask,
@@ -320,7 +314,6 @@ impl ChanDirection {
         match dir {
             Directed::SealOnly { .. } => Self::SealOnly,
             Directed::OpenOnly { .. } => Self::OpenOnly,
-            Directed::Bidirectional { .. } => Self::Bidirectional,
         }
     }
 
@@ -330,7 +323,6 @@ impl ChanDirection {
         match v {
             1 => Some(Self::SealOnly),
             2 => Some(Self::OpenOnly),
-            3 => Some(Self::Bidirectional),
             _ => None,
         }
     }
@@ -441,10 +433,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
             ChanDirection::OpenOnly => Directed::OpenOnly {
                 open: &self.open_key,
             },
-            ChanDirection::Bidirectional => Directed::Bidirectional {
-                seal: &self.seal_key,
-                open: &self.open_key,
-            },
         })
     }
 
@@ -454,6 +442,14 @@ impl<CS: CipherSuite> ShmChan<CS> {
         self.check()?;
 
         Ok(ChannelId::new(self.channel_id.into()))
+    }
+
+    /// Returns the [label ID][LabelId] associated with this channel.
+    #[inline(always)]
+    pub fn label_id(&self) -> Result<LabelId, Corrupted> {
+        self.check()?;
+
+        Ok(self.label_id)
     }
 
     /// Reports whether this channel matches `op`.
@@ -911,7 +907,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Removes all elements where `f` returns true.
     pub(super) fn remove_if<F>(&mut self, f: &mut F) -> Result<(), Corrupted>
     where
-        F: FnMut(ChannelId) -> bool,
+        F: FnMut(ChannelId, LabelId) -> bool,
     {
         self.check();
 
@@ -919,7 +915,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
         let mut idx = 0;
         while let Some(chan) = self.get(idx)? {
             let id = chan.id()?;
-            if !f(id) {
+            let label_id = chan.label_id()?;
+            if !f(id, label_id) {
                 // Nope, try the next index.
                 idx += 1;
                 continue;
@@ -1104,11 +1101,7 @@ mod tests {
 
     #[test]
     fn test_chan_direction() {
-        const TYPES: &[ChanDirection] = &[
-            ChanDirection::SealOnly,
-            ChanDirection::OpenOnly,
-            ChanDirection::Bidirectional,
-        ];
+        const TYPES: &[ChanDirection] = &[ChanDirection::SealOnly, ChanDirection::OpenOnly];
         for want in TYPES.iter().copied() {
             let got = ChanDirection::try_from_u32(want.to_u32()).expect("should be `Some`");
             assert_eq!(want, got);

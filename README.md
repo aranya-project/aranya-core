@@ -12,8 +12,7 @@ and FactDB), crypto module (with default crypto engine automatically selected),
 sync engine, and runtime client (including policy VM).
 
 It also includes [Aranya Fast Channels](crates/aranya-fast-channels/) to enable
-encrypted channels between 2 peers allowing either unidirectional or
-bidirectional communication.
+encrypted channels between 2 peers allowing unidirectional communication.
 
 More documentation on Aranya is provided here:
 [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).

@@ -1,21 +1,12 @@
 //! Testing utilities.
 
 use std::{
-    cmp,
-    collections::HashMap,
-    iter::{self, IntoIterator},
-    marker::PhantomData,
-    mem,
-    num::NonZeroU16,
-    panic,
+    cmp, collections::HashMap, iter::IntoIterator, marker::PhantomData, mem, num::NonZeroU16, panic,
 };
 
 use aranya_crypto::{
     CipherSuite, EncryptionKey, Engine, IdentityKey,
-    afc::{
-        BidiChannel, BidiChannelId, BidiKeys, BidiSecrets, UniChannel, UniChannelId, UniOpenKey,
-        UniSealKey, UniSecrets,
-    },
+    afc::{UniChannel, UniChannelId, UniOpenKey, UniSealKey, UniSecrets},
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
         csprng::Csprng,
@@ -58,16 +49,8 @@ pub(crate) type DeviceIdx = usize;
 /// Uniquely identifies a channel.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum GlobalChannelId {
-    /// A bidirectional channel.
-    Bidi(BidiChannelId),
     /// A unidirectional channel.
     Uni(UniChannelId),
-}
-
-impl From<BidiChannelId> for GlobalChannelId {
-    fn from(id: BidiChannelId) -> Self {
-        Self::Bidi(id)
-    }
 }
 
 impl From<UniChannelId> for GlobalChannelId {
@@ -93,16 +76,6 @@ pub trait TestImpl {
         id: DeviceIdx,
         max_chans: usize,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>>;
-
-    /// Converts `keys` into the key types used by
-    /// [`AranyaState`].
-    #[allow(clippy::type_complexity)]
-    fn convert_bidi_keys<CS: CipherSuite>(
-        keys: BidiKeys<CS>,
-    ) -> (
-        <Self::Aranya<CS> as AranyaState>::SealKey,
-        <Self::Aranya<CS> as AranyaState>::OpenKey,
-    );
 
     /// Converts `key` into the encryption key type used by
     /// [`AranyaState`].
@@ -132,43 +105,11 @@ pub enum ChanOp {
     SealOnly,
     /// Can only decrypt.
     OpenOnly,
-    /// Can encrypt and decrypt.
-    Any,
 }
 
 impl ChanOp {
-    /// Attempts to simplify a channel where one side has
-    /// bidirectional permissions but the other only has
-    /// unidirectional.
-    ///
-    /// This is an important step. `AfcState` is only required to
-    /// record *its own* permissions, which can cause ambiguity.
-    /// For instance, given the channel (A,B)=(`Any`,`SealOnly`),
-    /// side A (which only knows that it has `Any` permissions),
-    /// might think that it can encrypt messages for side B. But
-    /// this is false: even though side A has both encryption and
-    /// decryption permissions for the label, it is only
-    /// permitted to encrypt messages if the intended recipient
-    /// is allowed to decrypt them.
-    ///
-    /// It is Aranya's job to configure APS correctly.
-    ///
-    /// Invariant: both sides can actually create a channel in
-    /// the first place.
-    fn disambiguate(lhs: Self, rhs: Self) -> (Self, Self) {
-        assert!(lhs.can_create_channel_with(rhs));
-
-        match (lhs, rhs) {
-            (Self::Any, Self::SealOnly) => (Self::OpenOnly, rhs),
-            (Self::Any, Self::OpenOnly) => (Self::SealOnly, rhs),
-            (Self::SealOnly, Self::Any) => (lhs, Self::OpenOnly),
-            (Self::OpenOnly, Self::Any) => (lhs, Self::SealOnly),
-            _ => (lhs, rhs),
-        }
-    }
-
     fn can_create_channel_with(self, other: Self) -> bool {
-        self != other || self == Self::Any || other == Self::Any
+        self != other
     }
 }
 
@@ -262,25 +203,12 @@ where
         }
     }
 
-    /// Create a [`Client`] that has [`ChanOp::Any`] for
+    /// Create a [`Client`] that has an [operation][`ChanOp`] for
     /// a particular label.
     ///
     /// This creates a channel between the new client and all
-    /// existing clients. The type of channel (bidi or uni)
-    /// depends on the `ChanOp` of both peers.
-    pub fn new_client<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
-    where
-        I: IntoIterator<Item = LabelId>,
-    {
-        self.new_client_with_type(labels.into_iter().zip(iter::repeat(ChanOp::Any)))
-    }
-
-    /// Create a [`Client`] that has [`ChanOp::Any`] for
-    /// a particular label.
-    ///
-    /// This creates a channel between the new client and all
-    /// existing clients. The type of channel (bidi or uni)
-    /// depends on the `ChanOp` of both peers.
+    /// existing clients. The direction of the chanel
+    /// depends on the [`ChanOp`] of both peers.
     // TODO(eric): rename to `new_client_with_ops` or something.
     pub fn new_client_with_type<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
@@ -352,9 +280,8 @@ where
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
         let (author, author_op) = (author.0, author.1);
         let (peer, peer_op) = (peer.0, peer.1);
-        let (author_op, peer_op) = ChanOp::disambiguate(author_op, peer_op);
-        match ChanOp::disambiguate(author_op, peer_op) {
-            (ChanOp::Any, ChanOp::Any) => Self::new_bidi_channel(eng, author, peer, label),
+        assert!(ChanOp::can_create_channel_with(author_op, peer_op));
+        match (author_op, peer_op) {
             (ChanOp::SealOnly, _) => Self::new_uni_channel(eng, author, peer, label),
             (ChanOp::OpenOnly, _) => {
                 let (mut seal, mut open) = Self::new_uni_channel(eng, peer, author, label);
@@ -363,65 +290,7 @@ where
                 mem::swap(&mut seal, &mut open);
                 (seal, open)
             }
-            _ => unreachable!(),
         }
-    }
-
-    /// Creates a bidirectional channel between author and peer.
-    ///
-    /// It returns the channel information for (author, peer).
-    fn new_bidi_channel(
-        eng: &mut E,
-        author: &Device<T, E::CS>,
-        peer: &Device<T, E::CS>,
-        label_id: LabelId,
-    ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
-        let (author_keys, peer_keys, id) = {
-            let author_cfg = BidiChannel {
-                parent_cmd_id: CmdId::random(eng),
-                our_sk: &author.enc_sk,
-                our_id: author.ident_sk.public().unwrap().id().unwrap(),
-                their_pk: &peer.enc_sk.public().unwrap(),
-                their_id: peer.ident_sk.public().unwrap().id().unwrap(),
-                label_id,
-            };
-            let peer_cfg = BidiChannel {
-                parent_cmd_id: author_cfg.parent_cmd_id,
-                our_sk: &peer.enc_sk,
-                our_id: peer.ident_sk.public().unwrap().id().unwrap(),
-                their_pk: &author.enc_sk.public().unwrap(),
-                their_id: author.ident_sk.public().unwrap().id().unwrap(),
-                label_id,
-            };
-
-            let secrets =
-                BidiSecrets::new(eng, &author_cfg).expect("should be able to create `BidiSecrets`");
-            let id = GlobalChannelId::Bidi(secrets.id());
-
-            let author_keys = BidiKeys::from_author_secret(&author_cfg, secrets.author)
-                .expect("should be able to decrypt author's `BidiKeys`");
-            let peer_keys = BidiKeys::from_peer_encap(&peer_cfg, secrets.peer)
-                .expect("should be able to decrypt peer's `BidiKeys`");
-            (author_keys, peer_keys, id)
-        };
-
-        let author_ch = {
-            let (seal, open) = T::convert_bidi_keys(author_keys);
-            Channel {
-                id,
-                keys: Directed::Bidirectional { seal, open },
-                label_id,
-            }
-        };
-        let peer_ch = {
-            let (seal, open) = T::convert_bidi_keys(peer_keys);
-            Channel {
-                id,
-                keys: Directed::Bidirectional { seal, open },
-                label_id,
-            }
-        };
-        (author_ch, peer_ch)
     }
 
     /// Creates a unidirectional channel between author and peer.
@@ -516,7 +385,7 @@ where
     pub fn remove_if(
         &self,
         device_id: DeviceIdx,
-        f: impl FnMut(ChannelId) -> bool,
+        f: impl FnMut(ChannelId, LabelId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(device_id)?;
         Some(aranya.state.remove_if(f))
@@ -569,18 +438,6 @@ impl TestImpl for MockImpl {
         let afc = memory::State::<CS>::new();
         let aranya = afc.clone();
         States { afc, aranya }
-    }
-
-    fn convert_bidi_keys<CS: CipherSuite>(
-        keys: BidiKeys<CS>,
-    ) -> (
-        <Self::Aranya<CS> as AranyaState>::SealKey,
-        <Self::Aranya<CS> as AranyaState>::OpenKey,
-    ) {
-        let (seal, open) = keys
-            .into_keys()
-            .expect("should be able to create `SealKey` and `OpenKey`");
-        (seal, open)
     }
 
     fn convert_uni_seal_key<CS: CipherSuite>(
