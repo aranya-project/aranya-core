@@ -87,62 +87,72 @@ expression: policy
                     ],
                     {
                       "kind": {
-                        "Add": [
-                          {
-                            "kind": {
-                              "Identifier": {
-                                "name": "a",
-                                "span": {
-                                  "start": 96,
-                                  "end": 97
+                        "Unwrap": {
+                          "kind": {
+                            "InternalFunction": {
+                              "SaturatingAdd": [
+                                {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "a",
+                                      "span": {
+                                        "start": 118,
+                                        "end": 119
+                                      }
+                                    }
+                                  },
+                                  "span": {
+                                    "start": 118,
+                                    "end": 119
+                                  }
+                                },
+                                {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "b",
+                                      "span": {
+                                        "start": 121,
+                                        "end": 122
+                                      }
+                                    }
+                                  },
+                                  "span": {
+                                    "start": 121,
+                                    "end": 122
+                                  }
                                 }
-                              }
-                            },
-                            "span": {
-                              "start": 96,
-                              "end": 97
+                              ]
                             }
                           },
-                          {
-                            "kind": {
-                              "Identifier": {
-                                "name": "b",
-                                "span": {
-                                  "start": 100,
-                                  "end": 101
-                                }
-                              }
-                            },
-                            "span": {
-                              "start": 100,
-                              "end": 101
-                            }
+                          "span": {
+                            "start": 103,
+                            "end": 123
                           }
-                        ]
+                        }
                       },
                       "span": {
                         "start": 96,
-                        "end": 101
+                        "end": 123
                       }
                     }
                   ]
                 },
                 "span": {
                   "start": 36,
-                  "end": 111
+                  "end": 133
                 }
               }
             }
           },
           "span": {
             "start": 28,
-            "end": 116
+            "end": 138
           }
         }
       ],
       "span": {
         "start": 5,
-        "end": 117
+        "end": 139
       }
     }
   ],
@@ -153,5 +163,5 @@ expression: policy
   "functions": [],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n    action foo() {\n        let x = {\n            let a = 3\n            let b = 4\n            : a + b\n        }\n    }\n    "
+  "text": "\n    action foo() {\n        let x = {\n            let a = 3\n            let b = 4\n            : unwrap saturating_add(a, b)\n        }\n    }\n    "
 }

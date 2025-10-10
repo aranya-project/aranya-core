@@ -295,7 +295,7 @@ command Increment {
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = stuff.x + this.value
+        let new_x = unwrap add(stuff.x, this.value)
         check new_x < 25
 
         finish {
@@ -324,7 +324,7 @@ command Decrement {
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = stuff.x - this.value
+        let new_x = unwrap sub(stuff.x, this.value)
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}

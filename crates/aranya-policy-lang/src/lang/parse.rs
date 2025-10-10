@@ -514,6 +514,39 @@ impl ChunkParser<'_> {
                     let er = self.parse_enum_reference(primary)?;
                     Ok(Expression { kind: ExprKind::EnumReference(er), span })
                 }
+                Rule::add | Rule::saturating_add | Rule::sub | Rule::saturating_sub => {
+                    let rule = primary.as_rule();
+                    let rule_name = format!("{:?}", rule);
+                    let mut pairs = primary.clone().into_inner();
+                    let lhs = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            format!("`{}()` missing left argument", rule_name),
+                            Some(primary.as_span()),
+                        )
+                    })?;
+                    let rhs = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            format!("`{}()` missing right argument", rule_name),
+                            Some(primary.as_span()),
+                        )
+                    })?;
+                    let lhs_expr = self.parse_expression(lhs)?;
+                    let rhs_expr = self.parse_expression(rhs)?;
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let internal_fn = match rule {
+                        Rule::add => InternalFunction::Add(Box::new(lhs_expr), Box::new(rhs_expr)),
+                        Rule::saturating_add => InternalFunction::SaturatingAdd(Box::new(lhs_expr), Box::new(rhs_expr)),
+                        Rule::sub => InternalFunction::Sub(Box::new(lhs_expr), Box::new(rhs_expr)),
+                        Rule::saturating_sub => InternalFunction::SaturatingSub(Box::new(lhs_expr), Box::new(rhs_expr)),
+                        _ => unreachable!(),
+                    };
+                    Ok(Expression {
+                        kind: ExprKind::InternalFunction(internal_fn),
+                        span,
+                    })
+                }
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
@@ -668,8 +701,6 @@ impl ChunkParser<'_> {
                 let combined_span = lhs.span.merge(rhs.span);
 
                 let kind = match op.as_rule() {
-                    Rule::add => ExprKind::Add(Box::new(lhs), Box::new(rhs)),
-                    Rule::subtract => ExprKind::Subtract(Box::new(lhs), Box::new(rhs)),
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
                     Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
                     Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
@@ -1785,10 +1816,9 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | 2        | `substruct`, `as` (infix) |
 /// | 3        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
 /// | 4        | `%` |
-/// | 5        | `+`, `-` (infix) |
-/// | 6        | `>`, `<`, `>=`, `<=`, `is` |
-/// | 7        | `==`, `!=` |
-/// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 5        | `>`, `<`, `>=`, `<=`, `is` |
+/// | 6        | `==`, `!=` |
+/// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
 fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
@@ -1798,7 +1828,6 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
-        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
         .op(Op::prefix(Rule::neg)
             | Op::prefix(Rule::not)
             | Op::prefix(Rule::unwrap)

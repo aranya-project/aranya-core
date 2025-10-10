@@ -1294,8 +1294,8 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
     let text = r#"
         action foo(x int) {
             let a = -2
-            check x - a == 1
-            check -5 == -(4 + 1)
+            check unwrap sub(x, a) == 1
+            check -5 == -(unwrap add(4, 1))
             check 42 == --42
         }
 
@@ -1392,7 +1392,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x int) int {
-            return x + 1
+            return unwrap add(x, 1)
         }
 
         action foo(x int) {
@@ -1805,7 +1805,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action foo() {
-            let a = x + 1
+            let a = unwrap add(x, 1)
             let b = y
             let c = !z
             publish Result {
@@ -2029,7 +2029,7 @@ seal { return todo() }
 open { return todo() }
 policy {
     let r = unwrap query Foo[]=>{x: ?}
-    let new_x = r.x + 1
+    let new_x = unwrap add(r.x, 1)
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}
@@ -2260,7 +2260,7 @@ fn test_block_expression() -> anyhow::Result<()> {
             let b = 4
             let x = {
                 let c = 5
-                : a + b + c
+                : saturating_add(saturating_add(a, b), c)
             }
 
             publish TestCommand {

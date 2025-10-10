@@ -12,8 +12,8 @@ expression: policy
       "identifier": {
         "name": "foo",
         "span": {
-          "start": 81,
-          "end": 84
+          "start": 57,
+          "end": 60
         }
       },
       "arguments": [],
@@ -24,100 +24,59 @@ expression: policy
               "identifier": {
                 "name": "a",
                 "span": {
-                  "start": 105,
-                  "end": 106
+                  "start": 81,
+                  "end": 82
                 }
               },
               "expression": {
                 "kind": {
-                  "Add": [
-                    {
-                      "kind": {
-                        "Identifier": {
-                          "name": "x",
-                          "span": {
-                            "start": 109,
-                            "end": 110
+                  "Unwrap": {
+                    "kind": {
+                      "InternalFunction": {
+                        "Add": [
+                          {
+                            "kind": {
+                              "Identifier": {
+                                "name": "x",
+                                "span": {
+                                  "start": 96,
+                                  "end": 97
+                                }
+                              }
+                            },
+                            "span": {
+                              "start": 96,
+                              "end": 97
+                            }
+                          },
+                          {
+                            "kind": {
+                              "Int": 1
+                            },
+                            "span": {
+                              "start": 99,
+                              "end": 100
+                            }
                           }
-                        }
-                      },
-                      "span": {
-                        "start": 109,
-                        "end": 110
+                        ]
                       }
                     },
-                    {
-                      "kind": {
-                        "Int": 1
-                      },
-                      "span": {
-                        "start": 113,
-                        "end": 114
-                      }
+                    "span": {
+                      "start": 92,
+                      "end": 101
                     }
-                  ]
+                  }
                 },
                 "span": {
-                  "start": 109,
-                  "end": 114
+                  "start": 85,
+                  "end": 101
                 }
               }
             }
           },
           "span": {
-            "start": 101,
-            "end": 127
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "b",
-                "span": {
-                  "start": 131,
-                  "end": 132
-                }
-              },
-              "expression": {
-                "kind": {
-                  "Add": [
-                    {
-                      "kind": {
-                        "Identifier": {
-                          "name": "y",
-                          "span": {
-                            "start": 135,
-                            "end": 136
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 135,
-                        "end": 136
-                      }
-                    },
-                    {
-                      "kind": {
-                        "String": " world"
-                      },
-                      "span": {
-                        "start": 139,
-                        "end": 147
-                      }
-                    }
-                  ]
-                },
-                "span": {
-                  "start": 135,
-                  "end": 147
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 127,
-            "end": 160
+            "start": 77,
+            "end": 114
           }
         },
         {
@@ -126,8 +85,8 @@ expression: policy
               "identifier": {
                 "name": "c",
                 "span": {
-                  "start": 164,
-                  "end": 165
+                  "start": 118,
+                  "end": 119
                 }
               },
               "expression": {
@@ -137,27 +96,27 @@ expression: policy
                       "Identifier": {
                         "name": "z",
                         "span": {
-                          "start": 169,
-                          "end": 170
+                          "start": 123,
+                          "end": 124
                         }
                       }
                     },
                     "span": {
-                      "start": 169,
-                      "end": 170
+                      "start": 123,
+                      "end": 124
                     }
                   }
                 },
                 "span": {
-                  "start": 168,
-                  "end": 170
+                  "start": 122,
+                  "end": 124
                 }
               }
             }
           },
           "span": {
-            "start": 160,
-            "end": 183
+            "start": 114,
+            "end": 137
           }
         },
         {
@@ -168,8 +127,8 @@ expression: policy
                   "identifier": {
                     "name": "Bar",
                     "span": {
-                      "start": 188,
-                      "end": 191
+                      "start": 142,
+                      "end": 145
                     }
                   },
                   "fields": [
@@ -177,8 +136,8 @@ expression: policy
                       {
                         "name": "a",
                         "span": {
-                          "start": 210,
-                          "end": 211
+                          "start": 164,
+                          "end": 165
                         }
                       },
                       {
@@ -186,38 +145,14 @@ expression: policy
                           "Identifier": {
                             "name": "a",
                             "span": {
-                              "start": 213,
-                              "end": 214
+                              "start": 167,
+                              "end": 168
                             }
                           }
                         },
                         "span": {
-                          "start": 213,
-                          "end": 214
-                        }
-                      }
-                    ],
-                    [
-                      {
-                        "name": "b",
-                        "span": {
-                          "start": 232,
-                          "end": 233
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "b",
-                            "span": {
-                              "start": 235,
-                              "end": 236
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 235,
-                          "end": 236
+                          "start": 167,
+                          "end": 168
                         }
                       }
                     ],
@@ -225,8 +160,8 @@ expression: policy
                       {
                         "name": "c",
                         "span": {
-                          "start": 254,
-                          "end": 255
+                          "start": 186,
+                          "end": 187
                         }
                       },
                       {
@@ -234,14 +169,14 @@ expression: policy
                           "Identifier": {
                             "name": "c",
                             "span": {
-                              "start": 257,
-                              "end": 258
+                              "start": 189,
+                              "end": 190
                             }
                           }
                         },
                         "span": {
-                          "start": 257,
-                          "end": 258
+                          "start": 189,
+                          "end": 190
                         }
                       }
                     ]
@@ -250,20 +185,20 @@ expression: policy
                 }
               },
               "span": {
-                "start": 188,
-                "end": 273
+                "start": 142,
+                "end": 205
               }
             }
           },
           "span": {
-            "start": 183,
-            "end": 282
+            "start": 137,
+            "end": 214
           }
         }
       ],
       "span": {
-        "start": 74,
-        "end": 283
+        "start": 50,
+        "end": 215
       }
     }
   ],
@@ -298,7 +233,7 @@ expression: policy
     },
     {
       "identifier": {
-        "name": "y",
+        "name": "z",
         "span": {
           "start": 32,
           "end": 33
@@ -306,40 +241,18 @@ expression: policy
       },
       "expression": {
         "kind": {
-          "String": "hello"
+          "Bool": true
         },
         "span": {
           "start": 36,
-          "end": 43
+          "end": 40
         }
       },
       "span": {
         "start": 28,
-        "end": 52
-      }
-    },
-    {
-      "identifier": {
-        "name": "z",
-        "span": {
-          "start": 56,
-          "end": 57
-        }
-      },
-      "expression": {
-        "kind": {
-          "Bool": true
-        },
-        "span": {
-          "start": 60,
-          "end": 64
-        }
-      },
-      "span": {
-        "start": 52,
-        "end": 74
+        "end": 50
       }
     }
   ],
-  "text": "\n        let x = 42\n        let y = \"hello\"\n        let z = true\n\n        action foo() {\n            let a = x + 1\n            let b = y + \" world\"\n            let c = !z\n            emit Bar {\n                a: a,\n                b: b,\n                c: c,\n            }\n        }\n    "
+  "text": "\n        let x = 42\n        let z = true\n\n        action foo() {\n            let a = unwrap add(x, 1)\n            let c = !z\n            emit Bar {\n                a: a,\n                c: c,\n            }\n        }\n    "
 }

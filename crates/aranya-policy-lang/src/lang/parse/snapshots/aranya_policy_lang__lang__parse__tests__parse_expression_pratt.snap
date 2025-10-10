@@ -17,30 +17,40 @@ expression: expr_parsed
           "arguments": [
             {
               "kind": {
-                "Add": [
-                  {
-                    "kind": {
-                      "Int": 3
-                    },
-                    "span": {
-                      "start": 12,
-                      "end": 13
+                "Unwrap": {
+                  "kind": {
+                    "InternalFunction": {
+                      "Add": [
+                        {
+                          "kind": {
+                            "Int": 3
+                          },
+                          "span": {
+                            "start": 23,
+                            "end": 24
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Int": 7
+                          },
+                          "span": {
+                            "start": 26,
+                            "end": 27
+                          }
+                        }
+                      ]
                     }
                   },
-                  {
-                    "kind": {
-                      "Int": 7
-                    },
-                    "span": {
-                      "start": 16,
-                      "end": 17
-                    }
+                  "span": {
+                    "start": 19,
+                    "end": 28
                   }
-                ]
+                }
               },
               "span": {
                 "start": 12,
-                "end": 17
+                "end": 28
               }
             },
             {
@@ -50,20 +60,20 @@ expression: expr_parsed
                     "Identifier": {
                       "name": "b",
                       "span": {
-                        "start": 20,
-                        "end": 21
+                        "start": 31,
+                        "end": 32
                       }
                     }
                   },
                   "span": {
-                    "start": 20,
-                    "end": 21
+                    "start": 31,
+                    "end": 32
                   }
                 }
               },
               "span": {
-                "start": 19,
-                "end": 21
+                "start": 30,
+                "end": 32
               }
             },
             {
@@ -71,8 +81,8 @@ expression: expr_parsed
                 "String": "foo{"
               },
               "span": {
-                "start": 23,
-                "end": 32
+                "start": 34,
+                "end": 43
               }
             }
           ]
@@ -80,12 +90,12 @@ expression: expr_parsed
       },
       "span": {
         "start": 7,
-        "end": 33
+        "end": 44
       }
     }
   },
   "span": {
     "start": 0,
-    "end": 33
+    "end": 44
   }
 }

@@ -166,7 +166,7 @@ enum TestEnum { A, B }
 "#
 )]
 impl<T, G> TestModule<'_, T, G> {
-    #[ffi_export(def = "function add(x int, y int) int")]
+    #[ffi_export(def = "function add2(x int, y int) int")]
     fn add<E: Engine>(
         _ctx: &CommandContext,
         _eng: &mut E,
@@ -176,7 +176,7 @@ impl<T, G> TestModule<'_, T, G> {
         x.checked_add(y).ok_or(Overflow)
     }
 
-    #[ffi_export(def = "function sub(x int, y int) int")]
+    #[ffi_export(def = "function sub2(x int, y int) int")]
     fn sub<E: Engine>(
         _ctx: &CommandContext,
         _eng: &mut E,
@@ -281,23 +281,23 @@ fn test_ffi_derive() {
     {
         state.push(1i64);
         state.push(2i64);
-        state.call("add").expect("`test::add` should not fail");
+        state.call("add2").expect("`test::add2` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
-        assert_eq!(got, 3, "`test::add` returned the wrong result");
+        assert_eq!(got, 3, "`test::add2` returned the wrong result");
         assert!(state.is_empty());
     }
 
-    // Negative test case for `add`.
+    // Negative test case for `add2`.
     {
         state.push(i64::MAX);
         state.push(1i64);
         let err = state
-            .call("add")
+            .call("add2")
             .expect_err("`test::sub` should have failed");
         assert_eq!(
             err,
             TestStateError::Module(MachineError::new(MachineErrorType::IntegerOverflow)),
-            "`add` should have returned `Overflow`",
+            "`add2` should have returned `Overflow`",
         );
         assert!(state.is_empty());
     }
@@ -306,23 +306,23 @@ fn test_ffi_derive() {
     {
         state.push(10i64);
         state.push(2i64);
-        state.call("sub").expect("`test::sub` should not fail");
+        state.call("sub2").expect("`test::sub2` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
-        assert_eq!(got, 8, "`test::sub` returned the wrong result");
+        assert_eq!(got, 8, "`test::sub2` returned the wrong result");
         assert!(state.is_empty());
     }
 
-    // Negative test case for `sub`.
+    // Negative test case for `sub2`.
     {
         state.push(i64::MIN);
         state.push(2i64);
         let err = state
-            .call("sub")
-            .expect_err("`test::sub` should have failed");
+            .call("sub2")
+            .expect_err("`test::sub2` should have failed");
         assert_eq!(
             err,
             TestStateError::Module(MachineError::new(MachineErrorType::IntegerOverflow)),
-            "`test::sub` should have returned `Overflow`",
+            "`test::sub2` should have returned `Overflow`",
         );
         assert!(state.is_empty());
     }

@@ -148,6 +148,11 @@ enum_reference = { identifier ~ "::" ~ identifier }
 none = { "None" }
 some = { "Some" }
 optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
+
+add = { "add(" ~ expression ~ "," ~ expression ~ ")" }
+saturating_add = { "saturating_add(" ~ expression ~ "," ~ expression ~ ")" }
+sub = { "sub(" ~ expression ~ "," ~ expression ~ ")" }
+saturating_sub = { "saturating_sub(" ~ expression ~ "," ~ expression ~ ")" }
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
 // token.
@@ -177,6 +182,8 @@ todo = { "todo()" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
+    add | saturating_add |
+    sub | saturating_sub |
     query |
     exists |
     count_up_to |
@@ -213,8 +220,6 @@ atom = _{
 this = { "this" }
 
 // ## Infix operators
-add = { "+" }
-subtract = { "-" }
 greater_than = { ">" }
 less_than = { "<" }
 greater_than_or_equal = { ">=" }
@@ -226,7 +231,7 @@ or = { "||" }
 dot = { "." }
 substruct = { "substruct" }
 cast = { "as" }
-infix_op = _{ add | subtract | and | or | dot | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than | substruct | cast }
+infix_op = _{ and | or | dot | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than | substruct | cast }
 
 // ## Prefix operators
 neg = { "-" }
