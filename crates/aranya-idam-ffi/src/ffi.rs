@@ -8,6 +8,7 @@ use aranya_crypto::{
     EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
+    id::IdExt as _,
     policy::{self, CmdId, GroupId, RoleId},
     zeroize::Zeroizing,
 };
@@ -114,7 +115,7 @@ function generate_group_key() struct StoredGroupKey
         eng: &mut E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.into_id();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -180,7 +181,7 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.into_id();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -302,8 +303,8 @@ function compute_change_id(
     ) -> Result<Id, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
         Ok(Id::new::<E::CS>(
-            current_change_id.as_bytes(),
-            new_cmd_id.as_bytes(),
+            b"ChangeId-v1",
+            [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }
 
