@@ -429,13 +429,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         ptr.write(chan);
     }
 
-    /// Returns itself as a `MaybeUninit`.
-    pub fn as_uninit_mut(&mut self) -> &mut MaybeUninit<Self> {
-        // SAFETY: `self` and `MaybeUninit<Self>` have the same
-        // memory layout.
-        unsafe { &mut *ptr::from_mut::<Self>(self).cast::<MaybeUninit<Self>>() }
-    }
-
     #[cfg(test)]
     pub(crate) fn keys(&self) -> Result<Directed<&RawSealKey<CS>, &RawOpenKey<CS>>, Corrupted> {
         Ok(match self.direction()? {

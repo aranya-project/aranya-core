@@ -5,10 +5,7 @@
 
 extern crate alloc;
 
-use alloc::{
-    collections::btree_map::{BTreeMap, Entry},
-    sync::Arc,
-};
+use alloc::{collections::btree_map::BTreeMap, sync::Arc};
 
 use aranya_crypto::{
     CipherSuite, DeviceId,
@@ -124,27 +121,6 @@ where
             },
         );
         Ok(id)
-    }
-
-    fn update(
-        &self,
-        id: ChannelId,
-        keys: Directed<Self::SealKey, Self::OpenKey>,
-        label_id: LabelId,
-        peer_id: DeviceId,
-    ) -> Result<(), Self::Error> {
-        let mut inner = self.inner.lock().assume("poisoned")?;
-        match inner.chans.entry(id) {
-            Entry::Vacant(_) => return Err(Error::NotFound(id)),
-            Entry::Occupied(mut e) => {
-                e.insert(ChanMapValue {
-                    keys,
-                    label_id,
-                    peer_id,
-                });
-            }
-        };
-        Ok(())
     }
 
     fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {

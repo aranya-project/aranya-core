@@ -55,17 +55,6 @@ pub trait AranyaState {
         peer_id: DeviceId,
     ) -> Result<ChannelId, Self::Error>;
 
-    /// Updates a channel.
-    ///
-    /// It is an error if the channel does not exist.
-    fn update(
-        &self,
-        id: ChannelId,
-        keys: Directed<Self::SealKey, Self::OpenKey>,
-        label_id: LabelId,
-        peer_id: DeviceId,
-    ) -> Result<(), Self::Error>;
-
     /// Removes an existing channel.
     ///
     /// It is not an error if the channel does not exist.
@@ -375,17 +364,6 @@ mod test {
         ) -> Result<ChannelId, Self::Error> {
             let id = self.state.add(keys, label_id, peer_id)?;
             Ok(id)
-        }
-
-        fn update(
-            &self,
-            id: ChannelId,
-            keys: Directed<Self::SealKey, Self::OpenKey>,
-            label_id: LabelId,
-            peer_id: DeviceId,
-        ) -> Result<(), Self::Error> {
-            self.state.update(id, keys, label_id, peer_id)?;
-            Ok(())
         }
 
         fn remove_if(
