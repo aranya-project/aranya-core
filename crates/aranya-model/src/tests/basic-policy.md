@@ -399,8 +399,9 @@ command Link {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
+        let parent_id = envelope::parent_id()
         finish {
-            emit Relationship{parent_id: envelope.parent_id, command_id: envelope.command_id}
+            emit Relationship{parent_id: parent_id, command_id: envelope.command_id}
         }
     }
 }

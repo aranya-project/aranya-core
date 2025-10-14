@@ -62,7 +62,6 @@ impl Command for VmProtocol<'_> {
 
 #[derive(Clone, Debug)]
 pub struct Envelope<'a> {
-    pub parent_id: CmdId,
     pub author_id: DeviceId,
     pub command_id: CmdId,
     pub payload: Cow<'a, [u8]>,
@@ -74,7 +73,6 @@ impl From<Envelope<'_>> for Struct {
         Self::new(
             ident!("Envelope"),
             [
-                (ident!("parent_id"), e.parent_id.into()),
                 (ident!("author_id"), e.author_id.into()),
                 (ident!("command_id"), e.command_id.into()),
                 (ident!("payload"), e.payload.into_owned().into()),
@@ -98,7 +96,6 @@ impl TryFrom<Struct> for Envelope<'_> {
         }
 
         Ok(Self {
-            parent_id: get::<aranya_crypto::Id>(fields, "parent_id")?.into(),
             author_id: get::<aranya_crypto::Id>(fields, "author_id")?.into(),
             command_id: get::<aranya_crypto::Id>(fields, "command_id")?.into(),
             payload: Cow::Owned(get(fields, "payload")?),
