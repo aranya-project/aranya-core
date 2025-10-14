@@ -133,7 +133,7 @@ function sign(
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
-            command_id: id.into(),
+            command_id: id.into_id(),
         })
     }
 

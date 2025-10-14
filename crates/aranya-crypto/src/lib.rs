@@ -69,7 +69,7 @@ pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;
 pub use groupkey::*;
-pub use id::{Id, Identified};
+pub use id::{Id, Identified, custom_id};
 pub use keystore::{KeyStore, KeyStoreExt};
 // These were already exported in the root of the crate, so keep
 // them even though `policy` is a public module now.
