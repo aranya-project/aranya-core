@@ -622,7 +622,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
         };
         // FIXME(chip): This is kind of wrong, but it avoids having to
-        // plumb Option<Id> into the VM and FFI
+        // plumb `Option<CmdId>` into the VM and FFI
         let ctx_parent = parent.unwrap_or_default();
         let facts = Rc::new(RefCell::new(facts));
         let sink = Rc::new(RefCell::new(sink));

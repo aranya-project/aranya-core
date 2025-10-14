@@ -5,7 +5,7 @@ use core::convert::Infallible;
 
 use aranya_crypto::{
     Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
+    EncryptionPublicKey, GroupKey, BaseId, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
     id::IdExt as _,
@@ -299,10 +299,10 @@ function compute_change_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         new_cmd_id: CmdId,
-        current_change_id: Id,
-    ) -> Result<Id, Error> {
+        current_change_id: BaseId,
+    ) -> Result<BaseId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
-        Ok(Id::new::<E::CS>(
+        Ok(BaseId::new::<E::CS>(
             b"ChangeId-v1",
             [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))

@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    Csprng, DeviceId, Engine, Id, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
+    Csprng, DeviceId, Engine, BaseId, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
     id::IdExt as _, policy::CmdId,
 };
 use aranya_policy_vm::{
@@ -407,13 +407,13 @@ where
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
         ] {
             let err = ffi
@@ -470,13 +470,13 @@ where
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
         ] {
             let err = ffi

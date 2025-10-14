@@ -5,7 +5,7 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{DeviceId, BaseId, policy::CmdId};
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
@@ -40,7 +40,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 
@@ -49,7 +49,7 @@ fn dummy_ctx_recall(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 
@@ -106,7 +106,7 @@ fn test_bytes() -> anyhow::Result<()> {
             &mut rs,
             &mut published,
             name,
-            [Value::Id(Id::default()), Value::Bytes(vec![0, 255, 42])],
+            [Value::Id(BaseId::default()), Value::Bytes(vec![0, 255, 42])],
         )?
         .success();
     }
@@ -114,7 +114,7 @@ fn test_bytes() -> anyhow::Result<()> {
     assert_eq!(
         published,
         [vm_struct!(Foo {
-            id_field: Id::default(),
+            id_field: BaseId::default(),
             x: vec![0, 255, 42],
         })]
     );
@@ -178,7 +178,7 @@ fn test_structs() -> anyhow::Result<()> {
             &mut rs,
             &mut published,
             name,
-            [Value::Id(Id::default()), Value::Int(3)],
+            [Value::Id(BaseId::default()), Value::Int(3)],
         )?
         .success();
     }
@@ -187,7 +187,7 @@ fn test_structs() -> anyhow::Result<()> {
         published,
         [vm_struct!(Foo {
             bar: vm_struct!(Bar { x: 3 }),
-            id_field: Id::default(),
+            id_field: BaseId::default(),
         })]
     );
 

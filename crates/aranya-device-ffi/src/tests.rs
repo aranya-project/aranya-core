@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use aranya_crypto::{
-    DeviceId, Id,
+    DeviceId, BaseId,
     default::{DefaultEngine, Rng},
     id::IdExt as _,
     policy::CmdId,
@@ -34,13 +34,13 @@ fn test_current_device_id() {
             name: ident!("policy"),
             id: CmdId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         }),
         CommandContext::Recall(PolicyContext {
             name: ident!("recall"),
             id: CmdId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         }),
     ];
 

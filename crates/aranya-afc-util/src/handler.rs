@@ -1,7 +1,7 @@
 //! An effect handler for AFC.
 
 use aranya_crypto::{
-    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt as _,
+    CipherSuite, DeviceId, EncryptionKeyId, Engine, BaseId, KeyStore, KeyStoreExt as _,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
@@ -165,10 +165,10 @@ pub struct BidiChannelReceived<'a> {
 
 /// Uniquely identifies a bidirectional channel.
 #[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct BidiKeyId(Id);
+pub struct BidiKeyId(BaseId);
 
-impl From<Id> for BidiKeyId {
-    fn from(id: Id) -> Self {
+impl From<BaseId> for BidiKeyId {
+    fn from(id: BaseId) -> Self {
         Self(id)
     }
 }
@@ -332,10 +332,10 @@ pub struct UniChannelReceived<'a> {
 
 /// Uniquely identifies a unirectional channel.
 #[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct UniKeyId(Id);
+pub struct UniKeyId(BaseId);
 
-impl From<Id> for UniKeyId {
-    fn from(id: Id) -> Self {
+impl From<BaseId> for UniKeyId {
+    fn from(id: BaseId) -> Self {
         Self(id)
     }
 }
