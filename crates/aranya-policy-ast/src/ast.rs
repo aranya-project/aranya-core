@@ -560,8 +560,6 @@ pub enum ExprKind {
     GreaterThanOrEqual(Box<Expression>, Box<Expression>),
     /// `expr` <= `expr`
     LessThanOrEqual(Box<Expression>, Box<Expression>),
-    /// `-expr`
-    Negative(Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
     /// `unwrap expr`

@@ -211,22 +211,22 @@ expression: policy
     {
       "persistence": {
         "Ephemeral": {
-          "start": 2342,
-          "end": 2351
+          "start": 2378,
+          "end": 2387
         }
       },
       "identifier": {
         "name": "a",
         "span": {
-          "start": 2359,
-          "end": 2360
+          "start": 2395,
+          "end": 2396
         }
       },
       "arguments": [],
       "statements": [],
       "span": {
-        "start": 2342,
-        "end": 2365
+        "start": 2378,
+        "end": 2401
       }
     }
   ],
@@ -942,25 +942,38 @@ expression: policy
                           {
                             "Expression": {
                               "kind": {
-                                "Negative": {
-                                  "kind": {
-                                    "Identifier": {
-                                      "name": "x",
+                                "InternalFunction": {
+                                  "SaturatingSub": [
+                                    {
+                                      "kind": {
+                                        "Int": 0
+                                      },
                                       "span": {
-                                        "start": 1218,
-                                        "end": 1219
+                                        "start": 1232,
+                                        "end": 1233
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Identifier": {
+                                          "name": "x",
+                                          "span": {
+                                            "start": 1235,
+                                            "end": 1236
+                                          }
+                                        }
+                                      },
+                                      "span": {
+                                        "start": 1235,
+                                        "end": 1236
                                       }
                                     }
-                                  },
-                                  "span": {
-                                    "start": 1218,
-                                    "end": 1219
-                                  }
+                                  ]
                                 }
                               },
                               "span": {
                                 "start": 1217,
-                                "end": 1219
+                                "end": 1237
                               }
                             }
                           }
@@ -971,7 +984,7 @@ expression: policy
                 },
                 "span": {
                   "start": 1185,
-                  "end": 1220
+                  "end": 1238
                 }
               },
               {
@@ -981,8 +994,8 @@ expression: policy
                       "identifier": {
                         "name": "F",
                         "span": {
-                          "start": 1248,
-                          "end": 1249
+                          "start": 1266,
+                          "end": 1267
                         }
                       },
                       "key_fields": [],
@@ -991,8 +1004,8 @@ expression: policy
                           {
                             "name": "x",
                             "span": {
-                              "start": 1254,
-                              "end": 1255
+                              "start": 1272,
+                              "end": 1273
                             }
                           },
                           {
@@ -1001,14 +1014,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "x",
                                   "span": {
-                                    "start": 1257,
-                                    "end": 1258
+                                    "start": 1275,
+                                    "end": 1276
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1257,
-                                "end": 1258
+                                "start": 1275,
+                                "end": 1276
                               }
                             }
                           }
@@ -1020,8 +1033,8 @@ expression: policy
                         {
                           "name": "x",
                           "span": {
-                            "start": 1264,
-                            "end": 1265
+                            "start": 1282,
+                            "end": 1283
                           }
                         },
                         {
@@ -1030,14 +1043,14 @@ expression: policy
                               "Identifier": {
                                 "name": "new_x",
                                 "span": {
-                                  "start": 1267,
-                                  "end": 1272
+                                  "start": 1285,
+                                  "end": 1290
                                 }
                               }
                             },
                             "span": {
-                              "start": 1267,
-                              "end": 1272
+                              "start": 1285,
+                              "end": 1290
                             }
                           }
                         }
@@ -1046,8 +1059,8 @@ expression: policy
                   }
                 },
                 "span": {
-                  "start": 1241,
-                  "end": 1273
+                  "start": 1259,
+                  "end": 1291
                 }
               },
               {
@@ -1057,8 +1070,8 @@ expression: policy
                       "identifier": {
                         "name": "F",
                         "span": {
-                          "start": 1301,
-                          "end": 1302
+                          "start": 1319,
+                          "end": 1320
                         }
                       },
                       "key_fields": [
@@ -1066,8 +1079,8 @@ expression: policy
                           {
                             "name": "v",
                             "span": {
-                              "start": 1303,
-                              "end": 1304
+                              "start": 1321,
+                              "end": 1322
                             }
                           },
                           {
@@ -1076,8 +1089,8 @@ expression: policy
                                 "String": "hello"
                               },
                               "span": {
-                                "start": 1306,
-                                "end": 1313
+                                "start": 1324,
+                                "end": 1331
                               }
                             }
                           }
@@ -1088,8 +1101,8 @@ expression: policy
                   }
                 },
                 "span": {
-                  "start": 1294,
-                  "end": 1335
+                  "start": 1312,
+                  "end": 1353
                 }
               },
               {
@@ -1100,8 +1113,8 @@ expression: policy
                         "identifier": {
                           "name": "Added",
                           "span": {
-                            "start": 1340,
-                            "end": 1345
+                            "start": 1358,
+                            "end": 1363
                           }
                         },
                         "fields": [
@@ -1109,8 +1122,8 @@ expression: policy
                             {
                               "name": "x",
                               "span": {
-                                "start": 1372,
-                                "end": 1373
+                                "start": 1390,
+                                "end": 1391
                               }
                             },
                             {
@@ -1118,14 +1131,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "new_x",
                                   "span": {
-                                    "start": 1375,
-                                    "end": 1380
+                                    "start": 1393,
+                                    "end": 1398
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1375,
-                                "end": 1380
+                                "start": 1393,
+                                "end": 1398
                               }
                             }
                           ],
@@ -1133,8 +1146,8 @@ expression: policy
                             {
                               "name": "y",
                               "span": {
-                                "start": 1406,
-                                "end": 1407
+                                "start": 1424,
+                                "end": 1425
                               }
                             },
                             {
@@ -1142,14 +1155,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "count",
                                   "span": {
-                                    "start": 1409,
-                                    "end": 1414
+                                    "start": 1427,
+                                    "end": 1432
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1409,
-                                "end": 1414
+                                "start": 1427,
+                                "end": 1432
                               }
                             }
                           ]
@@ -1158,21 +1171,21 @@ expression: policy
                       }
                     },
                     "span": {
-                      "start": 1340,
-                      "end": 1437
+                      "start": 1358,
+                      "end": 1455
                     }
                   }
                 },
                 "span": {
-                  "start": 1335,
-                  "end": 1454
+                  "start": 1353,
+                  "end": 1472
                 }
               }
             ]
           },
           "span": {
             "start": 1156,
-            "end": 1455
+            "end": 1473
           }
         }
       ],
@@ -1183,8 +1196,8 @@ expression: policy
               "identifier": {
                 "name": "envelope_id",
                 "span": {
-                  "start": 1511,
-                  "end": 1522
+                  "start": 1529,
+                  "end": 1540
                 }
               },
               "expression": {
@@ -1193,15 +1206,15 @@ expression: policy
                     "module": {
                       "name": "envelope",
                       "span": {
-                        "start": 1525,
-                        "end": 1533
+                        "start": 1543,
+                        "end": 1551
                       }
                     },
                     "identifier": {
                       "name": "command_id",
                       "span": {
-                        "start": 1535,
-                        "end": 1545
+                        "start": 1553,
+                        "end": 1563
                       }
                     },
                     "arguments": [
@@ -1210,29 +1223,29 @@ expression: policy
                           "Identifier": {
                             "name": "envelope",
                             "span": {
-                              "start": 1546,
-                              "end": 1554
+                              "start": 1564,
+                              "end": 1572
                             }
                           }
                         },
                         "span": {
-                          "start": 1546,
-                          "end": 1554
+                          "start": 1564,
+                          "end": 1572
                         }
                       }
                     ]
                   }
                 },
                 "span": {
-                  "start": 1525,
-                  "end": 1555
+                  "start": 1543,
+                  "end": 1573
                 }
               }
             }
           },
           "span": {
-            "start": 1507,
-            "end": 1572
+            "start": 1525,
+            "end": 1590
           }
         },
         {
@@ -1241,8 +1254,8 @@ expression: policy
               "identifier": {
                 "name": "author",
                 "span": {
-                  "start": 1576,
-                  "end": 1582
+                  "start": 1594,
+                  "end": 1600
                 }
               },
               "expression": {
@@ -1251,15 +1264,15 @@ expression: policy
                     "module": {
                       "name": "envelope",
                       "span": {
-                        "start": 1585,
-                        "end": 1593
+                        "start": 1603,
+                        "end": 1611
                       }
                     },
                     "identifier": {
                       "name": "author_id",
                       "span": {
-                        "start": 1595,
-                        "end": 1604
+                        "start": 1613,
+                        "end": 1622
                       }
                     },
                     "arguments": [
@@ -1268,29 +1281,29 @@ expression: policy
                           "Identifier": {
                             "name": "envelope",
                             "span": {
-                              "start": 1605,
-                              "end": 1613
+                              "start": 1623,
+                              "end": 1631
                             }
                           }
                         },
                         "span": {
-                          "start": 1605,
-                          "end": 1613
+                          "start": 1623,
+                          "end": 1631
                         }
                       }
                     ]
                   }
                 },
                 "span": {
-                  "start": 1585,
-                  "end": 1614
+                  "start": 1603,
+                  "end": 1632
                 }
               }
             }
           },
           "span": {
-            "start": 1572,
-            "end": 1631
+            "start": 1590,
+            "end": 1649
           }
         },
         {
@@ -1299,8 +1312,8 @@ expression: policy
               "identifier": {
                 "name": "new_x",
                 "span": {
-                  "start": 1635,
-                  "end": 1640
+                  "start": 1653,
+                  "end": 1658
                 }
               },
               "expression": {
@@ -1309,8 +1322,8 @@ expression: policy
                     "identifier": {
                       "name": "add2",
                       "span": {
-                        "start": 1643,
-                        "end": 1647
+                        "start": 1661,
+                        "end": 1665
                       }
                     },
                     "arguments": [
@@ -1319,14 +1332,14 @@ expression: policy
                           "Identifier": {
                             "name": "x",
                             "span": {
-                              "start": 1648,
-                              "end": 1649
+                              "start": 1666,
+                              "end": 1667
                             }
                           }
                         },
                         "span": {
-                          "start": 1648,
-                          "end": 1649
+                          "start": 1666,
+                          "end": 1667
                         }
                       },
                       {
@@ -1334,29 +1347,29 @@ expression: policy
                           "Identifier": {
                             "name": "count",
                             "span": {
-                              "start": 1651,
-                              "end": 1656
+                              "start": 1669,
+                              "end": 1674
                             }
                           }
                         },
                         "span": {
-                          "start": 1651,
-                          "end": 1656
+                          "start": 1669,
+                          "end": 1674
                         }
                       }
                     ]
                   }
                 },
                 "span": {
-                  "start": 1643,
-                  "end": 1657
+                  "start": 1661,
+                  "end": 1675
                 }
               }
             }
           },
           "span": {
-            "start": 1631,
-            "end": 1674
+            "start": 1649,
+            "end": 1692
           }
         },
         {
@@ -1369,8 +1382,8 @@ expression: policy
                       "identifier": {
                         "name": "F",
                         "span": {
-                          "start": 1710,
-                          "end": 1711
+                          "start": 1728,
+                          "end": 1729
                         }
                       },
                       "key_fields": [
@@ -1378,8 +1391,8 @@ expression: policy
                           {
                             "name": "v",
                             "span": {
-                              "start": 1712,
-                              "end": 1713
+                              "start": 1730,
+                              "end": 1731
                             }
                           },
                           {
@@ -1388,8 +1401,8 @@ expression: policy
                                 "String": "hello"
                               },
                               "span": {
-                                "start": 1715,
-                                "end": 1722
+                                "start": 1733,
+                                "end": 1740
                               }
                             }
                           }
@@ -1400,8 +1413,8 @@ expression: policy
                           {
                             "name": "x",
                             "span": {
-                              "start": 1726,
-                              "end": 1727
+                              "start": 1744,
+                              "end": 1745
                             }
                           },
                           {
@@ -1410,14 +1423,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "x",
                                   "span": {
-                                    "start": 1729,
-                                    "end": 1730
+                                    "start": 1747,
+                                    "end": 1748
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1729,
-                                "end": 1730
+                                "start": 1747,
+                                "end": 1748
                               }
                             }
                           }
@@ -1426,32 +1439,45 @@ expression: policy
                           {
                             "name": "y",
                             "span": {
-                              "start": 1732,
-                              "end": 1733
+                              "start": 1750,
+                              "end": 1751
                             }
                           },
                           {
                             "Expression": {
                               "kind": {
-                                "Negative": {
-                                  "kind": {
-                                    "Identifier": {
-                                      "name": "x",
+                                "InternalFunction": {
+                                  "SaturatingSub": [
+                                    {
+                                      "kind": {
+                                        "Int": 0
+                                      },
                                       "span": {
-                                        "start": 1736,
-                                        "end": 1737
+                                        "start": 1768,
+                                        "end": 1769
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Identifier": {
+                                          "name": "x",
+                                          "span": {
+                                            "start": 1771,
+                                            "end": 1772
+                                          }
+                                        }
+                                      },
+                                      "span": {
+                                        "start": 1771,
+                                        "end": 1772
                                       }
                                     }
-                                  },
-                                  "span": {
-                                    "start": 1736,
-                                    "end": 1737
-                                  }
+                                  ]
                                 }
                               },
                               "span": {
-                                "start": 1735,
-                                "end": 1737
+                                "start": 1753,
+                                "end": 1773
                               }
                             }
                           }
@@ -1461,8 +1487,8 @@ expression: policy
                   }
                 },
                 "span": {
-                  "start": 1703,
-                  "end": 1738
+                  "start": 1721,
+                  "end": 1774
                 }
               },
               {
@@ -1472,8 +1498,8 @@ expression: policy
                       "identifier": {
                         "name": "F",
                         "span": {
-                          "start": 1766,
-                          "end": 1767
+                          "start": 1802,
+                          "end": 1803
                         }
                       },
                       "key_fields": [],
@@ -1482,8 +1508,8 @@ expression: policy
                           {
                             "name": "x",
                             "span": {
-                              "start": 1772,
-                              "end": 1773
+                              "start": 1808,
+                              "end": 1809
                             }
                           },
                           {
@@ -1492,14 +1518,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "x",
                                   "span": {
-                                    "start": 1775,
-                                    "end": 1776
+                                    "start": 1811,
+                                    "end": 1812
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1775,
-                                "end": 1776
+                                "start": 1811,
+                                "end": 1812
                               }
                             }
                           }
@@ -1511,8 +1537,8 @@ expression: policy
                         {
                           "name": "x",
                           "span": {
-                            "start": 1782,
-                            "end": 1783
+                            "start": 1818,
+                            "end": 1819
                           }
                         },
                         {
@@ -1521,14 +1547,14 @@ expression: policy
                               "Identifier": {
                                 "name": "new_x",
                                 "span": {
-                                  "start": 1785,
-                                  "end": 1790
+                                  "start": 1821,
+                                  "end": 1826
                                 }
                               }
                             },
                             "span": {
-                              "start": 1785,
-                              "end": 1790
+                              "start": 1821,
+                              "end": 1826
                             }
                           }
                         }
@@ -1537,8 +1563,8 @@ expression: policy
                   }
                 },
                 "span": {
-                  "start": 1759,
-                  "end": 1791
+                  "start": 1795,
+                  "end": 1827
                 }
               },
               {
@@ -1548,8 +1574,8 @@ expression: policy
                       "identifier": {
                         "name": "F",
                         "span": {
-                          "start": 1819,
-                          "end": 1820
+                          "start": 1855,
+                          "end": 1856
                         }
                       },
                       "key_fields": [
@@ -1557,8 +1583,8 @@ expression: policy
                           {
                             "name": "v",
                             "span": {
-                              "start": 1821,
-                              "end": 1822
+                              "start": 1857,
+                              "end": 1858
                             }
                           },
                           {
@@ -1567,8 +1593,8 @@ expression: policy
                                 "String": "hello"
                               },
                               "span": {
-                                "start": 1824,
-                                "end": 1831
+                                "start": 1860,
+                                "end": 1867
                               }
                             }
                           }
@@ -1579,8 +1605,8 @@ expression: policy
                   }
                 },
                 "span": {
-                  "start": 1812,
-                  "end": 1853
+                  "start": 1848,
+                  "end": 1889
                 }
               },
               {
@@ -1591,8 +1617,8 @@ expression: policy
                         "identifier": {
                           "name": "Added",
                           "span": {
-                            "start": 1858,
-                            "end": 1863
+                            "start": 1894,
+                            "end": 1899
                           }
                         },
                         "fields": [
@@ -1600,8 +1626,8 @@ expression: policy
                             {
                               "name": "x",
                               "span": {
-                                "start": 1890,
-                                "end": 1891
+                                "start": 1926,
+                                "end": 1927
                               }
                             },
                             {
@@ -1609,14 +1635,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "new_x",
                                   "span": {
-                                    "start": 1893,
-                                    "end": 1898
+                                    "start": 1929,
+                                    "end": 1934
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1893,
-                                "end": 1898
+                                "start": 1929,
+                                "end": 1934
                               }
                             }
                           ],
@@ -1624,8 +1650,8 @@ expression: policy
                             {
                               "name": "y",
                               "span": {
-                                "start": 1924,
-                                "end": 1925
+                                "start": 1960,
+                                "end": 1961
                               }
                             },
                             {
@@ -1633,14 +1659,14 @@ expression: policy
                                 "Identifier": {
                                   "name": "count",
                                   "span": {
-                                    "start": 1927,
-                                    "end": 1932
+                                    "start": 1963,
+                                    "end": 1968
                                   }
                                 }
                               },
                               "span": {
-                                "start": 1927,
-                                "end": 1932
+                                "start": 1963,
+                                "end": 1968
                               }
                             }
                           ]
@@ -1649,42 +1675,42 @@ expression: policy
                       }
                     },
                     "span": {
-                      "start": 1858,
-                      "end": 1955
+                      "start": 1894,
+                      "end": 1991
                     }
                   }
                 },
                 "span": {
-                  "start": 1853,
-                  "end": 1972
+                  "start": 1889,
+                  "end": 2008
                 }
               }
             ]
           },
           "span": {
-            "start": 1674,
-            "end": 1973
+            "start": 1692,
+            "end": 2009
           }
         }
       ],
       "span": {
         "start": 407,
-        "end": 1997
+        "end": 2033
       }
     },
     {
       "persistence": {
         "Ephemeral": {
-          "start": 2244,
-          "end": 2253
+          "start": 2280,
+          "end": 2289
         }
       },
       "attributes": [],
       "identifier": {
         "name": "C",
         "span": {
-          "start": 2262,
-          "end": 2263
+          "start": 2298,
+          "end": 2299
         }
       },
       "fields": [
@@ -1693,15 +1719,15 @@ expression: policy
             "identifier": {
               "name": "x",
               "span": {
-                "start": 2303,
-                "end": 2304
+                "start": 2339,
+                "end": 2340
               }
             },
             "field_type": {
               "kind": "Int",
               "span": {
-                "start": 2305,
-                "end": 2308
+                "start": 2341,
+                "end": 2344
               }
             }
           }
@@ -1712,8 +1738,8 @@ expression: policy
       "policy": [],
       "recall": [],
       "span": {
-        "start": 2244,
-        "end": 2332
+        "start": 2280,
+        "end": 2368
       }
     }
   ],
@@ -1722,8 +1748,8 @@ expression: policy
       "identifier": {
         "name": "positive",
         "span": {
-          "start": 2016,
-          "end": 2024
+          "start": 2052,
+          "end": 2060
         }
       },
       "arguments": [
@@ -1731,8 +1757,8 @@ expression: policy
           "identifier": {
             "name": "v",
             "span": {
-              "start": 2025,
-              "end": 2026
+              "start": 2061,
+              "end": 2062
             }
           },
           "field_type": {
@@ -1740,14 +1766,14 @@ expression: policy
               "Optional": {
                 "kind": "Int",
                 "span": {
-                  "start": 2036,
-                  "end": 2039
+                  "start": 2072,
+                  "end": 2075
                 }
               }
             },
             "span": {
-              "start": 2027,
-              "end": 2039
+              "start": 2063,
+              "end": 2075
             }
           }
         }
@@ -1755,8 +1781,8 @@ expression: policy
       "return_type": {
         "kind": "Bool",
         "span": {
-          "start": 2041,
-          "end": 2045
+          "start": 2077,
+          "end": 2081
         }
       },
       "statements": [
@@ -1766,8 +1792,8 @@ expression: policy
               "identifier": {
                 "name": "x",
                 "span": {
-                  "start": 2064,
-                  "end": 2065
+                  "start": 2100,
+                  "end": 2101
                 }
               },
               "expression": {
@@ -1777,27 +1803,27 @@ expression: policy
                       "Identifier": {
                         "name": "v",
                         "span": {
-                          "start": 2075,
-                          "end": 2076
+                          "start": 2111,
+                          "end": 2112
                         }
                       }
                     },
                     "span": {
-                      "start": 2075,
-                      "end": 2076
+                      "start": 2111,
+                      "end": 2112
                     }
                   }
                 },
                 "span": {
-                  "start": 2068,
-                  "end": 2076
+                  "start": 2104,
+                  "end": 2112
                 }
               }
             }
           },
           "span": {
-            "start": 2060,
-            "end": 2089
+            "start": 2096,
+            "end": 2125
           }
         },
         {
@@ -1811,14 +1837,14 @@ expression: policy
                         "Identifier": {
                           "name": "x",
                           "span": {
-                            "start": 2096,
-                            "end": 2097
+                            "start": 2132,
+                            "end": 2133
                           }
                         }
                       },
                       "span": {
-                        "start": 2096,
-                        "end": 2097
+                        "start": 2132,
+                        "end": 2133
                       }
                     },
                     {
@@ -1826,28 +1852,28 @@ expression: policy
                         "Int": 0
                       },
                       "span": {
-                        "start": 2100,
-                        "end": 2101
+                        "start": 2136,
+                        "end": 2137
                       }
                     }
                   ]
                 },
                 "span": {
-                  "start": 2096,
-                  "end": 2101
+                  "start": 2132,
+                  "end": 2137
                 }
               }
             }
           },
           "span": {
-            "start": 2089,
-            "end": 2110
+            "start": 2125,
+            "end": 2146
           }
         }
       ],
       "span": {
-        "start": 2007,
-        "end": 2111
+        "start": 2043,
+        "end": 2147
       }
     }
   ],
@@ -1856,8 +1882,8 @@ expression: policy
       "identifier": {
         "name": "next",
         "span": {
-          "start": 2137,
-          "end": 2141
+          "start": 2173,
+          "end": 2177
         }
       },
       "arguments": [
@@ -1865,15 +1891,15 @@ expression: policy
           "identifier": {
             "name": "x",
             "span": {
-              "start": 2142,
-              "end": 2143
+              "start": 2178,
+              "end": 2179
             }
           },
           "field_type": {
             "kind": "Int",
             "span": {
-              "start": 2144,
-              "end": 2147
+              "start": 2180,
+              "end": 2183
             }
           }
         }
@@ -1886,8 +1912,8 @@ expression: policy
                 "identifier": {
                   "name": "Next",
                   "span": {
-                    "start": 2170,
-                    "end": 2174
+                    "start": 2206,
+                    "end": 2210
                   }
                 },
                 "key_fields": [],
@@ -1896,17 +1922,17 @@ expression: policy
             }
           },
           "span": {
-            "start": 2163,
-            "end": 2180
+            "start": 2199,
+            "end": 2216
           }
         }
       ],
       "span": {
-        "start": 2121,
-        "end": 2190
+        "start": 2157,
+        "end": 2226
       }
     }
   ],
   "global_lets": [],
-  "text": "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: -x}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: -x}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    "
+  "text": "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    "
 }

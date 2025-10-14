@@ -1861,14 +1861,6 @@ fn test_type_errors() {
         },
         Case {
             t: r#"
-                function g(x string) bool {
-                    return -x
-                }
-            "#,
-            e: "cannot negate non-int expression of type string",
-        },
-        Case {
-            t: r#"
                 function g(x int) bool {
                     return !x
                 }

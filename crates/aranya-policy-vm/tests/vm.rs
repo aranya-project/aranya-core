@@ -1290,46 +1290,6 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_negative_numeric_expression() -> anyhow::Result<()> {
-    let text = r#"
-        action foo(x int) {
-            let a = -2
-            check unwrap sub(x, a) == 1
-            check -5 == -(unwrap add(4, 1))
-            check 42 == --42
-        }
-
-        action neg_min_1() {
-            let n = -9223372036854775807
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-
-    {
-        let name = ident!("foo");
-        let ctx = dummy_ctx_action(name.clone());
-        let io = RefCell::new(TestIO::new());
-        let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_action(name, [-1])?.success();
-    }
-
-    {
-        let name = ident!("neg_min_1");
-        let ctx = dummy_ctx_action(name.clone());
-        let io = RefCell::new(TestIO::new());
-        let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_action(name, iter::empty::<Value>())?.success();
-    }
-
-    Ok(())
-}
-
-#[test]
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
@@ -1352,30 +1312,6 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
 
     let mut rs = machine.create_run_state(&io, ctx);
     rs.call_action(name, [true, false])?.success();
-
-    Ok(())
-}
-
-#[test]
-fn test_negative_overflow_numeric_expression() -> anyhow::Result<()> {
-    let text = r#"
-    action check_overflow(x int) {
-        let a = -x
-    }
-    "#;
-    let name = ident!("check_overflow");
-    let policy = parse_policy_str(text, Version::V2)?;
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-
-    let mut rs = machine.create_run_state(&io, ctx);
-    let result = rs.call_action(name, [i64::MIN]);
-
-    assert!(result.is_err());
 
     Ok(())
 }

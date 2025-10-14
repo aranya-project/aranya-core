@@ -55,25 +55,38 @@ expression: expr_parsed
             },
             {
               "kind": {
-                "Negative": {
-                  "kind": {
-                    "Identifier": {
-                      "name": "b",
+                "InternalFunction": {
+                  "SaturatingSub": [
+                    {
+                      "kind": {
+                        "Int": 0
+                      },
                       "span": {
-                        "start": 31,
-                        "end": 32
+                        "start": 45,
+                        "end": 46
+                      }
+                    },
+                    {
+                      "kind": {
+                        "Identifier": {
+                          "name": "b",
+                          "span": {
+                            "start": 48,
+                            "end": 49
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": 48,
+                        "end": 49
                       }
                     }
-                  },
-                  "span": {
-                    "start": 31,
-                    "end": 32
-                  }
+                  ]
                 }
               },
               "span": {
                 "start": 30,
-                "end": 32
+                "end": 50
               }
             },
             {
@@ -81,8 +94,8 @@ expression: expr_parsed
                 "String": "foo{"
               },
               "span": {
-                "start": 34,
-                "end": 43
+                "start": 52,
+                "end": 61
               }
             }
           ]
@@ -90,12 +103,12 @@ expression: expr_parsed
       },
       "span": {
         "start": 7,
-        "end": 44
+        "end": 62
       }
     }
   },
   "span": {
     "start": 0,
-    "end": 44
+    "end": 62
   }
 }

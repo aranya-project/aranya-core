@@ -123,7 +123,7 @@ function_arguments = { "(" ~ field_definition_list? ~ ")" }
 
 // ## Atoms
 // An int is a sequence of one or more digits
-int_literal = @{ ASCII_DIGIT+ }
+int_literal = @{ "-"? ~ ASCII_DIGIT+ }
 // A hex escape is an x followed by a two-digit hexadecimal number
 hex_escape = _{ "x" ~ ASCII_HEX_DIGIT{2} }
 // A string literal is text surrounded by double-quotes.
@@ -234,11 +234,10 @@ cast = { "as" }
 infix_op = _{ and | or | dot | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than | substruct | cast }
 
 // ## Prefix operators
-neg = { "-" }
 not = { "!" }
 unwrap = { "unwrap" }
 check_unwrap = { "check_unwrap" }
-prefix_op = _{ neg | not | unwrap | check_unwrap }
+prefix_op = _{ not | unwrap | check_unwrap }
 
 // ## Postfix operators
 is = { "is" ~ (none | some) }

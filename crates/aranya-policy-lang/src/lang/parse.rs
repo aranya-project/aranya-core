@@ -667,21 +667,6 @@ impl ChunkParser<'_> {
                 let combined_span = op_span.merge(rhs.span);
 
                 let kind = match op.as_rule() {
-                    Rule::neg => {
-                        match &rhs.kind {
-                            ExprKind::Int(n) => {
-                                let neg_n = n.checked_neg().ok_or_else(|| {
-                                    ParseError::new(
-                                        ParseErrorKind::InvalidNumber,
-                                        format!("Negation of {} overflows", n),
-                                        Some(op.as_span()),
-                                    )
-                                })?;
-                                ExprKind::Int(neg_n)
-                            }
-                            _ => ExprKind::Negative(Box::new(rhs))
-                        }
-                    }
                     Rule::not => ExprKind::Not(Box::new(rhs)),
                     Rule::unwrap => ExprKind::Unwrap(Box::new(rhs)),
                     Rule::check_unwrap => ExprKind::CheckUnwrap(Box::new(rhs)),
@@ -1814,7 +1799,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// |----------|----|
 /// | 1        | `.` |
 /// | 2        | `substruct`, `as` (infix) |
-/// | 3        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
+/// | 3        | `!`, `unwrap`, `check_unwrap` |
 /// | 4        | `%` |
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 6        | `==`, `!=` |
@@ -1828,10 +1813,7 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
-        .op(Op::prefix(Rule::neg)
-            | Op::prefix(Rule::not)
-            | Op::prefix(Rule::unwrap)
-            | Op::prefix(Rule::check_unwrap))
+        .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
         .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
 }

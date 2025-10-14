@@ -112,6 +112,24 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 
 #[test]
 #[allow(clippy::result_large_err)]
+fn parse_negative_number() -> Result<(), PestError<Rule>> {
+    // negative integer literal
+    let mut pair = PolicyParser::parse(Rule::atom, "-42")?;
+    let token: Pair<'_, Rule> = pair.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::int_literal);
+    assert_eq!(token.as_str(), "-42");
+
+    // minimum i64 value
+    let mut pair = PolicyParser::parse(Rule::atom, "-9223372036854775808")?;
+    let token: Pair<'_, Rule> = pair.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::int_literal);
+    assert_eq!(token.as_str(), "-9223372036854775808");
+
+    Ok(())
+}
+
+#[test]
+#[allow(clippy::result_large_err)]
 fn parse_atom_string() -> Result<(), PestError<Rule>> {
     // basic string
     let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
@@ -193,7 +211,7 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(
         Rule::expression,
-        r#"unwrap call(unwrap add(3, 7), -b, "foo\x7b")"#,
+        r#"unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
     )?;
 
     let token = pairs.next().unwrap();
@@ -217,7 +235,7 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "-b");
+    assert_eq!(token.as_str(), "saturating_sub(0, b)");
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
@@ -229,7 +247,7 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 #[test]
 fn parse_expression_pratt() -> Result<(), ParseError> {
     let source = r#"
-        unwrap call(unwrap add(3, 7), -b, "foo\x7b")
+        unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
     "#
     .trim();
     let mut pairs = PolicyParser::parse(Rule::expression, source)?;
@@ -554,7 +572,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 let a = foo::ext_func(x)
 
                 finish {
-                    create F[v: "hello"]=>{x: x, y: -x}
+                    create F[v: "hello"]=>{x: x, y: saturating_sub(0, x)}
                     update F[]=>{x: x} to {x: new_x}
                     delete F[v: "hello"]
                     emit Added {
@@ -568,7 +586,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 let author = envelope::author_id(envelope)
                 let new_x = add2(x, count)
                 finish {
-                    create F[v: "hello"]=>{x: x, y: -x}
+                    create F[v: "hello"]=>{x: x, y: saturating_sub(0, x)}
                     update F[]=>{x: x} to {x: new_x}
                     delete F[v: "hello"]
                     emit Added {

@@ -1334,32 +1334,6 @@ impl<'a> CompileState<'a> {
                     })
                 })
             }
-            ExprKind::Negative(e) => {
-                // Push a 0 to subtract from
-                self.append_instruction(Instruction::Const(Value::Int(0)));
-
-                // Evaluate the expression
-                let inner_type = self.compile_expression(e)?;
-
-                // Subtract
-                self.append_instruction(Instruction::Sub);
-
-                inner_type
-                    .check_type(
-                        VType {
-                            kind: TypeKind::Int,
-                            span: expression.span,
-                        },
-                        "",
-                    )
-                    .map_err(|err| {
-                        CompileErrorType::InvalidType(format!(
-                            "cannot negate non-int expression of type {}",
-                            err.left
-                        ))
-                    })
-                    .map_err(|e| self.err(e))?
-            }
             ExprKind::Not(e) => {
                 // Evaluate the expression
                 let inner_type = self.compile_expression(e)?;
