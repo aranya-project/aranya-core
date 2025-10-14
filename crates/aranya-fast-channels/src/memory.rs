@@ -25,11 +25,18 @@ use crate::{
     state::{AfcState, AranyaState, Directed},
 };
 
+#[derive_where(Debug)]
+struct ChanMapValue<CS: CipherSuite> {
+    keys: Directed<SealKey<CS>, OpenKey<CS>>,
+    label_id: LabelId,
+    peer_id: DeviceId,
+}
+
 #[derive_where(Debug, Default)]
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
     #[allow(clippy::type_complexity)]
-    chans: BTreeMap<ChannelId, (Directed<SealKey<CS>, OpenKey<CS>>, LabelId, DeviceId)>,
+    chans: BTreeMap<ChannelId, ChanMapValue<CS>>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -57,10 +64,11 @@ where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let mut inner = self.inner.lock().assume("poisoned")?;
-        let (key, chan_label_id, _) = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        let ChanMapValue { keys, label_id, .. } =
+            inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
 
-        let key = key.seal_mut().ok_or(Error::NotFound(id))?;
-        Ok(f(key, *chan_label_id))
+        let key = keys.seal_mut().ok_or(Error::NotFound(id))?;
+        Ok(f(key, *label_id))
     }
 
     fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
@@ -68,10 +76,11 @@ where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let inner = self.inner.lock().assume("poisoned")?;
-        let (key, chan_label_id, _) = inner.chans.get(&id).ok_or(Error::NotFound(id))?;
-        let key = key.open().ok_or(Error::NotFound(id))?;
+        let ChanMapValue { keys, label_id, .. } =
+            inner.chans.get(&id).ok_or(Error::NotFound(id))?;
+        let key = keys.open().ok_or(Error::NotFound(id))?;
 
-        Ok(f(key, *chan_label_id))
+        Ok(f(key, *label_id))
     }
 
     fn exists(&self, id: ChannelId) -> Result<bool, Error> {
@@ -106,7 +115,14 @@ where
             .next_chan_id
             .checked_add(1)
             .assume("should not overflow")?;
-        inner.chans.insert(id, (keys, label_id, peer_id));
+        inner.chans.insert(
+            id,
+            ChanMapValue {
+                keys,
+                label_id,
+                peer_id,
+            },
+        );
         Ok(id)
     }
 
@@ -121,7 +137,11 @@ where
         match inner.chans.entry(id) {
             Entry::Vacant(_) => return Err(Error::NotFound(id)),
             Entry::Occupied(mut e) => {
-                e.insert((keys, label_id, peer_id));
+                e.insert(ChanMapValue {
+                    keys,
+                    label_id,
+                    peer_id,
+                });
             }
         };
         Ok(())
@@ -141,11 +161,12 @@ where
         &self,
         mut f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
     ) -> Result<(), Self::Error> {
-        self.inner
-            .lock()
-            .assume("poisoned")?
-            .chans
-            .retain(|&id, (_keys, label_id, peer_id)| !f(id, *label_id, *peer_id));
+        self.inner.lock().assume("poisoned")?.chans.retain(
+            |&id,
+             ChanMapValue {
+                 label_id, peer_id, ..
+             }| !f(id, *label_id, *peer_id),
+        );
         Ok(())
     }
 
