@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use aranya_crypto::{
-    DeviceId, BaseId,
+    BaseId, DeviceId,
     default::{DefaultEngine, Rng},
     id::IdExt as _,
     policy::CmdId,

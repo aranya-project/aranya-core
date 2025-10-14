@@ -16,7 +16,7 @@ use core::{
 };
 
 use aranya_crypto::{
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, BaseId,
+    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
     IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,

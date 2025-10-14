@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used)]
 
 use aranya_crypto::{
-    DeviceId, BaseId,
+    BaseId, DeviceId,
     default::{DefaultEngine, Rng},
     policy::CmdId,
 };

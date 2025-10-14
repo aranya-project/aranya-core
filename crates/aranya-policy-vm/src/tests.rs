@@ -9,7 +9,7 @@ mod io;
 use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
-use aranya_crypto::{DeviceId, BaseId, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Text, ident, text};
 use io::TestIO;
 

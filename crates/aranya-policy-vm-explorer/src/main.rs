@@ -5,7 +5,7 @@ use std::{
     io::{Read as _, stdin},
 };
 
-use aranya_crypto::{DeviceId, BaseId, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{

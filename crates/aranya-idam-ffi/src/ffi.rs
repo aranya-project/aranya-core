@@ -4,8 +4,8 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, BaseId, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
+    BaseId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
     id::IdExt as _,

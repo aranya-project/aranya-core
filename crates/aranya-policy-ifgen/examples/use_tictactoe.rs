@@ -2,7 +2,7 @@
 #[path = "../tests/data/tictactoe.rs"]
 pub mod tictactoe;
 
-use aranya_policy_ifgen::{Actor, ClientError, BaseId, VmAction};
+use aranya_policy_ifgen::{Actor, BaseId, ClientError, VmAction};
 use tictactoe::{ActorExt as _, Players};
 
 struct PrintClient;
