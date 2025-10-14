@@ -8,7 +8,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{actions, effect, effects, value},
-    ClientError, BaseId, Value, Text,
+    BaseId, ClientError, Value, Text,
 };
 /// Players policy struct.
 #[value]
