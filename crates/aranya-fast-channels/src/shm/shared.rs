@@ -30,6 +30,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    RemoveIfParams,
     errno::{Errno, errno},
     mutex::Mutex,
     state::{ChannelId, Directed},
@@ -924,7 +925,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Removes all elements where `f` returns true.
     pub(super) fn remove_if<F>(&mut self, f: &mut F) -> Result<(), Corrupted>
     where
-        F: FnMut(ChannelId, LabelId, DeviceId) -> bool,
+        F: FnMut(RemoveIfParams) -> bool,
     {
         self.check();
 
@@ -934,7 +935,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             let label_id = chan.label_id()?;
             let peer_id = chan.peer_id()?;
-            if !f(id, label_id, peer_id) {
+            if !f(RemoveIfParams::new(id, label_id, peer_id)) {
                 // Nope, try the next index.
                 idx += 1;
                 continue;

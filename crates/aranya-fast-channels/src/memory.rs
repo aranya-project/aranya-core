@@ -16,7 +16,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    ChannelId,
+    ChannelId, RemoveIfParams,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -133,15 +133,12 @@ where
         Ok(())
     }
 
-    fn remove_if(
-        &self,
-        mut f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
-    ) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
         self.inner.lock().assume("poisoned")?.chans.retain(
             |&id,
              ChanMapValue {
                  label_id, peer_id, ..
-             }| !f(id, *label_id, *peer_id),
+             }| !f(RemoveIfParams::new(id, *label_id, *peer_id)),
         );
         Ok(())
     }

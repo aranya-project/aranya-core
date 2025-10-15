@@ -37,7 +37,7 @@ use aranya_crypto::{
 use derive_where::derive_where;
 
 use crate::{
-    ChannelId,
+    ChannelId, RemoveIfParams,
     client::Client,
     header::{DataHeader, Header, MsgType, Version},
     memory,
@@ -525,7 +525,7 @@ where
     pub fn remove_if(
         &self,
         device_id: DeviceIdx,
-        f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
+        f: impl FnMut(RemoveIfParams) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(device_id)?;
         Some(aranya.state.remove_if(f))

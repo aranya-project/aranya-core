@@ -33,6 +33,27 @@ pub trait AfcState {
     fn exists(&self, id: ChannelId) -> Result<bool, Error>;
 }
 
+/// The set of Params passed to the closure in [AranyaState::remove_if]
+pub struct RemoveIfParams {
+    /// Channel ID
+    pub channel_id: ChannelId,
+    /// Label ID associated with the channel
+    pub label_id: LabelId,
+    /// The device ID of the peer associated with this channel
+    pub peer_id: DeviceId,
+}
+
+impl RemoveIfParams {
+    /// Create a new [RemoveIfParams].
+    pub fn new(channel_id: ChannelId, label_id: LabelId, peer_id: DeviceId) -> Self {
+        Self {
+            channel_id,
+            label_id,
+            peer_id,
+        }
+    }
+}
+
 /// Aranya's view of the shared state.
 pub trait AranyaState {
     /// The error returned by `AranyaState`'s methods.
@@ -59,23 +80,20 @@ pub trait AranyaState {
     ///
     /// It is not an error if the channel does not exist.
     fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
-        self.remove_if(|v, _, _| v == id)
+        self.remove_if(|p| p.channel_id == id)
     }
 
     /// Removes all existing channels.
     ///
     /// It is not an error if the channel does not exist.
     fn remove_all(&self) -> Result<(), Self::Error> {
-        self.remove_if(|_, _, _| true)
+        self.remove_if(|_| true)
     }
 
-    /// Removes channels where `f(channel_id, label_id, peer_id)` returns true.
+    /// Removes channels where `f(params)` returns true.
     ///
     /// It is not an error if the channel does not exist.
-    fn remove_if(
-        &self,
-        f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
-    ) -> Result<(), Self::Error>;
+    fn remove_if(&self, f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
@@ -296,7 +314,7 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed,
+        AfcState, AranyaState, ChannelId, Directed, RemoveIfParams,
         error::Error,
         memory,
         testing::{
@@ -366,10 +384,7 @@ mod test {
             Ok(id)
         }
 
-        fn remove_if(
-            &self,
-            f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
-        ) -> Result<(), Self::Error> {
+        fn remove_if(&self, f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
             self.state.remove_if(f)?;
             Ok(())
         }

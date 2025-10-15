@@ -477,7 +477,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             });
             // Now that we know it works, delete the channel and try
             // again. It should fail.
-            d.remove_if(id1, |_, l_id, p_id| l_id == label_id && p_id == device.id)
+            d.remove_if(id1, |p| p.label_id == label_id && p.peer_id == device.id)
                 .unwrap_or_else(|| panic!("remove_if({id1}, {id}): not found"))
                 .unwrap_or_else(|err| panic!("remove_if({id}): {err}"));
             let err = {
@@ -551,7 +551,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     d.remove_all(id1)
         .unwrap_or_else(|| panic!("remove_all({id1}): not found"))
         .unwrap_or_else(|err| panic!("remove_all({id1}): {err}"));
-    d.remove_if(id1, |_, _, _| true)
+    d.remove_if(id1, |_| true)
         .unwrap_or_else(|| panic!("remove_if({id1}): not found"))
         .unwrap_or_else(|err| panic!("remove_if({id1}): {err}"));
     d.remove_all(id1)

@@ -15,6 +15,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    RemoveIfParams,
     mutex::StdMutex,
     shm::shared::Op,
     state::{AranyaState, ChannelId, Directed},
@@ -219,10 +220,7 @@ where
         Ok(())
     }
 
-    fn remove_if(
-        &self,
-        mut f: impl FnMut(ChannelId, LabelId, DeviceId) -> bool,
-    ) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
         let shm = self.inner.shm();
 
         let write_off = {
