@@ -213,7 +213,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     DeviceId, Id, Rng,
+    ///     BaseId, DeviceId, Rng,
     ///     apq::{Sender, SenderSecretKey, SenderSigningKey, Topic, TopicKey, Version},
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
@@ -573,7 +573,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     DeviceId, Id, Rng,
+    ///     BaseId, DeviceId, Rng,
     ///     apq::{ReceiverSecretKey, SenderSecretKey, Topic, TopicKey, Version},
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };

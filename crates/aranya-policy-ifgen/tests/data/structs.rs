@@ -8,12 +8,12 @@ extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{actions, effect, effects, value},
-    ClientError, Id, Value, Text,
+    BaseId, ClientError, Value, Text,
 };
 /// Admin policy struct.
 #[value]
 pub struct Admin {
-    pub uid: Id,
+    pub uid: BaseId,
     pub name: Text,
     pub role: Text,
 }
@@ -25,12 +25,12 @@ pub enum Effect {
 /// UserAdded policy effect.
 #[effect]
 pub struct UserAdded {
-    pub uid: Id,
+    pub uid: BaseId,
     pub name: Text,
 }
 /// Implements all supported policy actions.
 #[actions]
 pub trait ActorExt {
-    fn add_user(&mut self, uid: Id, name: Text) -> Result<(), ClientError>;
-    fn delete_user(&mut self, admin: Admin, uid: Id) -> Result<(), ClientError>;
+    fn add_user(&mut self, uid: BaseId, name: Text) -> Result<(), ClientError>;
+    fn delete_user(&mut self, admin: Admin, uid: BaseId) -> Result<(), ClientError>;
 }

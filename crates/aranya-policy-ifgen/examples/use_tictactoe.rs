@@ -2,7 +2,7 @@
 #[path = "../tests/data/tictactoe.rs"]
 pub mod tictactoe;
 
-use aranya_policy_ifgen::{Actor, ClientError, Id, VmAction};
+use aranya_policy_ifgen::{Actor, BaseId, ClientError, VmAction};
 use tictactoe::{ActorExt as _, Players};
 
 struct PrintClient;
@@ -17,8 +17,8 @@ fn main() {
     let mut client = PrintClient;
     client
         .StartGame(Players {
-            X: Id::default(),
-            O: Id::default(),
+            X: BaseId::default(),
+            O: BaseId::default(),
         })
         .expect("no panic");
 }
