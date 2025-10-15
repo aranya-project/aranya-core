@@ -197,7 +197,7 @@ where
         self.chans.get(&id).map(|v| v.0)
     }
 
-    /// Returns the channels that the two devices have in common where [`Self``] has the permission to seal.
+    /// Returns the channels that the two devices have in common where [`Self`] has the permission to seal.
     pub fn common_channels<'a>(
         &'a self,
         other: &'a Self,
@@ -342,7 +342,6 @@ where
     ) -> (Vec<TestChan<T, E::CS>>, Vec<TestChan<T, E::CS>>) {
         let (author, author_op) = (author.0, author.1);
         let (peer, peer_op) = (peer.0, peer.1);
-        let (author_op, peer_op) = ChanOp::disambiguate(author_op, peer_op);
         match ChanOp::disambiguate(author_op, peer_op) {
             // We don't have bidirectional channels so we create a unidirectional channel where each device
             // is the author/sealer.
