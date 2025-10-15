@@ -75,7 +75,7 @@ function create_uni_channel(
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
         &self,
-        _ctx: &CommandContext,
+        ctx: &CommandContext,
         eng: &mut E,
         parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
@@ -84,6 +84,16 @@ function create_uni_channel(
         open_id: DeviceId,
         label_id: LabelId,
     ) -> Result<AfcUniChannel, FfiError> {
+        use CommandContext::*;
+        match ctx {
+            Policy(inner_ctx) | Recall(inner_ctx) => {
+                if inner_ctx.author == open_id {
+                    return Err(FfiError::AuthorIsOpener);
+                }
+            }
+            _ => {}
+        }
+
         let our_sk = &self
             .store
             .lock()
@@ -114,7 +124,7 @@ function create_uni_channel(
 }
 
 /// An error returned by [`Ffi`].
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum FfiError {
     /// The [`aranya_crypto`] crate failed.
     #[error("crypto error: {0}")]
@@ -140,6 +150,9 @@ pub(crate) enum FfiError {
     /// Bug
     #[error("bug: {0}")]
     Bug(Bug),
+    /// Channels require that the author is the sealer.
+    #[error("Channels require that the author is the sealer")]
+    AuthorIsOpener,
 }
 
 impl From<FfiError> for MachineError {

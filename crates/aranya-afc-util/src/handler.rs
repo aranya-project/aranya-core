@@ -92,7 +92,7 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
-        if self.device_id != effect.open_id || self.device_id == effect.author_id {
+        if self.device_id != effect.open_id {
             return Err(Error::NotRecipient);
         }
 
@@ -207,7 +207,7 @@ impl<S, O> From<UniKey<S, O>> for Directed<S, O> {
 }
 
 /// An error returned by [`Handler`].
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// The current Device is not the author of the command.
     #[error("not command author")]
