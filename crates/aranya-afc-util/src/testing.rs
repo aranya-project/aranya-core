@@ -510,3 +510,74 @@ where
                 Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
             }
 }
+
+/// A negative test for creating a unidirectional channel
+/// where the recipient is the sealer.
+pub fn test_receive_seal_only_uni_channel<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let mut author = T::new();
+    let mut peer = T::new();
+
+    let label_id = LabelId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
+    let ctx = CommandContext::Action(ActionContext {
+        name: ident!("CreateOpenOnlyChannel"),
+        head_id: parent_cmd_id,
+    });
+
+    // This is called via FFI.
+    let AfcUniChannel {
+        peer_encap: encap,
+        key_id: _,
+    } = author
+        .ffi
+        .create_uni_channel(
+            &ctx,
+            &mut author.eng,
+            parent_cmd_id,
+            author.enc_key_id,
+            peer.enc_pk.clone(),
+            author.device_id,
+            peer.device_id,
+            label_id,
+        )
+        .expect("author should be able to create a uni channel");
+
+    // This is called by the peer of the channel after
+    // receiving the effect.
+    match peer
+            .handler
+            .uni_channel_received::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
+                &mut author.eng,
+                &UniChannelReceived {
+                    parent_cmd_id,
+                    author_id: author.device_id,
+                    seal_id: author.device_id,
+                    open_id: peer.device_id, // this causes an error
+                    author_enc_pk: &author.enc_pk,
+                    label_id,
+                    encap: &encap,
+                    peer_enc_key_id: peer.enc_key_id,
+                },
+            ) {
+                Ok(_) => panic!("author should not be the opener"),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
+            }
+}

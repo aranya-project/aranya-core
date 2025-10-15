@@ -45,9 +45,11 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
     {
-        if (self.device_id != effect.seal_id && self.device_id != effect.open_id)
-            || self.device_id != effect.author_id
-        {
+        if self.device_id == effect.open_id {
+            return Err(Error::AuthorIsOpener);
+        }
+
+        if self.device_id != effect.seal_id || self.device_id != effect.author_id {
             return Err(Error::NotAuthor);
         }
 
@@ -75,11 +77,7 @@ impl<S: KeyStore> Handler<S> {
             label_id: effect.label_id,
         };
 
-        if self.device_id == effect.seal_id {
-            UniKey::new(&ch, secret, UniKey::SealOnly)
-        } else {
-            Err(Error::AuthorIsOpener)
-        }
+        UniKey::new(&ch, secret, UniKey::SealOnly)
     }
 
     /// Converts a [`UniPeerEncap`] into a key suitable for
@@ -94,9 +92,7 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
-        if (self.device_id != effect.seal_id && self.device_id != effect.open_id)
-            || self.device_id == effect.author_id
-        {
+        if self.device_id != effect.open_id || self.device_id == effect.author_id {
             return Err(Error::NotRecipient);
         }
 
@@ -121,11 +117,7 @@ impl<S: KeyStore> Handler<S> {
             label_id: effect.label_id,
         };
 
-        if self.device_id == effect.seal_id {
-            UniKey::new(&ch, encap, UniKey::SealOnly)
-        } else {
-            UniKey::new(&ch, encap, UniKey::OpenOnly)
-        }
+        UniKey::new(&ch, encap, UniKey::OpenOnly)
     }
 }
 
