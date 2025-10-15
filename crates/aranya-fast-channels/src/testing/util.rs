@@ -1,7 +1,13 @@
 //! Testing utilities.
 
 use std::{
-    cmp, collections::HashMap, iter::IntoIterator, marker::PhantomData, mem, num::NonZeroU16, panic,
+    cmp,
+    collections::HashMap,
+    iter::{self, IntoIterator},
+    marker::PhantomData,
+    mem,
+    num::NonZeroU16,
+    panic,
 };
 
 use aranya_crypto::{
@@ -106,11 +112,43 @@ pub enum ChanOp {
     SealOnly,
     /// Can only decrypt.
     OpenOnly,
+    /// Can encrypt and decrypt.
+    Any,
 }
 
 impl ChanOp {
+    /// Attempts to simplify a channel where one side has
+    /// bidirectional permissions but the other only has
+    /// unidirectional.
+    ///
+    /// This is an important step. `AfcState` is only required to
+    /// record *its own* permissions, which can cause ambiguity.
+    /// For instance, given the channel (A,B)=(`Any`,`SealOnly`),
+    /// side A (which only knows that it has `Any` permissions),
+    /// might think that it can encrypt messages for side B. But
+    /// this is false: even though side A has both encryption and
+    /// decryption permissions for the label, it is only
+    /// permitted to encrypt messages if the intended recipient
+    /// is allowed to decrypt them.
+    ///
+    /// It is Aranya's job to configure APS correctly.
+    ///
+    /// Invariant: both sides can actually create a channel in
+    /// the first place.
+    fn disambiguate(lhs: Self, rhs: Self) -> (Self, Self) {
+        assert!(lhs.can_create_channel_with(rhs));
+
+        match (lhs, rhs) {
+            (Self::Any, Self::SealOnly) => (Self::OpenOnly, rhs),
+            (Self::Any, Self::OpenOnly) => (Self::SealOnly, rhs),
+            (Self::SealOnly, Self::Any) => (lhs, Self::OpenOnly),
+            (Self::OpenOnly, Self::Any) => (lhs, Self::SealOnly),
+            _ => (lhs, rhs),
+        }
+    }
+
     fn can_create_channel_with(self, other: Self) -> bool {
-        self != other
+        self != other || self == Self::Any || other == Self::Any
     }
 }
 
@@ -122,7 +160,7 @@ where
     ident_sk: IdentityKey<CS>,
     enc_sk: EncryptionKey<CS>,
     state: T::Aranya<CS>,
-    chans: HashMap<GlobalChannelId, (ChannelId, LabelId)>,
+    chans: HashMap<GlobalChannelId, (ChannelId, LabelId, ChanOp)>,
 }
 
 impl<T, CS> Device<T, CS>
@@ -144,8 +182,13 @@ where
         &mut self,
         chan: TestChan<T, CS>,
     ) -> Result<ChannelId, <T::Aranya<CS> as AranyaState>::Error> {
+        let op = match chan.keys {
+            Directed::OpenOnly { .. } => ChanOp::OpenOnly,
+            Directed::SealOnly { .. } => ChanOp::SealOnly,
+        };
+
         let local_id = self.state.add(chan.keys, chan.label_id)?;
-        self.chans.insert(chan.id, (local_id, chan.label_id));
+        self.chans.insert(chan.id, (local_id, chan.label_id, op));
         Ok(local_id)
     }
 
@@ -154,14 +197,15 @@ where
         self.chans.get(&id).map(|v| v.0)
     }
 
-    /// Returns the channels that the two devices have in common.
+    /// Returns the channels that the two devices have in common where [`Self``] has the permission to seal.
     pub fn common_channels<'a>(
         &'a self,
         other: &'a Self,
     ) -> impl Iterator<Item = (GlobalChannelId, LabelId)> + 'a {
         self.chans
             .iter()
-            .filter_map(|(gid, (_, label))| other.chans.get(gid).map(|_| (*gid, *label)))
+            .filter(move |(_, (_, _, chan_op))| ChanOp::SealOnly == *chan_op)
+            .filter_map(|(gid, (_, label, _))| other.chans.get(gid).map(|_| (*gid, *label)))
     }
 }
 
@@ -204,12 +248,25 @@ where
         }
     }
 
-    /// Create a [`Client`] that has an [operation][`ChanOp`] for
+    /// Create a [`Client`] that has [`ChanOp::Any`] for
     /// a particular label.
     ///
     /// This creates a channel between the new client and all
-    /// existing clients. The direction of the chanel
-    /// depends on the [`ChanOp`] of both peers.
+    /// existing clients. The direction of the channel
+    /// depends on the `ChanOp` of both peers.
+    pub fn new_client<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
+    where
+        I: IntoIterator<Item = LabelId>,
+    {
+        self.new_client_with_type(labels.into_iter().zip(iter::repeat(ChanOp::Any)))
+    }
+
+    /// Create a [`Client`] that has [`ChanOp::Any`] for
+    /// a particular label.
+    ///
+    /// This creates a channel between the new client and all
+    /// existing clients. The direction of the channel
+    /// depends on the `ChanOp` of both peers.
     // TODO(eric): rename to `new_client_with_ops` or something.
     pub fn new_client_with_type<I>(&mut self, labels: I) -> (Client<T::Afc<E::CS>>, DeviceIdx)
     where
@@ -247,24 +304,28 @@ where
                 let (our_side, peer_side) = {
                     let author = (&device, device_type);
                     let peer = (peer, *peer_type);
-                    Self::new_channel(&mut self.eng, author, peer, label)
+                    Self::new_channels(&mut self.eng, author, peer, label)
                 };
 
                 // Register the peer.
-                device.add_channel(our_side).unwrap_or_else(|err| {
-                    panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
-                });
+                for our_channel in our_side {
+                    device.add_channel(our_channel).unwrap_or_else(|err| {
+                        panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
+                    });
+                }
 
                 // Register with the peer.
-                self.devices
-                    .get_mut(*peer_id)
-                    .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
-                    .add_channel(peer_side)
-                    .unwrap_or_else(|err| {
-                        panic!(
-                            "{label}: add({device_id}, ...): unable to register with peer: {err}"
-                        )
-                    });
+                for peer_channel in peer_side {
+                    self.devices
+                        .get_mut(*peer_id)
+                        .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
+                        .add_channel(peer_channel)
+                        .unwrap_or_else(|err| {
+                            panic!(
+                                "{label}: add({device_id}, ...): unable to register with peer: {err}"
+                            )
+                        });
+                }
             }
             self.peers.push((device_id, label, device_type));
         }
@@ -273,24 +334,44 @@ where
         (client, device_id)
     }
 
-    fn new_channel(
+    fn new_channels(
         eng: &mut E,
         author: (&Device<T, E::CS>, ChanOp),
         peer: (&Device<T, E::CS>, ChanOp),
         label: LabelId,
-    ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
+    ) -> (Vec<TestChan<T, E::CS>>, Vec<TestChan<T, E::CS>>) {
         let (author, author_op) = (author.0, author.1);
         let (peer, peer_op) = (peer.0, peer.1);
-        assert!(ChanOp::can_create_channel_with(author_op, peer_op));
-        match (author_op, peer_op) {
-            (ChanOp::SealOnly, _) => Self::new_uni_channel(eng, author, peer, label),
+        let (author_op, peer_op) = ChanOp::disambiguate(author_op, peer_op);
+        match ChanOp::disambiguate(author_op, peer_op) {
+            // We don't have bidirectional channels so we create a unidirectional channel where each device
+            // is the author/sealer.
+            (ChanOp::Any, ChanOp::Any) => {
+                let mut author_channels = Vec::new();
+                let mut peer_channels = Vec::new();
+
+                let (seal, open) = Self::new_uni_channel(eng, author, peer, label);
+                author_channels.push(seal);
+                peer_channels.push(open);
+
+                let (seal, open) = Self::new_uni_channel(eng, peer, author, label);
+                peer_channels.push(seal);
+                author_channels.push(open);
+
+                (author_channels, peer_channels)
+            }
+            (ChanOp::SealOnly, _) => {
+                let (seal, open) = Self::new_uni_channel(eng, author, peer, label);
+                (vec![seal], vec![open])
+            }
             (ChanOp::OpenOnly, _) => {
                 let (mut seal, mut open) = Self::new_uni_channel(eng, peer, author, label);
                 // We've swapped `author` and `peer`, so swap
                 // them back.
                 mem::swap(&mut seal, &mut open);
-                (seal, open)
+                (vec![seal], vec![open])
             }
+            _ => unreachable!(),
         }
     }
 
