@@ -50,10 +50,6 @@ impl<S: KeyStore> Ffi<S> {
 #[ffi(
     module = "afc",
     def = r#"
-struct AfcBidiChannel {
-    peer_encap bytes,
-    key_id id,
-}
 struct AfcUniChannel {
     peer_encap bytes,
     key_id id,
