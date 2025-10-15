@@ -45,11 +45,11 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
     {
-        if self.device_id == effect.open_id {
-            return Err(Error::AuthorIsOpener);
+        if self.device_id == effect.open_id || self.device_id != effect.seal_id {
+            return Err(Error::AuthorMustBeSealer);
         }
 
-        if self.device_id != effect.seal_id || self.device_id != effect.author_id {
+        if self.device_id != effect.author_id {
             return Err(Error::NotAuthor);
         }
 
@@ -94,6 +94,10 @@ impl<S: KeyStore> Handler<S> {
     {
         if self.device_id != effect.open_id || self.device_id == effect.author_id {
             return Err(Error::NotRecipient);
+        }
+
+        if effect.seal_id != effect.author_id {
+            return Err(Error::AuthorMustBeSealer);
         }
 
         let encap =
@@ -229,7 +233,7 @@ pub enum Error {
     Encoding,
     /// Channels require that the author is the sealer.
     #[error("Channels require that the author is the sealer")]
-    AuthorIsOpener,
+    AuthorMustBeSealer,
     /// A `crypto` crate error.
     #[error(transparent)]
     Crypto(#[from] aranya_crypto::Error),

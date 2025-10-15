@@ -507,7 +507,7 @@ where
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
-                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
             }
 }
 
@@ -578,6 +578,6 @@ where
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
-                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
             }
 }
