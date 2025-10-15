@@ -405,7 +405,7 @@ where
 
         author
             .afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, peer.device_id)
             .expect("author should be able to add channel")
     };
 
@@ -429,7 +429,7 @@ where
             .expect("peer should be able to load bidi keys");
 
         peer.afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, author.device_id)
             .expect("peer should be able to add channel")
     };
 
@@ -506,7 +506,7 @@ where
 
         author
             .afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, peer.device_id)
             .expect("author should be able to add channel")
     };
 
@@ -532,7 +532,7 @@ where
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
         peer.afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, author.device_id)
             .expect("peer should be able to add channel")
     };
 
@@ -609,7 +609,7 @@ where
 
         author
             .afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, peer.device_id)
             .expect("author should be able to add channel")
     };
 
@@ -635,7 +635,7 @@ where
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
         peer.afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, author.device_id)
             .expect("peer should be able to add channel")
     };
 

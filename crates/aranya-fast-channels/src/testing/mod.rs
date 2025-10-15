@@ -471,13 +471,13 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     }
 
     for (id, device) in [(id2, d2), (id3, d3)] {
-        for (global_id, _label_id) in d1.common_channels(device) {
+        for (global_id, label_id) in d1.common_channels(device) {
             let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device should have channel for global_id {global_id:?}")
             });
             // Now that we know it works, delete the channel and try
             // again. It should fail.
-            d.remove_if(id1, |v| v == d1_channel_id)
+            d.remove_if(id1, |p| p.label_id == label_id && p.peer_id == device.id)
                 .unwrap_or_else(|| panic!("remove_if({id1}, {id}): not found"))
                 .unwrap_or_else(|err| panic!("remove_if({id}): {err}"));
             let err = {

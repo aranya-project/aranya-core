@@ -2,7 +2,7 @@
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
 use aranya_crypto::{
-    CipherSuite, Engine, Random as _, Rng,
+    CipherSuite, DeviceId, Engine, Random as _, Rng,
     afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256},
     id::IdExt as _,
@@ -125,7 +125,7 @@ fn test_many_nodes() {
                 v => unreachable!("{v}"),
             };
             let id = aranya
-                .add(keys.clone(), label_id)
+                .add(keys.clone(), label_id, DeviceId::random(&mut Rng))
                 .unwrap_or_else(|err| panic!("unable to add channel {idx}: {err}"));
             let chan = Channel { id, keys, label_id };
             chans.push(chan);

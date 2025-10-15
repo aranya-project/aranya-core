@@ -1,7 +1,7 @@
 use core::{cell::Cell, marker::PhantomData, ops::DerefMut as _, sync::atomic::Ordering};
 
 use aranya_crypto::{
-    CipherSuite, Csprng,
+    CipherSuite, Csprng, DeviceId,
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
@@ -15,6 +15,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    RemoveIfParams,
     mutex::StdMutex,
     shm::shared::Op,
     state::{AranyaState, ChannelId, Directed},
@@ -63,6 +64,7 @@ where
         &self,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<ChannelId, Error> {
         let mut rng = self.rng.lock().assume("poisoned")?;
 
@@ -88,7 +90,7 @@ where
             let chan = side.raw_at(idx)?;
             debug!("adding chan {id} at {idx}");
 
-            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("write side generation={}", generation + 1);
@@ -108,7 +110,14 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(
+                side.raw_at(idx)?,
+                id,
+                label_id,
+                peer_id,
+                &keys,
+                rng.deref_mut(),
+            );
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("read side generation={}", generation + 1);
@@ -128,60 +137,6 @@ where
             .store(read_off.into(), Ordering::SeqCst);
 
         Ok(id)
-    }
-
-    fn update(
-        &self,
-        id: ChannelId,
-        keys: Directed<Self::SealKey, Self::OpenKey>,
-        label_id: LabelId,
-    ) -> Result<(), Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
-
-        let (write_off, idx) = {
-            let off = self.inner.write_off(self.inner.shm())?;
-            // Load state after loading the write offset because
-            // of borrowing rules.
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
-
-            let (idx, chan) = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, chan)) => (i, chan.as_uninit_mut()),
-                None => return Err(Error::NotFound(id)),
-            };
-            debug!("adding chan {id} at {idx}");
-
-            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
-
-            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("write side generation={}", generation + 1);
-
-            (off, idx)
-        };
-
-        let read_off = {
-            // Swap the pointers: the reader will now see the
-            // updated list.
-            let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
-
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
-
-            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("read side generation={}", generation + 1);
-
-            off
-        };
-
-        self.inner
-            .shm()
-            .write_off
-            .store(read_off.into(), Ordering::SeqCst);
-
-        Ok(())
     }
 
     fn remove(&self, id: ChannelId) -> Result<(), Error> {
@@ -265,7 +220,7 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
         let shm = self.inner.shm();
 
         let write_off = {
