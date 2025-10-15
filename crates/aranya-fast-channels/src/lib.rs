@@ -37,10 +37,11 @@
 //! # #[cfg(all(feature = "posix", not(feature = "trng")))]
 //! # {
 //! use aranya_crypto::{
-//!     Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
+//!     Csprng, EncryptionKey, Engine, Id, IdentityKey, Random, Rng,
 //!     afc::{RawOpenKey, RawSealKey, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
+//!     id::IdExt as _,
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{

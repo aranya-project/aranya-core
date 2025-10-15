@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, iter};
 
 use buggy::BugExt as _;
 use derive_where::derive_where;
@@ -16,7 +16,7 @@ use crate::{
     engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{Id, IdError, custom_id},
+    id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
     policy::LabelId,
 };
@@ -33,12 +33,13 @@ use crate::{
 /// use core::borrow::{Borrow, BorrowMut};
 ///
 /// use aranya_crypto::{
-///     CipherSuite, Csprng, EncryptionKey, Engine, IdentityKey, Rng,
+///     CipherSuite, Csprng, EncryptionKey, Engine, Id, IdentityKey, Rng,
 ///     afc::{
 ///         AuthData, OpenKey, SealKey, UniAuthorSecret, UniChannel, UniOpenKey, UniPeerEncap,
 ///         UniSealKey, UniSecrets,
 ///     },
 ///     default::{DefaultCipherSuite, DefaultEngine},
+///     id::IdExt as _,
 ///     policy::{CmdId, LabelId},
 /// };
 ///
@@ -209,9 +210,9 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        *self
-            .id
-            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId")))
+        *self.id.get_or_init(|| {
+            UniChannelId::new::<CS>(b"UniChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

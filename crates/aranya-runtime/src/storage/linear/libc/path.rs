@@ -2,8 +2,8 @@
 
 use core::{fmt, ops::Deref};
 
-use aranya_crypto::id::{String32, ToBase58 as _};
 use aranya_libc::Path;
+use spideroak_base58::{String32, ToBase58 as _};
 
 use crate::GraphId;
 

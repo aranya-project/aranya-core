@@ -20,6 +20,7 @@ use aranya_crypto::{
     IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{UniAuthorSecret, UniChannel, UniPeerEncap},
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };

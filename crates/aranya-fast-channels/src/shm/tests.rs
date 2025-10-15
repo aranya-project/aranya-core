@@ -5,6 +5,7 @@ use aranya_crypto::{
     CipherSuite, Engine, Random as _, Rng,
     afc::{RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256},
+    id::IdExt as _,
     policy::LabelId,
 };
 use serial_test::serial;
