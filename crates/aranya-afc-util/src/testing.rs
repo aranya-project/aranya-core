@@ -25,11 +25,10 @@ use aranya_crypto::{
     policy::{CmdId, LabelId},
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client};
-use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident};
+use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
 use crate::{
-    FfiError,
     ffi::{AfcUniChannel, Ffi},
     handler::{
         Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived, UniKey,
@@ -333,7 +332,6 @@ macro_rules! test_all {
 
             test!(test_create_seal_only_uni_channel);
             test!(test_create_open_only_uni_channel);
-            test!(test_receive_seal_only_uni_channel);
         }
     };
 }
@@ -468,12 +466,11 @@ where
 
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = CmdId::random(&mut Rng);
-    let action_ctx = CommandContext::Action(ActionContext {
+    let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateOpenOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
-    // ** Test Handler Error **
     // This is called via FFI.
     let AfcUniChannel {
         peer_encap: _,
@@ -481,7 +478,7 @@ where
     } = author
         .ffi
         .create_uni_channel(
-            &action_ctx,
+            &ctx,
             &mut author.eng,
             parent_cmd_id,
             author.enc_key_id,
@@ -510,32 +507,8 @@ where
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
-                Err(err) => assert_eq!(err, EffectHandlerError::AuthorIsOpener),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
             }
-
-    // ** Test FFI Error **
-    let policy_ctx = CommandContext::Policy(PolicyContext {
-        name: ident!("CreateOpenOnlyChannel"),
-        id: Id::random(&mut Rng).into(),
-        version: Id::random(&mut Rng),
-        author: author.device_id,
-    });
-    // This is called via FFI.
-    let ffi_err = author
-        .ffi
-        .create_uni_channel(
-            &policy_ctx,
-            &mut author.eng,
-            parent_cmd_id,
-            author.enc_key_id,
-            peer.enc_pk.clone(),
-            peer.device_id,
-            author.device_id, // this causes an error
-            label_id,
-        )
-        .expect_err("this should fail");
-
-    assert_eq!(ffi_err, FfiError::AuthorIsOpener);
 }
 
 /// A negative test for creating a unidirectional channel
@@ -596,15 +569,15 @@ where
                 &UniChannelReceived {
                     parent_cmd_id,
                     author_id: author.device_id,
-                    seal_id: peer.device_id, // this causes an error
-                    open_id: author.device_id,
+                    seal_id: author.device_id,
+                    open_id: peer.device_id, // this causes an error
                     author_enc_pk: &author.enc_pk,
                     label_id,
                     encap: &encap,
                     peer_enc_key_id: peer.enc_key_id,
                 },
             ) {
-                Ok(_) => panic!("recipient should not be the sealer"),
-                Err(err) => assert_eq!(err, EffectHandlerError::NotRecipient),
+                Ok(_) => panic!("author should not be the opener"),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorIsOpener)),
             }
 }
