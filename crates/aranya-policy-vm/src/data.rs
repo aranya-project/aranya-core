@@ -1,4 +1,5 @@
-use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
+pub use aranya_crypto::BaseId;
+use aranya_crypto::{DeviceId, policy::CmdId};
 use buggy::{Bug, bug};
 
 use crate::Identifier;
