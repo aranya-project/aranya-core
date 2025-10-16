@@ -197,12 +197,6 @@ impl<S, O> From<UniKey<S, O>> for Directed<S, O> {
 /// An error returned by [`Handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The current Device is not the author of the command.
-    #[error("not command author")]
-    NotAuthor,
-    /// The current Device is not the recipient of the command.
-    #[error("not command recipient")]
-    NotRecipient,
     /// The keystore failed.
     #[error("keystore failure")]
     KeyStore,
