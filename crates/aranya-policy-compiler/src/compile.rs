@@ -49,6 +49,66 @@ struct FunctionSignature {
     color: FunctionColor,
 }
 
+/// Create a `(Identifier, FunctionSignature)` from a policy function declaration.
+macro_rules! sig {
+    (function $func:ident($($argname:ident $($argtype:ident)+),*) $($ret:ident)+) => {
+        (
+            ident!(stringify!($func)),
+            FunctionSignature {
+                args: vec![$(
+                    (
+                        ident!(stringify!($argname)),
+                        vtype!($($argtype)+)
+                    )
+                ),*],
+                color: FunctionColor::Pure(vtype!($($ret)+)),
+            }
+        )
+    };
+}
+
+macro_rules! vtype {
+    ($($t:tt)*) => {
+        VType {
+            kind: typekind!($($t)*),
+            span: Span::empty(),
+        }
+    }
+}
+
+macro_rules! typekind {
+    (string) => {
+        TypeKind::String
+    };
+    (bytes) => {
+        TypeKind::Bytes
+    };
+    (int) => {
+        TypeKind::Int
+    };
+    (bool) => {
+        TypeKind::Bool
+    };
+    (id) => {
+        TypeKind::Id
+    };
+    (struct $name:ident) => {
+        TypeKind::Struct(Ident {
+            name: ident!(stringify!($name)),
+            span: Span::empty(),
+        })
+    };
+    (enum $name:ident) => {
+        TypeKind::Enum(Ident {
+            name: ident!(stringify!($name)),
+            span: Span::empty(),
+        })
+    };
+    (optional $inner:ident) => {
+        TypeKind::Optional(Box::new(vtype!($inner)))
+    };
+}
+
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
 #[derive(Clone, Debug, PartialEq)]
@@ -77,6 +137,9 @@ impl fmt::Display for StatementContext {
     }
 }
 
+/// Called to compile a builtin function call.
+type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
+
 /// The "compile state" of the machine.
 struct CompileState<'a> {
     /// Policy being compiled
@@ -89,7 +152,9 @@ struct CompileState<'a> {
     c: usize,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
-    function_signatures: BTreeMap<&'a Identifier, FunctionSignature>,
+    function_signatures: BTreeMap<Identifier, FunctionSignature>,
+    /// Builtin functions which have special behavior when compiling a function call.
+    builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last locator seen, for imprecise source locating.
     // TODO(chip): Push more precise source tracking further down into the AST.
     last_locator: usize,
@@ -309,7 +374,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FunctionDefinition,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = function_node;
-        match self.function_signatures.entry(&def.identifier.name) {
+        match self.function_signatures.entry(def.identifier.name.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def
@@ -336,7 +401,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = function_node;
-        match self.function_signatures.entry(&def.identifier.name) {
+        match self.function_signatures.entry(def.identifier.name.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def
@@ -847,66 +912,6 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Deserialize);
 
                     result_type
-                }
-                ast::InternalFunction::Add(a, b) | ast::InternalFunction::Sub(a, b) => {
-                    let left_type = self.compile_expression(a)?;
-                    let right_type = self.compile_expression(b)?;
-                    let _ = self
-                        .unify_pair_as(
-                            left_type,
-                            right_type,
-                            VType {
-                                kind: TypeKind::Int,
-                                span: expression.span,
-                            },
-                            "Cannot do math on non-int types",
-                        )
-                        .map_err(|e| self.err(e))?;
-
-                    let instruction = match f {
-                        ast::InternalFunction::Add(_, _) => Instruction::Add,
-                        ast::InternalFunction::Sub(_, _) => Instruction::Sub,
-                        _ => unreachable!(),
-                    };
-                    self.append_instruction(instruction);
-
-                    // Checked operations return Optional<Int>
-                    Typeish::known(VType {
-                        kind: TypeKind::Optional(Box::new(VType {
-                            kind: TypeKind::Int,
-                            span: expression.span,
-                        })),
-                        span: expression.span,
-                    })
-                }
-                ast::InternalFunction::SaturatingAdd(a, b)
-                | ast::InternalFunction::SaturatingSub(a, b) => {
-                    let left_type = self.compile_expression(a)?;
-                    let right_type = self.compile_expression(b)?;
-                    let _ = self
-                        .unify_pair_as(
-                            left_type,
-                            right_type,
-                            VType {
-                                kind: TypeKind::Int,
-                                span: expression.span,
-                            },
-                            "Cannot do math on non-int types",
-                        )
-                        .map_err(|e| self.err(e))?;
-
-                    let instruction = match f {
-                        ast::InternalFunction::SaturatingAdd(_, _) => Instruction::SaturatingAdd,
-                        ast::InternalFunction::SaturatingSub(_, _) => Instruction::SaturatingSub,
-                        _ => unreachable!(),
-                    };
-                    self.append_instruction(instruction);
-
-                    // Saturating operations return Int
-                    Typeish::known(VType {
-                        kind: TypeKind::Int,
-                        span: expression.span,
-                    })
                 }
                 ast::InternalFunction::Todo(_) => {
                     let err = self.err(CompileErrorType::TodoFound);
@@ -2054,15 +2059,20 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        let label = Label::new(
-            fc.identifier.name.clone(),
-            if is_finish {
-                LabelType::Temporary
-            } else {
-                LabelType::Function
-            },
-        );
-        self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+        if let Some(handler) = self.builtin_functions.get(fc.identifier.as_str()).copied() {
+            handler(self)?;
+        } else {
+            let label = Label::new(
+                fc.identifier.name.clone(),
+                if is_finish {
+                    LabelType::Temporary
+                } else {
+                    LabelType::Function
+                },
+            );
+            self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+        }
+
         Ok(())
     }
 
@@ -2699,6 +2709,8 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
+        self.define_builtins()?;
+
         for struct_def in &self.policy.structs {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
         }
@@ -2977,6 +2989,73 @@ impl<'a> CompileState<'a> {
 
         Ok(Cow::Owned(resolved_struct))
     }
+
+    /// Define builtin functions which are specially handled when compiling function calls.
+    fn define_builtins(&mut self) -> Result<(), CompileError> {
+        self.define_builtin(
+            sig! {
+                function add(x int, y int) optional int
+            },
+            |this| {
+                this.append_instruction(Instruction::Add);
+                Ok(())
+            },
+        )?;
+
+        self.define_builtin(
+            sig! {
+                function saturating_add(x int, y int) int
+            },
+            |this| {
+                this.append_instruction(Instruction::SaturatingAdd);
+                Ok(())
+            },
+        )?;
+
+        self.define_builtin(
+            sig! {
+                function sub(x int, y int) optional int
+            },
+            |this| {
+                this.append_instruction(Instruction::Sub);
+                Ok(())
+            },
+        )?;
+
+        self.define_builtin(
+            sig! {
+                function saturating_sub(x int, y int) int
+            },
+            |this| {
+                this.append_instruction(Instruction::SaturatingSub);
+                Ok(())
+            },
+        )?;
+
+        Ok(())
+    }
+
+    fn define_builtin(
+        &mut self,
+        (name, signature): (Identifier, FunctionSignature),
+        handler: BuiltinHandler,
+    ) -> Result<(), CompileError> {
+        let Entry::Vacant(e) = self.function_signatures.entry(name.clone()) else {
+            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
+                name.to_string(),
+            )));
+        };
+        e.insert(signature);
+
+        let Entry::Vacant(e) = self.builtin_functions.entry(name.clone()) else {
+            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
+                name.to_string(),
+            )));
+        };
+        e.insert(handler);
+
+        Ok(())
+    }
 }
 
 /// Flag for controling scope when compiling statement blocks.
@@ -3042,6 +3121,7 @@ impl<'a> Compiler<'a> {
             wp: 0,
             c: 0,
             function_signatures: BTreeMap::new(),
+            builtin_functions: BTreeMap::new(),
             last_locator: 0,
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
