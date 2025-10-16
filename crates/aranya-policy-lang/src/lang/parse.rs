@@ -995,10 +995,19 @@ impl ChunkParser<'_> {
     /// Parse a Rule::check_statement into a CheckStatement.
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = descend(item);
-        let token = pc.consume()?;
-        let expression = self.parse_expression(token)?;
-
-        Ok(CheckStatement { expression })
+        let expression = pc.consume_expression(self)?;
+        let recall_block = pc
+            .consume_optional(Rule::identifier)
+            .map(|e| self.parse_ident(e))
+            .transpose()?
+            .unwrap_or_else(|| Ident {
+                name: ident!("default"), // looks strange to assign a default name in the parser, but we need a valid identifier
+                span: self.to_ast_span(pc.span).unwrap_or_default(),
+            });
+        Ok(CheckStatement {
+            expression,
+            recall_block,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
@@ -1393,7 +1402,7 @@ impl ChunkParser<'_> {
         let mut attributes = vec![];
         let mut fields = vec![];
         let mut policy = vec![];
-        let mut recall = vec![];
+        let mut recalls = vec![];
         let mut seal = vec![];
         let mut open = vec![];
         for token in pc.into_inner() {
@@ -1435,8 +1444,25 @@ impl ChunkParser<'_> {
                     policy = self.parse_statement_list(pairs)?;
                 }
                 Rule::recall_block => {
-                    let pairs = token.into_inner();
-                    recall = self.parse_statement_list(pairs)?;
+                    let span = self.to_ast_span(token.as_span())?;
+                    let pc = descend(token);
+
+                    // parse identifier or assign default
+                    let identifier = pc
+                        .consume_optional(Rule::identifier)
+                        .map(|p| self.parse_ident(p))
+                        .transpose()?
+                        .unwrap_or_else(|| Ident {
+                            name: ident!("default"),
+                            span,
+                        });
+                    let statements = self.parse_statement_list(pc.into_inner())?;
+
+                    recalls.push(ast::RecallBlockDefinition {
+                        identifier,
+                        statements,
+                        span,
+                    });
                 }
                 Rule::seal_block => {
                     let pairs = token.into_inner();
@@ -1464,7 +1490,7 @@ impl ChunkParser<'_> {
             seal,
             open,
             policy,
-            recall,
+            recalls,
             span,
         })
     }
