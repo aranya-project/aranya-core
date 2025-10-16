@@ -53,6 +53,11 @@ unsafe extern "C" fn OS_hardware_rand() -> u32 {
 /// Index used to look up [devices][Device] in [Aranya::devices]
 pub(crate) type DeviceIdx = usize;
 
+/// The first vec contains the author's channels.
+///
+/// The second vec contains the peer's channels.
+type AuthorPeerChannels<T, CS> = (Vec<TestChan<T, CS>>, Vec<TestChan<T, CS>>);
+
 /// Uniquely identifies a channel.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum GlobalChannelId {
@@ -343,7 +348,7 @@ where
         author: (&Device<T, E::CS>, ChanOp),
         peer: (&Device<T, E::CS>, ChanOp),
         label: LabelId,
-    ) -> (Vec<TestChan<T, E::CS>>, Vec<TestChan<T, E::CS>>) {
+    ) -> AuthorPeerChannels<T, E::CS> {
         let (author, author_op) = (author.0, author.1);
         let (peer, peer_op) = (peer.0, peer.1);
         match ChanOp::disambiguate(author_op, peer_op) {
