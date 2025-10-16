@@ -37,7 +37,7 @@ use crate::{
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
 /// use aranya_crypto::{
-///     CipherSuite, Csprng, EncryptionKey, Engine, Id, IdentityKey, Rng,
+///     BaseId, CipherSuite, Csprng, EncryptionKey, Engine, IdentityKey, Rng,
 ///     aqc::{
 ///         CipherSuiteId, UniAuthorSecret, UniChannel, UniPeerEncap, UniRecvPsk, UniSecret,
 ///         UniSecrets, UniSendPsk,

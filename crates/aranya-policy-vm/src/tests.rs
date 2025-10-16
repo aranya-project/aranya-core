@@ -9,7 +9,7 @@ mod io;
 use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Text, ident, text};
 use io::TestIO;
 
@@ -34,7 +34,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 

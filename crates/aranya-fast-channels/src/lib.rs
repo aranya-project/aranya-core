@@ -37,7 +37,7 @@
 //! # #[cfg(all(feature = "posix", not(feature = "trng")))]
 //! # {
 //! use aranya_crypto::{
-//!     Csprng, EncryptionKey, Engine, Id, IdentityKey, Random, Rng,
+//!     Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
 //!     afc::{RawOpenKey, RawSealKey, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
@@ -98,7 +98,8 @@
 //!
 //! // Inform device1 about device2.
 //! let seal = UniSealKey::from_author_secret(&ch1, author)?.into_raw_key();
-//! let client_a_channel_id = aranya_client_a.add(Directed::SealOnly { seal }, label_id)?;
+//! let client_a_channel_id =
+//!     aranya_client_a.add(Directed::SealOnly { seal }, label_id, device2_id)?;
 //!
 //! let ch2 = UniChannel {
 //!     parent_cmd_id: ch1.parent_cmd_id,
@@ -111,7 +112,8 @@
 //!
 //! // Inform device2 about device1.
 //! let open = UniOpenKey::from_peer_encap(&ch2, peer)?.into_raw_key();
-//! let client_b_channel_id = aranya_client_b.add(Directed::OpenOnly { open }, label_id)?;
+//! let client_b_channel_id =
+//!     aranya_client_b.add(Directed::OpenOnly { open }, label_id, device1_id)?;
 //!
 //! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")

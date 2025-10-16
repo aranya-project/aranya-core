@@ -4,7 +4,7 @@
 use std::{array, hint::black_box, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
-    CipherSuite, Csprng as _, OpenError, Random as _, Rng, SealError,
+    CipherSuite, Csprng as _, DeviceId, OpenError, Random as _, Rng, SealError,
     afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{
         aead::{Aead, AeadKey, IndCca2, Lifetime},
@@ -139,7 +139,7 @@ macro_rules! bench_impl {
 					open
 				};
 
-				(aranya.add(seal_key, label).unwrap(), aranya.add(open_key, label).unwrap())
+				(aranya.add(seal_key, label, DeviceId::random(&mut Rng)).unwrap(), aranya.add(open_key, label, DeviceId::random(&mut Rng)).unwrap())
 			});
 			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 

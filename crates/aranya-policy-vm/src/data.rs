@@ -1,5 +1,4 @@
-pub use aranya_crypto::Id;
-use aranya_crypto::{DeviceId, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use buggy::{Bug, bug};
 
 use crate::Identifier;
@@ -39,7 +38,7 @@ pub struct PolicyContext {
     /// The ID of the author of the command
     pub author: DeviceId,
     /// The ID of the version of policy and FFI module set
-    pub version: Id,
+    pub version: BaseId,
 }
 
 /// Properties of policy execution available through FFI.
