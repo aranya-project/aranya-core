@@ -942,8 +942,15 @@ expression: policy
                           {
                             "Expression": {
                               "kind": {
-                                "InternalFunction": {
-                                  "SaturatingSub": [
+                                "FunctionCall": {
+                                  "identifier": {
+                                    "name": "saturating_sub",
+                                    "span": {
+                                      "start": 1217,
+                                      "end": 1231
+                                    }
+                                  },
+                                  "arguments": [
                                     {
                                       "kind": {
                                         "Int": 0
@@ -1446,8 +1453,15 @@ expression: policy
                           {
                             "Expression": {
                               "kind": {
-                                "InternalFunction": {
-                                  "SaturatingSub": [
+                                "FunctionCall": {
+                                  "identifier": {
+                                    "name": "saturating_sub",
+                                    "span": {
+                                      "start": 1753,
+                                      "end": 1767
+                                    }
+                                  },
+                                  "arguments": [
                                     {
                                       "kind": {
                                         "Int": 0
