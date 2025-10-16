@@ -1495,10 +1495,10 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
             })
             .ok_or("Relationship effect is missing a field")
     };
-    let mut expected_parent_id = eff1.command.into_id();
+    let mut expected_parent_id = eff1.command.as_base();
     for eff in [eff2, eff3] {
         // command's id and its parent_id must be different
-        assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
+        assert_ne!(eff.command.as_base(), retrieve_id("parent_id", eff)?);
 
         // Observe that the actual 'parent_id' of the command that created this effect
         // is equal to the expected 'parent_id'
@@ -1555,7 +1555,7 @@ fn should_allow_remove_graph() {
         .expect("Should be able to get ID of head command");
 
     // ID of graph should match ID of head command since no other commands have been added to the graph.
-    assert_eq!(graph_id_a.into_id(), head_id_a.into_id());
+    assert_eq!(graph_id_a.as_base(), head_id_a.as_base());
 
     // Create our second client.
     test_model

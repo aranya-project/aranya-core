@@ -316,6 +316,8 @@ dependencies = [
 name = "aranya-id"
 version = "0.1.0"
 dependencies = [
+ "derive-where",
+ "paste",
  "postcard",
  "proptest",
  "rkyv",
@@ -480,6 +482,7 @@ name = "aranya-policy-module"
 version = "0.13.0"
 dependencies = [
  "aranya-crypto",
+ "aranya-id",
  "aranya-policy-ast",
  "fnv",
  "indexmap",

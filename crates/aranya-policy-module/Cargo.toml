@@ -10,6 +10,7 @@ rust-version.workspace = true
 
 [dependencies]
 aranya-crypto = { version = "0.10.0", path = "../aranya-crypto", default-features = false }
+aranya-id = { version = "0.1.0", path = "../aranya-id" }
 aranya-policy-ast = { version = "0.8.0", path = "../aranya-policy-ast" }
 
 fnv = { workspace = true, default-features = false }

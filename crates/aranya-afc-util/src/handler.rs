@@ -3,7 +3,8 @@
 use aranya_crypto::{
     BaseId, CipherSuite, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt as _,
     afc::{
-        BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
+        BidiAuthorSecret, BidiAuthorSecretId, BidiChannel, BidiPeerEncap, UniAuthorSecret,
+        UniAuthorSecretId, UniChannel, UniPeerEncap,
     },
     policy::{CmdId, LabelId},
 };
@@ -52,7 +53,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0.into())
+            .remove_key(eng, effect.key_id.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -173,6 +174,12 @@ impl From<BaseId> for BidiKeyId {
     }
 }
 
+impl From<BidiKeyId> for BidiAuthorSecretId {
+    fn from(id: BidiKeyId) -> Self {
+        Self::from_base(id.0)
+    }
+}
+
 /// Bidirectional channel keys.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BidiKeys<S, O> {
@@ -212,7 +219,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0.into())
+            .remove_key(eng, effect.key_id.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -337,6 +344,12 @@ pub struct UniKeyId(BaseId);
 impl From<BaseId> for UniKeyId {
     fn from(id: BaseId) -> Self {
         Self(id)
+    }
+}
+
+impl From<UniKeyId> for UniAuthorSecretId {
+    fn from(id: UniKeyId) -> Self {
+        Self::from_base(id.0)
     }
 }
 
