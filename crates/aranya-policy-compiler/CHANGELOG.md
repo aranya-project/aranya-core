@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.13.0...aranya-policy-compiler-v0.14.0) - 2025-10-16
+
+### Other
+
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
 ## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.12.0...aranya-policy-compiler-v0.13.0) - 2025-09-17
 
 ### Other

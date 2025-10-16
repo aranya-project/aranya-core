@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.8.0...aranya-policy-ast-v0.8.1) - 2025-10-16
+
+### Other
+
+- Close #150: Document AST crate ([#419](https://github.com/aranya-project/aranya-core/pull/419))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+- Implement `rkyv` traits for policy modules ([#344](https://github.com/aranya-project/aranya-core/pull/344))
+
 ## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.7.0...aranya-policy-ast-v0.8.0) - 2025-09-17
 
 ### Other
