@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.13.0...aranya-fast-channels-v0.14.0) - 2025-10-16
+
+### Other
+
+- Remove AFC Bidi channel related items ([#428](https://github.com/aranya-project/aranya-core/pull/428))
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Remove AFC channel by peer and/or label ([#432](https://github.com/aranya-project/aranya-core/pull/432))
+- Separate out crate for IDs ([#318](https://github.com/aranya-project/aranya-core/pull/318))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
 ## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.12.0...aranya-fast-channels-v0.13.0) - 2025-09-18
 
 ### Other
