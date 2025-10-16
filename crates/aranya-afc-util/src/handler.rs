@@ -45,12 +45,8 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
     {
-        if self.device_id == effect.open_id || self.device_id != effect.seal_id {
+        if self.device_id == effect.open_id {
             return Err(Error::AuthorMustBeSealer);
-        }
-
-        if self.device_id != effect.author_id {
-            return Err(Error::NotAuthor);
         }
 
         let secret = self
@@ -70,7 +66,7 @@ impl<S: KeyStore> Handler<S> {
         })?;
         let ch = UniChannel {
             parent_cmd_id: effect.parent_cmd_id,
-            seal_id: effect.seal_id,
+            seal_id: self.device_id,
             open_id: effect.open_id,
             our_sk,
             their_pk,
@@ -92,11 +88,7 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
-        if self.device_id != effect.open_id || self.device_id == effect.author_id {
-            return Err(Error::NotRecipient);
-        }
-
-        if effect.seal_id != effect.author_id {
+        if effect.seal_id == self.device_id {
             return Err(Error::AuthorMustBeSealer);
         }
 
@@ -115,7 +107,7 @@ impl<S: KeyStore> Handler<S> {
         let ch = UniChannel {
             parent_cmd_id: effect.parent_cmd_id,
             seal_id: effect.seal_id,
-            open_id: effect.open_id,
+            open_id: self.device_id,
             our_sk,
             their_pk,
             label_id: effect.label_id,
@@ -130,10 +122,6 @@ impl<S: KeyStore> Handler<S> {
 pub struct UniChannelCreated<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: CmdId,
-    /// The channel author's device ID.
-    pub author_id: DeviceId,
-    /// The device ID of the Device that can encrypt messages.
-    pub seal_id: DeviceId,
     /// The device ID of the Device that can decrypt messages.
     pub open_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -151,12 +139,8 @@ pub struct UniChannelCreated<'a> {
 pub struct UniChannelReceived<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: CmdId,
-    /// The channel author's device ID.
-    pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
     pub seal_id: DeviceId,
-    /// The device ID of the Device that can decrypt messages.
-    pub open_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub author_enc_pk: &'a [u8],
     /// The channel peer's encryption key ID.

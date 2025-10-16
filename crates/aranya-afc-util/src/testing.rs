@@ -332,6 +332,7 @@ macro_rules! test_all {
 
             test!(test_create_seal_only_uni_channel);
             test!(test_create_open_only_uni_channel);
+            test!(test_receive_seal_only_uni_channel);
         }
     };
 }
@@ -392,8 +393,6 @@ where
                 &mut author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: author.device_id,
                     open_id: peer.device_id,
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
@@ -419,9 +418,7 @@ where
                 &mut peer.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
-                    author_id: author.device_id,
                     seal_id: author.device_id,
-                    open_id: peer.device_id,
                     author_enc_pk: &author.enc_pk,
                     peer_enc_key_id: peer.enc_key_id,
                     label_id,
@@ -497,8 +494,6 @@ where
                 &mut author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: peer.device_id,
                     open_id: author.device_id, // this causes an error
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
@@ -568,9 +563,7 @@ where
                 &mut author.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: author.device_id,
-                    open_id: peer.device_id, // this causes an error
+                    seal_id: peer.device_id,
                     author_enc_pk: &author.enc_pk,
                     label_id,
                     encap: &encap,
