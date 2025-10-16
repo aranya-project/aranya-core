@@ -481,7 +481,6 @@ dependencies = [
 name = "aranya-policy-module"
 version = "0.13.0"
 dependencies = [
- "aranya-crypto",
  "aranya-id",
  "aranya-policy-ast",
  "fnv",
