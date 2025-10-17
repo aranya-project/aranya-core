@@ -163,20 +163,13 @@ pub enum Directed<S, O> {
         /// Used for decryption.
         open: O,
     },
-    /// For bidirectional channels.
-    Bidirectional {
-        /// Used for encryption.
-        seal: S,
-        /// Used for decryption.
-        open: O,
-    },
 }
 
 impl<S, O> Directed<S, O> {
     /// Returns the secret used for encryption.
     pub fn seal(&self) -> Option<&S> {
         match self {
-            Self::SealOnly { seal } | Self::Bidirectional { seal, .. } => Some(seal),
+            Self::SealOnly { seal } => Some(seal),
             Self::OpenOnly { .. } => None,
         }
     }
@@ -184,7 +177,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for encryption.
     pub fn seal_mut(&mut self) -> Option<&mut S> {
         match self {
-            Self::SealOnly { seal } | Self::Bidirectional { seal, .. } => Some(seal),
+            Self::SealOnly { seal } => Some(seal),
             Self::OpenOnly { .. } => None,
         }
     }
@@ -192,7 +185,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for decryption.
     pub fn open(&self) -> Option<&O> {
         match self {
-            Self::OpenOnly { open } | Self::Bidirectional { open, .. } => Some(open),
+            Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
         }
     }
@@ -200,7 +193,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for decryption.
     pub fn open_mut(&mut self) -> Option<&mut O> {
         match self {
-            Self::OpenOnly { open } | Self::Bidirectional { open, .. } => Some(open),
+            Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
         }
     }
@@ -216,10 +209,6 @@ impl<S, O> Directed<&S, &O> {
         match self {
             Self::SealOnly { seal } => Directed::SealOnly { seal: seal.clone() },
             Self::OpenOnly { open } => Directed::OpenOnly { open: open.clone() },
-            Self::Bidirectional { seal, open } => Directed::Bidirectional {
-                seal: seal.clone(),
-                open: open.clone(),
-            },
         }
     }
 }
@@ -230,7 +219,6 @@ impl<S, O> Directed<S, O> {
         match *self {
             Self::SealOnly { ref seal } => Directed::SealOnly { seal },
             Self::OpenOnly { ref open } => Directed::OpenOnly { open },
-            Self::Bidirectional { ref seal, ref open } => Directed::Bidirectional { seal, open },
         }
     }
 
@@ -244,10 +232,6 @@ impl<S, O> Directed<S, O> {
         match self.as_ref() {
             Directed::SealOnly { seal } => Directed::SealOnly { seal: seal.deref() },
             Directed::OpenOnly { open } => Directed::OpenOnly { open: open.deref() },
-            Directed::Bidirectional { seal, open } => Directed::Bidirectional {
-                seal: seal.deref(),
-                open: open.deref(),
-            },
         }
     }
 }
@@ -274,20 +258,6 @@ where
             (Self::OpenOnly { open: lhs }, Self::OpenOnly { open: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
-            (
-                Self::Bidirectional {
-                    seal: lhs_seal,
-                    open: lhs_open,
-                },
-                Self::Bidirectional {
-                    seal: rhs_seal,
-                    open: rhs_open,
-                },
-            ) => {
-                let seal = lhs_seal.ct_eq(rhs_seal);
-                let open = lhs_open.ct_eq(rhs_open);
-                bool::from(seal & open)
-            }
             _ => false,
         }
     }
@@ -299,7 +269,6 @@ impl<S, O> Debug for Directed<S, O> {
         match self {
             Self::SealOnly { .. } => f.write_str("SealOnly { .. }"),
             Self::OpenOnly { .. } => f.write_str("OpenOnly { .. }"),
-            Self::Bidirectional { .. } => f.write_str("Bidirectional { .. }"),
         }
     }
 }
@@ -308,7 +277,7 @@ impl<S, O> Debug for Directed<S, O> {
 mod test {
     use aranya_crypto::{
         CipherSuite, DeviceId, Rng,
-        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
+        afc::{OpenKey, SealKey, UniOpenKey, UniSealKey},
         policy::LabelId,
     };
     use derive_where::derive_where;
@@ -410,18 +379,6 @@ mod test {
             let afc = DefaultState::<CS>::new();
             let aranya = afc.clone();
             States { afc, aranya }
-        }
-
-        fn convert_bidi_keys<CS: CipherSuite>(
-            keys: BidiKeys<CS>,
-        ) -> (
-            <Self::Aranya<CS> as AranyaState>::SealKey,
-            <Self::Aranya<CS> as AranyaState>::OpenKey,
-        ) {
-            let (seal, open) = keys
-                .into_keys()
-                .expect("should be able to create `SealKey` and `OpenKey`");
-            (seal, open)
         }
 
         fn convert_uni_seal_key<CS: CipherSuite>(
