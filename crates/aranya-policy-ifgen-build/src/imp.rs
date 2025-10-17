@@ -138,7 +138,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
 
         use aranya_policy_ifgen::{
             macros::{action, actions, effect, effects, value},
-            ClientError, Id, Value, Text,
+            BaseId, ClientError, Value, Text,
         };
 
         pub struct #persistent;
@@ -162,7 +162,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
         TypeKind::Bytes => quote! { Vec<u8> },
         TypeKind::Int => quote! { i64 },
         TypeKind::Bool => quote! { bool },
-        TypeKind::Id => quote! { Id },
+        TypeKind::Id => quote! { BaseId },
         TypeKind::Struct(st) => {
             let ident = mk_ident(&st.name);
             quote! { #ident }

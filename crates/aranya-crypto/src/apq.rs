@@ -184,7 +184,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
                 let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(TopicKeyId)
+                    .map(TopicKeyId::from_bytes)
             })
             .clone()
     }
@@ -213,7 +213,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     DeviceId, Id, Rng,
+    ///     BaseId, DeviceId, Rng,
     ///     apq::{Sender, SenderSecretKey, SenderSigningKey, Topic, TopicKey, Version},
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
@@ -372,7 +372,7 @@ signing_key! {
     sk = SenderSigningKey,
     pk = SenderVerifyingKey,
     id = SenderSigningKeyId,
-    context = "APQ Sender Signing Key",
+    context = "APQ Sender Signing Key V1",
 }
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
@@ -497,7 +497,7 @@ kem_key! {
     sk = SenderSecretKey,
     pk = SenderPublicKey,
     id = SenderKeyId,
-    context = "APQ Sender Secret Key",
+    context = "APQ Sender Secret Key V1",
 }
 
 kem_key! {
@@ -507,7 +507,7 @@ kem_key! {
     sk = ReceiverSecretKey,
     pk = ReceiverPublicKey,
     id = ReceiverKeyId,
-    context = "APQ Receiver Secret Key",
+    context = "APQ Receiver Secret Key V1",
 }
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
@@ -573,7 +573,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     DeviceId, Id, Rng,
+    ///     BaseId, DeviceId, Rng,
     ///     apq::{ReceiverSecretKey, SenderSecretKey, Topic, TopicKey, Version},
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
@@ -682,7 +682,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "G4Pkv96MYr9yAfVgzCpU4kFkHSxZmSjaPsSBe7Fvt9Tk",
+            "CRHzbYEDN4KoXQvJwXT71ywN2PWd1ddemKussnvjQkR5",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -707,7 +707,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "FVZQtS6DA1exxJgBHdrsMHX58m5dXgtxtJJqpeUTXxPp",
+            "9omQm4BTYpdZF5GpAz5oqyDGQsRG9q58348AbFudyAoA",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -731,7 +731,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "BLHC25sfZNYzq6G9oHvBkmR22hyj7tCGbUwi7QCDDv8n",
+            "CqiuLwPbbDQWKZQP1eLmDdc5mELZrj1h4hAyBHofCMtc",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {

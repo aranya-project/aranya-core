@@ -9,15 +9,15 @@ extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{action, actions, effect, effects, value},
-    ClientError, Id, Value, Text,
+    BaseId, ClientError, Value, Text,
 };
 pub struct Persistent;
 pub struct Ephemeral;
 /// Players policy struct.
 #[value]
 pub struct Players {
-    pub X: Id,
-    pub O: Id,
+    pub X: BaseId,
+    pub O: BaseId,
 }
 /// Player policy enum.
 #[value]
@@ -35,21 +35,21 @@ pub enum Effect {
 /// GameOver policy effect.
 #[effect]
 pub struct GameOver {
-    pub gameID: Id,
-    pub winner: Id,
+    pub gameID: BaseId,
+    pub winner: BaseId,
     pub p: Player,
 }
 /// GameStart policy effect.
 #[effect]
 pub struct GameStart {
-    pub gameID: Id,
+    pub gameID: BaseId,
     pub players: Players,
 }
 /// GameUpdate policy effect.
 #[effect]
 pub struct GameUpdate {
-    pub gameID: Id,
-    pub player: Id,
+    pub gameID: BaseId,
+    pub player: BaseId,
     pub p: Player,
     pub X: i64,
     pub Y: i64,
@@ -71,7 +71,7 @@ pub struct StartGame {
 /// MakeMove policy action.
 #[action(interface = Persistent)]
 pub struct MakeMove {
-    pub gameID: Id,
+    pub gameID: BaseId,
     pub x: i64,
     pub y: i64,
 }

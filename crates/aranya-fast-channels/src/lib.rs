@@ -38,9 +38,10 @@
 //! # {
 //! use aranya_crypto::{
 //!     Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
-//!     afc::{BidiChannel, BidiKeys, BidiSecrets, RawOpenKey, RawSealKey},
+//!     afc::{RawOpenKey, RawSealKey, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
+//!     id::IdExt as _,
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
@@ -85,34 +86,34 @@
 //! // The label ID used for encryption and decryption.
 //! let label_id = LabelId::random(&mut Rng);
 //!
-//! let ch1 = BidiChannel {
+//! let ch1 = UniChannel {
 //!     parent_cmd_id: CmdId::random(&mut eng),
 //!     our_sk: &device1_enc_sk,
-//!     our_id: device1_id,
+//!     seal_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,
-//!     their_id: device2_id,
+//!     open_id: device2_id,
 //!     label_id,
 //! };
-//! let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &ch1)?;
+//! let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &ch1)?;
 //!
 //! // Inform device1 about device2.
-//! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?.into_raw_keys();
+//! let seal = UniSealKey::from_author_secret(&ch1, author)?.into_raw_key();
 //! let client_a_channel_id =
-//!     aranya_client_a.add(Directed::Bidirectional { seal, open }, label_id)?;
+//!     aranya_client_a.add(Directed::SealOnly { seal }, label_id, device2_id)?;
 //!
-//! let ch2 = BidiChannel {
+//! let ch2 = UniChannel {
 //!     parent_cmd_id: ch1.parent_cmd_id,
 //!     our_sk: &device2_enc_sk,
-//!     our_id: device2_id,
+//!     open_id: device2_id,
 //!     their_pk: &device1_enc_sk.public()?,
-//!     their_id: device1_id,
+//!     seal_id: device1_id,
 //!     label_id,
 //! };
 //!
 //! // Inform device2 about device1.
-//! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?.into_raw_keys();
+//! let open = UniOpenKey::from_peer_encap(&ch2, peer)?.into_raw_key();
 //! let client_b_channel_id =
-//!     aranya_client_b.add(Directed::Bidirectional { seal, open }, label_id)?;
+//!     aranya_client_b.add(Directed::OpenOnly { open }, label_id, device1_id)?;
 //!
 //! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")

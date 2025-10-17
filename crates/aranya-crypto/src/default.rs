@@ -24,7 +24,7 @@ use crate::{
         self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
         WrongKeyType,
     },
-    id::{Id, IdError, Identified},
+    id::{BaseId, IdError, Identified},
 };
 
 /// The default [`CipherSuite`].
@@ -244,7 +244,7 @@ impl<CS: CipherSuite> Ciphertext<CS> {
 /// A key wrapped by [`DefaultEngine`].
 #[derive_where(Clone, Serialize, Deserialize)]
 pub struct WrappedKey<CS: CipherSuite> {
-    id: Id,
+    id: BaseId,
     nonce: GenericArray<u8, <CS::Aead as Aead>::NonceSize>,
     ciphertext: Ciphertext<CS>,
     tag: Tag<CS::Aead>,
@@ -253,7 +253,7 @@ pub struct WrappedKey<CS: CipherSuite> {
 impl<CS: CipherSuite> engine::WrappedKey for WrappedKey<CS> {}
 
 impl<CS: CipherSuite> Identified for WrappedKey<CS> {
-    type Id = Id;
+    type Id = BaseId;
 
     fn id(&self) -> Result<Self::Id, IdError> {
         Ok(self.id)

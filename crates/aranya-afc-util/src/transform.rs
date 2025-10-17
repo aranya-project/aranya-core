@@ -3,8 +3,8 @@ use core::convert::Infallible;
 use aranya_crypto::{
     CipherSuite,
     afc::{
-        BidiAuthorSecret, BidiChannel, BidiKeys, BidiPeerEncap, OpenKey, RawOpenKey, RawSealKey,
-        SealKey, UniAuthorSecret, UniChannel, UniOpenKey, UniPeerEncap, UniSealKey,
+        OpenKey, RawOpenKey, RawSealKey, SealKey, UniAuthorSecret, UniChannel, UniOpenKey,
+        UniPeerEncap, UniSealKey,
     },
 };
 
@@ -22,42 +22,6 @@ impl<C, T> Transform<(C, T)> for (C, T) {
 
     fn transform(value: (C, T)) -> Result<Self, Self::Error> {
         Ok(value)
-    }
-}
-
-// TODO(eric): I'm not sure we need this impl since we only
-// really care about `Transform<(C, T)> -> (S, O)`.
-impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiAuthorSecret<CS>)> for BidiKeys<CS> {
-    type Error = aranya_crypto::Error;
-
-    fn transform(
-        (ch, secret): (&BidiChannel<'_, CS>, BidiAuthorSecret<CS>),
-    ) -> Result<Self, Self::Error> {
-        Self::from_author_secret(ch, secret)
-    }
-}
-
-impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiAuthorSecret<CS>)>
-    for (SealKey<CS>, OpenKey<CS>)
-{
-    type Error = aranya_crypto::Error;
-
-    fn transform(
-        (ch, secret): (&BidiChannel<'_, CS>, BidiAuthorSecret<CS>),
-    ) -> Result<Self, Self::Error> {
-        BidiKeys::from_author_secret(ch, secret)?.into_keys()
-    }
-}
-
-impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiAuthorSecret<CS>)>
-    for (RawSealKey<CS>, RawOpenKey<CS>)
-{
-    type Error = aranya_crypto::Error;
-
-    fn transform(
-        (ch, secret): (&BidiChannel<'_, CS>, BidiAuthorSecret<CS>),
-    ) -> Result<Self, Self::Error> {
-        Ok(BidiKeys::from_author_secret(ch, secret)?.into_raw_keys())
     }
 }
 
@@ -118,42 +82,6 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
         (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         Ok(UniOpenKey::from_author_secret(ch, secret)?.into_raw_key())
-    }
-}
-
-// TODO(eric): I'm not sure we need this impl since we only
-// really care about `Transform<(C, T)> -> (S, O)`.
-impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiPeerEncap<CS>)> for BidiKeys<CS> {
-    type Error = aranya_crypto::Error;
-
-    fn transform(
-        (ch, secret): (&BidiChannel<'_, CS>, BidiPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
-        Self::from_peer_encap(ch, secret)
-    }
-}
-
-impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiPeerEncap<CS>)>
-    for (SealKey<CS>, OpenKey<CS>)
-{
-    type Error = aranya_crypto::Error;
-
-    fn transform(
-        (ch, secret): (&BidiChannel<'_, CS>, BidiPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
-        BidiKeys::from_peer_encap(ch, secret)?.into_keys()
-    }
-}
-
-impl<CS: CipherSuite> Transform<(&BidiChannel<'_, CS>, BidiPeerEncap<CS>)>
-    for (RawSealKey<CS>, RawOpenKey<CS>)
-{
-    type Error = aranya_crypto::Error;
-
-    fn transform(
-        (ch, secret): (&BidiChannel<'_, CS>, BidiPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
-        Ok(BidiKeys::from_peer_encap(ch, secret)?.into_raw_keys())
     }
 }
 

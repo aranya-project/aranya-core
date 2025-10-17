@@ -2,7 +2,7 @@
 #[path = "../tests/data/tictactoe.rs"]
 pub mod tictactoe;
 
-use aranya_policy_ifgen::{Actionable, Id};
+use aranya_policy_ifgen::{Actionable, BaseId};
 use aranya_policy_vm::text;
 
 use crate::tictactoe::Players;
@@ -25,8 +25,8 @@ impl PrintClient {
 fn main() {
     let mut client = PrintClient;
     client.act(tictactoe::StartGame(Players {
-        X: Id::default(),
-        O: Id::default(),
+        X: BaseId::default(),
+        O: BaseId::default(),
     }));
     client.session_act(tictactoe::Temporary(42, text!("asdf")));
 }

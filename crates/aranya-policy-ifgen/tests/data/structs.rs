@@ -9,14 +9,14 @@ extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{action, actions, effect, effects, value},
-    ClientError, Id, Value, Text,
+    BaseId, ClientError, Value, Text,
 };
 pub struct Persistent;
 pub struct Ephemeral;
 /// Admin policy struct.
 #[value]
 pub struct Admin {
-    pub uid: Id,
+    pub uid: BaseId,
     pub name: Text,
     pub role: Text,
 }
@@ -28,7 +28,7 @@ pub enum Effect {
 /// UserAdded policy effect.
 #[effect]
 pub struct UserAdded {
-    pub uid: Id,
+    pub uid: BaseId,
     pub name: Text,
 }
 #[actions(interface = Persistent)]
@@ -41,12 +41,12 @@ pub enum EphemeralAction {}
 /// add_user policy action.
 #[action(interface = Persistent)]
 pub struct add_user {
-    pub uid: Id,
+    pub uid: BaseId,
     pub name: Text,
 }
 /// delete_user policy action.
 #[action(interface = Persistent)]
 pub struct delete_user {
     pub admin: Admin,
-    pub uid: Id,
+    pub uid: BaseId,
 }

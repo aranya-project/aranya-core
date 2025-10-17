@@ -4,10 +4,11 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
+    BaseId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
+    id::IdExt as _,
     policy::{self, CmdId, GroupId, RoleId},
     zeroize::Zeroizing,
 };
@@ -114,7 +115,7 @@ function generate_group_key() struct StoredGroupKey
         eng: &mut E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.into_id();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -180,7 +181,7 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.into_id();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -298,12 +299,12 @@ function compute_change_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         new_cmd_id: CmdId,
-        current_change_id: Id,
-    ) -> Result<Id, Error> {
+        current_change_id: BaseId,
+    ) -> Result<BaseId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
-        Ok(Id::new::<E::CS>(
-            current_change_id.as_bytes(),
-            new_cmd_id.as_bytes(),
+        Ok(BaseId::new::<E::CS>(
+            b"ChangeId-v1",
+            [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }
 
