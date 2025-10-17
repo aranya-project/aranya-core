@@ -1494,6 +1494,7 @@ fn test_match_expression() {
             action f(traffic struct Light) {
                 let x = match traffic {
                     Light {  color: LightColor::Red, go: false } => 0
+                    Light {  color: LightColor::Yellow, go: false } => 2
                     Light {  color: LightColor::Yellow, go: true } => 3
                     Light {  color: LightColor::Green, go: false } => 4
                     Light {  color: LightColor::Green, go: true } => 5
@@ -1508,6 +1509,27 @@ fn test_match_expression() {
                 let x = match maybe_bool {
                     None => 0
                     Some(false) => 2
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            // all match patterns are not listed (can't exhaustively match on strings)
+            r#"
+            enum Color {
+                Red, Yellow, Green
+            }
+
+            struct ColorName {
+                color enum LightColor,
+                name string
+            }
+
+            action f(c struct ColorName) {
+                let x = match c {
+                    ColorName {  color: LightColor::Red, name: "red" } => 0
+                    ColorName {  color: LightColor::Yellow, name: "yellow" } => 1
+                    ColorName {  color: LightColor::Green, name: "green" } => 2
                 }
             }"#,
             CompileErrorType::MissingDefaultPattern,
