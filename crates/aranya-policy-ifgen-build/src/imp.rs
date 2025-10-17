@@ -141,8 +141,10 @@ pub fn generate_code(target: &CompileTarget) -> String {
             BaseId, ClientError, Value, Text,
         };
 
-        pub struct #persistent;
-        pub struct #ephemeral;
+        #[derive(Debug)]
+        pub enum #persistent {}
+        #[derive(Debug)]
+        pub enum #ephemeral {}
 
         #(#structs)*
         #(#enums)*

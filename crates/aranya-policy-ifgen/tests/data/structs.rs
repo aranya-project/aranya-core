@@ -11,8 +11,10 @@ use aranya_policy_ifgen::{
     macros::{action, actions, effect, effects, value},
     BaseId, ClientError, Value, Text,
 };
-pub struct Persistent;
-pub struct Ephemeral;
+#[derive(Debug)]
+pub enum Persistent {}
+#[derive(Debug)]
+pub enum Ephemeral {}
 /// Admin policy struct.
 #[value]
 pub struct Admin {
