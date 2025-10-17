@@ -1479,6 +1479,28 @@ fn test_match_expression() {
                 "match arm expression 3 has type bool, expected int".into(),
             ),
         ),
+        (
+            // all match patterns are not listed
+            r#"
+            enum LightColor {
+                Red, Yellow, Green
+            }
+
+            struct Light {
+                color enum LightColor,
+                go bool
+            }
+
+            action f(traffic struct Light) {
+                let x = match traffic {
+                    Light {  color: LightColor::Red, go: false } => 0
+                    Light {  color: LightColor::Yellow, go: true } => 3
+                    Light {  color: LightColor::Green, go: false } => 4
+                    Light {  color: LightColor::Green, go: true } => 5
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
@@ -1499,6 +1521,27 @@ fn test_match_expression() {
             let x = match n {
                 0 => None
                 _ => Some(0)
+            }
+        }"#,
+        // exhaustively matches on structs
+        r#"
+        enum LightColor {
+            Red, Yellow, Green
+        }
+
+        struct Light {
+            color enum LightColor,
+            go bool
+        }
+
+        action f(traffic struct Light) {
+            let x = match traffic {
+                Light {  color: LightColor::Red, go: false } => 0
+                Light {  color: LightColor::Red, go: true } => 1
+                Light {  color: LightColor::Yellow, go: false } => 2
+                Light {  color: LightColor::Yellow, go: true } => 3
+                Light {  color: LightColor::Green, go: false } => 4
+                Light {  color: LightColor::Green, go: true } => 5
             }
         }"#,
     ];
