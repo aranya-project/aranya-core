@@ -37,7 +37,6 @@ const PSK_DOMAIN: &[u8] = b"PskForAranyaTls-v1";
 
 custom_id! {
     /// Uniquely identifies a [`PskSeed`].
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct PskSeedId;
 }
 

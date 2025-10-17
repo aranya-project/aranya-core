@@ -19,6 +19,7 @@ derive-where = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+aranya-crypto = { path = "../aranya-crypto", features = ["getrandom"] }
 aranya-crypto-ffi = { path = "../aranya-crypto-ffi" }
 aranya-device-ffi = { path = "../aranya-device-ffi" }
 aranya-envelope-ffi = { path = "../aranya-envelope-ffi" }

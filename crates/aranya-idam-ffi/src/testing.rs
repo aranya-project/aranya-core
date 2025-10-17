@@ -103,7 +103,7 @@ where
             .expect("should be able to unwrap `GroupKey`")
             .id()
             .expect("should be able to generate `GroupKey` ID");
-        assert_eq!(got.into_id(), key_id);
+        assert_eq!(got.as_base(), key_id);
     }
 
     /// Test that we generate unique `GroupKey`s.

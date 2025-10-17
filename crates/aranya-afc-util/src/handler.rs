@@ -2,7 +2,7 @@
 
 use aranya_crypto::{
     BaseId, CipherSuite, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt as _,
-    afc::{UniAuthorSecret, UniChannel, UniPeerEncap},
+    afc::{UniAuthorSecret, UniAuthorSecretId, UniChannel, UniPeerEncap},
     policy::{CmdId, LabelId},
 };
 use aranya_fast_channels::Directed;
@@ -51,7 +51,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0.into())
+            .remove_key(eng, effect.key_id.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -158,6 +158,12 @@ pub struct UniKeyId(BaseId);
 impl From<BaseId> for UniKeyId {
     fn from(id: BaseId) -> Self {
         Self(id)
+    }
+}
+
+impl From<UniKeyId> for UniAuthorSecretId {
+    fn from(id: UniKeyId) -> Self {
+        Self::from_base(id.0)
     }
 }
 

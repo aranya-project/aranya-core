@@ -104,7 +104,7 @@ function create_uni_channel(
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id: key_id.into(),
+            key_id: key_id.as_base(),
         })
     }
 }

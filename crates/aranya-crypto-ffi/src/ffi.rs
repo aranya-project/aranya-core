@@ -125,7 +125,7 @@ function sign(
             .store
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or(KeyNotFound(our_sign_sk_id.into()))?;
+            .ok_or(KeyNotFound(our_sign_sk_id.as_base()))?;
         debug_assert_eq!(sk.id()?, our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {
@@ -135,7 +135,7 @@ function sign(
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
-            command_id: id.into_id(),
+            command_id: id.as_base(),
         })
     }
 

@@ -94,7 +94,7 @@ impl RawSecretWrap<Self> for HsmEngine {
     where
         T: UnwrappedKey<Self>,
     {
-        let id = (*id).into();
+        let id = *id.as_ref();
         let alg_id = secret.alg_id();
         let plaintext: RawSecretBytes<Self> = match secret {
             RawSecret::Aead(sk) => RawSecretBytes::Aead(sk.try_export_secret()?),
@@ -252,6 +252,12 @@ impl From<WrappedKeyId> for BaseId {
     }
 }
 
+impl AsRef<BaseId> for WrappedKeyId {
+    fn as_ref(&self) -> &BaseId {
+        self.0.as_ref()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 enum KeyIdImpl {
     Internal(KeyId),
@@ -261,7 +267,14 @@ enum KeyIdImpl {
 impl KeyIdImpl {
     fn into_id(self) -> BaseId {
         match self {
-            Self::Internal(id) => id.into(),
+            Self::Internal(id) => *id.as_ref(),
+            Self::External(id) => id,
+        }
+    }
+
+    fn as_ref(&self) -> &BaseId {
+        match self {
+            Self::Internal(id) => id.as_ref(),
             Self::External(id) => id,
         }
     }
