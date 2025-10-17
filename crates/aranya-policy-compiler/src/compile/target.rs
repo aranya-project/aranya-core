@@ -87,7 +87,11 @@ impl CompileTarget {
             TypeKind::Id => None,
             // TODO: This should really be 1 above the max.
             TypeKind::Int => Some(u64::MAX),
-            TypeKind::Bool | TypeKind::Optional(_) => Some(2),
+            TypeKind::Bool => Some(2),
+            TypeKind::Optional(vtype) => {
+                // Add 1 for the None case
+                self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
+            }
             TypeKind::Struct(ident) => {
                 let defs = self.struct_defs.get(&ident.name)?;
                 defs.iter()

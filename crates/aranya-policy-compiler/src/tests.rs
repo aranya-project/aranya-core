@@ -1501,6 +1501,17 @@ fn test_match_expression() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            // all match patterns are not listed
+            r#"
+            action f(maybe_bool optional bool) {
+                let x = match maybe_bool {
+                    None => 0
+                    Some(false) => 2
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
@@ -1542,6 +1553,15 @@ fn test_match_expression() {
                 Light {  color: LightColor::Yellow, go: true } => 3
                 Light {  color: LightColor::Green, go: false } => 4
                 Light {  color: LightColor::Green, go: true } => 5
+            }
+        }"#,
+        // exhaustively matches on optionals
+        r#"
+        action f(maybe_bool optional bool) {
+            let x = match maybe_bool {
+                None => 0
+                Some(true) => 1
+                Some(false) => 2
             }
         }"#,
     ];
