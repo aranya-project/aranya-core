@@ -4,16 +4,19 @@ use syn::{ItemEnum, spanned::Spanned as _};
 
 use crate::common::get_derive;
 
+mod kw {
+    syn::custom_keyword!(interface);
+}
+
 struct Attrs {
     interface: syn::Path,
 }
 
 impl syn::parse::Parse for Attrs {
     fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
-        let name: syn::Ident = input.parse()?;
-        assert_eq!(name, "interface");
+        input.parse::<kw::interface>()?;
         input.parse::<syn::Token![=]>()?;
-        let value: syn::Path = input.parse()?;
+        let value = input.parse::<syn::Path>()?;
         Ok(Self { interface: value })
     }
 }
