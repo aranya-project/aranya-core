@@ -588,12 +588,22 @@ where
                 let b: i64 = self.ipop()?;
                 let a: i64 = self.ipop()?;
                 let r = match instruction {
-                    Instruction::Add => a
-                        .checked_add(b)
-                        .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
-                    Instruction::Sub => a
-                        .checked_sub(b)
-                        .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
+                    Instruction::Add => a.checked_add(b),
+                    Instruction::Sub => a.checked_sub(b),
+                    _ => unreachable!(),
+                };
+                // Checked operations return Optional<Int>
+                match r {
+                    Some(value) => self.ipush(value)?,
+                    None => self.ipush(Value::None)?,
+                }
+            }
+            Instruction::SaturatingAdd | Instruction::SaturatingSub => {
+                let b: i64 = self.ipop()?;
+                let a: i64 = self.ipop()?;
+                let r = match instruction {
+                    Instruction::SaturatingAdd => a.saturating_add(b),
+                    Instruction::SaturatingSub => a.saturating_sub(b),
                     _ => unreachable!(),
                 };
                 self.ipush(r)?;

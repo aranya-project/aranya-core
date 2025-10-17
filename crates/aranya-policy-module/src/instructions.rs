@@ -143,6 +143,10 @@ pub enum Instruction {
     Add,
     /// Subtract two numbers
     Sub,
+    /// Add two numbers with saturation
+    SaturatingAdd,
+    /// Subtract two numbers with saturation
+    SaturatingSub,
     /// Logical negation
     Not,
     /// Greater than
@@ -218,6 +222,8 @@ impl Display for Instruction {
             Self::Exit(reason) => write!(f, "exit {reason}"),
             Self::Add => write!(f, "add"),
             Self::Sub => write!(f, "sub"),
+            Self::SaturatingAdd => write!(f, "saturating_add"),
+            Self::SaturatingSub => write!(f, "saturating_sub"),
             Self::Not => write!(f, "not"),
             Self::Gt => write!(f, "gt"),
             Self::Lt => write!(f, "lt"),

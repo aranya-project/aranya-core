@@ -848,6 +848,66 @@ impl<'a> CompileState<'a> {
 
                     result_type
                 }
+                ast::InternalFunction::Add(a, b) | ast::InternalFunction::Sub(a, b) => {
+                    let left_type = self.compile_expression(a)?;
+                    let right_type = self.compile_expression(b)?;
+                    let _ = self
+                        .unify_pair_as(
+                            left_type,
+                            right_type,
+                            VType {
+                                kind: TypeKind::Int,
+                                span: expression.span,
+                            },
+                            "Cannot do math on non-int types",
+                        )
+                        .map_err(|e| self.err(e))?;
+
+                    let instruction = match f {
+                        ast::InternalFunction::Add(_, _) => Instruction::Add,
+                        ast::InternalFunction::Sub(_, _) => Instruction::Sub,
+                        _ => unreachable!(),
+                    };
+                    self.append_instruction(instruction);
+
+                    // Checked operations return Optional<Int>
+                    Typeish::known(VType {
+                        kind: TypeKind::Optional(Box::new(VType {
+                            kind: TypeKind::Int,
+                            span: expression.span,
+                        })),
+                        span: expression.span,
+                    })
+                }
+                ast::InternalFunction::SaturatingAdd(a, b)
+                | ast::InternalFunction::SaturatingSub(a, b) => {
+                    let left_type = self.compile_expression(a)?;
+                    let right_type = self.compile_expression(b)?;
+                    let _ = self
+                        .unify_pair_as(
+                            left_type,
+                            right_type,
+                            VType {
+                                kind: TypeKind::Int,
+                                span: expression.span,
+                            },
+                            "Cannot do math on non-int types",
+                        )
+                        .map_err(|e| self.err(e))?;
+
+                    let instruction = match f {
+                        ast::InternalFunction::SaturatingAdd(_, _) => Instruction::SaturatingAdd,
+                        ast::InternalFunction::SaturatingSub(_, _) => Instruction::SaturatingSub,
+                        _ => unreachable!(),
+                    };
+                    self.append_instruction(instruction);
+
+                    // Saturating operations return Int
+                    Typeish::known(VType {
+                        kind: TypeKind::Int,
+                        span: expression.span,
+                    })
+                }
                 ast::InternalFunction::Todo(_) => {
                     let err = self.err(CompileErrorType::TodoFound);
                     if self.is_debug {
@@ -1139,26 +1199,6 @@ impl<'a> CompileState<'a> {
                     span: rhs_ident.span(),
                 })
             }
-            ExprKind::Add(a, b) | ExprKind::Subtract(a, b) => {
-                let left_type = self.compile_expression(a)?;
-                let right_type = self.compile_expression(b)?;
-                self.append_instruction(match &expression.kind {
-                    ExprKind::Add(_, _) => Instruction::Add,
-                    ExprKind::Subtract(_, _) => Instruction::Sub,
-                    _ => unreachable!(),
-                });
-
-                self.unify_pair_as(
-                    left_type,
-                    right_type,
-                    VType {
-                        kind: TypeKind::Int,
-                        span: expression.span,
-                    },
-                    "Cannot do math on non-int types",
-                )
-                .map_err(|e| self.err(e))?
-            }
             ExprKind::And(a, b) | ExprKind::Or(a, b) => {
                 // `a && b` becomes `if a { b } else { false }`
                 // `a || b` becomes `if a { true } else { b }`
@@ -1293,32 +1333,6 @@ impl<'a> CompileState<'a> {
                         span: expression.span,
                     })
                 })
-            }
-            ExprKind::Negative(e) => {
-                // Push a 0 to subtract from
-                self.append_instruction(Instruction::Const(Value::Int(0)));
-
-                // Evaluate the expression
-                let inner_type = self.compile_expression(e)?;
-
-                // Subtract
-                self.append_instruction(Instruction::Sub);
-
-                inner_type
-                    .check_type(
-                        VType {
-                            kind: TypeKind::Int,
-                            span: expression.span,
-                        },
-                        "",
-                    )
-                    .map_err(|err| {
-                        CompileErrorType::InvalidType(format!(
-                            "cannot negate non-int expression of type {}",
-                            err.left
-                        ))
-                    })
-                    .map_err(|e| self.err(e))?
             }
             ExprKind::Not(e) => {
                 // Evaluate the expression

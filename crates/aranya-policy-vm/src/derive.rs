@@ -102,10 +102,10 @@
 /// )]
 /// impl<T> Crypto<T> {
 ///     /// By default, the function's name is the same as it
-///     /// exists in Rust. This will be `calc::add` in the
+///     /// exists in Rust. This will be `calc::add2` in the
 ///     /// `FfiModule`'s schema.
-///     #[ffi_export(def = "function add(x int, y int) int")]
-///     fn add<E: Engine>(
+///     #[ffi_export(def = "function add2(x int, y int) int")]
+///     fn add2<E: Engine>(
 ///         _ctx: &CommandContext,
 ///         _eng: &mut E,
 ///         x: i64,
