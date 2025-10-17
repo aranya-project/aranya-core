@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, TypeKind};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, Instruction, Label, Module, ModuleData, ModuleV0, Value,
     named::NamedMap,
@@ -77,6 +77,31 @@ impl CompileTarget {
                 codemap: self.codemap,
                 globals: self.globals,
             }),
+        }
+    }
+
+    pub(in crate::compile) fn cardinality(&self, kind: &TypeKind) -> Option<u64> {
+        match kind {
+            TypeKind::String | TypeKind::Bytes => None,
+            // With 2^(32 * 8) choices. It's unlikely for someone to want to match against IDs exhaustively
+            TypeKind::Id => None,
+            // TODO: This should really be 1 above the max.
+            TypeKind::Int => Some(u64::MAX),
+            TypeKind::Bool | TypeKind::Optional(_) => Some(2),
+            TypeKind::Struct(ident) => {
+                let defs = self.struct_defs.get(&ident.name)?;
+                defs.iter()
+                    .map(|def| self.cardinality(&def.field_type.kind))
+                    .reduce(|acc, e| match e {
+                        None => None,
+                        Some(v) => acc.map(|w| v + w),
+                    })
+                    .flatten()
+            }
+            TypeKind::Enum(ident) => {
+                let defs = self.enum_defs.get(&ident.name)?;
+                Some(defs.len() as u64)
+            }
         }
     }
 }
