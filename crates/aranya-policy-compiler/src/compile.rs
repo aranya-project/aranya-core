@@ -2638,14 +2638,6 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        // if no match, and no default case, panic
-        if !patterns
-            .iter()
-            .any(|p| matches!(p, MatchPattern::Default(_)))
-        {
-            self.append_instruction(Instruction::Exit(ExitReason::Panic));
-        }
-
         // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
         let mut expr_type: Option<Typeish> = None;
 
