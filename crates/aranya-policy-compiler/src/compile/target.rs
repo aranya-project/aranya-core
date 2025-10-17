@@ -83,13 +83,13 @@ impl CompileTarget {
     pub(in crate::compile) fn cardinality(&self, kind: &TypeKind) -> Option<u64> {
         match kind {
             TypeKind::String | TypeKind::Bytes => None,
-            // With 2^(32 * 8) choices. It's unlikely for someone to want to match against IDs exhaustively
+            // With 2^(32 * 8) choices, it's unlikely for someone to want to match against IDs exhaustively.
             TypeKind::Id => None,
             // TODO: This should really be 1 above the max.
             TypeKind::Int => Some(u64::MAX),
             TypeKind::Bool => Some(2),
             TypeKind::Optional(vtype) => {
-                // Add 1 for the None case
+                // Add 1 for the None case.
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
@@ -98,7 +98,7 @@ impl CompileTarget {
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {
                         None => None,
-                        Some(v) => acc.and_then(|w| v.checked_add(w)),
+                        Some(v) => acc.and_then(|w| v.checked_mul(w)),
                     })
                     .flatten()
             }

@@ -2570,18 +2570,16 @@ impl<'a> CompileState<'a> {
         };
         let mut expr_pat_t = self.compile_expression(expr)?;
 
-        let need_default = if let Typeish::Known(NullableVType::Type(ref known_type)) = expr_pat_t {
-            let maybe_cardinality = self.m.cardinality(&known_type.kind);
+        let need_default = default_count == 0
+            && if let Typeish::Known(NullableVType::Type(ref known_type)) = expr_pat_t {
+                let maybe_cardinality = self.m.cardinality(&known_type.kind);
 
-            match maybe_cardinality {
-                None => true,
-                Some(c) => c > all_values.len() as u64,
-            }
-        } else {
-            true
-        };
+                maybe_cardinality.is_none_or(|c| c > all_values.len() as u64)
+            } else {
+                true
+            };
 
-        if need_default && default_count == 0 {
+        if need_default {
             return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, locator));
         }
 
