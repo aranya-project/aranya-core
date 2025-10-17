@@ -1408,7 +1408,8 @@ fn test_match_arm_should_be_limited_to_literals() {
         r#"
             action foo(x int) {
                 match x {
-                    saturating_add(0, 1) => {}
+                    saturating_add(0, 1)=> {}
+                    _ => {}
                 }
             }
         "#,
@@ -1417,6 +1418,7 @@ fn test_match_arm_should_be_limited_to_literals() {
         action foo(x int) {
             match x {
                 f() => {}
+                _ => {}
             }
         }
         "#,
@@ -1970,6 +1972,7 @@ fn test_type_errors() {
                     match x {
                         "foo" => {
                         }
+                        _ => {}
                     }
                 }
             "#,
@@ -2334,6 +2337,7 @@ fn test_duplicate_definitions() {
                     match y {
                         1 => { let x = 3 }
                         2 => { let x = 4 }
+                        _ => {}
                     }
                     return false
                 }
