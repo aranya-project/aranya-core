@@ -94,7 +94,7 @@ impl CompileTarget {
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {
                         None => None,
-                        Some(v) => acc.map(|w| v + w),
+                        Some(v) => acc.and_then(|w| v.checked_add(w)),
                     })
                     .flatten()
             }
