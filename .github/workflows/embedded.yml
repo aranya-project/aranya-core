@@ -39,12 +39,14 @@ jobs:
 
       - name: Install esp toolchain
         run: |
+            sudo apt-get install libudev-dev
             cargo install espup --locked
             espup install
-            source /home/runner/export-esp.sh
+            . /home/runner/export-esp.sh
             cargo install espflash@^3 --locked
 
       - name: Build code
-        run: | 
+        run: |
+            . /home/runner/export-esp.sh
             cd crates/chat-app
             cargo build
