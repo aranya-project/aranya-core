@@ -1586,6 +1586,14 @@ fn test_match_expression() {
                 Some(false) => 2
             }
         }"#,
+        // alternate patterns
+        r#"
+        action f(maybe_bool optional bool) {
+            let x = match maybe_bool {
+                None | Some(false) => 0
+                Some(true) => 1
+            }
+        }"#,
     ];
     for src in valid_cases {
         compile_pass(src);
