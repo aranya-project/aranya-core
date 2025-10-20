@@ -24,7 +24,7 @@ use aranya_crypto::{
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client};
+use aranya_fast_channels::{self, AfcState, AranyaState, Client, LocalChannelId};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
@@ -246,7 +246,7 @@ impl<T: TestImpl> Device<T> {
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
-    fn test_roundtrip(sealer: (&mut Self, ChannelId), opener: (&mut Self, ChannelId)) {
+    fn test_roundtrip(sealer: (&mut Self, LocalChannelId), opener: (&mut Self, LocalChannelId)) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let (sealer, chan_id) = sealer;
@@ -272,7 +272,7 @@ impl<T: TestImpl> Device<T> {
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_wrong_direction(sealer: &mut Self, channel_id: ChannelId) {
+    fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
         let err = sealer

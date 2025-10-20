@@ -26,7 +26,7 @@ use aranya_crypto::{
 };
 
 use crate::{
-    AfcState, ChannelId,
+    AfcState, LocalChannelId,
     buf::FixedBuf,
     client::Client,
     error::Error,
@@ -704,7 +704,7 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
                 let _ida = ids[i];
                 let idb = ids[j];
                 let result = d
-                    .exists(ChannelId::new(9999), idb)
+                    .exists(LocalChannelId::new(9999), idb)
                     .unwrap_or_else(|| panic!("exists({idb}, {label_id}): not found"))
                     .unwrap_or_else(|err| panic!("exists({label_id}): {err}"));
                 assert!(!result);
