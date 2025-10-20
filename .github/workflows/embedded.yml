@@ -39,6 +39,7 @@ jobs:
 
       - name: Install esp toolchain
         run: |
+            sudo apt-get update
             sudo apt-get install libudev-dev --fix-missing
             cargo install espup --locked
             espup install
