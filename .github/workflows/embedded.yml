@@ -35,7 +35,13 @@ jobs:
       - name: Checkout aranya-embedded repo
         uses: actions/checkout@v4
         with:
+            path: aranya-core
+
+      - name: Checkout aranya-embedded repo
+        uses: actions/checkout@v4
+        with:
             repository: aranya-project/aranya-embedded
+            path: aranya-embedded
 
       - name: Install esp toolchain
         run: |
@@ -49,5 +55,6 @@ jobs:
       - name: Build code
         run: |
             . /home/runner/export-esp.sh
-            cd crates/chat-app
+            echo "paths = [\"$GITHUB_WORKSPACE/aranya-core\""]" > $GITHUB_WORKSPACE/aranya-embedded/.cargo/config.toml
+            cd aranya-embedded/crates/chat-app
             cargo build
