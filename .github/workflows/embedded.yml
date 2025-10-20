@@ -36,17 +36,18 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      - name: Install esp toolchain
-        run: |
-            cargo install espup --locked
-            espup install
-            source $HOME/export-esp.sh
-            cargo install espflash@^3 --locked
-
       - name: Checkout aranya-embedded repo
         uses: actions/checkout@v4
         with:
             repository: aranya-project/aranya-embedded
+
+      - name: Install esp toolchain
+        run: |
+            cd aranya-embedded
+            cargo install espup --locked
+            espup install
+            source $HOME/export-esp.sh
+            cargo install espflash@^3 --locked
 
       - name: Build code
         run: | 
