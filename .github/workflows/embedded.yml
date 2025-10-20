@@ -1,0 +1,55 @@
+name: "Verify aranya-embedded repo builds"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Install esp toolchain
+        run: |
+            cargo install espup --locked
+            espup install
+            source $HOME/export-esp.sh
+            cargo install espflash@^3 --locked
+
+      - name: Checkout aranya-embedded repo
+        uses: actions/checkout@v4
+        with:
+            repository: aranya-project/aranya-embedded
+
+      - name: Build code
+        run: | 
+            cd aranya-embedded/crates/chat-app
+            cargo build
