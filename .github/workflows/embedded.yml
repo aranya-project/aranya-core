@@ -39,7 +39,7 @@ jobs:
 
       - name: Install esp toolchain
         run: |
-            apt-get install libudev-dev --fix-missing
+            sudo apt-get install libudev-dev --fix-missing
             cargo install espup --locked
             espup install
             . /home/runner/export-esp.sh
