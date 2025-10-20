@@ -1200,6 +1200,13 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
+        if command.policy.is_empty() {
+            return Err(self.err_loc(
+                CompileErrorType::Unknown(String::from("Empty/missing policy block in command")),
+                command.span.start(),
+            ));
+        }
+
         self.define_label(
             Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
             self.wp,
