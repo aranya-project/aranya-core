@@ -41,7 +41,7 @@ jobs:
         run: |
             cargo install espup --locked
             espup install
-            source $HOME/export-esp.sh
+            source /home/runner/export-esp.sh
             cargo install espflash@^3 --locked
 
       - name: Build code
