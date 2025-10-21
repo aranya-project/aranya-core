@@ -18,7 +18,7 @@ use crate::{
     RemoveIfParams,
     mutex::StdMutex,
     shm::shared::Op,
-    state::{AranyaState, LocalChannelId, Directed},
+    state::{AranyaState, Directed, LocalChannelId},
     util::debug,
 };
 
