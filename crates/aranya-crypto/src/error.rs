@@ -74,7 +74,7 @@ pub enum Error {
     Pk(#[from] PkError),
 }
 
-#[cfg(any(feature = "afc", feature = "aqc"))]
+#[cfg(feature = "afc")]
 impl Error {
     pub(crate) const fn same_device_id() -> Self {
         Self::InvalidArgument("same `DeviceId`")

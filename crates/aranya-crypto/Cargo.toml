@@ -27,13 +27,6 @@ afc = [
 # Enable APQ support.
 apq = []
 
-# Enable AQC support.
-aqc = [
-	# AQC really only needs the cipher suites, but including the
-	# rest of the module is currently NBD.
-	"tls",
-]
-
 # Enable allocations.
 alloc = [
 	"buggy/alloc",
@@ -131,7 +124,6 @@ test_util = [
 	"afc",
 	"alloc",
 	"apq",
-	"aqc",
 	"proptest",
 	"tls",
 
@@ -202,7 +194,6 @@ always_include_features = [
 	"afc",
 	"alloc",
 	"apq",
-	"aqc",
 	"bearssl",
 	"clone-aead",
 	"committing-aead",
