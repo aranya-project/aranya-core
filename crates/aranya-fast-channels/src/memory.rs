@@ -16,7 +16,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    ChannelId, RemoveIfParams,
+    LocalChannelId, RemoveIfParams,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -33,7 +33,7 @@ struct ChanMapValue<CS: CipherSuite> {
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
     #[allow(clippy::type_complexity)]
-    chans: BTreeMap<ChannelId, ChanMapValue<CS>>,
+    chans: BTreeMap<LocalChannelId, ChanMapValue<CS>>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -56,7 +56,7 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
@@ -68,7 +68,7 @@ where
         Ok(f(key, *label_id))
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
@@ -80,7 +80,7 @@ where
         Ok(f(key, *label_id))
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Error> {
         Ok(self
             .inner
             .lock()
@@ -105,9 +105,9 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
         peer_id: DeviceId,
-    ) -> Result<ChannelId, Self::Error> {
+    ) -> Result<LocalChannelId, Self::Error> {
         let mut inner = self.inner.lock().assume("poisoned")?;
-        let id = ChannelId::new(inner.next_chan_id);
+        let id = LocalChannelId::new(inner.next_chan_id);
         inner.next_chan_id = inner
             .next_chan_id
             .checked_add(1)
@@ -123,7 +123,7 @@ where
         Ok(id)
     }
 
-    fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
+    fn remove(&self, id: LocalChannelId) -> Result<(), Self::Error> {
         self.inner.lock().assume("poisoned")?.chans.remove(&id);
         Ok(())
     }
@@ -143,7 +143,7 @@ where
         Ok(())
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
         Ok(self
             .inner
             .lock()

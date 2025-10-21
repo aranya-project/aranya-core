@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     mutex::StdMutex,
-    state::{AfcState, ChannelId},
+    state::{AfcState, LocalChannelId},
     util::debug,
 };
 
@@ -31,7 +31,7 @@ use crate::{
 #[derive_where(Debug)]
 struct Cache<K> {
     /// The channel the key is for.
-    id: ChannelId,
+    id: LocalChannelId,
     /// The label ID associated with the channel.
     label_id: LabelId,
     #[derive_where(skip)]
@@ -92,7 +92,7 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, crate::Error>,
     {
@@ -183,7 +183,7 @@ where
         Ok(result)
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&OpenKey<CS>, LabelId) -> Result<T, crate::Error>,
     {
@@ -247,7 +247,7 @@ where
         Ok(result)
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, crate::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, crate::Error> {
         let mutex = self.inner.load_read_list()?;
         let list = mutex.lock().assume("poisoned")?;
         Ok(list.exists(id, None, Op::Any)?)

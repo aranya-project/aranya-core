@@ -18,7 +18,7 @@ use crate::{
     RemoveIfParams,
     mutex::StdMutex,
     shm::shared::Op,
-    state::{AranyaState, ChannelId, Directed},
+    state::{AranyaState, Directed, LocalChannelId},
     util::debug,
 };
 
@@ -65,13 +65,13 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
         peer_id: DeviceId,
-    ) -> Result<ChannelId, Error> {
+    ) -> Result<LocalChannelId, Error> {
         let mut rng = self.rng.lock().assume("poisoned")?;
 
         let id = {
             // NB: This cannot reasonably overflow.
             let next = self.inner.shm().next_chan_id.fetch_add(1, Ordering::SeqCst);
-            ChannelId::new(next)
+            LocalChannelId::new(next)
         };
 
         let (write_off, idx) = {
@@ -139,7 +139,7 @@ where
         Ok(id)
     }
 
-    fn remove(&self, id: ChannelId) -> Result<(), Error> {
+    fn remove(&self, id: LocalChannelId) -> Result<(), Error> {
         let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
@@ -254,7 +254,7 @@ where
         Ok(())
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
         let mutex = self.inner.load_write_list()?;
         let list = mutex.lock().assume("poisoned")?;
         list.exists(id, None, Op::Any)
