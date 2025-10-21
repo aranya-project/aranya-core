@@ -13,7 +13,7 @@ use crate::{
     buf::Buf,
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
-    state::{AfcState, ChannelId},
+    state::{AfcState, LocalChannelId},
     util::debug,
 };
 
@@ -60,7 +60,7 @@ impl<S: AfcState> Client<S> {
     /// long.
     pub fn seal(
         &mut self,
-        id: ChannelId,
+        id: LocalChannelId,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -96,7 +96,11 @@ impl<S: AfcState> Client<S> {
     /// Encrypts and authenticates `data` for a channel.
     ///
     /// The resulting ciphertext is written in-place to `data`.
-    pub fn seal_in_place<T: Buf>(&mut self, id: ChannelId, data: &mut T) -> Result<Header, Error> {
+    pub fn seal_in_place<T: Buf>(
+        &mut self,
+        id: LocalChannelId,
+        data: &mut T,
+    ) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
         // over allocate, though, since we don't know if we'll be
         // performing future allocations.
@@ -134,7 +138,7 @@ impl<S: AfcState> Client<S> {
     /// `id`.
     fn do_seal<F>(
         &mut self,
-        id: ChannelId,
+        id: LocalChannelId,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>
@@ -177,7 +181,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open(
         &self,
-        channel_id: ChannelId,
+        local_channel_id: LocalChannelId,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<(LabelId, Seq), Error> {
@@ -194,7 +198,7 @@ impl<S: AfcState> Client<S> {
             (seq, ciphertext)
         };
         debug!(
-            "seq={seq} ciphertext=[{:?}; {}] channel_id={channel_id}",
+            "seq={seq} ciphertext=[{:?}; {}] local_channel_id={local_channel_id}",
             ciphertext.as_ptr(),
             ciphertext.len()
         );
@@ -211,7 +215,7 @@ impl<S: AfcState> Client<S> {
         }
 
         let label_id = self
-            .do_open(channel_id, seq, |aead, ad, seq| {
+            .do_open(local_channel_id, seq, |aead, ad, seq| {
                 aead.open(dst, ciphertext, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -237,7 +241,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open_in_place<T: Buf>(
         &self,
-        channel_id: ChannelId,
+        local_channel_id: LocalChannelId,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
@@ -261,14 +265,14 @@ impl<S: AfcState> Client<S> {
             (seq, ciphertext, tag)
         };
         debug!(
-            "channel_id={channel_id} data=[{:?}; {}]",
+            "local_channel_id={local_channel_id} data=[{:?}; {}]",
             out.as_ptr(),
             out.len()
         );
 
         let plaintext_len = out.len();
         let label_id = self
-            .do_open(channel_id, seq, |aead, ad, seq| {
+            .do_open(local_channel_id, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -286,7 +290,7 @@ impl<S: AfcState> Client<S> {
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: ChannelId, seq: Seq, f: F) -> Result<T, Error>
+    fn do_open<F, T>(&self, id: LocalChannelId, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
