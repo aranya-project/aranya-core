@@ -154,7 +154,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     {
         let unwrapped_id = key.id().map_err(<<Self as KeyStore>::Error>::other)?;
         let wrapped_key = eng.wrap(key).map_err(<<Self as KeyStore>::Error>::other)?;
-        self.try_insert(unwrapped_id.into(), wrapped_key)?;
+        self.try_insert(*unwrapped_id.as_ref(), wrapped_key)?;
         Ok(unwrapped_id)
     }
 
@@ -164,7 +164,7 @@ impl<T: KeyStore> KeyStoreExt for T {
         E: Engine,
         K: UnwrappedKey<E::CS>,
     {
-        if let Some(wrapped) = self.get(id.into())? {
+        if let Some(wrapped) = self.get(*id.as_ref())? {
             let sk = eng
                 .unwrap(&wrapped)
                 .map_err(<<Self as KeyStore>::Error>::other)?;
@@ -180,7 +180,7 @@ impl<T: KeyStore> KeyStoreExt for T {
         E: Engine,
         K: UnwrappedKey<E::CS>,
     {
-        if let Some(wrapped) = self.remove(id.into())? {
+        if let Some(wrapped) = self.remove(*id.as_ref())? {
             let sk = eng
                 .unwrap(&wrapped)
                 .map_err(<<Self as KeyStore>::Error>::other)?;

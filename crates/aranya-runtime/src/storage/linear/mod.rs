@@ -234,7 +234,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         if init.commands.is_empty() {
             return Err(StorageError::EmptyPerspective);
         }
-        let graph_id = GraphId::from(init.commands[0].id.into_id());
+        let graph_id = GraphId::transmute(init.commands[0].id);
         let Entry::Vacant(entry) = self.storage.entry(graph_id) else {
             return Err(StorageError::StorageExists);
         };
