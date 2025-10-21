@@ -32,10 +32,7 @@ jobs:
           - ubuntu-latest
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Checkout aranya-embedded repo
-        uses: actions/checkout@v4
-        with:
-            path: aranya-core
+      - uses: actions/checkout@v4
 
       - name: Checkout aranya-embedded repo
         uses: actions/checkout@v4
@@ -55,6 +52,6 @@ jobs:
       - name: Build code
         run: |
             . /home/runner/export-esp.sh
-            echo "paths = [\"/home/runner/work/aranya-core/aranya-core\"]" > /home/runner/work/aranya-core/aranya-embedded/.cargo/config.toml
+            echo "paths = [\"$GITHUB_WORKSPACE\"]" > $GITHUB_WORKSPACE/aranya-embedded/.cargo/config.toml
             cd aranya-embedded/crates/chat-app
             cargo build
