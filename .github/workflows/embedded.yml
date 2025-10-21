@@ -55,6 +55,6 @@ jobs:
       - name: Build code
         run: |
             . /home/runner/export-esp.sh
-            echo "paths = [\"/home/runner/aranya-core/aranya-core\"]" > /home/runner/aranya-core/aranya-embedded/.cargo/config.toml
+            echo "paths = [\"/home/runner/work/aranya-core/aranya-core\"]" > /home/runner/work/aranya-core/aranya-embedded/.cargo/config.toml
             cd aranya-embedded/crates/chat-app
             cargo build
