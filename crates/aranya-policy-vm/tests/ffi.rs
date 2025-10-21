@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use aranya_crypto::{
-    DeviceId, Engine, Id, Rng,
+    BaseId, DeviceId, Engine, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
     id::IdExt as _,
     policy::CmdId,
@@ -52,7 +52,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
             id: CmdId::default(),
             author: DeviceId::default(),
             parent_id: CmdId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;
         self.module
@@ -168,7 +168,7 @@ enum TestEnum { A, B }
 "#
 )]
 impl<T, G> TestModule<'_, T, G> {
-    #[ffi_export(def = "function add(x int, y int) int")]
+    #[ffi_export(def = "function add2(x int, y int) int")]
     fn add<E: Engine>(
         _ctx: &CommandContext,
         _eng: &mut E,
@@ -178,7 +178,7 @@ impl<T, G> TestModule<'_, T, G> {
         x.checked_add(y).ok_or(Overflow)
     }
 
-    #[ffi_export(def = "function sub(x int, y int) int")]
+    #[ffi_export(def = "function sub2(x int, y int) int")]
     fn sub<E: Engine>(
         _ctx: &CommandContext,
         _eng: &mut E,
@@ -204,8 +204,8 @@ impl<T, G> TestModule<'_, T, G> {
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        id_input: Id,
-    ) -> Result<Id, Infallible> {
+        id_input: BaseId,
+    ) -> Result<BaseId, Infallible> {
         Ok(id_input)
     }
 
@@ -283,23 +283,23 @@ fn test_ffi_derive() {
     {
         state.push(1i64);
         state.push(2i64);
-        state.call("add").expect("`test::add` should not fail");
+        state.call("add2").expect("`test::add2` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
-        assert_eq!(got, 3, "`test::add` returned the wrong result");
+        assert_eq!(got, 3, "`test::add2` returned the wrong result");
         assert!(state.is_empty());
     }
 
-    // Negative test case for `add`.
+    // Negative test case for `add2`.
     {
         state.push(i64::MAX);
         state.push(1i64);
         let err = state
-            .call("add")
+            .call("add2")
             .expect_err("`test::sub` should have failed");
         assert_eq!(
             err,
             TestStateError::Module(MachineError::new(MachineErrorType::IntegerOverflow)),
-            "`add` should have returned `Overflow`",
+            "`add2` should have returned `Overflow`",
         );
         assert!(state.is_empty());
     }
@@ -308,23 +308,23 @@ fn test_ffi_derive() {
     {
         state.push(10i64);
         state.push(2i64);
-        state.call("sub").expect("`test::sub` should not fail");
+        state.call("sub2").expect("`test::sub2` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
-        assert_eq!(got, 8, "`test::sub` returned the wrong result");
+        assert_eq!(got, 8, "`test::sub2` returned the wrong result");
         assert!(state.is_empty());
     }
 
-    // Negative test case for `sub`.
+    // Negative test case for `sub2`.
     {
         state.push(i64::MIN);
         state.push(2i64);
         let err = state
-            .call("sub")
-            .expect_err("`test::sub` should have failed");
+            .call("sub2")
+            .expect_err("`test::sub2` should have failed");
         assert_eq!(
             err,
             TestStateError::Module(MachineError::new(MachineErrorType::IntegerOverflow)),
-            "`test::sub` should have returned `Overflow`",
+            "`test::sub2` should have returned `Overflow`",
         );
         assert!(state.is_empty());
     }
@@ -346,8 +346,8 @@ fn test_ffi_derive() {
 
     // Positive test for `identity`.
     {
-        let a = Id::default();
-        let b = Id::random(&mut Rng);
+        let a = BaseId::default();
+        let b = BaseId::random(&mut Rng);
 
         state.push(b);
         state.push(a);
@@ -356,7 +356,7 @@ fn test_ffi_derive() {
             state
                 .call("renamed_identity")
                 .expect("`test::renamed_identity` should not fail");
-            let got = state.pop::<Id>().expect("should have got an `Id`");
+            let got = state.pop::<BaseId>().expect("should have got an ID");
             assert_eq!(
                 got, id,
                 "`test::renamed_identity` returned the wrong result"
@@ -419,7 +419,7 @@ fn test_ffi_derive() {
             b: vec![1, 2, 3, 4],
             c: 42,
             d: true,
-            e: Id::random(&mut Rng),
+            e: BaseId::random(&mut Rng),
             f: S0 { x: 1234 },
             g: Some(42),
         };

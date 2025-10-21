@@ -9,7 +9,7 @@ mod io;
 use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Text, ident, text};
 use io::TestIO;
 
@@ -35,7 +35,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         id: CmdId::default(),
         author: DeviceId::default(),
         parent_id: CmdId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 
@@ -89,7 +89,7 @@ fn test_add() {
 #[test]
 fn test_add_overflow() {
     // add p.0+p.1
-    // we expect all these pairs to overflow
+    // we expect all these pairs to overflow and return None
     let pairs: [(i64, i64); 3] = [
         (i64::MAX, 2),
         (1, i64::MAX),
@@ -104,12 +104,9 @@ fn test_add_overflow() {
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
-        let step = rs.step();
-        assert!(step.is_err());
-        assert_eq!(
-            step.unwrap_err().err_type,
-            MachineErrorType::IntegerOverflow
-        );
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert!(rs.stack.len() == 1);
+        assert_eq!(rs.stack.0[0], Value::None);
     }
 }
 
@@ -136,7 +133,7 @@ fn test_sub() {
 #[test]
 fn test_sub_overflow() {
     // pairs to check, in the format p.0-p.1
-    // we expect all these pairs to overflow
+    // we expect all these pairs to overflow and return None
     let pairs: [(i64, i64); 5] = [
         (i64::MIN, 1),
         (i64::MIN, 2),
@@ -153,12 +150,9 @@ fn test_sub_overflow() {
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
-        let step = rs.step();
-        assert!(step.is_err());
-        assert_eq!(
-            step.unwrap_err().err_type,
-            MachineErrorType::IntegerOverflow
-        );
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert!(rs.stack.len() == 1);
+        assert_eq!(rs.stack.0[0], Value::None);
     }
 }
 

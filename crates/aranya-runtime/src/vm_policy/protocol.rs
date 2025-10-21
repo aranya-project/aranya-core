@@ -96,8 +96,8 @@ impl TryFrom<Struct> for Envelope<'_> {
         }
 
         Ok(Self {
-            author_id: get::<aranya_crypto::Id>(fields, "author_id")?.into(),
-            command_id: get::<aranya_crypto::Id>(fields, "command_id")?.into(),
+            author_id: get(fields, "author_id")?,
+            command_id: get(fields, "command_id")?,
             payload: Cow::Owned(get(fields, "payload")?),
             signature: Cow::Owned(get(fields, "signature")?),
         })

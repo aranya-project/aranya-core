@@ -61,8 +61,8 @@ impl TestFfiEnvelope {
         let command_id = hash_for_testing_only(&data);
 
         Ok(Envelope {
-            author_id: author_id.into_id(),
-            command_id: command_id.into_id(),
+            author_id: author_id.as_base(),
+            command_id: command_id.as_base(),
             payload,
             // TODO(chip): use an actual signature
             signature: b"LOL".to_vec(),

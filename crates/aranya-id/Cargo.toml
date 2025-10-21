@@ -1,7 +1,7 @@
 [package]
 name = "aranya-id"
 description = "Aranya ID types"
-publish = false
+publish = true
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -28,6 +28,8 @@ proptest = ["dep:proptest"]
 [dependencies]
 spideroak-base58 = { workspace = true, default-features = false }
 
+derive-where = { workspace = true }
+paste = { version = "1", default-features = false }
 proptest = { workspace = true, default-features = false, optional = true }
 rkyv = { workspace = true, default-features = false }
 serde = { workspace = true, default-features = false }

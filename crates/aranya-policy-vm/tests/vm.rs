@@ -5,7 +5,7 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
@@ -44,7 +44,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         id: CmdId::default(),
         author: DeviceId::default(),
         parent_id: CmdId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 
@@ -54,7 +54,7 @@ fn dummy_ctx_recall(name: Identifier) -> CommandContext {
         id: CmdId::default(),
         author: DeviceId::default(),
         parent_id: CmdId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 
@@ -111,7 +111,7 @@ fn test_bytes() -> anyhow::Result<()> {
             &mut rs,
             &mut published,
             name,
-            [Value::Id(Id::default()), Value::Bytes(vec![0, 255, 42])],
+            [Value::Id(BaseId::default()), Value::Bytes(vec![0, 255, 42])],
         )?
         .success();
     }
@@ -119,7 +119,7 @@ fn test_bytes() -> anyhow::Result<()> {
     assert_eq!(
         published,
         [vm_struct!(Foo {
-            id_field: Id::default(),
+            id_field: BaseId::default(),
             x: vec![0, 255, 42],
         })]
     );
@@ -183,7 +183,7 @@ fn test_structs() -> anyhow::Result<()> {
             &mut rs,
             &mut published,
             name,
-            [Value::Id(Id::default()), Value::Int(3)],
+            [Value::Id(BaseId::default()), Value::Int(3)],
         )?
         .success();
     }
@@ -192,7 +192,7 @@ fn test_structs() -> anyhow::Result<()> {
         published,
         [vm_struct!(Foo {
             bar: vm_struct!(Bar { x: 3 }),
-            id_field: Id::default(),
+            id_field: BaseId::default(),
         })]
     );
 
@@ -1295,46 +1295,6 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_negative_numeric_expression() -> anyhow::Result<()> {
-    let text = r#"
-        action foo(x int) {
-            let a = -2
-            check x - a == 1
-            check -5 == -(4 + 1)
-            check 42 == --42
-        }
-
-        action neg_min_1() {
-            let n = -9223372036854775807
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-
-    {
-        let name = ident!("foo");
-        let ctx = dummy_ctx_action(name.clone());
-        let io = RefCell::new(TestIO::new());
-        let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_action(name, [-1])?.success();
-    }
-
-    {
-        let name = ident!("neg_min_1");
-        let ctx = dummy_ctx_action(name.clone());
-        let io = RefCell::new(TestIO::new());
-        let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_action(name, iter::empty::<Value>())?.success();
-    }
-
-    Ok(())
-}
-
-#[test]
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
@@ -1362,30 +1322,6 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_negative_overflow_numeric_expression() -> anyhow::Result<()> {
-    let text = r#"
-    action check_overflow(x int) {
-        let a = -x
-    }
-    "#;
-    let name = ident!("check_overflow");
-    let policy = parse_policy_str(text, Version::V2)?;
-    let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-
-    let mut rs = machine.create_run_state(&io, ctx);
-    let result = rs.call_action(name, [i64::MIN]);
-
-    assert!(result.is_err());
-
-    Ok(())
-}
-
-#[test]
 fn test_pure_function() -> anyhow::Result<()> {
     let text = r#"
         command Result {
@@ -1397,7 +1333,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x int) int {
-            return x + 1
+            return unwrap add(x, 1)
         }
 
         action foo(x int) {
@@ -1810,7 +1746,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action foo() {
-            let a = x + 1
+            let a = unwrap add(x, 1)
             let b = y
             let c = !z
             publish Result {
@@ -2034,7 +1970,7 @@ seal { return todo() }
 open { return todo() }
 policy {
     let r = unwrap query Foo[]=>{x: ?}
-    let new_x = r.x + 1
+    let new_x = unwrap add(r.x, 1)
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}
@@ -2265,7 +2201,7 @@ fn test_block_expression() -> anyhow::Result<()> {
             let b = 4
             let x = {
                 let c = 5
-                : a + b + c
+                : saturating_add(saturating_add(a, b), c)
             }
 
             publish TestCommand {

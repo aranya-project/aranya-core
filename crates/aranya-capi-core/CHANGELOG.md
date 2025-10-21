@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.5.0...aranya-capi-core-v0.6.0) - 2025-10-16
+
+### Other
+
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+- add blanket Typed impl ([#417](https://github.com/aranya-project/aranya-core/pull/417))
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.4.4...aranya-capi-core-v0.5.0) - 2025-09-17
 
 ### Other

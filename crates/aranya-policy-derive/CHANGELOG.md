@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.8.0...aranya-policy-derive-v0.9.0) - 2025-10-16
+
+### Other
+
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
 ## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.7.0...aranya-policy-derive-v0.8.0) - 2025-09-17
 
 ### Other

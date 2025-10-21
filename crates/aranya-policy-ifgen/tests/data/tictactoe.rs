@@ -2,19 +2,24 @@
 #![allow(clippy::duplicated_attributes)]
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
+#![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
-    macros::{actions, effect, effects, value},
-    ClientError, Id, Value, Text,
+    macros::{action, actions, effect, effects, value},
+    BaseId, ClientError, Value, Text,
 };
+#[derive(Debug)]
+pub enum Persistent {}
+#[derive(Debug)]
+pub enum Ephemeral {}
 /// Players policy struct.
 #[value]
 pub struct Players {
-    pub X: Id,
-    pub O: Id,
+    pub X: BaseId,
+    pub O: BaseId,
 }
 /// Player policy enum.
 #[value]
@@ -32,28 +37,49 @@ pub enum Effect {
 /// GameOver policy effect.
 #[effect]
 pub struct GameOver {
-    pub gameID: Id,
-    pub winner: Id,
+    pub gameID: BaseId,
+    pub winner: BaseId,
     pub p: Player,
 }
 /// GameStart policy effect.
 #[effect]
 pub struct GameStart {
-    pub gameID: Id,
+    pub gameID: BaseId,
     pub players: Players,
 }
 /// GameUpdate policy effect.
 #[effect]
 pub struct GameUpdate {
-    pub gameID: Id,
-    pub player: Id,
+    pub gameID: BaseId,
+    pub player: BaseId,
     pub p: Player,
     pub X: i64,
     pub Y: i64,
 }
-/// Implements all supported policy actions.
-#[actions]
-pub trait ActorExt {
-    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
-    fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
+#[actions(interface = Persistent)]
+pub enum PersistentAction {
+    StartGame(StartGame),
+    MakeMove(MakeMove),
+}
+#[actions(interface = Ephemeral)]
+pub enum EphemeralAction {
+    Temporary(Temporary),
+}
+/// StartGame policy action.
+#[action(interface = Persistent)]
+pub struct StartGame {
+    pub players: Players,
+}
+/// MakeMove policy action.
+#[action(interface = Persistent)]
+pub struct MakeMove {
+    pub gameID: BaseId,
+    pub x: i64,
+    pub y: i64,
+}
+/// Temporary policy action.
+#[action(interface = Ephemeral)]
+pub struct Temporary {
+    pub n: i64,
+    pub s: Text,
 }

@@ -8,7 +8,7 @@ use crate::{
     KeyStore as _,
     default::DefaultCipherSuite,
     engine::WrappedKey,
-    id::{Id, Identified},
+    id::{BaseId, Identified},
 };
 
 macro_rules! id {
@@ -27,7 +27,7 @@ struct TestKey64(u64);
 impl WrappedKey for TestKey64 {}
 
 impl Identified for TestKey64 {
-    type Id = Id;
+    type Id = BaseId;
 
     fn id(&self) -> Result<Self::Id, crate::id::IdError> {
         Ok(id!(self.0))
@@ -35,12 +35,12 @@ impl Identified for TestKey64 {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-struct TestKeyId(Id);
+struct TestKeyId(BaseId);
 
 impl WrappedKey for TestKeyId {}
 
 impl Identified for TestKeyId {
-    type Id = Id;
+    type Id = BaseId;
 
     fn id(&self) -> Result<Self::Id, crate::id::IdError> {
         Ok(self.0)

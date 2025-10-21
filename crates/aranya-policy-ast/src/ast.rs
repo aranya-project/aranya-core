@@ -447,6 +447,14 @@ impl Spanned for FactCountType {
 /// Expression atoms with special rules or effects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
+    /// A `add` expression
+    Add(Box<Expression>, Box<Expression>),
+    /// A `saturating_add` expression
+    SaturatingAdd(Box<Expression>, Box<Expression>),
+    /// A `sub` expression
+    Sub(Box<Expression>, Box<Expression>),
+    /// A `saturating_sub` expression
+    SaturatingSub(Box<Expression>, Box<Expression>),
     /// A `query` expression
     Query(FactLiteral),
     /// An `exists` fact query
@@ -467,6 +475,10 @@ pub enum InternalFunction {
 impl Spanned for InternalFunction {
     fn span(&self) -> Span {
         match self {
+            Self::Add(lhs, rhs) => lhs.span().merge(rhs.span()),
+            Self::SaturatingAdd(lhs, rhs) => lhs.span().merge(rhs.span()),
+            Self::Sub(lhs, rhs) => lhs.span().merge(rhs.span()),
+            Self::SaturatingSub(lhs, rhs) => lhs.span().merge(rhs.span()),
             Self::Query(fact) => fact.span(),
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
@@ -530,10 +542,6 @@ pub enum ExprKind {
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
-    /// `expr + expr`
-    Add(Box<Expression>, Box<Expression>),
-    /// `expr - expr`
-    Subtract(Box<Expression>, Box<Expression>),
     /// expr && expr`
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
@@ -552,8 +560,6 @@ pub enum ExprKind {
     GreaterThanOrEqual(Box<Expression>, Box<Expression>),
     /// `expr` <= `expr`
     LessThanOrEqual(Box<Expression>, Box<Expression>),
-    /// `-expr`
-    Negative(Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
     /// `unwrap expr`
@@ -829,6 +835,7 @@ pub enum StmtKind {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
@@ -908,7 +915,7 @@ impl Spanned for StructDefinition {
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
-    /// Named struct from whose fields to add to the current struct
+    /// Named struct whose fields to add to the current struct
     StructRef(Ident),
 }
 

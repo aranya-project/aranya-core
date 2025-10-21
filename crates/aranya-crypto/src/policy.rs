@@ -3,7 +3,6 @@
 use core::borrow::Borrow as _;
 
 use spideroak_crypto::hash::{Digest, Hash};
-use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aranya::{Signature, SigningKeyId},
@@ -13,19 +12,16 @@ use crate::{
 
 custom_id! {
     /// Uniquely identifies a group.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct GroupId;
 }
 
 custom_id! {
     /// Uniquely identifies a policy.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct PolicyId;
 }
 
 custom_id! {
     /// The ID of a policy command.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct CmdId;
 }
 
@@ -103,7 +99,6 @@ impl Cmd<'_> {
 
 custom_id! {
     /// Uniquely identifies a role.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct RoleId;
 }
 
@@ -126,7 +121,6 @@ pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) 
 
 custom_id! {
     /// Uniquely identifies a label.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct LabelId;
 }
 

@@ -4,7 +4,7 @@ use core::{
 };
 
 use aranya_crypto::{
-    CipherSuite,
+    CipherSuite, DeviceId,
     afc::{OpenKey, SealKey},
     policy::LabelId,
     subtle::ConstantTimeEq,
@@ -33,6 +33,27 @@ pub trait AfcState {
     fn exists(&self, id: ChannelId) -> Result<bool, Error>;
 }
 
+/// The set of Params passed to the closure in [AranyaState::remove_if]
+pub struct RemoveIfParams {
+    /// Channel ID
+    pub channel_id: ChannelId,
+    /// Label ID associated with the channel
+    pub label_id: LabelId,
+    /// The device ID of the peer associated with this channel
+    pub peer_id: DeviceId,
+}
+
+impl RemoveIfParams {
+    /// Create a new [RemoveIfParams].
+    pub fn new(channel_id: ChannelId, label_id: LabelId, peer_id: DeviceId) -> Self {
+        Self {
+            channel_id,
+            label_id,
+            peer_id,
+        }
+    }
+}
+
 /// Aranya's view of the shared state.
 pub trait AranyaState {
     /// The error returned by `AranyaState`'s methods.
@@ -52,23 +73,14 @@ pub trait AranyaState {
         &self,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
+        peer_id: DeviceId,
     ) -> Result<ChannelId, Self::Error>;
-
-    /// Updates a channel.
-    ///
-    /// It is an error if the channel does not exist.
-    fn update(
-        &self,
-        id: ChannelId,
-        keys: Directed<Self::SealKey, Self::OpenKey>,
-        label_id: LabelId,
-    ) -> Result<(), Self::Error>;
 
     /// Removes an existing channel.
     ///
     /// It is not an error if the channel does not exist.
     fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
-        self.remove_if(|v| v == id)
+        self.remove_if(|p| p.channel_id == id)
     }
 
     /// Removes all existing channels.
@@ -78,10 +90,10 @@ pub trait AranyaState {
         self.remove_if(|_| true)
     }
 
-    /// Removes channels where `f(id)` returns true.
+    /// Removes channels where `f(params)` returns true.
     ///
     /// It is not an error if the channel does not exist.
-    fn remove_if(&self, f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error>;
+    fn remove_if(&self, f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
@@ -151,20 +163,13 @@ pub enum Directed<S, O> {
         /// Used for decryption.
         open: O,
     },
-    /// For bidirectional channels.
-    Bidirectional {
-        /// Used for encryption.
-        seal: S,
-        /// Used for decryption.
-        open: O,
-    },
 }
 
 impl<S, O> Directed<S, O> {
     /// Returns the secret used for encryption.
     pub fn seal(&self) -> Option<&S> {
         match self {
-            Self::SealOnly { seal } | Self::Bidirectional { seal, .. } => Some(seal),
+            Self::SealOnly { seal } => Some(seal),
             Self::OpenOnly { .. } => None,
         }
     }
@@ -172,7 +177,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for encryption.
     pub fn seal_mut(&mut self) -> Option<&mut S> {
         match self {
-            Self::SealOnly { seal } | Self::Bidirectional { seal, .. } => Some(seal),
+            Self::SealOnly { seal } => Some(seal),
             Self::OpenOnly { .. } => None,
         }
     }
@@ -180,7 +185,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for decryption.
     pub fn open(&self) -> Option<&O> {
         match self {
-            Self::OpenOnly { open } | Self::Bidirectional { open, .. } => Some(open),
+            Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
         }
     }
@@ -188,7 +193,7 @@ impl<S, O> Directed<S, O> {
     /// Returns the secret used for decryption.
     pub fn open_mut(&mut self) -> Option<&mut O> {
         match self {
-            Self::OpenOnly { open } | Self::Bidirectional { open, .. } => Some(open),
+            Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
         }
     }
@@ -204,10 +209,6 @@ impl<S, O> Directed<&S, &O> {
         match self {
             Self::SealOnly { seal } => Directed::SealOnly { seal: seal.clone() },
             Self::OpenOnly { open } => Directed::OpenOnly { open: open.clone() },
-            Self::Bidirectional { seal, open } => Directed::Bidirectional {
-                seal: seal.clone(),
-                open: open.clone(),
-            },
         }
     }
 }
@@ -218,7 +219,6 @@ impl<S, O> Directed<S, O> {
         match *self {
             Self::SealOnly { ref seal } => Directed::SealOnly { seal },
             Self::OpenOnly { ref open } => Directed::OpenOnly { open },
-            Self::Bidirectional { ref seal, ref open } => Directed::Bidirectional { seal, open },
         }
     }
 
@@ -232,10 +232,6 @@ impl<S, O> Directed<S, O> {
         match self.as_ref() {
             Directed::SealOnly { seal } => Directed::SealOnly { seal: seal.deref() },
             Directed::OpenOnly { open } => Directed::OpenOnly { open: open.deref() },
-            Directed::Bidirectional { seal, open } => Directed::Bidirectional {
-                seal: seal.deref(),
-                open: open.deref(),
-            },
         }
     }
 }
@@ -262,20 +258,6 @@ where
             (Self::OpenOnly { open: lhs }, Self::OpenOnly { open: rhs }) => {
                 bool::from(lhs.ct_eq(rhs))
             }
-            (
-                Self::Bidirectional {
-                    seal: lhs_seal,
-                    open: lhs_open,
-                },
-                Self::Bidirectional {
-                    seal: rhs_seal,
-                    open: rhs_open,
-                },
-            ) => {
-                let seal = lhs_seal.ct_eq(rhs_seal);
-                let open = lhs_open.ct_eq(rhs_open);
-                bool::from(seal & open)
-            }
             _ => false,
         }
     }
@@ -287,7 +269,6 @@ impl<S, O> Debug for Directed<S, O> {
         match self {
             Self::SealOnly { .. } => f.write_str("SealOnly { .. }"),
             Self::OpenOnly { .. } => f.write_str("OpenOnly { .. }"),
-            Self::Bidirectional { .. } => f.write_str("Bidirectional { .. }"),
         }
     }
 }
@@ -295,14 +276,14 @@ impl<S, O> Debug for Directed<S, O> {
 #[cfg(test)]
 mod test {
     use aranya_crypto::{
-        CipherSuite, Rng,
-        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
+        CipherSuite, DeviceId, Rng,
+        afc::{OpenKey, SealKey, UniOpenKey, UniSealKey},
         policy::LabelId,
     };
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed,
+        AfcState, AranyaState, ChannelId, Directed, RemoveIfParams,
         error::Error,
         memory,
         testing::{
@@ -366,22 +347,13 @@ mod test {
             &self,
             keys: Directed<Self::SealKey, Self::OpenKey>,
             label_id: LabelId,
+            peer_id: DeviceId,
         ) -> Result<ChannelId, Self::Error> {
-            let id = self.state.add(keys, label_id)?;
+            let id = self.state.add(keys, label_id, peer_id)?;
             Ok(id)
         }
 
-        fn update(
-            &self,
-            id: ChannelId,
-            keys: Directed<Self::SealKey, Self::OpenKey>,
-            label_id: LabelId,
-        ) -> Result<(), Self::Error> {
-            self.state.update(id, keys, label_id)?;
-            Ok(())
-        }
-
-        fn remove_if(&self, f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+        fn remove_if(&self, f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
             self.state.remove_if(f)?;
             Ok(())
         }
@@ -407,18 +379,6 @@ mod test {
             let afc = DefaultState::<CS>::new();
             let aranya = afc.clone();
             States { afc, aranya }
-        }
-
-        fn convert_bidi_keys<CS: CipherSuite>(
-            keys: BidiKeys<CS>,
-        ) -> (
-            <Self::Aranya<CS> as AranyaState>::SealKey,
-            <Self::Aranya<CS> as AranyaState>::OpenKey,
-        ) {
-            let (seal, open) = keys
-                .into_keys()
-                .expect("should be able to create `SealKey` and `OpenKey`");
-            (seal, open)
         }
 
         fn convert_uni_seal_key<CS: CipherSuite>(

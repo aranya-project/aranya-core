@@ -5,7 +5,7 @@ use std::{
     io::{Read as _, stdin},
 };
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
@@ -275,7 +275,7 @@ fn main() -> anyhow::Result<()> {
                     id: CmdId::default(),
                     author: DeviceId::default(),
                     parent_id: CmdId::default(),
-                    version: Id::default(),
+                    version: BaseId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let fields: BTreeMap<Identifier, Value> = args

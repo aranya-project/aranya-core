@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used)]
 
 use aranya_crypto::{
-    DeviceId, Id,
+    BaseId, DeviceId,
     default::{DefaultEngine, Rng},
     policy::CmdId,
 };
@@ -56,7 +56,7 @@ fn test_head_id() {
             id: CmdId::default(),
             author: DeviceId::default(),
             parent_id: CmdId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         assert_eq!(
             perspective
@@ -75,7 +75,7 @@ fn test_head_id() {
             id: CmdId::default(),
             author: DeviceId::default(),
             parent_id: CmdId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         assert_eq!(
             perspective

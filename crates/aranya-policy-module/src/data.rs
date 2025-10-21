@@ -3,11 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned as _, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
-pub use aranya_crypto::Id;
-use aranya_crypto::{
-    DeviceId, EncryptionKeyId, SigningKeyId,
-    policy::{CmdId, GroupId, LabelId, RoleId},
-};
+pub use aranya_id::BaseId;
+use aranya_id::{Id, IdTag};
 use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
@@ -86,7 +83,9 @@ impl_typed!(u8 => Int);
 
 impl_typed!(bool => Bool);
 
-impl_typed!(Id => Id);
+impl<Tag: IdTag> Typed for Id<Tag> {
+    const TYPE: Type<'static> = Type::Id;
+}
 
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
@@ -129,7 +128,7 @@ pub enum Value {
     /// Fact
     Fact(Fact),
     /// A unique identifier.
-    Id(Id),
+    Id(BaseId),
     /// Enumeration value
     Enum(Identifier, i64),
     /// Textual Identifier (name)
@@ -288,9 +287,9 @@ impl From<Fact> for Value {
     }
 }
 
-impl From<Id> for Value {
-    fn from(id: Id) -> Self {
-        Self::Id(id)
+impl<Tag: IdTag> From<Id<Tag>> for Value {
+    fn from(id: Id<Tag>) -> Self {
+        Self::Id(id.as_base())
     }
 }
 
@@ -399,12 +398,12 @@ impl TryFrom<Value> for Fact {
     }
 }
 
-impl TryFrom<Value> for Id {
+impl<Tag: IdTag> TryFrom<Value> for Id<Tag> {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         if let Value::Id(id) = value {
-            Ok(id)
+            Ok(Self::from_base(id))
         } else {
             Err(ValueConversionError::invalid_type(
                 "Id",
@@ -533,7 +532,7 @@ pub enum HashableValue {
     /// A string.
     String(Text),
     /// A unique identifier.
-    Id(Id),
+    Id(BaseId),
     /// Enum
     Enum(Identifier, i64),
 }
@@ -893,39 +892,3 @@ impl Display for Struct {
         write!(f, "}}")
     }
 }
-
-macro_rules! id_impls {
-    ($ty:ident) => {
-        impl_typed!($ty => Id);
-
-        impl From<$ty> for Value {
-            fn from(id: $ty) -> Self {
-                Value::Id(id.into())
-            }
-        }
-
-        impl TryFrom<Value> for $ty {
-            type Error = ValueConversionError;
-
-            fn try_from(value: Value) -> Result<Self, Self::Error> {
-                if let Value::Id(id) = value {
-                    Ok(id.into())
-                } else {
-                    Err(ValueConversionError::invalid_type(
-                        "Id",
-                        value.type_name(),
-                        concat!("Value -> ", stringify!($ty)),
-                    ))
-                }
-            }
-        }
-    }
-}
-
-id_impls!(DeviceId);
-id_impls!(EncryptionKeyId);
-id_impls!(SigningKeyId);
-id_impls!(CmdId);
-id_impls!(LabelId);
-id_impls!(GroupId);
-id_impls!(RoleId);
