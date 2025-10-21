@@ -117,7 +117,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     where
         T: UnwrappedKey<S>,
     {
-        let id = (*id).into();
+        let id = *id.as_ref();
         let mut tag = Tag::<S::Aead>::default();
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.

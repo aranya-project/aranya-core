@@ -239,7 +239,6 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
 
 custom_id! {
     /// Uniquely identifies a bidirectional channel.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct BidiChannelId;
 }
 

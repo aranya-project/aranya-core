@@ -58,7 +58,7 @@ pub trait Identified {
         + PartialOrd
         + serde::Serialize
         + serde::de::DeserializeOwned
-        + Into<BaseId>;
+        + AsRef<BaseId>;
 
     /// Uniquely identifies the object.
     fn id(&self) -> Result<Self::Id, IdError>;

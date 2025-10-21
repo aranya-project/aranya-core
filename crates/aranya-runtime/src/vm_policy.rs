@@ -119,6 +119,7 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow as _, cell::RefCell, fmt};
 
+use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
@@ -622,7 +623,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
-            version: CmdId::default().into(),
+            version: BaseId::default(),
         });
         self.evaluate_rule(
             kind,
