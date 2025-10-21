@@ -97,7 +97,7 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
-        let new_y = stuff.y + this.amount
+        let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -132,7 +132,7 @@ ephemeral command IncrementEphemeral {
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
-        let new_y = stuff.y + this.amount
+        let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}

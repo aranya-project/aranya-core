@@ -53,7 +53,7 @@ fn test_compile() {
         }
         action foo(b int) {
             let i = 4
-            let x = if b == 0 { :4+i } else { :3 }
+            let x = if b == 0 { :saturating_add(4, i) } else { :3 }
             let y = Foo{
                 a: x,
                 b: 4
@@ -83,7 +83,7 @@ fn test_undefined_struct() {
 fn test_function_no_return() {
     let text = r#"
         function f(x int) int {
-            let y = x + 1
+            let y = saturating_add(x, 1)
             // no return value
         }
     "#;
@@ -345,7 +345,7 @@ fn test_command_attributes_must_be_literals() {
     let texts = [
         r#"
         command A {
-            attributes { i: 2 + 1 }
+            attributes { i: saturating_add(2, 1) }
             seal { return todo() }
             open { return todo() }
         }"#,
@@ -917,7 +917,7 @@ fn test_fact_invalid_value_name() {
     let text = r#"
     fact Foo[k int]=>{x int}
     action test() {
-        check exists Foo[k: 1 + 1]=>{y: 5}
+        check exists Foo[k: saturating_add(1, 1)]=>{y: 5}
     }
     "#;
 
@@ -974,7 +974,7 @@ fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
         action test() {
-            check exists Foo[i: 1] => {a: 1+1}
+            check exists Foo[i: 1] => {a: saturating_add(1, 1)}
         }
     "#;
 
@@ -1408,7 +1408,7 @@ fn test_match_arm_should_be_limited_to_literals() {
         r#"
             action foo(x int) {
                 match x {
-                    0 + 1 => {}
+                    saturating_add(0, 1) => {}
                 }
             }
         "#,
@@ -1576,7 +1576,7 @@ fn test_global_let_duplicates() {
     let text = r#"
         let x = 10
         action foo() {
-            let x = x + 15
+            let x = saturating_add(x, 15)
         }
     "#;
 
@@ -1612,7 +1612,7 @@ fn test_invalid_finish_expressions() {
             command Test {
                 policy {
                     finish {
-                        create Foo[]=>{x:1+2}
+                        create Foo[]=>{x: saturating_add(1, 2)}
                     }
                 }
             }
@@ -1796,7 +1796,7 @@ fn test_type_errors() {
         Case {
             t: r#"
                 function f(x int) bool {
-                    return x + "foo"
+                    return saturating_add(x, "foo")
                 }
             "#,
             e: "Cannot do math on non-int types",
@@ -1812,7 +1812,7 @@ fn test_type_errors() {
         Case {
             t: r#"
                 function g() int {
-                    return "3" + "4"
+                    return saturating_add("3", "4")
                 }
             "#,
             e: "Cannot do math on non-int types",
@@ -1858,14 +1858,6 @@ fn test_type_errors() {
                 }
             "#,
             e: "Cannot compare non-int expressions",
-        },
-        Case {
-            t: r#"
-                function g(x string) bool {
-                    return -x
-                }
-            "#,
-            e: "cannot negate non-int expression of type string",
         },
         Case {
             t: r#"
@@ -2976,7 +2968,7 @@ fn if_expression_block() {
     let text = r#"
         action f(n int) {
             let x = if n > 1 {
-                let x = n + 1
+                let x = saturating_add(n, 1)
                 :x
             } else { :0 }
         }
@@ -3019,7 +3011,7 @@ fn test_function_used_before_definition() {
                 return x
             }
             if is_odd(n) {
-                return multiply(x, pow(double(x), divide((n-1), 2)))
+                return multiply(x, pow(double(x), divide(saturating_sub(n, 1), 2)))
             }
             return pow(double(x), divide(n, 2))
         }
@@ -3037,7 +3029,7 @@ fn test_function_used_before_definition() {
             if y == 0 { return 0 }
             if x == 1 { return y }
             if y == 1 { return x }
-            return (x+y) + multiply(x, y-1)
+            return saturating_add(unwrap add(x, y), multiply(x, saturating_sub(y, 1)))
         }
 
         function divide(x int, y int) int {
@@ -3074,8 +3066,8 @@ fn test_function_used_before_definition() {
             }
             return divide0(Division {
                 d: d,
-                q: q+1,
-                r: r-d,
+                q: saturating_add(q, 1),
+                r: saturating_sub(r, d),
             })
         }
     "#;
