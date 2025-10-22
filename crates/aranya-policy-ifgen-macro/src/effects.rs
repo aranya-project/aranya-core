@@ -48,5 +48,17 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                 }
             }
         }
+
+        #(
+            impl ::core::convert::TryFrom<#ident> for #idents {
+                type Error = #ident;
+                fn try_from(effects: #ident) -> ::core::result::Result<Self, Self::Error> {
+                    match effects {
+                        #ident::#idents(e) => Ok(e),
+                        _ => Err(effects)
+                    }
+                }
+            }
+        )*
     })
 }
