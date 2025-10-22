@@ -867,6 +867,28 @@ pub enum StmtKind {
     DebugAssert(Expression),
 }
 
+impl fmt::Display for StmtKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Let(_) => write!(f, "let"),
+            Self::Check(_) => write!(f, "check"),
+            Self::Assert(_) => write!(f, "assert"),
+            Self::Match(_) => write!(f, "match"),
+            Self::If(_) => write!(f, "if"),
+            Self::Finish(_) => write!(f, "finish"),
+            Self::Map(_) => write!(f, "map"),
+            Self::Return(_) => write!(f, "return"),
+            Self::ActionCall(_) => write!(f, "action call"),
+            Self::Publish(_) => write!(f, "publish"),
+            Self::Create(_) => write!(f, "create"),
+            Self::Update(_) => write!(f, "update"),
+            Self::Delete(_) => write!(f, "delete"),
+            Self::Emit(_) => write!(f, "emit"),
+            Self::FunctionCall(_) => write!(f, "function call"),
+            Self::DebugAssert(_) => write!(f, "debug_assert"),
+        }
+    }
+}
 /// A schema definition for a fact
 #[derive(
     Debug,
@@ -1095,6 +1117,8 @@ pub struct Policy {
     pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.
     pub finish_functions: Vec<FinishFunctionDefinition>,
+    /// The policy's action function definitions.
+    pub action_functions: Vec<FunctionDefinition>,
     /// The policy's global let statements.
     pub global_lets: Vec<GlobalLetStatement>,
     /// The source text

@@ -360,6 +360,11 @@ function_definition = { function_decl ~ statement_block }
 /// finish function foo(a int) { create F[]=>{} }
 finish_function_decl = { "finish" ~ "function" ~ identifier ~ function_arguments }
 finish_function_definition = { finish_function_decl ~ statement_block }
+// action function; can only be called from action blocks or other action functions
+// `action function foo(a int) int { return a }`
+action_function_decl = { "action" ~ "function" ~ identifier ~ function_arguments ~ vtype }
+action_function_definition = { action_function_decl ~ statement_block }
+
 // This let statement assigns a value to an identifier in a global scope
 // global let statements are overwritten by local ones.
 global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
@@ -367,13 +372,14 @@ global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
 top_level_statement = _{
     use_definition |
     fact_definition |
-    action_definition |
+    action_function_definition |
     effect_definition |
     struct_definition |
     enum_definition |
     command_definition |
     function_definition |
     finish_function_definition |
+    action_definition |
     global_let_statement }
 
 // The file is a series of top level statements. SOI and EOI are start/

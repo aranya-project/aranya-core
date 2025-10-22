@@ -2,7 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
+use aranya_policy_ast::{
+    self as ast, Expression, FieldDefinition, TypeKind, VType, Version, ident, text,
+};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Label, LabelType, Module, ModuleData, Struct, Value,
@@ -1114,6 +1116,90 @@ fn finish_block_should_exit() {
 }
 
 #[test]
+fn test_action_function_callable_from_actions_and_action_functions() {
+    let valid = [
+        (
+            "from action",
+            r#"
+            action function foo() int {
+                return 42
+            }
+
+            action baz() {
+                assert foo() == 42, "foo should be 42"
+            }
+            "#,
+        ),
+        (
+            "from action function",
+            r#"
+            action function foo() int {
+                return 42
+            }
+
+            action function bar() bool {
+                return foo() == 42
+            }
+            "#,
+        ),
+    ];
+
+    for (msg, text) in valid {
+        println!("testing valid case: {}", msg);
+        compile_pass(text);
+    }
+
+    let invalid = [
+        // finish functions are skipped because they cannot call functions anyway
+        (
+            "from pure function",
+            r#"
+            action function double(n int) int {
+                assert n > 0, "n must be positive"
+                return saturating_add(n, n)
+            }
+
+            function baz() int {
+                return double(2) // <- cannot call action function from pure function
+            }
+            "#,
+            "invalid expression".to_string(),
+        ),
+        (
+            "from command policy block",
+            r#"
+            action function foo() int {
+                return 42
+            }
+
+            command Bar {
+                fields {}
+                seal {
+                    return todo()
+                }
+                open {
+                    return todo()
+                }
+                policy {
+                    let x = foo() // <- cannot call action function from command policy block
+                }
+            }
+            "#,
+            "invalid expression".to_string(),
+        ),
+    ];
+
+    for (msg, text, _expected) in invalid {
+        let error = compile_fail(text);
+        assert!(
+            matches!(error, CompileErrorType::InvalidExpression(_)),
+            "case: {}",
+            msg
+        );
+    }
+}
+
+#[test]
 fn test_should_not_allow_bind_key_in_fact_creation() {
     let text = r#"
         fact F[i int] => {s string}
@@ -1528,7 +1614,7 @@ fn test_bad_statements() {
 
     for text in texts {
         let err = compile_fail(text);
-        assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+        assert!(matches!(err, CompileErrorType::InvalidStatement(_, _)));
     }
 }
 
@@ -2467,7 +2553,7 @@ fn test_action_call_without_action_keyword() {
     "#;
 
     let err = compile_fail(text);
-    assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+    assert!(matches!(err, CompileErrorType::InvalidStatement(_, _)));
 }
 
 #[test]
@@ -2481,7 +2567,7 @@ fn test_action_call_not_in_action_context() {
     "#;
 
     let err = compile_fail(text);
-    assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+    assert!(matches!(err, CompileErrorType::InvalidStatement(_, _)));
 }
 
 #[test]

@@ -74,10 +74,12 @@ function Role_Device() string {
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
-function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
+function authorized_device_key_ids(device_keys struct DeviceKeyBundle) optional struct NewDevice {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    assert got_device_id == device_keys.device_id, "invalid device id"
+    if got_device_id != device_keys.device_id {
+        return None
+    }
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
@@ -251,7 +253,7 @@ command AddDeviceKeys {
             sign_pk: this.sign_pk,
         }
 
-        let device = authorized_device_key_ids(device_keys)
+        let device = check_unwrap authorized_device_key_ids(device_keys)
 
         finish {
             create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}

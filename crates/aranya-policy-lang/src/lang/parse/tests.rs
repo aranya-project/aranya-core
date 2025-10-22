@@ -489,6 +489,24 @@ fn parse_function() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+fn parse_action_function() -> Result<(), PestError<Rule>> {
+    let src = r#"
+    action function foo(x int) bool {
+        return true
+    }
+    "#
+    .trim();
+    let policy = parse_policy_str(&src, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+    assert!(policy.action_functions.len() == 1);
+    let action_function = &policy.action_functions[0];
+    assert_eq!(action_function.identifier, "foo");
+    assert_eq!(action_function.arguments.len(), 1);
+    assert_eq!(action_function.return_type.kind, TypeKind::Bool);
+
+    Ok(())
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
     let src = r#"

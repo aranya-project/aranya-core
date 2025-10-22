@@ -1512,7 +1512,7 @@ impl ChunkParser<'_> {
 
         assert!(matches!(
             rule,
-            Rule::function_decl | Rule::finish_function_decl
+            Rule::function_decl | Rule::finish_function_decl | Rule::action_function_decl
         ));
 
         let pc = descend(item);
@@ -1524,7 +1524,7 @@ impl ChunkParser<'_> {
             arguments.push(self.parse_field_definition(field)?);
         }
 
-        let return_type = if rule == Rule::function_decl {
+        let return_type = if rule == Rule::function_decl || rule == Rule::action_function_decl {
             Some(pc.consume_type(self)?)
         } else {
             None
@@ -1577,6 +1577,32 @@ impl ChunkParser<'_> {
         Ok(ast::FinishFunctionDefinition {
             identifier: decl.identifier,
             arguments: decl.arguments,
+            statements,
+            span,
+        })
+    }
+
+    /// Parse a `Rule::action_function_definition` into an [ActionFunctionDefinition](ast::ActionFunctionDefinition).
+    fn parse_action_function_definition(
+        &self,
+        item: Pair<'_, Rule>,
+    ) -> Result<ast::FunctionDefinition, ParseError> {
+        let span = self.to_ast_span(item.as_span())?;
+        let pc = descend(item);
+
+        let decl = pc.consume()?;
+        let decl = self.parse_function_decl(decl)?;
+        let return_type = decl
+            .return_type
+            .expect("action function definition must have return type");
+
+        // All remaining tokens are function statements
+        let statements = self.parse_statement_list(pc.into_inner())?;
+
+        Ok(ast::FunctionDefinition {
+            identifier: decl.identifier,
+            arguments: decl.arguments,
+            return_type,
             statements,
             span,
         })
@@ -1709,6 +1735,11 @@ fn parse_policy_chunk_inner(
             Rule::finish_function_definition => policy
                 .finish_functions
                 .push(p.parse_finish_function_definition(item)?),
+            Rule::action_function_definition => {
+                policy
+                    .action_functions
+                    .push(p.parse_action_function_definition(item)?);
+            }
             Rule::global_let_statement => {
                 policy.global_lets.push(p.parse_global_let_statement(item)?);
             }

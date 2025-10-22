@@ -1,6 +1,6 @@
 use std::fmt;
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, StmtKind};
 use aranya_policy_module::CodeMap;
 use buggy::Bug;
 
@@ -15,14 +15,17 @@ pub enum InvalidCallColor {
     /// The call is a finish function
     #[error("finish function not allowed in expression")]
     Finish,
+    /// The call is an action function
+    #[error("action function not allowed in non-action context")]
+    Action,
 }
 
 /// Errors that can occur during compilation.
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum CompileErrorType {
     /// Invalid statement - a statement was used in an invalid context.
-    #[error("invalid statement in {0} context")]
-    InvalidStatement(StatementContext),
+    #[error("invalid statement `{0}` in {1} context")]
+    InvalidStatement(StmtKind, StatementContext),
     /// Invalid expression - the expression does not make sense in context.
     #[error("invalid expression: {0:?}")]
     InvalidExpression(ast::Expression),
