@@ -2540,11 +2540,11 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check true
+            assert true, "true"
             // before
-            check false
+            assert false, "false"
             // after
-            check true
+            assert true, "true"
         }
     "#;
 
@@ -2557,14 +2557,14 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Panic(text!("false")));
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
         source,
         concat!(
             "at row 5 col 13:\n",
-            "\tcheck false\n",
+            "\tassert false, \"false\"\n",
             "            // after\n",
             "            "
         )

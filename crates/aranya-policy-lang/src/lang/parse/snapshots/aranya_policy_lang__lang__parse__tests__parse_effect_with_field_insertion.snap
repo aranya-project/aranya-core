@@ -91,6 +91,7 @@ expression: policy
   "commands": [],
   "functions": [],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [],
   "text": "struct Foo { x int }\n        effect Bar {\n            +Foo,\n            y int\n        }\n        "
 }

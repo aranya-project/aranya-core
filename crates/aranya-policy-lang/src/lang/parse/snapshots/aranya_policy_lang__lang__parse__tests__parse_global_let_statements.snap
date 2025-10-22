@@ -208,6 +208,7 @@ expression: policy
   "commands": [],
   "functions": [],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [
     {
       "identifier": {

@@ -162,6 +162,7 @@ expression: policy
   "commands": [],
   "functions": [],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [],
   "text": "\n    action foo() {\n        let x = {\n            let a = 3\n            let b = 4\n            : unwrap saturating_add(a, b)\n        }\n    }\n    "
 }

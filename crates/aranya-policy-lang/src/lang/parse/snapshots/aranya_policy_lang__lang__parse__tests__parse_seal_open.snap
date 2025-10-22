@@ -124,6 +124,7 @@ expression: policy
   ],
   "functions": [],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [],
   "text": "command Foo {\n            seal {\n                return bar(this)\n            }\n\n            open {\n                return baz(envelope)\n            }\n        }"
 }

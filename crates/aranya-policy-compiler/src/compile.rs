@@ -32,12 +32,14 @@ pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{DisplayType, IdentifierTypeStack, Typeish};
 use crate::compile::types::NullableVType;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum FunctionColor {
     /// Function has no side-effects and returns a value
     Pure(VType),
     /// Function has side-effects and returns no value
     Finish,
+    /// Function is an action function
+    Action(VType),
 }
 
 /// This is like [FunctionDefinition](ast::FunctionDefinition), but
@@ -55,6 +57,8 @@ struct FunctionSignature {
 pub enum StatementContext {
     /// An action
     Action(ast::ActionDefinition),
+    /// An action function
+    ActionFunction(ast::FunctionDefinition),
     /// A command policy block
     CommandPolicy(ast::CommandDefinition),
     /// A command recall block
@@ -69,6 +73,7 @@ impl fmt::Display for StatementContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Action(_) => write!(f, "action"),
+            Self::ActionFunction(_) => write!(f, "action function"),
             Self::CommandPolicy(_) => write!(f, "command policy block"),
             Self::CommandRecall(_) => write!(f, "command recall block"),
             Self::PureFunction(_) => write!(f, "pure function"),
@@ -317,6 +322,33 @@ impl<'a> CompileState<'a> {
                         .map(|a| (a.identifier.name.clone(), a.field_type.clone()))
                         .collect(),
                     color: FunctionColor::Pure(def.return_type.clone()),
+                };
+                Ok(e.insert(signature))
+            }
+            Entry::Occupied(_) => Err(CompileError::from_span(
+                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
+                def.span,
+                self.m.codemap.as_ref(),
+            )),
+        }
+    }
+
+    /// Turn a [FunctionDefinition](ast::FunctionDefinition) into a
+    /// [FunctionSignature].
+    fn define_action_function_signature(
+        &mut self,
+        function_node: &'a ast::FunctionDefinition,
+    ) -> Result<&FunctionSignature, CompileError> {
+        let def = function_node;
+        match self.function_signatures.entry(&def.identifier.name) {
+            Entry::Vacant(e) => {
+                let signature = FunctionSignature {
+                    args: def
+                        .arguments
+                        .iter()
+                        .map(|a| (a.identifier.name.clone(), a.field_type.clone()))
+                        .collect(),
+                    color: FunctionColor::Action(def.return_type.clone()),
                 };
                 Ok(e.insert(signature))
             }
@@ -917,34 +949,35 @@ impl<'a> CompileState<'a> {
                 }
             },
             ExprKind::FunctionCall(f) => {
-                let signature = self
+                let sig = self
                     .function_signatures
                     .get(&f.identifier.name)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(f.identifier.to_string()))
                     })?;
-                // Check that this function is the right color - only
-                // pure functions are allowed in expressions.
-                let FunctionColor::Pure(return_type) = signature.color.clone() else {
-                    return Err(
-                        self.err(CompileErrorType::InvalidCallColor(InvalidCallColor::Finish))
-                    );
-                };
-                // For now all we can do is check that the argument
-                // list has the same length.
-                // TODO(chip): Do more deep type analysis to check
-                // arguments and return types.
-                if signature.args.len() != f.arguments.len() {
-                    return Err(self.err(CompileErrorType::BadArgument(format!(
-                        "call to `{}` has {} arguments and it should have {}",
-                        f.identifier,
-                        f.arguments.len(),
-                        signature.args.len()
-                    ))));
-                }
-                self.compile_function_call(f, false)?;
 
-                Typeish::known(return_type)
+                let color = &sig.color.clone();
+                let return_type = match color {
+                    FunctionColor::Finish => {
+                        return Err(
+                            self.err(CompileErrorType::InvalidExpression(expression.clone()))
+                        );
+                    }
+                    FunctionColor::Pure(vtype) => vtype,
+                    FunctionColor::Action(vtype) => {
+                        // action functions can only be called within action contexts
+                        match self.get_statement_context()? {
+                            StatementContext::Action(_) | StatementContext::ActionFunction(_) => {}
+                            _ => {
+                                return Err(self
+                                    .err(CompileErrorType::InvalidExpression(expression.clone())));
+                            }
+                        }
+                        vtype
+                    }
+                };
+                self.compile_function_call(f)?;
+                Typeish::known(return_type.clone())
             }
             ExprKind::ForeignFunctionCall(f) => {
                 // If the policy hasn't imported this module, don't allow using it
@@ -1496,7 +1529,7 @@ impl<'a> CompileState<'a> {
                 }
                 (
                     StmtKind::Assert(s),
-                    StatementContext::Action(_) | StatementContext::PureFunction(_),
+                    StatementContext::Action(_) | StatementContext::ActionFunction(_),
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
@@ -1601,7 +1634,10 @@ impl<'a> CompileState<'a> {
                         .map_err(|err| self.err(err))?;
                     self.append_instruction(Instruction::Publish);
                 }
-                (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
+                (
+                    StmtKind::Return(s),
+                    StatementContext::PureFunction(fd) | StatementContext::ActionFunction(fd),
+                ) => {
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&fd.return_type) {
@@ -1805,41 +1841,34 @@ impl<'a> CompileState<'a> {
                         .map_err(|err| self.err(err))?;
                     self.append_instruction(Instruction::Emit);
                 }
-                (StmtKind::FunctionCall(f), StatementContext::Finish) => {
+                (StmtKind::FunctionCall(fc), StatementContext::Finish) => {
                     let signature = self
                         .function_signatures
-                        .get(&f.identifier.name)
+                        .get(&fc.identifier.name)
                         .ok_or_else(|| {
                             self.err_loc(
-                                CompileErrorType::NotDefined(f.identifier.to_string()),
+                                CompileErrorType::NotDefined(fc.identifier.to_string()),
                                 statement.span,
                             )
                         })?;
-                    // Check that this function is the right color -
-                    // only finish functions are allowed in finish
-                    // blocks.
-                    if let FunctionColor::Pure(_) = signature.color {
-                        return Err(self.err_loc(
-                            CompileErrorType::InvalidCallColor(InvalidCallColor::Pure),
-                            statement.span,
-                        ));
+
+                    match signature.color {
+                        FunctionColor::Finish => {}
+                        FunctionColor::Pure(_) => {
+                            return Err(self.err_loc(
+                                CompileErrorType::InvalidCallColor(InvalidCallColor::Pure),
+                                statement.span,
+                            ));
+                        }
+                        FunctionColor::Action(_) => {
+                            return Err(self.err_loc(
+                                CompileErrorType::InvalidCallColor(InvalidCallColor::Action),
+                                statement.span,
+                            ));
+                        }
                     }
-                    // For now all we can do is check that the argument
-                    // list has the same length.
-                    // TODO(chip): Do more deep type analysis to check
-                    // arguments and return types.
-                    if signature.args.len() != f.arguments.len() {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(format!(
-                                "call to `{}` has {} arguments but it should have {}",
-                                f.identifier,
-                                f.arguments.len(),
-                                signature.args.len()
-                            )),
-                            statement.span,
-                        ));
-                    }
-                    self.compile_function_call(f, true)?;
+
+                    self.compile_function_call(fc)?;
                 }
                 (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
                     let Some(action_def) = self
@@ -1912,10 +1941,11 @@ impl<'a> CompileState<'a> {
                         ))));
                     }
                 }
-                (_, _) => {
-                    return Err(
-                        self.err_loc(CompileErrorType::InvalidStatement(context), statement.span)
-                    );
+                (stmt, _) => {
+                    return Err(self.err_loc(
+                        CompileErrorType::InvalidStatement(stmt.clone(), context),
+                        statement.span,
+                    ));
                 }
             }
         }
@@ -2036,20 +2066,31 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn compile_function_call(
-        &mut self,
-        fc: &FunctionCall,
-        is_finish: bool,
-    ) -> Result<(), CompileError> {
-        let arg_defs = self
+    /// Compile a function call.
+    /// Returns Some(return_type) if the function has a return value (for use in expressions).
+    /// Returns None for functions without return values (finish functions).
+    fn compile_function_call(&mut self, fc: &FunctionCall) -> Result<(), CompileError> {
+        // Look up the function signature
+        let sig = self
             .function_signatures
             .get(&fc.identifier.name)
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.to_string())))?
-            .args
-            .clone();
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.to_string())))?;
 
-        for (i, ((def_name, def_t), arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate()
-        {
+        let color = sig.color.clone();
+
+        // Check argument count
+        if sig.args.len() != fc.arguments.len() {
+            return Err(self.err(CompileErrorType::BadArgument(format!(
+                "call to `{}` has {} arguments and it should have {}",
+                fc.identifier,
+                fc.arguments.len(),
+                sig.args.len()
+            ))));
+        }
+
+        // Check argument types
+        let args = sig.args.clone();
+        for (i, ((def_name, def_t), arg_e)) in args.iter().zip(fc.arguments.iter()).enumerate() {
             let arg_t = self.compile_expression(arg_e)?;
             if !arg_t.fits_type(def_t) {
                 let arg_n = i
@@ -2066,15 +2107,18 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        // Generate the call instruction
         let label = Label::new(
             fc.identifier.name.clone(),
-            if is_finish {
+            // TODO document why we use Temporary here for finish functions
+            if color == FunctionColor::Finish {
                 LabelType::Temporary
             } else {
                 LabelType::Function
             },
         );
         self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+
         Ok(())
     }
 
@@ -2805,8 +2849,18 @@ impl<'a> CompileState<'a> {
             self.define_function_signature(function_def)?;
         }
 
+        for function_def in &self.policy.action_functions {
+            self.define_action_function_signature(function_def)?;
+        }
+
         for function_def in &self.policy.functions {
             self.enter_statement_context(StatementContext::PureFunction(function_def.clone()));
+            self.compile_function(function_def)?;
+            self.exit_statement_context();
+        }
+
+        for function_def in &self.policy.action_functions {
+            self.enter_statement_context(StatementContext::ActionFunction(function_def.clone()));
             self.compile_function(function_def)?;
             self.exit_statement_context();
         }

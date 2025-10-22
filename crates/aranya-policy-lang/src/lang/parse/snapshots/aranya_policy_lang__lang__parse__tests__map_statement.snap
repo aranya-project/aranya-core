@@ -132,6 +132,7 @@ expression: policy
   "commands": [],
   "functions": [],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [],
   "text": "\n        fact Foo[i int]=>{n int}\n        action foo() {\n            map Foo[i:1] as f {\n            }\n        }\n    "
 }
