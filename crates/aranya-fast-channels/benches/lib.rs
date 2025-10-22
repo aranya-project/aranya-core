@@ -20,7 +20,7 @@ use aranya_crypto::{
     typenum::U16,
 };
 use aranya_fast_channels::{
-    AranyaState as _, ChannelId, Client, Directed,
+    AranyaState as _, Client, Directed, LocalChannelId,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
 };
@@ -120,7 +120,7 @@ macro_rules! bench_impl {
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
 
-			let chans: [(ChannelId, ChannelId); USED_CHANS] = array::from_fn(|_| {
+			let chans: [(LocalChannelId, LocalChannelId); USED_CHANS] = array::from_fn(|_| {
 				let label = LabelId::random(&mut Rng);
 
 				// Use the same key to simplify the decryption

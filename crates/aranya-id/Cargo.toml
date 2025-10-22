@@ -28,6 +28,8 @@ proptest = ["dep:proptest"]
 [dependencies]
 spideroak-base58 = { workspace = true, default-features = false }
 
+derive-where = { workspace = true }
+paste = { version = "1", default-features = false }
 proptest = { workspace = true, default-features = false, optional = true }
 rkyv = { workspace = true, default-features = false }
 serde = { workspace = true, default-features = false }

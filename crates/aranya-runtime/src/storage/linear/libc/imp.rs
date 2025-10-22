@@ -12,7 +12,10 @@ use tracing::{error, warn};
 use super::error::Error;
 use crate::{
     GraphId, Location, StorageError,
-    linear::io::{IoManager, Read, Write},
+    linear::{
+        io::{IoManager, Read, Write},
+        libc::IdPath,
+    },
 };
 
 struct GraphIdIterator {
@@ -104,7 +107,7 @@ impl IoManager for FileManager {
     type Writer = Writer;
 
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         let fd = libc::openat(
             self.root(),
             name,
@@ -117,7 +120,7 @@ impl IoManager for FileManager {
     }
 
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
             Ok(fd) => fd,
             Err(Errno::ENOENT) => return Ok(None),
@@ -128,7 +131,7 @@ impl IoManager for FileManager {
     }
 
     fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         libc::unlinkat(self.root(), name, 0)?;
 
         Ok(())

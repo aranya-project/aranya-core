@@ -417,7 +417,7 @@ impl<CS: CipherSuite> Encap<CS> {
         Ok(Self(enc))
     }
 
-    #[cfg(any(feature = "afc", feature = "aqc"))]
+    #[cfg(feature = "afc")]
     pub(crate) fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         &self.0
     }
