@@ -105,7 +105,7 @@ macro_rules! __test_impl {
 
             // Unidirectional tests.
 			test!(test_unidirectional_basic);
-			// test!(test_unidirectional_exhaustive);
+			test!(test_unidirectional_exhaustive);
 
             // Negative tests.
 			test!(test_open_truncated_tag);
