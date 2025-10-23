@@ -45,7 +45,8 @@
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
-//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId,
+//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId, OpenChannelCtx,
+//!     SealChannelCtx,
 //!     crypto::Aes256Gcm,
 //!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };
@@ -137,7 +138,15 @@
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
+//!
+//!     // Create the ctx to pass in.
+//!     let mut ctx = SealChannelCtx::new(label_id);
+//!     afc_client_a.seal(
+//!         client_a_channel_id,
+//!         &mut ctx,
+//!         &mut dst[..],
+//!         GOLDEN.as_bytes(),
+//!     )?;
 //!     dst
 //! };
 //!
@@ -147,8 +156,10 @@
 //! // Have device2 decrypt the data from device1.
 //! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
+//!     // Create the ctx to pass in.
+//!     let mut ctx = OpenChannelCtx::new(label_id);
 //!     let (label_id, seq) =
-//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
+//!         afc_client_b.open(client_b_channel_id, &mut ctx, &mut dst[..], &ciphertext[..])?;
 //!     (label_id, seq, dst)
 //! };
 //!
