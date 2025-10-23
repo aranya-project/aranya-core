@@ -80,7 +80,7 @@ where
             Some((chan, idx)) => (chan, idx),
         };
 
-        let label_id = *ctx.label();
+        let label_id = *ctx.label_id();
         let maybe_key = ctx.seal_mut()?;
         let mut key = match maybe_key {
             None => maybe_key.insert(SealKey::from_raw(&chan.seal_key, Seq::ZERO)?),
@@ -112,7 +112,7 @@ where
             Some((chan, idx)) => (chan, idx),
         };
 
-        let label_id = *ctx.label();
+        let label_id = *ctx.label_id();
         let maybe_key = ctx.open_mut()?;
         let key = match maybe_key {
             None => maybe_key.insert(OpenKey::from_raw(&chan.open_key)?),
