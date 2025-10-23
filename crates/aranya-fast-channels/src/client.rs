@@ -11,6 +11,7 @@ use buggy::BugExt as _;
 use crate::features::*;
 use crate::{
     buf::Buf,
+    ctx::{OpenChannelCtx, SealChannelCtx},
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
     state::{AfcState, LocalChannelId},
@@ -61,6 +62,7 @@ impl<S: AfcState> Client<S> {
     pub fn seal(
         &mut self,
         id: LocalChannelId,
+        ctx: &mut SealChannelCtx<S::CipherSuite>,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -81,7 +83,7 @@ impl<S: AfcState> Client<S> {
             .split_last_chunk_mut()
             .assume("we've already checked that `dst` contains enough space")?;
 
-        self.do_seal(id, header, |aead, ad| {
+        self.do_seal(id, ctx, header, |aead, ad| {
             aead.seal(out, plaintext, ad).map_err(Into::into)
         })
         // This isn't necessary since AEAD encryption shouldn't
@@ -99,6 +101,7 @@ impl<S: AfcState> Client<S> {
     pub fn seal_in_place<T: Buf>(
         &mut self,
         id: LocalChannelId,
+        ctx: &mut SealChannelCtx<S::CipherSuite>,
         data: &mut T,
     ) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
@@ -122,7 +125,7 @@ impl<S: AfcState> Client<S> {
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
 
-        self.do_seal(id, header, |aead, ad| {
+        self.do_seal(id, ctx, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
         })
         // This isn't strictly necessary since AEAD
@@ -139,6 +142,7 @@ impl<S: AfcState> Client<S> {
     fn do_seal<F>(
         &mut self,
         id: LocalChannelId,
+        ctx: &mut SealChannelCtx<S::CipherSuite>,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>
@@ -150,7 +154,7 @@ impl<S: AfcState> Client<S> {
     {
         debug!("finding seal info: id={id}");
 
-        let seq = self.state.seal(id, |aead, label_id| {
+        let seq = self.state.seal(id, ctx, |aead, label_id| {
             debug!("encrypting id={id}");
 
             let ad = AuthData {
@@ -182,6 +186,7 @@ impl<S: AfcState> Client<S> {
     pub fn open(
         &self,
         local_channel_id: LocalChannelId,
+        ctx: &mut OpenChannelCtx<S::CipherSuite>,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<(LabelId, Seq), Error> {
@@ -215,7 +220,7 @@ impl<S: AfcState> Client<S> {
         }
 
         let label_id = self
-            .do_open(local_channel_id, seq, |aead, ad, seq| {
+            .do_open(local_channel_id, ctx, seq, |aead, ad, seq| {
                 aead.open(dst, ciphertext, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -242,6 +247,7 @@ impl<S: AfcState> Client<S> {
     pub fn open_in_place<T: Buf>(
         &self,
         local_channel_id: LocalChannelId,
+        ctx: &mut OpenChannelCtx<S::CipherSuite>,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
@@ -272,7 +278,7 @@ impl<S: AfcState> Client<S> {
 
         let plaintext_len = out.len();
         let label_id = self
-            .do_open(local_channel_id, seq, |aead, ad, seq| {
+            .do_open(local_channel_id, ctx, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -290,7 +296,13 @@ impl<S: AfcState> Client<S> {
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: LocalChannelId, seq: Seq, f: F) -> Result<T, Error>
+    fn do_open<F, T>(
+        &self,
+        id: LocalChannelId,
+        ctx: &mut OpenChannelCtx<S::CipherSuite>,
+        seq: Seq,
+        f: F,
+    ) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -300,7 +312,7 @@ impl<S: AfcState> Client<S> {
     {
         debug!("decrypting: id={id}");
 
-        self.state.open(id, |aead, label_id| {
+        self.state.open(id, ctx, |aead, label_id| {
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
