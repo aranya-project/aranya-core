@@ -48,15 +48,17 @@ pub mod ctx {
     //! [AFC Client][crate::client::Client]
     use core::marker::PhantomData;
 
+    #[cfg(any(feature = "sdlib", feature = "posix"))]
     use buggy::{Bug, BugExt as _};
 
-    use super::*;
+    use super::{CipherSuite, Directed, LabelId, OpenKey, SealKey};
 
     type MaybeSealKey<CS> = Option<SealKey<CS>>;
     type MaybeOpenKey<CS> = Option<OpenKey<CS>>;
 
     /// Contains the key(s) and label ID associated with a channel
     pub struct ChannelCtx<CS: CipherSuite, Op> {
+        #[cfg_attr(not(any(feature = "sdlib", feature = "posix")), allow(dead_code))]
         key: Directed<MaybeSealKey<CS>, MaybeOpenKey<CS>>,
         label: LabelId,
         _op: PhantomData<Op>,
@@ -82,6 +84,7 @@ pub mod ctx {
             }
         }
 
+        #[cfg(any(feature = "sdlib", feature = "posix"))]
         pub(crate) fn seal_mut(&mut self) -> Result<&mut Option<SealKey<CS>>, Bug> {
             self.key
                 .seal_mut()
@@ -99,6 +102,7 @@ pub mod ctx {
             }
         }
 
+        #[cfg(any(feature = "sdlib", feature = "posix"))]
         pub(crate) fn open_mut(&mut self) -> Result<&mut Option<OpenKey<CS>>, Bug> {
             self.key
                 .open_mut()
