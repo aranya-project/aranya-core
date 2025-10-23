@@ -132,7 +132,7 @@ pub const POLICY_MATCH: &str = r#"
                 publish Result { x: x }
             }
             _ => { 
-                publish Result { x: 1 + x }
+                publish Result { x: saturating_add(1, x) }
             }
         }
     }
