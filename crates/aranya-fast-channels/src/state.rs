@@ -23,7 +23,7 @@ pub trait AfcState {
     fn seal<F, T>(
         &self,
         id: LocalChannelId,
-        ctx: &mut ctx::SealChannelCtx<Self::CipherSuite>,
+        ctx: &mut SealChannelCtx<Self::CipherSuite>,
         f: F,
     ) -> Result<Result<T, Error>, Error>
     where
@@ -33,7 +33,7 @@ pub trait AfcState {
     fn open<F, T>(
         &self,
         id: LocalChannelId,
-        ctx: &mut ctx::OpenChannelCtx<Self::CipherSuite>,
+        ctx: &mut OpenChannelCtx<Self::CipherSuite>,
         f: F,
     ) -> Result<Result<T, Error>, Error>
     where
@@ -64,8 +64,8 @@ pub mod ctx {
         pub struct Seal;
     }
 
-    pub type SealChannelCtx<CS: CipherSuite> = ChannelCtx<CS, private::Seal>;
-    pub type OpenChannelCtx<CS: CipherSuite> = ChannelCtx<CS, private::Open>;
+    pub type SealChannelCtx<CS> = ChannelCtx<CS, private::Seal>;
+    pub type OpenChannelCtx<CS> = ChannelCtx<CS, private::Open>;
 
     impl<CS: CipherSuite> SealChannelCtx<CS> {
         pub fn new(label: LabelId) -> Self {
