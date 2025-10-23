@@ -44,6 +44,8 @@ pub trait AfcState {
 }
 
 pub mod ctx {
+    //! Contains the [ChannelCtx] type passed to the seal/open methods on
+    //! [AFC Client][crate::client::Client]
     use core::marker::PhantomData;
 
     use buggy::{Bug, BugExt as _};
@@ -53,6 +55,7 @@ pub mod ctx {
     type MaybeSealKey<CS> = Option<SealKey<CS>>;
     type MaybeOpenKey<CS> = Option<OpenKey<CS>>;
 
+    /// Contains the key(s) and label ID associated with a channel
     pub struct ChannelCtx<CS: CipherSuite, Op> {
         key: Directed<MaybeSealKey<CS>, MaybeOpenKey<CS>>,
         label: LabelId,
@@ -64,10 +67,13 @@ pub mod ctx {
         pub struct Seal;
     }
 
+    /// [ChannelCtx] used for seal operations.
     pub type SealChannelCtx<CS> = ChannelCtx<CS, private::Seal>;
+    /// [ChannelCtx] used for open operations.
     pub type OpenChannelCtx<CS> = ChannelCtx<CS, private::Open>;
 
     impl<CS: CipherSuite> SealChannelCtx<CS> {
+        /// Creates a new [ChannelCtx].
         pub fn new(label: LabelId) -> Self {
             Self {
                 key: Directed::SealOnly { seal: None },
@@ -84,6 +90,7 @@ pub mod ctx {
     }
 
     impl<CS: CipherSuite> OpenChannelCtx<CS> {
+        /// Creates a new [ChannelCtx].
         pub fn new(label: LabelId) -> Self {
             Self {
                 key: Directed::OpenOnly { open: None },
@@ -100,7 +107,8 @@ pub mod ctx {
     }
 
     impl<CS: CipherSuite, Op> ChannelCtx<CS, Op> {
-        pub fn label(&self) -> &LabelId {
+        /// Returns the label ID.
+        pub fn label_id(&self) -> &LabelId {
             &self.label
         }
     }
