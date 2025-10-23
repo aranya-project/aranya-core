@@ -9,7 +9,7 @@ use core::{
 
 use aranya_crypto::{
     CipherSuite, Csprng, DeviceId, Random,
-    afc::{RawOpenKey, RawSealKey, Seq},
+    afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     policy::LabelId,
 };

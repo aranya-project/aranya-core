@@ -1,10 +1,4 @@
-use core::{
-    cell::Cell,
-    fmt::Debug,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    sync::atomic::Ordering,
-};
+use core::{cell::Cell, fmt::Debug, marker::PhantomData, sync::atomic::Ordering};
 
 use aranya_crypto::{
     CipherSuite,
@@ -12,43 +6,17 @@ use aranya_crypto::{
     policy::LabelId,
 };
 use buggy::BugExt as _;
-use derive_where::derive_where;
 
 use super::{
     error::Error,
     path::{Flag, Mode, Path},
-    shared::{Index, KeyId, Op, State},
+    shared::{Op, State},
 };
 use crate::{
     ctx::{OpenChannelCtx, SealChannelCtx},
-    mutex::StdMutex,
     state::{AfcState, LocalChannelId},
     util::debug,
 };
-
-/// The key used for the recent successful invocation of `seal`
-/// or `open`.
-#[derive(Clone)]
-#[derive_where(Debug)]
-struct Cache<K> {
-    /// The channel the key is for.
-    id: LocalChannelId,
-    /// The label ID associated with the channel.
-    label_id: LabelId,
-    #[derive_where(skip)]
-    /// The cached key.
-    key: K,
-    /// The `ChanList`'s generation when this key was cached.
-    ///
-    /// Used to quickly determine whether the cache is stale.
-    generation: u32,
-    /// Index of the channel in the `ChanList`.
-    ///
-    /// Used as a hint when retrieving the updated channel
-    /// information after the `ChanList`'s generation has
-    /// changed.
-    idx: Index,
-}
 
 /// The reader's view of the shared memory state.
 #[derive(Debug)]
@@ -58,12 +26,6 @@ where
 {
     // `pub(super)` for testing.
     pub(super) inner: State<CS>,
-
-    // APS is typically used to seal/open many messages with the
-    // same peer, so cache the most recent successful invocations
-    // of seal/open.
-    last_seal: StdMutex<Option<Cache<CachedSealKey<CS>>>>,
-    last_open: StdMutex<Option<Cache<OpenKey<CS>>>>,
 
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
@@ -80,8 +42,6 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
-            last_seal: StdMutex::new(None),
-            last_open: StdMutex::new(None),
             _no_sync: PhantomData,
         })
     }
@@ -112,7 +72,7 @@ where
         //
         // NB: we load the generation before traversing the list
         // to avoid ownership conflicts with `chan`.
-        let generation = list.generation.load(Ordering::Relaxed);
+        let _generation = list.generation.load(Ordering::Relaxed);
 
         // TODO: Don't eagerly search list. Compare to generation
         let (chan, _idx) = match list.find_mut(id, None, Op::Seal)? {
@@ -167,23 +127,5 @@ where
         let mutex = self.inner.load_read_list()?;
         let list = mutex.lock().assume("poisoned")?;
         Ok(list.exists(id, None, Op::Any)?)
-    }
-}
-
-struct CachedSealKey<CS: CipherSuite> {
-    key: SealKey<CS>,
-    id: KeyId,
-}
-
-impl<CS: CipherSuite> Deref for CachedSealKey<CS> {
-    type Target = SealKey<CS>;
-    fn deref(&self) -> &Self::Target {
-        &self.key
-    }
-}
-
-impl<CS: CipherSuite> DerefMut for CachedSealKey<CS> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.key
     }
 }
