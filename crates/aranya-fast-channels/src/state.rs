@@ -20,18 +20,105 @@ pub trait AfcState {
     type CipherSuite: CipherSuite;
 
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(
+        &self,
+        id: LocalChannelId,
+        ctx: &mut SealChannelCtx<Self::CipherSuite>,
+        f: F,
+    ) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(
+        &self,
+        id: LocalChannelId,
+        ctx: &mut OpenChannelCtx<Self::CipherSuite>,
+        f: F,
+    ) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Reports whether the channel exists.
     fn exists(&self, id: LocalChannelId) -> Result<bool, Error>;
 }
+
+pub mod ctx {
+    //! Contains the [ChannelCtx] type passed to the seal/open methods on
+    //! [AFC Client][crate::client::Client]
+    use core::marker::PhantomData;
+
+    #[cfg(any(feature = "sdlib", feature = "posix"))]
+    use buggy::{Bug, BugExt as _};
+
+    use super::{CipherSuite, Directed, LabelId, OpenKey, SealKey};
+
+    type MaybeSealKey<CS> = Option<SealKey<CS>>;
+    type MaybeOpenKey<CS> = Option<OpenKey<CS>>;
+
+    /// Contains the key(s) and label ID associated with a channel
+    pub struct ChannelCtx<CS: CipherSuite, Op> {
+        #[cfg_attr(not(any(feature = "sdlib", feature = "posix")), allow(dead_code))]
+        key: Directed<MaybeSealKey<CS>, MaybeOpenKey<CS>>,
+        label: LabelId,
+        _op: PhantomData<Op>,
+    }
+
+    mod private {
+        pub struct Open;
+        pub struct Seal;
+    }
+
+    /// [ChannelCtx] used for seal operations.
+    pub type SealChannelCtx<CS> = ChannelCtx<CS, private::Seal>;
+    /// [ChannelCtx] used for open operations.
+    pub type OpenChannelCtx<CS> = ChannelCtx<CS, private::Open>;
+
+    impl<CS: CipherSuite> SealChannelCtx<CS> {
+        /// Creates a new [ChannelCtx].
+        pub fn new(label: LabelId) -> Self {
+            Self {
+                key: Directed::SealOnly { seal: None },
+                label,
+                _op: PhantomData,
+            }
+        }
+
+        #[cfg(any(feature = "sdlib", feature = "posix"))]
+        pub(crate) fn seal_mut(&mut self) -> Result<&mut Option<SealKey<CS>>, Bug> {
+            self.key
+                .seal_mut()
+                .assume("this can only contain a `seal` key")
+        }
+    }
+
+    impl<CS: CipherSuite> OpenChannelCtx<CS> {
+        /// Creates a new [ChannelCtx].
+        pub fn new(label: LabelId) -> Self {
+            Self {
+                key: Directed::OpenOnly { open: None },
+                label,
+                _op: PhantomData,
+            }
+        }
+
+        #[cfg(any(feature = "sdlib", feature = "posix"))]
+        pub(crate) fn open_mut(&mut self) -> Result<&mut Option<OpenKey<CS>>, Bug> {
+            self.key
+                .open_mut()
+                .assume("this can only contain an `open` key")
+        }
+    }
+
+    impl<CS: CipherSuite, Op> ChannelCtx<CS, Op> {
+        /// Returns the label ID.
+        pub fn label_id(&self) -> &LabelId {
+            &self.label
+        }
+    }
+}
+
+pub use ctx::*;
 
 /// The set of Params passed to the closure in [AranyaState::remove_if]
 pub struct RemoveIfParams {
@@ -284,6 +371,7 @@ mod test {
 
     use crate::{
         AfcState, AranyaState, Directed, LocalChannelId, RemoveIfParams,
+        ctx::{OpenChannelCtx, SealChannelCtx},
         error::Error,
         memory,
         testing::{
@@ -314,18 +402,28 @@ mod test {
     {
         type CipherSuite = CS;
 
-        fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn seal<F, T>(
+            &self,
+            id: LocalChannelId,
+            ctx: &mut SealChannelCtx<Self::CipherSuite>,
+            f: F,
+        ) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(id, f)
+            self.state.seal(id, ctx, f)
         }
 
-        fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(
+            &self,
+            id: LocalChannelId,
+            ctx: &mut OpenChannelCtx<Self::CipherSuite>,
+            f: F,
+        ) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.open(id, f)
+            self.state.open(id, ctx, f)
         }
 
         fn exists(&self, id: LocalChannelId) -> Result<bool, Error> {
