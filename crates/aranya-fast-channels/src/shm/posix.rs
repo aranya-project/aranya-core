@@ -56,7 +56,7 @@ where
 }
 
 /// Memory mapped shared memory.
-#[derive_where(Debug)]
+#[derive_where(Clone, Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,
@@ -71,8 +71,8 @@ pub(super) struct Mapping<T> {
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
 
-impl<T> Drop for Mapping<T> {
-    fn drop(&mut self) {
+impl<T> Mapping<T> {
+    pub(super) fn unmap(&mut self) {
         // SAFETY: FFI call, no invariants.
         let _ = unsafe { libc::munmap(self.base, self.layout.size()) };
     }
