@@ -49,7 +49,7 @@ jobs:
             . /home/runner/export-esp.sh
             cargo install espflash@^3 --locked
 
-      - name: Build code
+      - name: Build chat-app crate in aranya-embedded repo
         run: |
             . /home/runner/export-esp.sh
             mkdir -p $GITHUB_WORKSPACE/aranya-embedded/.cargo
