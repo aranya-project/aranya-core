@@ -40,6 +40,7 @@ jobs:
             repository: aranya-project/aranya-embedded
             path: aranya-embedded
 
+      # Refer to https://github.com/aranya-project/aranya-embedded/blob/main/crates/chat-app/TUTORIAL.md for installation and build instructions.
       - name: Install esp toolchain
         run: |
             sudo apt-get update
@@ -49,10 +50,13 @@ jobs:
             . /home/runner/export-esp.sh
             cargo install espflash@^3 --locked
 
+      - name: Point aranya-embedded to local aranya crate deps
+        run: |
+            mkdir -p $GITHUB_WORKSPACE/aranya-embedded/.cargo
+            echo "paths = [\"$GITHUB_WORKSPACE\"]" > $GITHUB_WORKSPACE/aranya-embedded/.cargo/config.toml
+
       - name: Build chat-app crate in aranya-embedded repo
         run: |
             . /home/runner/export-esp.sh
-            mkdir -p $GITHUB_WORKSPACE/aranya-embedded/.cargo
-            echo "paths = [\"$GITHUB_WORKSPACE\"]" > $GITHUB_WORKSPACE/aranya-embedded/.cargo/config.toml
             cd aranya-embedded/crates/chat-app
             cargo build
