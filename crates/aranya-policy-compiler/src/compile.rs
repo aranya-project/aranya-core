@@ -965,7 +965,7 @@ impl<'a> CompileState<'a> {
                 let return_type = match color {
                     FunctionColor::Finish => {
                         return Err(
-                            self.err(CompileErrorType::InvalidExpression(expression.clone()))
+                            self.err(CompileErrorType::InvalidCallColor(InvalidCallColor::Finish))
                         );
                     }
                     FunctionColor::Pure(vtype) => vtype,
@@ -974,8 +974,9 @@ impl<'a> CompileState<'a> {
                         match self.get_statement_context()? {
                             StatementContext::Action(_) | StatementContext::ActionFunction(_) => {}
                             _ => {
-                                return Err(self
-                                    .err(CompileErrorType::InvalidExpression(expression.clone())));
+                                return Err(self.err(CompileErrorType::InvalidCallColor(
+                                    InvalidCallColor::Action,
+                                )));
                             }
                         }
                         vtype

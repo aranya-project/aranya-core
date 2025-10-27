@@ -2,9 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{
-    self as ast, Expression, FieldDefinition, TypeKind, VType, Version, ident, text,
-};
+use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Label, LabelType, Module, ModuleData, Struct, Value,
@@ -1163,7 +1161,7 @@ fn test_action_function_callable_from_actions_and_action_functions() {
                 return double(2) // <- cannot call action function from pure function
             }
             "#,
-            "invalid expression".to_string(),
+            CompileErrorType::InvalidCallColor(InvalidCallColor::Action),
         ),
         (
             "from command policy block",
@@ -1185,17 +1183,13 @@ fn test_action_function_callable_from_actions_and_action_functions() {
                 }
             }
             "#,
-            "invalid expression".to_string(),
+            CompileErrorType::InvalidCallColor(InvalidCallColor::Action),
         ),
     ];
 
-    for (msg, text, _expected) in invalid {
+    for (msg, text, expected) in invalid {
         let error = compile_fail(text);
-        assert!(
-            matches!(error, CompileErrorType::InvalidExpression(_)),
-            "case: {}",
-            msg
-        );
+        assert_eq!(error, expected, "testing invalid case: {}", msg);
     }
 }
 
@@ -3119,7 +3113,6 @@ fn test_function_used_before_definition() {
         }
 
         function divide(x int, y int) int {
-            assert y > 0, "y > 0"
             if x < y { return 0 }
             let got = divide0(Division {
                 d: y,
@@ -3140,8 +3133,6 @@ fn test_function_used_before_definition() {
             let d = args.d
             let q = args.q
             let r = args.r
-
-            assert d > 0, "d > 0"
 
             if r < d {
                 return Division {
