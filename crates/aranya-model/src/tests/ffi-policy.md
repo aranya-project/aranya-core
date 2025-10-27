@@ -83,12 +83,12 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) optional 
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
-    return NewDevice {
+    return Some(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
         sign_pk_id: sign_pk_id,
         sign_pk: device_keys.sign_pk,
-    }
+    })
 }
 
 // Seals a serialized basic command into an envelope, using the stored signing key for this device.
