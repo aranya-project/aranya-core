@@ -1,8 +1,8 @@
-* @jdygert-spok
+* @jdygert-spok @chip-so
 
 /canaries @jdygert-spok @djohnson-spideroak
 
-/crates/aranya-afc-util @jdygert-spok @ssweetney-spok
+/crates/aranya-afc-util @jdygert-spok @ssweetney-spok @gknopf-aranya
 /crates/aranya-base58 @jdygert-spok @ssweetney-spok
 /crates/aranya-buggy @jdygert-spok @ssweetney-spok
 /crates/aranya-libc @jdygert-spok @ssweetney-spok
