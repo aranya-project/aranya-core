@@ -386,11 +386,17 @@ impl<'a> CompileState<'a> {
                 };
                 Ok(e.insert(signature))
             }
-            Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
-                def.span.start(),
-                self.m.codemap.as_ref(),
-            )),
+            Entry::Occupied(_) => {
+                let mut name = def.identifier.to_string();
+                if self.builtin_functions.contains_key(def.identifier.as_str()) {
+                    name.push_str(" (builtin)");
+                }
+                Err(CompileError::from_locator(
+                    CompileErrorType::AlreadyDefined(name),
+                    def.span.start(),
+                    self.m.codemap.as_ref(),
+                ))
+            }
         }
     }
 
@@ -413,11 +419,17 @@ impl<'a> CompileState<'a> {
                 };
                 Ok(e.insert(signature))
             }
-            Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
-                def.span.start(),
-                self.m.codemap.as_ref(),
-            )),
+            Entry::Occupied(_) => {
+                let mut name = def.identifier.to_string();
+                if self.builtin_functions.contains_key(def.identifier.as_str()) {
+                    name.push_str(" (builtin)");
+                }
+                Err(CompileError::from_locator(
+                    CompileErrorType::AlreadyDefined(name),
+                    def.span.start(),
+                    self.m.codemap.as_ref(),
+                ))
+            }
         }
     }
 
