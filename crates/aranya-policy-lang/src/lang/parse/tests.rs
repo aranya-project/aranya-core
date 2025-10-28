@@ -489,6 +489,7 @@ fn parse_function() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_action_function() -> Result<(), PestError<Rule>> {
     let src = r#"
     action function foo(x int) bool {
@@ -496,7 +497,7 @@ fn parse_action_function() -> Result<(), PestError<Rule>> {
     }
     "#
     .trim();
-    let policy = parse_policy_str(&src, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+    let policy = parse_policy_str(src, Version::V2).unwrap_or_else(|e| panic!("{e}"));
     assert!(policy.action_functions.len() == 1);
     let action_function = &policy.action_functions[0];
     assert_eq!(action_function.identifier, "foo");
