@@ -51,3 +51,8 @@ pub enum EffectsParseError {
     #[error("effect has an unknown effect name")]
     UnknownEffectName,
 }
+
+/// The effect did not match the expected variant.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
+#[error("unexpected effect variant")]
+pub struct EffectVariantMismatch<T>(pub T);
