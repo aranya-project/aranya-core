@@ -55,5 +55,15 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                 ::core::result::Result::Ok(parsed)
             }
         }
+
+        impl ::core::convert::TryFrom<::aranya_policy_ifgen::VmEffect> for #ident {
+            type Error = ::aranya_policy_ifgen::EffectsParseError;
+            fn try_from(eff: ::aranya_policy_ifgen::VmEffect) -> ::core::result::Result<Self, Self::Error> {
+                if eff.name != #name {
+                    return ::core::result::Result::Err(::aranya_policy_ifgen::EffectsParseError::UnknownEffectName);
+                }
+                Self::try_from(eff.fields)
+            }
+        }
     })
 }
