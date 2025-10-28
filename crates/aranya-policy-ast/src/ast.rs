@@ -616,7 +616,7 @@ pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
     /// The recall block to execute if the check fails
-    pub recall_block: Ident,
+    pub recall: Option<FunctionCall>,
 }
 }
 
@@ -950,7 +950,9 @@ impl<T: Spanned> Spanned for StructItem<T> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecallBlockDefinition {
     /// The name of the recall block (defaults to "default" if not explicitly named)
-    pub identifier: Ident,
+    pub identifier: Option<Ident>,
+    /// The arguments to the recall block, if any
+    pub arguments: Option<Vec<FieldDefinition>>,
     /// The recall rule statements for this block
     pub statements: Vec<Statement>,
     /// The source location of this definition

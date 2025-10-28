@@ -37,13 +37,7 @@ expression: policy
                   "end": 71
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 60,
-                  "end": 88
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -63,59 +57,58 @@ expression: policy
                   "end": 99
                 }
               },
-              "recall_block": {
-                "name": "foo",
-                "span": {
-                  "start": 110,
-                  "end": 113
-                }
+              "recall": {
+                "identifier": {
+                  "name": "foo",
+                  "span": {
+                    "start": 110,
+                    "end": 113
+                  }
+                },
+                "arguments": []
               }
             }
           },
           "span": {
             "start": 88,
-            "end": 113
+            "end": 115
           }
         }
       ],
       "recalls": [
         {
-          "identifier": {
-            "name": "default",
-            "span": {
-              "start": 140,
-              "end": 149
-            }
-          },
+          "identifier": null,
+          "arguments": null,
           "statements": [],
           "span": {
-            "start": 140,
-            "end": 149
+            "start": 142,
+            "end": 151
           }
         },
         {
           "identifier": {
             "name": "foo",
             "span": {
-              "start": 169,
-              "end": 172
+              "start": 171,
+              "end": 174
             }
           },
+          "arguments": [],
           "statements": [],
           "span": {
-            "start": 162,
-            "end": 175
+            "start": 164,
+            "end": 179
           }
         }
       ],
       "span": {
         "start": 9,
-        "end": 185
+        "end": 189
       }
     }
   ],
   "functions": [],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n        command Foo {\n            policy {\n                check false\n                check false or recall foo\n            }\n            recall {}\n            recall foo {}\n        }\n        "
+  "text": "\n        command Foo {\n            policy {\n                check false\n                check false or recall foo()\n            }\n            recall {}\n            recall foo() {}\n        }\n        "
 }
