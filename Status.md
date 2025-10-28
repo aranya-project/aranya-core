@@ -1,7 +1,6 @@
 | crate | crates.io | docs.rs |
 | --- | --- | --- |
 | aranya-afc-util | [![Crates.io Version](https://img.shields.io/crates/v/aranya-afc-util)](https://crates.io/crates/aranya-afc-util) | [![docs.rs](https://img.shields.io/docsrs/aranya-afc-util)](https://docs.rs/aranya-afc-util) |
-| aranya-aqc-util | [![Crates.io Version](https://img.shields.io/crates/v/aranya-aqc-util)](https://crates.io/crates/aranya-aqc-util) | [![docs.rs](https://img.shields.io/docsrs/aranya-aqc-util)](https://docs.rs/aranya-aqc-util) |
 | aranya-capi-codegen | [![Crates.io Version](https://img.shields.io/crates/v/aranya-capi-codegen)](https://crates.io/crates/aranya-capi-codegen) | [![docs.rs](https://img.shields.io/docsrs/aranya-capi-codegen)](https://docs.rs/aranya-capi-codegen) |
 | aranya-capi-core | [![Crates.io Version](https://img.shields.io/crates/v/aranya-capi-core)](https://crates.io/crates/aranya-capi-core) | [![docs.rs](https://img.shields.io/docsrs/aranya-capi-core)](https://docs.rs/aranya-capi-core) |
 | aranya-capi-macro | [![Crates.io Version](https://img.shields.io/crates/v/aranya-capi-macro)](https://crates.io/crates/aranya-capi-macro) | [![docs.rs](https://img.shields.io/docsrs/aranya-capi-macro)](https://docs.rs/aranya-capi-macro) |

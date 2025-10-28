@@ -60,7 +60,7 @@ where
 /// Same as
 /// [`setup_send_deterministically`][hpe::Hpke::setup_send_deterministically],
 /// but augments `info` with [`CipherSuite::OIDS`].
-#[cfg(any(feature = "afc", feature = "aqc"))]
+#[cfg(feature = "afc")]
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup_send_deterministically<'a, CS>(
     mode: Mode<'_, &DecapKey<CS>>,

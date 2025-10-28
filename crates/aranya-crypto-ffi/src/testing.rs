@@ -118,7 +118,7 @@ where
                 pk,
                 CmdId::default(),
                 command.clone(),
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect("`crypto::verify` should not fail");
@@ -166,7 +166,7 @@ where
             pk,
             CmdId::default(),
             command,
-            command_id.into(),
+            CmdId::from_base(command_id),
             signature,
         )
         .expect_err("`crypto::verify` should fail");
@@ -211,7 +211,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -266,7 +266,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -320,7 +320,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -369,7 +369,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -486,7 +486,7 @@ where
                     pk.clone(),
                     CmdId::default(),
                     command.clone(),
-                    command_id.into(),
+                    CmdId::from_base(command_id),
                     signature.clone(),
                 )
                 .expect_err("`crypto::verify` should fail");

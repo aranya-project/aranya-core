@@ -45,7 +45,7 @@
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
-//!     AfcState, AranyaState, Channel, ChannelId, Client, Directed, Error,
+//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId,
 //!     crypto::Aes256Gcm,
 //!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };

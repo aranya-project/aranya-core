@@ -119,9 +119,10 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow as _, cell::RefCell, fmt};
 
+use aranya_crypto::BaseId;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
+    ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
+    MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
     ast::{Identifier, Persistence},
 };
 use buggy::{BugExt as _, bug};
@@ -229,14 +230,53 @@ fn get_command_priorities(
 ) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
     for def in machine.command_defs.iter() {
-        let name = &def.name;
+        let name = &def.name.name;
+        let attrs = PriorityAttrs::load(name.as_str(), def)?;
+        match def.persistence {
+            Persistence::Persistent => {
+                priority_map.insert(name.clone(), get_command_priority(name, &attrs)?);
+            }
+            Persistence::Ephemeral { .. } => {
+                if attrs != PriorityAttrs::default() {
+                    return Err(AttributeError(
+                        "ephemeral command must not have priority".into(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(priority_map)
+}
+
+#[derive(Default, PartialEq)]
+struct PriorityAttrs {
+    init: bool,
+    finalize: bool,
+    priority: Option<u32>,
+}
+
+impl PriorityAttrs {
+    fn load(name: &str, def: &CommandDef) -> Result<Self, AttributeError> {
         let attrs = &def.attributes;
+        let init = attrs
+            .get("init")
+            .map(|attr| match attr.value {
+                Value::Bool(b) => Ok(b),
+                _ => Err(AttributeError::type_mismatch(
+                    name,
+                    "finalize",
+                    "Bool",
+                    &attr.value.type_name(),
+                )),
+            })
+            .transpose()?
+            == Some(true);
         let finalize = attrs
             .get("finalize")
             .map(|attr| match attr.value {
                 Value::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
-                    name.as_str(),
+                    name,
                     "finalize",
                     "Bool",
                     &attr.value.type_name(),
@@ -248,39 +288,47 @@ fn get_command_priorities(
             .get("priority")
             .map(|attr| match attr.value {
                 Value::Int(b) => b.try_into().map_err(|_| {
-                    AttributeError::int_range(
-                        name.as_str(),
-                        "priority",
-                        u32::MIN.into(),
-                        u32::MAX.into(),
-                    )
+                    AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
                 }),
                 _ => Err(AttributeError::type_mismatch(
-                    name.as_str(),
+                    name,
                     "priority",
                     "Int",
                     &attr.value.type_name(),
                 )),
             })
             .transpose()?;
-        match (finalize, priority) {
-            (false, None) => {}
-            (false, Some(p)) => {
-                priority_map.insert(name.name.clone(), VmPriority::Basic(p));
-            }
-            (true, None) => {
-                priority_map.insert(name.name.clone(), VmPriority::Finalize);
-            }
-            (true, Some(_)) => {
-                return Err(AttributeError::exclusive(
-                    name.as_str(),
-                    "finalize",
-                    "priority",
-                ));
-            }
-        }
+        Ok(Self {
+            init,
+            finalize,
+            priority,
+        })
     }
-    Ok(priority_map)
+}
+
+fn get_command_priority(
+    name: &Identifier,
+    attrs: &PriorityAttrs,
+) -> Result<VmPriority, AttributeError> {
+    match (attrs.init, attrs.finalize, attrs.priority) {
+        (true, true, _) => Err(AttributeError::exclusive(name.as_str(), "init", "finalize")),
+        (true, false, Some(_)) => Err(AttributeError::exclusive(name.as_str(), "init", "priority")),
+        (true, false, None) => Ok(VmPriority::Init),
+
+        (false, true, Some(_)) => Err(AttributeError::exclusive(
+            name.as_str(),
+            "finalize",
+            "priority",
+        )),
+        (false, true, None) => Ok(VmPriority::Finalize),
+
+        (false, false, Some(n)) => Ok(VmPriority::Basic(n)),
+
+        (false, false, None) => Err(AttributeError::missing(
+            name.as_str(),
+            "init | finalize | priority",
+        )),
+    }
 }
 
 impl<E: aranya_crypto::Engine> VmPolicy<E> {
@@ -462,6 +510,7 @@ pub struct VmEffect {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum VmPriority {
+    Init,
     Basic(u32),
     Finalize,
 }
@@ -475,6 +524,7 @@ impl Default for VmPriority {
 impl From<VmPriority> for Priority {
     fn from(value: VmPriority) -> Self {
         match value {
+            VmPriority::Init => Self::Init,
             VmPriority::Basic(p) => Self::Basic(p),
             VmPriority::Finalize => Self::Finalize,
         }
@@ -506,6 +556,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
     ) -> Result<(), EngineError> {
+        let parent_id = match command.parent() {
+            Prior::None => CmdId::default(),
+            Prior::Single(parent) => parent.id,
+            Prior::Merge(_, _) => bug!("merge commands are not evaluated"),
+        };
+
         let VmProtocolData {
             author_id,
             kind,
@@ -516,12 +572,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             EngineError::Read
         })?;
 
-        let (expected_priority, parent_id) = match command.parent() {
-            Prior::None => (Priority::Init, CmdId::default()),
-            Prior::Single(parent) => (self.get_command_priority(&kind).into(), parent.id),
-            Prior::Merge(_, _) => bug!("merge commands are not evaluated"),
-        };
-
+        let expected_priority = self.get_command_priority(&kind).into();
         if command.priority() != expected_priority {
             error!(
                 "Expected priority {:?}, got {:?}",
@@ -572,7 +623,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
-            version: CmdId::default().into(),
+            version: BaseId::default(),
         });
         self.evaluate_rule(
             kind,
@@ -685,19 +736,22 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
                         let parent = RefCell::borrow_mut(Rc::borrow(&facts)).head_address()?;
+                        let priority = self.get_command_priority(&command_name).into();
 
                         let policy;
-                        let priority;
                         match parent {
                             Prior::None => {
                                 // TODO(chip): where does the policy value come from?
                                 policy = Some(0u64.to_le_bytes());
-                                priority = Priority::Init;
-                                // TODO(jdygert): Check priority against attributes once init added.
+                                if !matches!(priority, Priority::Init) {
+                                    error!(
+                                        "Command {command_name} has invalid priority {priority:?}"
+                                    );
+                                    return Err(EngineError::InternalError);
+                                }
                             }
                             Prior::Single(_) => {
                                 policy = None;
-                                priority = self.get_command_priority(&command_name).into();
                                 if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
@@ -820,8 +874,50 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_require_command_priority() {
+        let cases = [
+            r#"command Test {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+            }"#,
+            r#"command Test {
+                attributes {}
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+            }"#,
+            r#"command Test {
+                attributes {
+                    init: false,
+                    finalize: false,
+                }
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+            }"#,
+        ];
+
+        for case in cases {
+            let ast = parse_policy_str(case, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+            let module = Compiler::new(&ast)
+                .compile()
+                .unwrap_or_else(|e| panic!("{e}"));
+            let machine = Machine::from_module(module).expect("can create machine");
+            let err = get_command_priorities(&machine).expect_err("should fail");
+            assert_eq!(
+                err,
+                AttributeError::missing("Test", "init | finalize | priority")
+            );
+        }
+    }
+
+    #[test]
     fn test_get_command_priorities() {
-        fn process(attrs: &str) -> Result<Option<VmPriority>, AttributeError> {
+        fn process(attrs: &str) -> Result<VmPriority, AttributeError> {
             let policy = format!(
                 r#"
                 command Test {{
@@ -841,23 +937,21 @@ mod test {
                 .unwrap_or_else(|e| panic!("{e}"));
             let machine = Machine::from_module(module).expect("can create machine");
             let priorities = get_command_priorities(&machine)?;
-            Ok(priorities.get("Test").copied())
+            Ok(*priorities.get("Test").expect("priorities are mandatory"))
         }
 
-        assert_eq!(process(""), Ok(None));
-        assert_eq!(process("finalize: false"), Ok(None));
-
-        assert_eq!(process("priority: 42"), Ok(Some(VmPriority::Basic(42))));
+        assert_eq!(process("priority: 42"), Ok(VmPriority::Basic(42)));
         assert_eq!(
             process("finalize: false, priority: 42"),
-            Ok(Some(VmPriority::Basic(42)))
+            Ok(VmPriority::Basic(42))
         );
         assert_eq!(
-            process("priority: 42, finalize: false"),
-            Ok(Some(VmPriority::Basic(42)))
+            process("init: false, priority: 42, finalize: false"),
+            Ok(VmPriority::Basic(42))
         );
 
-        assert_eq!(process("finalize: true"), Ok(Some(VmPriority::Finalize)));
+        assert_eq!(process("init: true"), Ok(VmPriority::Init));
+        assert_eq!(process("finalize: true"), Ok(VmPriority::Finalize));
 
         assert_eq!(
             process("finalize: 42"),
@@ -889,9 +983,18 @@ mod test {
                 u32::MAX.into(),
             ))
         );
+
         assert_eq!(
             process("finalize: true, priority: 42"),
             Err(AttributeError::exclusive("Test", "finalize", "priority"))
+        );
+        assert_eq!(
+            process("init: true, priority: 42"),
+            Err(AttributeError::exclusive("Test", "init", "priority"))
+        );
+        assert_eq!(
+            process("init: true, finalize: true"),
+            Err(AttributeError::exclusive("Test", "init", "finalize"))
         );
     }
 }

@@ -13,7 +13,7 @@ command Foo {
     seal { return todo() }
     open { return todo() }
     policy {
-        let sum = this.a + this.b
+        let sum = saturating_add(this.a, this.b)
         finish {
             emit Bar{x: sum}
         }
@@ -74,7 +74,7 @@ command Increment {
     open { return todo() }
     policy {
         let r = unwrap query Foo[]=>{x: ?}
-        let new_x = r.x + 1
+        let new_x = unwrap add(r.x, 1)
         finish {
             update Foo[]=>{x: r.x} to {x: new_x}
             emit Update{value: new_x}
@@ -106,7 +106,7 @@ command Increment {
     open { return todo() }
     policy {
         let r = unwrap query Foo[]=>{x: ?}
-        let new_x = r.x + 1
+        let new_x = unwrap add(r.x, 1)
         finish {
             update Foo[]=>{x: 0} to {x: new_x}
         }

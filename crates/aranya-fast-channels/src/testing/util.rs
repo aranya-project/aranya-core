@@ -34,7 +34,7 @@ use aranya_crypto::{
 use derive_where::derive_where;
 
 use crate::{
-    ChannelId, RemoveIfParams,
+    LocalChannelId, RemoveIfParams,
     client::Client,
     header::{DataHeader, Header, MsgType, Version},
     memory,
@@ -165,7 +165,7 @@ where
     ident_sk: IdentityKey<CS>,
     enc_sk: EncryptionKey<CS>,
     state: T::Aranya<CS>,
-    chans: HashMap<GlobalChannelId, (ChannelId, LabelId, ChanOp)>,
+    chans: HashMap<GlobalChannelId, (LocalChannelId, LabelId, ChanOp)>,
     pub(crate) id: DeviceId,
 }
 
@@ -190,7 +190,7 @@ where
     fn add_channel(
         &mut self,
         chan: TestChan<T, CS>,
-    ) -> Result<ChannelId, <T::Aranya<CS> as AranyaState>::Error> {
+    ) -> Result<LocalChannelId, <T::Aranya<CS> as AranyaState>::Error> {
         let op = match chan.keys {
             Directed::OpenOnly { .. } => ChanOp::OpenOnly,
             Directed::SealOnly { .. } => ChanOp::SealOnly,
@@ -201,8 +201,8 @@ where
         Ok(local_id)
     }
 
-    /// Returns the [`ChannelId`] for a particular channel.
-    pub fn get_local_channel_id(&self, id: GlobalChannelId) -> Option<ChannelId> {
+    /// Returns the [`LocalChannelId`] for a particular channel.
+    pub fn get_local_channel_id(&self, id: GlobalChannelId) -> Option<LocalChannelId> {
         self.chans.get(&id).map(|v| v.0)
     }
 
@@ -445,7 +445,7 @@ where
         &self,
         device_id: DeviceIdx,
         global_id: GlobalChannelId,
-    ) -> Option<ChannelId> {
+    ) -> Option<LocalChannelId> {
         self.devices.get(device_id)?.get_local_channel_id(global_id)
     }
 
@@ -455,7 +455,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn remove(
         &self,
-        id: ChannelId,
+        id: LocalChannelId,
         device_id: DeviceIdx,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(device_id)?;
@@ -489,7 +489,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn exists(
         &self,
-        id: ChannelId,
+        id: LocalChannelId,
         device_id: DeviceIdx,
     ) -> Option<Result<bool, <T::Aranya<E::CS> as AranyaState>::Error>> {
         let aranya = self.devices.get(device_id)?;

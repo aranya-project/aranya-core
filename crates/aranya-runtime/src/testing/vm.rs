@@ -40,6 +40,9 @@ effect OutOfRange {
 }
 
 command Init {
+    attributes {
+        init: true,
+    }
     fields {
         nonce int,
     }
@@ -57,6 +60,9 @@ action init(nonce int) {
 }
 
 command Create {
+    attributes {
+        priority: 0,
+    }
     fields {
         key int,
         value int,
@@ -79,6 +85,9 @@ action create_action(v int) {
 }
 
 command Increment {
+    attributes {
+        priority: 0,
+    }
     fields {
         key int,
         amount int,
@@ -88,7 +97,7 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
-        let new_y = stuff.y + this.amount
+        let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -123,7 +132,7 @@ ephemeral command IncrementEphemeral {
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
-        let new_y = stuff.y + this.amount
+        let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}

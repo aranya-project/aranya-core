@@ -132,6 +132,10 @@ action init(nonce int, sign_pk bytes) {
 }
 
 command Init {
+    attributes {
+        init: true,
+    }
+
     fields {
         nonce int,
         sign_pk bytes,
@@ -189,6 +193,10 @@ action add_device_keys(ident_pk bytes, sign_pk bytes) {
 }
 
 command AddDeviceKeys {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         ident_pk bytes,
         sign_pk bytes,
@@ -260,6 +268,10 @@ action create_action(v int) {
 }
 
 command Create {
+    attributes {
+        priority: 0,
+    }
+
     // Local variables for command
     fields {
         key_a int,
@@ -285,6 +297,10 @@ action increment(v int) {
 }
 
 command Increment {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -295,7 +311,7 @@ command Increment {
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = stuff.x + this.value
+        let new_x = unwrap add(stuff.x, this.value)
         check new_x < 25
 
         finish {
@@ -313,6 +329,10 @@ action decrement(v int) {
 }
 
 command Decrement {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -324,7 +344,7 @@ command Decrement {
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = stuff.x - this.value
+        let new_x = unwrap sub(stuff.x, this.value)
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
