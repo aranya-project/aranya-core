@@ -1264,10 +1264,10 @@ fn test_check_errors() {
         command Foo {
             policy {
                 check false
-                check false or recall foo
+                check false or recall foo()
             }
             recall {}
-            recall foo {}
+            recall foo() {}
         }
         "#;
 
@@ -1288,22 +1288,22 @@ fn test_recalls() {
             r#"command Foo {
                 recall {}
             }"#,
-            vec!["default"],
+            vec![None],
         ),
         (
             r#"command Foo {
                 recall {}
-                recall foo {}
+                recall foo() {}
             }"#,
-            vec!["default", "foo"],
+            vec![None, Some(ident!("foo"))],
         ),
         (
             r#"command Foo {
                 recall {}
-                recall foo {}
-                recall bar {}
+                recall foo() {}
+                recall bar() {}
             }"#,
-            vec!["default", "foo", "bar"],
+            vec![None, Some(ident!("foo")), Some(ident!("bar"))],
         ),
     ];
     for (src, expected) in cases {
@@ -1311,7 +1311,7 @@ fn test_recalls() {
         let recalls = policy.commands[0]
             .recalls
             .iter()
-            .map(|c| c.identifier.name.as_str())
+            .map(|c| c.identifier.clone().map(|ident| ident.name))
             .collect::<Vec<_>>();
         assert_eq!(recalls, expected);
     }

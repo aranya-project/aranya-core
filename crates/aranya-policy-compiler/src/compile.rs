@@ -1495,9 +1495,15 @@ impl<'a> CompileState<'a> {
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
 
-                    self.append_instruction(Instruction::Exit(ExitReason::Check(
-                        s.recall_block.name.clone(),
-                    )));
+                    // Push recall args on the stack. When the runtime executes the named recall block, its arg values will already be on the stack.
+                    if let Some(ref recall) = s.recall {
+                        for arg in &recall.arguments {
+                            self.compile_expression(arg)?;
+                        }
+                    }
+
+                    let recall_name = s.recall.as_ref().map(|fc| fc.identifier.name.clone());
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
                 }
                 // END HACK
                 (StmtKind::Check(s), StatementContext::CommandPolicy(cmd)) => {
@@ -1518,23 +1524,8 @@ impl<'a> CompileState<'a> {
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
 
-                    // Make sure named recall block exists
-                    // NOTE Unnamed checks do not require recall blocks. But a check without recall is suspicious, and we should warn about it.
-                    if s.recall_block.name.as_str() != "default" {
-                        cmd.recalls
-                            .iter()
-                            .find(|c| c.identifier.name == s.recall_block.name)
-                            .ok_or_else(|| {
-                                self.err(CompileErrorType::Unknown(format!(
-                                    "command {}: recall block not found: {}",
-                                    cmd.identifier.name, s.recall_block
-                                )))
-                            })?;
-                    }
-
-                    self.append_instruction(Instruction::Exit(ExitReason::Check(
-                        s.recall_block.name.clone(),
-                    )));
+                    let recall_name = s.recall.as_ref().map(|fc| fc.identifier.name.clone());
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
                 }
                 (
                     StmtKind::Match(s),
@@ -2254,6 +2245,26 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Returns a unique recall block name for the given command and optional name.
+    fn command_recall_name(
+        &self,
+        command_name: &Ident,
+        name: Option<&Ident>,
+    ) -> Result<Identifier, CompileError> {
+        format!(
+            "{}::recall_{}",
+            command_name.as_str(),
+            name.map(|n| n.as_str()).unwrap_or("")
+        )
+        .try_into()
+        .map_err(|_| {
+            CompileError::new(CompileErrorType::InvalidType(format!(
+                "invalid recall block name for command '{}'",
+                command_name
+            )))
+        })
+    }
+
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
@@ -2263,20 +2274,20 @@ impl<'a> CompileState<'a> {
         // Compile each recall block
         for recall_block in &command.recalls {
             // Check for duplicate recall block names
-            if !named_blocks.insert(&recall_block.identifier.name) {
+            let block_name =
+                self.command_recall_name(&command.identifier, recall_block.identifier.as_ref())?;
+            if !named_blocks.insert(block_name.clone()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                     "recall block '{}'",
-                    recall_block.identifier.name
+                    block_name
                 ))));
             }
 
-            let label_name: Identifier = format!(
-                "{}_{}",
-                command.identifier.name, recall_block.identifier.name
-            )
-            .try_into()
-            .expect("valid identifier");
+            let label_name: Identifier =
+                self.command_recall_name(&command.identifier, recall_block.identifier.as_ref())?;
+
             self.define_label(Label::new(label_name, LabelType::CommandRecall), self.wp)?;
+
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
             self.identifier_types.enter_function();
             self.identifier_types

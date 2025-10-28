@@ -1012,17 +1012,13 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = descend(item);
         let expression = pc.consume_expression(self)?;
-        let recall_block = pc
-            .consume_optional(Rule::identifier)
-            .map(|e| self.parse_ident(e))
-            .transpose()?
-            .unwrap_or_else(|| Ident {
-                name: ident!("default"), // looks strange to assign a default name in the parser, but we need a valid identifier
-                span: self.to_ast_span(pc.span).unwrap_or_default(),
-            });
+        let call = pc
+            .consume_optional(Rule::function_call)
+            .map(|call| self.parse_function_call(call))
+            .transpose()?;
         Ok(CheckStatement {
             expression,
-            recall_block,
+            recall: call,
         })
     }
 
@@ -1463,19 +1459,29 @@ impl ChunkParser<'_> {
                     let span = self.to_ast_span(token.as_span())?;
                     let pc = descend(token);
 
-                    // parse identifier or assign default
+                    // parse identifier
                     let identifier = pc
                         .consume_optional(Rule::identifier)
                         .map(|p| self.parse_ident(p))
-                        .transpose()?
-                        .unwrap_or_else(|| Ident {
-                            name: ident!("default"),
-                            span,
-                        });
+                        .transpose()?;
+
+                    // parse arguments
+                    let arguments = pc
+                        .consume_optional(Rule::function_arguments)
+                        .map(|p| -> Result<Vec<FieldDefinition>, ParseError> {
+                            let mut args = vec![];
+                            for field in p.into_inner() {
+                                args.push(self.parse_field_definition(field)?);
+                            }
+                            Ok(args)
+                        })
+                        .transpose()?;
+
                     let statements = self.parse_statement_list(pc.into_inner())?;
 
                     recalls.push(ast::RecallBlockDefinition {
                         identifier,
+                        arguments,
                         statements,
                         span,
                     });

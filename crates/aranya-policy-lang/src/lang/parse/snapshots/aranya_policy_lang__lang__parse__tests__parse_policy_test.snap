@@ -548,13 +548,7 @@ expression: policy
                   "end": 723
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 687,
-                  "end": 740
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -641,13 +635,7 @@ expression: policy
                               "end": 828
                             }
                           },
-                          "recall_block": {
-                            "name": "default",
-                            "span": {
-                              "start": 801,
-                              "end": 849
-                            }
-                          }
+                          "recall": null
                         }
                       },
                       "span": {
@@ -703,13 +691,7 @@ expression: policy
                               "end": 922
                             }
                           },
-                          "recall_block": {
-                            "name": "default",
-                            "span": {
-                              "start": 902,
-                              "end": 943
-                            }
-                          }
+                          "recall": null
                         }
                       },
                       "span": {
@@ -813,13 +795,7 @@ expression: policy
                               "end": 1078
                             }
                           },
-                          "recall_block": {
-                            "name": "default",
-                            "span": {
-                              "start": 1062,
-                              "end": 1095
-                            }
-                          }
+                          "recall": null
                         }
                       },
                       "span": {
@@ -1219,13 +1195,8 @@ expression: policy
       ],
       "recalls": [
         {
-          "identifier": {
-            "name": "default",
-            "span": {
-              "start": 1500,
-              "end": 2023
-            }
-          },
+          "identifier": null,
+          "arguments": null,
           "statements": [
             {
               "kind": {

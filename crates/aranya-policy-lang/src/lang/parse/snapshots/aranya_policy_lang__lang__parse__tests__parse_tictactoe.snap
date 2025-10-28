@@ -949,13 +949,7 @@ expression: policy
                   "end": 951
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 925,
-                  "end": 1091
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -2010,13 +2004,7 @@ expression: policy
                   "end": 3471
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 3400,
-                  "end": 3532
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -2061,13 +2049,7 @@ expression: policy
                   "end": 3547
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 3532,
-                  "end": 3556
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -2112,13 +2094,7 @@ expression: policy
                   "end": 3571
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 3556,
-                  "end": 3783
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -2949,13 +2925,7 @@ expression: policy
                   "end": 5941
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 5899,
-                  "end": 5950
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -3000,13 +2970,7 @@ expression: policy
                   "end": 5965
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 5950,
-                  "end": 5974
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -3051,13 +3015,7 @@ expression: policy
                   "end": 5989
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 5974,
-                  "end": 5998
-                }
-              }
+              "recall": null
             }
           },
           "span": {
@@ -3280,13 +3238,7 @@ expression: policy
                   "end": 6073
                 }
               },
-              "recall_block": {
-                "name": "default",
-                "span": {
-                  "start": 5998,
-                  "end": 6084
-                }
-              }
+              "recall": null
             }
           },
           "span": {
