@@ -21,7 +21,7 @@
 /crates/aranya-policy-ifgen* @jdygert-spok @ssweetney-spok
 /crates/aranya-policy-derive @chip-so @ssweetney-spok
 
-/crates/aranya-quic-syncer @benz-spideroak @jdygert-spok @nikki-aranya
+/crates/aranya-quic-syncer @benz-spideroak @jdygert-spok
 /crates/aranya-runtime @jdygert-spok @ssweetney-spok
 
 /.github @djohnson-spideroak @gknopf-aranya @jdygert-spok
