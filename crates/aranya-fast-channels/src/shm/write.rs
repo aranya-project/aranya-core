@@ -50,6 +50,12 @@ where
     }
 }
 
+impl<CS, R> Drop for WriteState<CS, R> {
+    fn drop(&mut self) {
+        self.inner.ptr.unmap();
+    }
+}
+
 impl<CS, R> AranyaState for WriteState<CS, R>
 where
     CS: CipherSuite,
