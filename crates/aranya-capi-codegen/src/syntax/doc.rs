@@ -18,7 +18,7 @@ pub(crate) struct Doc {
 impl Doc {
     /// Creates an empty `Doc`.
     pub const fn new() -> Self {
-        Doc {
+        Self {
             hidden: false,
             fragments: Vec::new(),
         }

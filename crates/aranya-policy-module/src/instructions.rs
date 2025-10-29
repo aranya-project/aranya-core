@@ -14,7 +14,17 @@ use crate::{Label, data::Value};
 
 /// Reason for ending execution.
 #[must_use]
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum ExitReason {
     /// Execution completed without errors.
     Normal,
@@ -46,7 +56,17 @@ impl Display for ExitReason {
 }
 
 /// The target of a branch
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Target {
     /// An unresolved target with a symbolic name
     Unresolved(Label),
@@ -58,8 +78,8 @@ impl Target {
     /// Get the resolved address or None if it has not been resolved.
     pub fn resolved(&self) -> Option<usize> {
         match self {
-            Target::Resolved(i) => Some(*i),
-            _ => None,
+            Self::Resolved(i) => Some(*i),
+            Self::Unresolved(_) => None,
         }
     }
 }
@@ -74,7 +94,17 @@ impl Display for Target {
 }
 
 /// The machine instruction types
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Instruction {
     // data
     /// Push a value onto the stack
@@ -113,6 +143,10 @@ pub enum Instruction {
     Add,
     /// Subtract two numbers
     Sub,
+    /// Add two numbers with saturation
+    SaturatingAdd,
+    /// Subtract two numbers with saturation
+    SaturatingSub,
     /// Logical negation
     Not,
     /// Greater than
@@ -171,48 +205,50 @@ pub enum Instruction {
 impl Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Instruction::Const(v) => write!(f, "const {v}"),
-            Instruction::Def(ident) => write!(f, "def {ident}"),
-            Instruction::Get(ident) => write!(f, "get {ident}"),
-            Instruction::Dup => write!(f, "dup"),
-            Instruction::Pop => write!(f, "pop"),
-            Instruction::Block => write!(f, "block"),
-            Instruction::End => write!(f, "end"),
-            Instruction::Jump(t) => write!(f, "jump {t}"),
-            Instruction::Branch(t) => write!(f, "branch {t}"),
-            Instruction::Next => write!(f, "next"),
-            Instruction::Last => write!(f, "last"),
-            Instruction::Call(t) => write!(f, "call {t}"),
-            Instruction::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
-            Instruction::Return => write!(f, "return"),
-            Instruction::Exit(reason) => write!(f, "exit {reason}"),
-            Instruction::Add => write!(f, "add"),
-            Instruction::Sub => write!(f, "sub"),
-            Instruction::Not => write!(f, "not"),
-            Instruction::Gt => write!(f, "gt"),
-            Instruction::Lt => write!(f, "lt"),
-            Instruction::Eq => write!(f, "eq"),
-            Instruction::FactNew(ident) => write!(f, "fact.new {ident}"),
-            Instruction::FactKeySet(ident) => write!(f, "fact.kset {ident}"),
-            Instruction::FactValueSet(ident) => write!(f, "fact.vset {ident}"),
-            Instruction::StructNew(ident) => write!(f, "struct.new {ident}"),
-            Instruction::StructSet(ident) => write!(f, "struct.set {ident}"),
-            Instruction::StructGet(ident) => write!(f, "struct.get {ident}"),
-            Instruction::MStructGet(n) => write!(f, "mstruct.get {n}"),
-            Instruction::MStructSet(n) => write!(f, "mstruct.set {n}"),
-            Instruction::Publish => write!(f, "publish"),
-            Instruction::Create => write!(f, "create"),
-            Instruction::Delete => write!(f, "delete"),
-            Instruction::Update => write!(f, "update"),
-            Instruction::Emit => write!(f, "emit"),
-            Instruction::Query => write!(f, "query"),
-            Instruction::FactCount(limit) => write!(f, "fact.count {limit}"),
-            Instruction::QueryStart => write!(f, "query.start"),
-            Instruction::QueryNext(ident) => write!(f, "query.next {ident}"),
-            Instruction::Serialize => write!(f, "serialize"),
-            Instruction::Deserialize => write!(f, "deserialize"),
-            Instruction::Meta(m) => write!(f, "meta: {m}"),
-            Instruction::Cast(identifier) => write!(f, "cast {identifier}"),
+            Self::Const(v) => write!(f, "const {v}"),
+            Self::Def(ident) => write!(f, "def {ident}"),
+            Self::Get(ident) => write!(f, "get {ident}"),
+            Self::Dup => write!(f, "dup"),
+            Self::Pop => write!(f, "pop"),
+            Self::Block => write!(f, "block"),
+            Self::End => write!(f, "end"),
+            Self::Jump(t) => write!(f, "jump {t}"),
+            Self::Branch(t) => write!(f, "branch {t}"),
+            Self::Next => write!(f, "next"),
+            Self::Last => write!(f, "last"),
+            Self::Call(t) => write!(f, "call {t}"),
+            Self::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
+            Self::Return => write!(f, "return"),
+            Self::Exit(reason) => write!(f, "exit {reason}"),
+            Self::Add => write!(f, "add"),
+            Self::Sub => write!(f, "sub"),
+            Self::SaturatingAdd => write!(f, "saturating_add"),
+            Self::SaturatingSub => write!(f, "saturating_sub"),
+            Self::Not => write!(f, "not"),
+            Self::Gt => write!(f, "gt"),
+            Self::Lt => write!(f, "lt"),
+            Self::Eq => write!(f, "eq"),
+            Self::FactNew(ident) => write!(f, "fact.new {ident}"),
+            Self::FactKeySet(ident) => write!(f, "fact.kset {ident}"),
+            Self::FactValueSet(ident) => write!(f, "fact.vset {ident}"),
+            Self::StructNew(ident) => write!(f, "struct.new {ident}"),
+            Self::StructSet(ident) => write!(f, "struct.set {ident}"),
+            Self::StructGet(ident) => write!(f, "struct.get {ident}"),
+            Self::MStructGet(n) => write!(f, "mstruct.get {n}"),
+            Self::MStructSet(n) => write!(f, "mstruct.set {n}"),
+            Self::Publish => write!(f, "publish"),
+            Self::Create => write!(f, "create"),
+            Self::Delete => write!(f, "delete"),
+            Self::Update => write!(f, "update"),
+            Self::Emit => write!(f, "emit"),
+            Self::Query => write!(f, "query"),
+            Self::FactCount(limit) => write!(f, "fact.count {limit}"),
+            Self::QueryStart => write!(f, "query.start"),
+            Self::QueryNext(ident) => write!(f, "query.next {ident}"),
+            Self::Serialize => write!(f, "serialize"),
+            Self::Deserialize => write!(f, "deserialize"),
+            Self::Meta(m) => write!(f, "meta: {m}"),
+            Self::Cast(identifier) => write!(f, "cast {identifier}"),
         }
     }
 }

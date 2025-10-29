@@ -9,7 +9,7 @@ mod io;
 use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Text, ident, text};
 use io::TestIO;
 
@@ -17,7 +17,7 @@ use crate::{
     ActionContext, CodeMap, CommandContext, ExitReason, Fact, Instruction, Label, LabelType,
     MachineError, PolicyContext, Struct, Target, Value,
     error::MachineErrorType,
-    io::{MachineIO, MachineIOError},
+    io::{MachineIO as _, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
 };
@@ -34,7 +34,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     })
 }
 
@@ -70,7 +70,7 @@ fn test_add() {
         (-10, 20, 10),
     ];
 
-    for t in tups.iter() {
+    for t in &tups {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
@@ -88,14 +88,14 @@ fn test_add() {
 #[test]
 fn test_add_overflow() {
     // add p.0+p.1
-    // we expect all these pairs to overflow
+    // we expect all these pairs to overflow and return None
     let pairs: [(i64, i64); 3] = [
         (i64::MAX, 2),
         (1, i64::MAX),
         (i64::MAX / 2, (i64::MAX / 2) + 2),
     ];
 
-    for p in pairs.iter() {
+    for p in &pairs {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
@@ -103,12 +103,9 @@ fn test_add_overflow() {
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
-        let step = rs.step();
-        assert!(step.is_err());
-        assert_eq!(
-            step.unwrap_err().err_type,
-            MachineErrorType::IntegerOverflow
-        );
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert!(rs.stack.len() == 1);
+        assert_eq!(rs.stack.0[0], Value::None);
     }
 }
 
@@ -117,7 +114,7 @@ fn test_sub() {
     // expect t.0-t.1==t.2
     let tups: [(i64, i64, i64); 4] = [(5, 3, 2), (5, 8, -3), (-10, 8, -18), (-10, -5, -5)];
 
-    for t in tups.iter() {
+    for t in &tups {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
@@ -135,7 +132,7 @@ fn test_sub() {
 #[test]
 fn test_sub_overflow() {
     // pairs to check, in the format p.0-p.1
-    // we expect all these pairs to overflow
+    // we expect all these pairs to overflow and return None
     let pairs: [(i64, i64); 5] = [
         (i64::MIN, 1),
         (i64::MIN, 2),
@@ -144,7 +141,7 @@ fn test_sub_overflow() {
         (i64::MAX, -1),
     ];
 
-    for p in pairs.iter() {
+    for p in &pairs {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
@@ -152,12 +149,9 @@ fn test_sub_overflow() {
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
-        let step = rs.step();
-        assert!(step.is_err());
-        assert_eq!(
-            step.unwrap_err().err_type,
-            MachineErrorType::IntegerOverflow
-        );
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert!(rs.stack.len() == 1);
+        assert_eq!(rs.stack.0[0], Value::None);
     }
 }
 
@@ -166,8 +160,8 @@ struct TestStack {
 }
 
 impl TestStack {
-    pub fn new() -> TestStack {
-        TestStack { stack: vec![] }
+    pub fn new() -> Self {
+        Self { stack: vec![] }
     }
 }
 
@@ -580,7 +574,7 @@ fn test_errors() {
             );
             Ok(())
         },
-        ctx.to_owned(),
+        ctx.clone(),
     );
 
     // InvalidAddress: Set PC to a label of the wrong type

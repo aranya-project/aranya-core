@@ -2,7 +2,7 @@
 
 use core::{ffi::CStr, marker::PhantomData, ops::Deref};
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use cfg_if::cfg_if;
 use ciborium as cbor;
 use ciborium_io::{Read, Write};
@@ -12,15 +12,14 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
-use spideroak_base58::{String32, ToBase58};
+use spideroak_base58::{String32, ToBase58 as _};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
-    Id, KeyStore,
+    BaseId, KeyStore,
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant},
 };
-
 /// A file system backed [`KeyStore`].
 pub struct Store {
     root: OwnedFd,
@@ -58,7 +57,7 @@ impl Store {
         Ok(Self::new(root))
     }
 
-    fn alias(&self, id: Id) -> Alias {
+    fn alias(&self, id: BaseId) -> Alias {
         Alias(id.to_base58())
     }
 
@@ -103,7 +102,7 @@ impl KeyStore for Store {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         let alias = self.alias(id);
         // The loop is kinda dumb. Normally, we'd just call
         // `open(..., O_CREAT)`. But that doesn't tell us whether
@@ -124,7 +123,7 @@ impl KeyStore for Store {
                     // It doesn't exist yet, so create it.
                 }
                 Err(err) => return Err(err.into()),
-            };
+            }
             match Exclusive::create_new(&self.root, &*alias) {
                 Ok(fd) => {
                     break Entry::Vacant(VacantEntry::new(self.root.as_fd(), fd, alias));
@@ -139,7 +138,7 @@ impl KeyStore for Store {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match Shared::openat(&self.root, &*self.alias(id)) {
             Ok(fd) => Ok(cbor::from_reader(fd)?),
             Err(Errno::NOENT) => {
@@ -364,11 +363,11 @@ fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
             Err(e) => return Err(e.into()),
         }
     }
+
     if !buf.is_empty() {
-        Err(UnexpectedEof.into())
-    } else {
-        Ok(())
+        return Err(UnexpectedEof.into());
     }
+    Ok(())
 }
 
 /// Writes the entirety of `buf` to `fd`.

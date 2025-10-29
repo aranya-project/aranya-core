@@ -6,7 +6,7 @@ use aranya_crypto::{
 };
 use buggy::Bug;
 
-use crate::{buf::AllocError, errno::Errno, header::HeaderError, state::ChannelId};
+use crate::{LocalChannelId, buf::AllocError, errno::Errno, header::HeaderError};
 
 /// Shorthand for `Result`s that use [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
@@ -22,7 +22,7 @@ pub enum Error {
     InvalidHeader(#[from] HeaderError),
     /// The channel could not be found.
     #[error("channel not found: {0}")]
-    NotFound(ChannelId),
+    NotFound(LocalChannelId),
     /// The input is too large.
     #[error("input too large")]
     InputTooLarge,

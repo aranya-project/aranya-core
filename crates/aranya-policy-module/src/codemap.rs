@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned as _, string::String, vec, vec::Vec};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ impl<'a> Span<'a> {
     /// Create a span inside a text reference. `start` and `end` are expressed in bytes. If
     /// the `start` or `end` do not occur on a UTF-8 character boundary, this will return
     /// `None`.
-    pub fn new(text: &'a str, start: usize, end: usize) -> Option<Span<'a>> {
+    pub fn new(text: &'a str, start: usize, end: usize) -> Option<Self> {
         if text.get(start..end).is_some() {
             Some(Span { text, start, end })
         } else {
@@ -75,7 +75,17 @@ impl<'a> Span<'a> {
 
 /// The code map contains the original source and can map VM instructions to text ranges
 /// inside that source.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct CodeMap {
     /// The original policy source code
     text: String,
@@ -89,8 +99,8 @@ pub struct CodeMap {
 
 impl CodeMap {
     /// Create a new, empty CodeMap from a text and a set of ranges.
-    pub fn new(text: &str, ranges: Vec<(usize, usize)>) -> CodeMap {
-        CodeMap {
+    pub fn new(text: &str, ranges: Vec<(usize, usize)>) -> Self {
+        Self {
             text: text.to_owned(),
             ranges,
             instruction_mapping: vec![],

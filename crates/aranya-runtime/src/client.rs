@@ -1,8 +1,8 @@
-use buggy::{Bug, BugExt};
+use buggy::Bug;
 
 use crate::{
-    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective, Policy, Sink,
-    Storage, StorageError, StorageProvider,
+    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
+    Sink, Storage as _, StorageError, StorageProvider, engine::ActionPlacement,
 };
 
 mod braiding;
@@ -60,8 +60,8 @@ pub struct ClientState<E, SP> {
 
 impl<E, SP> ClientState<E, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(engine: E, provider: SP) -> ClientState<E, SP> {
-        ClientState { engine, provider }
+    pub const fn new(engine: E, provider: SP) -> Self {
+        Self { engine, provider }
     }
 
     /// Provide access to the [`StorageProvider`].
@@ -91,7 +91,7 @@ where
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
         policy
-            .call_action(action, &mut perspective, sink)
+            .call_action(action, &mut perspective, sink, ActionPlacement::OnGraph)
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
 
@@ -145,13 +145,11 @@ where
         Ok(())
     }
 
-    /// Returns the ID of the head of the graph.
-    pub fn head_id(&mut self, storage_id: GraphId) -> Result<CmdId, ClientError> {
+    /// Returns the address of the head of the graph.
+    pub fn head_address(&mut self, storage_id: GraphId) -> Result<Address, ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
-
-        let head = storage.get_head()?;
-        let id = storage.get_command_id(head)?;
-        Ok(id)
+        let address = storage.get_head_address()?;
+        Ok(address)
     }
 
     /// Performs an `action`, writing the results to `sink`.
@@ -165,9 +163,7 @@ where
 
         let head = storage.get_head()?;
 
-        let mut perspective = storage
-            .get_linear_perspective(head)?
-            .assume("can always get perspective at head")?;
+        let mut perspective = storage.get_linear_perspective(head)?;
 
         let policy_id = perspective.policy();
         let policy = self.engine.get_policy(policy_id)?;
@@ -176,8 +172,8 @@ where
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(action, &mut perspective, sink) {
-            Ok(_) => {
+        match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
+            Ok(()) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
                 sink.commit();

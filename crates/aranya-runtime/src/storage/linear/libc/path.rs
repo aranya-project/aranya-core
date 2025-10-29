@@ -2,8 +2,8 @@
 
 use core::{fmt, ops::Deref};
 
-use aranya_crypto::id::{String32, ToBase58};
 use aranya_libc::Path;
+use spideroak_base58::{String32, ToBase58 as _};
 
 use crate::GraphId;
 
@@ -12,6 +12,10 @@ use crate::GraphId;
 pub struct IdPath(String32);
 
 impl IdPath {
+    pub(super) fn new(id: GraphId) -> Self {
+        Self(id.to_base58())
+    }
+
     fn as_path(&self) -> &Path {
         self.0.as_cstr().into()
     }
@@ -43,12 +47,6 @@ impl fmt::Debug for IdPath {
     }
 }
 
-impl GraphId {
-    pub(super) fn to_path(self) -> IdPath {
-        IdPath(self.to_base58())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,7 +56,7 @@ mod tests {
         let root = Path::new("/foo/bar");
         let id = GraphId::default();
 
-        let got = root.join(id.to_path());
+        let got = root.join(IdPath::new(id));
         let want = format!("/foo/bar/{id}");
 
         assert_eq!(got, want.as_str());

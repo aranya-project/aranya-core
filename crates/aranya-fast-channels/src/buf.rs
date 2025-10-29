@@ -7,8 +7,9 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+#[allow(clippy::unused_trait_names, reason = "used in docs")]
 use aranya_crypto::zeroize::Zeroize;
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 
 /// Unable to allocate memory.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -102,7 +103,7 @@ impl<A: Allocator> Buf for Vec<u8, A> {
 #[cfg(all(any(test, feature = "alloc"), not(feature = "allocator_api")))]
 impl Buf for Vec<u8> {
     fn len(&self) -> usize {
-        Vec::len(self)
+        Self::len(self)
     }
 
     fn split_at_mut(&mut self, mid: usize) -> (&mut [u8], &mut [u8]) {
@@ -110,15 +111,15 @@ impl Buf for Vec<u8> {
     }
 
     fn truncate(&mut self, len: usize) {
-        Vec::truncate(self, len);
+        Self::truncate(self, len);
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
-        Ok(Vec::try_reserve_exact(self, additional)?)
+        Ok(Self::try_reserve_exact(self, additional)?)
     }
 
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
-        Vec::resize(self, new_len, value);
+        Self::resize(self, new_len, value);
         Ok(())
     }
 }
@@ -133,7 +134,7 @@ impl<const N: usize> Buf for heapless::Vec<u8, N> {
     }
 
     fn truncate(&mut self, len: usize) {
-        heapless::Vec::truncate(self, len);
+        Self::truncate(self, len);
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
@@ -147,7 +148,7 @@ impl<const N: usize> Buf for heapless::Vec<u8, N> {
     }
 
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
-        match heapless::Vec::resize(self, new_len, value) {
+        match Self::resize(self, new_len, value) {
             Ok(()) => Ok(()),
             Err(()) => Err(AllocError::new()),
         }

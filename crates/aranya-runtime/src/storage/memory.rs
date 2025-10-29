@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::ops::{Bound, Deref};
 
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use vec1::Vec1;
 
 use crate::{
@@ -24,7 +24,7 @@ impl MemCommand {
     fn from_cmd<C: Command>(command: &C, max_cut: usize) -> Self {
         let policy = command.policy().map(Box::from);
 
-        MemCommand {
+        Self {
             priority: command.priority(),
             id: command.id(),
             parent: command.parent(),
@@ -67,8 +67,8 @@ pub struct MemStorageProvider {
 }
 
 impl MemStorageProvider {
-    pub const fn new() -> MemStorageProvider {
-        MemStorageProvider {
+    pub const fn new() -> Self {
+        Self {
             storage: BTreeMap::new(),
         }
     }
@@ -92,7 +92,7 @@ impl StorageProvider for MemStorageProvider {
         if update.commands.is_empty() {
             return Err(StorageError::EmptyPerspective);
         }
-        let graph_id = GraphId::from(update.commands[0].command.id.into_id());
+        let graph_id = GraphId::transmute(update.commands[0].command.id);
         let entry = match self.storage.entry(graph_id) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),
@@ -158,8 +158,8 @@ impl MemStorage {
         }
 
         let segment = MemSegmentInner {
-            prior,
             index,
+            prior,
             policy,
             commands,
             facts,
@@ -186,18 +186,7 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError> {
-        let segment = self.get_segment(location)?;
-        let command = segment
-            .get_command(location)
-            .ok_or(StorageError::CommandOutOfBounds(location))?;
-        Ok(command.id())
-    }
-
-    fn get_linear_perspective(
-        &self,
-        parent: Location,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    fn get_linear_perspective(&self, parent: Location) -> Result<Self::Perspective, StorageError> {
         let segment = self.get_segment(parent)?;
         let command = segment
             .get_command(parent)
@@ -230,7 +219,7 @@ impl Storage for MemStorage {
             .assume("must not overflow")?;
         let perspective = MemPerspective::new(prior, parents, policy, prior_facts, max_cut);
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_fact_perspective(
@@ -260,7 +249,7 @@ impl Storage for MemStorage {
         _last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: MemFactIndex,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    ) -> Result<Self::Perspective, StorageError> {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
 
@@ -292,7 +281,7 @@ impl Storage for MemStorage {
 
         let perspective = MemPerspective::new(prior, parents, policy_id, braid.into(), max_cut);
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_segment(&self, location: Location) -> Result<MemSegment, StorageError> {
@@ -400,7 +389,7 @@ impl Query for MemFactIndex {
         let mut prior = Some(self.deref());
         while let Some(facts) = prior {
             if let Some(slot) = facts.map.get(name).and_then(|m| m.get(keys)) {
-                return Ok(slot.as_ref().cloned());
+                return Ok(slot.clone());
             }
             prior = facts.prior.as_deref();
         }
@@ -472,7 +461,7 @@ impl Deref for MemSegment {
 
 impl From<MemSegmentInner> for MemSegment {
     fn from(segment: MemSegmentInner) -> Self {
-        MemSegment(Arc::new(segment))
+        Self(Arc::new(segment))
     }
 }
 
@@ -537,16 +526,14 @@ impl Segment for MemSegment {
             .collect()
     }
 
-    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError> {
-        for (i, command) in self.commands.iter().enumerate() {
-            if command.command.max_cut == max_cut {
-                return Ok(Some(Location {
-                    segment: self.index,
-                    command: i,
-                }));
-            }
-        }
-        Ok(None)
+    fn get_by_address(&self, address: Address) -> Option<Location> {
+        self.commands
+            .iter()
+            .position(|cmd| cmd.command.max_cut == address.max_cut && cmd.command.id == address.id)
+            .map(|i| Location {
+                segment: self.index,
+                command: i,
+            })
     }
 
     fn longest_max_cut(&self) -> Result<usize, StorageError> {
@@ -611,7 +598,7 @@ pub struct MemFactPerspective {
 }
 
 impl MemFactPerspective {
-    fn new(prior_facts: FactPerspectivePrior) -> MemFactPerspective {
+    fn new(prior_facts: FactPerspectivePrior) -> Self {
         Self {
             map: NamedFactMap::new(),
             prior: prior_facts,
@@ -816,7 +803,7 @@ pub mod graphviz {
 
     use std::{fs::File, io::BufWriter};
 
-    use dot_writer::{Attributes, DotWriter, Style};
+    use dot_writer::{Attributes as _, DotWriter, Style};
 
     #[allow(clippy::wildcard_imports)]
     use super::*;
@@ -877,7 +864,7 @@ pub mod graphviz {
                         Prior::Merge(..) => {
                             node.set("shape", "hexagon", false);
                         }
-                    };
+                    }
                 }
                 if i > 0 {
                     let previous = i.checked_sub(1).expect("i must be > 0");

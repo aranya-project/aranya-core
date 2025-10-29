@@ -5,7 +5,7 @@ use core::convert::Infallible;
 
 use aranya_crypto::{DeviceId, policy::CmdId};
 use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 
 use crate::testing::hash_for_testing_only;
 
@@ -63,9 +63,9 @@ impl TestFfiEnvelope {
         let command_id = hash_for_testing_only(&data);
 
         Ok(Envelope {
-            parent_id: parent_id.into(),
-            author_id: author_id.into(),
-            command_id: command_id.into(),
+            parent_id: parent_id.as_base(),
+            author_id: author_id.as_base(),
+            command_id: command_id.as_base(),
             payload,
             // TODO(chip): use an actual signature
             signature: b"LOL".to_vec(),

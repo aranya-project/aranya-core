@@ -1,12 +1,10 @@
 //! Generate typed policy interfaces from policy source code.
 
-#![warn(clippy::arithmetic_side_effects)]
-#![warn(clippy::wildcard_imports)]
 #![warn(missing_docs)]
 
 use std::{fs, path::Path};
 
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 

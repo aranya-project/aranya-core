@@ -14,10 +14,6 @@ not added to the graph of commands and do not persist any changes to the factDB.
 Hence, they are also not delivered through syncs and should be transmitted via
 some other mechanism.
 
-It should be noted that there is no syntactic difference between on-graph and
-ephemeral commands currently. They could in theory be used interchangeably,
-however they are almost always created with a particular flavor in mind.
-
 ```policy
 use envelope
 
@@ -59,6 +55,10 @@ action init(nonce int) {
 
 // `Init` is a command that initializes a graph.
 command Init {
+    attributes {
+        init: true,
+    }
+
     // Local variables for command
     fields {
         nonce int
@@ -89,6 +89,34 @@ action create_action(v int) {
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
 // the `StuffHappened` effect back to the user.
 command Create {
+    attributes {
+        priority: 0,
+    }
+
+    fields {
+        key_a int,
+        value int,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        finish {
+            create Stuff[a: this.key_a]=>{x: this.value}
+            emit StuffHappened{a: this.key_a, x: this.value}
+        }
+    }
+}
+
+ephemeral action create_action_ephemeral(v int) {
+    publish CreateEphemeral {
+        key_a: 1,
+        value: v,
+    }
+}
+
+ephemeral command CreateEphemeral {
     fields {
         key_a int,
         value int,
@@ -117,6 +145,10 @@ action increment(v int) {
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
 command Increment {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -127,7 +159,35 @@ command Increment {
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = stuff.x + this.value
+        let new_x = unwrap add(stuff.x, this.value)
+        check new_x < 25
+
+        finish {
+            update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x}
+        }
+    }
+}
+
+ephemeral action increment_ephemeral(v int) {
+    publish IncrementEphemeral {
+        key_a: 1,
+        value: v,
+    }
+}
+
+ephemeral command IncrementEphemeral {
+    fields {
+        key_a int,
+        value int,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
+        let new_x = unwrap add(stuff.x, this.value)
         check new_x < 25
 
         finish {
@@ -149,6 +209,10 @@ action decrement(v int) {
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
 command Decrement {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
         value int,
@@ -159,7 +223,7 @@ command Decrement {
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = stuff.x - this.value
+        let new_x = unwrap sub(stuff.x, this.value)
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -169,17 +233,41 @@ command Decrement {
 }
 
 // `get_stuff` calls the `GetStuff` command with the hardcoded test key.
-action get_stuff() {
+ephemeral action get_stuff() {
     publish GetStuff {
         key_a: 1,
     }
 }
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
-// returns it in a `StuffHappened` effect. As pointed out elsewhere, there is
-// absolutely nothing stopping us from using this command in an on-graph or
-// ephemeral context. We chose to use it strictly in the ephemeral context.
-command GetStuff {
+// returns it in a `StuffHappened` effect.
+ephemeral command GetStuff {
+    fields {
+        key_a int,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        finish {
+            emit StuffHappened{a: this.key_a, x: stuff.x}
+        }
+    }
+}
+
+action get_stuff_on_graph() {
+    publish GetStuffOnGraph {
+        key_a: 1,
+    }
+}
+
+command GetStuffOnGraph {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key_a int,
     }
@@ -197,7 +285,7 @@ command GetStuff {
 
 // The `create_greeting` action calls the command `CreateGreeting`. Passing in
 // the hardcoded greeting key and the message value.
-action create_greeting(v string) {
+ephemeral action create_greeting(v string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
@@ -206,7 +294,7 @@ action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-command CreateGreeting {
+ephemeral command CreateGreeting {
     fields {
         key string,
         value string,
@@ -227,7 +315,7 @@ command CreateGreeting {
 
 // The `verify_hello` action calls the command `VerifyGreeting` that will verify
 // the Message fact contains "hello".
-action verify_hello() {
+ephemeral action verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",
@@ -238,7 +326,7 @@ action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-command VerifyGreeting {
+ephemeral command VerifyGreeting {
     fields {
         key string,
         value string,
@@ -261,6 +349,36 @@ command VerifyGreeting {
     }
 }
 
+action verify_hello_on_graph() {
+    publish VerifyGreetingOnGraph {
+        key: "greeting",
+        value: "hello",
+    }
+}
+
+command VerifyGreetingOnGraph {
+    attributes {
+        priority: 0,
+    }
+
+    fields {
+        key string,
+        value string,
+    }
+
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+
+    policy {
+        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        check greeting.value == this.value
+        finish {
+            emit Success{value: true}
+        }
+    }
+}
+
+
 // `store_session_data` will call StoreSessionData with a command name
 // and byte value.
 action store_session_data(key string, value bytes) {
@@ -273,6 +391,10 @@ action store_session_data(key string, value bytes) {
 // `StoreSessionData` will take serialized byte information and add it to
 // the factDB in a `PersistedSessionData` fact.
 command StoreSessionData {
+    attributes {
+        priority: 0,
+    }
+
     fields {
         key string,
         cmd bytes,
@@ -298,6 +420,10 @@ effect Relationship {
 
 // Emits `Relationship` effects
 command Link {
+    attributes {
+        priority: 0,
+    }
+
     // Local variables for command
     fields {}
 

@@ -6,10 +6,11 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore,
+    BaseId, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, IdentityKey, KeyStore,
     KeyStoreExt as _, OpenError, SigningKey,
+    id::IdExt as _,
     policy::{CmdId, GroupId},
-    subtle::ConstantTimeEq,
+    subtle::ConstantTimeEq as _,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -84,7 +85,7 @@ where
         name: ident!("dummy"),
         id: CmdId::default(),
         author: DeviceId::default(),
-        version: Id::default(),
+        version: BaseId::default(),
     });
 
     /// Test that we can unwrap `GroupKey`s.
@@ -102,7 +103,7 @@ where
             .expect("should be able to unwrap `GroupKey`")
             .id()
             .expect("should be able to generate `GroupKey` ID");
-        assert_eq!(got.into_id(), key_id);
+        assert_eq!(got.as_base(), key_id);
     }
 
     /// Test that we generate unique `GroupKey`s.
@@ -249,7 +250,7 @@ where
             name: ident!("different_name"),
             id: CmdId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         let err = ffi
             .decrypt_message(&ctx, &mut eng, CmdId::default(), ciphertext, wrapped, pk)
@@ -419,7 +420,7 @@ where
         assert!(
             bool::from(got.ct_eq(&want)),
             "`GroupKeys` differ, but have same ID"
-        )
+        );
     }
 
     /// Tests that we reject encrypted `GroupKey`s where the
@@ -448,7 +449,7 @@ where
 
         let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
-            .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
+            .seal_group_key(ctx, &mut eng, want.wrapped, pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
         sealed.ciphertext[0] = sealed.ciphertext[0].wrapping_add(1);
@@ -497,7 +498,7 @@ where
 
         let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
-            .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
+            .seal_group_key(ctx, &mut eng, want.wrapped, pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
         // We don't know the structure of `v`, so clobber the
@@ -542,7 +543,7 @@ where
 
         let group_id = GroupId::random(&mut eng);
         let sealed = ffi
-            .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
+            .seal_group_key(ctx, &mut eng, want.wrapped, pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
         let wrong_group_id = GroupId::random(&mut eng);

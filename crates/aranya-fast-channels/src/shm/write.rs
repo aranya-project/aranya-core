@@ -1,10 +1,11 @@
-use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
+use core::{cell::Cell, marker::PhantomData, ops::DerefMut as _, sync::atomic::Ordering};
 
 use aranya_crypto::{
-    CipherSuite, Csprng,
+    CipherSuite, Csprng, DeviceId,
     afc::{RawOpenKey, RawSealKey},
+    policy::LabelId,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 
 use super::{
     error::{Corrupted, Error, corrupted},
@@ -14,13 +15,15 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    RemoveIfParams,
     mutex::StdMutex,
     shm::shared::Op,
-    state::{AranyaState, ChannelId, Directed},
+    state::{AranyaState, Directed, LocalChannelId},
     util::debug,
 };
 
 /// The writer's view of the shared memory state.
+#[derive(Debug)]
 pub struct WriteState<CS, R> {
     inner: State<CS>,
     rng: StdMutex<R>,
@@ -59,54 +62,49 @@ where
 
     fn add(
         &self,
-        id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
-    ) -> Result<(), Error> {
+        label_id: LabelId,
+        peer_id: DeviceId,
+    ) -> Result<LocalChannelId, Error> {
         let mut rng = self.rng.lock().assume("poisoned")?;
 
-        let (write_off, idx, grow) = {
+        let id = {
+            // NB: This cannot reasonably overflow.
+            let next = self.inner.shm().next_chan_id.fetch_add(1, Ordering::SeqCst);
+            LocalChannelId::new(next)
+        };
+
+        let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
             // of borrowing rules.
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            let (idx, chan, grow) = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, chan)) => (i, chan.as_uninit_mut(), false),
-                None => {
-                    if side.len >= side.cap {
-                        // The channel wasn't found and we're out
-                        // of space.
-                        return Err(Error::OutOfSpace);
-                    }
-                    let len = usize::try_from(side.len)
-                        .map_err(|_| corrupted("`len` larger than `usize::MAX`"))?;
-                    let chan = side.raw_at(len)?;
-                    (len, chan, true)
-                }
-            };
-            debug!("adding chan {id} at {idx} grow={grow}");
+            if side.len >= side.cap {
+                // We're out of space.
+                return Err(Error::OutOfSpace);
+            }
 
-            ShmChan::<CS>::init(chan, id, &keys, rng.deref_mut());
+            let idx = usize::try_from(side.len)
+                .map_err(|_| corrupted("`side.len` larger than `usize::MAX`"))?;
+            let chan = side.raw_at(idx)?;
+            debug!("adding chan {id} at {idx}");
+
+            ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, rng.deref_mut());
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("write side generation={}", generation.wrapping_add(1));
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
-            if grow {
-                side.len = side
-                    .len
-                    .checked_add(1)
-                    .assume("len < cap, so adding 1 cannot overflow")?;
-            }
+            side.len = side
+                .len
+                .checked_add(1)
+                .assume("len < cap, so adding 1 cannot overflow")?;
             assert!(side.len <= side.cap);
             debug!("write side len={}", side.len);
 
-            (off, idx, grow)
+            (off, idx)
         };
 
         let read_off = {
@@ -115,19 +113,24 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(
+                side.raw_at(idx)?,
+                id,
+                label_id,
+                peer_id,
+                &keys,
+                rng.deref_mut(),
+            );
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("read side generation={}", generation.wrapping_add(1));
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
-            if grow {
-                side.len = side
-                    .len
-                    .checked_add(1)
-                    .assume("len < cap, so adding 1 cannot overflow")?;
-            }
+            side.len = side
+                .len
+                .checked_add(1)
+                .assume("len < cap, so adding 1 cannot overflow")?;
             assert!(side.len <= side.cap);
             debug!("read side len={}", side.len);
 
@@ -139,10 +142,10 @@ where
             .write_off
             .store(read_off.into(), Ordering::SeqCst);
 
-        Ok(())
+        Ok(id)
     }
 
-    fn remove(&self, id: ChannelId) -> Result<(), Error> {
+    fn remove(&self, id: LocalChannelId) -> Result<(), Error> {
         let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
@@ -223,7 +226,7 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
         let shm = self.inner.shm();
 
         let write_off = {
@@ -257,7 +260,7 @@ where
         Ok(())
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
         let mutex = self.inner.load_write_list()?;
         let list = mutex.lock().assume("poisoned")?;
         list.exists(id, None, Op::Any)

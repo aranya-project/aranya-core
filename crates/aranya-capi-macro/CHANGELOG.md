@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-macro-v0.4.0...aranya-capi-macro-v0.5.0) - 2025-10-16
+
+### Other
+
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
+## [0.4.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-macro-v0.3.3...aranya-capi-macro-v0.4.0) - 2025-09-17
+
+### Other
+
+- updated the following local packages: aranya-capi-codegen
+
 ## [0.3.3](https://github.com/aranya-project/aranya-core/compare/aranya-capi-macro-v0.3.2...aranya-capi-macro-v0.3.3) - 2025-08-14
 
 ### Other

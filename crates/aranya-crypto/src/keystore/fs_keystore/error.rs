@@ -61,7 +61,7 @@ impl From<UnexpectedEof> for Error {
 
 impl From<Errno> for Error {
     fn from(err: Errno) -> Self {
-        <Self as keystore::Error>::other(err)
+        <Self as keystore::Error>::other(Trouble(err))
     }
 }
 
@@ -100,7 +100,7 @@ enum Repr {
     AlreadyExists,
     UnexpectedEof(UnexpectedEof),
     Bug(Bug),
-    Errno(Errno),
+    Errno(Trouble<Errno>),
     Encode(cbor::ser::Error<Errno>),
     Decode(cbor::de::Error<Errno>),
     RootDeleted(RootDeleted),
@@ -112,7 +112,7 @@ impl Repr {
         if let Some(err) = err.downcast_ref::<UnexpectedEof>() {
             Self::UnexpectedEof(*err)
         } else if let Some(err) = err.downcast_ref::<Errno>() {
-            Self::Errno(*err)
+            Self::Errno(Trouble(*err))
         } else if let Some(err) = err.downcast_ref::<cbor::ser::Error<Errno>>() {
             // ugh no `Clone`
             Self::Encode(match err {
@@ -189,12 +189,28 @@ fn downcast_ref<T: 'static, E: 'static>(err: &E) -> Option<&T> {
 #[error("root keystore directory deleted")]
 pub struct RootDeleted(pub(crate) ());
 
+/// A wrapper around some error `E` so that it implements [`core::error::Error`].
+#[derive(Copy, Clone)]
+struct Trouble<E>(E);
+
+impl<E: fmt::Display> fmt::Display for Trouble<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<E: fmt::Debug> fmt::Debug for Trouble<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<E: fmt::Display + fmt::Debug> core::error::Error for Trouble<E> {}
+
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "std")]
     use super::*;
 
-    #[cfg(feature = "std")]
     mod conversion {
         use keystore::Error as _;
 
@@ -212,7 +228,7 @@ mod tests {
         fn errno() {
             assert!(matches!(
                 Error::new(ErrorKind::Other, Errno::INVAL),
-                Error(Repr::Errno(Errno::INVAL))
+                Error(Repr::Errno(Trouble(Errno::INVAL)))
             ));
         }
 

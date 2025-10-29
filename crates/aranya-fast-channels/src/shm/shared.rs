@@ -4,15 +4,16 @@ use core::{
     marker::PhantomData,
     mem::{MaybeUninit, size_of},
     ptr, slice, str,
-    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
+    sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering},
 };
 
 use aranya_crypto::{
-    CipherSuite, Csprng, Random,
+    CipherSuite, Csprng, DeviceId, Random,
     afc::{RawOpenKey, RawSealKey, Seq},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
+    policy::LabelId,
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use cfg_if::cfg_if;
 use derive_where::derive_where;
 
@@ -29,9 +30,10 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    RemoveIfParams,
     errno::{Errno, errno},
     mutex::Mutex,
-    state::{ChannelId, Directed, NodeId},
+    state::{Directed, LocalChannelId},
     util::{const_assert, debug},
 };
 
@@ -88,6 +90,7 @@ fn getpagesize() -> Result<Option<usize>, PageSizeError> {
 }
 
 /// Used by both `ReadState` and `WriteState`.
+#[derive(Debug)]
 pub(super) struct State<CS> {
     ptr: Mapping<SharedMem<CS>>,
     /// The maximum number of channels supported by the shared
@@ -115,7 +118,7 @@ impl<CS: CipherSuite> State<CS> {
         let ptr = Mapping::open(path.as_ref(), flag, mode, layout.layout)?;
         if flag == Flag::Create {
             SharedMem::init(ptr.as_ptr(), max_chans, &layout);
-        };
+        }
         let state = Self {
             ptr,
             max_chans,
@@ -213,7 +216,7 @@ impl<CS: CipherSuite> State<CS> {
     #[cfg(test)]
     pub fn find_chan(
         &self,
-        ch: ChannelId,
+        ch: LocalChannelId,
         hint: Option<Index>,
     ) -> Result<Option<(ShmChan<CS>, Index)>, Corrupted> {
         let list = self.load_read_list()?.lock().assume("poisoned")?;
@@ -268,7 +271,7 @@ pub(super) struct Index(pub(super) usize);
 pub(super) struct Offset(usize);
 
 impl From<Offset> for usize {
-    fn from(val: Offset) -> usize {
+    fn from(val: Offset) -> Self {
         val.0
     }
 }
@@ -283,8 +286,6 @@ enum ChanDirection {
     SealOnly = 1,
     /// See [`Directed::OpenOnly`].
     OpenOnly = 2,
-    /// See [`Directed::Bidirectional`].
-    Bidirectional = 3,
 }
 
 impl ChanDirection {
@@ -297,10 +298,6 @@ impl ChanDirection {
         const_assert!(ChanDirection::OpenOnly.matches(Op::Open));
         const_assert!(!ChanDirection::OpenOnly.matches(Op::Seal));
         const_assert!(ChanDirection::OpenOnly.matches(Op::Any));
-
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Seal));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Open));
-        const_assert!(ChanDirection::Bidirectional.matches(Op::Any));
 
         // Ideally, we'd write this using `matches`. But the
         // compiler isn't smart enough to turn it into a bitmask,
@@ -318,7 +315,6 @@ impl ChanDirection {
         match dir {
             Directed::SealOnly { .. } => Self::SealOnly,
             Directed::OpenOnly { .. } => Self::OpenOnly,
-            Directed::Bidirectional { .. } => Self::Bidirectional,
         }
     }
 
@@ -328,7 +324,6 @@ impl ChanDirection {
         match v {
             1 => Some(Self::SealOnly),
             2 => Some(Self::OpenOnly),
-            3 => Some(Self::Bidirectional),
             _ => None,
         }
     }
@@ -348,15 +343,16 @@ impl PartialEq<Op> for ChanDirection {
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
-    /// The peer's node ID.
-    pub node_id: U32,
-    /// The channel's label.
-    pub label: U32,
     /// Describes the direction that data flows in the channel.
     pub direction: U32,
-
+    /// The channel's ID.
+    pub local_channel_id: U64,
     /// The current encryption sequence counter.
     pub seq: U64,
+    /// The channel's label.
+    pub label_id: LabelId,
+    /// The ID of the peer.
+    pub peer_id: DeviceId,
     /// The key/nonce used to encrypt data for the channel peer.
     #[derive_where(skip(Debug))]
     pub seal_key: RawSealKey<CS>,
@@ -382,7 +378,9 @@ impl<CS: CipherSuite> ShmChan<CS> {
     /// It uses `rng` to randomize unset fields.
     pub fn init<R: Csprng>(
         ptr: &mut MaybeUninit<Self>,
-        id: ChannelId,
+        id: LocalChannelId,
+        label_id: LabelId,
+        peer_id: DeviceId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
         rng: &mut R,
     ) {
@@ -403,11 +401,11 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // a ciphertext.
         let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(rng));
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
+        let key_id = KeyId::new(&seal_key, &open_key);
         let chan = Self {
             magic: Self::MAGIC,
-            node_id: id.node_id().to_u32().into(),
-            label: id.label().to_u32().into(),
             direction: ChanDirection::from_directed(keys).to_u32().into(),
+            local_channel_id: id.to_u64().into(),
             // For the same reason that we randomize keys,
             // manually exhaust the sequence number.
             seq: if keys.seal().is_some() {
@@ -415,18 +413,13 @@ impl<CS: CipherSuite> ShmChan<CS> {
             } else {
                 U64::MAX
             },
-            key_id: KeyId::new(&seal_key, &open_key),
+            label_id,
+            peer_id,
             seal_key,
             open_key,
+            key_id,
         };
         ptr.write(chan);
-    }
-
-    /// Returns itself as a `MaybeUninit`.
-    pub fn as_uninit_mut(&mut self) -> &mut MaybeUninit<Self> {
-        // SAFETY: `self` and `MaybeUninit<Self>` have the same
-        // memory layout.
-        unsafe { &mut *(self as *mut ShmChan<CS>).cast::<MaybeUninit<ShmChan<CS>>>() }
     }
 
     #[cfg(test)]
@@ -438,21 +431,31 @@ impl<CS: CipherSuite> ShmChan<CS> {
             ChanDirection::OpenOnly => Directed::OpenOnly {
                 open: &self.open_key,
             },
-            ChanDirection::Bidirectional => Directed::Bidirectional {
-                seal: &self.seal_key,
-                open: &self.open_key,
-            },
         })
     }
 
     /// Returns the channel's unique ID.
     #[inline(always)]
-    pub fn id(&self) -> Result<ChannelId, Corrupted> {
+    pub fn id(&self) -> Result<LocalChannelId, Corrupted> {
         self.check()?;
 
-        let node_id = NodeId::new(self.node_id.into());
-        let label: u32 = self.label.into();
-        Ok(ChannelId::new(node_id, label.into()))
+        Ok(LocalChannelId::new(self.local_channel_id.into()))
+    }
+
+    /// Returns the [label ID][LabelId] associated with this channel.
+    #[inline(always)]
+    pub fn label_id(&self) -> Result<LabelId, Corrupted> {
+        self.check()?;
+
+        Ok(self.label_id)
+    }
+
+    /// Returns the [Id of the peer][DeviceId] associated with this channel.
+    #[inline(always)]
+    pub fn peer_id(&self) -> Result<DeviceId, Corrupted> {
+        self.check()?;
+
+        Ok(self.peer_id)
     }
 
     /// Reports whether this channel matches `op`.
@@ -474,7 +477,12 @@ impl<CS: CipherSuite> ShmChan<CS> {
 
     /// Updates the sequence number.
     pub fn set_seq(&mut self, seq: Seq) {
-        debug_assert!(seq.to_u64() > self.seq.into());
+        debug_assert!(
+            seq.to_u64() > self.seq.into(),
+            "{} <= {}",
+            seq.to_u64(),
+            self.seq.into()
+        );
 
         self.seq = seq.to_u64().into();
     }
@@ -551,17 +559,20 @@ pub(super) struct SharedMem<CS> {
     version: U32,
     /// The total size of this object, including trailing data.
     size: U64,
-    /// `true` if this object and its [`ChanList`]s are page
-    /// aligned.
-    page_aligned: bool,
-    /// Padding for `page_aligned`.
-    _pad1: [u8; 7],
     /// The size in bytes of the keys stored in each
     /// [`ChanList`].
     key_size: U64,
     /// The size in bytes of the nonces stored in each
     /// [`ChanList`].
     nonce_size: U64,
+    /// The next channel ID.
+    ///
+    /// Invariant: only the writer reads from or writes to this
+    /// field.
+    pub next_chan_id: AtomicU64,
+    /// `true` if this object and its [`ChanList`]s are page
+    /// aligned.
+    page_aligned: bool,
     /// The offset of either `side_a` or `side_b`.
     ///
     /// `read_off` always refers to the opposite of `write_off`.
@@ -604,10 +615,10 @@ impl<CS: CipherSuite> SharedMem<CS> {
             magic: Self::MAGIC,
             version: Self::VERSION,
             size: layout.size64(),
-            page_aligned: layout.page_aligned,
-            _pad1: [0u8; 7],
             key_size: Self::KEY_SIZE,
             nonce_size: Self::NONCE_SIZE,
+            next_chan_id: AtomicU64::new(0),
+            page_aligned: layout.page_aligned,
             read_off: CacheAligned::new(AtomicUsize::new(layout.side_a)),
             write_off: CacheAligned::new(AtomicUsize::new(layout.side_b)),
             sides: PhantomData,
@@ -681,7 +692,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         // SAFETY: ptr is non-null, suitably aligned, and won't
         // wrap.
         let list = unsafe {
-            let ptr = (self as *const SharedMem<CS>).byte_add(off.into());
+            let ptr = ptr::from_ref::<Self>(self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
             &*ptr
         };
@@ -716,8 +727,6 @@ struct ChanList<CS> {
     ///
     /// Should be [`Self::MAGIC`].
     magic: U32,
-    /// Padding for `magic`.
-    _pad0: [u8; 4],
     /// The locked list data.
     data: Mutex<ChanListData<CS>>,
 }
@@ -780,11 +789,9 @@ impl<CS: CipherSuite> ChanList<CS> {
     /// `max_chans`.
     fn new(max_chans: usize) -> Self {
         Self {
-            magic: ChanList::<CS>::MAGIC,
-            _pad0: [0u8; 4],
+            magic: Self::MAGIC,
             data: Mutex::new(ChanListData {
                 generation: AtomicU32::new(0),
-                _pad0: [0u8; 4],
                 len: U64::new(0),
                 cap: U64::new(max_chans as u64),
                 chans: PhantomData,
@@ -809,8 +816,6 @@ pub(super) struct ChanListData<CS> {
     /// Putting it as the first field significantly decreases the
     /// size of the struct.
     pub generation: AtomicU32,
-    /// Padding for `generation`.
-    _pad0: [u8; 4],
     /// The current number of channels.
     pub len: U64,
     /// The maximum number of channels.
@@ -917,7 +922,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Removes all elements where `f` returns true.
     pub(super) fn remove_if<F>(&mut self, f: &mut F) -> Result<(), Corrupted>
     where
-        F: FnMut(ChannelId) -> bool,
+        F: FnMut(RemoveIfParams) -> bool,
     {
         self.check();
 
@@ -925,7 +930,9 @@ impl<CS: CipherSuite> ChanListData<CS> {
         let mut idx = 0;
         while let Some(chan) = self.get(idx)? {
             let id = chan.id()?;
-            if !f(id) {
+            let label_id = chan.label_id()?;
+            let peer_id = chan.peer_id()?;
+            if !f(RemoveIfParams::new(id, label_id, peer_id)) {
                 // Nope, try the next index.
                 // wrapping_add is safe here: if idx overflows, self.get() will return None, ending the loop
                 idx = idx.wrapping_add(1);
@@ -952,7 +959,12 @@ impl<CS: CipherSuite> ChanListData<CS> {
     }
 
     /// Checks if channel exists.
-    pub(super) fn exists(&self, id: ChannelId, hint: Option<Index>, op: Op) -> Result<bool, Error> {
+    pub(super) fn exists(
+        &self,
+        id: LocalChannelId,
+        hint: Option<Index>,
+        op: Op,
+    ) -> Result<bool, Error> {
         self.check();
 
         Ok(self.find(id, hint, op)?.is_some())
@@ -964,7 +976,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// The channel must match the particular `op`.
     pub(super) fn find(
         &self,
-        ch: ChannelId,
+        ch: LocalChannelId,
         hint: Option<Index>,
         op: Op,
     ) -> Result<Option<(&ShmChan<CS>, Index)>, Corrupted> {
@@ -1004,7 +1016,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// The channel must match the particular `op`.
     pub(super) fn find_mut(
         &mut self,
-        ch: ChannelId,
+        ch: LocalChannelId,
         hint: Option<Index>,
         op: Op,
     ) -> Result<Option<(&mut ShmChan<CS>, Index)>, Corrupted> {
@@ -1112,11 +1124,7 @@ mod tests {
 
     #[test]
     fn test_chan_direction() {
-        const TYPES: &[ChanDirection] = &[
-            ChanDirection::SealOnly,
-            ChanDirection::OpenOnly,
-            ChanDirection::Bidirectional,
-        ];
+        const TYPES: &[ChanDirection] = &[ChanDirection::SealOnly, ChanDirection::OpenOnly];
         for want in TYPES.iter().copied() {
             let got = ChanDirection::try_from_u32(want.to_u32()).expect("should be `Some`");
             assert_eq!(want, got);

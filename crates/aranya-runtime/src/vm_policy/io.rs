@@ -1,19 +1,19 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, boxed::Box, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::{Id, policy::CmdId};
+use aranya_crypto::{BaseId, policy::CmdId};
 use aranya_policy_vm::{
     CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
     ast::{Identifier, Text},
     ffi::FfiModule,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
 use spin::Mutex;
 use tracing::error;
 
@@ -63,7 +63,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
         sink: &'o RefCell<&'o mut S>,
         engine: &'o Mutex<E>,
         ffis: &'o [FFI],
-    ) -> VmPolicyIO<'o, P, S, E, FFI> {
+    ) -> Self {
         VmPolicyIO {
             facts,
             sink,
@@ -194,13 +194,13 @@ enum KeyType {
 }
 
 impl KeyType {
-    fn from_u8(val: u8) -> Option<KeyType> {
+    fn from_u8(val: u8) -> Option<Self> {
         Some(match val {
-            0 => KeyType::Int,
-            1 => KeyType::Bool,
-            2 => KeyType::String,
-            3 => KeyType::Id,
-            4 => KeyType::Enum,
+            0 => Self::Int,
+            1 => Self::Bool,
+            2 => Self::String,
+            3 => Self::Id,
+            4 => Self::Enum,
             _ => return None,
         })
     }
@@ -286,7 +286,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
         KeyType::Id => {
             let bytes = bytes.try_into().map_err(|_| "invalid ID length")?;
-            let id = Id::from_bytes(bytes);
+            let id = BaseId::from_bytes(bytes);
             HashableValue::Id(id)
         }
         KeyType::Enum => {
@@ -398,7 +398,7 @@ mod test {
         }
 
         #[test]
-        fn test_id_ord(identifier: Identifier, v1: Id, v2: Id) {
+        fn test_id_ord(identifier: Identifier, v1: BaseId, v2: BaseId) {
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
                 value: HashableValue::Id(v1),

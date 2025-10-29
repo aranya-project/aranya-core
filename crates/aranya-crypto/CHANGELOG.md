@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.10.0...aranya-crypto-v0.11.0) - 2025-10-16
+
+### Other
+
+- Remove AFC Bidi channel related items ([#428](https://github.com/aranya-project/aranya-core/pull/428))
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Separate out crate for IDs ([#318](https://github.com/aranya-project/aranya-core/pull/318))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+- Implement `rkyv` traits for policy modules ([#344](https://github.com/aranya-project/aranya-core/pull/344))
+
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.9.0...aranya-crypto-v0.10.0) - 2025-09-17
+
+### Other
+
+- use label id in ffis and shm ([#383](https://github.com/aranya-project/aranya-core/pull/383))
+- simplify rustix `raw_os_error` handling ([#384](https://github.com/aranya-project/aranya-core/pull/384))
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
 ## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.8.0...aranya-crypto-v0.9.0) - 2025-08-19
 
 ### Other

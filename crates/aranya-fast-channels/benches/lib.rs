@@ -4,7 +4,7 @@
 use std::{array, hint::black_box, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
-    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
+    CipherSuite, Csprng as _, DeviceId, OpenError, Random as _, Rng, SealError,
     afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{
         aead::{Aead, AeadKey, IndCca2, Lifetime},
@@ -14,11 +14,13 @@ use aranya_crypto::{
         rust::HkdfSha256,
     },
     default::DefaultCipherSuite,
+    id::IdExt as _,
+    policy::LabelId,
     test_util::TestCs,
-    typenum::{U0, U16},
+    typenum::U16,
 };
 use aranya_fast_channels::{
-    AranyaState, ChannelId, Client, Directed, Label, NodeId,
+    AranyaState as _, Client, Directed, LocalChannelId,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
 };
@@ -31,7 +33,7 @@ impl Aead for NoopAead {
 
     type KeySize = U16;
     type NonceSize = U16;
-    type Overhead = U0;
+    type Overhead = U16;
 
     const MAX_PLAINTEXT_SIZE: u64 = u64::MAX - Self::OVERHEAD as u64;
     const MAX_ADDITIONAL_DATA_SIZE: u64 = u64::MAX;
@@ -118,9 +120,8 @@ macro_rules! bench_impl {
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
 
-			let chans: [ChannelId; USED_CHANS] = array::from_fn(|i| {
-				let node_id = NodeId::new(i as u32);
-				let label = Label::new(0);
+			let chans: [(LocalChannelId, LocalChannelId); USED_CHANS] = array::from_fn(|_| {
+				let label = LabelId::random(&mut Rng);
 
 				// Use the same key to simplify the decryption
 				// benchmarks.
@@ -130,13 +131,15 @@ macro_rules! bench_impl {
 					base_nonce: seal.base_nonce,
 				};
 
-				let id = ChannelId::new(node_id, label);
-				let keys = Directed::Bidirectional {
+				let seal_key = Directed::SealOnly {
                     seal,
-                    open,
                 };
-				aranya.add(id, keys).unwrap();
-				id
+
+				let open_key = Directed::OpenOnly {
+					open
+				};
+
+				(aranya.add(seal_key, label, DeviceId::random(&mut Rng)).unwrap(), aranya.add(open_key, label, DeviceId::random(&mut Rng)).unwrap())
 			});
 			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 
@@ -152,11 +155,11 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let id = *chans.last().unwrap();
+				let (seal_channel_id, _) = *chans.last().unwrap();
 				g.bench_function(BenchmarkId::new("seal_hit", *size), |b| {
 					b.iter(|| {
 						black_box(client.seal(
-							black_box(id),
+							black_box(seal_channel_id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -168,9 +171,10 @@ macro_rules! bench_impl {
 				// never cached.
 				let mut iter = chans.iter().cycle().copied();
 				g.bench_function(BenchmarkId::new("seal_miss", *size), |b| {
+					let (seal_channel_id, _) = iter.next().expect("should repeat");
 					b.iter(|| {
 						black_box(client.seal(
-							black_box(iter.next().expect("should repeat")),
+							black_box(seal_channel_id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -180,14 +184,14 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let id = *chans.last().unwrap();
+				let (seal_channel_id, open_channel_id) = *chans.last().unwrap();
 				client
-					.seal(id, &mut ciphertext, &input)
+					.seal(seal_channel_id, &mut ciphertext, &input)
 					.expect("open_hit: unable to encrypt");
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
 					b.iter(|| {
 						let _ = black_box(client.open(
-							black_box(id.node_id()),
+							black_box(open_channel_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						))
@@ -202,8 +206,9 @@ macro_rules! bench_impl {
 					b.iter(|| {
 						// Ignore failures instead of creating
 						// N ciphertexts.
+						let (_seal_channel_id, open_channel_id) = iter.next().expect("should repeat");
 						let _ = client.open(
-							black_box(iter.next().expect("should repeat").node_id()),
+							black_box(*open_channel_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						);

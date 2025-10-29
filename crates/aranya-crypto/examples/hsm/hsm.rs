@@ -6,20 +6,21 @@ use std::{
 };
 
 use aranya_crypto::{
-    Rng, custom_id,
+    Rng,
     dangerous::spideroak_crypto::{
         aead::Aead,
         csprng::Random,
         ed25519::{SigningKey, VerifyingKey},
         generic_array::GenericArray,
         hash::tuple_hash,
-        import::{Import, ImportError},
+        import::{Import as _, ImportError},
         keys::PublicKey as _,
         rust::{Aes256Gcm, Sha256},
         signer::PkError,
     },
 };
-use buggy::{Bug, BugExt};
+use aranya_id::custom_id;
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 /// An error returned by [`Hsm`].
@@ -52,7 +53,7 @@ pub(crate) struct Hsm {
 
 impl Hsm {
     /// Returns a connection to the HSM.
-    fn get() -> &'static RwLock<Hsm> {
+    fn get() -> &'static RwLock<Self> {
         static HSM: OnceLock<RwLock<Hsm>> = OnceLock::new();
         HSM.get_or_init(|| {
             RwLock::new(Self {
@@ -63,12 +64,12 @@ impl Hsm {
     }
 
     /// Returns a read-only connection to the HSM.
-    pub fn read() -> RwLockReadGuard<'static, Hsm> {
+    pub fn read() -> RwLockReadGuard<'static, Self> {
         Self::get().read().expect("poisoned")
     }
 
     /// Returns a read-write connection to the HSM.
-    pub fn write() -> RwLockWriteGuard<'static, Hsm> {
+    pub fn write() -> RwLockWriteGuard<'static, Self> {
         Self::get().write().expect("poisoned")
     }
 }
@@ -153,10 +154,10 @@ struct AuthData<'a> {
 // Signer impl.
 impl Hsm {
     fn signer_key_id(pk: &VerifyingKey) -> KeyId {
-        let id = tuple_hash::<Sha256, _>(["HSM-v1".as_bytes(), "Ed25519".as_bytes(), &pk.export()])
+        tuple_hash::<Sha256, _>(["HSM-v1".as_bytes(), "Ed25519".as_bytes(), &pk.export()])
             .into_array()
-            .into();
-        KeyId(id)
+            .into_array()
+            .into()
     }
 
     /// Creates a new `SigningKey`.
@@ -192,7 +193,7 @@ impl Hsm {
     {
         match self.load_key(id)? {
             HsmKey::Signing(sk) => Ok(f(sk)),
-            _ => Err(HsmError::WrongKeyType),
+            HsmKey::Verifying(_) => Err(HsmError::WrongKeyType),
         }
     }
 

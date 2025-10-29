@@ -1,20 +1,20 @@
 use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, TokenStreamExt, quote};
+use quote::{ToTokens, TokenStreamExt as _, quote};
 pub use syn::Abi;
 use syn::{
     Attribute, Block, Error, Expr, GenericParam, Generics, Ident, ItemEnum, ItemFn, ItemStruct,
     ItemType, ItemUnion, LifetimeParam, Lit, LitInt, Pat, PatIdent, PatType, Result, Signature,
     Token, Visibility,
     punctuated::{self, Punctuated},
-    spanned::Spanned,
+    spanned::Spanned as _,
     token::{Brace, Paren},
 };
 use tracing::{debug, instrument, trace};
 
 use super::{
-    attrs::{self, AttrsExt, ExtError, Generated, NoExtError, NoMangle, Parser, Repr},
+    attrs::{self, AttrsExt, Generated, NoExtError, NoMangle, Parser, Repr},
     builds::Builds,
     derive::Derives,
     doc::Doc,
@@ -200,7 +200,7 @@ attrs_impl! {
 pub(crate) struct Alias {
     pub doc: Doc,
     pub derives: Derives,
-    pub ext_error: Option<ExtError>,
+    pub no_ext_error: Option<NoExtError>,
     pub opaque: Option<Opaque>,
     pub builds: Option<Builds>,
     /// Other attrs.
@@ -221,7 +221,7 @@ impl Alias {
 
         let mut doc = Doc::new();
         let mut derives = Derives::new();
-        let mut ext_error = None;
+        let mut no_ext_error = None;
         let mut opaque = None;
         let mut builds = None;
         let attrs = attrs::parse(
@@ -230,7 +230,7 @@ impl Alias {
             Parser {
                 doc: Some(&mut doc),
                 derives: Some(&mut derives),
-                capi_ext_error: Some(&mut ext_error),
+                capi_no_ext_error: Some(&mut no_ext_error),
                 capi_opaque: Some(&mut opaque),
                 capi_builds: Some(&mut builds),
                 ..Default::default()
@@ -240,7 +240,7 @@ impl Alias {
         Ok(Self {
             doc,
             derives,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,
@@ -278,7 +278,7 @@ pub(crate) struct Struct {
     pub doc: Doc,
     pub derives: Derives,
     pub repr: Repr,
-    pub ext_error: Option<ExtError>,
+    pub no_ext_error: Option<NoExtError>,
     pub opaque: Option<Opaque>,
     pub builds: Option<Builds>,
     /// Other attrs.
@@ -299,7 +299,7 @@ impl Struct {
         let mut doc = Doc::new();
         let mut derives = Derives::new();
         let mut repr = None;
-        let mut ext_error = None;
+        let mut no_ext_error = None;
         let mut opaque = None;
         let mut builds = None;
         let attrs = attrs::parse(
@@ -309,7 +309,7 @@ impl Struct {
                 doc: Some(&mut doc),
                 repr: Some(&mut repr),
                 derives: Some(&mut derives),
-                capi_ext_error: Some(&mut ext_error),
+                capi_no_ext_error: Some(&mut no_ext_error),
                 capi_opaque: Some(&mut opaque),
                 capi_builds: Some(&mut builds),
                 ..Default::default()
@@ -331,7 +331,7 @@ impl Struct {
             doc,
             repr,
             derives,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,

@@ -30,7 +30,7 @@ pub mod testing;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
@@ -234,7 +234,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         if init.commands.is_empty() {
             return Err(StorageError::EmptyPerspective);
         }
-        let graph_id = GraphId::from(init.commands[0].id.into_id());
+        let graph_id = GraphId::transmute(init.commands[0].id);
         let Entry::Vacant(entry) = self.storage.entry(graph_id) else {
             return Err(StorageError::StorageExists);
         };
@@ -278,7 +278,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 impl<W: Write> LinearStorage<W> {
     fn get_skip(
         &self,
-        segment: <LinearStorage<W> as Storage>::Segment,
+        segment: <Self as Storage>::Segment,
         max_cut: usize,
     ) -> Result<Option<(Location, usize)>, StorageError> {
         let mut head = segment;
@@ -397,18 +397,7 @@ impl<F: Write> Storage for LinearStorage<F> {
     type Segment = LinearSegment<F::ReadOnly>;
     type FactIndex = LinearFactIndex<F::ReadOnly>;
 
-    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError> {
-        let seg = self.get_segment(location)?;
-        let cmd = seg
-            .get_command(location)
-            .ok_or(StorageError::CommandOutOfBounds(location))?;
-        Ok(cmd.id())
-    }
-
-    fn get_linear_perspective(
-        &self,
-        parent: Location,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    fn get_linear_perspective(&self, parent: Location) -> Result<Self::Perspective, StorageError> {
         let segment = self.get_segment(parent)?;
         let command = segment
             .get_command(parent)
@@ -454,7 +443,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             None,
         );
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_fact_perspective(
@@ -502,7 +491,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: Self::FactIndex,
-    ) -> Result<Option<Self::Perspective>, StorageError> {
+    ) -> Result<Self::Perspective, StorageError> {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
         let left_segment = self.get_segment(left)?;
@@ -538,7 +527,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             Some(last_common_ancestor),
         );
 
-        Ok(Some(perspective))
+        Ok(perspective)
     }
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
@@ -797,23 +786,16 @@ impl<R: Read> Segment for LinearSegment<R> {
             .collect()
     }
 
-    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError> {
-        if max_cut >= self.repr.max_cut
-            && max_cut
-                <= self
-                    .repr
-                    .max_cut
-                    .checked_add(self.repr.commands.len())
-                    .assume("must not overflow")?
-        {
-            return Ok(Some(Location::new(
-                self.repr.offset,
-                max_cut
-                    .checked_sub(self.repr.max_cut)
-                    .assume("must not overflow")?,
-            )));
+    fn get_by_address(&self, address: Address) -> Option<Location> {
+        if address.max_cut < self.repr.max_cut {
+            return None;
         }
-        Ok(None)
+        let idx = address.max_cut.checked_sub(self.repr.max_cut)?;
+        let cmd = self.repr.commands.get(idx)?;
+        if cmd.id != address.id {
+            return None;
+        }
+        Some(Location::new(self.repr.offset, idx))
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
@@ -873,7 +855,7 @@ impl<R: Read> Query for LinearFactIndex<R> {
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(v) = facts.facts.get(name).and_then(|m| m.get(keys)) {
-                return Ok(v.as_ref().cloned());
+                return Ok(v.clone());
             }
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
@@ -1049,7 +1031,7 @@ impl<R: Read> QueryMut for LinearPerspective<R> {
 
     fn delete(&mut self, name: String, keys: Keys) {
         self.facts.delete(name.clone(), keys.clone());
-        self.current_updates.push((name, keys, None))
+        self.current_updates.push((name, keys, None));
     }
 }
 
@@ -1126,9 +1108,9 @@ impl<R: Read> Perspective for LinearPerspective<R> {
 impl From<Prior<Address>> for Prior<CmdId> {
     fn from(p: Prior<Address>) -> Self {
         match p {
-            Prior::None => Prior::None,
-            Prior::Single(l) => Prior::Single(l.id),
-            Prior::Merge(l, r) => Prior::Merge(l.id, r.id),
+            Prior::None => Self::None,
+            Prior::Single(l) => Self::Single(l.id),
+            Prior::Merge(l, r) => Self::Merge(l.id, r.id),
         }
     }
 }

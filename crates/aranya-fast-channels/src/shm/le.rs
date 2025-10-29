@@ -78,7 +78,7 @@ macro_rules! little_endian {
                 type Error = ::buggy::Bug;
 
                 fn try_from(b: &[u8]) -> ::core::result::Result<Self, Self::Error> {
-                    use ::buggy::BugExt;
+                    use ::buggy::BugExt as _;
                     let v = <$type>::from_le_bytes(b.try_into().assume("incorrect size")?);
                     Ok(Self(v))
                 }

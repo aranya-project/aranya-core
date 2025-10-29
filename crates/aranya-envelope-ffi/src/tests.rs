@@ -5,7 +5,9 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::iter;
 
-use aranya_crypto::{Csprng, DeviceId, Id, Random, Rng, default::DefaultEngine, policy::CmdId};
+use aranya_crypto::{
+    BaseId, Csprng, DeviceId, Random, Rng, default::DefaultEngine, id::IdExt as _, policy::CmdId,
+};
 use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext, ident};
 
 use crate::{Envelope, Ffi};
@@ -34,9 +36,9 @@ fn rand_vec<R: Csprng>(rng: &mut R, max: usize) -> Vec<u8> {
 impl Random for Envelope {
     fn random<R: Csprng>(rng: &mut R) -> Self {
         Self {
-            parent_id: Id::random(rng),
-            command_id: Id::random(rng),
-            author_id: Id::random(rng),
+            parent_id: BaseId::random(rng),
+            command_id: BaseId::random(rng),
+            author_id: BaseId::random(rng),
             payload: rand_vec(rng, 4096),
             signature: rand_vec(rng, 4096),
         }
@@ -56,14 +58,14 @@ const POLICY_CTX: &CommandContext = &CommandContext::Policy(PolicyContext {
     name: ident!("dummy"),
     id: CmdId::default(),
     author: DeviceId::default(),
-    version: Id::default(),
+    version: BaseId::default(),
 });
 
 const RECALL_CTX: &CommandContext = &CommandContext::Recall(PolicyContext {
     name: ident!("dummy"),
     id: CmdId::default(),
     author: DeviceId::default(),
-    version: Id::default(),
+    version: BaseId::default(),
 });
 
 #[test]
@@ -142,9 +144,9 @@ fn test_new_envelope() {
         .new_envelope(
             SEAL_CTX,
             &mut eng,
-            env.parent_id.into(),
-            env.author_id.into(),
-            env.command_id.into(),
+            CmdId::from_base(env.parent_id),
+            DeviceId::from_base(env.author_id),
+            CmdId::from_base(env.command_id),
             env.signature.clone(),
             env.payload.clone(),
         )

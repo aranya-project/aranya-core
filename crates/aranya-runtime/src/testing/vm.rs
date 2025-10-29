@@ -3,7 +3,7 @@
 extern crate alloc;
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use aranya_crypto::{DeviceId, Rng, default::DefaultEngine};
+use aranya_crypto::{DeviceId, Rng, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;
@@ -14,7 +14,7 @@ use crate::{
     VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     engine::{Engine, EngineError, PolicyId, Sink},
     ser_keys,
-    storage::{Query, Storage, StorageProvider, memory::MemStorageProvider},
+    storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
 };
@@ -40,6 +40,9 @@ effect OutOfRange {
 }
 
 command Init {
+    attributes {
+        init: true,
+    }
     fields {
         nonce int,
     }
@@ -57,6 +60,9 @@ action init(nonce int) {
 }
 
 command Create {
+    attributes {
+        priority: 0,
+    }
     fields {
         key int,
         value int,
@@ -79,6 +85,9 @@ action create_action(v int) {
 }
 
 command Increment {
+    attributes {
+        priority: 0,
+    }
     fields {
         key int,
         amount int,
@@ -88,7 +97,7 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
-        let new_y = stuff.y + this.amount
+        let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -113,15 +122,51 @@ action increment() {
     }
 }
 
-action incrementFour(n int) {
+ephemeral command IncrementEphemeral {
+    fields {
+        key int,
+        amount int,
+    }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
+    policy {
+        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        check stuff.y > 0
+        let new_y = unwrap add(stuff.y, this.amount)
+        finish {
+            update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
+            emit StuffHappened{x: this.key, y: new_y}
+        }
+    }
+
+    recall {
+        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        finish {
+            emit OutOfRange {
+                value: stuff.y,
+                increment: this.amount,
+            }
+        }
+    }
+}
+
+ephemeral action increment_ephemeral() {
+    publish IncrementEphemeral {
+        key: 1,
+        amount: 1
+    }
+}
+
+
+ephemeral action incrementFour(n int) {
     check n == 4
-    publish Increment {
+    publish IncrementEphemeral {
         key: 1,
         amount: n,
     }
 }
 
-action lookup(k int, v int, expected bool) {
+ephemeral action lookup(k int, v int, expected bool) {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some }
@@ -161,7 +206,7 @@ pub struct TestSink {
 
 impl TestSink {
     pub fn new() -> Self {
-        TestSink { expect: Vec::new() }
+        Self { expect: Vec::new() }
     }
 
     pub fn add_expectation(&mut self, expect: VmEffectData) {
@@ -205,7 +250,7 @@ impl Sink<&[u8]> for MsgSink {
 
     fn consume(&mut self, effect: &[u8]) {
         trace!("sink consume");
-        self.0.push(effect.into())
+        self.0.push(effect.into());
     }
 
     fn rollback(&mut self) {
@@ -243,7 +288,7 @@ impl Sink<VmEffect> for VecSink {
 
     fn consume(&mut self, effect: VmEffect) {
         trace!("sink consume");
-        self.0.push(effect)
+        self.0.push(effect);
     }
 
     fn rollback(&mut self) {
@@ -274,7 +319,7 @@ impl TestEngine {
             })],
         )
         .expect("Could not load policy");
-        TestEngine { policy }
+        Self { policy }
     }
 }
 
@@ -453,7 +498,12 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
             // increment
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
             session
-                .action(&cs, &mut sink, &mut msg_sink, vm_action!(increment()))
+                .action(
+                    &cs,
+                    &mut sink,
+                    &mut msg_sink,
+                    vm_action!(increment_ephemeral()),
+                )
                 .expect("failed session action");
 
             // reject incrementFour(33)
@@ -560,7 +610,7 @@ fn test_sync<E, P, S>(
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
             cs2.add_commands(&mut req_transaction, sink, &cmds)
                 .expect("add commands");
-        };
+        }
     }
 
     cs2.commit(&mut req_transaction, sink).expect("commit");
