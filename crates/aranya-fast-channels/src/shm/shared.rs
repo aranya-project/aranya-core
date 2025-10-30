@@ -30,7 +30,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    RemoveIfParams,
+    ChannelDirection, RemoveIfParams,
     errno::{Errno, errno},
     mutex::Mutex,
     state::{Directed, LocalChannelId},
@@ -332,6 +332,15 @@ impl ChanDirection {
 impl PartialEq<Op> for ChanDirection {
     fn eq(&self, other: &Op) -> bool {
         self.matches(*other)
+    }
+}
+
+impl From<ChanDirection> for ChannelDirection {
+    fn from(value: ChanDirection) -> Self {
+        match value {
+            ChanDirection::SealOnly => Self::Seal,
+            ChanDirection::OpenOnly => Self::Open,
+        }
     }
 }
 
@@ -923,7 +932,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             let label_id = chan.label_id()?;
             let peer_id = chan.peer_id()?;
-            if !f(RemoveIfParams::new(id, label_id, peer_id)) {
+            let direction = chan.direction()?.into();
+            if !f(RemoveIfParams::new(id, label_id, peer_id, direction)) {
                 // Nope, try the next index.
                 idx += 1;
                 continue;
