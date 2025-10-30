@@ -282,13 +282,12 @@ impl<S, O> Debug for Directed<S, O> {
 }
 
 /// Describes the flow of data for an AFC channel.
-#[repr(u32)]
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ChannelDirection {
     /// See [`Directed::SealOnly`].
-    SealOnly = 1,
+    Seal,
     /// See [`Directed::OpenOnly`].
-    OpenOnly = 2,
+    Open,
 }
 
 #[cfg(test)]
