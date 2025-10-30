@@ -338,8 +338,8 @@ impl PartialEq<Op> for ChanDirection {
 impl From<ChanDirection> for ChannelDirection {
     fn from(value: ChanDirection) -> Self {
         match value {
-            ChanDirection::SealOnly => Self::SealOnly,
-            ChanDirection::OpenOnly => Self::OpenOnly,
+            ChanDirection::SealOnly => Self::Seal,
+            ChanDirection::OpenOnly => Self::Open,
         }
     }
 }
