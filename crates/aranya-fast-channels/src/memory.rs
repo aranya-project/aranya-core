@@ -16,7 +16,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    LocalChannelId, RemoveIfParams,
+    ChannelDirection, LocalChannelId, RemoveIfParams,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -47,6 +47,15 @@ impl<CS: CipherSuite> State<CS> {
     /// Creates a new `State`.
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+impl ChannelDirection {
+    fn from_directed<S, O>(dir: &Directed<S, O>) -> Self {
+        match dir {
+            Directed::SealOnly { .. } => Self::SealOnly,
+            Directed::OpenOnly { .. } => Self::OpenOnly,
+        }
     }
 }
 
@@ -137,8 +146,17 @@ where
         self.inner.lock().assume("poisoned")?.chans.retain(
             |&id,
              ChanMapValue {
-                 label_id, peer_id, ..
-             }| !f(RemoveIfParams::new(id, *label_id, *peer_id)),
+                 label_id,
+                 peer_id,
+                 keys,
+             }| {
+                !f(RemoveIfParams::new(
+                    id,
+                    *label_id,
+                    *peer_id,
+                    ChannelDirection::from_directed(keys),
+                ))
+            },
         );
         Ok(())
     }
