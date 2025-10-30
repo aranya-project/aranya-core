@@ -1408,7 +1408,8 @@ fn test_match_arm_should_be_limited_to_literals() {
         r#"
             action foo(x int) {
                 match x {
-                    saturating_add(0, 1) => {}
+                    saturating_add(0, 1)=> {}
+                    _ => {}
                 }
             }
         "#,
@@ -1417,6 +1418,7 @@ fn test_match_arm_should_be_limited_to_literals() {
         action foo(x int) {
             match x {
                 f() => {}
+                _ => {}
             }
         }
         "#,
@@ -1477,6 +1479,61 @@ fn test_match_expression() {
                 "match arm expression 3 has type bool, expected int".into(),
             ),
         ),
+        (
+            // all match patterns are not listed
+            r#"
+            enum LightColor {
+                Red, Yellow, Green
+            }
+
+            struct Light {
+                color enum LightColor,
+                go bool
+            }
+
+            action f(traffic struct Light) {
+                let x = match traffic {
+                    Light {  color: LightColor::Red, go: false } => 0
+                    Light {  color: LightColor::Yellow, go: false } => 2
+                    Light {  color: LightColor::Yellow, go: true } => 3
+                    Light {  color: LightColor::Green, go: false } => 4
+                    Light {  color: LightColor::Green, go: true } => 5
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            // all match patterns are not listed
+            r#"
+            action f(maybe_bool optional bool) {
+                let x = match maybe_bool {
+                    None => 0
+                    Some(false) => 2
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            // all match patterns are not listed (can't exhaustively match on strings)
+            r#"
+            enum Color {
+                Red, Yellow, Green
+            }
+
+            struct ColorName {
+                color enum LightColor,
+                name string
+            }
+
+            action f(c struct ColorName) {
+                let x = match c {
+                    ColorName {  color: LightColor::Red, name: "red" } => 0
+                    ColorName {  color: LightColor::Yellow, name: "yellow" } => 1
+                    ColorName {  color: LightColor::Green, name: "green" } => 2
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
@@ -1497,6 +1554,44 @@ fn test_match_expression() {
             let x = match n {
                 0 => None
                 _ => Some(0)
+            }
+        }"#,
+        // exhaustively matches on structs
+        r#"
+        enum LightColor {
+            Red, Yellow, Green
+        }
+
+        struct Light {
+            color enum LightColor,
+            go bool
+        }
+
+        action f(traffic struct Light) {
+            let x = match traffic {
+                Light {  color: LightColor::Red, go: false } => 0
+                Light {  color: LightColor::Red, go: true } => 1
+                Light {  color: LightColor::Yellow, go: false } => 2
+                Light {  color: LightColor::Yellow, go: true } => 3
+                Light {  color: LightColor::Green, go: false } => 4
+                Light {  color: LightColor::Green, go: true } => 5
+            }
+        }"#,
+        // exhaustively matches on optionals
+        r#"
+        action f(maybe_bool optional bool) {
+            let x = match maybe_bool {
+                None => 0
+                Some(true) => 1
+                Some(false) => 2
+            }
+        }"#,
+        // alternate patterns
+        r#"
+        action f(maybe_bool optional bool) {
+            let x = match maybe_bool {
+                None | Some(false) => 0
+                Some(true) => 1
             }
         }"#,
     ];
@@ -1970,6 +2065,7 @@ fn test_type_errors() {
                     match x {
                         "foo" => {
                         }
+                        _ => {}
                     }
                 }
             "#,
@@ -2334,6 +2430,7 @@ fn test_duplicate_definitions() {
                     match y {
                         1 => { let x = 3 }
                         2 => { let x = 4 }
+                        _ => {}
                     }
                     return false
                 }

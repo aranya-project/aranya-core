@@ -69,6 +69,10 @@ pub enum CompileErrorType {
     /// operator is not a subset of the struct on the LHS of the substruct operator
     #[error("invalid substruct operation: `Struct {0}` must be a strict subset of `Struct {1}`")]
     InvalidSubstruct(Identifier, Identifier),
+    /// Missing default pattern in `match` statement/expression.
+    /// All patterns were not handled
+    #[error("Missing default pattern in `match` statement/expression")]
+    MissingDefaultPattern,
     /// Todo found
     #[error("todo found")]
     TodoFound,
