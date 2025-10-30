@@ -10,7 +10,7 @@ use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-use aranya_policy_ast::{Identifier, Text, ident, text};
+use aranya_policy_ast::{Identifier, Span, Text, ident, text};
 use io::TestIO;
 
 use crate::{
@@ -339,14 +339,13 @@ fn test_extcall_invalid_arg() {
 #[test]
 fn test_span_lookup() -> anyhow::Result<()> {
     let test_str = "I've got a lovely bunch of coconuts";
-    let ranges = vec![(0, 8), (9, 23), (24, 34)];
-    let mut cm = CodeMap::new(test_str, ranges);
+    let mut cm = CodeMap::new(test_str);
     // instruction ranges are inclusive of the instruction, up until
     // the next instruction, and must be inserted in order. So the
     // first range is 0-11, the second is 12-21, etc.
-    cm.map_instruction_range(0, 0)?;
-    cm.map_instruction_range(12, 9)?;
-    cm.map_instruction_range(22, 24)?;
+    cm.map_instruction(0, Span::new(0, 8))?;
+    cm.map_instruction(12, Span::new(9, 23))?;
+    cm.map_instruction(22, Span::new(24, 34))?;
 
     // An instruction at the boundary returns the range starting
     // at that boundary.

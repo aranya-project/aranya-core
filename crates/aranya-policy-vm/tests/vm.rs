@@ -2484,3 +2484,40 @@ fn test_struct_conversion() -> anyhow::Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn test_source_lookup() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            check true
+            // before
+            check false
+            // after
+            check true
+        }
+    "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    let result = rs.call_action(name, iter::empty::<Value>())?;
+    assert_eq!(result, ExitReason::Check);
+
+    let source = rs.source_location().expect("could not get source location");
+    assert_eq!(
+        source,
+        concat!(
+            "at row 5 col 13:\n",
+            "\tcheck false\n",
+            "            // after\n",
+            "            "
+        )
+    );
+
+    Ok(())
+}

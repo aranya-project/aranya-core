@@ -1,7 +1,9 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned as _, string::String, vec, vec::Vec};
+use alloc::{string::String, vec::Vec};
+use core::cmp::Ordering;
 
+use aranya_policy_ast::Span;
 use serde::{Deserialize, Serialize};
 
 /// An error for a range that doesn't exist. Used in [CodeMap].
@@ -11,19 +13,19 @@ pub struct RangeError;
 
 /// This is a simplified version of Pest's `Span`. We can't use Pest's version because we
 /// need to work in `no_std` environments.
-pub struct Span<'a> {
+pub struct SpannedText<'a> {
     text: &'a str,
     start: usize,
     end: usize,
 }
 
-impl<'a> Span<'a> {
+impl<'a> SpannedText<'a> {
     /// Create a span inside a text reference. `start` and `end` are expressed in bytes. If
     /// the `start` or `end` do not occur on a UTF-8 character boundary, this will return
     /// `None`.
     pub fn new(text: &'a str, start: usize, end: usize) -> Option<Self> {
         if text.get(start..end).is_some() {
-            Some(Span { text, start, end })
+            Some(SpannedText { text, start, end })
         } else {
             None
         }
@@ -89,90 +91,48 @@ impl<'a> Span<'a> {
 pub struct CodeMap {
     /// The original policy source code
     text: String,
-    /// All of the text ranges, mapped by locator. The key is the start
-    /// of the range and the value is the end of the range.
-    ranges: Vec<(usize, usize)>,
-    /// A mapping between ranges of instructions and source code
-    /// locators. The instuction ranges should be non-overlapping.
-    instruction_mapping: Vec<(usize, usize)>,
+    /// A mapping between ranges of instructions and source spans.
+    mapping: Vec<(usize, Span)>,
 }
 
 impl CodeMap {
     /// Create a new, empty CodeMap from a text and a set of ranges.
-    pub fn new(text: &str, ranges: Vec<(usize, usize)>) -> Self {
+    pub fn new(text: impl Into<String>) -> Self {
         Self {
-            text: text.to_owned(),
-            ranges,
-            instruction_mapping: vec![],
+            text: text.into(),
+            mapping: Vec::new(),
         }
     }
 
-    /// Add a new text range from its beginning and ending position
-    /// A range can only be added if the start position has not already
-    /// been added.
-    pub fn add_text_range(&mut self, start: usize, end: usize) -> Result<(), RangeError> {
-        match self.ranges.binary_search_by(|(s, _)| s.cmp(&start)) {
-            Err(_) => {
-                self.ranges.push((start, end));
-                Ok(())
-            }
-            Ok(_) => Err(RangeError),
-        }
+    /// Get the original source code.
+    pub fn text(&self) -> &str {
+        &self.text
     }
 
-    /// Insert a new mapping between instruction position and text
-    /// locator. You can only add a mapping for an instruction
-    /// position larger than the last instruction position inserted.
-    pub fn map_instruction_range(
-        &mut self,
-        instruction: usize,
-        locator: usize,
-    ) -> Result<(), RangeError> {
-        if let Some(last_idx) = self.instruction_mapping.last() {
-            if instruction == last_idx.0 {
-                // Assume this is a more specific mapping and replace it
-                self.instruction_mapping.pop();
-            } else if instruction <= last_idx.0 {
-                return Err(RangeError);
-            }
+    /// Add new mapping starting at `instruction` which maps to `span`.
+    pub fn map_instruction(&mut self, instruction: usize, span: Span) -> Result<(), RangeError> {
+        match self
+            .mapping
+            .last_mut()
+            .map(|last| (instruction.cmp(&last.0), last))
+        {
+            // Don't break sorting.
+            Some((Ordering::Less, _)) => return Err(RangeError),
+            // Update existing span to be more specific.
+            Some((Ordering::Equal, last)) => last.1 = span,
+            // Add new span to end.
+            Some((Ordering::Greater, _)) | None => self.mapping.push((instruction, span)),
         }
-        self.instruction_mapping.push((instruction, locator));
         Ok(())
     }
 
-    /// Retrieve the [Span] from the given locator
-    pub fn span_from_locator(&self, locator: usize) -> Result<Span<'_>, RangeError> {
-        match self.ranges.binary_search_by(|(s, _)| s.cmp(&locator)) {
-            Ok(idx) => {
-                let (start, end) = self.ranges[idx];
-                if let Some(span) = Span::new(&self.text, start, end) {
-                    Ok(span)
-                } else {
-                    Err(RangeError)
-                }
-            }
-            Err(_) => Err(RangeError),
-        }
-    }
-
-    /// Retrieve the locator for the given instruction pointer
-    pub fn locator_from_instruction(&self, ip: usize) -> Result<usize, RangeError> {
-        // Unwrapping the error case of binary_search_by() will get us
-        // the closest entry prior to the target.
-        let r = self
-            .instruction_mapping
-            .binary_search_by(|(i, _)| i.cmp(&ip));
-        let idx = match r {
-            Ok(v) => Ok(v),
-            Err(v) => v.checked_sub(1).ok_or(RangeError),
-        }?;
-        let (_, locator) = self.instruction_mapping[idx];
-        Ok(locator)
-    }
-
-    /// Retrieve the [Span] containing the given instruction pointer.
-    pub fn span_from_instruction(&self, ip: usize) -> Result<Span<'_>, RangeError> {
-        let locator = self.locator_from_instruction(ip)?;
-        self.span_from_locator(locator)
+    /// Retrieve the [`Span`] containing the given instruction pointer.
+    pub fn span_from_instruction(&self, ip: usize) -> Result<SpannedText<'_>, RangeError> {
+        let idx = match self.mapping.binary_search_by(|(i, _)| i.cmp(&ip)) {
+            Ok(idx) => idx,
+            Err(idx) => idx.checked_sub(1).ok_or(RangeError)?,
+        };
+        let span = self.mapping[idx].1;
+        SpannedText::new(&self.text, span.start(), span.end()).ok_or(RangeError)
     }
 }

@@ -117,20 +117,19 @@ impl CompileError {
         }))
     }
 
-    pub(crate) fn from_locator(
+    pub(crate) fn from_span(
         err_type: CompileErrorType,
-        locator: usize,
+        span: ast::Span,
         codemap: Option<&CodeMap>,
     ) -> Self {
-        let source = codemap.and_then(|codemap| {
-            codemap
-                .span_from_locator(locator)
-                .ok()
-                .map(|span| ErrorSource {
-                    linecol: span.start_linecol(),
-                    text: span.as_str().to_owned(),
-                })
-        });
+        let source = codemap
+            .and_then(|codemap| {
+                aranya_policy_module::SpannedText::new(codemap.text(), span.start(), span.end())
+            })
+            .map(|span| ErrorSource {
+                linecol: span.start_linecol(),
+                text: span.as_str().to_owned(),
+            });
 
         Self(Box::new(CompileErrorImpl { err_type, source }))
     }
