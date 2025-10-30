@@ -145,7 +145,7 @@ where
                     id,
                     *label_id,
                     *peer_id,
-                    keys.directed(),
+                    keys.direction(),
                 ))
             },
         );

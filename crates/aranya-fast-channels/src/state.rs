@@ -207,7 +207,7 @@ impl<S, O> Directed<S, O> {
     }
 
     /// Returns the corresponding [ChannelDirection].
-    pub fn directed(&self) -> ChannelDirection {
+    pub fn direction(&self) -> ChannelDirection {
         match self {
             Self::SealOnly { .. } => ChannelDirection::Seal,
             Self::OpenOnly { .. } => ChannelDirection::Open,
