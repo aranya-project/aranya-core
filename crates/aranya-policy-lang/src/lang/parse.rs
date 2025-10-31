@@ -514,39 +514,6 @@ impl ChunkParser<'_> {
                     let er = self.parse_enum_reference(primary)?;
                     Ok(Expression { kind: ExprKind::EnumReference(er), span })
                 }
-                Rule::add | Rule::saturating_add | Rule::sub | Rule::saturating_sub => {
-                    let rule = primary.as_rule();
-                    let rule_name = format!("{:?}", rule);
-                    let mut pairs = primary.clone().into_inner();
-                    let lhs = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            format!("`{}()` missing left argument", rule_name),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let rhs = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            format!("`{}()` missing right argument", rule_name),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let lhs_expr = self.parse_expression(lhs)?;
-                    let rhs_expr = self.parse_expression(rhs)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let internal_fn = match rule {
-                        Rule::add => InternalFunction::Add(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        Rule::saturating_add => InternalFunction::SaturatingAdd(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        Rule::sub => InternalFunction::Sub(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        Rule::saturating_sub => InternalFunction::SaturatingSub(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        _ => unreachable!(),
-                    };
-                    Ok(Expression {
-                        kind: ExprKind::InternalFunction(internal_fn),
-                        span,
-                    })
-                }
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {

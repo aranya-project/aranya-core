@@ -89,8 +89,15 @@ expression: policy
                       "kind": {
                         "Unwrap": {
                           "kind": {
-                            "InternalFunction": {
-                              "SaturatingAdd": [
+                            "FunctionCall": {
+                              "identifier": {
+                                "name": "saturating_add",
+                                "span": {
+                                  "start": 103,
+                                  "end": 117
+                                }
+                              },
+                              "arguments": [
                                 {
                                   "kind": {
                                     "Identifier": {
