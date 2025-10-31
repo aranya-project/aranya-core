@@ -1,4 +1,3 @@
-#[rustfmt::skip]
 #[path = "../tests/data/tictactoe.rs"]
 pub mod tictactoe;
 
