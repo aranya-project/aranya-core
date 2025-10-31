@@ -1,12 +1,12 @@
 use std::{cell::RefCell, fmt};
 
 use aranya_policy_ast::{
-    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
-    EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
-    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version, ident,
+    self as ast, AssertStatement, CheckStatement, CreateStatement, DeleteStatement,
+    EffectFieldDefinition, EnumDefinition, EnumReference, ExprKind, Expression, FactField,
+    FactLiteral, FieldDefinition, ForeignFunctionCall, FunctionCall, Ident, IfStatement,
+    InternalFunction, LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm,
+    MatchPattern, MatchStatement, NamedStruct, Persistence, ReturnStatement, Statement, StmtKind,
+    Text, Txt, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -1017,6 +1017,25 @@ impl ChunkParser<'_> {
         Ok(CheckStatement { expression })
     }
 
+    /// Parse a Rule::assert_statement into an AssertStatement.
+    fn parse_assert_statement(&self, item: Pair<'_, Rule>) -> Result<AssertStatement, ParseError> {
+        let pc = descend(item);
+        let token = pc.consume()?;
+        // expression to evaluate
+        let expression = self.parse_expression(token)?;
+        // error message, if expression is false
+        let message_token = pc.consume_of_type(Rule::string_literal)?;
+        let span = self.to_ast_span(message_token.as_span())?;
+        let message = Self::parse_string_literal(message_token)?;
+        Ok(AssertStatement {
+            expression,
+            message: Txt {
+                text: message,
+                span,
+            },
+        })
+    }
+
     /// Parse a Rule::match_statement into a MatchStatement.
     fn parse_match_statement(&self, item: Pair<'_, Rule>) -> Result<MatchStatement, ParseError> {
         let pc = descend(item);
@@ -1143,7 +1162,7 @@ impl ChunkParser<'_> {
         Ok(expression)
     }
 
-    /// Parse a list of statements inside a finish block.
+    /// Parse a list of statements inside a block.
     ///
     /// Valid in this context:
     /// - [CreateStatement](ast::CreateStatement)
@@ -1161,6 +1180,7 @@ impl ChunkParser<'_> {
                     StmtKind::Publish(self.parse_publish_statement(statement)?)
                 }
                 Rule::check_statement => StmtKind::Check(self.parse_check_statement(statement)?),
+                Rule::assert_statement => StmtKind::Assert(self.parse_assert_statement(statement)?),
                 Rule::match_statement => StmtKind::Match(self.parse_match_statement(statement)?),
                 Rule::if_statement => StmtKind::If(self.parse_if_statement(statement)?),
                 Rule::return_statement => StmtKind::Return(self.parse_return_statement(statement)?),
@@ -1492,7 +1512,7 @@ impl ChunkParser<'_> {
 
         assert!(matches!(
             rule,
-            Rule::function_decl | Rule::finish_function_decl
+            Rule::function_decl | Rule::finish_function_decl | Rule::action_function_decl
         ));
 
         let pc = descend(item);
@@ -1504,7 +1524,7 @@ impl ChunkParser<'_> {
             arguments.push(self.parse_field_definition(field)?);
         }
 
-        let return_type = if rule == Rule::function_decl {
+        let return_type = if rule == Rule::function_decl || rule == Rule::action_function_decl {
             Some(pc.consume_type(self)?)
         } else {
             None
@@ -1557,6 +1577,32 @@ impl ChunkParser<'_> {
         Ok(ast::FinishFunctionDefinition {
             identifier: decl.identifier,
             arguments: decl.arguments,
+            statements,
+            span,
+        })
+    }
+
+    /// Parse a `Rule::action_function_definition` into an [ActionFunctionDefinition](ast::ActionFunctionDefinition).
+    fn parse_action_function_definition(
+        &self,
+        item: Pair<'_, Rule>,
+    ) -> Result<ast::FunctionDefinition, ParseError> {
+        let span = self.to_ast_span(item.as_span())?;
+        let pc = descend(item);
+
+        let decl = pc.consume()?;
+        let decl = self.parse_function_decl(decl)?;
+        let return_type = decl
+            .return_type
+            .expect("action function definition must have return type");
+
+        // All remaining tokens are function statements
+        let statements = self.parse_statement_list(pc.into_inner())?;
+
+        Ok(ast::FunctionDefinition {
+            identifier: decl.identifier,
+            arguments: decl.arguments,
+            return_type,
             statements,
             span,
         })
@@ -1689,6 +1735,11 @@ fn parse_policy_chunk_inner(
             Rule::finish_function_definition => policy
                 .finish_functions
                 .push(p.parse_finish_function_definition(item)?),
+            Rule::action_function_definition => {
+                policy
+                    .action_functions
+                    .push(p.parse_action_function_definition(item)?);
+            }
             Rule::global_let_statement => {
                 policy.global_lets.push(p.parse_global_let_statement(item)?);
             }

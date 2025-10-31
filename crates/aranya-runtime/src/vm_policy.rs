@@ -116,7 +116,9 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
+use alloc::{
+    borrow::Cow, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec,
+};
 use core::{borrow::Borrow as _, cell::RefCell, fmt};
 
 use aranya_crypto::BaseId;
@@ -381,9 +383,9 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     rs.set_context(recall_ctx);
                     self.recall_internal(&mut rs, this_data, envelope)
                 }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Panic)
+                ExitReason::Panic(reason) => {
+                    info!("Panicked: {} at {}", reason, self.source_location(&rs));
+                    Err(EngineError::Panic(String::from(reason.as_str())))
                 }
             },
             Err(e) => {
@@ -409,9 +411,20 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 info!("Recall failed: {}", self.source_location(rs));
                 Err(EngineError::Check)
             }
-            Ok(ExitReason::Panic) | Err(_) => {
-                info!("Recall panicked: {}", self.source_location(rs));
-                Err(EngineError::Panic)
+            Ok(ExitReason::Panic(reason)) => {
+                info!(
+                    "Recall panicked: {} at {}",
+                    reason,
+                    self.source_location(rs)
+                );
+                Err(EngineError::Panic(String::from(reason.as_str())))
+            }
+            Err(e) => {
+                info!(
+                    "Recall panicked: internal error at {}",
+                    self.source_location(rs)
+                );
+                Err(EngineError::Panic(format!("internal error: {e}")))
             }
         }
     }
@@ -450,9 +463,9 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     info!("Check {}", self.source_location(&rs));
                     Err(EngineError::Check)
                 }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Check)
+                ExitReason::Panic(reason) => {
+                    info!("Panicked: {} at {}", reason, self.source_location(&rs));
+                    Err(EngineError::Panic(String::from(reason.as_str())))
                 }
             },
             Err(e) => {
@@ -714,12 +727,20 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal.call_seal(command_struct).map_err(|e| {
                             error!("Cannot seal command: {}", e);
-                            EngineError::Panic
+                            EngineError::Panic(String::from("cannot seal command"))
                         })? {
                             ExitReason::Normal => (),
-                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
-                                error!("Could not seal command: {}", r);
-                                return Err(EngineError::Panic);
+                            ExitReason::Yield => {
+                                error!("Could not seal command: unexpected yield");
+                                return Err(EngineError::Panic(String::from("unexpected yield")));
+                            }
+                            ExitReason::Check => {
+                                error!("Could not seal command: check");
+                                return Err(EngineError::Panic(String::from("check")));
+                            }
+                            ExitReason::Panic(msg) => {
+                                error!("Could not seal command: {}", msg);
+                                return Err(EngineError::Panic(String::from(msg.as_str())));
                             }
                         }
 
@@ -806,9 +827,9 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         info!("Check {}", self.source_location(&rs));
                         return Err(EngineError::Check);
                     }
-                    ExitReason::Panic => {
-                        info!("Panicked {}", self.source_location(&rs));
-                        return Err(EngineError::Panic);
+                    ExitReason::Panic(msg) => {
+                        info!("Panicked: {} at {}", msg, self.source_location(&rs));
+                        return Err(EngineError::Panic(String::from(msg.as_str())));
                     }
                 }
             }

@@ -526,19 +526,19 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action testExists() {
-        check exists Foo[] => {x: 3}
-        check exists Foo[]
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True}
+        assert exists Foo[] => {x: 3}, "exists Foo[] => {x:3}"
+        assert exists Foo[], "exists Foo[]"
+        assert exists Bar[i: 1] => {s: "abc", b: Bool::True}, "exists Bar[i: 1]"
 
-        check exists Foo[] => {x: ?}
-        check exists Bar[i: ?] => {s: ?, b: Bool::True}
+        assert exists Foo[] => {x: ?}, "exists Foo[] => {x: ?}"
+        assert exists Bar[i: ?] => {s: ?, b: Bool::True}, "exists Bar[i: ?] => {s: ?, b: Bool::True}"
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True}
-        check !exists Bar[i:1] => {s:"", b:Bool::True}
-        check !exists Bar[i: ?]=>{s: "ab", b: ?}
+        assert !exists Bar[i:0] => {s:"ab", b:Bool::True}, "exists Bar[i:0]"
+        assert !exists Bar[i:1] => {s:"", b:Bool::True}, "exists Bar[i:1]"
+        assert !exists Bar[i: ?]=>{s: "ab", b: ?}, "exists Bar[i: ?]"
     }
     "#;
 
@@ -819,18 +819,18 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         action test_query() {
             let f = unwrap query Foo[i: 1, j: ?]
-            check f.x == 1
+            assert f.x == 1, "f.x == 1"
             let f2 = unwrap query Foo[i: ?, j: ?]
-            check f2.x == 1
+            assert f2.x == 1, "f2.x == 1"
             let f3 = unwrap query Foo[i:2, j:?]
-            check f3.x == 3
+            assert f3.x == 3, "f3.x == 3"
 
             // bind value
             let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
-            check f4.x == 3
+            assert f4.x == 3, "f4.x == 3"
             // bind key and value
             let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
-            check f5.x == 3
+            assert f5.x == 3, "f5.x == 3"
         }
 
         action test_nonexistent() {
@@ -838,9 +838,9 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_exists() {
-            check exists Foo[i:1, j:?]
-            check exists Foo[i:-1, j:?] == false
-            check !exists Foo[i:1, j:?] => {x:-1, s:?}
+            assert exists Foo[i:1, j:?], "exists Foo[i:1, j:?]"
+            assert exists Foo[i:-1, j:?] == false, "exists Foo[i:-1, j:?] == false"
+            assert !exists Foo[i:1, j:?] => {x:-1, s:?}, "!exists Foo[i:1, j:?] => {x:-1, s:?}"
         }
     "#;
 
@@ -901,7 +901,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         action test_query() {
             let f = unwrap query Bar[i:Foo::A] => {x: ?}
-            check f.x == Foo::A
+            assert f.x == Foo::A, "f.x == Foo::A"
         }
     "#;
 
@@ -941,7 +941,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     let policy = parse_policy_str(
         r#"
         action test() {
-            check !false
+            assert !false, "should not get here"
         }
     "#,
         Version::V2,
@@ -963,7 +963,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                check true == false
+                assert true == false, "should not get here"
             }
         }
     "#;
@@ -979,7 +979,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Panic(text!("should not get here")));
 
     Ok(())
 }
@@ -989,7 +989,7 @@ fn test_if_false() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                check true == false
+                assert true == false, "should not get here"
             }
         }
     "#;
@@ -1022,17 +1022,17 @@ fn test_if_branches() -> anyhow::Result<()> {
 
         action foo(x int) {
             if x == 0 {
-                check true
+                assert true, "x == 0 before"
                 publish Result { s: "0" }
-                check true
+                assert true, "x == 0 after"
             } else if x == 1 {
                 publish Result { s: "1" }
             } else if x == 2 {
-                check true
+                assert true, "else if x == 2"
                 publish Result { s: "2" }
             } else {
                 publish Result { s: "3" }
-                check true
+                assert true, "else"
             }
         }
     "#;
@@ -1108,7 +1108,10 @@ fn test_match_none() -> anyhow::Result<()> {
 
     let mut rs = machine.create_run_state(&io, ctx);
     let result = rs.call_action(name, [Value::Int(0)])?;
-    assert_eq!(result, ExitReason::Panic);
+    assert_eq!(
+        result,
+        ExitReason::Panic(text!("no match in match statement"))
+    );
 
     Ok(())
 }
@@ -1127,7 +1130,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 0 | 1 => {
-                    check false
+                    assert false, "should not get here"
                 }
                 5 | 6 | 7 => {
                     publish Result { x: x }
@@ -1192,7 +1195,7 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action foo(val int) {
-            check val == bar()
+            assert val == bar(), "val == bar()"
         }
 
         function bar() int {
@@ -1294,10 +1297,10 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
         if x {
-            check x
+            assert x, "x"
         }
         if !y {
-            check !y
+            assert !y, "!y"
         }
     }
     "#;
@@ -1511,12 +1514,12 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
         action test_existing() {
             let f = check_unwrap query Foo[i: 1]
-            check f.x == 1
+            assert f.x == 1, "f.x == 1"
         }
 
         action test_nonexistent() {
             let f = check_unwrap query Foo[i: 0]
-            check false // would exit(panic), but check_unwrap should exit(check) first
+            assert false, "should not get here" // would exit(panic), but check_unwrap should exit(check) first
         }
     "#;
 
@@ -1574,10 +1577,6 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             open { return todo() }
 
             policy {
-                check envelope.payload == this.test
-            }
-
-            recall {
                 check envelope.payload == this.test
             }
         }
@@ -1668,7 +1667,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
 
     assert_eq!(
         run_action(&machine, &io, ident!("test_debug_assert_failure"))?,
-        ExitReason::Panic
+        ExitReason::Panic(text!("debug assertion failed"))
     );
 
     assert_eq!(
@@ -1677,7 +1676,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
             &io,
             ident!("test_debug_assert_failure_expression")
         )?,
-        ExitReason::Panic
+        ExitReason::Panic(text!("debug assertion failed"))
     );
 
     assert_eq!(
@@ -2337,8 +2336,11 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
+        let policy = parse_policy_str(
+            &format!("action f() {{ assert {expr}, \"expr\" }}"),
+            Version::V2,
+        )
+        .expect("parse");
         let module = Compiler::new(&policy).compile().expect("compile");
         let machine = Machine::from_module(module).expect("machine");
         let io = RefCell::new(TestIO::new());
@@ -2365,8 +2367,11 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
+        let policy = parse_policy_str(
+            &format!("action f() {{ assert {expr}, \"{expr}\" }}"),
+            Version::V2,
+        )
+        .expect("parse");
         let module = Compiler::new(&policy)
             .debug(true)
             .compile()
@@ -2383,17 +2388,23 @@ fn test_boolean_short_circuit() {
         exit
     }
 
-    assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check);
+    assert_eq!(run("true && todo()"), ExitReason::Panic(text!("todo")));
+    assert_eq!(
+        run("false && todo()"),
+        ExitReason::Panic(text!("false && todo()"))
+    );
     assert_eq!(run("true || todo()"), ExitReason::Normal);
-    assert_eq!(run("false || todo()"), ExitReason::Panic);
+    assert_eq!(run("false || todo()"), ExitReason::Panic(text!("todo")));
 }
 
 #[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
+        let policy = parse_policy_str(
+            &format!("action f() {{ assert {expr}, \"{expr}\" }}"),
+            Version::V2,
+        )
+        .expect("parse");
         let module = Compiler::new(&policy).compile().expect("compile");
         let machine = Machine::from_module(module).expect("machine");
         let io = RefCell::new(TestIO::new());

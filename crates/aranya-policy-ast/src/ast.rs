@@ -61,6 +61,37 @@ impl Spanned for Ident {
     }
 }
 
+/// A text literal with source location information.
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct Txt {
+    /// The text value
+    pub text: Text,
+    /// The source location of this text literal
+    pub span: Span,
+}
+
+impl Spanned for Txt {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl fmt::Display for Txt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.text.fmt(f)
+    }
+}
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -612,6 +643,17 @@ pub struct CheckStatement {
 }
 }
 
+spanned! {
+/// Check that a boolean expression is true, and fail otherwise
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssertStatement {
+    /// The boolean expression being checked
+    pub expression: Expression,
+    /// The error message to display if the assertion fails
+    pub message: Txt,
+}
+}
+
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
@@ -793,6 +835,8 @@ pub enum StmtKind {
     Let(LetStatement),
     /// A [CheckStatement]
     Check(CheckStatement),
+    /// An [AssertStatement]
+    Assert(AssertStatement),
     /// A [MatchStatement]
     Match(MatchStatement),
     /// An [IfStatement],
@@ -823,6 +867,28 @@ pub enum StmtKind {
     DebugAssert(Expression),
 }
 
+impl fmt::Display for StmtKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Let(_) => write!(f, "let"),
+            Self::Check(_) => write!(f, "check"),
+            Self::Assert(_) => write!(f, "assert"),
+            Self::Match(_) => write!(f, "match"),
+            Self::If(_) => write!(f, "if"),
+            Self::Finish(_) => write!(f, "finish"),
+            Self::Map(_) => write!(f, "map"),
+            Self::Return(_) => write!(f, "return"),
+            Self::ActionCall(_) => write!(f, "action call"),
+            Self::Publish(_) => write!(f, "publish"),
+            Self::Create(_) => write!(f, "create"),
+            Self::Update(_) => write!(f, "update"),
+            Self::Delete(_) => write!(f, "delete"),
+            Self::Emit(_) => write!(f, "emit"),
+            Self::FunctionCall(_) => write!(f, "function call"),
+            Self::DebugAssert(_) => write!(f, "debug_assert"),
+        }
+    }
+}
 /// A schema definition for a fact
 #[derive(
     Debug,
@@ -1051,6 +1117,8 @@ pub struct Policy {
     pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.
     pub finish_functions: Vec<FinishFunctionDefinition>,
+    /// The policy's action function definitions.
+    pub action_functions: Vec<FunctionDefinition>,
     /// The policy's global let statements.
     pub global_lets: Vec<GlobalLetStatement>,
     /// The source text
