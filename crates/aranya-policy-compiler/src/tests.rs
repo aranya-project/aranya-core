@@ -200,7 +200,9 @@ fn test_seal_open_command() {
             fields {}
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -226,7 +228,9 @@ fn test_command_without_seal_block() {
     let text = r#"
         command Foo {
             fields {}
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -243,7 +247,9 @@ fn test_command_without_open_block() {
         command Foo {
             fields {}
             seal { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -261,7 +267,9 @@ fn test_command_with_no_return_in_seal_block() {
             fields {}
             seal { let x = 3 }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -276,12 +284,30 @@ fn test_command_with_no_return_in_open_block() {
             fields {}
             seal { return todo() }
             open { let x = 3 }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
     let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
+}
+
+#[test]
+fn test_command_without_policy_block() {
+    let text = r#"
+        command Foo {
+            seal { return todo() }
+            open { return todo() }
+        }
+    "#;
+
+    let err = compile_fail(text);
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Empty/missing policy block in command"))
+    );
 }
 
 #[test]
@@ -296,6 +322,9 @@ fn test_command_attributes() {
             }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -334,6 +363,9 @@ fn test_command_attributes_should_be_unique() {
         }
         open { return todo() }
         seal { return todo() }
+        policy {
+            finish {}
+        }
     }
     "#;
     let err = compile_fail(text);
@@ -348,6 +380,9 @@ fn test_command_attributes_must_be_literals() {
             attributes { i: saturating_add(2, 1) }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }"#,
         r#"
         function f() int { return 3 }
@@ -355,6 +390,9 @@ fn test_command_attributes_must_be_literals() {
             attributes { i: f() }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }
     "#,
     ];
@@ -377,7 +415,9 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -431,7 +471,9 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                 }
                 seal { return todo() }
                 open { return todo() }
-                policy {}
+                policy {
+                    finish {}
+                }
             }
             "#,
             CompileErrorType::NotDefined(String::from("Bar")),
@@ -446,7 +488,9 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                 }
                 seal { return todo() }
                 open { return todo() }
-                policy {}
+                policy {
+                    finish {}
+                }
             }
             "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
@@ -474,7 +518,9 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
         "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
@@ -489,7 +535,9 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
         "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
@@ -1079,6 +1127,9 @@ fn test_serialize_deserialize() {
             open {
                 return deserialize(envelope.payload)
             }
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -1311,6 +1362,9 @@ fn test_match_duplicate() {
                 }
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
 
             action foo(x int) {
@@ -1353,6 +1407,9 @@ fn test_match_alternation_duplicates() {
             }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }
 
         action foo(x int) {
@@ -1894,6 +1951,8 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
+                    seal { return todo() }
+                    open { return todo() }
                     policy {
                         check 0
                     }
@@ -1912,6 +1971,8 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
+                    seal { return todo() }
+                    open { return todo() }
                     policy {
                         finish {
                             emit 0
@@ -1924,6 +1985,10 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
+                    open { return todo() }
+                    policy {
+                        finish {}
+                    }
                     seal {
                       return serialize(3)
                     }
@@ -1939,6 +2004,9 @@ fn test_type_errors() {
                     }
                     open {
                       return deserialize(3)
+                    }
+                    policy {
+                        finish {}
                     }
                 }
             "#,
@@ -2005,6 +2073,8 @@ fn test_type_errors() {
             t: r#"
                 fact Foo[x int]=>{y bool}
                 command MangleFoo {
+                    seal { return todo() }
+                    open { return todo() }
                     policy {
                         finish {
                             update Foo[x: 0]=>{y: ?} to {y: 3}
@@ -2823,6 +2893,9 @@ fn test_substruct_errors() {
                     }
                     seal { return todo() }
                     open { return todo() }
+                    policy {
+                        finish {}
+                    }
                 }
                 struct Bar {
                     x int,
@@ -2939,6 +3012,9 @@ fn test_struct_conversion() {
                 }
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
             action convert() {
                 let bar = Foo { a: 1, b: "test" } as Bar
@@ -3084,6 +3160,9 @@ fn test_action_command_persistence() {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
             ephemeral action test() {
                 publish Cmd {}
@@ -3095,6 +3174,9 @@ fn test_action_command_persistence() {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
             action test() {
                 publish Cmd {}
@@ -3113,6 +3195,9 @@ fn test_action_command_persistence() {
                     fields {}
                     seal { return todo() }
                     open { return todo() }
+                    policy {
+                        finish {}
+                    }
                 }
                 ephemeral action test() {
                     publish Cmd {}
@@ -3129,6 +3214,9 @@ fn test_action_command_persistence() {
                     fields {}
                     seal { return todo() }
                     open { return todo() }
+                    policy {
+                        finish {}
+                    }
                 }
                 action test() {
                     publish Cmd {}
