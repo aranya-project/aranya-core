@@ -24,7 +24,10 @@ use aranya_crypto::{
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{self, AfcState, AranyaState, Client, LocalChannelId};
+use aranya_fast_channels::{
+    self, AfcState, AranyaState, Client, LocalChannelId,
+    ctx::{OpenChannelCtx, SealChannelCtx},
+};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
@@ -246,23 +249,29 @@ impl<T: TestImpl> Device<T> {
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
-    fn test_roundtrip(sealer: (&mut Self, LocalChannelId), opener: (&mut Self, LocalChannelId)) {
+    fn test_roundtrip(
+        sealer: (&mut Self, LocalChannelId),
+        opener: (&mut Self, LocalChannelId),
+        label_id: LabelId,
+    ) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let (sealer, chan_id) = sealer;
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
+            let mut ctx = SealChannelCtx::new(label_id);
             sealer
                 .afc_client
-                .seal(chan_id, &mut dst[..], GOLDEN.as_bytes())
+                .seal(chan_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({chan_id}, ...): {err}"));
             dst
         };
         let (plaintext, got_seq) = {
             let (opener, chan_id) = opener;
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
+            let mut ctx = OpenChannelCtx::new(label_id);
             let (_, seq) = opener
                 .afc_client
-                .open(chan_id, &mut dst[..], &ciphertext[..])
+                .open(chan_id, &mut ctx, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({chan_id}, ...): {err}"));
             (dst, seq)
         };
@@ -272,12 +281,13 @@ impl<T: TestImpl> Device<T> {
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId) {
+    fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
+        let mut ctx = SealChannelCtx::new(label_id);
         let err = sealer
             .afc_client
-            .seal(channel_id, &mut dst[..], GOLDEN.as_bytes())
+            .seal(channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
             .expect_err("should have failed");
         assert_eq!(err, aranya_fast_channels::Error::NotFound(channel_id));
     }
@@ -433,8 +443,12 @@ where
             .expect("peer should be able to add channel")
     };
 
-    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
-    Device::test_wrong_direction(&mut peer, peer_chan_id);
+    Device::test_roundtrip(
+        (&mut author, author_chan_id),
+        (&mut peer, peer_chan_id),
+        label_id,
+    );
+    Device::test_wrong_direction(&mut peer, peer_chan_id, label_id);
 }
 
 /// A negative test for creating a unidirectional channel
