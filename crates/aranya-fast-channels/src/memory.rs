@@ -5,27 +5,42 @@
 
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, sync::Arc};
+use alloc::{collections::btree_map::BTreeMap, sync::Arc};
 
 use aranya_crypto::{
-    CipherSuite,
+    CipherSuite, DeviceId,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
 };
-use buggy::{Bug, BugExt};
+use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
+    LocalChannelId, RemoveIfParams,
     error::Error,
     mutex::StdMutex,
-    state::{AfcState, AranyaState, ChannelId, Directed},
+    state::{AfcState, AranyaState, Directed},
 };
+
+#[derive_where(Debug)]
+struct ChanMapValue<CS: CipherSuite> {
+    keys: Directed<SealKey<CS>, OpenKey<CS>>,
+    label_id: LabelId,
+    peer_id: DeviceId,
+}
+
+#[derive_where(Debug, Default)]
+struct Inner<CS: CipherSuite> {
+    next_chan_id: u64,
+    #[allow(clippy::type_complexity)]
+    chans: BTreeMap<LocalChannelId, ChanMapValue<CS>>,
+}
 
 /// An im-memory implementation of [`AfcState`] and
 /// [`AranyaState`].
-#[derive_where(Clone, Default)]
+#[derive_where(Clone, Debug, Default)]
 pub struct State<CS: CipherSuite> {
-    #[allow(clippy::type_complexity)]
-    chans: Arc<StdMutex<BTreeMap<ChannelId, Directed<SealKey<CS>, OpenKey<CS>>>>>,
+    inner: Arc<StdMutex<Inner<CS>>>,
 }
 
 impl<CS: CipherSuite> State<CS> {
@@ -41,34 +56,37 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, Error>,
+        F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let mut chans = self.chans.lock().assume("poisoned")?;
-        let key = chans
-            .get_mut(&id)
-            .ok_or(Error::NotFound(id))?
-            .seal_mut()
-            .ok_or(Error::NotFound(id))?;
-        Ok(f(key))
+        let mut inner = self.inner.lock().assume("poisoned")?;
+        let ChanMapValue { keys, label_id, .. } =
+            inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+
+        let key = keys.seal_mut().ok_or(Error::NotFound(id))?;
+        Ok(f(key, *label_id))
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
-        F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>,
+        F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let chans = self.chans.lock().assume("poisoned")?;
-        let key = chans
-            .get(&id)
-            .ok_or(Error::NotFound(id))?
-            .open()
-            .ok_or(Error::NotFound(id))?;
-        Ok(f(key))
+        let inner = self.inner.lock().assume("poisoned")?;
+        let ChanMapValue { keys, label_id, .. } =
+            inner.chans.get(&id).ok_or(Error::NotFound(id))?;
+        let key = keys.open().ok_or(Error::NotFound(id))?;
+
+        Ok(f(key, *label_id))
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Error> {
-        Ok(self.chans.lock().assume("poisoned")?.contains_key(&id))
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Error> {
+        Ok(self
+            .inner
+            .lock()
+            .assume("poisoned")?
+            .chans
+            .contains_key(&id))
     }
 }
 
@@ -80,37 +98,67 @@ where
 
     type SealKey = SealKey<CS>;
     type OpenKey = OpenKey<CS>;
-    type Error = Bug;
+    type Error = Error;
 
     fn add(
         &self,
-        id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
-    ) -> Result<(), Self::Error> {
-        self.chans.lock().assume("poisoned")?.insert(id, keys);
-        Ok(())
+        label_id: LabelId,
+        peer_id: DeviceId,
+    ) -> Result<LocalChannelId, Self::Error> {
+        let mut inner = self.inner.lock().assume("poisoned")?;
+        let id = LocalChannelId::new(inner.next_chan_id);
+        inner.next_chan_id = inner
+            .next_chan_id
+            .checked_add(1)
+            .assume("should not overflow")?;
+        inner.chans.insert(
+            id,
+            ChanMapValue {
+                keys,
+                label_id,
+                peer_id,
+            },
+        );
+        Ok(id)
     }
 
-    fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
-        self.chans.lock().assume("poisoned")?.remove(&id);
+    fn remove(&self, id: LocalChannelId) -> Result<(), Self::Error> {
+        self.inner.lock().assume("poisoned")?.chans.remove(&id);
         Ok(())
     }
 
     fn remove_all(&self) -> Result<(), Self::Error> {
-        self.chans.lock().assume("poisoned")?.clear();
+        self.inner.lock().assume("poisoned")?.chans.clear();
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
-        self.chans
+    fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
+        self.inner.lock().assume("poisoned")?.chans.retain(
+            |&id,
+             ChanMapValue {
+                 label_id,
+                 peer_id,
+                 keys,
+             }| {
+                !f(RemoveIfParams::new(
+                    id,
+                    *label_id,
+                    *peer_id,
+                    keys.direction(),
+                ))
+            },
+        );
+        Ok(())
+    }
+
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
+        Ok(self
+            .inner
             .lock()
             .assume("poisoned")?
-            .retain(|&id, _| !f(id));
-        Ok(())
-    }
-
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
-        Ok(self.chans.lock().assume("poisoned")?.contains_key(&id))
+            .chans
+            .contains_key(&id))
     }
 }
 
@@ -120,16 +168,13 @@ mod tests {
 
     use aranya_crypto::{
         Rng,
-        afc::{BidiKeys, UniOpenKey, UniSealKey},
+        afc::{UniOpenKey, UniSealKey},
     };
 
     use super::*;
-    use crate::{
-        state::NodeId,
-        testing::{
-            test_impl,
-            util::{States, TestImpl},
-        },
+    use crate::testing::{
+        test_impl,
+        util::{DeviceIdx, States, TestImpl},
     };
 
     /// A [`TestImpl`] that uses the memory state.
@@ -142,24 +187,12 @@ mod tests {
 
         fn new_states<CS: CipherSuite>(
             _name: &str,
-            _id: NodeId,
+            _id: DeviceIdx,
             _max_chans: usize,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = State::<CS>::new();
             let aranya = afc.clone();
             States { afc, aranya }
-        }
-
-        fn convert_bidi_keys<CS: CipherSuite>(
-            keys: BidiKeys<CS>,
-        ) -> (
-            <Self::Aranya<CS> as AranyaState>::SealKey,
-            <Self::Aranya<CS> as AranyaState>::OpenKey,
-        ) {
-            let (seal, open) = keys
-                .into_keys()
-                .expect("should be able to create `SealKey` and `OpenKey`");
-            (seal, open)
         }
 
         fn convert_uni_seal_key<CS: CipherSuite>(

@@ -5,7 +5,7 @@ use core::fmt;
 use std::vec::Vec;
 
 use aranya_crypto::{
-    CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
+    BaseId, CipherSuite, Engine, Identified, Rng, UnwrapError, WrapError,
     dangerous::spideroak_crypto::{
         aead::{Aead, OpenError},
         csprng::{Csprng, Random},
@@ -35,7 +35,7 @@ use hsm::{Hsm, HsmError, KeyId};
 #[cfg(feature = "trng")]
 #[unsafe(no_mangle)]
 extern "C" fn OS_hardware_rand() -> u32 {
-    use ::rand::RngCore;
+    use ::rand::RngCore as _;
     ::rand::rngs::OsRng.next_u32()
 }
 
@@ -57,7 +57,7 @@ impl Default for HsmEngine {
 
 impl Csprng for HsmEngine {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
-        Rng.fill_bytes(dst)
+        Rng.fill_bytes(dst);
     }
 }
 
@@ -94,7 +94,7 @@ impl RawSecretWrap<Self> for HsmEngine {
     where
         T: UnwrappedKey<Self>,
     {
-        let id = (*id).into();
+        let id = *id.as_ref();
         let alg_id = secret.alg_id();
         let plaintext: RawSecretBytes<Self> = match secret {
             RawSecret::Aead(sk) => RawSecretBytes::Aead(sk.try_export_secret()?),
@@ -133,7 +133,7 @@ impl RawSecretWrap<Self> for HsmEngine {
                     AlgId::Prk(_) => RawSecret::Prk(Prk::new(SecretKeyBytes::new(
                         Import::<_>::import(plaintext.as_slice())?,
                     ))),
-                    AlgId::Seed(_) => RawSecret::Seed(Import::<_>::import(plaintext.as_slice())?),
+                    AlgId::Seed(()) => RawSecret::Seed(Import::<_>::import(plaintext.as_slice())?),
                     AlgId::Signing(_) => {
                         bug!("`AlgId::Signing(_)` is already covered one case up");
                     }
@@ -176,20 +176,20 @@ impl<CS: CipherSuite> RawSecretBytes<CS> {
 }
 
 impl From<HsmError> for WrapError {
-    fn from(err: HsmError) -> WrapError {
+    fn from(err: HsmError) -> Self {
         match err {
-            HsmError::Bug(err) => WrapError::Bug(err),
-            _ => WrapError::Bug(Bug::new("non-wrap error")),
+            HsmError::Bug(err) => Self::Bug(err),
+            _ => Self::Bug(Bug::new("non-wrap error")),
         }
     }
 }
 
 impl From<HsmError> for UnwrapError {
-    fn from(err: HsmError) -> UnwrapError {
+    fn from(err: HsmError) -> Self {
         match err {
-            HsmError::Bug(err) => UnwrapError::Bug(err),
-            HsmError::Authentication => UnwrapError::Open(OpenError::Authentication),
-            _ => UnwrapError::Bug(Bug::new("non-unwrap error")),
+            HsmError::Bug(err) => Self::Bug(err),
+            HsmError::Authentication => Self::Open(OpenError::Authentication),
+            _ => Self::Bug(Bug::new("non-unwrap error")),
         }
     }
 }
@@ -203,7 +203,7 @@ impl WrappedKey {
         Self(WrappedKeyImpl::Internal { id })
     }
 
-    const fn external(id: Id, ciphertext: Vec<u8>) -> Self {
+    const fn external(id: BaseId, ciphertext: Vec<u8>) -> Self {
         Self(WrappedKeyImpl::External { id, ciphertext })
     }
 }
@@ -223,7 +223,7 @@ enum WrappedKeyImpl {
     /// Stored inside the HSM.
     Internal { id: KeyId },
     /// Encrypted secret key bytes.
-    External { id: Id, ciphertext: Vec<u8> },
+    External { id: BaseId, ciphertext: Vec<u8> },
 }
 
 impl WrappedKeyImpl {
@@ -245,35 +245,48 @@ impl fmt::Display for WrappedKeyId {
     }
 }
 
-impl From<WrappedKeyId> for Id {
+impl From<WrappedKeyId> for BaseId {
     #[inline]
     fn from(id: WrappedKeyId) -> Self {
         id.0.into_id()
     }
 }
 
+impl AsRef<BaseId> for WrappedKeyId {
+    fn as_ref(&self) -> &BaseId {
+        self.0.as_ref()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 enum KeyIdImpl {
     Internal(KeyId),
-    External(Id),
+    External(BaseId),
 }
 
 impl KeyIdImpl {
-    fn into_id(self) -> Id {
+    fn into_id(self) -> BaseId {
         match self {
-            Self::Internal(id) => id.into(),
+            Self::Internal(id) => *id.as_ref(),
+            Self::External(id) => id,
+        }
+    }
+
+    fn as_ref(&self) -> &BaseId {
+        match self {
+            Self::Internal(id) => id.as_ref(),
             Self::External(id) => id,
         }
     }
 }
 
 impl From<HsmError> for SignerError {
-    fn from(err: HsmError) -> SignerError {
+    fn from(err: HsmError) -> Self {
         match err {
-            HsmError::NotFound(_) => SignerError::Other("key not found"),
-            HsmError::WrongKeyType => SignerError::Other("wrong key type"),
-            HsmError::Bug(err) => SignerError::Bug(err),
-            _ => SignerError::Bug(Bug::new("non-signer error")),
+            HsmError::NotFound(_) => Self::Other("key not found"),
+            HsmError::WrongKeyType => Self::Other("wrong key type"),
+            HsmError::Bug(err) => Self::Bug(err),
+            _ => Self::Bug(Bug::new("non-signer error")),
         }
     }
 }
@@ -364,7 +377,7 @@ impl PublicKey for HsmVerifyingKey {
 
     fn export(&self) -> Self::Data {
         Hsm::read()
-            .verifying_key(self.0, |pk| pk.export())
+            .verifying_key(self.0, PublicKey::export)
             .expect("see issues/519")
     }
 }

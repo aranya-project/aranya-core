@@ -1,13 +1,15 @@
 #![cfg(test)]
+#![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::cast_possible_wrap)]
 
-use aranya_crypto::Rng;
+use aranya_crypto::{CmdId, Rng};
 use rand::{Rng as _, prelude::*};
 use test_log::test;
 
 use crate::{
-    Address, ClientState, Command, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
-    StorageProvider, SyncRequester, SyncResponder, SyncType,
-    storage::{Storage, memory::MemStorageProvider},
+    Address, ClientState, Command as _, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
+    StorageProvider as _, SyncRequester, SyncResponder, SyncType,
+    storage::{Storage as _, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestEngine, TestPolicy, TestProtocol},
 };
 
@@ -34,7 +36,7 @@ fn test_large_sync() {
     let mut trx = client.transaction(graph_id);
 
     let mut seen = vec![Address {
-        id: graph_id.into_id().into(),
+        id: CmdId::transmute(graph_id),
         max_cut: 0,
     }];
     let mut rng = thread_rng();
@@ -83,8 +85,8 @@ fn test_large_sync() {
     while {
         let s1 = client.provider().get_storage(graph_id).unwrap();
         let s2 = other.provider().get_storage(graph_id).unwrap();
-        s1.get_command_id(s1.get_head().unwrap()).unwrap()
-            != s2.get_command_id(s2.get_head().unwrap()).unwrap()
+        s1.get_command_address(s1.get_head().unwrap()).unwrap()
+            != s2.get_command_address(s2.get_head().unwrap()).unwrap()
     } {
         let x = sync(
             graph_id,
@@ -100,7 +102,7 @@ fn test_large_sync() {
             &mut request_cache,
             &mut response_cache,
         );
-        assert!(x > 0 || y > 0)
+        assert!(x > 0 || y > 0);
     }
 }
 

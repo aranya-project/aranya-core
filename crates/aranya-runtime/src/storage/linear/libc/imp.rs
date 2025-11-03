@@ -1,18 +1,21 @@
 use alloc::sync::Arc;
-use core::{cmp::Ordering, hash::Hasher};
+use core::{cmp::Ordering, hash::Hasher as _};
 
 use aranya_libc::{
     self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
     O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
     GraphId, Location, StorageError,
-    linear::io::{IoManager, Read, Write},
+    linear::{
+        io::{IoManager, Read, Write},
+        libc::IdPath,
+    },
 };
 
 struct GraphIdIterator {
@@ -104,7 +107,7 @@ impl IoManager for FileManager {
     type Writer = Writer;
 
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         let fd = libc::openat(
             self.root(),
             name,
@@ -117,7 +120,7 @@ impl IoManager for FileManager {
     }
 
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
             Ok(fd) => fd,
             Err(Errno::ENOENT) => return Ok(None),
@@ -128,7 +131,7 @@ impl IoManager for FileManager {
     }
 
     fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         libc::unlinkat(self.root(), name, 0)?;
 
         Ok(())
@@ -344,10 +347,9 @@ impl File {
         }
         if !buf.is_empty() {
             error!(remaining = buf.len(), "could not fill buffer");
-            Err(StorageError::IoError)
-        } else {
-            Ok(())
+            return Err(StorageError::IoError);
         }
+        Ok(())
     }
 
     fn write_all(&self, mut offset: i64, mut buf: &[u8]) -> Result<(), StorageError> {

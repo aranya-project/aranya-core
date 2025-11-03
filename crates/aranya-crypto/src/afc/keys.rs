@@ -1,7 +1,7 @@
 use core::{cmp::Ordering, fmt};
 
 use buggy::Bug;
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder as _, LittleEndian};
 pub use spideroak_crypto::hpke::MessageLimitReached;
 use spideroak_crypto::{
     aead,
@@ -12,6 +12,7 @@ use spideroak_crypto::{
 use crate::{
     afc::shared::{RawOpenKey, RawSealKey},
     ciphersuite::CipherSuite,
+    policy::LabelId,
 };
 
 /// Identifies the position of a ciphertext in a channel.
@@ -42,7 +43,7 @@ impl Seq {
 }
 
 impl From<Seq> for u64 {
-    fn from(seq: Seq) -> u64 {
+    fn from(seq: Seq) -> Self {
         seq.to_u64()
     }
 }
@@ -98,8 +99,8 @@ packed! {
     pub struct AuthData {
         /// The AFC version number.
         pub version: u32,
-        /// The channel's label.
-        pub label: u32,
+        /// The label ID associated with the channel.
+        pub label_id: LabelId,
     }
 }
 
@@ -107,7 +108,7 @@ impl AuthData {
     fn to_bytes(&self) -> [u8; Self::PACKED_SIZE] {
         let mut b = [0u8; Self::PACKED_SIZE];
         LittleEndian::write_u32(&mut b[0..4], self.version);
-        LittleEndian::write_u32(&mut b[4..8], self.label);
+        b[4..].copy_from_slice(self.label_id.as_bytes());
         b
     }
 }

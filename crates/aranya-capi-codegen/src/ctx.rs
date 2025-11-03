@@ -47,12 +47,12 @@ pub(crate) struct Ctx {
 impl Ctx {
     /// Adds an error.
     pub fn error(&self, tokens: impl ToTokens, msg: impl Display) {
-        self.errs.borrow_mut().error(tokens, msg)
+        self.errs.borrow_mut().error(tokens, msg);
     }
 
     /// Adds an [`Error`].
     pub fn push(&self, err: Error) {
-        self.errs.borrow_mut().push(err)
+        self.errs.borrow_mut().push(err);
     }
 
     /// Combines the errors, returning `Ok` if there are none or
@@ -73,7 +73,7 @@ impl Errors {
     fn push(&mut self, err: Error) {
         error!(%err);
 
-        self.0.push(err)
+        self.0.push(err);
     }
 
     fn error(&mut self, tokens: impl ToTokens, msg: impl Display) {

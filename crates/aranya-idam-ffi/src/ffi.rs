@@ -4,10 +4,11 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
+    BaseId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
+    id::IdExt as _,
     policy::{self, CmdId, GroupId, RoleId},
     zeroize::Zeroizing,
 };
@@ -114,7 +115,7 @@ function generate_group_key() struct StoredGroupKey
         eng: &mut E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.as_base();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -170,7 +171,9 @@ function open_group_key(
             .store
             .get_key(eng, our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.into())))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.as_base()))
+            })?;
         debug_assert_eq!(sk.id().map_err(aranya_crypto::Error::from)?, our_enc_sk_id);
 
         let group_key = {
@@ -180,7 +183,7 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.as_base();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -224,7 +227,10 @@ function encrypt_message(
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| {
-                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id.into()))
+                Error::new(
+                    ErrorKind::KeyNotFound,
+                    KeyNotFound(our_sign_sk_id.as_base()),
+                )
             })?;
         let our_sign_pk = sk.public().expect("signing key should be valid");
 
@@ -298,12 +304,12 @@ function compute_change_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         new_cmd_id: CmdId,
-        current_change_id: Id,
-    ) -> Result<Id, Error> {
+        current_change_id: BaseId,
+    ) -> Result<BaseId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
-        Ok(Id::new::<E::CS>(
-            current_change_id.as_bytes(),
-            new_cmd_id.as_bytes(),
+        Ok(BaseId::new::<E::CS>(
+            b"ChangeId-v1",
+            [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }
 

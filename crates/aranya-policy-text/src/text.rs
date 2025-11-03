@@ -14,7 +14,20 @@ use crate::{
 };
 
 /// A string-like value which is utf8 without nul bytes.
-#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+#[rkyv(bytecheck(verify))]
+#[rkyv(derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord))]
 pub struct Text(pub(crate) Repr);
 
 /// Creates a `Text` from a string literal.
@@ -176,9 +189,25 @@ impl Deref for Text {
 impl<T> AsRef<T> for Text
 where
     T: ?Sized,
-    <Text as Deref>::Target: AsRef<T>,
+    <Self as Deref>::Target: AsRef<T>,
 {
     fn as_ref(&self) -> &T {
         self.deref().as_ref()
+    }
+}
+
+impl ArchivedText {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+// SAFETY: This impl validates the string as a `Text`.
+unsafe impl<C> rkyv::bytecheck::Verify<C> for ArchivedText
+where
+    C: rkyv::rancor::Fallible<Error: rkyv::rancor::Source> + ?Sized,
+{
+    fn verify(&self, _context: &mut C) -> Result<(), <C as rkyv::rancor::Fallible>::Error> {
+        Text::validate(self.as_str()).map_err(rkyv::rancor::Source::new)
     }
 }

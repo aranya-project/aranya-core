@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemStruct, ext::IdentExt as _, spanned::Spanned};
+use syn::{ItemStruct, ext::IdentExt as _, spanned::Spanned as _};
 
 use crate::common::get_derive;
 
@@ -53,6 +53,16 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                     return ::core::result::Result::Err(::aranya_policy_ifgen::EffectsParseError::ExtraFields);
                 }
                 ::core::result::Result::Ok(parsed)
+            }
+        }
+
+        impl ::core::convert::TryFrom<::aranya_policy_ifgen::VmEffect> for #ident {
+            type Error = ::aranya_policy_ifgen::EffectsParseError;
+            fn try_from(eff: ::aranya_policy_ifgen::VmEffect) -> ::core::result::Result<Self, Self::Error> {
+                if eff.name != #name {
+                    return ::core::result::Result::Err(::aranya_policy_ifgen::EffectsParseError::UnknownEffectName);
+                }
+                Self::try_from(eff.fields)
             }
         }
     })

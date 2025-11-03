@@ -5,7 +5,7 @@ use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta,
     parse::{Parse, ParseStream, Result},
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 use tracing::{debug, instrument};
 
@@ -41,8 +41,6 @@ pub(crate) struct Parser<'a> {
     pub capi_opaque: Option<&'a mut Option<Opaque>>,
     /// `#[capi::error]`
     pub capi_error: Option<&'a mut Option<Error>>,
-    /// `#[capi::ext_error]`
-    pub capi_ext_error: Option<&'a mut Option<ExtError>>,
     /// `#[capi::no_ext_error]`
     pub capi_no_ext_error: Option<&'a mut Option<NoExtError>>,
     /// `#[capi::generated]`
@@ -219,11 +217,6 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
             **v = Some(Error(span));
             return true;
         }
-    } else if ident == "ext_error" {
-        if let Some(v) = &mut parser.capi_ext_error {
-            **v = Some(ExtError(span));
-            return true;
-        }
     } else if ident == "generated" {
         if let Some(v) = &mut parser.capi_generated {
             **v = Some(Generated(span));
@@ -328,7 +321,7 @@ impl fmt::Display for Repr {
 }
 
 impl Parse for Repr {
-    fn parse(input: ParseStream<'_>) -> Result<Repr> {
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
         // Taken from [`cxx`].
         // https://github.com/dtolnay/cxx/blob/afd4aa3f3d4e5d5e9a3a41d09df3408f5f86a469/syntax/attrs.rs#L230
         let begin = input.cursor();
@@ -345,7 +338,7 @@ impl ToTokens for Repr {
         let ident = format_ident!("{}", self.to_str());
         tokens.extend(quote! {
             #[repr(#ident)]
-        })
+        });
     }
 }
 
@@ -455,7 +448,6 @@ macro_rules! simple_outer_attr {
     };
 }
 simple_outer_attr!(Error, "capi::error");
-simple_outer_attr!(ExtError, "capi::ext_error");
 simple_outer_attr!(Generated, "capi::generated");
 simple_outer_attr!(NoExtError, "capi::no_ext_error");
 simple_outer_attr!(NoMangle, "unsafe(no_mangle)");

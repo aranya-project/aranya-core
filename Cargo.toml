@@ -25,13 +25,69 @@ unused_lifetimes = "warn"
 unused_qualifications = "warn"
 
 [workspace.lints.clippy]
+# Warns on any kind of bare arithmetic (2 + 2).
 arithmetic_side_effects = "warn"
+# Checks if we assign a clone to a different variable, for performance.
+assigning_clones = "warn"
+# Checks for raw borrows and suggests &raw.
+borrow_as_ptr = "warn"
+# Lossless casts should use T::from.
 cast_lossless = "warn"
+# Warns if an unsigned type might wrap when cast to signed.
 cast_possible_wrap = "warn"
+# Warns if a cast to a float might lose precision.
 cast_precision_loss = "warn"
+# Warns if a signed type might wrap when cast to unsigned.
 cast_sign_loss = "warn"
+# Checks if we call .clone() on a ref-counter like Arc, readability.
+clone_on_ref_ptr = "warn"
+# Makes sure we derive Eq if we derive PartialEq on a type that supports both.
+derive_partial_eq_without_eq = "warn"
+# Checks for x.into_iter() when we can just do x.
+explicit_into_iter_loop = "warn"
+# Checks for x.iter() when we can just do &x.
+explicit_iter_loop = "warn"
+# if !value { Err } else { Ok } is less readable than if value { Ok } else { Err }.
+if_not_else = "warn"
+# Checks if we elide () which is more readable, no associated data.
+ignored_unit_patterns = "warn"
+# Checks for function calls that implicitly clone when we can be explicit that we're cloning.
+implicit_clone = "warn"
+# Checks if we're defining a struct in a different order, readability.
+inconsistent_struct_constructor = "warn"
+# Makes sure we explicitly use all variants if we try to wildcard on one variant.
+match_wildcard_for_single_variants = "warn"
+# Checks codeflow to see if we're using continue where it would already have done so.
+needless_continue = "warn"
+# .as_ref().cloned() is less readable than calling .clone() directly.
+option_as_ref_cloned = "warn"
+# We should never ever panic if we can help it.
 panic = "warn"
+# Checks if we use `as` to cast pointer types when ptr::cast() is safer.
+ptr_as_ptr = "warn"
+# Checks if we use .clone() when this is already the last instance in scope.
+redundant_clone = "warn"
+# Type::func is more readable than |type| type.func().
+redundant_closure_for_method_calls = "warn"
+# Checks if we use `as` to cast a reference to a pointer when ptr::from_ref() is safer.
+ref_as_ptr = "warn"
+# Checks if we return Self on a function and don't label it as #[must_use].
+return_self_not_must_use = "warn"
+# Makes sure we use a semicolon if we're not returning anything.
+semicolon_if_nothing_returned = "warn"
+# Checks if we're transmuting pointer types when casts are safer.
+transmute_ptr_to_ptr = "warn"
+# Catches trailing semicolons that don't need to be there.
+unnecessary_semicolon = "warn"
+# Catches e.g. Some(0) | Some(2) when pattern matching instead of Some(0 | 2).
+unnested_or_patterns = "warn"
+# Checks if we import a trait into scope only for its definition.
+unused_trait_names = "warn"
+# We should be using buggy instead.
 unwrap_used = "warn"
+# Makes sure we use `Self` since it's more explicit.
+use_self = "warn"
+# Wildcard imports are usually bad, we should be explicitly allowing it where needed.
 wildcard_imports = "warn"
 
 [workspace.dependencies]
@@ -44,6 +100,8 @@ criterion = { version = "0.6" }
 derive-where = { version = "1", default-features = false }
 errno = { version = "0.3", default-features = false }
 heapless = { version = "0.9", default-features = false }
+fnv = { version = "1", default-features = false }
+indexmap = { version = "2.9", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
@@ -51,10 +109,12 @@ proptest = { version = "1.6", default-features = false, features = ["no_std", "a
 proptest-derive = { version = "0.5" }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
+rkyv = { version = "0.8.11", default-features = false, features = ["bytecheck"] }
 rustix = { version = "0.38", default-features = false }
 s2n-quic = { version = "1.51.0", default-features = false, features = ["provider-address-token-default", "provider-tls-s2n"] }
 serde = { version = "1.0.210", default-features = false }
 serde_derive = { version = "1" }
+spideroak-base58 = { version = "0.2.0", default-features = false }
 spin = { version = "0.10", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 thiserror = { version = "2", default-features = false }
@@ -62,6 +122,8 @@ tokio = { version = "1.41.1", default-features = false, features = ["macros"] }
 tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }
+zerocopy = { version = "0.8", default-features = false }
+zerocopy-derive = { version = "0.8", default-features = false }
 
 prettyplease = "0.2"
 proc-macro2 = "1.0.80"

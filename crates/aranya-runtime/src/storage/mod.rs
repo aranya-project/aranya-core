@@ -8,7 +8,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
@@ -36,15 +36,15 @@ impl From<(usize, usize)> for Location {
     }
 }
 
-impl AsRef<Location> for Location {
-    fn as_ref(&self) -> &Location {
+impl AsRef<Self> for Location {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
 
 impl Location {
-    pub fn new(segment: usize, command: usize) -> Location {
-        Location { segment, command }
+    pub fn new(segment: usize, command: usize) -> Self {
+        Self { segment, command }
     }
 
     /// If this is not the first command in a segment, return a location
@@ -60,7 +60,7 @@ impl Location {
     }
 
     /// Returns true if other location is in the same segment.
-    pub fn same_segment(self, other: Location) -> bool {
+    pub fn same_segment(self, other: Self) -> bool {
         self.segment == other.segment
     }
 }
@@ -176,11 +176,8 @@ pub trait Storage {
             if address.max_cut > head.longest_max_cut()? {
                 continue;
             }
-            if let Some(loc) = head.get_from_max_cut(address.max_cut)? {
-                let command = head.get_command(loc).assume("command must exist")?;
-                if command.id() == address.id {
-                    return Ok(Some(loc));
-                }
+            if let Some(loc) = head.get_by_address(address) {
+                return Ok(Some(loc));
             }
             // Assumes skip list is sorted in ascending order.
             // We always want to skip as close to the root as possible.
@@ -195,14 +192,20 @@ pub trait Storage {
         Ok(None)
     }
 
-    /// Returns the CmdId of the command at the location.
-    fn get_command_id(&self, location: Location) -> Result<CmdId, StorageError>;
+    /// Returns the address of the command at the given location.
+    ///
+    /// By default, this fetches the segment, then the command, then the address.
+    fn get_command_address(&self, location: Location) -> Result<Address, StorageError> {
+        let segment = self.get_segment(location)?;
+        let command = segment
+            .get_command(location)
+            .ok_or(StorageError::CommandOutOfBounds(location))?;
+        let address = command.address()?;
+        Ok(address)
+    }
 
     /// Returns a linear perspective at the given location.
-    fn get_linear_perspective(
-        &self,
-        parent: Location,
-    ) -> Result<Option<Self::Perspective>, StorageError>;
+    fn get_linear_perspective(&self, parent: Location) -> Result<Self::Perspective, StorageError>;
 
     /// Returns a fact perspective at the given location, intended for evaluating braids.
     /// The fact perspective will include the facts of the command at the given location.
@@ -216,13 +219,18 @@ pub trait Storage {
         last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: Self::FactIndex,
-    ) -> Result<Option<Self::Perspective>, StorageError>;
+    ) -> Result<Self::Perspective, StorageError>;
 
     /// Returns the segment at the given location.
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
-    /// Returns the head of the graph.
+    /// Returns the location of head of the graph.
     fn get_head(&self) -> Result<Location, StorageError>;
+
+    /// Returns the address of the head of the graph.
+    fn get_head_address(&self) -> Result<Address, StorageError> {
+        self.get_command_address(self.get_head()?)
+    }
 
     /// Sets the given segment as the head of the graph.  Returns an error if
     /// the current head is not an ancestor of the provided segment.
@@ -279,8 +287,8 @@ type MaxCut = usize;
 /// A segment can be one of three types. This might be encoded in a future version of the API.
 /// * init   - This segment is the first segment of the graph and begins with an init command.
 /// * linear - This segment has a single prior command and is simply a sequence of linear commands.
-/// * merge  - This segment merges two other segments and thus begins with a merge command.
-///            A merge segment has a braid as it's prior facts.
+/// * merge  - This segment merges two other segments and thus begins with a merge command. A merge
+///   segment has a braid as it's prior facts.
 ///
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
@@ -313,8 +321,8 @@ pub trait Segment {
     /// Returns the command at the given location.
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
 
-    /// Returns the command with the given max cut from within this segment.
-    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError>;
+    /// Returns the location of the command with the given address from within this segment.
+    fn get_by_address(&self, address: Address) -> Option<Location>;
 
     /// Returns an iterator of commands starting at the given location.
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>>;

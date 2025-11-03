@@ -60,14 +60,14 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::time::Instant;
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RRng};
-use buggy::{Bug, BugExt};
+use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, ClientError, ClientState, CmdId, Command, EngineError, GraphId, Location,
-    MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError, StorageProvider,
+    Address, ClientError, ClientState, CmdId, Command as _, EngineError, GraphId, Location,
+    MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage, StorageError, StorageProvider,
     SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestEngine, TestSink},
@@ -116,6 +116,7 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
             storage_id: _,
             address: _,
         } => unimplemented!(),
+        SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
 }
@@ -195,7 +196,7 @@ pub enum TestRule {
 impl Display for TestRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TestRule::Sync {
+            Self::Sync {
                 graph,
                 client,
                 from,
@@ -207,7 +208,7 @@ impl Display for TestRule {
                 r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {} }} }},"#,
                 graph, client, from, max_syncs,
             ),
-            TestRule::Sync {
+            Self::Sync {
                 graph,
                 client,
                 from,
@@ -219,7 +220,7 @@ impl Display for TestRule {
                 r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
                 graph, client, from, must_receive, max_syncs,
             ),
-            TestRule::Sync {
+            Self::Sync {
                 graph,
                 client,
                 from,
@@ -231,7 +232,7 @@ impl Display for TestRule {
                 r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {} }} }},"#,
                 graph, client, from, must_send, max_syncs,
             ),
-            TestRule::Sync {
+            Self::Sync {
                 graph,
                 client,
                 from,
@@ -243,7 +244,7 @@ impl Display for TestRule {
                 r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
                 graph, client, from, must_send, must_receive, max_syncs,
             ),
-            TestRule::ActionSet {
+            Self::ActionSet {
                 client,
                 graph,
                 key,
@@ -254,9 +255,9 @@ impl Display for TestRule {
                 r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
                 graph, client, key, value, repeat,
             ),
-            TestRule::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
-            TestRule::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
-            TestRule::AddExpectations {
+            Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
+            Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
+            Self::AddExpectations {
                 expectation,
                 repeat,
             } => write!(
@@ -264,7 +265,7 @@ impl Display for TestRule {
                 r#"{{"AddExpectations": {{ "expectation": {}, "repeat": {} }} }},"#,
                 expectation, repeat,
             ),
-            TestRule::CompareGraphs {
+            Self::CompareGraphs {
                 clienta,
                 clientb,
                 graph,
@@ -274,7 +275,7 @@ impl Display for TestRule {
                 r#"{{"CompareGraphs": {{ "clienta": {}, "clientb": {}, "graph": {}, "equal": {} }} }},"#,
                 clienta, clientb, graph, equal,
             ),
-            TestRule::GenerateGraph {
+            Self::GenerateGraph {
                 clients,
                 graph,
                 commands,
@@ -285,12 +286,12 @@ impl Display for TestRule {
                 r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {} }} }},"#,
                 clients, graph, commands, add_command_chance, sync_chance,
             ),
-            TestRule::IgnoreExpectations { ignore } => write!(
+            Self::IgnoreExpectations { ignore } => write!(
                 f,
                 r#"{{"IgnoreExpectations": {{ "ignore": {} }} }},"#,
                 ignore,
             ),
-            TestRule::MaxCut {
+            Self::MaxCut {
                 client,
                 graph,
                 max_cut,
@@ -299,22 +300,22 @@ impl Display for TestRule {
                 r#"{{"MaxCut": {{ "client": {}, "graph": {}, "max_cut": {} }} }},"#,
                 client, graph, max_cut,
             ),
-            TestRule::NewGraph { client, id, policy } => write!(
+            Self::NewGraph { client, id, policy } => write!(
                 f,
                 r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
                 client, id, policy,
             ),
-            TestRule::RemoveGraph { client, id } => write!(
+            Self::RemoveGraph { client, id } => write!(
                 f,
                 r#"{{"RemoveGraph": {{ "client": {}, "id": {} }} }},"#,
                 client, id,
             ),
-            TestRule::PrintGraph { client, graph } => write!(
+            Self::PrintGraph { client, graph } => write!(
                 f,
                 r#"{{"PrintGraph": {{ "client": {}, "graph": {} }} }},"#,
                 client, graph,
             ),
-            TestRule::SetupClientsAndGraph {
+            Self::SetupClientsAndGraph {
                 clients,
                 graph,
                 policy,
@@ -323,7 +324,7 @@ impl Display for TestRule {
                 r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
                 clients, graph, policy,
             ),
-            TestRule::VerifyGraphIds { client, ids } => write!(
+            Self::VerifyGraphIds { client, ids } => write!(
                 f,
                 r#"{{"VerifyGraphIds": {{ "client": {}, "ids": {:?} }} }},"#,
                 client, ids
@@ -419,7 +420,7 @@ where
                                     must_send: None,
                                     must_receive: None,
                                     max_syncs: 1,
-                                })
+                                });
                             }
                             _ => {}
                         }
@@ -433,7 +434,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
-                        })
+                        });
                     }
                     // Sync other clients with client 1 so all clients have the entire graph.
                     for i in 2..clients {
@@ -444,7 +445,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
-                        })
+                        });
                     }
                     // Sync the entire graph to client 0 at once.
                     generated_actions.push(TestRule::Sync {
@@ -465,7 +466,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
-                        })
+                        });
                     }
                     // Compare all graphs to ensure they're the same after syncing.
                     for i in 1..clients {
@@ -474,7 +475,7 @@ where
                             clientb: i,
                             graph,
                             equal: true,
-                        })
+                        });
                     }
                     generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
                     generated_actions
@@ -731,7 +732,7 @@ where
                 assert_eq!(actual_ids, expected_ids);
             }
             _ => {}
-        };
+        }
         #[cfg(any(test, feature = "std"))]
         if false {
             {
@@ -779,7 +780,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         request_state.commit(&mut request_trx, sink)?;
         let addresses = cmds.into_iter().filter_map(|cmd| cmd.address().ok());
         request_state.update_heads(storage_id, addresses, request_cache)?;
-    };
+    }
 
     Ok((sent, received))
 }

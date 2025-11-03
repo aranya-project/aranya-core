@@ -7,8 +7,8 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    Csprng, DeviceId, Engine, Id, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
-    policy::CmdId,
+    BaseId, Csprng, DeviceId, Engine, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
+    id::IdExt as _, policy::CmdId,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
@@ -118,7 +118,7 @@ where
                 pk,
                 CmdId::default(),
                 command.clone(),
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect("`crypto::verify` should not fail");
@@ -166,7 +166,7 @@ where
             pk,
             CmdId::default(),
             command,
-            command_id.into(),
+            CmdId::from_base(command_id),
             signature,
         )
         .expect_err("`crypto::verify` should fail");
@@ -211,7 +211,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -266,7 +266,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -320,7 +320,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -369,7 +369,7 @@ where
                 pk,
                 CmdId::default(),
                 command,
-                command_id.into(),
+                CmdId::from_base(command_id),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -407,13 +407,13 @@ where
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
         ] {
             let err = ffi
@@ -470,13 +470,13 @@ where
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
         ] {
             let err = ffi
@@ -486,7 +486,7 @@ where
                     pk.clone(),
                     CmdId::default(),
                     command.clone(),
-                    command_id.into(),
+                    CmdId::from_base(command_id),
                     signature.clone(),
                 )
                 .expect_err("`crypto::verify` should fail");

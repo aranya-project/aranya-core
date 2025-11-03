@@ -1,13 +1,11 @@
-#![warn(clippy::arithmetic_side_effects)]
-
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
-    io::{Read, stdin},
+    io::{Read as _, stdin},
 };
 
-use aranya_crypto::{DeviceId, Id, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
@@ -15,7 +13,7 @@ use aranya_policy_vm::{
     Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
     MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
-use clap::{ArgGroup, Parser, ValueEnum, arg};
+use clap::{ArgGroup, Parser, ValueEnum};
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
 enum Mode {
@@ -119,7 +117,7 @@ struct MachExpIO {
 
 impl MachExpIO {
     fn new() -> Self {
-        MachExpIO {
+        Self {
             facts: HashMap::new(),
             effects: vec![],
         }
@@ -139,7 +137,7 @@ impl Iterator for MachExpQueryIterator {
         self.iter
             .next()
             .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
-            .map(|((_, k), v)| Ok((k.clone(), v.clone())))
+            .map(|((_, k), v)| Ok((k, v)))
     }
 }
 
@@ -203,7 +201,7 @@ where
         _recalled: bool,
     ) {
         let fields = fields.into_iter().collect();
-        self.effects.push((name, fields))
+        self.effects.push((name, fields));
     }
 
     fn call(
@@ -260,26 +258,23 @@ fn main() -> anyhow::Result<()> {
     // which will return the commands or effects produced.
     match mode {
         Mode::Exec | Mode::Debug => {
-            let name;
             let mut rs;
             let ctx;
 
-            if let Some(action) = &args.action {
-                name = action.clone();
+            if let Some(action) = args.action {
                 ctx = CommandContext::Action(ActionContext {
-                    name: name.clone(),
+                    name: action.clone(),
                     head_id: CmdId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
-                rs.setup_action(action.clone(), call_args)?;
+                rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
-                name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
-                    name: name.clone(),
+                    name: command.clone(),
                     id: CmdId::default(),
                     author: DeviceId::default(),
-                    version: Id::default(),
+                    version: BaseId::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let fields: BTreeMap<Identifier, Value> = args
@@ -293,11 +288,11 @@ fn main() -> anyhow::Result<()> {
                         )
                     })
                     .collect();
-                let self_data = Struct {
-                    name: command.clone(),
+                let this_data = Struct {
+                    name: command,
                     fields,
                 };
-                rs.setup_command(command.clone(), LabelType::CommandPolicy, &self_data)?;
+                rs.setup_command(LabelType::CommandPolicy, this_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }

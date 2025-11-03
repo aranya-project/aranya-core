@@ -38,13 +38,14 @@
 //! # {
 //! use aranya_crypto::{
 //!     Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
-//!     afc::{BidiChannel, BidiKeys, BidiSecrets, RawOpenKey, RawSealKey},
+//!     afc::{RawOpenKey, RawSealKey, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
-//!     policy::CmdId,
+//!     id::IdExt as _,
+//!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
-//!     AfcState, AranyaState, Channel, ChannelId, Client, Directed, Error, Label, NodeId,
+//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId,
 //!     crypto::Aes256Gcm,
 //!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };
@@ -65,7 +66,6 @@
 //!     WriteState::open(path, Flag::Create, Mode::ReadWrite, MAX_CHANS, Rng)
 //!         .map_err(Error::SharedMem)?
 //! };
-//! let device1_node_id = NodeId::new(1);
 //!
 //! let aranya_client_b: WriteState<CS, Rng> = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_b\x00")
@@ -74,7 +74,6 @@
 //!     WriteState::open(path, Flag::Create, Mode::ReadWrite, MAX_CHANS, Rng)
 //!         .map_err(Error::SharedMem)?
 //! };
-//! let device2_node_id = NodeId::new(2);
 //!
 //! let (mut eng, _) = E::from_entropy(Rng);
 //!
@@ -84,44 +83,37 @@
 //! let device2_id = IdentityKey::<CS>::new(&mut eng).id()?;
 //! let device2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
 //!
-//! // The label used for encryption and decryption.
-//! //
-//! // The value (12) should come from the label definition in
-//! // the Aranya policy file.
-//! const TOP_SECRET: Label = Label::new(12);
+//! // The label ID used for encryption and decryption.
+//! let label_id = LabelId::random(&mut Rng);
 //!
-//! let ch1 = BidiChannel {
+//! let ch1 = UniChannel {
 //!     parent_cmd_id: CmdId::random(&mut eng),
 //!     our_sk: &device1_enc_sk,
-//!     our_id: device1_id,
+//!     seal_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,
-//!     their_id: device2_id,
-//!     label: TOP_SECRET.to_u32(),
+//!     open_id: device2_id,
+//!     label_id,
 //! };
-//! let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &ch1)?;
+//! let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &ch1)?;
 //!
 //! // Inform device1 about device2.
-//! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?.into_raw_keys();
-//! aranya_client_a.add(
-//!     ChannelId::new(device2_node_id, TOP_SECRET),
-//!     Directed::Bidirectional { seal, open },
-//! );
+//! let seal = UniSealKey::from_author_secret(&ch1, author)?.into_raw_key();
+//! let client_a_channel_id =
+//!     aranya_client_a.add(Directed::SealOnly { seal }, label_id, device2_id)?;
 //!
-//! let ch2 = BidiChannel {
+//! let ch2 = UniChannel {
 //!     parent_cmd_id: ch1.parent_cmd_id,
 //!     our_sk: &device2_enc_sk,
-//!     our_id: device2_id,
+//!     open_id: device2_id,
 //!     their_pk: &device1_enc_sk.public()?,
-//!     their_id: device1_id,
-//!     label: TOP_SECRET.to_u32(),
+//!     seal_id: device1_id,
+//!     label_id,
 //! };
 //!
 //! // Inform device2 about device1.
-//! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?.into_raw_keys();
-//! aranya_client_b.add(
-//!     ChannelId::new(device1_node_id, TOP_SECRET),
-//!     Directed::Bidirectional { seal, open },
-//! );
+//! let open = UniOpenKey::from_peer_encap(&ch2, peer)?.into_raw_key();
+//! let client_b_channel_id =
+//!     aranya_client_b.add(Directed::OpenOnly { open }, label_id, device1_id)?;
 //!
 //! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")
@@ -142,11 +134,10 @@
 //!
 //! // Have device1 encrypt data for device2.
 //! let ciphertext = {
-//!     let id = ChannelId::new(device2_node_id, TOP_SECRET);
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!     afc_client_a.seal(id, &mut dst[..], GOLDEN.as_bytes())?;
+//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
 //!     dst
 //! };
 //!
@@ -154,21 +145,22 @@
 //! // whatever makes sense for your application.
 //!
 //! // Have device2 decrypt the data from device1.
-//! let (label, seq, plaintext) = {
+//! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let (label, seq) = afc_client_b.open(device1_node_id, &mut dst[..], &ciphertext[..])?;
-//!     (label, seq, dst)
+//!     let (label_id, seq) =
+//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
+//!     (label_id, seq, dst)
 //! };
 //!
 //! // At this point we can now make a decision on what to do
 //! // with plaintext based on the label. We know it came from
-//! // `device1_node_id` and we know it has the label `TOP_SECRET`.
-//! // Both of those facts (`device1_node_id` and `TOP_SECRET`)
+//! // `device1` and we know it has the label `label_id`.
+//! // Both of those facts (`device1` and `label_id`)
 //! // have been cryptographically verified, so we can make
 //! // decisions based on them. For example, we could forward the
 //! // plaintext data on to another system that ingests "top
 //! // secret" data.
-//! assert_eq!(label, TOP_SECRET);
+//! assert_eq!(label_from_open, label_id);
 //! assert_eq!(seq, 0);
 //! assert_eq!(plaintext, GOLDEN.as_bytes());
 //!
@@ -190,14 +182,10 @@
 #![warn(
     clippy::alloc_instead_of_core,
     clippy::implicit_saturating_sub,
-    clippy::ptr_as_ptr,
-    clippy::transmute_ptr_to_ptr,
-    clippy::wildcard_imports,
     clippy::undocumented_unsafe_blocks,
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::missing_panics_doc,
-    clippy::panic,
     clippy::string_slice,
     clippy::unimplemented,
     missing_docs

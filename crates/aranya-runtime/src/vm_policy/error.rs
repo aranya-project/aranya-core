@@ -25,7 +25,7 @@ pub enum VmPolicyError {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("{0}")]
-pub struct AttributeError(String);
+pub struct AttributeError(pub(crate) String);
 
 impl AttributeError {
     pub(crate) fn type_mismatch(cmd: &str, attr: &str, expected: &str, actual: &str) -> Self {
@@ -38,7 +38,11 @@ impl AttributeError {
         ))
     }
 
-    pub(crate) fn int_range(cmd: &str, attr: &str, min: i64, max: i64) -> AttributeError {
+    pub(crate) fn int_range(cmd: &str, attr: &str, min: i64, max: i64) -> Self {
         Self(format!("{cmd}::{attr} must be within [{min}, {max}]"))
+    }
+
+    pub(crate) fn missing(cmd: &str, attrs: &str) -> Self {
+        Self(format!("{cmd} is missing {attrs}"))
     }
 }

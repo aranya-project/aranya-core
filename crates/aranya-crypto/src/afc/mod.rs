@@ -23,12 +23,10 @@
 #![cfg(feature = "afc")]
 #![cfg_attr(docsrs, doc(cfg(feature = "afc")))]
 
-mod bidi;
 mod keys;
 mod shared;
 mod uni;
 
-pub use bidi::*;
 pub use keys::*;
 pub use shared::{RawOpenKey, RawSealKey};
 pub use uni::*;

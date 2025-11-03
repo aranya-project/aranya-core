@@ -1,4 +1,4 @@
-pub use aranya_crypto::Id;
+pub use aranya_crypto::BaseId;
 use aranya_crypto::{DeviceId, policy::CmdId};
 use buggy::{Bug, bug};
 
@@ -39,7 +39,7 @@ pub struct PolicyContext {
     /// The ID of the author of the command
     pub author: DeviceId,
     /// The ID of the version of policy and FFI module set
-    pub version: Id,
+    pub version: BaseId,
 }
 
 /// Properties of policy execution available through FFI.
@@ -60,7 +60,7 @@ pub enum CommandContext {
 impl CommandContext {
     /// Try to create a new command context with a new `head_id` that uses the same name as the original
     /// This method will fail if it's not called on an [`CommandContext::Action`]
-    pub fn with_new_head(&self, new_head_id: CmdId) -> Result<CommandContext, Bug> {
+    pub fn with_new_head(&self, new_head_id: CmdId) -> Result<Self, Bug> {
         match &self {
             Self::Action(ctx) => Ok(Self::Action(ActionContext {
                 name: ctx.name.clone(),
@@ -72,9 +72,9 @@ impl CommandContext {
 
     /// Try to create a new [`CommandContext::Seal`] with the same `head_id` as the current context.
     /// This method will fail if it's not called on an [`CommandContext::Action`]
-    pub fn seal_from_action(&self, command_name: Identifier) -> Result<CommandContext, Bug> {
-        if let CommandContext::Action(ActionContext { name: _, head_id }) = self {
-            Ok(CommandContext::Seal(SealContext {
+    pub fn seal_from_action(&self, command_name: Identifier) -> Result<Self, Bug> {
+        if let Self::Action(ActionContext { name: _, head_id }) = self {
+            Ok(Self::Seal(SealContext {
                 name: command_name,
                 head_id: *head_id,
             }))

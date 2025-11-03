@@ -1,13 +1,13 @@
 use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
-use buggy::{BugExt, bug};
+use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, CmdId, Command, CommandRecall, Engine, EngineError, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider,
+    Address, ClientError, CmdId, Command, Engine, EngineError, GraphId, Location,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyId, Prior, Revertable as _,
+    Segment as _, Sink, Storage, StorageError, StorageProvider, engine::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -103,15 +103,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 let (braid, last_common_ancestor) =
                     make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
-                let mut perspective = storage
-                    .new_merge_perspective(
-                        left_loc,
-                        right_loc,
-                        last_common_ancestor,
-                        policy_id,
-                        braid,
-                    )?
-                    .assume("trx heads should exist in storage")?;
+                let mut perspective = storage.new_merge_perspective(
+                    left_loc,
+                    right_loc,
+                    last_common_ancestor,
+                    policy_id,
+                    braid,
+                )?;
                 perspective.add_command(&command)?;
 
                 let segment = storage.write(perspective)?;
@@ -186,7 +184,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             }
             match command.parent() {
                 Prior::None => {
-                    if command.id().into_id() == self.storage_id.into_id() {
+                    if command.id().as_base() == self.storage_id.as_base() {
                         // Graph already initialized, extra init just spurious
                     } else {
                         bug!("init command does not belong in graph");
@@ -200,7 +198,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     self.add_merge(storage, engine, sink, &command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
-            };
+            }
         }
 
         Ok(count)
@@ -222,7 +220,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(command, perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            command,
+            perspective,
+            sink,
+            CommandPlacement::OnGraphAtOrigin,
+        ) {
             perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
@@ -264,11 +267,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let (braid, last_common_ancestor) =
             make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
-        let mut perspective = storage
-            .new_merge_perspective(left_loc, right_loc, last_common_ancestor, policy_id, braid)?
-            .assume(
-                "we already found left and right locations above and we only call this with merge command",
-            )?;
+        let mut perspective = storage.new_merge_perspective(
+            left_loc,
+            right_loc,
+            last_common_ancestor,
+            policy_id,
+            braid,
+        )?;
         perspective.add_command(command)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
@@ -311,11 +316,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             .ok_or(ClientError::NoSuchParent(parent.id))?;
 
         // Get a new perspective and store it in the transaction.
-        let p = self.perspective.insert(
-            storage
-                .get_linear_perspective(loc)?
-                .assume("location should already be in storage")?,
-        );
+        let p = self
+            .perspective
+            .insert(storage.get_linear_perspective(loc)?);
 
         self.phead = Some(parent.id);
         self.heads.remove(&parent);
@@ -331,7 +334,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         // Storage ID is the id of the init command by definition.
-        if self.storage_id.into_id() != command.id().into_id() {
+        if self.storage_id.as_base() != command.id().as_base() {
             return Err(ClientError::InitError);
         }
 
@@ -351,7 +354,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Get an empty perspective and run the init command.
         let mut perspective = provider.new_perspective(policy_id);
         sink.begin();
-        if let Err(e) = policy.call_rule(command, &mut perspective, sink, CommandRecall::None) {
+        if let Err(e) = policy.call_rule(
+            command,
+            &mut perspective,
+            sink,
+            CommandPlacement::OnGraphAtOrigin,
+        ) {
             sink.rollback();
             // We don't need to revert perspective since we just drop it.
             return Err(e.into());
@@ -394,7 +402,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
             &command,
             &mut braid_perspective,
             sink,
-            CommandRecall::OnCheck,
+            CommandPlacement::OnGraphInBraid,
         );
 
         // If the command failed in an uncontrolled way, rollback
@@ -442,12 +450,14 @@ fn get_policy<'a, E: Engine>(
 mod test {
     use std::collections::HashMap;
 
+    use aranya_crypto::id::{Id, IdTag};
     use buggy::Bug;
     use test_log::test;
 
     use super::*;
     use crate::{
-        ClientState, Keys, MergeIds, Priority,
+        ClientState, Keys, MergeIds, Perspective, Policy, Priority,
+        engine::{ActionPlacement, CommandPlacement},
         memory::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -495,7 +505,7 @@ mod test {
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _recall: CommandRecall,
+            _placement: CommandPlacement,
         ) -> Result<(), EngineError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
@@ -516,7 +526,7 @@ mod test {
                 );
             } else {
                 facts.insert("seq".into(), Keys::default(), data.into());
-            };
+            }
             Ok(())
         }
 
@@ -525,6 +535,7 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
+            _placement: ActionPlacement,
         ) -> Result<(), EngineError> {
             unimplemented!()
         }
@@ -603,7 +614,7 @@ mod test {
             // We don't actually need any policy bytes, but the
             // transaction/storage requires it on init commands.
             match self.prior {
-                Prior::None { .. } => Some(b""),
+                Prior::None => Some(b""),
                 _ => None,
             }
         }
@@ -638,7 +649,7 @@ mod test {
             mut client: ClientState<SeqEngine, SP>,
             ids: &[CmdId],
         ) -> Result<Self, ClientError> {
-            let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
+            let mut trx = Transaction::new(GraphId::transmute(ids[0]));
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {
@@ -763,11 +774,8 @@ mod test {
         }
     }
 
-    fn mkid<T>(x: &str) -> T
-    where
-        aranya_crypto::Id: Into<T>,
-    {
-        x.parse::<aranya_crypto::Id>().unwrap().into()
+    fn mkid<Tag: IdTag>(x: &str) -> Id<Tag> {
+        x.parse().unwrap()
     }
 
     /// See tests for usage.
@@ -799,7 +807,7 @@ mod test {
     }
 
     fn lookup(storage: &impl Storage, name: &str) -> Option<Box<[u8]>> {
-        use crate::Query;
+        use crate::Query as _;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
         p.query(name, &Keys::default()).unwrap()
@@ -980,6 +988,6 @@ mod test {
             "i" < finalize "fff2";
         };
         let err = gb.commit().expect_err("merge should fail");
-        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}")
+        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
     }
 }

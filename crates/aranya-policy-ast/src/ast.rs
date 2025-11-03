@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
@@ -6,7 +6,17 @@ use serde_derive::{Deserialize, Serialize};
 use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Ident {
     /// The identifier name
     pub name: Identifier,
@@ -84,8 +94,8 @@ impl FromStr for Version {
     #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "1" => Ok(Version::V1),
-            "2" => Ok(Version::V2),
+            "1" => Ok(Self::V1),
+            "2" => Ok(Self::V2),
             _ => Err(InvalidVersion),
         }
     }
@@ -102,7 +112,17 @@ impl fmt::Display for Version {
 }
 
 /// Persistence mode for commands and actions
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Persistence {
     /// Persisted on-graph (default behavior)
     Persistent,
@@ -141,7 +161,17 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct VType {
     /// The type kind
     pub kind: TypeKind,
@@ -169,7 +199,28 @@ impl Spanned for VType {
 }
 
 /// The kind of a [`VType`].
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
 pub enum TypeKind {
     /// A character (UTF-8) string
     String,
@@ -186,7 +237,7 @@ pub enum TypeKind {
     /// Named enumeration
     Enum(Ident),
     /// An optional type of some other type
-    Optional(Box<VType>),
+    Optional(#[rkyv(omit_bounds)] Box<VType>),
 }
 
 impl TypeKind {
@@ -226,7 +277,17 @@ spanned! {
 ///
 /// Field definitions are used in Command fields, fact
 /// key/value fields, and action/function arguments.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct FieldDefinition {
     /// the field's name
     pub identifier: Ident,
@@ -246,7 +307,7 @@ impl FieldDefinition {
 /// An identifier and its type and dynamic effect marker
 ///
 /// A variant used exclusively for Effects
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectFieldDefinition {
     /// the field's name
     pub identifier: Ident,
@@ -321,7 +382,7 @@ pub struct NamedStruct {
 }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
@@ -340,7 +401,7 @@ impl Spanned for EnumDefinition {
 
 spanned! {
 /// A reference to an enumeration, e.g. `Color::Red`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
     pub identifier: Ident,
@@ -350,7 +411,7 @@ pub struct EnumReference {
 }
 
 /// How many facts to expect when counting
-#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FactCountType {
     /// Up to
     UpTo(Span),
@@ -386,6 +447,14 @@ impl Spanned for FactCountType {
 /// Expression atoms with special rules or effects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
+    /// A `add` expression
+    Add(Box<Expression>, Box<Expression>),
+    /// A `saturating_add` expression
+    SaturatingAdd(Box<Expression>, Box<Expression>),
+    /// A `sub` expression
+    Sub(Box<Expression>, Box<Expression>),
+    /// A `saturating_sub` expression
+    SaturatingSub(Box<Expression>, Box<Expression>),
     /// A `query` expression
     Query(FactLiteral),
     /// An `exists` fact query
@@ -406,6 +475,10 @@ pub enum InternalFunction {
 impl Spanned for InternalFunction {
     fn span(&self) -> Span {
         match self {
+            Self::Add(lhs, rhs) => lhs.span().merge(rhs.span()),
+            Self::SaturatingAdd(lhs, rhs) => lhs.span().merge(rhs.span()),
+            Self::Sub(lhs, rhs) => lhs.span().merge(rhs.span()),
+            Self::SaturatingSub(lhs, rhs) => lhs.span().merge(rhs.span()),
             Self::Query(fact) => fact.span(),
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
@@ -469,10 +542,6 @@ pub enum ExprKind {
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
-    /// `expr + expr`
-    Add(Box<Expression>, Box<Expression>),
-    /// `expr - expr`
-    Subtract(Box<Expression>, Box<Expression>),
     /// expr && expr`
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
@@ -491,8 +560,6 @@ pub enum ExprKind {
     GreaterThanOrEqual(Box<Expression>, Box<Expression>),
     /// `expr` <= `expr`
     LessThanOrEqual(Box<Expression>, Box<Expression>),
-    /// `-expr`
-    Negative(Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
     /// `unwrap expr`
@@ -514,7 +581,7 @@ pub enum ExprKind {
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FunctionDecl {
     /// The identifier of the function
     pub identifier: Ident,
@@ -557,8 +624,8 @@ pub enum MatchPattern {
 impl Spanned for MatchPattern {
     fn span(&self) -> Span {
         match self {
-            MatchPattern::Default(span) => *span,
-            MatchPattern::Values(values) => values.span(),
+            Self::Default(span) => *span,
+            Self::Values(values) => values.span(),
         }
     }
 }
@@ -601,7 +668,7 @@ pub struct MatchExpression {
 }
 
 /// A container for a statement or expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LanguageContext<A, B> {
     /// statement
     Statement(A),
@@ -616,8 +683,8 @@ where
 {
     fn span(&self) -> Span {
         match self {
-            LanguageContext::Statement(stmt) => stmt.span(),
-            LanguageContext::Expression(expr) => expr.span(),
+            Self::Statement(stmt) => stmt.span(),
+            Self::Expression(expr) => expr.span(),
         }
     }
 }
@@ -757,7 +824,18 @@ pub enum StmtKind {
 }
 
 /// A schema definition for a fact
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
@@ -799,7 +877,7 @@ impl Spanned for ActionDefinition {
 }
 
 /// An effect definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectDefinition {
     /// The name of the effect
     pub identifier: Ident,
@@ -816,7 +894,7 @@ impl Spanned for EffectDefinition {
 }
 
 /// A struct definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StructDefinition {
     /// The name of the struct
     pub identifier: Ident,
@@ -833,11 +911,11 @@ impl Spanned for StructDefinition {
 }
 
 /// Struct field or insertion reference
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
-    /// Named struct from whose fields to add to the current struct
+    /// Named struct whose fields to add to the current struct
     StructRef(Ident),
 }
 
@@ -845,8 +923,8 @@ impl<T> StructItem<T> {
     /// Get the field definition from this struct item
     pub fn field(&self) -> Option<&T> {
         match self {
-            StructItem::Field(f) => Some(f),
-            StructItem::StructRef(_) => None,
+            Self::Field(f) => Some(f),
+            Self::StructRef(_) => None,
         }
     }
 }
@@ -981,8 +1059,8 @@ pub struct Policy {
 
 impl Policy {
     /// Create a new `Policy` with the given source text.
-    pub fn new(version: Version, text: &str) -> Policy {
-        Policy {
+    pub fn new(version: Version, text: &str) -> Self {
+        Self {
             version,
             text: text.to_owned(),
             ..Default::default()

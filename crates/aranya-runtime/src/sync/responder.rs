@@ -1,4 +1,4 @@
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
@@ -7,8 +7,8 @@ use super::{
 };
 use crate::{
     StorageError, SyncCommand, SyncType,
-    command::{Address, CmdId, Command},
-    storage::{GraphId, Location, Segment, Storage, StorageProvider},
+    command::{Address, CmdId, Command as _},
+    storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
 };
 
 #[derive(Default, Debug)]
@@ -18,7 +18,7 @@ pub struct PeerCache {
 
 impl PeerCache {
     pub const fn new() -> Self {
-        PeerCache { heads: Vec::new() }
+        Self { heads: Vec::new() }
     }
 
     pub fn heads(&self) -> &[Address] {
@@ -58,7 +58,7 @@ impl PeerCache {
                 .push(command)
                 .ok()
                 .assume("command locations should not be full")?;
-        };
+        }
         Ok(())
     }
 }
@@ -124,20 +124,15 @@ impl SyncResponseMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum SyncResponderState {
+    #[default]
     New,
     Start,
     Send,
     Idle,
     Reset,
     Stopped,
-}
-
-impl Default for SyncResponderState {
-    fn default() -> Self {
-        Self::New
-    }
 }
 
 #[derive(Default)]
@@ -156,7 +151,7 @@ pub struct SyncResponder<A> {
 impl<A: Serialize + Clone> SyncResponder<A> {
     /// Create a new [`SyncResponder`].
     pub fn new(server_address: A) -> Self {
-        SyncResponder {
+        Self {
             session_id: None,
             storage_id: None,
             state: SyncResponderState::New,
@@ -263,7 +258,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             SyncRequestMessage::EndSession { .. } => {
                 self.state = SyncResponderState::Stopped;
             }
-        };
+        }
 
         Ok(())
     }
@@ -440,7 +435,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 {
                     *cmd = j;
                     break 'outer;
-                };
+                }
             }
             index = index.checked_add(1).assume("won't overflow")?;
         }
@@ -460,17 +455,6 @@ fn force_push_front<T>(deque: &mut heapless::deque::DequeView<T>, value: T) -> R
         .push_front(value)
         .ok()
         .assume("deque is not full after popping if full")
-}
-
-fn segment_get_location_by_address(
-    segment: &impl Segment,
-    addr: Address,
-) -> Result<Option<Location>, StorageError> {
-    Ok(segment.get_from_max_cut(addr.max_cut)?.filter(|&loc| {
-        segment
-            .get_command(loc)
-            .is_some_and(|cmd| cmd.id() == addr.id)
-    }))
 }
 
 use buf::Buf;
@@ -522,7 +506,7 @@ mod lru {
         }
 
         pub fn clear(&mut self) {
-            self.data.clear()
+            self.data.clear();
         }
 
         pub fn iter_mut_from(
@@ -548,9 +532,10 @@ mod lru {
             } else if self.data.len() >= SIZE {
                 self.data.remove(0);
             }
-            self.data.push((k, v))
+            self.data.push((k, v));
         }
 
+        #[allow(dead_code, reason = "Might need to use?")]
         pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
             let pos = self.data.iter().position(|(x, _)| x == k)?;
             let old = self.data.remove(pos);

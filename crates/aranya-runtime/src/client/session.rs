@@ -13,15 +13,16 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use yoke::{Yoke, Yokeable};
 
 use crate::{
-    Address, Checkpoint, ClientError, ClientState, CmdId, Command, CommandRecall, Engine, Fact,
-    FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
-    Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    Address, Checkpoint, ClientError, ClientState, CmdId, Command, Engine, Fact, FactPerspective,
+    GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut,
+    Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    engine::{ActionPlacement, CommandPlacement},
 };
 
 type Bytes = Box<[u8]>;
@@ -99,8 +100,13 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         effect_sink.begin();
 
         // Try to perform action.
-        match policy.call_action(action, &mut perspective, effect_sink) {
-            Ok(_) => {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            effect_sink,
+            ActionPlacement::OffGraph,
+        ) {
+            Ok(()) => {
                 // Success, commit effects
                 effect_sink.commit();
                 Ok(())
@@ -144,7 +150,9 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         // Try to evaluate command.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(&command, &mut perspective, sink, CommandRecall::None) {
+        if let Err(e) =
+            policy.call_rule(&command, &mut perspective, sink, CommandPlacement::OffGraph)
+        {
             perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());

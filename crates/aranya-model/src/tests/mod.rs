@@ -7,6 +7,7 @@ use std::{fs, marker::PhantomData};
 use aranya_crypto::{
     DeviceId, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    id::IdExt as _,
     keystore::fs_keystore::Store,
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
@@ -18,7 +19,7 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
     Machine, Value,
-    ffi::{FfiModule, ModuleSchema},
+    ffi::{FfiModule as _, ModuleSchema},
     text,
 };
 use aranya_runtime::{
@@ -32,7 +33,7 @@ use tempfile::tempdir;
 use test_log::test;
 
 use crate::{
-    ClientFactory, Model, ModelClient, ModelEngine, ModelError, ProxyClientId, ProxyGraphId,
+    ClientFactory, Model as _, ModelClient, ModelEngine, ModelError, ProxyClientId, ProxyGraphId,
     RuntimeModel,
     tests::keygen::{KeyBundle, MinKeyBundle, PublicKeys},
 };
@@ -78,7 +79,7 @@ impl ClientFactory for BasicClientFactory {
     type PublicKeys = EmptyKeys;
     type Args = ();
 
-    fn create_client(&mut self, (): ()) -> ModelClient<BasicClientFactory> {
+    fn create_client(&mut self, (): ()) -> ModelClient<Self> {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
@@ -131,7 +132,7 @@ impl ClientFactory for FfiClientFactory {
     type PublicKeys = PublicKeys<DefaultCipherSuite>;
     type Args = ();
 
-    fn create_client(&mut self, (): ()) -> ModelClient<FfiClientFactory> {
+    fn create_client(&mut self, (): ()) -> ModelClient<Self> {
         // Setup keystore
         let temp_dir = tempdir().expect("should create temp directory");
         let root = temp_dir.into_path().join("client");
@@ -316,10 +317,7 @@ fn should_create_client_with_ffi_and_add_commands() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_ident_pk.clone(),
-                client_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
         )
         .expect("should add device");
 
@@ -471,10 +469,7 @@ fn should_sync_ffi_clients() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_one_ident_pk.clone(),
-                client_one_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_one_ident_pk, client_one_sign_pk)),
         )
         .expect("should add device");
 
@@ -522,10 +517,7 @@ fn should_sync_ffi_clients() {
         .action(
             Device::B,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_two_ident_pk.clone(),
-                client_two_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_two_ident_pk, client_two_sign_pk)),
         )
         .expect("should add device");
 
@@ -812,10 +804,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                model_one_ident_pk.clone(),
-                model_one_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(model_one_ident_pk, model_one_sign_pk)),
         )
         .expect("should add device");
 
@@ -857,10 +846,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                model_two_ident_pk.clone(),
-                model_two_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(model_two_ident_pk, model_two_sign_pk)),
         )
         .expect("should add device");
 
@@ -997,10 +983,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_ident_pk.clone(),
-                client_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
         )
         .expect("should add device");
 
@@ -1113,7 +1096,7 @@ fn should_allow_access_to_fact_db_from_session() {
     // Observe that client B receives the commands from the client A session
     // and successfully processes the command to retrieve the current state of
     // the FactDB.
-    assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 42 })])
+    assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 42 })]);
 }
 
 // We want to test wether we can store our returned serialized ephemeral command
@@ -1190,7 +1173,10 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     let (cmds, effects) = test_model.session_actions(
         Device::A,
         Graph::X,
-        [vm_action!(create_action(5)), vm_action!(increment(3))],
+        [
+            vm_action!(create_action_ephemeral(5)),
+            vm_action!(increment_ephemeral(3)),
+        ],
     )?;
 
     assert_eq!(
@@ -1206,7 +1192,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     for cmd in cmds {
         session.receive(&cmd)?;
     }
-    session.action(vm_action!(increment(7)))?;
+    session.action(vm_action!(increment_ephemeral(7)))?;
 
     let (cmds, effects) = session.observe();
     assert_eq!(
@@ -1221,7 +1207,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     // Receive commands from client B on a new session,
     // and then perform an action afterward.
     let mut session = test_model.session(Device::A, Graph::X)?;
-    session.action(vm_action!(create_action(2)))?;
+    session.action(vm_action!(create_action_ephemeral(2)))?;
     for cmd in cmds {
         session.receive(&cmd)?;
     }
@@ -1338,10 +1324,7 @@ fn should_create_clients_with_args() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_ident_pk.clone(),
-                client_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
         )
         .expect("should add device");
 
@@ -1377,7 +1360,7 @@ fn should_create_clients_with_args() {
                 Box::from(IdamFfi::new(store)),
             ];
 
-            let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
+            let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
             let engine = ModelEngine::new(policy);
             let provider = MemStorageProvider::new();
 
@@ -1448,10 +1431,10 @@ fn test_storage_fact_creturns_correct_index() {
     for _ in 0..5 {
         for _ in 0..5 {
             test_model
-                .action(Device::A, Graph::X, vm_action!(get_stuff()))
+                .action(Device::A, Graph::X, vm_action!(get_stuff_on_graph()))
                 .unwrap();
             test_model
-                .action(Device::B, Graph::X, vm_action!(get_stuff()))
+                .action(Device::B, Graph::X, vm_action!(get_stuff_on_graph()))
                 .unwrap();
         }
         test_model.sync(Graph::X, Device::A, Device::B).unwrap();
@@ -1512,10 +1495,10 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
             })
             .ok_or("Relationship effect is missing a field")
     };
-    let mut expected_parent_id = eff1.command.into_id();
+    let mut expected_parent_id = eff1.command.as_base();
     for eff in [eff2, eff3] {
         // command's id and its parent_id must be different
-        assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
+        assert_ne!(eff.command.as_base(), retrieve_id("parent_id", eff)?);
 
         // Observe that the actual 'parent_id' of the command that created this effect
         // is equal to the expected 'parent_id'
@@ -1564,7 +1547,7 @@ fn should_allow_remove_graph() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_one_sign_pk.clone())),
+            vm_action!(init(nonce, client_one_sign_pk)),
         )
         .expect("Should create a graph");
     let head_id_a = test_model
@@ -1572,7 +1555,7 @@ fn should_allow_remove_graph() {
         .expect("Should be able to get ID of head command");
 
     // ID of graph should match ID of head command since no other commands have been added to the graph.
-    assert_eq!(graph_id_a.into_id(), head_id_a.into_id());
+    assert_eq!(graph_id_a.as_base(), head_id_a.as_base());
 
     // Create our second client.
     test_model
@@ -1610,10 +1593,7 @@ fn should_allow_remove_graph() {
         .action(
             Device::B,
             Graph::X,
-            vm_action!(add_device_keys(
-                client_two_ident_pk.clone(),
-                client_two_sign_pk.clone()
-            )),
+            vm_action!(add_device_keys(client_two_ident_pk, client_two_sign_pk)),
         )
         .expect("should add device");
 

@@ -7,7 +7,7 @@ use super::{
     path::InvalidPathError,
     shared::PageSizeError,
 };
-use crate::errno::Errno;
+use crate::{errno::Errno, state::LocalChannelId};
 
 /// An error that occurred while using shared memory.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
@@ -30,6 +30,9 @@ pub enum Error {
     /// The nodes could not be represented in memory.
     #[error(transparent)]
     Layout(#[from] LayoutError),
+    /// The channel was not found.
+    #[error("channel {0} not found")]
+    NotFound(LocalChannelId),
     /// Not enough space to add a new channel.
     #[error("out of space")]
     OutOfSpace,

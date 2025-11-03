@@ -1,0 +1,62 @@
+name: "Verify aranya-embedded repo builds"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-embedded:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout aranya-embedded repo
+        uses: actions/checkout@v4
+        with:
+            repository: aranya-project/aranya-embedded
+            path: aranya-embedded
+
+      # Refer to https://github.com/aranya-project/aranya-embedded/blob/main/crates/chat-app/TUTORIAL.md for installation and build instructions.
+      - name: Install esp toolchain
+        run: |
+            sudo apt-get update
+            sudo apt-get install libudev-dev --fix-missing
+            cargo install espup --locked
+            espup install
+            . /home/runner/export-esp.sh
+            cargo install espflash@^3 --locked
+
+      - name: Point aranya-embedded to local aranya crate deps
+        run: |
+            mkdir -p $GITHUB_WORKSPACE/aranya-embedded/.cargo
+            echo "paths = [\"$GITHUB_WORKSPACE\"]" > $GITHUB_WORKSPACE/aranya-embedded/.cargo/config.toml
+
+      - name: Build chat-app crate in aranya-embedded repo
+        run: |
+            . /home/runner/export-esp.sh
+            cd aranya-embedded/crates/chat-app
+            cargo build

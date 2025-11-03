@@ -1,19 +1,19 @@
 use std::{borrow::Cow, cmp, fmt};
 
 use proc_macro2::{Delimiter, Group, Span, TokenStream};
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use quote::{ToTokens, TokenStreamExt as _, format_ident, quote};
 use syn::{
     Abi, Attribute, BareFnArg, BareVariadic, Error, GenericArgument, Ident, Lifetime, Path,
     PathArguments, PathSegment, Result, Token, TypeBareFn, TypePath, TypeSlice,
     parse_quote_spanned,
     punctuated::Punctuated,
-    spanned::Spanned,
+    spanned::Spanned as _,
     token::{Bracket, Paren},
 };
 use tracing::{debug, instrument, trace};
 
 use super::{
-    attrs::AttrsExt,
+    attrs::AttrsExt as _,
     util::{TokensOrDefault, Trimmed},
 };
 use crate::ctx::Ctx;
@@ -85,7 +85,7 @@ impl Type {
     /// Converts `self` to `*mut self`.
     pub(crate) fn into_mut_ptr(self) -> Self {
         let span = Span::call_site();
-        Type::Ptr(Box::new(Ptr {
+        Self::Ptr(Box::new(Ptr {
             star_token: Token![*](span),
             const_token: None,
             mutability: Some(Token![mut](span)),
@@ -118,7 +118,7 @@ impl Type {
             Self::CStr(_) => Cow::Borrowed(self),
             Self::FnPtr(_f) => todo!(),
             Self::MaybeUninit(uninit) => do_match!(MaybeUninit, uninit),
-            Self::Named(_) => Cow::Owned(Type::unknown()),
+            Self::Named(_) => Cow::Owned(Self::unknown()),
             Self::Option(opt) => do_match!(Option, opt),
             Self::OwnedPtr(ptr) => do_match!(OwnedPtr, ptr),
             Self::Ptr(ptr) => do_match!(Ptr, ptr),
@@ -194,7 +194,7 @@ impl Type {
                     ctx.error(
                         &ty,
                         "`Option` can only be used with references, function pointers, and `OwnedPtr`",
-                    )
+                    );
                 }
                 Ok(ty)
             }
@@ -208,7 +208,7 @@ impl Type {
             syn::Type::Tuple(tuple) if tuple.elems.is_empty() => {
                 Unit::parse(ctx, tuple).map(Type::Unit)
             }
-            ty => Type::parse(ctx, ty),
+            ty => Self::parse(ctx, ty),
         }
     }
 
@@ -507,7 +507,7 @@ impl CBytes {
                 arguments,
                 "BUG: last segment must not have arguments",
             ));
-        };
+        }
 
         Ok(Self {
             ident: kw::CBytes(ident.span()),
@@ -551,7 +551,7 @@ impl CStr {
                 arguments,
                 "BUG: last segment must not have arguments",
             ));
-        };
+        }
 
         Ok(Self {
             ident: kw::CStr(ident.span()),
@@ -1352,7 +1352,7 @@ impl ToTokens for Scalar {
                 }
             }
         };
-        path.to_tokens(tokens)
+        path.to_tokens(tokens);
     }
 }
 
@@ -1442,7 +1442,7 @@ impl Str {
                 arguments,
                 "BUG: last segment must not have arguments",
             ));
-        };
+        }
 
         Ok(Self {
             ident: kw::str(ident.span()),
@@ -1470,14 +1470,13 @@ impl Unit {
     #[instrument(skip_all)]
     pub(crate) fn parse(_ctx: &Ctx, tuple: syn::TypeTuple) -> Result<Self> {
         trace!("parsing `Unit`");
-
         if !tuple.elems.is_empty() {
-            Err(Error::new_spanned(&tuple, "only `()` is supported"))
-        } else {
-            Ok(Self {
-                paren_token: tuple.paren_token,
-            })
+            return Err(Error::new_spanned(&tuple, "only `()` is supported"));
         }
+
+        Ok(Self {
+            paren_token: tuple.paren_token,
+        })
     }
 
     /// Creates a unit with a span.

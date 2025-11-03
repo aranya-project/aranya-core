@@ -1,11 +1,11 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::borrow::Borrow;
+use core::borrow::Borrow as _;
 
 use aranya_crypto::{
     Cmd, Engine, KeyStore, KeyStoreExt as _, Signature, SigningKey, SigningKeyId, VerifyingKey,
-    policy::CmdId, subtle::ConstantTimeEq,
+    policy::CmdId, subtle::ConstantTimeEq as _,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
@@ -125,7 +125,7 @@ function sign(
             .store
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or(KeyNotFound(our_sign_sk_id.into()))?;
+            .ok_or(KeyNotFound(our_sign_sk_id.as_base()))?;
         debug_assert_eq!(sk.id()?, our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {
@@ -135,7 +135,7 @@ function sign(
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
-            command_id: id.into(),
+            command_id: id.as_base(),
         })
     }
 

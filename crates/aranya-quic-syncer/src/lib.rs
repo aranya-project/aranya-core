@@ -5,19 +5,19 @@
 use std::{
     collections::BTreeMap,
     net::SocketAddr,
-    ops::DerefMut,
+    ops::DerefMut as _,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
-use aranya_crypto::{Csprng, Rng};
+use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientError, ClientState, Command, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
+    ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
     SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{Bug, BugExt as _, bug};
 use heapless::{Vec, index_map::FnvIndexMap};
 use s2n_quic::{
     Client, Connection, Server,
@@ -85,7 +85,7 @@ pub async fn run_syncer<EN, SP, S>(
     loop {
         select! {
             Some(conn) = server.accept() => {
-                if let Err(e) = handle_connection(conn, syncer.clone()).await {
+                if let Err(e) = handle_connection(conn, Arc::clone(&syncer)).await {
                     error!(cause = ?e, "sync error");
                 }
             },
@@ -175,12 +175,12 @@ where
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
         server_addr: SocketAddr,
-    ) -> Result<Syncer<EN, SP, S>, QuicSyncError> {
+    ) -> Result<Self, QuicSyncError> {
         let client = Client::builder()
             .with_tls(cert)?
             .with_io("0.0.0.0:0")?
             .start()?;
-        Ok(Syncer {
+        Ok(Self {
             quic_client: client,
             remote_heads: BTreeMap::new(),
             sender,
@@ -384,6 +384,10 @@ where
                 }
                 0
             }
+            SyncType::Hello(_) => {
+                // Hello messages are fire-and-forget, no response needed
+                0
+            }
         };
         Ok(len)
     }
@@ -392,7 +396,7 @@ where
     async fn send_push(&mut self, storage_id: GraphId) -> Result<(), QuicSyncError> {
         // Remove all expired subscriptions
         self.subscriptions.retain(|_, s| !s.expired());
-        for (addr, subscription) in self.subscriptions.iter_mut() {
+        for (addr, subscription) in &mut self.subscriptions {
             let response_cache = self.remote_heads.entry(*addr).or_default();
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);

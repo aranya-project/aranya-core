@@ -1,5 +1,6 @@
 use core::{
     cell::Cell,
+    fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::atomic::Ordering,
@@ -8,8 +9,10 @@ use core::{
 use aranya_crypto::{
     CipherSuite,
     afc::{OpenKey, SealKey},
+    policy::LabelId,
 };
-use buggy::BugExt;
+use buggy::BugExt as _;
+use derive_where::derive_where;
 
 use super::{
     error::Error,
@@ -18,16 +21,20 @@ use super::{
 };
 use crate::{
     mutex::StdMutex,
-    state::{AfcState, ChannelId},
+    state::{AfcState, LocalChannelId},
     util::debug,
 };
 
 /// The key used for the recent successful invocation of `seal`
 /// or `open`.
 #[derive(Clone)]
+#[derive_where(Debug)]
 struct Cache<K> {
     /// The channel the key is for.
-    id: ChannelId,
+    id: LocalChannelId,
+    /// The label ID associated with the channel.
+    label_id: LabelId,
+    #[derive_where(skip)]
     /// The cached key.
     key: K,
     /// The `ChanList`'s generation when this key was cached.
@@ -43,6 +50,7 @@ struct Cache<K> {
 }
 
 /// The reader's view of the shared memory state.
+#[derive(Debug)]
 pub struct ReadState<CS>
 where
     CS: CipherSuite,
@@ -84,9 +92,9 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
-        F: FnOnce(&mut SealKey<Self::CipherSuite>) -> Result<T, crate::Error>,
+        F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, crate::Error>,
     {
         let mutex = self.inner.load_read_list()?;
 
@@ -110,7 +118,7 @@ where
                         c.key.seq()
                     );
 
-                    return Ok(f(&mut c.key));
+                    return Ok(f(&mut c.key, c.label_id));
                 }
                 // The generations are different, so
                 // optimistically use `idx` to try and speed up
@@ -136,16 +144,20 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
+
         let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
 
         debug!("chan = {chan:p}/{chan:?}");
 
-        let result = f(&mut key);
+        let label_id = chan.label_id;
+
+        let result = f(&mut key, label_id);
         if likely!(result.is_ok()) {
             // Encryption was successful (it usually is), so
             // update the cache.
             let new = Cache {
                 id,
+                label_id,
                 key: CachedSealKey {
                     key,
                     id: chan.key_id,
@@ -171,9 +183,9 @@ where
         Ok(result)
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
-        F: FnOnce(&OpenKey<CS>) -> Result<T, crate::Error>,
+        F: FnOnce(&OpenKey<CS>, LabelId) -> Result<T, crate::Error>,
     {
         let mutex = self.inner.load_read_list()?;
 
@@ -195,7 +207,7 @@ where
                     // so we can use it.
                     debug!("cache hit: id={id} generation={generation}");
 
-                    return Ok(f(&c.key));
+                    return Ok(f(&c.key, c.label_id));
                 }
                 // The generations are different, so
                 // optimistically use `idx` to try and speed up
@@ -213,13 +225,16 @@ where
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
-        let key = OpenKey::from_raw(&chan.open_key)?;
 
-        let result = f(&key);
+        let key = OpenKey::from_raw(&chan.open_key)?;
+        let label_id = chan.label_id;
+
+        let result = f(&key, label_id);
         if result.is_ok() {
             // Decryption was successful, so update the cache.
             *cache = Some(Cache {
                 id,
+                label_id,
                 key,
                 // The list is currently locked (precluding
                 // writes to `list.generation`), so we don't *need*
@@ -232,7 +247,7 @@ where
         Ok(result)
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, crate::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, crate::Error> {
         let mutex = self.inner.load_read_list()?;
         let list = mutex.lock().assume("poisoned")?;
         Ok(list.exists(id, None, Op::Any)?)

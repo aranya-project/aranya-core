@@ -1,12 +1,12 @@
 use std::{collections::HashMap, iter::Peekable, mem, slice};
 
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use quote::{ToTokens, TokenStreamExt as _, format_ident, quote};
 use syn::{
     Attribute, Expr, Ident, ItemConst, ItemImpl, ItemStruct, Path, Result, Token, parse_quote,
     parse_quote_spanned,
     punctuated::{Pair, Punctuated},
-    spanned::Spanned,
+    spanned::Spanned as _,
 };
 use tracing::{debug, instrument, trace};
 
@@ -14,12 +14,13 @@ use super::{Ast, IdentMap};
 use crate::{
     ctx::Ctx,
     syntax::{
-        Alias, AttrsExt, Builds, DeriveTrait, Enum, FfiFn, Fields, FnArg, Lifetimes, MaybeUninit,
-        Node, Ptr, Ref, ReturnType, RustFn, Scalar, ScalarType, Struct, Type, Union, Unit,
+        Alias, AttrsExt as _, Builds, DeriveTrait, Enum, FfiFn, Fields, FnArg, Lifetimes,
+        MaybeUninit, Node, Ptr, Ref, ReturnType, RustFn, Scalar, ScalarType, Struct, Type, Union,
+        Unit,
         attrs::{NoExtError, Repr},
         trace::Instrument,
     },
-    util::{IdentExt, PathExt, parse_doc},
+    util::{IdentExt as _, PathExt as _, parse_doc},
 };
 
 impl Ast {
@@ -40,7 +41,7 @@ impl Ast {
             Node::FfiFn(f) => {
                 // `FfiFn`s are generated during the expansion
                 // AST pass.
-                ctx.error(f, "bug: unexpected `FfiFn` in AST expansion pass")
+                ctx.error(f, "bug: unexpected `FfiFn` in AST expansion pass");
             }
             n @ Node::Other(_) => self.add_node(n),
             Node::Struct(s) => self.expand_struct(ctx, s)?,
@@ -60,7 +61,7 @@ impl Ast {
         let Alias {
             doc,
             derives,
-            ext_error,
+            no_ext_error,
             mut opaque,
             builds,
             attrs,
@@ -77,7 +78,7 @@ impl Ast {
             doc,
             derives,
             repr: Repr::Transparent,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,
@@ -117,11 +118,6 @@ impl Ast {
             let mut items = Vec::<ItemImpl>::new();
             let capi = &ctx.capi;
 
-            fn cfg_attrs(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
-                attrs
-                    .iter()
-                    .filter(|a| a.path().is_ident("cfg") || a.path().is_ident("cfg_attr"))
-            }
             fn mangle(ident: &Ident) -> Ident {
                 format_ident!(
                     "__ENUM_{}",
@@ -293,8 +289,10 @@ impl Ast {
 
             items
         };
+        let cfg = cfg_attrs(&enum_.attrs);
         self.add_hidden_node::<ItemConst>(parse_quote! {
             #[doc = ::core::concat!("Hidden impls, etc. for [`", ::core::stringify!(#name), "`].")]
+            #(#cfg)*
             const _: () = { #(#extra)* };
         });
 
@@ -322,6 +320,8 @@ impl Ast {
     fn expand_struct(&mut self, ctx: &Ctx, mut strukt: Struct) -> Result<()> {
         let span = strukt.struct_token.span();
 
+        let cfg = cfg_attrs(&strukt.attrs).collect::<Vec<_>>();
+
         let old = strukt.ident.clone();
         let underlying = ctx.defs.join(old.clone());
         strukt.ident = strukt.ident.with_prefix(&ctx.ty_prefix);
@@ -329,17 +329,7 @@ impl Ast {
 
         // Generate a constructor.
         if strukt.derives.contains(DeriveTrait::Init) {
-            self.add_init_constructor(
-                ctx,
-                &strukt.ident,
-                &old,
-                &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
-            )?;
+            self.add_init_constructor(ctx, &strukt.ident, &old, &Lifetimes::default(), &cfg)?;
         }
 
         if let Some(Builds { ty }) = &mut strukt.builds {
@@ -350,27 +340,14 @@ impl Ast {
                 &old,
                 ty,
                 &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
+                strukt.no_ext_error.clone(),
+                &cfg,
             )?;
         }
 
         // Generate a destructor.
         if strukt.derives.contains(DeriveTrait::Cleanup) {
-            self.add_destructor(
-                ctx,
-                &strukt.ident,
-                &old,
-                &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
-            )?;
+            self.add_destructor(ctx, &strukt.ident, &old, &Lifetimes::default(), &cfg)?;
         }
 
         // TODO
@@ -422,7 +399,7 @@ impl Ast {
             let Struct {
                 doc,
                 derives,
-                ext_error,
+                no_ext_error,
                 opaque,
                 builds,
                 attrs,
@@ -435,7 +412,7 @@ impl Ast {
             Alias {
                 doc,
                 derives,
-                ext_error,
+                no_ext_error,
                 opaque,
                 builds,
                 attrs,
@@ -722,6 +699,7 @@ impl Ast {
 
                     #[allow(clippy::blocks_in_conditions)]
                     #[allow(clippy::match_single_binding)]
+                    #[allow(clippy::semicolon_if_nothing_returned)]
                     #[allow(unused_braces)]
                     match #unsafety { #orig(#(#args),*) } {
                         #[allow(clippy::useless_conversion)]
@@ -791,6 +769,7 @@ impl Ast {
                 pub extern "C" fn #name(#inputs) #ret {
                     #[allow(clippy::blocks_in_conditions)]
                     #[allow(clippy::match_single_binding)]
+                    #[allow(clippy::semicolon_if_nothing_returned)]
                     #[allow(unused_braces)]
                     match #unsafety { #tramp_fn(#(#args),*) } {
                         #pattern => { #block }
@@ -891,6 +870,7 @@ impl Ast {
                     pub extern "C" fn #name(#inputs) #ret {
                         #[allow(clippy::blocks_in_conditions)]
                         #[allow(clippy::match_single_binding)]
+                        #[allow(clippy::semicolon_if_nothing_returned)]
                         #[allow(unused_braces)]
                         match #unsafety { #tramp_fn(#(#args),*) } {
                             #pattern => { #block }
@@ -917,14 +897,14 @@ impl Ast {
     }
 
     /// Generates an `init` constructor for `ty`.
-    #[instrument(skip_all, fields(%ty, ?no_ext_error))]
+    #[instrument(skip_all, fields(%ty))]
     fn add_init_constructor(
         &mut self,
         ctx: &Ctx,
         ty: &Ident,
         old: &Ident,
         lifetimes: &Lifetimes,
-        no_ext_error: Option<NoExtError>,
+        cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating `init` constructor");
 
@@ -933,6 +913,7 @@ impl Ast {
         let capi = &ctx.capi;
         let util = &ctx.util;
         let name = old.to_snake_case().with_suffix("_init");
+        let no_ext_error = Some(NoExtError::with_span(span));
 
         let doc = parse_doc! {r#"
 /// Initializes `{ty}`.
@@ -946,6 +927,7 @@ impl Ast {
             ctx,
             parse_quote_spanned! {span=>
                 #doc
+                #(#cfg)*
                 #no_ext_error
                 #[#capi::generated]
                 #[::tracing::instrument(
@@ -963,6 +945,7 @@ impl Ast {
     }
 
     /// Generates a `build` constructor.
+    #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(%builder, %output, ?no_ext_error))]
     fn add_build_constructor(
         &mut self,
@@ -972,6 +955,7 @@ impl Ast {
         output: &Ident,
         lifetimes: &Lifetimes,
         no_ext_error: Option<NoExtError>,
+        cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating `build` constructor");
 
@@ -991,6 +975,7 @@ impl Ast {
             ctx,
             parse_quote_spanned! {span=>
                 #doc
+                #(#cfg)*
                 #no_ext_error
                 #[#capi::generated]
                 #[::tracing::instrument(
@@ -1012,14 +997,14 @@ impl Ast {
     }
 
     /// Generates a destructor for `ty`.
-    #[instrument(skip_all, fields(%ty, ?no_ext_error))]
+    #[instrument(skip_all, fields(%ty))]
     fn add_destructor(
         &mut self,
         ctx: &Ctx,
         ty: &Ident,
         old: &Ident,
         lifetimes: &Lifetimes,
-        no_ext_error: Option<NoExtError>,
+        cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating destructor");
 
@@ -1032,6 +1017,7 @@ impl Ast {
             .to_snake_case()
             .with_suffix("_init")
             .with_prefix(&ctx.fn_prefix);
+        let no_ext_error = Some(NoExtError::with_span(span));
 
         let doc = parse_doc! {r#"
 /// Releases any resources associated with `ptr`.
@@ -1044,6 +1030,7 @@ impl Ast {
             ctx,
             parse_quote_spanned! {span=>
                 #doc
+                #(#cfg)*
                 #no_ext_error
                 #[#capi::generated]
                 #[#capi::internal::tracing::instrument(
@@ -1093,7 +1080,7 @@ impl Ast {
                     arg,
                     conv: None,
                     newtype: None,
-                })
+                });
             }
         }
         new
@@ -1374,12 +1361,12 @@ impl FnInputs {
 
     /// Appends `input` to `self`.
     fn push(&mut self, input: FnInput) {
-        self.inputs.push(input)
+        self.inputs.push(input);
     }
 
     /// Appends `other` to `self`.
     fn append(&mut self, mut other: Self) {
-        self.inputs.append(&mut other.inputs)
+        self.inputs.append(&mut other.inputs);
     }
 
     /// Reports whether all arguments do not contain conv glue.
@@ -1411,7 +1398,7 @@ impl Extend<FnInput> for FnInputs {
     where
         I: IntoIterator<Item = FnInput>,
     {
-        self.inputs.extend(iter)
+        self.inputs.extend(iter);
     }
 }
 
@@ -1426,7 +1413,7 @@ impl IntoIterator for FnInputs {
 
 impl ToTokens for FnInputs {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.append_all(self.punctuated_args())
+        tokens.append_all(self.punctuated_args());
     }
 }
 
@@ -1695,12 +1682,9 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
                 <#inner as #capi::InitDefault>::init_default(
                     // SAFETY: TODO
                     unsafe {
-                        ::core::mem::transmute::<
-                            &mut ::core::mem::MaybeUninit<Self>,
-                            &mut ::core::mem::MaybeUninit<#inner>,
-                        >(out)
+                        &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out).cast::<::core::mem::MaybeUninit<#inner>>()
                     }
-                )
+                );
             }
         }
 
@@ -1835,4 +1819,10 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
     });
 
     tokens
+}
+
+fn cfg_attrs(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
+    attrs
+        .iter()
+        .filter(|a| a.path().is_ident("cfg") || a.path().is_ident("cfg_attr"))
 }

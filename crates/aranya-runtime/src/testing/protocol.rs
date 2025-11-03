@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, CmdId, Command, CommandRecall, Engine, EngineError, FactPerspective, Keys,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
+    Address, CmdId, Command, Engine, EngineError, FactPerspective, Keys, MAX_COMMAND_LENGTH,
+    MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
     testing::hash_for_testing_only,
 };
 
@@ -84,8 +84,8 @@ pub struct TestEngine {
 }
 
 impl TestEngine {
-    pub fn new() -> TestEngine {
-        TestEngine {
+    pub fn new() -> Self {
+        Self {
             policy: TestPolicy::new(0),
         }
     }
@@ -116,7 +116,7 @@ pub struct TestPolicy {
 
 impl TestPolicy {
     pub fn new(serial: u32) -> Self {
-        TestPolicy { serial }
+        Self { serial }
     }
 
     fn origin_check_message(
@@ -137,7 +137,7 @@ impl TestPolicy {
         &self,
         policy_command: &WireProtocol,
         facts: &mut impl FactPerspective,
-        sink: &mut impl Sink<<TestPolicy as Policy>::Effect>,
+        sink: &mut impl Sink<<Self as Policy>::Effect>,
     ) -> Result<(), EngineError> {
         if let WireProtocol::Basic(m) = &policy_command {
             self.origin_check_message(m, facts)?;
@@ -202,7 +202,7 @@ pub struct TestSink {
 
 impl TestSink {
     pub fn new() -> Self {
-        TestSink {
+        Self {
             expect: Vec::new(),
             ignore_expect: false,
         }
@@ -276,7 +276,7 @@ impl Policy for TestPolicy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-        _recall: CommandRecall,
+        _placement: crate::engine::CommandPlacement,
     ) -> Result<(), EngineError> {
         let policy_command: WireProtocol = postcard::from_bytes(command.bytes())
             .inspect_err(|err| error!(?err))
@@ -302,6 +302,7 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        _placement: crate::engine::ActionPlacement,
     ) -> Result<(), EngineError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {

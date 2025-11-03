@@ -1,16 +1,15 @@
 #![allow(clippy::panic)]
 
-use std::{fs::OpenOptions, io::Read};
+use std::{fs::OpenOptions, io::Read as _};
 
 use aranya_policy_ast::{ExprKind, Ident, Identifier, Span, StmtKind, TypeKind, ident, text};
 use ast::Expression;
-use pest::{Parser, error::Error as PestError, iterators::Pair};
+use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, get_pratt_parser, parse_policy_document,
-    parse_policy_str,
+    ChunkParser, ParseError, ParseErrorKind, PolicyParser, Rule, Version, ast, get_pratt_parser,
+    parse_policy_document, parse_policy_str,
 };
-use crate::lang::{ChunkParser, ParseErrorKind};
 
 trait SpannedAt {
     type Type;
@@ -113,6 +112,24 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 
 #[test]
 #[allow(clippy::result_large_err)]
+fn parse_negative_number() -> Result<(), PestError<Rule>> {
+    // negative integer literal
+    let mut pair = PolicyParser::parse(Rule::atom, "-42")?;
+    let token: Pair<'_, Rule> = pair.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::int_literal);
+    assert_eq!(token.as_str(), "-42");
+
+    // minimum i64 value
+    let mut pair = PolicyParser::parse(Rule::atom, "-9223372036854775808")?;
+    let token: Pair<'_, Rule> = pair.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::int_literal);
+    assert_eq!(token.as_str(), "-9223372036854775808");
+
+    Ok(())
+}
+
+#[test]
+#[allow(clippy::result_large_err)]
 fn parse_atom_string() -> Result<(), PestError<Rule>> {
     // basic string
     let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
@@ -192,7 +209,10 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 #[test]
 #[allow(clippy::result_large_err)]
 fn parse_expression() -> Result<(), PestError<Rule>> {
-    let mut pairs = PolicyParser::parse(Rule::expression, r#"unwrap call(3 + 7, -b, "foo\x7b")"#)?;
+    let mut pairs = PolicyParser::parse(
+        Rule::expression,
+        r#"unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
+    )?;
 
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
@@ -211,11 +231,11 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "3 + 7");
+    assert_eq!(token.as_str(), "unwrap add(3, 7)");
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "-b");
+    assert_eq!(token.as_str(), "saturating_sub(0, b)");
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
@@ -227,7 +247,7 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 #[test]
 fn parse_expression_pratt() -> Result<(), ParseError> {
     let source = r#"
-        unwrap call(3 + 7, -b, "foo\x7b")
+        unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
     "#
     .trim();
     let mut pairs = PolicyParser::parse(Rule::expression, source)?;
@@ -333,7 +353,7 @@ fn parse_optional() {
     ];
     for (case, is_valid) in optional_types {
         let r = PolicyParser::parse(Rule::optional_t, case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r)
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
 }
 
@@ -511,7 +531,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         /* block comment */
         fact F[v string]=>{x int, y bool}
 
-        action add(x int, y int) {
+        action add2(x int, y int) {
             let obj = Add {
                 count: x,
             }
@@ -531,7 +551,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             policy {
                 let envelope_id = envelope::command_id(envelope)
                 let author = envelope::author_id(envelope)
-                let new_x = x + count
+                let new_x = add2(x, count)
                 check exists TestFact[v: "test"]=>{}
                 match x {
                     0 => {
@@ -552,7 +572,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 let a = foo::ext_func(x)
 
                 finish {
-                    create F[v: "hello"]=>{x: x, y: -x}
+                    create F[v: "hello"]=>{x: x, y: saturating_sub(0, x)}
                     update F[]=>{x: x} to {x: new_x}
                     delete F[v: "hello"]
                     emit Added {
@@ -564,9 +584,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
             recall {
                 let envelope_id = envelope::command_id(envelope)
                 let author = envelope::author_id(envelope)
-                let new_x = x + count
+                let new_x = add2(x, count)
                 finish {
-                    create F[v: "hello"]=>{x: x, y: -x}
+                    create F[v: "hello"]=>{x: x, y: saturating_sub(0, x)}
                     update F[]=>{x: x} to {x: new_x}
                     delete F[v: "hello"]
                     emit Added {
@@ -931,7 +951,7 @@ fn parse_keyword_collision() -> anyhow::Result<()> {
 
     for text in texts {
         let policy = parse_policy_str(text, Version::V2);
-        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier))
+        assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier));
     }
     Ok(())
 }
@@ -940,16 +960,13 @@ fn parse_keyword_collision() -> anyhow::Result<()> {
 fn parse_global_let_statements() -> Result<(), ParseError> {
     let policy_str = r#"
         let x = 42
-        let y = "hello"
         let z = true
 
         action foo() {
-            let a = x + 1
-            let b = y + " world"
+            let a = unwrap add(x, 1)
             let c = !z
             emit Bar {
                 a: a,
-                b: b,
                 c: c,
             }
         }
@@ -1014,7 +1031,7 @@ fn test_if_statement() -> anyhow::Result<()> {
 
             if 0 {
                 check 1
-                check 1 + 1
+                let c = add(1, 1)
             } else if 2 {
                 check 3
             } else if 4 {
@@ -1075,7 +1092,7 @@ fn test_block_expression() {
         let x = {
             let a = 3
             let b = 4
-            : a + b
+            : unwrap saturating_add(a, b)
         }
     }
     "#;

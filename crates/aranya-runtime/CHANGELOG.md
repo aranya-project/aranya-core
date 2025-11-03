@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.14.0...aranya-runtime-v0.15.0) - 2025-10-16
+
+### Other
+
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Separate out crate for IDs ([#318](https://github.com/aranya-project/aranya-core/pull/318))
+- clean up VM policy command protocol ([#426](https://github.com/aranya-project/aranya-core/pull/426))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.13.0...aranya-runtime-v0.14.0) - 2025-09-18
+
+### Other
+
+- check persistence when calling actions ([#380](https://github.com/aranya-project/aranya-core/pull/380))
+
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.12.0...aranya-runtime-v0.13.0) - 2025-09-17
+
+### Other
+
+- add duration to hello subscription ([#404](https://github.com/aranya-project/aranya-core/pull/404))
+- clean up API ([#403](https://github.com/aranya-project/aranya-core/pull/403))
+- clean up calling interface and check context ([#388](https://github.com/aranya-project/aranya-core/pull/388))
+- add `NamedMap` and def types for action and command ([#387](https://github.com/aranya-project/aranya-core/pull/387))
+- add sync hello to dispatcher ([#372](https://github.com/aranya-project/aranya-core/pull/372))
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
 ## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.11.0...aranya-runtime-v0.12.0) - 2025-08-19
 
 ### Other

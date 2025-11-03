@@ -1,9 +1,8 @@
 extern crate alloc;
 
 use alloc::{
-    borrow::ToOwned,
     collections::BTreeMap,
-    string::{String, ToString},
+    string::{String, ToString as _},
     vec,
     vec::Vec,
 };
@@ -15,17 +14,17 @@ use core::{
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
-    LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
-    ValueConversionError,
+    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
+    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
+    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
 };
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    CommandContext, OpenContext, SealContext,
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -41,7 +40,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         return false;
     }
 
-    for key in fact.keys.iter() {
+    for key in &fact.keys {
         let Some(key_value) = schema
             .key
             .iter()
@@ -55,7 +54,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         }
     }
 
-    for value in fact.values.iter() {
+    for value in &fact.values {
         // Ensure named value exists in schema
         let Some(schema_value) = schema
             .value
@@ -85,7 +84,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
         return false;
     }
 
-    for qv in query.values.iter() {
+    for qv in &query.values {
         if let Some(v) = values.iter().find(|v| v.identifier == qv.identifier) {
             // value found, but types don't match
             if v.value != qv.value {
@@ -105,7 +104,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
 /// These are expected states entered after executing instructions, as opposed to MachineErrors,
 /// which are produced by invalid instructions or data.
 #[must_use]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MachineStatus {
     /// Execution will proceed as normal to the next instruction
     Executing,
@@ -116,8 +115,8 @@ pub enum MachineStatus {
 impl Display for MachineStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MachineStatus::Executing => write!(f, "Executing"),
-            MachineStatus::Exited(reason) => write!(f, "Exited: {}", reason),
+            Self::Executing => write!(f, "Executing"),
+            Self::Exited(reason) => write!(f, "Exited: {}", reason),
         }
     }
 }
@@ -134,17 +133,15 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub action_defs: NamedMap<ActionDef>,
     /// Command definitions
-    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    pub command_defs: NamedMap<CommandDef>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
-    /// Command attributes
-    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -157,15 +154,14 @@ impl Machine {
     where
         I: IntoIterator<Item = Instruction>,
     {
-        Machine {
+        Self {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -173,15 +169,14 @@ impl Machine {
 
     /// Creates an empty `Machine` with a given codemap. Used by the compiler.
     pub fn from_codemap(codemap: CodeMap) -> Self {
-        Machine {
+        Self {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
+            action_defs: NamedMap::new(),
+            command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
-            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -198,7 +193,6 @@ impl Machine {
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
                 enum_defs: m.enum_defs,
-                command_attributes: m.command_attributes,
                 codemap: m.codemap,
                 globals: m.globals,
             }),
@@ -216,7 +210,6 @@ impl Machine {
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs: self.enum_defs,
-                command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
             }),
@@ -276,8 +269,7 @@ impl Machine {
     /// Call a command
     pub fn call_command_policy<M>(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
         ctx: CommandContext,
@@ -286,7 +278,7 @@ impl Machine {
         M: MachineIO<MachineStack>,
     {
         let mut rs = self.create_run_state(io, ctx);
-        rs.call_command_policy(name, this_data, envelope)
+        rs.call_command_policy(this_data, envelope)
     }
 }
 
@@ -344,7 +336,7 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> RunState<'a, M> {
+    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> Self {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
@@ -517,7 +509,7 @@ where
             }
             Instruction::Def(key) => {
                 let value = self.ipop_value()?;
-                self.scope.set(key, value)?
+                self.scope.set(key, value)?;
             }
             Instruction::Get(key) => {
                 let value = self.scope.get(&key)?;
@@ -596,12 +588,22 @@ where
                 let b: i64 = self.ipop()?;
                 let a: i64 = self.ipop()?;
                 let r = match instruction {
-                    Instruction::Add => a
-                        .checked_add(b)
-                        .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
-                    Instruction::Sub => a
-                        .checked_sub(b)
-                        .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
+                    Instruction::Add => a.checked_add(b),
+                    Instruction::Sub => a.checked_sub(b),
+                    _ => unreachable!(),
+                };
+                // Checked operations return Optional<Int>
+                match r {
+                    Some(value) => self.ipush(value)?,
+                    None => self.ipush(Value::None)?,
+                }
+            }
+            Instruction::SaturatingAdd | Instruction::SaturatingSub => {
+                let b: i64 = self.ipop()?;
+                let a: i64 = self.ipop()?;
+                let r = match instruction {
+                    Instruction::SaturatingAdd => a.saturating_add(b),
+                    Instruction::SaturatingSub => a.saturating_sub(b),
                     _ => unreachable!(),
                 };
                 self.ipush(r)?;
@@ -621,7 +623,7 @@ where
                             let b_type = b.type_name();
                             return Err(self.err(MachineErrorType::invalid_type(
                                 "Int, Int",
-                                alloc::format!("{a_type}, {b_type}").to_owned(),
+                                alloc::format!("{a_type}, {b_type}"),
                                 "Greater-than comparison",
                             )));
                         }
@@ -844,8 +846,8 @@ where
                     Some(r) => {
                         let f = r?;
                         let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
-                        fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
                         let s = Struct::new(qf.name, fields);
                         self.ipush(s)?;
                     }
@@ -862,7 +864,7 @@ where
                         .io
                         .try_borrow()
                         .assume("should be able to borrow io")?
-                        .fact_query(fact.name.to_owned(), fact.keys.to_owned())?;
+                        .fact_query(fact.name.clone(), fact.keys.clone())?;
 
                     while count < limit {
                         let Some(r) = iter.next() else { break };
@@ -905,8 +907,8 @@ where
                     Some(result) => {
                         let (k, v) = result?;
                         let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut k.into_iter().map(|e| e.into()).collect());
-                        fields.append(&mut v.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut k.into_iter().map(Into::into).collect());
+                        fields.append(&mut v.into_iter().map(Into::into).collect());
                         let s = Struct::new(ident.clone(), fields);
                         self.scope.set(ident, Value::Struct(s))?;
                         self.ipush(Value::Bool(false))?;
@@ -1051,14 +1053,11 @@ where
                 self.stopwatch.stop();
             }
 
-            match result {
-                MachineStatus::Executing => continue,
-                MachineStatus::Exited(reason) => {
-                    #[cfg(feature = "bench")]
-                    bench_aggregate(&mut self.stopwatch);
-                    return Ok(reason);
-                }
-            };
+            if let MachineStatus::Exited(reason) = result {
+                #[cfg(feature = "bench")]
+                bench_aggregate(&mut self.stopwatch);
+                return Ok(reason);
+            }
         }
     }
 
@@ -1076,10 +1075,11 @@ where
     /// Set up machine state for a command policy call
     pub fn setup_command(
         &mut self,
-        name: Identifier,
         label_type: LabelType,
-        this_data: &Struct,
+        this_data: Struct,
     ) -> Result<(), MachineError> {
+        let name = this_data.name.clone();
+
         #[cfg(feature = "bench")]
         self.stopwatch
             .start(format!("setup_command: {}", name).as_str());
@@ -1093,18 +1093,20 @@ where
             .get(&name)
             .ok_or_else(|| self.err(MachineErrorType::NotDefined(name.to_string())))?;
 
-        if this_data.fields.len() != command_def.len() {
+        if this_data.fields.len() != command_def.fields.len() {
             return Err(self.err(MachineErrorType::Unknown(alloc::format!(
                 "command `{}` expects {} field(s), but `this` contains {}",
                 name,
-                command_def.len(),
+                command_def.fields.len(),
                 this_data.fields.len()
             ))));
         }
         for (name, value) in &this_data.fields {
-            let expected_type = command_def
+            let expected_type = &command_def
+                .fields
                 .get(name)
-                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?;
+                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?
+                .ty;
 
             if !value.fits_type(expected_type) {
                 return Err(self.err(MachineErrorType::invalid_type(
@@ -1115,7 +1117,7 @@ where
             }
         }
         self.scope
-            .set(ident!("this"), Value::Struct(this_data.to_owned()))
+            .set(ident!("this"), Value::Struct(this_data))
             .map_err(|e| self.err(e))?;
 
         #[cfg(feature = "bench")]
@@ -1130,11 +1132,14 @@ where
     /// If the command check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandPolicy, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Policy(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandPolicy, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1144,11 +1149,14 @@ where
     /// structs or a MachineError.
     pub fn call_command_recall(
         &mut self,
-        name: Identifier,
-        this_data: &Struct,
+        this_data: Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.setup_command(name, LabelType::CommandRecall, this_data)?;
+        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_command(LabelType::CommandRecall, this_data)?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1172,27 +1180,26 @@ where
             .start(format!("setup_action: {}", name).as_str());
 
         // verify number and types of arguments
-        let arg_def = self
+        let action_def = self
             .machine
             .action_defs
             .get(&name)
             .ok_or_else(|| MachineError::new(MachineErrorType::NotDefined(name.to_string())))?;
-        let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
-        if args.len() != arg_def.len() {
+        let args: Vec<Value> = args.into_iter().map(Into::into).collect();
+        if args.len() != action_def.params.len() {
             return Err(MachineError::new(MachineErrorType::Unknown(
                 alloc::format!(
                     "action `{}` expects {} argument(s), but was called with {}",
                     name,
-                    arg_def.len(),
+                    action_def.params.len(),
                     args.len()
                 ),
             )));
         }
-        for (i, arg) in args.iter().enumerate() {
-            let def_type = &arg_def[i].field_type;
-            if !arg.fits_type(def_type) {
+        for (arg, param) in args.iter().zip(action_def.params.iter()) {
+            if !arg.fits_type(&param.ty) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
-                    def_type.to_string(),
+                    param.ty.to_string(),
                     arg.type_name(),
                     "invalid function argument",
                 )));
@@ -1225,6 +1232,10 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        if !matches!(&self.ctx, CommandContext::Action(ActionContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_action(name, args)?;
         self.run()
     }
@@ -1232,11 +1243,12 @@ where
     /// Call the seal block on this command to produce an envelope. The
     /// seal block is given an implicit parameter `this` and should
     /// return an opaque envelope struct on the stack.
-    pub fn call_seal(
-        &mut self,
-        name: Identifier,
-        this_data: Struct,
-    ) -> Result<ExitReason, MachineError> {
+    pub fn call_seal(&mut self, this_data: Struct) -> Result<ExitReason, MachineError> {
+        let name = this_data.name.clone();
+        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
@@ -1252,6 +1264,10 @@ where
         name: Identifier,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
+        {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()

@@ -1,6 +1,6 @@
 use core::{cell::OnceCell, fmt, marker::PhantomData};
 
-use buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt as _};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
@@ -14,7 +14,7 @@ use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 use crate::{
     Csprng, Random,
     aranya::{Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
@@ -24,7 +24,7 @@ use crate::{
     subtle::{Choice, ConstantTimeEq},
     tls::{self, CipherSuiteId},
     util,
-    zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
+    zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
 type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as Kdf>::PrkSize>;
@@ -37,7 +37,6 @@ const PSK_DOMAIN: &[u8] = b"PskForAranyaTls-v1";
 
 custom_id! {
     /// Uniquely identifies a [`PskSeed`].
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct PskSeedId;
 }
 
@@ -118,7 +117,7 @@ impl<CS: CipherSuite> PskSeed<CS> {
                 // [hkdf]: https://eprint.iacr.org/2010/264.pdf]
                 let id = CS::labeled_expand(SEED_DOMAIN, &self.prk, b"id", [])
                     .assume("should be able to generate PSK seed ID")?;
-                Ok(PskSeedId(id))
+                Ok(PskSeedId::from_bytes(id))
             })
             .as_ref()
     }
@@ -352,7 +351,7 @@ impl<CS> ZeroizeOnDrop for Psk<CS> {}
 impl<CS> Drop for Psk<CS> {
     #[inline]
     fn drop(&mut self) {
-        self.secret.zeroize()
+        self.secret.zeroize();
     }
 }
 

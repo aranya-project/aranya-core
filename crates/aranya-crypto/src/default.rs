@@ -4,7 +4,7 @@ use derive_where::derive_where;
 pub use spideroak_crypto::default::Rng;
 use spideroak_crypto::{
     aead::{Aead, Nonce, Tag},
-    csprng::{Csprng, Random},
+    csprng::{Csprng, Random as _},
     ed25519,
     generic_array::GenericArray,
     import::Import,
@@ -19,12 +19,12 @@ use spideroak_crypto::{
 };
 
 use crate::{
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::{
         self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
         WrongKeyType,
     },
-    id::{Id, IdError, Identified},
+    id::{BaseId, IdError, Identified},
 };
 
 /// The default [`CipherSuite`].
@@ -98,7 +98,7 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
 
 impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
-        self.rng.fill_bytes(dst)
+        self.rng.fill_bytes(dst);
     }
 }
 
@@ -117,7 +117,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     where
         T: UnwrappedKey<S>,
     {
-        let id = (*id).into();
+        let id = *id.as_ref();
         let mut tag = Tag::<S::Aead>::default();
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.
@@ -180,7 +180,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
             (AlgId::Prk(_), Ciphertext::Prk(data)) => {
                 RawSecret::Prk(Prk::new(SecretKeyBytes::new(data.clone())))
             }
-            (AlgId::Seed(_), Ciphertext::Seed(data)) => {
+            (AlgId::Seed(()), Ciphertext::Seed(data)) => {
                 RawSecret::Seed(Import::<_>::import(data.as_slice())?)
             }
             (AlgId::Signing(_), Ciphertext::Signing(data)) => {
@@ -244,7 +244,7 @@ impl<CS: CipherSuite> Ciphertext<CS> {
 /// A key wrapped by [`DefaultEngine`].
 #[derive_where(Clone, Serialize, Deserialize)]
 pub struct WrappedKey<CS: CipherSuite> {
-    id: Id,
+    id: BaseId,
     nonce: GenericArray<u8, <CS::Aead as Aead>::NonceSize>,
     ciphertext: Ciphertext<CS>,
     tag: Tag<CS::Aead>,
@@ -253,7 +253,7 @@ pub struct WrappedKey<CS: CipherSuite> {
 impl<CS: CipherSuite> engine::WrappedKey for WrappedKey<CS> {}
 
 impl<CS: CipherSuite> Identified for WrappedKey<CS> {
-    type Id = Id;
+    type Id = BaseId;
 
     fn id(&self) -> Result<Self::Id, IdError> {
         Ok(self.id)

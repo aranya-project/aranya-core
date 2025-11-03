@@ -21,6 +21,16 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 version = "0.1.4"
 
+[[audits.matchers]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.0 -> 0.2.0"
+
+[[audits.nu-ansi-term]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.46.0 -> 0.50.1"
+
 [[audits.rcgen]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
@@ -35,6 +45,11 @@ delta = "2.2.6 -> 2.3.3"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 delta = "3.0.5 -> 3.0.7"
+
+[[audits.serde_test]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+version = "1.0.177"
 
 [[audits.sha3-utils]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
@@ -60,6 +75,11 @@ delta = "1.41.1 -> 1.44.2"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "2.4.0 -> 2.5.0"
+
+[[audits.tracing-subscriber]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.19 -> 0.3.20"
 
 [[audits.zerocopy]]
 who = "Eric Lagergren <elagergren@spideroak.com>"

@@ -11,12 +11,12 @@ use spideroak_crypto::{
     import::Import,
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
-    zeroize::{Zeroize, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop},
 };
 
 use crate::{
     aranya::VerifyingKey,
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
@@ -34,7 +34,7 @@ pub struct GroupKey<CS> {
 impl<CS> ZeroizeOnDrop for GroupKey<CS> {}
 impl<CS> Drop for GroupKey<CS> {
     fn drop(&mut self) {
-        self.seed.zeroize()
+        self.seed.zeroize();
     }
 }
 
@@ -50,7 +50,7 @@ impl<CS> Clone for GroupKey<CS> {
 
 impl<CS: CipherSuite> GroupKey<CS> {
     /// Creates a new, random `GroupKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<CS> {
+    pub fn new<R: Csprng>(rng: &mut R) -> Self {
         Self::from_seed(Random::random(rng))
     }
 
@@ -77,7 +77,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
                 let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(GroupKeyId)
+                    .map(GroupKeyId::from_bytes)
             })
             .clone()
     }

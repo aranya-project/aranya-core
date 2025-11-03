@@ -1,7 +1,7 @@
 [package]
 name = "aranya-fast-channels"
 description = "High throughput, low latency encryption protected by Aranya Policy"
-version = "0.11.0"
+version = "0.14.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -23,6 +23,8 @@ default = []
 # Enable allocations.
 alloc = [
 	"aranya-crypto/alloc",
+
+	"serde/alloc",
 ]
 
 # Use the simple CAS-based mutex.
@@ -50,7 +52,9 @@ sdlib = ["libc"]
 # Use std.
 std = [
 	"alloc",
+
 	"aranya-crypto/std",
+	"serde/std",
 	"thiserror/std",
 ]
 
@@ -86,10 +90,9 @@ try_find = []
 
 
 [dependencies]
-aranya-crypto = { version = "0.9.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
+aranya-crypto = { version = "0.11.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
-byteorder = { version = "1", default-features = false }
 cfg-if = { workspace = true }
 const_format = { version = "0.2.31", features = ["assertcp"] }
 derive-where = { workspace = true }
@@ -108,6 +111,7 @@ thiserror = { workspace = true }
 aranya-fast-channels = { path = ".", features = ["testing"] }
 
 criterion = { workspace = true }
+serde_test = { version = "1" }
 serial_test = { version = "3.1.1" }
 
 

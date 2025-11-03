@@ -4,7 +4,17 @@ use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 /// Compiler Tracer metadata
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Meta {
     /// A variable has been defined
     Let(Identifier),
@@ -19,16 +29,16 @@ pub enum Meta {
 impl fmt::Display for Meta {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Meta::Let(n) => write!(f, "Set `{n}`"),
-            Meta::Get(n) => write!(f, "Get `{n}`"),
-            Meta::Finish(b) => {
+            Self::Let(n) => write!(f, "Set `{n}`"),
+            Self::Get(n) => write!(f, "Get `{n}`"),
+            Self::Finish(b) => {
                 if *b {
                     write!(f, "finish enabled")
                 } else {
                     write!(f, "finish disabled")
                 }
             }
-            Meta::FFI(module, procedure) => write!(f, "FFI call `{module}.{procedure}"),
+            Self::FFI(module, procedure) => write!(f, "FFI call `{module}.{procedure}"),
         }
     }
 }

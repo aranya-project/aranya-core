@@ -1,29 +1,29 @@
-* @elagergren-spideroak @jdygert-spok
+* @jdygert-spok @chip-so
 
-/canaries @jdygert-spok @elagergren-spideroak
+/canaries @jdygert-spok @djohnson-spideroak
 
-/crates/aranya-afc-util @elagergren-spideroak @jdygert-spok
-/crates/aranya-base58 @elagergren-spideroak @jdygert-spok
-/crates/aranya-buggy @jdygert-spok @elagergren-spideroak
-/crates/aranya-libc @elagergren-spideroak @jdygert-spok
+/crates/aranya-afc-util @jdygert-spok @ssweetney-spok @gknopf-aranya
+/crates/aranya-base58 @jdygert-spok @ssweetney-spok
+/crates/aranya-buggy @jdygert-spok @ssweetney-spok
+/crates/aranya-libc @jdygert-spok @ssweetney-spok
 
-/crates/aranya-capi* @elagergren-spideroak @jdygert-spok @chip-so
+/crates/aranya-capi* @jdygert-spok @chip-so @ssweetney-spok
 
-/crates/aranya-crypto* @elagergren-spideroak @ycarmy @jdygert-spok
+/crates/aranya-crypto* @ycarmy @jdygert-spok @djohnson-spideroak
 
-/crates/aranya-device-ffi @chip-so @jdygert-spok
-/crates/aranya-envelope-ffi @elagergren-spideroak @ycarmy
-/crates/aranya-idam-ffi @elagergren-spideroak @ycarmy
-/crates/aranya-model @jdygert-spok
-/crates/aranya-perspective-ffi @apetkov-so @chip-so
+/crates/aranya-device-ffi @chip-so @jdygert-spok @ssweetney-spok
+/crates/aranya-envelope-ffi @ycarmy @ssweetney-spok
+/crates/aranya-idam-ffi @ycarmy @ssweetney-spok
+/crates/aranya-model @jdygert-spok @ssweetney-spok
+/crates/aranya-perspective-ffi @apetkov-so @chip-so @ssweetney-spok
 
-/crates/aranya-policy-* @chip-so @apetkov-so
-/crates/aranya-policy-ifgen* @jdygert-spok @elagergren-spideroak
-/crates/aranya-policy-derive @elagergren-spideroak @chip-so
+/crates/aranya-policy-* @chip-so @apetkov-so @ssweetney-spok
+/crates/aranya-policy-ifgen* @jdygert-spok @ssweetney-spok
+/crates/aranya-policy-derive @chip-so @ssweetney-spok
 
 /crates/aranya-quic-syncer @benz-spideroak @jdygert-spok
-/crates/aranya-runtime @jdygert-spok @elagergren-spideroak
+/crates/aranya-runtime @jdygert-spok @ssweetney-spok
 
-/.github @djohnson-spideroak @elagergren-spideroak @gknopf-aranya @jdygert-spok
+/.github @djohnson-spideroak @gknopf-aranya @jdygert-spok
 
-CHANGELOG.md @benz-spideroak @chip-so @djohnson-spideroak @elagergren-spideroak @gknopf-aranya @jdygert-spok
+CHANGELOG.md @benz-spideroak @chip-so @djohnson-spideroak @gknopf-aranya @jdygert-spok @ssweetney-spok

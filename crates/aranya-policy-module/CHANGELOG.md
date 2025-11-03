@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.13.0...aranya-policy-module-v0.14.0) - 2025-10-16
+
+### Other
+
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+- Implement `rkyv` traits for policy modules ([#344](https://github.com/aranya-project/aranya-core/pull/344))
+
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.12.0...aranya-policy-module-v0.13.0) - 2025-09-17
+
+### Other
+
+- add `NamedMap` and def types for action and command ([#387](https://github.com/aranya-project/aranya-core/pull/387))
+- add location info to all AST items ([#366](https://github.com/aranya-project/aranya-core/pull/366))
+- Use more typed ids ([#368](https://github.com/aranya-project/aranya-core/pull/368))
+
 ## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.11.0...aranya-policy-module-v0.12.0) - 2025-08-19
 
 ### Other

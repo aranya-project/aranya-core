@@ -9,11 +9,7 @@ mod generated {
 
 use std::{ffi::c_char, mem::MaybeUninit};
 
-use aranya_capi_core::{
-    ExtendedError, InvalidArg, WriteCStrError,
-    safe::{TypeId, Typed},
-    write_c_str,
-};
+use aranya_capi_core::{ExtendedError, InvalidArg, WriteCStrError, write_c_str};
 use buggy::Bug;
 use tracing::warn;
 
@@ -65,10 +61,6 @@ impl ExtError {
     }
 }
 
-impl Typed for ExtError {
-    const TYPE_ID: TypeId = TypeId::new(0xa2a040);
-}
-
 impl ExtendedError for ExtError {
     type Error = Error;
 
@@ -76,6 +68,6 @@ impl ExtendedError for ExtError {
     where
         E: Into<Self::Error>,
     {
-        self.err = err.map(Into::into)
+        self.err = err.map(Into::into);
     }
 }

@@ -1,31 +1,27 @@
 //! Aranya policy related routines.
 
-use core::borrow::Borrow;
+use core::borrow::Borrow as _;
 
 use spideroak_crypto::hash::{Digest, Hash};
-use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aranya::{Signature, SigningKeyId},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
-    id::custom_id,
+    ciphersuite::{CipherSuite, CipherSuiteExt as _},
+    id::{IdExt as _, custom_id},
 };
 
 custom_id! {
     /// Uniquely identifies a group.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct GroupId;
 }
 
 custom_id! {
     /// Uniquely identifies a policy.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct PolicyId;
 }
 
 custom_id! {
     /// The ID of a policy command.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct CmdId;
 }
 
@@ -39,12 +35,10 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
     //     command,
     //     signature,
     // )
-    CS::tuple_hash(
+    CmdId::new::<CS>(
         b"PolicyCommandId-v1",
         [cmd.as_bytes(), sig.raw_sig().borrow()],
     )
-    .into_array()
-    .into()
 }
 
 /// Computes a merge command's ID.
@@ -54,9 +48,7 @@ pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
     //     left_id,
     //     right_id,
     // )
-    CS::tuple_hash(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
-        .into_array()
-        .into()
+    CmdId::new::<CS>(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
 }
 
 /// A policy command.
@@ -107,7 +99,6 @@ impl Cmd<'_> {
 
 custom_id! {
     /// Uniquely identifies a role.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct RoleId;
 }
 
@@ -122,20 +113,14 @@ pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) 
     //     name,
     //     policy_id,
     // )
-    CS::tuple_hash(
+    RoleId::new::<CS>(
         b"RoleId-v1",
         [cmd_id.as_bytes(), name.as_bytes(), policy_id.as_bytes()],
     )
-    .into_array()
-    .into()
 }
 
 custom_id! {
-    /// Uniquely identifies an AQC label.
-    ///
-    /// A label associates an AQC channel with Aranya policy
-    /// rules that govern communication in the channel.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    /// Uniquely identifies a label.
     pub struct LabelId;
 }
 
@@ -150,12 +135,10 @@ pub fn label_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId)
     //     name,
     //     policy_id,
     // )
-    CS::tuple_hash(
+    LabelId::new::<CS>(
         b"LabelId-v1",
         [cmd_id.as_bytes(), name.as_bytes(), policy_id.as_bytes()],
     )
-    .into_array()
-    .into()
 }
 
 #[cfg(test)]
@@ -163,7 +146,7 @@ mod tests {
     use spideroak_crypto::{ed25519::Ed25519, rust};
 
     use super::*;
-    use crate::{Id, default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
 
     type CS = TestCs<
         rust::Aes256Gcm,
@@ -182,25 +165,25 @@ mod tests {
                 CmdId::default(),
                 "foo",
                 PolicyId::default(),
-                "EwfLLZLFzYdgqbZfjXcMfc3hNiHpkgrJsvRHEzyDzpVQ",
+                "C1PupQYTjr2ouZ3DohnRFEaHR4yoTnMkarbBK4TGhJoi",
             ),
             (
                 CmdId::default(),
                 "bar",
                 PolicyId::default(),
-                "7AEhZudswFSSYRXzigAgjeTjt4cCFC8QMxiE7Xnj3GKK",
+                "Eq71P2UhRVMt7R1s1ZB6m1kSuuzwBZwAd21BEv3gmtBC",
             ),
             (
-                CmdId::from(Id::from_bytes([b'A'; 32])),
+                CmdId::from_bytes([b'A'; 32]),
                 "bar",
                 PolicyId::default(),
-                "24di1Kgod1CXqJ1Pgi77ptpT6t2Nk3YGifqSTjSttn8z",
+                "B4XqE83yLS1i8AiyMxGKo2wtrwvqrhUers5ou3eRfH8z",
             ),
             (
-                CmdId::from([b'A'; 32]),
+                CmdId::from_bytes([b'A'; 32]),
                 "baz",
-                PolicyId::from([b'B'; 32]),
-                "J2miD6wUPVVfxakYHBTA8n2wGFHyAty2P2zLedHz2Nov",
+                PolicyId::from_bytes([b'B'; 32]),
+                "ACnKJXFwd9e2tSnakXgP8SMiYHBSQLUetWgRjHjyQo8y",
             ),
         ];
         for (i, (cmd_id, name, policy_id, want)) in tests.iter().enumerate() {
@@ -218,25 +201,25 @@ mod tests {
                 CmdId::default(),
                 "foo",
                 PolicyId::default(),
-                "2UKzdrSR8nXYwZB6MKoAHpDkNuGbj4CKhDuJpy1CWAKd",
+                "BoukxZv6twB39TdXkzMafUxsT1uvpmMJbr6nsKLBg7VT",
             ),
             (
                 CmdId::default(),
                 "bar",
                 PolicyId::default(),
-                "BXi83x4nTF7gXD21AZAaGTg83yFvJMhezHSDQ7yYT1xx",
+                "CEEjmy5R6Q7RXBqFtt1nrh597Ytr7bCc2aEWJfixEp9K",
             ),
             (
-                CmdId::from(Id::from_bytes([b'A'; 32])),
+                CmdId::from_bytes([b'A'; 32]),
                 "bar",
                 PolicyId::default(),
-                "8syerzb6aY9rcVwDf1mq3m7Qh547tE6wUAFrw8fAJNZq",
+                "9NEW3iaJim8iipkeBCJPJ3v75pEH92iLtrqo8sddkqER",
             ),
             (
-                CmdId::from([b'A'; 32]),
+                CmdId::from_bytes([b'A'; 32]),
                 "baz",
-                PolicyId::from([b'B'; 32]),
-                "9Nkp9bxw2a7FvhkjexhBM2o4Su59AacWdEGYVmPHMKYr",
+                PolicyId::from_bytes([b'B'; 32]),
+                "4sVA51vurQexYL8NFxGYnhj7RTf51udZg7Qd1dhsgBnx",
             ),
         ];
         for (i, (cmd_id, name, policy_id, want)) in tests.iter().enumerate() {
