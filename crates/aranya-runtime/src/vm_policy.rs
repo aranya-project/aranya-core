@@ -760,7 +760,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                 }
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
-                        };
+                        }
 
                         let data = VmProtocolData {
                             author_id: envelope.author_id,
