@@ -52,28 +52,36 @@ struct FunctionSignature {
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
 #[derive(Clone, Debug, PartialEq)]
-pub enum StatementContext {
-    /// An action
-    Action(ast::ActionDefinition),
-    /// A command policy block
-    CommandPolicy(ast::CommandDefinition),
-    /// A command recall block
-    CommandRecall(ast::CommandDefinition),
-    /// A pure function
-    PureFunction(ast::FunctionDefinition),
-    /// A finish function or finish block
+pub struct StatementContext {
+    flavor: Flavor,
+    identifier: Identifier,
+    return_type: Option<VType>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum Flavor {
+    Pure,
+    Action { persistence: ast::Persistence },
+    Command,
     Finish,
 }
 
 impl fmt::Display for StatementContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Action(_) => write!(f, "action"),
-            Self::CommandPolicy(_) => write!(f, "command policy block"),
-            Self::CommandRecall(_) => write!(f, "command recall block"),
-            Self::PureFunction(_) => write!(f, "pure function"),
-            Self::Finish => write!(f, "finish block/function"),
+        match &self.flavor {
+            Flavor::Pure => {}
+            Flavor::Action { persistence } => write!(f, "{persistence} action ")?,
+            Flavor::Command => write!(f, "command ")?,
+            Flavor::Finish => write!(f, "finish ")?,
         }
+
+        if self.return_type.is_some() {
+            write!(f, "function ")?;
+        }
+
+        write!(f, "{}", self.identifier)?;
+
+        Ok(())
     }
 }
 
@@ -635,7 +643,7 @@ impl<'a> CompileState<'a> {
 
     /// Compile an expression
     fn compile_expression(&mut self, expression: &Expression) -> Result<Typeish, CompileError> {
-        if self.get_statement_context()? == StatementContext::Finish {
+        if self.get_statement_context()?.flavor == Flavor::Finish {
             self.check_finish_expression(expression)?;
         }
 
@@ -758,10 +766,7 @@ impl<'a> CompileState<'a> {
                 }
                 ast::InternalFunction::Serialize(e) => {
                     match self.get_statement_context()? {
-                        StatementContext::PureFunction(ast::FunctionDefinition {
-                            identifier,
-                            ..
-                        }) if identifier == "seal" => {}
+                        StatementContext { identifier, .. } if identifier == "seal" => {}
                         _ => {
                             return Err(
                                 self.err(CompileErrorType::InvalidExpression((**e).clone()))
@@ -805,15 +810,15 @@ impl<'a> CompileState<'a> {
                 ast::InternalFunction::Deserialize(e) => {
                     // A bit hacky, but you can't manually define a function named "open".
                     let struct_name = match self.get_statement_context()? {
-                        StatementContext::PureFunction(ast::FunctionDefinition {
+                        StatementContext {
                             identifier,
                             return_type:
-                                VType {
+                                Some(VType {
                                     kind: TypeKind::Struct(struct_name),
                                     ..
-                                },
+                                }),
                             ..
-                        }) if identifier == "open" => struct_name,
+                        } if identifier == "open" => struct_name,
                         _ => {
                             return Err(
                                 self.err(CompileErrorType::InvalidExpression((**e).clone()))
@@ -1452,14 +1457,8 @@ impl<'a> CompileState<'a> {
             // example, check whether an expression disallowed in finish context has been
             // evaluated from deep within a call chain. Further static analysis will have to
             // be done to ensure that.
-            match (&statement.kind, &context) {
-                (
-                    StmtKind::Let(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+            match (&statement.kind, &context.flavor, &context.return_type) {
+                (StmtKind::Let(s), Flavor::Pure | Flavor::Action { .. } | Flavor::Command, _) => {
                     let et = self.compile_expression(&s.expression)?;
                     self.identifier_types
                         .add(s.identifier.name.clone(), et)
@@ -1469,13 +1468,8 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
-                (
-                    StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                // TODO: Only command
+                (StmtKind::Check(s), Flavor::Pure | Flavor::Action { .. } | Flavor::Command, _) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
                         kind: TypeKind::Bool,
@@ -1494,25 +1488,13 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
                     self.append_instruction(Instruction::Exit(ExitReason::Check));
                 }
-                (
-                    StmtKind::Match(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                (StmtKind::Match(s), Flavor::Pure | Flavor::Action { .. } | Flavor::Command, _) => {
                     self.compile_match_statement_or_expression(
                         LanguageContext::Statement(s),
                         statement.span,
                     )?;
                 }
-                (
-                    StmtKind::If(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                (StmtKind::If(s), Flavor::Pure | Flavor::Action { .. } | Flavor::Command, _) => {
                     let end_label = self.anonymous_label();
                     for (cond, branch) in &s.branches {
                         let next_label = self.anonymous_label();
@@ -1542,7 +1524,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.define_label(end_label, self.wp)?;
                 }
-                (StmtKind::Publish(s), StatementContext::Action(action)) => {
+                (StmtKind::Publish(s), Flavor::Action { persistence }, _) => {
                     let t = self.compile_expression(s)?;
                     let _ty: Typeish = t
                         .try_map(|nty| match nty {
@@ -1564,13 +1546,10 @@ impl<'a> CompileState<'a> {
                                     .find(|c| c.identifier.name == ident.name)
                                     .assume("command must be defined")?
                                     .persistence;
-                                if !action.persistence.matches(command_persistence) {
+                                if !persistence.matches(command_persistence) {
                                     return Err(CompileErrorType::InvalidType(format!(
                                         "{} action `{}` cannot publish {} command `{}`",
-                                        action.persistence,
-                                        action.identifier,
-                                        command_persistence,
-                                        ident
+                                        persistence, context.identifier, command_persistence, ident
                                     )));
                                 }
                                 Ok(nty)
@@ -1582,23 +1561,26 @@ impl<'a> CompileState<'a> {
                         .map_err(|err| self.err(err))?;
                     self.append_instruction(Instruction::Publish);
                 }
-                (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
+                (StmtKind::Return(s), _, Some(return_type)) => {
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
-                    if !et.fits_type(&fd.return_type) {
+                    if !et.fits_type(return_type) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
                             "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
+                            context.identifier,
+                            DisplayType(return_type)
                         ))));
                     }
                     self.append_instruction(Instruction::Return);
                 }
-                (
-                    StmtKind::Finish(s),
-                    StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
-                ) => {
-                    self.enter_statement_context(StatementContext::Finish);
+                (StmtKind::Finish(s), Flavor::Command, _) => {
+                    // TODO: Only in command block?
+                    self.enter_statement_context(StatementContext {
+                        flavor: Flavor::Finish,
+                        // TODO: Name of command OK? Only used for errors...
+                        identifier: context.identifier.clone(),
+                        return_type: None,
+                    });
                     self.append_instruction(Instruction::Meta(Meta::Finish(true)));
                     self.compile_statements(s, Scope::Layered)?;
                     self.exit_statement_context();
@@ -1615,7 +1597,7 @@ impl<'a> CompileState<'a> {
                     // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
                     self.append_instruction(Instruction::Exit(ExitReason::Normal));
                 }
-                (StmtKind::Map(map_stmt), StatementContext::Action(_action)) => {
+                (StmtKind::Map(map_stmt), Flavor::Action { .. }, _) => {
                     self.verify_fact_against_schema(&map_stmt.fact, false)?;
                     // Execute query and store results
                     self.compile_fact_literal(&map_stmt.fact)?;
@@ -1654,7 +1636,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::End);
                     self.identifier_types.exit_block();
                 }
-                (StmtKind::Create(s), StatementContext::Finish) => {
+                (StmtKind::Create(s), Flavor::Finish, _) => {
                     // Do not allow bind values during fact creation
                     if s.fact
                         .key_fields
@@ -1677,7 +1659,7 @@ impl<'a> CompileState<'a> {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Create);
                 }
-                (StmtKind::Update(s), StatementContext::Finish) => {
+                (StmtKind::Update(s), Flavor::Finish, _) => {
                     // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
 
                     // ensure fact is mutable
@@ -1746,7 +1728,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Update);
                 }
-                (StmtKind::Delete(s), StatementContext::Finish) => {
+                (StmtKind::Delete(s), Flavor::Finish, _) => {
                     if s.fact
                         .key_fields
                         .iter()
@@ -1764,7 +1746,7 @@ impl<'a> CompileState<'a> {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Delete);
                 }
-                (StmtKind::Emit(s), StatementContext::Finish) => {
+                (StmtKind::Emit(s), Flavor::Finish, _) => {
                     let et = self.compile_expression(s)?;
                     let _ty: Typeish = et
                         .try_map(|nty| match nty {
@@ -1786,7 +1768,8 @@ impl<'a> CompileState<'a> {
                         .map_err(|err| self.err(err))?;
                     self.append_instruction(Instruction::Emit);
                 }
-                (StmtKind::FunctionCall(f), StatementContext::Finish) => {
+                // TODO: Allow all but check it matches
+                (StmtKind::FunctionCall(f), Flavor::Finish, _) => {
                     let signature = self
                         .function_signatures
                         .get(&f.identifier.name)
@@ -1822,7 +1805,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.compile_function_call(f, true)?;
                 }
-                (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
+                (StmtKind::ActionCall(fc), Flavor::Action { .. }, _) => {
                     let Some(action_def) = self
                         .policy
                         .actions
@@ -1865,7 +1848,7 @@ impl<'a> CompileState<'a> {
                     let label = Label::new(fc.identifier.name.clone(), LabelType::Action);
                     self.append_instruction(Instruction::Call(Target::Unresolved(label)));
                 }
-                (StmtKind::DebugAssert(s), _) => {
+                (StmtKind::DebugAssert(s), _, _) => {
                     if self.is_debug {
                         // Compile the expression within `debug_assert(e)`
                         let t = self.compile_expression(s)?;
@@ -1891,7 +1874,7 @@ impl<'a> CompileState<'a> {
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
                     }
                 }
-                (_, _) => {
+                (_, _, _) => {
                     return Err(
                         self.err_loc(CompileErrorType::InvalidStatement(context), statement.span)
                     );
@@ -2181,7 +2164,11 @@ impl<'a> CompileState<'a> {
             Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
             self.wp,
         )?;
-        self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
+        self.enter_statement_context(StatementContext {
+            flavor: Flavor::Command,
+            identifier: command.identifier.name.clone(),
+            return_type: None,
+        });
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
@@ -2220,7 +2207,11 @@ impl<'a> CompileState<'a> {
             Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
             self.wp,
         )?;
-        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+        self.enter_statement_context(StatementContext {
+            flavor: Flavor::Command,
+            identifier: command.identifier.name.clone(),
+            return_type: None,
+        });
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
@@ -2263,24 +2254,6 @@ impl<'a> CompileState<'a> {
             ));
         }
 
-        // fake a function def for the seal block
-        let seal_function_definition = ast::FunctionDefinition {
-            identifier: Ident {
-                name: ident!("seal"),
-                span: Span::default(),
-            },
-            arguments: vec![],
-            return_type: VType {
-                kind: TypeKind::Struct(Ident {
-                    name: ident!("Envelope"),
-                    span: Span::default(),
-                }),
-                span: Span::default(),
-            },
-            statements: vec![],
-            span: command.span,
-        };
-
         // Create a call stub for seal. Because it is function-like and
         // uses "return", we need something on the call stack to return
         // to.
@@ -2292,7 +2265,17 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Call(Target::Unresolved(actual_seal.clone())));
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_seal, self.wp)?;
-        self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
+        self.enter_statement_context(StatementContext {
+            flavor: Flavor::Pure,
+            identifier: ident!("seal"),
+            return_type: Some(VType {
+                kind: TypeKind::Struct(Ident {
+                    name: ident!("Envelope"),
+                    span: Span::default(),
+                }),
+                span: Span::default(),
+            }),
+        });
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
@@ -2328,21 +2311,6 @@ impl<'a> CompileState<'a> {
             ));
         }
 
-        // fake a function def for the open block
-        let open_function_definition = ast::FunctionDefinition {
-            identifier: Ident {
-                name: ident!("open"),
-                span: Span::default(),
-            },
-            arguments: vec![],
-            return_type: VType {
-                kind: TypeKind::Struct(command.identifier.clone()),
-                span: Span::default(),
-            },
-            statements: vec![],
-            span: command.span,
-        };
-
         // Same thing for open.
         self.define_label(
             Label::new(command.identifier.name.clone(), LabelType::CommandOpen),
@@ -2352,7 +2320,14 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Call(Target::Unresolved(actual_open.clone())));
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_open, self.wp)?;
-        self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
+        self.enter_statement_context(StatementContext {
+            flavor: Flavor::Pure,
+            identifier: ident!("open"),
+            return_type: Some(VType {
+                kind: TypeKind::Struct(command.identifier.clone()),
+                span: Span::default(),
+            }),
+        });
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
@@ -2775,16 +2750,24 @@ impl<'a> CompileState<'a> {
         }
 
         for function_def in &self.policy.functions {
-            self.enter_statement_context(StatementContext::PureFunction(function_def.clone()));
+            self.enter_statement_context(StatementContext {
+                flavor: Flavor::Pure,
+                identifier: function_def.identifier.name.clone(),
+                return_type: Some(function_def.return_type.clone()),
+            });
             self.compile_function(function_def)?;
             self.exit_statement_context();
         }
 
-        self.enter_statement_context(StatementContext::Finish);
         for function_def in &self.policy.finish_functions {
+            self.enter_statement_context(StatementContext {
+                flavor: Flavor::Finish,
+                identifier: function_def.identifier.name.clone(),
+                return_type: None,
+            });
             self.compile_finish_function(function_def)?;
+            self.exit_statement_context();
         }
-        self.exit_statement_context();
 
         // Commands have several sub-contexts, so `compile_command` handles those.
         for command in &self.policy.commands {
@@ -2792,7 +2775,13 @@ impl<'a> CompileState<'a> {
         }
 
         for action in &self.policy.actions {
-            self.enter_statement_context(StatementContext::Action(action.clone()));
+            self.enter_statement_context(StatementContext {
+                flavor: Flavor::Action {
+                    persistence: action.persistence.clone(),
+                },
+                identifier: action.identifier.name.clone(),
+                return_type: None,
+            });
             self.compile_action(action)?;
             self.exit_statement_context();
         }
