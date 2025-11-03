@@ -259,6 +259,45 @@ impl ToTokens for Alias {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // NB: We do not emit `capi::` attributes.
 
+        if let Some(Opaque {
+            generated: true,
+            size,
+            align,
+            ..
+        }) = &self.opaque
+        {
+            // Generate fake struct for cbindgen
+            tokens.append_all({
+                let vis = &self.vis;
+
+                let doc = &self.doc;
+                let attrs: Vec<Attribute> = self
+                    .attrs
+                    .iter()
+                    .filter(|attr| attr.path().is_ident("cfg"))
+                    .cloned()
+                    .collect();
+
+                let name = &self.ident;
+
+                quote! {
+                    #[cfg(cbindgen)]
+                    #doc
+                    #[repr(C, align(#align))]
+                    #(#attrs)*
+                    #vis struct #name {
+                        /// This field only exists for size purposes. It is
+                        /// UNDEFINED BEHAVIOR to read from or write to it.
+                        /// @private
+                        __for_size_only: [u8; #size],
+                    }
+                }
+            });
+
+            // `cfg` for regular generated alias below
+            tokens.append_all(quote! {#[cfg(not(cbindgen))]});
+        }
+
         self.doc.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
         self.opaque.to_tokens(tokens);
