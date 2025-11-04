@@ -2068,8 +2068,6 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile a function call.
-    /// Returns Some(return_type) if the function has a return value (for use in expressions).
-    /// Returns None for functions without return values (finish functions).
     fn compile_function_call(&mut self, fc: &FunctionCall) -> Result<(), CompileError> {
         // Look up the function signature
         let sig = self
