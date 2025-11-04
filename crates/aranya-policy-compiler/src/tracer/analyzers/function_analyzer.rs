@@ -1,4 +1,4 @@
-use aranya_policy_module::{Instruction, ModuleV0};
+use aranya_policy_module::{ExitReason, Instruction, ModuleV0};
 
 use super::{Analyzer, AnalyzerStatus};
 use crate::tracer::{TraceError, TraceFailure};
@@ -7,8 +7,6 @@ use crate::tracer::{TraceError, TraceFailure};
 #[derive(Clone, Default)]
 pub struct FunctionAnalyzer {
     have_return: bool,
-    unreachable_code: bool,
-    first_unreachable_pc: Option<usize>,
 }
 
 impl FunctionAnalyzer {
@@ -20,7 +18,7 @@ impl FunctionAnalyzer {
 impl Analyzer for FunctionAnalyzer {
     fn analyze_instruction(
         &mut self,
-        pc: usize,
+        _pc: usize,
         i: &Instruction,
         _m: &ModuleV0,
     ) -> Result<AnalyzerStatus, TraceError> {
@@ -28,34 +26,98 @@ impl Analyzer for FunctionAnalyzer {
             Instruction::Return => {
                 self.have_return = true;
             }
-            Instruction::Exit(_) => {
+            // Only check for missing returns at function-ending Exits, not Check exits
+            Instruction::Exit(ExitReason::Panic | ExitReason::Normal) => {
                 if !self.have_return {
                     // Branches without returns are potential errors; it depends on whether there is a return following the branch.
                     return Ok(AnalyzerStatus::Failed("no return".to_string()));
                 }
-                if self.unreachable_code {
-                    return Ok(AnalyzerStatus::Failed("unreachable code".to_string()));
-                }
             }
-            _ => {
-                if self.have_return && !self.unreachable_code {
-                    self.unreachable_code = true;
-                    self.first_unreachable_pc = Some(pc);
-                }
-            }
+            _ => {}
         }
         Ok(AnalyzerStatus::Ok)
     }
 
-    fn post_analyze(&mut self, failures: &mut [TraceFailure], _successful_branches: &[Vec<usize>]) {
-        // Update the responsible_instruction for unreachable code failures
-        // to point to the first unreachable instruction instead of the Exit
-        if let Some(first_pc) = self.first_unreachable_pc {
-            for failure in failures.iter_mut() {
-                if failure.message == "unreachable code" {
-                    failure.responsible_instruction = first_pc;
+    fn post_analyze(
+        &mut self,
+        _failures: &mut [TraceFailure],
+        _successful_branches: &[Vec<usize>],
+        successful_instruction_paths: &[Vec<usize>],
+        m: &ModuleV0,
+    ) -> Vec<TraceFailure> {
+        use std::collections::{HashMap, HashSet};
+
+        // Path-based unreachable code detection
+        // For each PC, track which paths reach it before vs after a return
+        let mut pc_before_return: HashMap<usize, usize> = HashMap::new();
+        let mut pc_after_return: HashMap<usize, usize> = HashMap::new();
+
+        for path in successful_instruction_paths {
+            let mut found_return = false;
+
+            for &pc in path
+                .iter()
+                .take_while(|&&pc| !matches!(m.progmem.get(pc), Some(Instruction::Exit(_))))
+            {
+                let instruction = m
+                    .progmem
+                    .get(pc)
+                    .expect("PC should be valid in successful path");
+
+                if *instruction == Instruction::Return {
+                    found_return = true;
+                    continue;
+                }
+
+                // Skip control flow and metadata instructions so we don't track them as unreachable
+                if matches!(
+                    instruction,
+                    Instruction::Block
+                        | Instruction::End
+                        | Instruction::Branch(_)
+                        | Instruction::Jump(_)
+                        | Instruction::Next
+                        | Instruction::Last
+                        | Instruction::Meta(_)
+                ) {
+                    continue;
+                }
+
+                if found_return {
+                    pc_after_return
+                        .entry(pc)
+                        .and_modify(|count| *count = count.saturating_add(1))
+                        .or_insert(1);
+                } else {
+                    pc_before_return
+                        .entry(pc)
+                        .and_modify(|count| *count = count.saturating_add(1))
+                        .or_insert(1);
                 }
             }
         }
+
+        // A PC is unreachable if it's only ever reached after a return,
+        // never before a return in any path.
+        let unreachable_pcs: HashSet<usize> = pc_after_return
+            .keys()
+            .filter(|&pc| !pc_before_return.contains_key(pc))
+            .copied()
+            .collect();
+
+        // Create failures for unreachable PCs
+        successful_instruction_paths
+            .iter()
+            .filter_map(|path| {
+                // Find the first unreachable PC in this path (if any)
+                path.iter()
+                    .find(|&&pc| unreachable_pcs.contains(&pc))
+                    .map(|&pc| TraceFailure {
+                        instruction_path: path.clone(),
+                        responsible_instruction: pc,
+                        message: "unreachable code".to_string(),
+                    })
+            })
+            .collect()
     }
 }
