@@ -40,7 +40,13 @@ impl Analyzer for FinishAnalyzer {
     /// compares each failure's execution trace with the list of successful branches to find
     /// the last common address. This last common ancestor should be the point at which the
     /// decision was made to go down a path that did not have a finish block.
-    fn post_analyze(&mut self, failures: &mut [TraceFailure], successful_branches: &[Vec<usize>]) {
+    fn post_analyze(
+        &mut self,
+        failures: &mut [TraceFailure],
+        successful_branches: &[Vec<usize>],
+        _successful_instruction_paths: &[Vec<usize>],
+        _m: &ModuleV0,
+    ) -> Vec<TraceFailure> {
         for f in failures {
             let mut longest_common_path = 0;
             let mut last_addr = None;
@@ -65,5 +71,7 @@ impl Analyzer for FinishAnalyzer {
             // If we didn't find a longest common path, something weird must be going on,
             // and we leave the TraceFailure as-is.
         }
+
+        vec![] // No new failures to report
     }
 }
