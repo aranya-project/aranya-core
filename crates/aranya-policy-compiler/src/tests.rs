@@ -2727,14 +2727,85 @@ fn test_validate_return() {
         }"#,
     ];
 
+    for (i, p) in valid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(!validate(&m), "valid case {}", i);
+    }
+
+    for (i, p) in invalid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(validate(&m), "invalid case {}", i);
+    }
+}
+
+#[test]
+fn test_validate_unreachable_code() {
+    let valid = [
+        r#"function a() int {
+            return 0
+        }"#,
+        r#"function b(x int) int {
+            if x > 0 {
+                return 1
+            }
+            return 0
+        }"#,
+        // Both branches return, but code after is in the implicit Exit(Panic)
+        // which is not user code, so we don't flag it
+        r#"function c(x int) int {
+            if x > 0 {
+                return 1
+            } else {
+                return 0
+            }
+        }"#,
+        r#"function with_check(x int) int {
+            if x > 0 {
+                check true
+                return 1
+            } else {
+                check true
+            }
+            let y = 2
+            return y
+        }"#,
+    ];
+
+    let invalid = [
+        // Straight-line unreachable code after return
+        r#"function unreachable() int {
+            return 0
+            let c = 1
+        }"#,
+        // Multiple statements after return
+        r#"function unreachable2() int {
+            return 0
+            let c = 1
+            let d = 2
+        }"#,
+        // Code after if-else where both branches return
+        r#"function unreachable3(x int) int {
+            if x > 0 {
+                return 1
+            } else {
+                return 0
+            }
+            let y = 2
+        }"#,
+    ];
+
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(!validate(&m), "Expected case to be valid: {}", p);
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(
+            validate(&m),
+            "Expected case to be invalid (unreachable code): {}",
+            p
+        );
     }
 }
 
