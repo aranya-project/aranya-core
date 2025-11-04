@@ -58,7 +58,7 @@ use core::{
     iter,
 };
 #[cfg(any(test, feature = "std"))]
-use std::time::Instant;
+use std::{env, fs, time::Instant};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
@@ -511,6 +511,14 @@ where
         })
         .collect();
 
+    // Check if we should dump generated rules to a file for debugging
+    #[cfg(any(test, feature = "std"))]
+    if let Ok(dump_path) = env::var("DUMP_GENERATED_RULES") {
+        let json = serde_json::to_string_pretty(&actions).unwrap();
+        fs::write(&dump_path, json).unwrap();
+        debug!("Dumped generated rules to {}", dump_path);
+    }
+
     let mut graphs = BTreeMap::new();
     let mut clients = BTreeMap::new();
 
@@ -745,6 +753,137 @@ where
     Ok(())
 }
 
+/// Minimizes a failing test using delta debugging.
+///
+/// This function takes a test that is known to fail and systematically
+/// removes commands to find a minimal failing test case. It operates
+/// only on the "interesting" section between IgnoreExpectations markers.
+#[cfg(any(test, feature = "std"))]
+pub fn minimize_test<SB, F>(backend_factory: F, rules: &[TestRule]) -> Vec<TestRule>
+where
+    SB: StorageBackend,
+    F: FnMut() -> SB,
+{
+    use std::{cell::RefCell, panic, rc::Rc, time::Instant};
+
+    // Wrap the factory in an Rc<RefCell> so we can use it across catch_unwind
+    let factory_cell = Rc::new(RefCell::new(backend_factory));
+
+    // Helper to check if a test fails (including panics)
+    let test_fails = |rules: &[TestRule]| -> bool {
+        let factory = Rc::clone(&factory_cell);
+        let rules = rules.to_vec();
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(move || {
+            let backend = factory.borrow_mut()();
+            run_test(backend, &rules)
+        }));
+        result.is_err() || matches!(result, Ok(Err(_)))
+    };
+
+    // First, verify the test actually fails
+    if !test_fails(rules) {
+        println!("WARNING: Test does not fail, returning original rules");
+        return rules.to_vec();
+    }
+
+    println!("Original test has {} rules", rules.len());
+
+    // Find the interesting section (between IgnoreExpectations)
+    let mut start_idx = 0;
+    let mut end_idx = rules.len();
+
+    for (i, rule) in rules.iter().enumerate() {
+        if matches!(rule, TestRule::IgnoreExpectations { ignore: true }) {
+            start_idx = i + 1;
+            break;
+        }
+    }
+
+    for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+        if matches!(rule, TestRule::IgnoreExpectations { ignore: false }) {
+            end_idx = i;
+            break;
+        }
+    }
+
+    println!(
+        "Interesting section: rules {} to {} ({} rules)",
+        start_idx,
+        end_idx,
+        end_idx - start_idx
+    );
+
+    let prefix: Vec<_> = rules[..start_idx].to_vec();
+    let mut interesting: Vec<_> = rules[start_idx..end_idx].to_vec();
+    let suffix: Vec<_> = rules[end_idx..].to_vec();
+
+    let start_time = Instant::now();
+    let mut iterations = 0;
+
+    // Delta debugging (ddmin) algorithm
+    let mut granularity = 2;
+    while granularity <= interesting.len() {
+        let chunk_size = interesting.len() / granularity;
+        if chunk_size == 0 {
+            break;
+        }
+
+        let mut progress = false;
+
+        // Try removing each chunk
+        for i in 0..granularity {
+            let start = i * chunk_size;
+            let end = if i == granularity - 1 {
+                interesting.len()
+            } else {
+                (i + 1) * chunk_size
+            };
+
+            // Create test without this chunk
+            let mut test_rules = prefix.clone();
+            test_rules.extend_from_slice(&interesting[..start]);
+            test_rules.extend_from_slice(&interesting[end..]);
+            test_rules.extend_from_slice(&suffix);
+
+            iterations += 1;
+            if test_fails(&test_rules) {
+                // Still fails! Keep this reduction
+                interesting = [&interesting[..start], &interesting[end..]].concat();
+                println!(
+                    "Reduced to {} interesting rules (removed chunk {}/{}, granularity {})",
+                    interesting.len(),
+                    i + 1,
+                    granularity,
+                    granularity
+                );
+                progress = true;
+                break;
+            }
+        }
+
+        if progress {
+            // Start over with coarser granularity
+            granularity = 2;
+        } else {
+            // Try finer granularity
+            granularity *= 2;
+        }
+    }
+
+    let elapsed = start_time.elapsed();
+    let mut result = prefix;
+    result.extend(interesting);
+    result.extend(suffix);
+
+    println!("Minimization complete!");
+    println!("  Original: {} rules", rules.len());
+    println!("  Minimal:  {} rules", result.len());
+    println!("  Iterations: {}", iterations);
+    println!("  Time: {:?}", elapsed);
+
+    result
+}
+
 fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     request_cache: &mut PeerCache,
     response_cache: &mut PeerCache,
@@ -887,10 +1026,10 @@ macro_rules! test_vectors {
 
             $(
                 #[doc = concat!("Runs ", stringify!($name), ".")]
-                pub fn $name<SB, F>(f: F) -> Result<(), TestError>
+                pub fn $name<SB, F>(mut f: F) -> Result<(), TestError>
                 where
                     SB: StorageBackend,
-                    F: FnOnce() -> SB,
+                    F: FnMut() -> SB,
                 {
                     const DATA: &str = include_str!(concat!(
                         env!("CARGO_MANIFEST_DIR"),
@@ -899,6 +1038,20 @@ macro_rules! test_vectors {
                         ".test",
                     ));
                     let rules: Vec<TestRule> = serde_json::from_str(DATA)?;
+
+                    // Check if we should minimize this test
+                    #[cfg(any(test, feature = "std"))]
+                    if let Ok(minimize_name) = env::var("MINIMIZE_TEST") {
+                        if minimize_name == stringify!($name) {
+                            let minimal_rules = minimize_test(&mut f, &rules);
+                            let output_path = format!("{}_minimal.test", stringify!($name));
+                            let json = serde_json::to_string_pretty(&minimal_rules).unwrap();
+                            fs::write(&output_path, json).unwrap();
+                            println!("Wrote minimal test to {}", output_path);
+                            return Ok(());
+                        }
+                    }
+
                     run_test::<SB>(f(), &rules)
                 }
             )+
@@ -925,6 +1078,9 @@ macro_rules! test_vectors {
 test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
+    generate_graph,
+    generate_graph_100_failure,
+    generate_graph_minimal_failure,
     large_sync,
     list_multiple_graph_ids,
     many_branches,
