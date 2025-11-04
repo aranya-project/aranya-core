@@ -207,15 +207,10 @@ impl TraceAnalyzer<'_> {
                     continue; // skip address increment when jumping
                 }
                 Instruction::Return => {
-                    if self.call_stack.is_empty() {
-                        // Exit on empty return
-                        successful_branch_paths.push(self.branches.clone());
-                        return Ok(TraceIntermediate {
-                            failures,
-                            successful_branch_paths,
-                        });
+                    if !self.call_stack.is_empty() {
+                        pc = self.call_stack.pop().expect("impossible empty stack");
                     }
-                    pc = self.call_stack.pop().expect("impossible empty stack");
+                    // Continue execution to allow analyzers to check for unreachable code
                 }
                 Instruction::Exit(_) => {
                     successful_branch_paths.push(self.branches.clone());
