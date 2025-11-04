@@ -388,7 +388,7 @@ where
                         add_command_chance > 0,
                         "There must be a positive command chance or it will never exit"
                     );
-                    let max_syncs = 2;
+                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
                     let mut generated_actions = Vec::new();
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
@@ -454,7 +454,7 @@ where
                         from: 1,
                         must_send: None,
                         must_receive: None,
-                        max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
+                        max_syncs,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -806,16 +806,46 @@ where
         }
     }
 
+    // Find the convergence phase which should be preserved
+    // The GenerateGraph rule creates a distinctive sync with high max_syncs
+    // (commands / COMMAND_RESPONSE_MAX + 100) before the verification CompareGraphs.
+    // We look for a Sync with max_syncs > 10 as the start of convergence.
+    let mut convergence_idx = end_idx;
+    for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+        if let TestRule::Sync { max_syncs, .. } = rule {
+            if *max_syncs > 10 {
+                convergence_idx = i;
+                break;
+            }
+        }
+    }
+
+    // If we didn't find a high max_syncs, fall back to looking for CompareGraphs
+    if convergence_idx == end_idx {
+        for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+            if matches!(rule, TestRule::CompareGraphs { .. }) {
+                convergence_idx = i;
+                break;
+            }
+        }
+    }
+
     println!(
         "Interesting section: rules {} to {} ({} rules)",
         start_idx,
+        convergence_idx,
+        convergence_idx - start_idx
+    );
+    println!(
+        "Convergence+verification section: rules {} to {} ({} rules) - will be preserved",
+        convergence_idx,
         end_idx,
-        end_idx - start_idx
+        end_idx - convergence_idx
     );
 
     let prefix: Vec<_> = rules[..start_idx].to_vec();
-    let mut interesting: Vec<_> = rules[start_idx..end_idx].to_vec();
-    let suffix: Vec<_> = rules[end_idx..].to_vec();
+    let mut interesting: Vec<_> = rules[start_idx..convergence_idx].to_vec();
+    let suffix: Vec<_> = rules[convergence_idx..].to_vec();
 
     let start_time = Instant::now();
     let mut iterations = 0;
