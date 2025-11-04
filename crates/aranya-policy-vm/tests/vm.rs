@@ -2522,12 +2522,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
         source,
-        concat!(
-            "at row 5 col 13:\n",
-            "\tassert false, \"false\"\n",
-            "            // after\n",
-            "            "
-        )
+        concat!("at row 5 col 13:\n", "\tassert false, \"false\"",)
     );
 
     Ok(())
