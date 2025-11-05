@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.15.0...aranya-policy-ifgen-v0.16.0) - 2025-11-05
+
+### Other
+
+- add more effect conversions ([#456](https://github.com/aranya-project/aranya-core/pull/456))
+- actions as structs ([#350](https://github.com/aranya-project/aranya-core/pull/350))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.14.0...aranya-policy-ifgen-v0.15.0) - 2025-10-16
 
 ### Other
