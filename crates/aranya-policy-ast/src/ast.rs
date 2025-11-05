@@ -73,20 +73,20 @@ impl Spanned for Ident {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
-pub struct Txt {
+pub struct SpannedText {
     /// The text value
     pub text: Text,
     /// The source location of this text literal
     pub span: Span,
 }
 
-impl Spanned for Txt {
+impl Spanned for SpannedText {
     fn span(&self) -> Span {
         self.span
     }
 }
 
-impl fmt::Display for Txt {
+impl fmt::Display for SpannedText {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.text.fmt(f)
     }
@@ -650,7 +650,7 @@ pub struct AssertStatement {
     /// The boolean expression being checked
     pub expression: Expression,
     /// The error message to display if the assertion fails
-    pub message: Txt,
+    pub message: SpannedText,
 }
 }
 
