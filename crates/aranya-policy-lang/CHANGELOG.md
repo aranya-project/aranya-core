@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.8.1...aranya-policy-lang-v0.9.0) - 2025-11-05
+
+### Other
+
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+
 ## [0.8.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.8.0...aranya-policy-lang-v0.8.1) - 2025-10-16
 
 ### Other
