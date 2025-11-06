@@ -229,8 +229,8 @@ not_equal = { "!=" }
 and = { "&&" }
 or = { "||" }
 dot = { "." }
-substruct = { "substruct" }
-cast = { "as" }
+substruct = @{ "substruct" ~ !(ASCII_ALPHANUMERIC | "_") }
+cast = @{ "as" ~ !( ASCII_ALPHANUMERIC | "_") }
 infix_op = _{ and | or | dot | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than | substruct | cast }
 
 // ## Prefix operators
@@ -260,6 +260,8 @@ publish_statement = { "publish" ~ expression }
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
 // The check statement evaluates an expression and fails if it is false
 check_statement = { "check" ~ expression }
+// Assert statement checks if an expression is true, and fails if it is not
+assert_statement = { "assert" ~ expression ~ ("," ~ string_literal)? }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
@@ -299,6 +301,7 @@ statements = _{
     publish_statement |
     let_statement |
     check_statement |
+    assert_statement |
     match_statement |
     if_statement |
     finish_statement |
@@ -357,6 +360,11 @@ function_definition = { function_decl ~ statement_block }
 /// finish function foo(a int) { create F[]=>{} }
 finish_function_decl = { "finish" ~ "function" ~ identifier ~ function_arguments }
 finish_function_definition = { finish_function_decl ~ statement_block }
+// action function; can only be called from action blocks or other action functions
+// `action function foo(a int) int { return a }`
+action_function_decl = { "action" ~ "function" ~ identifier ~ function_arguments ~ vtype }
+action_function_definition = { action_function_decl ~ statement_block }
+
 // This let statement assigns a value to an identifier in a global scope
 // global let statements are overwritten by local ones.
 global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
@@ -364,13 +372,14 @@ global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
 top_level_statement = _{
     use_definition |
     fact_definition |
-    action_definition |
+    action_function_definition |
     effect_definition |
     struct_definition |
     enum_definition |
     command_definition |
     function_definition |
     finish_function_definition |
+    action_definition |
     global_let_statement }
 
 // The file is a series of top level statements. SOI and EOI are start/

@@ -274,7 +274,7 @@ fn parse_errors() -> Result<(), ParseError> {
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
-                action_call, publish_statement, let_statement, check_statement, match_statement, \
+                action_call, publish_statement, let_statement, check_statement, assert_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, return_statement, or debug_assert",
         ),
@@ -484,6 +484,25 @@ fn parse_function() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::function_definition);
+
+    Ok(())
+}
+
+#[test]
+#[allow(clippy::result_large_err)]
+fn parse_action_function() -> Result<(), PestError<Rule>> {
+    let src = r#"
+    action function foo(x int) bool {
+        return true
+    }
+    "#
+    .trim();
+    let policy = parse_policy_str(src, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+    assert!(policy.action_functions.len() == 1);
+    let action_function = &policy.action_functions[0];
+    assert_eq!(action_function.identifier, "foo");
+    assert_eq!(action_function.arguments.len(), 1);
+    assert_eq!(action_function.return_type.kind, TypeKind::Bool);
 
     Ok(())
 }
@@ -1020,24 +1039,24 @@ fn test_if_statement() -> anyhow::Result<()> {
     let text = r#"
         action test() {
             if 0 {
-                check 1
+                assert 1, "1"
             }
 
             if 0 {
-                check 1
+                assert 1, "1"
             } else {
-                check 2
+                assert 2, "2"
             }
 
             if 0 {
-                check 1
-                let c = add(1, 1)
+                assert 1, "1"
+                assert saturating_add(1, 1), "1 + 1"
             } else if 2 {
-                check 3
+                assert 3, "3"
             } else if 4 {
-                check 5
+                assert 5, "5"
             } else {
-                check 6
+                assert 6, "6"
             }
         }
     "#;

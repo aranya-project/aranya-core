@@ -190,6 +190,7 @@ expression: policy
     }
   ],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [],
   "text": "struct Foo {\n            x int\n        }\n\n        function convert(foo struct Foo) struct Bar {\n            return Bar { y: foo.x, ...baz, ...thud }\n        }"
 }

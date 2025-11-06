@@ -810,8 +810,8 @@ fn test_enum_reference() {
         enum Result { OK, Err }
         action test() {
             let ok = Result::OK
-            check ok == Result::OK
-            check ok != Result::Err
+            assert ok == Result::OK, "ok"
+            assert ok != Result::Err, "!err"
 
             match ok {
                 Result::OK => {}
@@ -824,10 +824,23 @@ fn test_enum_reference() {
 }
 
 #[test]
+fn test_assert_without_message() {
+    let text = r#"
+        action test() {
+            assert true
+            let x = 1
+            assert x > 0
+        }
+    "#;
+
+    compile_pass(text);
+}
+
+#[test]
 fn test_undefined_fact() {
     let text = r#"
         action test() {
-            check exists Foo[]
+            assert exists Foo[], "Foo should exist"
         }
     "#;
 
@@ -840,7 +853,7 @@ fn test_fact_invalid_key_name() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[k: 1]
+            assert exists Foo[k: 1], "Foo should exist"
         }
     "#;
 
@@ -856,7 +869,7 @@ fn test_fact_incomplete_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[]
+            assert exists Foo[], "Foo should exist"
         }
     "#;
 
@@ -872,7 +885,7 @@ fn test_fact_nonexistent_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i:0, j:1]
+            assert exists Foo[i:0, j:1], "Foo should exist"
         }
     "#;
 
@@ -888,7 +901,7 @@ fn test_fact_invalid_key_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i: "1"]
+            assert exists Foo[i: "1"], "Foo should exist"
         }
     "#;
 
@@ -901,7 +914,7 @@ fn test_fact_duplicate_key() {
     let text = r#"
         fact Foo[i int, j int] => {a string}
         action test() {
-            check exists Foo[i: 1, i: 2]
+            assert exists Foo[i: 1, i: 2], "Foo should exist"
         }
     "#;
 
@@ -917,7 +930,7 @@ fn test_fact_invalid_value_name() {
     let text = r#"
     fact Foo[k int]=>{x int}
     action test() {
-        check exists Foo[k: saturating_add(1, 1)]=>{y: 5}
+        assert exists Foo[k: 1]=>{y: 5}, "Foo should exist"
     }
     "#;
 
@@ -933,7 +946,7 @@ fn test_fact_invalid_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i: 1] => {a: true}
+            assert exists Foo[i: 1] => {a: true}, "Foo should exist"
         }
     "#;
 
@@ -946,7 +959,7 @@ fn test_fact_bind_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            check exists Foo[i: 1] => {a: ?}
+            assert exists Foo[i: 1] => {a: ?}, "Foo should exist"
         }
     "#;
 
@@ -958,7 +971,7 @@ fn test_fact_query_disallow_leading_binds() {
     let text = r#"
     fact Foo[x int, y int] => {}
     action test() {
-        check exists Foo[x: ?, y: 42] => {}
+        assert exists Foo[x: ?, y: 42] => {}, "Foo should exist"
     }
     "#;
 
@@ -974,7 +987,7 @@ fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
         action test() {
-            check exists Foo[i: 1] => {a: saturating_add(1, 1)}
+            assert exists Foo[i: 1] => {a: saturating_add(1, 1)}, "Foo should exist"
         }
     "#;
 
@@ -1111,6 +1124,86 @@ fn finish_block_should_exit() {
         err,
         CompileErrorType::Unknown("`finish` must be the last statement in the block".to_owned())
     );
+}
+
+#[test]
+fn test_action_function_callable_from_actions_and_action_functions() {
+    let valid = [
+        (
+            "from action",
+            r#"
+            action function foo() int {
+                return 42
+            }
+
+            action baz() {
+                assert foo() == 42, "foo should be 42"
+            }
+            "#,
+        ),
+        (
+            "from action function",
+            r#"
+            action function foo() int {
+                return 42
+            }
+
+            action function bar() bool {
+                return foo() == 42
+            }
+            "#,
+        ),
+    ];
+
+    for (msg, text) in valid {
+        println!("testing valid case: {}", msg);
+        compile_pass(text);
+    }
+
+    let invalid = [
+        // finish functions are skipped because they cannot call functions anyway
+        (
+            "from pure function",
+            r#"
+            action function double(n int) int {
+                assert n > 0, "n must be positive"
+                return saturating_add(n, n)
+            }
+
+            function baz() int {
+                return double(2) // <- cannot call action function from pure function
+            }
+            "#,
+            CompileErrorType::InvalidCallColor(InvalidCallColor::Action),
+        ),
+        (
+            "from command policy block",
+            r#"
+            action function foo() int {
+                return 42
+            }
+
+            command Bar {
+                fields {}
+                seal {
+                    return todo()
+                }
+                open {
+                    return todo()
+                }
+                policy {
+                    let x = foo() // <- cannot call action function from command policy block
+                }
+            }
+            "#,
+            CompileErrorType::InvalidCallColor(InvalidCallColor::Action),
+        ),
+    ];
+
+    for (msg, text, expected) in invalid {
+        let error = compile_fail(text);
+        assert_eq!(error, expected, "testing invalid case: {}", msg);
+    }
 }
 
 #[test]
@@ -1490,7 +1583,7 @@ fn test_match_expression() {
                 0 => false
                 _ => true
             }
-            check b
+            assert b, "b"
         }"#,
         // match expression type is optional
         r#"action f(n int) {
@@ -1528,7 +1621,7 @@ fn test_bad_statements() {
 
     for text in texts {
         let err = compile_fail(text);
-        assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+        assert!(matches!(err, CompileErrorType::InvalidStatement(_, _)));
     }
 }
 
@@ -1671,8 +1764,8 @@ fn test_map_identifier_scope() {
             action pets() {
                 let n = 42
                 map Pet[name:?] as p {
-                    check p.age > 0
-                    check n == 42
+                    assert p.age > 0, "p.age > 0"
+                    assert n == 42, "n == 42"
                 }
             }
         "#;
@@ -1685,7 +1778,7 @@ fn test_map_identifier_scope() {
             r#"
             fact Pet[name string]=>{age int}
             action pets() {
-                check p == None
+                assert p == None, "p == None"
                 map Pet[name:?] as p {}
             }
         "#,
@@ -1697,7 +1790,7 @@ fn test_map_identifier_scope() {
             fact Pet[name string]=>{age int}
             action pets() {
                 map Pet[name:?] as p {}
-                check p == None
+                assert p == None, "p == None"
             }
         "#,
             CompileErrorType::NotDefined(String::from("Unknown identifier `p`")),
@@ -1710,7 +1803,7 @@ fn test_map_identifier_scope() {
                 map Pet[name:?] as p {
                     let n = 42
                 }
-                check n == 42 // should not be accessible outside the block
+                assert n == 42, "n == 42" // should not be accessible outside the block
             }
         "#,
             CompileErrorType::NotDefined(String::from("Unknown identifier `n`")),
@@ -2467,7 +2560,7 @@ fn test_action_call_without_action_keyword() {
     "#;
 
     let err = compile_fail(text);
-    assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+    assert!(matches!(err, CompileErrorType::InvalidStatement(_, _)));
 }
 
 #[test]
@@ -2481,7 +2574,7 @@ fn test_action_call_not_in_action_context() {
     "#;
 
     let err = compile_fail(text);
-    assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+    assert!(matches!(err, CompileErrorType::InvalidStatement(_, _)));
 }
 
 #[test]
@@ -3033,7 +3126,6 @@ fn test_function_used_before_definition() {
         }
 
         function divide(x int, y int) int {
-            check y > 0
             if x < y { return 0 }
             let got = divide0(Division {
                 d: y,
@@ -3054,8 +3146,6 @@ fn test_function_used_before_definition() {
             let d = args.d
             let q = args.q
             let r = args.r
-
-            check d > 0
 
             if r < d {
                 return Division {

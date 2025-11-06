@@ -159,7 +159,7 @@ ephemeral action increment_ephemeral() {
 
 
 ephemeral action incrementFour(n int) {
-    check n == 4
+    assert n == 4, "n == 4"
     publish IncrementEphemeral {
         key: 1,
         amount: n,
@@ -169,8 +169,8 @@ ephemeral action incrementFour(n int) {
 ephemeral action lookup(k int, v int, expected bool) {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
-        true => { check f is Some }
-        false => { check f is None }
+        true => { assert f is Some, "f is Some" }
+        false => { assert f is None, "f is None" }
     }
 }
 

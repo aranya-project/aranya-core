@@ -65,6 +65,7 @@ expression: policy
   "commands": [],
   "functions": [],
   "finish_functions": [],
+  "action_functions": [],
   "global_lets": [],
   "text": "\n    action ping() {}\n    action pong() {\n        action ping()\n    }\n    "
 }
