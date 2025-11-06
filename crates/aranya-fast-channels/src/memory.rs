@@ -56,10 +56,17 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    type SealCtx = LocalChannelId;
+
+    unsafe fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+        Ok(id)
+    }
+
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
+        let id = *ctx;
         let mut inner = self.inner.lock().assume("poisoned")?;
         let ChanMapValue { keys, label_id, .. } =
             inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
