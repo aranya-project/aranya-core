@@ -824,10 +824,23 @@ fn test_enum_reference() {
 }
 
 #[test]
+fn test_assert_without_message() {
+    let text = r#"
+        action test() {
+            assert true
+            let x = 1
+            assert x > 0
+        }
+    "#;
+
+    compile_pass(text);
+}
+
+#[test]
 fn test_undefined_fact() {
     let text = r#"
         action test() {
-            assert exists Foo[], "Foo exists"
+            assert exists Foo[], "Foo should exist"
         }
     "#;
 
@@ -840,7 +853,7 @@ fn test_fact_invalid_key_name() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            assert exists Foo[k: 1], "Foo exists"
+            assert exists Foo[k: 1], "Foo should exist"
         }
     "#;
 
@@ -856,7 +869,7 @@ fn test_fact_incomplete_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            assert exists Foo[], "Foo exists"
+            assert exists Foo[], "Foo should exist"
         }
     "#;
 
@@ -872,7 +885,7 @@ fn test_fact_nonexistent_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            assert exists Foo[i:0, j:1], "Foo exists"
+            assert exists Foo[i:0, j:1], "Foo should exist"
         }
     "#;
 
@@ -888,7 +901,7 @@ fn test_fact_invalid_key_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            assert exists Foo[i: "1"], "Foo exists"
+            assert exists Foo[i: "1"], "Foo should exist"
         }
     "#;
 
@@ -901,7 +914,7 @@ fn test_fact_duplicate_key() {
     let text = r#"
         fact Foo[i int, j int] => {a string}
         action test() {
-            assert exists Foo[i: 1, i: 2], "Foo exists"
+            assert exists Foo[i: 1, i: 2], "Foo should exist"
         }
     "#;
 
@@ -917,7 +930,7 @@ fn test_fact_invalid_value_name() {
     let text = r#"
     fact Foo[k int]=>{x int}
     action test() {
-        assert exists Foo[k: 1]=>{y: 5}, "Foo exists"
+        assert exists Foo[k: 1]=>{y: 5}, "Foo should exist"
     }
     "#;
 
@@ -933,7 +946,7 @@ fn test_fact_invalid_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            assert exists Foo[i: 1] => {a: true}, "Foo exists"
+            assert exists Foo[i: 1] => {a: true}, "Foo should exist"
         }
     "#;
 
@@ -946,7 +959,7 @@ fn test_fact_bind_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
-            assert exists Foo[i: 1] => {a: ?}, "Foo exists"
+            assert exists Foo[i: 1] => {a: ?}, "Foo should exist"
         }
     "#;
 
@@ -958,7 +971,7 @@ fn test_fact_query_disallow_leading_binds() {
     let text = r#"
     fact Foo[x int, y int] => {}
     action test() {
-        assert exists Foo[x: ?, y: 42] => {}, "Foo exists"
+        assert exists Foo[x: ?, y: 42] => {}, "Foo should exist"
     }
     "#;
 
@@ -974,7 +987,7 @@ fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
         action test() {
-            assert exists Foo[i: 1] => {a: saturating_add(1, 1)}, "Foo exists"
+            assert exists Foo[i: 1] => {a: saturating_add(1, 1)}, "Foo should exist"
         }
     "#;
 

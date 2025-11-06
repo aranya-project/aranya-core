@@ -1021,18 +1021,24 @@ impl ChunkParser<'_> {
     fn parse_assert_statement(&self, item: Pair<'_, Rule>) -> Result<AssertStatement, ParseError> {
         let pc = descend(item);
         let token = pc.consume()?;
-        // expression to evaluate
+        let expr_source = token.as_str();
         let expression = self.parse_expression(token)?;
-        // error message, if expression is false
-        let message_token = pc.consume_of_type(Rule::string_literal)?;
-        let span = self.to_ast_span(message_token.as_span())?;
-        let message = Self::parse_string_literal(message_token)?;
+        let message = if let Some(message_token) = pc.consume_optional(Rule::string_literal) {
+            let span = self.to_ast_span(message_token.as_span())?;
+            let text = Self::parse_string_literal(message_token)?;
+            SpannedText { text, span }
+        } else {
+            let text = format!("assertion failed: {}", expr_source)
+                .try_into()
+                .expect("expression source text should convert to Text");
+            SpannedText {
+                text,
+                span: expression.span,
+            }
+        };
         Ok(AssertStatement {
             expression,
-            message: SpannedText {
-                text: message,
-                span,
-            },
+            message,
         })
     }
 

@@ -1704,6 +1704,35 @@ fn test_debug_assert() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_assert_default_message() -> anyhow::Result<()> {
+    let text = r#"
+    action test() {
+        let x = 1
+        assert x > 10
+    }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    let action_name = ident!("test");
+    let ctx = dummy_ctx_action(action_name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    let mut published = Vec::new();
+    let result = call_action(&mut rs, &mut published, action_name, iter::empty::<Value>())?;
+    match result {
+        ExitReason::Panic(msg) => {
+            assert_eq!(msg.as_str().trim(), "assertion failed: x > 10");
+        }
+        _ => panic!("Expected Panic exit reason"),
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_global_let_statements() -> anyhow::Result<()> {
     let text = r#"
         let x = 42
