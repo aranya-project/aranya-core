@@ -26,7 +26,7 @@ use aranya_crypto::{
 };
 
 use crate::{
-    AfcState, LocalChannelId, SealChannelCtx,
+    AfcState, LocalChannelId,
     buf::FixedBuf,
     client::Client,
     error::Error,
@@ -142,7 +142,8 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
                 panic!("device {id1} should have channel for global_id {global_id:?}")
             });
 
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
 
             c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
@@ -184,7 +185,8 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
             let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device {id1} should have channel for global_id {global_id:?}")
             });
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal_in_place(d1_channel_id, &mut ctx, &mut data)
                 .unwrap_or_else(|err| panic!("seal_in_place({id2}, ...): {err}"));
             data
@@ -241,7 +243,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
         recv: DeviceIdx,
         label_id: LabelId,
         seqs: &mut HashMap<(DeviceIdx, DeviceIdx, LabelId), u64>,
-        ctxs: &mut ChannelSealCtxMap<S::CipherSuite>,
+        ctxs: &mut ChannelSealCtxMap<S>,
     ) {
         let (global_id, label_id) = {
             let send_device = devices.get(send).expect("device to exist");
@@ -274,7 +276,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
                 });
             let ctx = ctxs
                 .entry((send, global_id))
-                .or_insert_with(|| SealChannelCtx::new(label_id));
+                .or_insert_with(|| <S::SealChannelCtx as From<LabelId>>::from(label_id));
             u0.seal(send_channel_id, ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("{label_id}: seal({recv}, ...): {err}"));
             dst
@@ -303,7 +305,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     }
 
     let mut seqs = HashMap::new();
-    let mut ctxs = ChannelSealCtxMap::new();
+    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
 
     for label_id in label_ids {
         for a in &device_idxs {
@@ -358,7 +360,8 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
                 panic!("device should have channel for global_id {global_id:?}")
             });
 
-            let mut seal_ctx = SealChannelCtx::new(label_id);
+            let mut seal_ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
 
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
@@ -408,7 +411,7 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::new();
+    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -422,9 +425,9 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| SealChannelCtx::new(label_id));
+                let ctx = ctxs.entry((id1, global_id)).or_insert_with(|| {
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id)
+                });
                 c1.seal_in_place(d1_channel_id, ctx, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
@@ -483,7 +486,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::new();
+    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -497,9 +500,9 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| SealChannelCtx::new(label_id));
+                let ctx = ctxs.entry((id1, global_id)).or_insert_with(|| {
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id)
+                });
                 c1.seal_in_place(d1_channel_id, ctx, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
@@ -570,7 +573,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::new();
+    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -584,9 +587,9 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| SealChannelCtx::new(label_id));
+                let ctx = ctxs.entry((id1, global_id)).or_insert_with(|| {
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id)
+                });
                 c1.seal_in_place(d1_channel_id, ctx, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
@@ -659,7 +662,8 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let mut ctx = SealChannelCtx::new(label_id);
+                let mut ctx =
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
                 c1.seal_in_place(d1_channel_id, &mut ctx, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
@@ -739,7 +743,8 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let mut ctx = SealChannelCtx::new(label_id);
+                let mut ctx =
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
                 c1.seal_in_place(d1_channel_id, &mut ctx, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
@@ -800,7 +805,8 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
             let len = GOLDEN.len() + overhead(&c1) + 100;
             let mut dst = vec![0u8; len];
             let mut buf = FixedBuf::from_slice_mut(&mut dst, len).expect("dst should be <= len");
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal(d1_channel_id, &mut ctx, &mut buf, GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst.truncate(GOLDEN.len() + overhead(&c1));
@@ -864,7 +870,7 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx = <S::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("({id1}->{id2}) seal(channel_id: {d1_channel_id}, label_id: {label_id} ...): {err}"));
             dst
@@ -940,7 +946,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
                 panic!("device {id1} should have channel for global_id {global_id:?}")
             });
             let mut dst = vec![0u8; overhead(c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx = <S::SealChannelCtx as From<LabelId>>::from(label_id);
             let err = c1
                 .seal(d1_channel_id, &mut ctx, &mut dst[..], &[])
                 .err()
@@ -973,7 +979,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx = <S::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("{id1}::seal({id2}, ...): {err}"));
             dst
@@ -1134,7 +1140,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::new();
+    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
 
     const GOLDEN: &str = "hello, world!";
 
@@ -1153,9 +1159,9 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
 
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| SealChannelCtx::new(label_id));
+                let ctx = ctxs.entry((id1, global_id)).or_insert_with(|| {
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id)
+                });
                 let res = c1.seal(d1_channel_id, ctx, &mut dst[..], GOLDEN.as_bytes());
                 if seq < seq_max {
                     res.unwrap_or_else(|err| panic!("{seq}: seal({d1_channel_id}, ...): {err}"));
@@ -1212,7 +1218,8 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
             // Remove the first byte in the tag.
@@ -1250,7 +1257,8 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst[GOLDEN.len()] = dst[GOLDEN.len()].wrapping_add(1);
@@ -1287,7 +1295,8 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
             c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
 
@@ -1346,7 +1355,8 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx =
+                <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id);
 
             let res = c1.seal(d1_channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes());
             if open_labels.contains(&label_id) {
@@ -1387,7 +1397,7 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::new();
+    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
 
     const GOLDEN: &str = "hello, world!";
 
@@ -1405,9 +1415,9 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
             });
             let ciphertext = {
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| SealChannelCtx::new(label_id));
+                let ctx = ctxs.entry((id1, global_id)).or_insert_with(|| {
+                    <<T::Afc<_> as AfcState>::SealChannelCtx as From<LabelId>>::from(label_id)
+                });
                 c1.seal(d1_channel_id, ctx, &mut dst[..], GOLDEN.as_bytes())
                     .unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
                 dst

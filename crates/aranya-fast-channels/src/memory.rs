@@ -16,7 +16,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    LocalChannelId, RemoveIfParams, SealChannelCtx,
+    LocalChannelId, RemoveIfParams,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -50,16 +50,26 @@ impl<CS: CipherSuite> State<CS> {
     }
 }
 
+/// A ZST that is used for the in-memory implementation of [`AfcState`].
+pub struct EmptySealChannelCtx;
+
+impl From<LabelId> for EmptySealChannelCtx {
+    fn from(_label: LabelId) -> Self {
+        Self
+    }
+}
+
 impl<CS> AfcState for State<CS>
 where
     CS: CipherSuite,
 {
     type CipherSuite = CS;
+    type SealChannelCtx = EmptySealChannelCtx;
 
     fn seal<F, T>(
         &self,
         id: LocalChannelId,
-        _: &mut SealChannelCtx<Self::CipherSuite>,
+        _: &mut EmptySealChannelCtx,
         f: F,
     ) -> Result<Result<T, Error>, Error>
     where

@@ -20,9 +20,9 @@ use aranya_crypto::{
     typenum::U16,
 };
 use aranya_fast_channels::{
-    AranyaState as _, Client, Directed, LocalChannelId, SealChannelCtx,
+    AranyaState as _, Client, Directed, LocalChannelId,
     crypto::Aes256Gcm,
-    shm::{self, Flag, Mode, Path},
+    shm::{self, Flag, Mode, Path, SealChannelCtx},
 };
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_main};
 

@@ -14,7 +14,6 @@ use super::{
     shared::{Index, Op, State},
 };
 use crate::{
-    SealChannelCtx,
     mutex::StdMutex,
     state::{AfcState, LocalChannelId},
     util::debug,
@@ -60,6 +59,43 @@ where
     _no_sync: PhantomData<Cell<()>>,
 }
 
+/// Contains the seal key and label ID associated with a channel.
+///
+/// This type is passed to the seal methods on
+/// [AFC Client][crate::client::Client].
+pub struct SealChannelCtx<CS: CipherSuite> {
+    key_generation: Option<(SealKey<CS>, u32)>,
+    label: LabelId,
+}
+
+impl<CS: CipherSuite> SealChannelCtx<CS> {
+    /// Creates a new [SealChannelCtx].
+    pub fn new(label: LabelId) -> Self {
+        Self {
+            key_generation: None,
+            label,
+        }
+    }
+
+    pub(crate) fn key_gen_mut(&mut self) -> &mut Option<(SealKey<CS>, u32)> {
+        &mut self.key_generation
+    }
+
+    /// Returns the label ID.
+    pub fn label_id(&self) -> LabelId {
+        self.label
+    }
+}
+
+impl<CS: CipherSuite> From<LabelId> for SealChannelCtx<CS> {
+    fn from(label: LabelId) -> Self {
+        Self {
+            key_generation: None,
+            label,
+        }
+    }
+}
+
 impl<CS> ReadState<CS>
 where
     CS: CipherSuite,
@@ -82,6 +118,7 @@ where
     CS: CipherSuite + Sized,
 {
     type CipherSuite = CS;
+    type SealChannelCtx = SealChannelCtx<Self::CipherSuite>;
 
     fn seal<F, T>(
         &self,

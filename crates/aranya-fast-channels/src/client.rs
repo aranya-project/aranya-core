@@ -10,7 +10,6 @@ use buggy::BugExt as _;
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    SealChannelCtx,
     buf::Buf,
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
@@ -62,7 +61,7 @@ impl<S: AfcState> Client<S> {
     pub fn seal(
         &mut self,
         id: LocalChannelId,
-        ctx: &mut SealChannelCtx<S::CipherSuite>,
+        ctx: &mut S::SealChannelCtx,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -101,7 +100,7 @@ impl<S: AfcState> Client<S> {
     pub fn seal_in_place<T: Buf>(
         &mut self,
         id: LocalChannelId,
-        ctx: &mut SealChannelCtx<S::CipherSuite>,
+        ctx: &mut S::SealChannelCtx,
         data: &mut T,
     ) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
@@ -142,7 +141,7 @@ impl<S: AfcState> Client<S> {
     fn do_seal<F>(
         &mut self,
         id: LocalChannelId,
-        ctx: &mut SealChannelCtx<S::CipherSuite>,
+        ctx: &mut S::SealChannelCtx,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>

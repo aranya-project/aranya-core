@@ -19,11 +19,15 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    // This trait bound is only needed for tests. Use `cfg_if`?
+    /// The context for seal operations.
+    type SealChannelCtx: From<LabelId>;
+
     /// Invokes `f` with the channel's encryption key.
     fn seal<F, T>(
         &self,
         id: LocalChannelId,
-        ctx: &mut SealChannelCtx<Self::CipherSuite>,
+        ctx: &mut Self::SealChannelCtx,
         f: F,
     ) -> Result<Result<T, Error>, Error>
     where
@@ -36,36 +40,6 @@ pub trait AfcState {
 
     /// Reports whether the channel exists.
     fn exists(&self, id: LocalChannelId) -> Result<bool, Error>;
-}
-
-/// Contains the seal key and label ID associated with a channel.
-///
-/// This type passed to the seal methods on
-/// [AFC Client][crate::client::Client]
-pub struct SealChannelCtx<CS: CipherSuite> {
-    #[cfg_attr(not(any(feature = "sdlib", feature = "posix")), allow(dead_code))]
-    key_generation: Option<(SealKey<CS>, u32)>,
-    label: LabelId,
-}
-
-impl<CS: CipherSuite> SealChannelCtx<CS> {
-    /// Creates a new [SealChannelCtx].
-    pub fn new(label: LabelId) -> Self {
-        Self {
-            key_generation: None,
-            label,
-        }
-    }
-
-    #[cfg(any(feature = "sdlib", feature = "posix"))]
-    pub(crate) fn key_gen_mut(&mut self) -> &mut Option<(SealKey<CS>, u32)> {
-        &mut self.key_generation
-    }
-
-    /// Returns the label ID.
-    pub fn label_id(&self) -> LabelId {
-        self.label
-    }
 }
 
 /// The set of Params passed to the closure in [AranyaState::remove_if]
@@ -343,9 +317,9 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, Directed, LocalChannelId, RemoveIfParams, SealChannelCtx,
+        AfcState, AranyaState, Directed, LocalChannelId, RemoveIfParams,
         error::Error,
-        memory,
+        memory::{self, EmptySealChannelCtx},
         testing::{
             test_impl,
             util::{DeviceIdx, MockImpl, States, TestImpl},
@@ -373,11 +347,12 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
+        type SealChannelCtx = EmptySealChannelCtx;
 
         fn seal<F, T>(
             &self,
             id: LocalChannelId,
-            ctx: &mut SealChannelCtx<Self::CipherSuite>,
+            ctx: &mut EmptySealChannelCtx,
             f: F,
         ) -> Result<Result<T, Error>, Error>
         where

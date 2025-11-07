@@ -24,7 +24,7 @@ use aranya_crypto::{
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{self, AfcState, AranyaState, Client, LocalChannelId, SealChannelCtx};
+use aranya_fast_channels::{self, AfcState, AranyaState, Client, LocalChannelId};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
@@ -255,7 +255,7 @@ impl<T: TestImpl> Device<T> {
         let ciphertext = {
             let (sealer, chan_id) = sealer;
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
-            let mut ctx = SealChannelCtx::new(label_id);
+            let mut ctx = <<T::Afc as AfcState>::SealChannelCtx>::from(label_id);
             sealer
                 .afc_client
                 .seal(chan_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
@@ -280,7 +280,7 @@ impl<T: TestImpl> Device<T> {
     fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId, label_id: LabelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
-        let mut ctx = SealChannelCtx::new(label_id);
+        let mut ctx = <<T::Afc as AfcState>::SealChannelCtx>::from(label_id);
         let err = sealer
             .afc_client
             .seal(channel_id, &mut ctx, &mut dst[..], GOLDEN.as_bytes())
