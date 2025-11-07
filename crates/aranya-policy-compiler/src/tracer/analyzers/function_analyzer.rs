@@ -1,4 +1,4 @@
-use aranya_policy_module::{ExitReason, Instruction, ModuleV0};
+use aranya_policy_module::{Instruction, Meta, ModuleV0};
 
 use super::{Analyzer, AnalyzerStatus};
 use crate::tracer::{TraceError, TraceFailure};
@@ -26,10 +26,9 @@ impl Analyzer for FunctionAnalyzer {
             Instruction::Return => {
                 self.have_return = true;
             }
-            // Only check for missing returns at function-ending Exits, not Check exits
-            Instruction::Exit(ExitReason::Panic | ExitReason::Normal) => {
+            Instruction::Meta(Meta::FunctionEnd) => {
+                // Check for missing return only at the function end marker
                 if !self.have_return {
-                    // Branches without returns are potential errors; it depends on whether there is a return following the branch.
                     return Ok(AnalyzerStatus::Failed("no return".to_string()));
                 }
             }
@@ -55,10 +54,12 @@ impl Analyzer for FunctionAnalyzer {
         for path in successful_instruction_paths {
             let mut found_return = false;
 
-            for &pc in path
-                .iter()
-                .take_while(|&&pc| !matches!(m.progmem.get(pc), Some(Instruction::Exit(_))))
-            {
+            for &pc in path.iter().take_while(|&&pc| {
+                !matches!(
+                    m.progmem.get(pc),
+                    Some(Instruction::Meta(Meta::FunctionEnd))
+                )
+            }) {
                 let instruction = m
                     .progmem
                     .get(pc)
