@@ -23,6 +23,13 @@
 //! communicates with the daemon over [`AfcState`] and
 //! [`AranyaState`]. By default, AFC provides a state
 //! implementation backed by shared memory.
+//! 
+//! # Notes
+//! 
+//! AFC encrypts/seals each message with a deterministic nonce derived from a
+//! base nonce and sequence number. Sequence numbers should not be re-used in a given channel
+//! but it is possible to do so by passing a "new" [`SealChannelCtx`] to the seal methods
+//! on [`Client`].
 //!
 //! # Example
 //!
