@@ -20,7 +20,7 @@ use aranya_crypto::{
     typenum::U16,
 };
 use aranya_fast_channels::{
-    AranyaState as _, Client, Directed, LocalChannelId, OpenChannelCtx, SealChannelCtx,
+    AranyaState as _, Client, Directed, LocalChannelId, SealChannelCtx,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
 };
@@ -197,12 +197,10 @@ macro_rules! bench_impl {
 					.seal(seal_channel_id, &mut seal_ctx, &mut ciphertext, &input)
 					.expect("open_hit: unable to encrypt");
 
-				let mut open_ctx = OpenChannelCtx::new(label_id);
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
 					b.iter(|| {
 						let _ = black_box(client.open(
 							black_box(open_channel_id),
-							black_box(&mut open_ctx),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						))
@@ -217,11 +215,9 @@ macro_rules! bench_impl {
 					b.iter(|| {
 						// Ignore failures instead of creating
 						// N ciphertexts.
-						let (_seal_channel_id, open_channel_id, label_id) = iter.next().expect("should repeat");
-						let mut open_ctx = OpenChannelCtx::new(*label_id);
+						let (_seal_channel_id, open_channel_id, _label_id) = iter.next().expect("should repeat");
 						let _ = client.open(
 							black_box(*open_channel_id),
-							black_box(&mut open_ctx),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						);

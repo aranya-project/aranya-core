@@ -10,8 +10,8 @@ use buggy::BugExt as _;
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
+    SealChannelCtx,
     buf::Buf,
-    ctx::{OpenChannelCtx, SealChannelCtx},
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
     state::{AfcState, LocalChannelId},
@@ -186,7 +186,6 @@ impl<S: AfcState> Client<S> {
     pub fn open(
         &self,
         local_channel_id: LocalChannelId,
-        ctx: &mut OpenChannelCtx<S::CipherSuite>,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<(LabelId, Seq), Error> {
@@ -220,7 +219,7 @@ impl<S: AfcState> Client<S> {
         }
 
         let label_id = self
-            .do_open(local_channel_id, ctx, seq, |aead, ad, seq| {
+            .do_open(local_channel_id, seq, |aead, ad, seq| {
                 aead.open(dst, ciphertext, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -247,7 +246,6 @@ impl<S: AfcState> Client<S> {
     pub fn open_in_place<T: Buf>(
         &self,
         local_channel_id: LocalChannelId,
-        ctx: &mut OpenChannelCtx<S::CipherSuite>,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
@@ -278,7 +276,7 @@ impl<S: AfcState> Client<S> {
 
         let plaintext_len = out.len();
         let label_id = self
-            .do_open(local_channel_id, ctx, seq, |aead, ad, seq| {
+            .do_open(local_channel_id, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -296,13 +294,7 @@ impl<S: AfcState> Client<S> {
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(
-        &self,
-        id: LocalChannelId,
-        ctx: &mut OpenChannelCtx<S::CipherSuite>,
-        seq: Seq,
-        f: F,
-    ) -> Result<T, Error>
+    fn do_open<F, T>(&self, id: LocalChannelId, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -312,7 +304,7 @@ impl<S: AfcState> Client<S> {
     {
         debug!("decrypting: id={id}");
 
-        self.state.open(id, ctx, |aead, label_id| {
+        self.state.open(id, |aead, label_id| {
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),

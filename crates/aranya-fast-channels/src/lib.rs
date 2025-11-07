@@ -45,8 +45,7 @@
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
-//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId, OpenChannelCtx,
-//!     SealChannelCtx,
+//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId, SealChannelCtx,
 //!     crypto::Aes256Gcm,
 //!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };
@@ -157,9 +156,8 @@
 //! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
 //!     // Create the ctx to pass in.
-//!     let mut ctx = OpenChannelCtx::new(label_id);
 //!     let (label_id, seq) =
-//!         afc_client_b.open(client_b_channel_id, &mut ctx, &mut dst[..], &ciphertext[..])?;
+//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
 //!     (label_id, seq, dst)
 //! };
 //!

@@ -16,8 +16,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    LocalChannelId, RemoveIfParams,
-    ctx::{OpenChannelCtx, SealChannelCtx},
+    LocalChannelId, RemoveIfParams, SealChannelCtx,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -74,12 +73,7 @@ where
         Ok(f(key, *label_id))
     }
 
-    fn open<F, T>(
-        &self,
-        id: LocalChannelId,
-        _: &mut OpenChannelCtx<Self::CipherSuite>,
-        f: F,
-    ) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {

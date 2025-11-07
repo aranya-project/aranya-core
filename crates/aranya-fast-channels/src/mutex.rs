@@ -113,6 +113,21 @@ impl<T: ?Sized> Mutex<T> {
     ))]
     const MUTEX_SLEEPING: u32 = 2;
 
+    /// Returns the data protected by the mutex without any
+    /// synchronization.
+    ///
+    /// # Safety
+    ///
+    /// You must provide your own synchronization. Otherwise,
+    /// doing anything with `T` is UB.
+    #[cfg(any(feature = "posix", feature = "sdlib"))]
+    pub unsafe fn inner_unsynchronized(&self) -> &T {
+        // SAFETY: the caller is providing their own
+        // synchronization, the pointer is non-null and aligned,
+        // etc.
+        unsafe { &*self.data.get() }
+    }
+
     /// Lock the mutex.
     ///
     /// The mutex will be unlocked when the result is dropped.

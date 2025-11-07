@@ -24,10 +24,7 @@ use aranya_crypto::{
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{
-    self, AfcState, AranyaState, Client, LocalChannelId,
-    ctx::{OpenChannelCtx, SealChannelCtx},
-};
+use aranya_fast_channels::{self, AfcState, AranyaState, Client, LocalChannelId, SealChannelCtx};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
@@ -268,10 +265,9 @@ impl<T: TestImpl> Device<T> {
         let (plaintext, got_seq) = {
             let (opener, chan_id) = opener;
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
-            let mut ctx = OpenChannelCtx::new(label_id);
             let (_, seq) = opener
                 .afc_client
-                .open(chan_id, &mut ctx, &mut dst[..], &ciphertext[..])
+                .open(chan_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({chan_id}, ...): {err}"));
             (dst, seq)
         };

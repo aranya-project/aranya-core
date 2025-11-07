@@ -34,9 +34,8 @@ use aranya_crypto::{
 use derive_where::derive_where;
 
 use crate::{
-    LocalChannelId, RemoveIfParams,
+    LocalChannelId, RemoveIfParams, SealChannelCtx,
     client::Client,
-    ctx::{OpenChannelCtx, SealChannelCtx},
     header::{DataHeader, Header, MsgType, Version},
     memory,
     state::{AfcState, AranyaState, Directed},
@@ -54,19 +53,7 @@ unsafe extern "C" fn OS_hardware_rand() -> u32 {
 /// Index used to look up [devices][Device] in [Aranya::devices]
 pub(crate) type DeviceIdx = usize;
 
-pub(crate) struct ChannelCtxMaps<CS: CipherSuite> {
-    pub(crate) seals: HashMap<(DeviceIdx, GlobalChannelId), SealChannelCtx<CS>>,
-    pub(crate) opens: HashMap<(DeviceIdx, GlobalChannelId), OpenChannelCtx<CS>>,
-}
-
-impl<CS: CipherSuite> ChannelCtxMaps<CS> {
-    pub(crate) fn new() -> Self {
-        Self {
-            seals: HashMap::new(),
-            opens: HashMap::new(),
-        }
-    }
-}
+pub(crate) type ChannelSealCtxMap<CS> = HashMap<(DeviceIdx, GlobalChannelId), SealChannelCtx<CS>>;
 
 /// The first vec contains the author's channels.
 ///
