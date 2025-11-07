@@ -100,8 +100,6 @@ pub(crate) type CS<A, K> = TestCs<
     <DefaultCipherSuite as CipherSuite>::Signer,
 >;
 
-// TODO(Steve): Update scenarios. The current code doesn't test the scenarios correctly
-// because caching works differently.
 macro_rules! bench_impl {
 	($name:ident, $aead:ty, $kdf:ty) => {
 		fn $name(c: &mut Criterion) {
@@ -160,6 +158,9 @@ macro_rules! bench_impl {
 				let (seal_channel_id, _, label_id) = *chans.last().unwrap();
 
 				let mut ctx = SealChannelCtx::new(label_id);
+				client
+					.seal(seal_channel_id, &mut ctx, &mut ciphertext, &input)
+					.expect("seal_hit: unable to encrypt");
 				g.bench_function(BenchmarkId::new("seal_hit", *size), |b| {
 					b.iter(|| {
 						black_box(client.seal(
