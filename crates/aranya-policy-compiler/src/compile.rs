@@ -1028,6 +1028,7 @@ impl<'a> CompileState<'a> {
             Label::new(function_node.identifier.name.clone(), LabelType::Function),
         )?;
         self.exit_statement_context();
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         Ok(())
     }
 

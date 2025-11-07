@@ -2,7 +2,7 @@ mod analyzers;
 mod error;
 
 pub use analyzers::*;
-use aranya_policy_module::{Instruction, Label, ModuleV0, Target};
+use aranya_policy_module::{Instruction, Label, Meta, ModuleV0, Target};
 pub use error::TraceError;
 use error::TraceErrorType;
 
@@ -217,11 +217,11 @@ impl TraceAnalyzer<'_> {
                 }
                 Instruction::Return => {
                     if !self.call_stack.is_empty() {
-                        pc = self.call_stack.pop().expect("impossible empty stack");
+                        pc = self.call_stack.pop().expect("impossible stack");
                     }
-                    // Continue execution to allow analyzers to check for unreachable code
+                    // Continue execution to allow analyzers to check for unreachable code... Unless we returned from an action (which uses a Return but doesn't return a value)
                 }
-                Instruction::Exit(_) => {
+                Instruction::Meta(Meta::FunctionEnd) | Instruction::Exit(_) => {
                     successful_branch_paths.push(self.branches.clone());
                     successful_instruction_paths.push(self.instruction_path.clone());
                     return Ok(TraceIntermediate {

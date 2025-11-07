@@ -2750,8 +2750,6 @@ fn test_validate_unreachable_code() {
             }
             return 0
         }"#,
-        // Both branches return, but code after is in the implicit Exit(Panic)
-        // which is not user code, so we don't flag it
         r#"function c(x int) int {
             if x > 0 {
                 return 1
@@ -2769,6 +2767,16 @@ fn test_validate_unreachable_code() {
             let y = 2
             return y
         }"#,
+        r#"
+        function with_match(x int) int {
+            match x {
+                0 => { return 0 }
+                _ => { }
+            }
+            let y = 6
+            return y
+        }
+        "#,
     ];
 
     let invalid = [
@@ -2908,14 +2916,24 @@ fn test_validate_publish() {
         ),
     ];
 
-    for p in valid {
-        let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+    for (i, p) in valid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            !validate(&m),
+            "Case {}: Expected case to be valid: {}",
+            i,
+            p
+        );
     }
 
-    for p in invalid {
-        let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+    for (i, p) in invalid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            validate(&m),
+            "Case {}: Expected case to be invalid: {}",
+            i,
+            p
+        );
     }
 }
 

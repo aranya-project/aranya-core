@@ -72,6 +72,6 @@ impl Analyzer for FinishAnalyzer {
             // and we leave the TraceFailure as-is.
         }
 
-        vec![] // No new failures to report
+        vec![]
     }
 }
