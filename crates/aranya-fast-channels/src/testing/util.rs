@@ -1,6 +1,5 @@
 //! Testing utilities.
 
-use core::ops::{Deref, DerefMut};
 use std::{
     cmp,
     collections::HashMap,
@@ -53,30 +52,6 @@ unsafe extern "C" fn OS_hardware_rand() -> u32 {
 
 /// Index used to look up [devices][Device] in [Aranya::devices]
 pub(crate) type DeviceIdx = usize;
-
-pub(crate) struct ChannelSealCtxMap<A: AfcState>(
-    HashMap<(DeviceIdx, GlobalChannelId), A::SealChannelCtx>,
-);
-
-impl<A: AfcState> ChannelSealCtxMap<A> {
-    pub(crate) fn new() -> Self {
-        Self(HashMap::new())
-    }
-}
-
-impl<A: AfcState> Deref for ChannelSealCtxMap<A> {
-    type Target = HashMap<(DeviceIdx, GlobalChannelId), A::SealChannelCtx>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<A: AfcState> DerefMut for ChannelSealCtxMap<A> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 /// The first vec contains the author's channels.
 ///

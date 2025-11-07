@@ -32,7 +32,7 @@ use crate::{
     error::Error,
     header::DataHeader,
     testing::util::{
-        Aranya, ChanOp, ChannelSealCtxMap, DataHeaderBuilder, Device, DeviceIdx, LimitedAead,
+        Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, GlobalChannelId, LimitedAead,
         TestEngine, TestImpl,
     },
 };
@@ -243,7 +243,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
         recv: DeviceIdx,
         label_id: LabelId,
         seqs: &mut HashMap<(DeviceIdx, DeviceIdx, LabelId), u64>,
-        ctxs: &mut ChannelSealCtxMap<S>,
+        ctxs: &mut HashMap<(DeviceIdx, GlobalChannelId), S::SealChannelCtx>,
     ) {
         let (global_id, label_id) = {
             let send_device = devices.get(send).expect("device to exist");
@@ -305,7 +305,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     }
 
     let mut seqs = HashMap::new();
-    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
+    let mut ctxs = HashMap::new();
 
     for label_id in label_ids {
         for a in &device_idxs {
@@ -411,7 +411,7 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
+    let mut ctxs = HashMap::new();
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -486,7 +486,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
+    let mut ctxs = HashMap::new();
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -573,7 +573,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
+    let mut ctxs = HashMap::new();
 
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
@@ -1140,7 +1140,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
+    let mut ctxs = HashMap::new();
 
     const GOLDEN: &str = "hello, world!";
 
@@ -1397,7 +1397,7 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
 
-    let mut ctxs = ChannelSealCtxMap::<T::Afc<_>>::new();
+    let mut ctxs = HashMap::new();
 
     const GOLDEN: &str = "hello, world!";
 
