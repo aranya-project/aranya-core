@@ -126,7 +126,7 @@ const fn overhead<S: AfcState>(_: &Client<S>) -> usize {
 pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_seal_open_basic", label_ids.len() * 2, eng);
+    let mut d = Aranya::<T, _>::new("test_seal_open_basic", label_ids.len() as u32 * 2, eng);
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
@@ -164,7 +164,11 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
 pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_seal_open_in_place_basic", label_ids.len() * 2, eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_seal_open_in_place_basic",
+        label_ids.len() as u32 * 2,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
@@ -215,7 +219,11 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_multi_client", max_nodes * label_ids.len() * 2, eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_multi_client",
+        max_nodes * label_ids.len() as u32 * 2,
+        eng,
+    );
 
     let mut device_idxs = Vec::new();
     let mut clients = Vec::new();
@@ -310,7 +318,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 pub fn test_remove<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_remove", 2 * 3 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new("test_remove", 2 * 3 * label_ids.len() as u32, eng);
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
@@ -367,7 +375,7 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
 pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_remove_all", 2 * 3 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new("test_remove_all", 2 * 3 * label_ids.len() as u32, eng);
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
@@ -433,7 +441,7 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
 pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_remove_if", 2 * 3 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new("test_remove_if", 2 * 3 * label_ids.len() as u32, eng);
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
@@ -509,7 +517,11 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
 pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_remove_no_channels", 2 * 3 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_remove_no_channels",
+        2 * 3 * label_ids.len() as u32,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
@@ -577,7 +589,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
 pub fn test_channels_exist<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * 3 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * 3 * label_ids.len() as u32, eng);
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
@@ -657,7 +669,11 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
         LabelId::random(&mut eng),
     ];
 
-    let mut d = Aranya::<T, _>::new("test_channels_not_exist", 2 * 3 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_channels_not_exist",
+        2 * 3 * label_ids.len() as u32,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
@@ -931,7 +947,11 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
 
     let labels = [label1, label2, label3, label4];
 
-    let mut d = Aranya::<T, _>::new("test_unidirectional_exhaustive", 2 * 5 * labels.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_unidirectional_exhaustive",
+        2 * 5 * labels.len() as u32,
+        eng,
+    );
 
     let mut c1 = d.new_client_with_type([
         (label1, ChanOp::OpenOnly),
@@ -1061,7 +1081,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng)];
 
-    let mut d = Aranya::<T, _>::new("test_key_expiry", 2 * 2 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new("test_key_expiry", 2 * 2 * label_ids.len() as u32, eng);
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
@@ -1124,7 +1144,11 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
 pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_open_truncated_tag", 2 * 2 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_open_truncated_tag",
+        2 * 2 * label_ids.len() as u32,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
@@ -1161,7 +1185,11 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
 pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_open_modified_tag", 2 * 2 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_open_modified_tag",
+        2 * 2 * label_ids.len() as u32,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
@@ -1197,7 +1225,11 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
 pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_open_different_seq", 2 * 2 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_open_different_seq",
+        2 * 2 * label_ids.len() as u32,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
@@ -1253,7 +1285,7 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new(
         "test_open_unknown_channel_label",
-        2 * 2 * label_ids.len(),
+        2 * 2 * label_ids.len() as u32,
         eng,
     );
     let (mut c1, id1) = d.new_client(label_ids);
@@ -1305,7 +1337,11 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     type N = U1;
     let (mut eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng)];
-    let mut d = Aranya::<T, _>::new("test_monotonic_seq_by_one", 2 * 2 * label_ids.len(), eng);
+    let mut d = Aranya::<T, _>::new(
+        "test_monotonic_seq_by_one",
+        2 * 2 * label_ids.len() as u32,
+        eng,
+    );
     let (mut c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 

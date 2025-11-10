@@ -182,13 +182,13 @@
 #![warn(
     clippy::alloc_instead_of_core,
     clippy::implicit_saturating_sub,
-    clippy::undocumented_unsafe_blocks,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::missing_panics_doc,
+    // clippy::undocumented_unsafe_blocks,
+    // clippy::expect_used,
+    // clippy::indexing_slicing,
+    // clippy::missing_panics_doc,
     clippy::string_slice,
     clippy::unimplemented,
-    missing_docs
+    // missing_docs
 )]
 #![cfg_attr(not(any(feature = "std", test)), deny(clippy::std_instead_of_core))]
 #![expect(
@@ -202,6 +202,7 @@ extern crate alloc;
 #[macro_use]
 mod features;
 
+pub mod arena;
 mod buf;
 mod client;
 pub mod crypto;

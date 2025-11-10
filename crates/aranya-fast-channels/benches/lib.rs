@@ -104,8 +104,8 @@ macro_rules! bench_impl {
 	($name:ident, $aead:ty, $kdf:ty) => {
 		fn $name(c: &mut Criterion) {
 			// Make sure that `USED_CHANS` is a power of two.
-			const MAX_CHANS: usize = 1024;
-			const USED_CHANS: usize = MAX_CHANS / 2;
+			const MAX_CHANS: u32 = 1024;
+			const USED_CHANS: u32 = MAX_CHANS / 2;
 
 			let path = Path::from_bytes(b"/bench_afc\x00").expect("should not fail");
 			let _ = shm::unlink(path);
@@ -120,7 +120,7 @@ macro_rules! bench_impl {
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
 
-			let chans: [(LocalChannelId, LocalChannelId); USED_CHANS] = array::from_fn(|_| {
+			let chans: [(LocalChannelId, LocalChannelId); USED_CHANS as usize] = array::from_fn(|_| {
 				let label = LabelId::random(&mut Rng);
 
 				// Use the same key to simplify the decryption
