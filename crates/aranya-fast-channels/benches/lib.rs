@@ -174,8 +174,9 @@ macro_rules! bench_impl {
 					})
 				});
 
-				// The worst case scenario: the peer's info is
-				// never cached.
+				// TODO: seal_miss no longer misses since each channel gets its
+                // own cache. There are still misses when the list generation
+                // changes, so we should measure those.
 				let mut iter = chans.iter_mut();
 				g.bench_function(BenchmarkId::new("seal_miss", *size), |b| {
                     let (seal_ctx, _) = iter.next().expect("not enough channels");
