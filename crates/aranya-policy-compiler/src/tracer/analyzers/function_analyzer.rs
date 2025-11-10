@@ -53,6 +53,7 @@ impl Analyzer for FunctionAnalyzer {
 
         for path in successful_instruction_paths {
             let mut found_return = false;
+            let mut call_depth: usize = 0;
 
             for &pc in path.iter().take_while(|&&pc| {
                 !matches!(
@@ -65,9 +66,22 @@ impl Analyzer for FunctionAnalyzer {
                     .get(pc)
                     .expect("PC should be valid in successful path");
 
-                if *instruction == Instruction::Return {
-                    found_return = true;
-                    continue;
+                // Track call depth to distinguish between returns in the current function
+                // vs returns in nested function calls
+                match instruction {
+                    Instruction::Call(_) => {
+                        call_depth += 1;
+                        continue;
+                    }
+                    Instruction::Return => {
+                        if call_depth > 0 {
+                            call_depth = call_depth.saturating_sub(1);
+                        } else {
+                            found_return = true;
+                        }
+                        continue;
+                    }
+                    _ => {}
                 }
 
                 // Skip control flow and metadata instructions so we don't track them as unreachable

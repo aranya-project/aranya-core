@@ -2627,13 +2627,25 @@ fn test_validate_unreachable_code() {
             let y = 2
             return y
         }"#,
-        r#"
-        function with_match(x int) int {
+        r#"function with_match(x int) int {
             match x {
                 0 => { return 0 }
                 _ => { }
             }
             let y = 6
+            return y
+        }
+        "#,
+        r#"
+        function baz() int {
+            let x = 5
+            return x
+        }
+        function foobar() int {
+            return baz()
+        }
+        function should_be_valid() int {
+            let y = foobar()
             return y
         }
         "#,
