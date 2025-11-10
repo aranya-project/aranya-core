@@ -58,7 +58,7 @@ where
 
     type SealCtx = LocalChannelId;
 
-    unsafe fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
         Ok(id)
     }
 

@@ -19,13 +19,15 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
     type SealCtx;
 
     /// Sets up the seal context for a given channel.
     ///
-    /// # SAFETY
     /// This must only be called once for any `id`.
-    unsafe fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error>;
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error>;
 
     /// Invokes `f` with the channel's encryption key.
     fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
@@ -348,8 +350,8 @@ mod test {
         type CipherSuite = CS;
         type SealCtx = <memory::State<CS> as AfcState>::SealCtx;
 
-        unsafe fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
-            unsafe { self.state.setup_seal_ctx(id) }
+        fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+            self.state.setup_seal_ctx(id)
         }
 
         fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>

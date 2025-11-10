@@ -53,8 +53,12 @@ impl<S: AfcState> Client<S> {
         v
     }
 
-    pub unsafe fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<S::SealCtx, Error> {
-        unsafe { self.state.setup_seal_ctx(id) }
+    /// Set up the seal context for the given channel.
+    ///
+    /// This must only be called once for any given ID. Failure to
+    /// do so will result in repeated sequence numbers.
+    pub fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<S::SealCtx, Error> {
+        self.state.setup_seal_ctx(id)
     }
 
     /// Encrypts and authenticates `plaintext` for a channel.

@@ -1,10 +1,4 @@
-use core::{
-    cell::Cell,
-    fmt::Debug,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    sync::atomic::Ordering,
-};
+use core::{cell::Cell, fmt::Debug, marker::PhantomData, sync::atomic::Ordering};
 
 use aranya_crypto::{
     CipherSuite,
@@ -17,7 +11,7 @@ use derive_where::derive_where;
 use super::{
     error::Error,
     path::{Flag, Mode, Path},
-    shared::{Index, KeyId, Op, State},
+    shared::{Index, Op, State},
 };
 use crate::{
     mutex::StdMutex,
@@ -84,6 +78,7 @@ where
     }
 }
 
+/// Sealing channel context.
 pub struct SealCtx<CS: CipherSuite>(Option<Cache<SealKey<CS>>>);
 
 impl<CS> AfcState for ReadState<CS>
@@ -94,7 +89,7 @@ where
 
     type SealCtx = SealCtx<CS>;
 
-    unsafe fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, crate::Error> {
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, crate::Error> {
         let mutex = self.inner.load_read_list()?;
         let mut list = mutex.lock().assume("poisoned")?;
 
@@ -259,23 +254,5 @@ where
         let mutex = self.inner.load_read_list()?;
         let list = mutex.lock().assume("poisoned")?;
         Ok(list.exists(id, None, Op::Any)?)
-    }
-}
-
-struct CachedSealKey<CS: CipherSuite> {
-    key: SealKey<CS>,
-    id: KeyId,
-}
-
-impl<CS: CipherSuite> Deref for CachedSealKey<CS> {
-    type Target = SealKey<CS>;
-    fn deref(&self) -> &Self::Target {
-        &self.key
-    }
-}
-
-impl<CS: CipherSuite> DerefMut for CachedSealKey<CS> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.key
     }
 }
