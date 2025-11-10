@@ -70,7 +70,7 @@ impl Analyzer for FunctionAnalyzer {
                 // vs returns in nested function calls
                 match instruction {
                     Instruction::Call(_) => {
-                        call_depth += 1;
+                        call_depth = call_depth.saturating_add(1);
                         continue;
                     }
                     Instruction::Return => {
