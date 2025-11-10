@@ -137,8 +137,17 @@ where
         self.inner.lock().assume("poisoned")?.chans.retain(
             |&id,
              ChanMapValue {
-                 label_id, peer_id, ..
-             }| !f(RemoveIfParams::new(id, *label_id, *peer_id)),
+                 label_id,
+                 peer_id,
+                 keys,
+             }| {
+                !f(RemoveIfParams::new(
+                    id,
+                    *label_id,
+                    *peer_id,
+                    keys.direction(),
+                ))
+            },
         );
         Ok(())
     }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.11.0...aranya-crypto-v0.12.0) - 2025-11-05
+
+### Other
+
+- remove ([#451](https://github.com/aranya-project/aranya-core/pull/451))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.10.0...aranya-crypto-v0.11.0) - 2025-10-16
 
 ### Other

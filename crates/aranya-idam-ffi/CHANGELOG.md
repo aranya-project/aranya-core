@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.14.0...aranya-idam-ffi-v0.15.0) - 2025-11-05
+
+### Other
+
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+
 ## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.13.0...aranya-idam-ffi-v0.14.0) - 2025-10-16
 
 ### Other

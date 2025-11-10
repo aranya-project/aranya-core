@@ -41,15 +41,23 @@ pub struct RemoveIfParams {
     pub label_id: LabelId,
     /// The device ID of the peer associated with this channel
     pub peer_id: DeviceId,
+    /// Describes the direction that data flows in the channel.
+    pub direction: ChannelDirection,
 }
 
 impl RemoveIfParams {
     /// Create a new [RemoveIfParams].
-    pub fn new(local_channel_id: LocalChannelId, label_id: LabelId, peer_id: DeviceId) -> Self {
+    pub fn new(
+        local_channel_id: LocalChannelId,
+        label_id: LabelId,
+        peer_id: DeviceId,
+        direction: ChannelDirection,
+    ) -> Self {
         Self {
             local_channel_id,
             label_id,
             peer_id,
+            direction,
         }
     }
 }
@@ -197,6 +205,14 @@ impl<S, O> Directed<S, O> {
             Self::SealOnly { .. } => None,
         }
     }
+
+    /// Returns the corresponding [ChannelDirection].
+    pub fn direction(&self) -> ChannelDirection {
+        match self {
+            Self::SealOnly { .. } => ChannelDirection::Seal,
+            Self::OpenOnly { .. } => ChannelDirection::Open,
+        }
+    }
 }
 
 impl<S, O> Directed<&S, &O> {
@@ -271,6 +287,15 @@ impl<S, O> Debug for Directed<S, O> {
             Self::OpenOnly { .. } => f.write_str("OpenOnly { .. }"),
         }
     }
+}
+
+/// Describes the flow of data for an AFC channel.
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ChannelDirection {
+    /// See [`Directed::SealOnly`].
+    Seal,
+    /// See [`Directed::OpenOnly`].
+    Open,
 }
 
 #[cfg(test)]
