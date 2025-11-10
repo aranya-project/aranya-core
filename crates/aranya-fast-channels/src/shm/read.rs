@@ -64,7 +64,7 @@ where
 /// This type is passed to the seal methods on
 /// [AFC Client][crate::client::Client].
 pub struct SealChannelCtx<CS: CipherSuite> {
-    key_generation: Option<(SealKey<CS>, u32)>,
+    key_generation_index: Option<(SealKey<CS>, u32, Index)>,
     label: LabelId,
 }
 
@@ -72,13 +72,13 @@ impl<CS: CipherSuite> SealChannelCtx<CS> {
     /// Creates a new [SealChannelCtx].
     pub fn new(label: LabelId) -> Self {
         Self {
-            key_generation: None,
+            key_generation_index: None,
             label,
         }
     }
 
-    pub(crate) fn key_gen_mut(&mut self) -> &mut Option<(SealKey<CS>, u32)> {
-        &mut self.key_generation
+    fn key_gen_mut(&mut self) -> &mut Option<(SealKey<CS>, u32, Index)> {
+        &mut self.key_generation_index
     }
 
     /// Returns the label ID.
@@ -90,7 +90,7 @@ impl<CS: CipherSuite> SealChannelCtx<CS> {
 impl<CS: CipherSuite> From<LabelId> for SealChannelCtx<CS> {
     fn from(label: LabelId) -> Self {
         Self {
-            key_generation: None,
+            key_generation_index: None,
             label,
         }
     }
@@ -137,7 +137,7 @@ where
 
         let hint = match ctx.key_gen_mut() {
             // There is a cache entry for this channel.
-            Some((key, ctx_generation)) => {
+            Some((key, ctx_generation, ctx_idx)) => {
                 // SAFETY: we only access an atomic field.
                 let generation = unsafe {
                     mutex
@@ -152,11 +152,11 @@ where
 
                     return Ok(f(key, label_id));
                 }
-                // TODO(Steve): Add `Index` to `SealChannelCtx`.
+
                 // The generations are different, so
                 // optimistically use `idx` to try and speed up
                 // the list traversal.
-                None
+                Some(*ctx_idx)
             }
             _ => None,
         };
@@ -169,16 +169,18 @@ where
         // to avoid ownership conflicts with `chan`.
         let generation = list.generation.load(Ordering::Relaxed);
 
-        let (chan, _idx) = match list.find_mut(id, hint, Op::Seal)? {
+        let (chan, idx) = match list.find_mut(id, hint, Op::Seal)? {
             None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
 
         let maybe_key_gen = ctx.key_gen_mut();
         let key_gen = match maybe_key_gen {
-            None => {
-                maybe_key_gen.insert((SealKey::from_raw(&chan.seal_key, Seq::ZERO)?, generation))
-            }
+            None => maybe_key_gen.insert((
+                SealKey::from_raw(&chan.seal_key, Seq::ZERO)?,
+                generation,
+                idx,
+            )),
             Some(key) => key,
         };
 
