@@ -1210,7 +1210,7 @@ impl<'a> CompileState<'a> {
         if command.policy.is_empty() {
             return Err(self.err_loc(
                 CompileErrorType::Unknown(String::from("Empty/missing policy block in command")),
-                command.span.start(),
+                command.span,
             ));
         }
 
