@@ -1506,7 +1506,7 @@ fn test_check_errors() -> anyhow::Result<()> {
                 recall {
                 }
             }"#,
-            ident!("default"),
+            ident!("Foo_recall_default"),
         ),
         (
             r#"command Foo {
@@ -1514,12 +1514,12 @@ fn test_check_errors() -> anyhow::Result<()> {
                 seal { return todo() }
                 open { return todo() }
                 policy {
-                    check false or recall bar
+                    check false or recall bar()
                 }
-                recall bar {
+                recall bar() {
                 }
             }"#,
-            ident!("bar"),
+            ident!("Foo_recall_bar"),
         ),
     ];
 
