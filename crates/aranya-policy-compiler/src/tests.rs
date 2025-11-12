@@ -3195,7 +3195,7 @@ fn test_recall_blocks() {
             policy {
                 finish {}
             }
-            recall foo {
+            recall foo() {
             }
         }"#,
         // Command with one unnamed and one named recall block
@@ -3209,7 +3209,7 @@ fn test_recall_blocks() {
             }
             recall {
             }
-            recall foo {
+            recall foo() {
             }
         }"#,
         // Command with multiple named recall blocks
@@ -3221,11 +3221,11 @@ fn test_recall_blocks() {
             policy {
                 finish {}
             }
-            recall foo {
+            recall foo() {
             }
-            recall bar {
+            recall bar() {
             }
-            recall baz {
+            recall baz() {
             }
         }"#,
     ];
@@ -3246,9 +3246,9 @@ fn test_recall_blocks() {
                 policy {
                     finish {}
                 }
-                recall foo {
+                recall foo() {
                 }
-                recall foo {
+                recall foo() {
                 }
             }"#,
             CompileErrorType::AlreadyDefined("recall block 'foo'".to_string()),

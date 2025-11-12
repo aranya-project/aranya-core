@@ -1164,10 +1164,10 @@ where
         {
             return Err(MachineErrorType::ContextMismatch.into());
         }
-        let label_name = alloc::format!("{}_{}", this_data.name, recall_block_name)
-            .parse::<Identifier>()
-            .expect("Failed to create identifier from concatenated string");
-        self.setup_command(Label::new(label_name, LabelType::CommandRecall), this_data)?;
+        self.setup_command(
+            Label::new(recall_block_name, LabelType::CommandRecall),
+            this_data,
+        )?;
         self.ipush(envelope)?;
         self.run()
     }

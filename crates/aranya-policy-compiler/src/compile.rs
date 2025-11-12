@@ -1350,7 +1350,11 @@ impl<'a> CompileState<'a> {
             }
             ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap(e, ExitReason::Check(ident!("default")))?
+                let StatementContext::CommandPolicy(cmd) = self.get_statement_context()? else {
+                    return Err(self.err(CompileErrorType::InvalidExpression(expression.clone())));
+                };
+                let name = self.command_recall_name(&cmd, None)?;
+                self.compile_unwrap(e, ExitReason::Check(name))?
             }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -1524,8 +1528,9 @@ impl<'a> CompileState<'a> {
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
 
-                    let recall_name = s.recall.as_ref().map(|fc| fc.identifier.name.clone());
-                    self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
+                    let recall_name = s.recall.as_ref().map(|fc| fc.identifier.clone());
+                    let n = self.command_recall_name(&cmd, recall_name)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
                 }
                 (
                     StmtKind::Match(s),
@@ -1856,6 +1861,7 @@ impl<'a> CompileState<'a> {
                     self.compile_function_call(f, true)?;
                 }
                 (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
+                    // TODO use compile_function_call to reduce code duplication
                     let Some(action_def) = self
                         .policy
                         .actions
@@ -2028,6 +2034,8 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
+        // Finish functions use temporary labels because they don't return. If we used function
+        // labels, the [`function_analyzer`](crate::target::function_analyzer) would fail them for that.
         self.define_label(
             Label::new_temp(function_node.identifier.name.clone()),
             self.wp,
@@ -2079,6 +2087,7 @@ impl<'a> CompileState<'a> {
         let label = Label::new(
             fc.identifier.name.clone(),
             if is_finish {
+                // See comment in `compile_finish_function`
                 LabelType::Temporary
             } else {
                 LabelType::Function
@@ -2246,21 +2255,25 @@ impl<'a> CompileState<'a> {
     }
 
     /// Returns a unique recall block name for the given command and optional name.
+    /// The name follows the format: `<command>_recall_<name>`, where `<name>` is "default" for the default recall block.
     fn command_recall_name(
         &self,
-        command_name: &Ident,
-        name: Option<&Ident>,
+        command: &ast::CommandDefinition,
+        recall_name: Option<Ident>,
     ) -> Result<Identifier, CompileError> {
         format!(
-            "{}::recall_{}",
-            command_name.as_str(),
-            name.map(|n| n.as_str()).unwrap_or("")
+            "{}_recall_{}",
+            command.identifier.as_str(),
+            recall_name
+                .as_ref()
+                .map(|n| n.as_str())
+                .unwrap_or("default")
         )
         .try_into()
         .map_err(|_| {
             CompileError::new(CompileErrorType::InvalidType(format!(
-                "invalid recall block name for command '{}'",
-                command_name
+                "invalid recall block name for command '{:?}'",
+                recall_name
             )))
         })
     }
@@ -2273,20 +2286,20 @@ impl<'a> CompileState<'a> {
 
         // Compile each recall block
         for recall_block in &command.recalls {
-            // Check for duplicate recall block names
-            let block_name =
-                self.command_recall_name(&command.identifier, recall_block.identifier.as_ref())?;
-            if !named_blocks.insert(block_name.clone()) {
+            let full_name = self.command_recall_name(&command, recall_block.identifier.clone())?;
+            if !named_blocks.insert(full_name.clone()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                    "recall block '{}'",
-                    block_name
+                    "recall block '{}' for command '{}' defined more than once",
+                    full_name
+                        .as_str()
+                        .split("_")
+                        .last()
+                        .expect("should have recall name"),
+                    command.identifier.as_str()
                 ))));
             }
 
-            let label_name: Identifier =
-                self.command_recall_name(&command.identifier, recall_block.identifier.as_ref())?;
-
-            self.define_label(Label::new(label_name, LabelType::CommandRecall), self.wp)?;
+            self.define_label(Label::new(full_name, LabelType::CommandRecall), self.wp)?;
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
             self.identifier_types.enter_function();
