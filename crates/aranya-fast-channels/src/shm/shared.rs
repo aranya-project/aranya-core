@@ -91,8 +91,9 @@ fn getpagesize() -> Result<Option<usize>, PageSizeError> {
 
 /// Used by both `ReadState` and `WriteState`.
 #[derive(Debug)]
+#[derive_where(Clone)]
 pub(super) struct State<CS> {
-    ptr: Mapping<SharedMem<CS>>,
+    pub(super) ptr: Mapping<SharedMem<CS>>,
     /// The maximum number of channels supported by the shared
     /// memory.
     max_chans: usize,
