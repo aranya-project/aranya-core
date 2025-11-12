@@ -55,8 +55,10 @@ impl<S: AfcState> Client<S> {
 
     /// Set up the seal context for the given channel.
     ///
-    /// This must only be called once for any given ID. Failure to
-    /// do so will result in repeated sequence numbers.
+    /// This must only be called once for any given channel ID. Failure to
+    /// do so will result in repeated usage of sequence numbers and thus a
+    /// repeated use of a nonce. This will open the channel up to a variety
+    /// of attacks and remove any security guarantees.
     pub fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<S::SealCtx, Error> {
         self.state.setup_seal_ctx(id)
     }
@@ -156,11 +158,7 @@ impl<S: AfcState> Client<S> {
             /* ad: */ &AuthData,
         ) -> Result<Seq, Error>,
     {
-        // debug!("finding seal info: id={id}");
-
         let seq = self.state.seal(ctx, |aead, label_id| {
-            // debug!("encrypting id={id}");
-
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
