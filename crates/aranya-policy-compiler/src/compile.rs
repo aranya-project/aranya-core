@@ -1475,41 +1475,6 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
-                // HACK this should be removed when we have asserts. check is only valid in command contexts
-                (
-                    StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
-                    let et = self.compile_expression(&s.expression)?;
-                    if !et.fits_type(&VType {
-                        kind: TypeKind::Bool,
-                        span: s.expression.span,
-                    }) {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "check must have boolean expression",
-                        ))));
-                    }
-                    // The current instruction is the branch. The next
-                    // instruction is the following panic you arrive at
-                    // if the expression is false. The instruction you
-                    // branch to if the check succeeds is the
-                    // instruction after that - current instruction + 2.
-                    let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
-                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-
-                    // Push recall args on the stack. When the runtime executes the named recall block, its arg values will already be on the stack.
-                    if let Some(ref recall) = s.recall {
-                        for arg in &recall.arguments {
-                            self.compile_expression(arg)?;
-                        }
-                    }
-
-                    let recall_name = s.recall.as_ref().map(|fc| fc.identifier.name.clone());
-                    self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
-                }
-                // END HACK
                 (StmtKind::Check(s), StatementContext::CommandPolicy(cmd)) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
