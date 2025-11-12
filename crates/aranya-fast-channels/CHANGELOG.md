@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.15.0...aranya-fast-channels-v0.16.0) - 2025-11-12
+
+### Other
+
+- add `SealCtx` to fix `Seq` tracking ([#480](https://github.com/aranya-project/aranya-core/pull/480))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.14.0...aranya-fast-channels-v0.15.0) - 2025-11-05
 
 ### Other
