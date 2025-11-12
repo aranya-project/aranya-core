@@ -131,6 +131,9 @@ pub const POLICY_MATCH: &str = r#"
             6 => {
                 publish Result { x: x }
             }
+            _ => { 
+                publish Result { x: saturating_add(1, x) }
+            }
         }
     }
 "#;
