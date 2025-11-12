@@ -1,14 +1,18 @@
 use core::{
     alloc::{Layout, LayoutError},
     cell::UnsafeCell,
+    fmt::{self, Debug},
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
     sync::atomic::{AtomicU32, Ordering},
 };
 
+use derive_where::derive_where;
+
 use crate::util::layout_error;
 
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct Arena<T>(ArenaInner<[Node<T>]>);
 
 #[repr(C)]
@@ -22,22 +26,46 @@ pub struct Index {
 pub struct ArenaInner<S: ?Sized> {
     // TODO: remove write lock?
     write_lock: AtomicU32,
-    free: UnsafeCell<u32>,
-    live: UnsafeCell<u32>,
+    // free: UnsafeCell<u32>,
+    // live: UnsafeCell<u32>,
     slots: S,
+}
+
+impl<S: Debug + ?Sized> Debug for ArenaInner<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ArenaInner")
+            .field("write_loc", &self.write_lock)
+            // .field("free", unsafe { &*self.free.get() })
+            // .field("live", unsafe { &*self.live.get() })
+            .field("slots", &&self.slots)
+            .finish()
+    }
 }
 
 #[repr(C)]
 struct Node<T> {
     state: AtomicU32,
-    data: UnsafeCell<Data<T>>, // protected by node state lock
-    prev: UnsafeCell<u32>,     // protected by arena write lock
+    // protected by node state lock
+    data: UnsafeCell<Data<T>>,
+    // protected by arena write lock
+    // prev: UnsafeCell<u32>,
+}
+
+impl<T> Debug for Node<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Node")
+            .field("state", &self.state)
+            .field("data", unsafe { &*self.data.get() })
+            // .field("prev", unsafe { &*self.prev.get() })
+            .finish()
+    }
 }
 
 #[repr(C)]
+#[derive_where(Debug)]
 struct Data<T> {
     generation: u32,
-    next: u32,
+    // next: u32,
     item: MaybeUninit<T>,
 }
 
@@ -79,18 +107,18 @@ impl<T> Arena<T> {
             let ptr = core::ptr::slice_from_raw_parts_mut(ptr, len as usize)
                 as *mut ArenaInner<[MaybeUninit<Node<T>>]>;
             (*ptr).write_lock = AtomicU32::new(0);
-            (*ptr).free = UnsafeCell::new(0);
-            (*ptr).live = UnsafeCell::new(u32::MAX);
+            // (*ptr).free = UnsafeCell::new(0);
+            // (*ptr).live = UnsafeCell::new(u32::MAX);
             for (i, node) in (*ptr).slots.iter_mut().enumerate() {
                 let i = i as u32;
                 node.write(Node {
                     state: AtomicU32::new(STATE_UNINIT),
                     data: UnsafeCell::new(Data {
                         generation: 0,
-                        next: i + 1 % len,
+                        // next: i + 1 % len,
                         item: MaybeUninit::uninit(),
                     }),
-                    prev: UnsafeCell::new(u32::MAX),
+                    // prev: UnsafeCell::new(u32::MAX),
                 });
             }
             ptr as _
@@ -103,11 +131,17 @@ impl<T> Arena<T> {
             .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed)
             .map_err(|_| Error::WouldBlock)?;
 
-        let index = unsafe { *self.0.free.get() };
-        if index == u32::MAX {
-            self.0.write_lock.store(0, Ordering::Release);
-            return Err(Error::OutOfSpace);
-        }
+        // let index = unsafe { *self.0.free.get() };
+        // if index == u32::MAX {
+        //     self.0.write_lock.store(0, Ordering::Release);
+        //     return Err(Error::OutOfSpace);
+        // }
+        let index = self
+            .0
+            .slots
+            .iter()
+            .position(|slot| slot.state.load(Ordering::Acquire) == STATE_UNINIT)
+            .ok_or(Error::OutOfSpace)? as u32;
 
         let slot = &self.0.slots[index as usize];
         debug_assert_eq!(slot.state.load(Ordering::Acquire), STATE_UNINIT);
@@ -115,15 +149,20 @@ impl<T> Arena<T> {
         data.item.write(item);
         let generation = data.generation;
 
-        unsafe {
-            (*self.0.free.get()) = data.next;
-            data.next = *self.0.live.get();
-            (*self.0.live.get()) = index;
-            if data.next != u32::MAX {
-                let next_node = &self.0.slots[data.next as usize];
-                *next_node.prev.get() = index;
-            }
-        }
+        // unsafe {
+        //     (*self.0.free.get()) = data.next;
+        //     data.next = *self.0.live.get();
+        //     (*self.0.live.get()) = index;
+        //     if data.next != u32::MAX {
+        //         let next_node = &self.0.slots[data.next as usize];
+        //         *next_node.prev.get() = index;
+        //     }
+        //     let prev = *slot.prev.get();
+        //     if prev != u32::MAX {
+        //         let prev_node = &self.0.slots[prev as usize];
+        //         (*prev_node.data.get()).next = index;
+        //     }
+        // }
 
         slot.state.store(STATE_INIT_UNLOCKED, Ordering::Release);
 
@@ -182,18 +221,33 @@ impl<T> Arena<T> {
         }
         data.generation += 1;
 
-        let prev = unsafe { *node.prev.get() };
-        if prev != u32::MAX {
-            let prev_node = &self.0.slots[prev as usize];
-            // TODO: Is this safe?
-            unsafe {
-                (*prev_node.data.get()).next = data.next;
-            }
-        }
+        // unsafe {
+        //     *node.prev.get() = u32::MAX;
+        // }
 
-        let free = unsafe { &mut *self.0.free.get() };
-        data.next = *free;
-        *free = idx.index;
+        // {
+        //     // TODO: is one of these unnecessary?
+        //     let prev = unsafe { *node.prev.get() };
+        //     if prev != u32::MAX {
+        //         let prev_node = &self.0.slots[prev as usize];
+        //         // TODO: Is this safe?
+        //         unsafe {
+        //             (*prev_node.data.get()).next = data.next;
+        //         }
+        //     }
+        //     let next = data.next;
+        //     if next != u32::MAX {
+        //         let next_node = &self.0.slots[next as usize];
+        //         // TODO: Is this safe?
+        //         unsafe {
+        //             (*next_node.prev.get()) = *node.prev.get();
+        //         }
+        //     }
+        // }
+
+        // let free = unsafe { &mut *self.0.free.get() };
+        // data.next = *free;
+        // *free = idx.index;
 
         self.0.write_lock.store(0, Ordering::Release);
 
@@ -209,17 +263,14 @@ impl<T> Arena<T> {
             .write_lock
             .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed)
             .map_err(|_| Error::WouldBlock)?;
-        let free = unsafe { &mut *self.0.free.get() };
-        let mut prev = unsafe { &mut *self.0.live.get() };
-        let mut current = *prev;
-        while current != u32::MAX {
-            let slot = &self.0.slots[current as usize];
-            debug_assert_ne!(slot.state.load(Ordering::Acquire), STATE_UNINIT);
+        for (i, slot) in self.0.slots.iter().enumerate() {
+            if slot.state.load(Ordering::Acquire) == STATE_UNINIT {
+                continue;
+            }
             let data = unsafe { &mut *slot.data.get() };
-            let next = data.next;
             if !keep(
                 Index {
-                    index: current,
+                    index: i as u32,
                     generation: data.generation,
                 },
                 unsafe { data.item.assume_init_ref() },
@@ -240,13 +291,55 @@ impl<T> Arena<T> {
                     data.item.assume_init_drop();
                 }
                 data.generation += 1;
-                data.next = *free;
-                *free = current;
-                *prev = data.next;
             }
-            prev = &mut data.next;
-            current = next;
         }
+
+        // let free = unsafe { &mut *self.0.free.get() };
+        // let mut prev = unsafe { &mut *self.0.live.get() };
+        // let mut current = *prev;
+        // while current != u32::MAX {
+        //     let slot = &self.0.slots[current as usize];
+        //     debug_assert_ne!(
+        //         slot.state.load(Ordering::Acquire),
+        //         STATE_UNINIT,
+        //         "{current} {:#?}",
+        //         &self.0.slots
+        //     );
+        //     let data = unsafe { &mut *slot.data.get() };
+        //     let next = data.next;
+        //     if !keep(
+        //         Index {
+        //             index: current,
+        //             generation: data.generation,
+        //         },
+        //         unsafe { data.item.assume_init_ref() },
+        //     ) {
+        //         while {
+        //             slot.state
+        //                 .compare_exchange(
+        //                     STATE_INIT_UNLOCKED,
+        //                     STATE_UNINIT,
+        //                     Ordering::AcqRel,
+        //                     Ordering::Relaxed,
+        //                 )
+        //                 .is_err()
+        //         } {
+        //             core::hint::spin_loop();
+        //         }
+        //         unsafe {
+        //             data.item.assume_init_drop();
+        //         }
+        //         unsafe {
+        //             *slot.prev.get() = u32::MAX;
+        //         }
+        //         data.generation += 1;
+        //         data.next = *free;
+        //         *prev = next;
+        //         *free = current;
+        //     }
+        //     prev = &mut data.next;
+        //     current = next;
+        // }
         self.0.write_lock.store(0, Ordering::Release);
         Ok(())
     }
@@ -301,6 +394,7 @@ mod test {
         assert_eq!(arena.get(i0).unwrap().as_str(), "first");
         assert_eq!(arena.get(i1).unwrap().as_str(), "second");
         assert_eq!(arena.get(i2).unwrap().as_str(), "third");
+        // dbg!(&arena);
         assert!(
             arena
                 .get(Index {
@@ -310,9 +404,14 @@ mod test {
                 .is_none()
         );
         arena.remove(i1).unwrap();
+        dbg!(&arena);
         assert!(arena.get(i1).is_none());
         let i4 = arena.add(String::from("fourth")).unwrap();
+        dbg!(&arena);
         assert_eq!(i4.index, 1);
         assert_eq!(i4.generation, 1);
+        arena.clear();
+        // arena.clear();
+        // arena.clear();
     }
 }
