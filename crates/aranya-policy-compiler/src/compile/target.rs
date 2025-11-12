@@ -85,8 +85,8 @@ impl CompileTarget {
             TypeKind::String | TypeKind::Bytes => None,
             // With 2^(32 * 8) choices, it's unlikely for someone to want to match against IDs exhaustively.
             TypeKind::Id => None,
-            // TODO: This should really be 1 above the max.
-            TypeKind::Int => Some(u64::MAX),
+            // With 2^64 choices, it's unlikely for someone to want to match against ints exhaustively.
+            TypeKind::Int => None,
             TypeKind::Bool => Some(2),
             TypeKind::Optional(vtype) => {
                 // Add 1 for the None case.

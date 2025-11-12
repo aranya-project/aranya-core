@@ -1534,6 +1534,20 @@ fn test_match_expression() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            // all match patterns are not listed (can't exhaustively match on ints)
+            r#"
+            function foo(c int) int {
+                let x = match c {
+                    0 => 0
+                    1 => 1
+                    2 => 2
+                }
+
+                return x
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
