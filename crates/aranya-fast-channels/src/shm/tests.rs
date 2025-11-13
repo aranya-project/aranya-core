@@ -85,7 +85,7 @@ fn test_many_nodes() {
         Rng,
     )
     .expect("unable to created shared memory");
-    let afc = ReadState::<<E as Engine>::CS>::open(
+    let og_afc = ReadState::<<E as Engine>::CS>::open(
         path,
         Flag::OpenOnly,
         Mode::ReadWrite,
@@ -115,11 +115,11 @@ fn test_many_nodes() {
                 .add(keys.clone(), label_id, DeviceId::random(&mut Rng))
                 .unwrap_or_else(|err| panic!("unable to add channel {idx}: {err}"));
             let chan = Channel { id, keys, label_id };
-            chans.push(chan);
+            chans.push((chan, og_afc.clone()));
 
             // Now check that all previously added nodes
             // exist and are correct.
-            for (j, want) in chans.iter().enumerate().by_ref() {
+            for (j, (want, afc)) in chans.iter().enumerate().by_ref() {
                 let idx = Index(j);
 
                 // Check with and without a hint.

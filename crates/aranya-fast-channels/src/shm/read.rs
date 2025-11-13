@@ -78,6 +78,16 @@ where
     }
 }
 
+impl<CS: CipherSuite> Clone for ReadState<CS> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            last_open: StdMutex::default(),
+            _no_sync: PhantomData,
+        }
+    }
+}
+
 /// Sealing channel context.
 pub struct SealCtx<CS: CipherSuite>(Option<Cache<SealKey<CS>>>);
 
