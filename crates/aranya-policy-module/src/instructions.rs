@@ -30,8 +30,8 @@ pub enum ExitReason {
     Normal,
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
-    /// Execution was aborted gracefully, due an error.
-    Check,
+    /// Execution was aborted gracefully, due an error. The argument is the recall block to execute.
+    Check(Identifier),
     /// Execution was aborted due to an unhandled error.
     Panic,
 }
@@ -49,7 +49,9 @@ impl Display for ExitReason {
         match self {
             Self::Normal => f.write_str("normal"),
             Self::Yield => f.write_str("yield"),
-            Self::Check => f.write_str("check"),
+            Self::Check(recall) => {
+                write!(f, "check: {}", recall)
+            }
             Self::Panic => f.write_str("panic"),
         }
     }
