@@ -44,6 +44,11 @@ struct Cache<K> {
 }
 
 /// The reader's view of the shared memory state.
+///
+/// # Notes
+///
+/// Dropping a `ReadState` instance and its clones will not unmap
+/// the shared memory object.
 #[derive(Debug)]
 pub struct ReadState<CS>
 where

@@ -71,13 +71,6 @@ pub(super) struct Mapping<T> {
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
 
-impl<T> Drop for Mapping<T> {
-    fn drop(&mut self) {
-        // SAFETY: FFI call, no invariants.
-        let _ = unsafe { libc::munmap(self.base, self.layout.size()) };
-    }
-}
-
 impl<T: Sync> AsRef<T> for Mapping<T> {
     fn as_ref(&self) -> &T {
         // SAFETY: the pointer is aligned, the pointer is
