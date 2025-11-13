@@ -20,7 +20,7 @@ use crate::{
 /// Client is a connection to Aranya.
 ///
 /// See the crate documentation for more information.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Client<S> {
     state: S,
 }
