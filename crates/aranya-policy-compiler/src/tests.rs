@@ -2224,15 +2224,13 @@ fn test_struct_composition() {
 
     let valid_cases = [Case {
         t: r#"
-                struct Bar { x int, y bool }
-                function baz(b struct Bar) struct Bar {
-                    let other = todo()
-                    let new_bar = Bar {
-                        y: b.y,
-                        ...other
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string}
+                function baz(foo struct Foo) struct Bar {
+                    return Bar {
+                        z: "z",
+                        ...foo
                     }
-
-                    return new_bar
                 }
             "#,
         e: None,
@@ -2393,13 +2391,8 @@ fn test_struct_literal_duplicate_field() {
 
 #[test]
 fn test_optional_types() {
-    let err = compile_fail("function f() bool { return unwrap None }");
-    assert_eq!(
-        err,
-        CompileErrorType::InvalidType("Cannot unwrap None".into())
-    );
-
     let cases = [
+        "unwrap None",
         "42 == unwrap Some(42)",
         "None is Some",
         "None is None",
