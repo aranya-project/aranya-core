@@ -61,6 +61,12 @@ impl Spanned for Ident {
     }
 }
 
+impl Spanned for Text {
+    fn span(&self) -> Span {
+        Span::empty()
+    }
+}
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
@@ -609,6 +615,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// The recall block to execute if the check fails
+    pub recall: Option<FunctionCall>,
 }
 }
 
@@ -938,6 +946,25 @@ impl<T: Spanned> Spanned for StructItem<T> {
     }
 }
 
+/// A recall block definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecallBlockDefinition {
+    /// The name of the recall block (defaults to "default" if not explicitly named)
+    pub identifier: Option<Ident>,
+    /// The arguments to the recall block, if any
+    pub arguments: Option<Vec<FieldDefinition>>,
+    /// The recall rule statements for this block
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for RecallBlockDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
@@ -955,8 +982,8 @@ pub struct CommandDefinition {
     pub open: Vec<Statement>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
-    /// The recall rule statements for this command
-    pub recall: Vec<Statement>,
+    /// The named recall blocks for this command
+    pub recalls: Vec<RecallBlockDefinition>,
     /// The source location of this definition
     pub span: Span,
 }

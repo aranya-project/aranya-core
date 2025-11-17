@@ -979,7 +979,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Check(ident!("default")));
 
     Ok(())
 }
@@ -1493,6 +1493,53 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_check_errors() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"command Foo {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    check false
+                }
+                recall {
+                }
+            }"#,
+            ident!("Foo_recall_default"),
+        ),
+        (
+            r#"command Foo {
+                fields {}
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    check false or recall bar()
+                }
+                recall bar() {
+                }
+            }"#,
+            ident!("Foo_recall_bar"),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        let policy = parse_policy_str(input, Version::V2)?;
+        let io = RefCell::new(TestIO::new());
+        let module = Compiler::new(&policy).compile()?;
+        let machine = Machine::from_module(module)?;
+        let name = ident!("Foo");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&io, ctx);
+        let self_struct = Struct::new(name.clone(), &[]);
+        let result = rs.call_command_policy(self_struct, dummy_envelope())?;
+
+        assert_eq!(result, ExitReason::Check(expected));
+    }
+    Ok(())
+}
+
+#[test]
 fn test_check_unwrap() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{x int}
@@ -1558,7 +1605,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&io, ctx);
         let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check);
+        assert_eq!(status, ExitReason::Check(ident!("default")));
     }
 
     Ok(())
@@ -1583,7 +1630,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             }
 
             recall {
-                check envelope.payload == this.test
+                check envelope.payload == this.test // FIXME can't use check in recall
             }
         }
     "#;
@@ -1624,6 +1671,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 ident!("Envelope"),
                 [KVPair::new(ident!("payload"), test_data.into())],
             ),
+            ident!("default"),
         )?
         .success();
     }
@@ -2389,7 +2437,7 @@ fn test_boolean_short_circuit() {
     }
 
     assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check);
+    assert_eq!(run("false && todo()"), ExitReason::Check(ident!("default")));
     assert_eq!(run("true || todo()"), ExitReason::Normal);
     assert_eq!(run("false || todo()"), ExitReason::Panic);
 }
@@ -2511,7 +2559,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Check(ident!("default")));
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
@@ -2521,6 +2569,87 @@ fn test_source_lookup() -> anyhow::Result<()> {
             "\tcheck false\n",
             "            // after\n",
             "            "
+        )
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_recall_with_args() -> anyhow::Result<()> {
+    let text = r#"
+        effect Err {
+            x int,
+            y string
+        }
+
+        command Foo {
+            fields {
+                x int,
+                y string
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                check false or recall test(1, "oops")
+            }
+            recall test(a int, b string) {
+                finish {
+                    emit Err { x: a, y: b }
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    let name = ident!("Foo");
+    let this_data = Struct::new(
+        name.clone(),
+        [
+            KVPair::new(ident!("x"), Value::from(42)),
+            KVPair::new(ident!("y"), Value::from(text!("hello"))),
+        ],
+    );
+    let envelope = Struct::new(
+        ident!("Envelope"),
+        [KVPair::new(
+            ident!("payload"),
+            Value::from(b"test".to_vec()),
+        )],
+    );
+
+    // Exec command
+    let ctx = dummy_ctx_policy(name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
+
+    // Should exit with Check, and args should be on stack
+    let recall_name = ident!("Foo_recall_test");
+    assert_eq!(result, ExitReason::Check(recall_name.clone()));
+    let stack_values = rs.stack.as_slice();
+    assert_eq!(stack_values.get(0), Some(&Value::Int(1)));
+    assert_eq!(stack_values.get(1), Some(&Value::String(text!("oops"))));
+
+    // Exec recall
+    let recall_ctx = dummy_ctx_recall(name);
+    rs.set_context(recall_ctx);
+
+    let result = rs.call_command_recall(this_data, envelope, recall_name)?;
+    assert_eq!(result, ExitReason::Normal);
+
+    // Check that the effect was emitted with correct args
+    assert_eq!(
+        io.borrow().effect_stack[0],
+        (
+            ident!("Err"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(1)),
+                KVPair::new(ident!("y"), Value::String(text!("oops"))),
+            ]
         )
     );
 

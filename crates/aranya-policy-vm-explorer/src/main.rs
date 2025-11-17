@@ -10,7 +10,7 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactKey, FactKeyList, FactValue, FactValueList,
-    Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
+    Identifier, KVPair, Label, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
     MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
 use clap::{ArgGroup, Parser, ValueEnum};
@@ -289,10 +289,10 @@ fn main() -> anyhow::Result<()> {
                     })
                     .collect();
                 let this_data = Struct {
-                    name: command,
+                    name: command.clone(),
                     fields,
                 };
-                rs.setup_command(LabelType::CommandPolicy, this_data)?;
+                rs.setup_command(Label::new(command, LabelType::CommandPolicy), this_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }

@@ -1349,7 +1349,13 @@ impl<'a> CompileState<'a> {
                     .map_err(|e| self.err(e))?
             }
             ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
-            ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
+            ExprKind::CheckUnwrap(e) => {
+                let StatementContext::CommandPolicy(cmd) = self.get_statement_context()? else {
+                    return Err(self.err(CompileErrorType::InvalidExpression(expression.clone())));
+                };
+                let name = self.command_recall_name(&cmd, None)?;
+                self.compile_unwrap(e, ExitReason::Check(name))?
+            }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let inner_type = self.compile_expression(e)?;
@@ -1469,13 +1475,7 @@ impl<'a> CompileState<'a> {
                     )));
                     self.append_instruction(Instruction::Def(s.identifier.name.clone()));
                 }
-                (
-                    StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
+                (StmtKind::Check(s), StatementContext::CommandPolicy(cmd)) => {
                     let et = self.compile_expression(&s.expression)?;
                     if !et.fits_type(&VType {
                         kind: TypeKind::Bool,
@@ -1492,7 +1492,17 @@ impl<'a> CompileState<'a> {
                     // instruction after that - current instruction + 2.
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    self.append_instruction(Instruction::Exit(ExitReason::Check));
+
+                    // push args
+                    if let Some(fc) = s.recall.as_ref() {
+                        fc.arguments
+                            .iter()
+                            .try_for_each(|arg_e| self.compile_expression(arg_e).map(|_| ()))?;
+                    }
+
+                    let recall_name = s.recall.as_ref().map(|fc| fc.identifier.clone());
+                    let n = self.command_recall_name(&cmd, recall_name)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
                 }
                 (
                     StmtKind::Match(s),
@@ -1823,6 +1833,7 @@ impl<'a> CompileState<'a> {
                     self.compile_function_call(f, true)?;
                 }
                 (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
+                    // TODO use compile_function_call to reduce code duplication
                     let Some(action_def) = self
                         .policy
                         .actions
@@ -1995,6 +2006,8 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
+        // Finish functions use temporary labels because they don't return. If we used function
+        // labels, the [`function_analyzer`](crate::target::function_analyzer) would fail them for that.
         self.define_label(
             Label::new_temp(function_node.identifier.name.clone()),
             self.wp,
@@ -2046,6 +2059,7 @@ impl<'a> CompileState<'a> {
         let label = Label::new(
             fc.identifier.name.clone(),
             if is_finish {
+                // See comment in `compile_finish_function`
                 LabelType::Temporary
             } else {
                 LabelType::Function
@@ -2212,42 +2226,91 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Returns a unique recall block name for the given command and optional name.
+    /// The name follows the format: `<command>_recall_<name>`, where `<name>` is "default" for the default recall block.
+    fn command_recall_name(
+        &self,
+        command: &ast::CommandDefinition,
+        recall_name: Option<Ident>,
+    ) -> Result<Identifier, CompileError> {
+        format!(
+            "{}_recall_{}",
+            command.identifier.as_str(),
+            recall_name
+                .as_ref()
+                .map(|n| n.as_str())
+                .unwrap_or("default")
+        )
+        .try_into()
+        .map_err(|_| {
+            CompileError::new(CompileErrorType::InvalidType(format!(
+                "invalid recall block name for command '{:?}'",
+                recall_name
+            )))
+        })
+    }
+
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
-            self.wp,
-        )?;
-        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("this"),
-                Typeish::known(VType {
-                    kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::default(),
-                }),
-            )
-            .map_err(|e| self.err(e))?;
-        self.identifier_types
-            .add(
-                ident!("envelope"),
-                Typeish::known(VType {
-                    kind: TypeKind::Struct(Ident {
-                        name: ident!("Envelope"),
+        let mut named_blocks = HashSet::new();
+
+        // Compile each recall block
+        for recall_block in &command.recalls {
+            let full_name = self.command_recall_name(&command, recall_block.identifier.clone())?;
+            if !named_blocks.insert(full_name.clone()) {
+                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                    "recall block '{}' for command '{}' defined more than once",
+                    full_name
+                        .as_str()
+                        .split("_")
+                        .last()
+                        .expect("should have recall name"),
+                    command.identifier.as_str()
+                ))));
+            }
+
+            self.define_label(Label::new(full_name, LabelType::CommandRecall), self.wp)?;
+
+            self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+            self.identifier_types.enter_function();
+            self.identifier_types
+                .add(
+                    ident!("this"),
+                    Typeish::known(VType {
+                        kind: TypeKind::Struct(command.identifier.clone()),
                         span: Span::default(),
                     }),
-                    span: Span::default(),
-                }),
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("envelope")));
-        self.compile_statements(&command.recall, Scope::Same)?;
-        self.identifier_types.exit_function();
-        self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                )
+                .map_err(|e| self.err(e))?;
+            self.identifier_types
+                .add(
+                    ident!("envelope"),
+                    Typeish::known(VType {
+                        kind: TypeKind::Struct(Ident {
+                            name: ident!("Envelope"),
+                            span: Span::default(),
+                        }),
+                        span: Span::default(),
+                    }),
+                )
+                .map_err(|e| self.err(e))?;
+            self.append_instruction(Instruction::Def(ident!("envelope")));
+
+            // define args, like compile_function
+            if let Some(args) = &recall_block.arguments {
+                for arg in args.iter().rev() {
+                    self.ensure_type_is_defined(&arg.field_type)?;
+                    self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
+                }
+            }
+
+            self.compile_statements(&recall_block.statements, Scope::Same)?;
+            self.identifier_types.exit_function();
+            self.exit_statement_context();
+            self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        }
         Ok(())
     }
 
