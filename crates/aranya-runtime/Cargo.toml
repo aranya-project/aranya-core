@@ -59,6 +59,8 @@ required-features = ["bench"]
 [features]
 default = []
 
+low-mem-usage = []
+
 bench = ["aranya-policy-vm/bench"]
 
 # Enable `libc`.
