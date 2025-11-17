@@ -2559,7 +2559,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Check(ident!("default")));
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
@@ -2569,6 +2569,87 @@ fn test_source_lookup() -> anyhow::Result<()> {
             "\tcheck false\n",
             "            // after\n",
             "            "
+        )
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_recall_with_args() -> anyhow::Result<()> {
+    let text = r#"
+        effect Err {
+            x int,
+            y string
+        }
+
+        command Foo {
+            fields {
+                x int,
+                y string
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                check false or recall test(1, "oops")
+            }
+            recall test(a int, b string) {
+                finish {
+                    emit Err { x: a, y: b }
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    let name = ident!("Foo");
+    let this_data = Struct::new(
+        name.clone(),
+        [
+            KVPair::new(ident!("x"), Value::from(42)),
+            KVPair::new(ident!("y"), Value::from(text!("hello"))),
+        ],
+    );
+    let envelope = Struct::new(
+        ident!("Envelope"),
+        [KVPair::new(
+            ident!("payload"),
+            Value::from(b"test".to_vec()),
+        )],
+    );
+
+    // Exec command
+    let ctx = dummy_ctx_policy(name.clone());
+    let mut rs = machine.create_run_state(&io, ctx);
+    let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
+
+    // Should exit with Check, and args should be on stack
+    let recall_name = ident!("Foo_recall_test");
+    assert_eq!(result, ExitReason::Check(recall_name.clone()));
+    let stack_values = rs.stack.as_slice();
+    assert_eq!(stack_values.get(0), Some(&Value::Int(1)));
+    assert_eq!(stack_values.get(1), Some(&Value::String(text!("oops"))));
+
+    // Exec recall
+    let recall_ctx = dummy_ctx_recall(name);
+    rs.set_context(recall_ctx);
+
+    let result = rs.call_command_recall(this_data, envelope, recall_name)?;
+    assert_eq!(result, ExitReason::Normal);
+
+    // Check that the effect was emitted with correct args
+    assert_eq!(
+        io.borrow().effect_stack[0],
+        (
+            ident!("Err"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(1)),
+                KVPair::new(ident!("y"), Value::String(text!("oops"))),
+            ]
         )
     );
 

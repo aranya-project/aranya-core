@@ -1493,6 +1493,13 @@ impl<'a> CompileState<'a> {
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
 
+                    // push args
+                    if let Some(fc) = s.recall.as_ref() {
+                        fc.arguments
+                            .iter()
+                            .try_for_each(|arg_e| self.compile_expression(arg_e).map(|_| ()))?;
+                    }
+
                     let recall_name = s.recall.as_ref().map(|fc| fc.identifier.clone());
                     let n = self.command_recall_name(&cmd, recall_name)?;
                     self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
@@ -2290,6 +2297,15 @@ impl<'a> CompileState<'a> {
                 )
                 .map_err(|e| self.err(e))?;
             self.append_instruction(Instruction::Def(ident!("envelope")));
+
+            // define args, like compile_function
+            if let Some(args) = &recall_block.arguments {
+                for arg in args.iter().rev() {
+                    self.ensure_type_is_defined(&arg.field_type)?;
+                    self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
+                }
+            }
+
             self.compile_statements(&recall_block.statements, Scope::Same)?;
             self.identifier_types.exit_function();
             self.exit_statement_context();

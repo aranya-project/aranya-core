@@ -1342,6 +1342,11 @@ impl MachineStack {
     pub fn into_vec(self) -> Vec<Value> {
         self.0.into_iter().collect()
     }
+
+    /// Get a reference to the stack as a slice.
+    pub fn as_slice(&self) -> &[Value] {
+        &self.0
+    }
 }
 
 impl Stack for MachineStack {
