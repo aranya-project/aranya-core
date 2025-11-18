@@ -1098,7 +1098,7 @@ fn test_match_second() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_match_none() -> anyhow::Result<()> {
+fn test_match_default_2() -> anyhow::Result<()> {
     let name = ident!("foo");
     let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
@@ -1107,8 +1107,11 @@ fn test_match_none() -> anyhow::Result<()> {
     let ctx = dummy_ctx_action(name.clone());
 
     let mut rs = machine.create_run_state(&io, ctx);
-    let result = rs.call_action(name, [Value::Int(0)])?;
-    assert_eq!(result, ExitReason::Panic);
+    let mut published = Vec::new();
+    call_action(&mut rs, &mut published, name, [100])?.success();
+    drop(rs);
+
+    assert_eq!(published, [vm_struct!(Result { x: 100 + 1 })]);
 
     Ok(())
 }
@@ -1132,6 +1135,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
                 5 | 6 | 7 => {
                     publish Result { x: x }
                 }
+                _ => {}
             }
         }
     "#;
@@ -1198,6 +1202,7 @@ fn test_match_return() -> anyhow::Result<()> {
         function bar() int {
             match 0 {
                 0 => { return 42 }
+                _ => { return 0 }
             }
         }
     "#;
@@ -2482,5 +2487,42 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             y: Value::String(text!("xyz")),
         })
     );
+    Ok(())
+}
+
+#[test]
+fn test_source_lookup() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            check true
+            // before
+            check false
+            // after
+            check true
+        }
+    "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    let result = rs.call_action(name, iter::empty::<Value>())?;
+    assert_eq!(result, ExitReason::Check);
+
+    let source = rs.source_location().expect("could not get source location");
+    assert_eq!(
+        source,
+        concat!(
+            "at row 5 col 13:\n",
+            "\tcheck false\n",
+            "            // after\n",
+            "            "
+        )
+    );
+
     Ok(())
 }

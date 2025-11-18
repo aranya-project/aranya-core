@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.16.0...aranya-runtime-v0.16.1) - 2025-11-12
+
+### Other
+
+- updated the following local packages: aranya-policy-vm
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.15.0...aranya-runtime-v0.16.0) - 2025-11-05
+
+### Other
+
+- Change hello subscription to use Duration types and add schedule_delay ([#461](https://github.com/aranya-project/aranya-core/pull/461))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+- require command priority ([#354](https://github.com/aranya-project/aranya-core/pull/354))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.14.0...aranya-runtime-v0.15.0) - 2025-10-16
 
 ### Other

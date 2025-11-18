@@ -155,9 +155,8 @@ struct CompileState<'a> {
     function_signatures: BTreeMap<Identifier, FunctionSignature>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
-    /// The last locator seen, for imprecise source locating.
-    // TODO(chip): Push more precise source tracking further down into the AST.
-    last_locator: usize,
+    /// The last span seen, for imprecise source locating.
+    last_span: Span,
     /// The current statement context, implemented as a stack so that it can be
     /// hierarchical.
     statement_context: Vec<StatementContext>,
@@ -391,9 +390,9 @@ impl<'a> CompileState<'a> {
                 if self.builtin_functions.contains_key(def.identifier.as_str()) {
                     name.push_str(" (builtin)");
                 }
-                Err(CompileError::from_locator(
+                Err(CompileError::from_span(
                     CompileErrorType::AlreadyDefined(name),
-                    def.span.start(),
+                    def.span,
                     self.m.codemap.as_ref(),
                 ))
             }
@@ -424,9 +423,9 @@ impl<'a> CompileState<'a> {
                 if self.builtin_functions.contains_key(def.identifier.as_str()) {
                     name.push_str(" (builtin)");
                 }
-                Err(CompileError::from_locator(
+                Err(CompileError::from_span(
                     CompileErrorType::AlreadyDefined(name),
-                    def.span.start(),
+                    def.span,
                     self.m.codemap.as_ref(),
                 ))
             }
@@ -455,24 +454,22 @@ impl<'a> CompileState<'a> {
 
     /// Maps the current write pointer to a text range supplied by a span
     fn map_range(&mut self, span: Span) -> Result<(), CompileError> {
-        self.last_locator = span.start();
-        if let Some(codemap) = &mut self.m.codemap {
-            codemap
-                .map_instruction_range(self.wp, span.start())
-                .map_err(|_| {
-                    self.err_loc(
-                        CompileErrorType::Unknown(format!(
-                            "could not map address {} to text range {}",
-                            self.wp,
-                            span.start()
-                        )),
-                        span.start(),
-                    )
-                })
-        } else {
+        self.last_span = span;
+        let Some(codemap) = &mut self.m.codemap else {
             // If there is no codemap, do nothing.
-            Ok(())
-        }
+            return Ok(());
+        };
+        codemap.map_instruction(self.wp, span).map_err(|_| {
+            self.err_loc(
+                CompileErrorType::Unknown(format!(
+                    "could not map address {} to text range {}",
+                    self.wp,
+                    span.start()
+                )),
+                span,
+            )
+        })?;
+        Ok(())
     }
 
     /// Resolve a target to an address from the Label mapping
@@ -557,11 +554,11 @@ impl<'a> CompileState<'a> {
     }
 
     fn err(&self, err_type: CompileErrorType) -> CompileError {
-        self.err_loc(err_type, self.last_locator)
+        self.err_loc(err_type, self.last_span)
     }
 
-    fn err_loc(&self, err_type: CompileErrorType, locator: usize) -> CompileError {
-        CompileError::from_locator(err_type, locator, self.m.codemap.as_ref())
+    fn err_loc(&self, err_type: CompileErrorType, span: Span) -> CompileError {
+        CompileError::from_span(err_type, span, self.m.codemap.as_ref())
     }
 
     fn get_fact_def(&self, name: &Identifier) -> Result<&FactDefinition, CompileError> {
@@ -627,11 +624,9 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         // value block must have the same number of values as the schema
         if values.len() != fact_def.value.len() {
-            return Err(CompileError::from_locator(
-                CompileErrorType::InvalidFactLiteral(String::from("incorrect number of values")),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
+                "incorrect number of values",
+            ))));
         }
 
         // Ensure values exist in schema, and have matching types
@@ -974,11 +969,7 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .any(|m| m.name == f.module.name)
                 {
-                    return Err(CompileError::from_locator(
-                        CompileErrorType::NotDefined(f.module.name.to_string()),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ));
+                    return Err(self.err(CompileErrorType::NotDefined(f.module.name.to_string())));
                 }
 
                 self.append_instruction(Instruction::Meta(Meta::FFI(
@@ -1416,7 +1407,10 @@ impl<'a> CompileState<'a> {
                 subexpression_type
             }
             ExprKind::Match(e) => self
-                .compile_match_statement_or_expression(LanguageContext::Expression(&**e), 0)?
+                .compile_match_statement_or_expression(
+                    LanguageContext::Expression(&**e),
+                    expression.span(),
+                )?
                 .assume("match expression must return a type")?,
         };
 
@@ -1449,10 +1443,9 @@ impl<'a> CompileState<'a> {
             | ExprKind::Dot(_, _)
             | ExprKind::Optional(_)
             | ExprKind::EnumReference(_) => Ok(()),
-            _ => Err(CompileError::from_locator(
+            _ => Err(self.err_loc(
                 CompileErrorType::InvalidExpression(expression.clone()),
-                self.last_locator,
-                self.m.codemap.as_ref(),
+                expression.span(),
             )),
         }
     }
@@ -1527,7 +1520,7 @@ impl<'a> CompileState<'a> {
                 ) => {
                     self.compile_match_statement_or_expression(
                         LanguageContext::Statement(s),
-                        statement.span.start(),
+                        statement.span,
                     )?;
                 }
                 (
@@ -1633,7 +1626,7 @@ impl<'a> CompileState<'a> {
                             CompileErrorType::Unknown(
                                 "`finish` must be the last statement in the block".to_owned(),
                             ),
-                            statement.span.start(),
+                            statement.span,
                         ));
                     }
                     // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
@@ -1693,7 +1686,7 @@ impl<'a> CompileState<'a> {
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot create fact with bind values",
                             )),
-                            statement.span.start(),
+                            statement.span,
                         ));
                     }
 
@@ -1721,7 +1714,7 @@ impl<'a> CompileState<'a> {
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot update fact with wildcard keys",
                             )),
-                            statement.span.start(),
+                            statement.span,
                         ));
                     }
 
@@ -1741,7 +1734,7 @@ impl<'a> CompileState<'a> {
                                     CompileErrorType::BadArgument(String::from(
                                         "Cannot update fact to a bind value",
                                     )),
-                                    span.start(),
+                                    *span,
                                 ));
                             }
                             FactField::Expression(e) => {
@@ -1780,7 +1773,7 @@ impl<'a> CompileState<'a> {
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot delete fact with wildcard keys",
                             )),
-                            statement.span.start(),
+                            statement.span,
                         ));
                     }
 
@@ -1817,7 +1810,7 @@ impl<'a> CompileState<'a> {
                         .ok_or_else(|| {
                             self.err_loc(
                                 CompileErrorType::NotDefined(f.identifier.to_string()),
-                                statement.span.start(),
+                                statement.span,
                             )
                         })?;
                     // Check that this function is the right color -
@@ -1826,7 +1819,7 @@ impl<'a> CompileState<'a> {
                     if let FunctionColor::Pure(_) = signature.color {
                         return Err(self.err_loc(
                             CompileErrorType::InvalidCallColor(InvalidCallColor::Pure),
-                            statement.span.start(),
+                            statement.span,
                         ));
                     }
                     // For now all we can do is check that the argument
@@ -1841,7 +1834,7 @@ impl<'a> CompileState<'a> {
                                 f.arguments.len(),
                                 signature.args.len()
                             )),
-                            statement.span.start(),
+                            statement.span,
                         ));
                     }
                     self.compile_function_call(f, true)?;
@@ -1853,23 +1846,21 @@ impl<'a> CompileState<'a> {
                         .iter()
                         .find(|a| a.identifier == fc.identifier.name)
                     else {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::NotDefined(fc.identifier.name.to_string()),
-                            statement.span.start(),
-                            self.m.codemap.as_ref(),
+                            statement.span,
                         ));
                     };
 
                     if action_def.arguments.len() != fc.arguments.len() {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::BadArgument(format!(
                                 "call to `{}` has {} arguments, but it should have {}",
                                 fc.identifier.name,
                                 fc.arguments.len(),
                                 action_def.arguments.len()
                             )),
-                            statement.span.start(),
-                            self.m.codemap.as_ref(),
+                            statement.span,
                         ));
                     }
 
@@ -1877,14 +1868,13 @@ impl<'a> CompileState<'a> {
                         let arg_type = self.compile_expression(arg)?;
                         let expected_arg = &action_def.arguments[i];
                         if !arg_type.fits_type(&expected_arg.field_type) {
-                            return Err(CompileError::from_locator(
+                            return Err(self.err_loc(
                                 CompileErrorType::BadArgument(format!(
                                     "invalid argument type for `{}`: expected `{}`, but got `{arg_type}`",
                                     expected_arg.identifier.name,
                                     DisplayType(&expected_arg.field_type)
                                 )),
-                                statement.span.start(),
-                                self.m.codemap.as_ref(),
+                                statement.span,
                             ));
                         }
                     }
@@ -1919,10 +1909,9 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 (_, _) => {
-                    return Err(self.err_loc(
-                        CompileErrorType::InvalidStatement(context),
-                        statement.span.start(),
-                    ));
+                    return Err(
+                        self.err_loc(CompileErrorType::InvalidStatement(context), statement.span)
+                    );
                 }
             }
         }
@@ -1987,14 +1976,14 @@ impl<'a> CompileState<'a> {
         {
             return Err(self.err_loc(
                 CompileErrorType::NotDefined(function_node.identifier.to_string()),
-                function_node.span.start(),
+                function_node.span,
             ));
         }
 
         if let Some(identifier) = find_duplicate(&function_node.arguments, |a| &a.identifier.name) {
             return Err(self.err_loc(
                 CompileErrorType::AlreadyDefined(identifier.to_string()),
-                function_node.span.start(),
+                function_node.span,
             ));
         }
 
@@ -2009,7 +1998,7 @@ impl<'a> CompileState<'a> {
 
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, function_node.span.start()));
+            return Err(self.err_loc(CompileErrorType::NoReturn, function_node.span));
         }
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -2105,10 +2094,9 @@ impl<'a> CompileState<'a> {
                     ty: param.field_type.clone(),
                 })
                 .map_err(|_| {
-                    CompileError::from_locator(
+                    self.err_loc(
                         CompileErrorType::AlreadyDefined(param.identifier.to_string()),
-                        action_node.span.start(),
-                        self.m.codemap.as_ref(),
+                        action_node.span,
                     )
                 })?;
         }
@@ -2288,12 +2276,12 @@ impl<'a> CompileState<'a> {
     fn compile_command_seal(
         &mut self,
         command: &ast::CommandDefinition,
-        locator: usize,
+        span: Span,
     ) -> Result<(), CompileError> {
         if command.seal.is_empty() {
             return Err(self.err_loc(
                 CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                locator,
+                span,
             ));
         }
 
@@ -2341,7 +2329,7 @@ impl<'a> CompileState<'a> {
         let from = self.wp;
         self.compile_statements(&command.seal, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, locator));
+            return Err(self.err_loc(CompileErrorType::NoReturn, span));
         }
         self.identifier_types.exit_function();
         self.exit_statement_context();
@@ -2353,12 +2341,12 @@ impl<'a> CompileState<'a> {
     fn compile_command_open(
         &mut self,
         command: &ast::CommandDefinition,
-        locator: usize,
+        span: Span,
     ) -> Result<(), CompileError> {
         if command.open.is_empty() {
             return Err(self.err_loc(
                 CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                locator,
+                span,
             ));
         }
 
@@ -2404,7 +2392,7 @@ impl<'a> CompileState<'a> {
         let from = self.wp;
         self.compile_statements(&command.open, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, locator));
+            return Err(self.err_loc(CompileErrorType::NoReturn, span));
         }
         self.identifier_types.exit_function();
         self.exit_statement_context();
@@ -2422,8 +2410,8 @@ impl<'a> CompileState<'a> {
 
         self.compile_command_policy(command)?;
         self.compile_command_recall(command)?;
-        self.compile_command_seal(command, command.span.start())?;
-        self.compile_command_open(command, command.span.start())?;
+        self.compile_command_seal(command, command.span)?;
+        self.compile_command_open(command, command.span)?;
 
         // attributes
         let mut attributes = NamedMap::new();
@@ -2547,7 +2535,7 @@ impl<'a> CompileState<'a> {
     fn compile_match_statement_or_expression(
         &mut self,
         s: LanguageContext<&MatchStatement, &MatchExpression>,
-        locator: usize,
+        span: Span,
     ) -> Result<Option<Typeish>, CompileError> {
         let patterns: Vec<MatchPattern> = match s {
             LanguageContext::Statement(s) => s.arms.iter().map(|a| a.pattern.clone()).collect(),
@@ -2569,7 +2557,7 @@ impl<'a> CompileState<'a> {
                 if v1.kind == v2.kind {
                     return Err(self.err_loc(
                         CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-                        locator,
+                        span,
                     ));
                 }
             }
@@ -2582,7 +2570,7 @@ impl<'a> CompileState<'a> {
         if default_count > 1 {
             return Err(self.err_loc(
                 CompileErrorType::AlreadyDefined(String::from("duplicate match arm default value")),
-                locator,
+                span,
             ));
         }
 
@@ -2591,6 +2579,19 @@ impl<'a> CompileState<'a> {
             LanguageContext::Expression(e) => &e.scrutinee,
         };
         let mut expr_pat_t = self.compile_expression(expr)?;
+
+        let need_default = default_count == 0
+            && if let Typeish::Known(NullableVType::Type(ref known_type)) = expr_pat_t {
+                let maybe_cardinality = self.m.cardinality(&known_type.kind);
+
+                maybe_cardinality.is_none_or(|c| c > all_values.len() as u64)
+            } else {
+                true
+            };
+
+        if need_default {
+            return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
+        }
 
         let end_label = self.anonymous_label();
 
@@ -2643,14 +2644,6 @@ impl<'a> CompileState<'a> {
                     }
                 }
             }
-        }
-
-        // if no match, and no default case, panic
-        if !patterns
-            .iter()
-            .any(|p| matches!(p, MatchPattern::Default(_)))
-        {
-            self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 
         // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
@@ -3125,7 +3118,7 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
-        let codemap = CodeMap::new(&self.policy.text, vec![]);
+        let codemap = CodeMap::new(&self.policy.text);
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
             policy: self.policy,
@@ -3134,7 +3127,7 @@ impl<'a> Compiler<'a> {
             c: 0,
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
-            last_locator: 0,
+            last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
