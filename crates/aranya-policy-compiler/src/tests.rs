@@ -1406,23 +1406,6 @@ fn test_match_default_not_last() {
 fn test_match_arm_should_be_limited_to_literals() {
     let policies = vec![
         r#"
-            action foo(x int) {
-                match x {
-                    saturating_add(0, 1)=> {}
-                    _ => {}
-                }
-            }
-        "#,
-        r#"
-        function f() int { return 0 }
-        action foo(x int) {
-            match x {
-                f() => {}
-                _ => {}
-            }
-        }
-        "#,
-        r#"
             struct Foo {
                 x int,
                 y string,
@@ -3282,5 +3265,23 @@ fn test_action_command_persistence() {
     for (text, expected) in invalid_cases {
         let err = compile_fail(text);
         assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_match_binding() {
+    let policies = vec![
+        r#"
+            function foo(opt optional int) int {
+                return match opt {
+                    Some(val) => val
+                    None => 0
+                }
+            }
+        "#,
+    ];
+
+    for text in policies {
+        compile_pass(text);
     }
 }

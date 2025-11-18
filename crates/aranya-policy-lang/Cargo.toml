@@ -24,7 +24,7 @@ anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
 markdown = { version = "=1.0.0-alpha.17" }
 pest = { version = "2" }
-pest_derive = { version = "2" }
+pest_derive = { version = "2", features = ["grammar-extras"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_yaml = { version = "0.9" }
 

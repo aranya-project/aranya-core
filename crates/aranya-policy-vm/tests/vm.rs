@@ -2526,3 +2526,34 @@ fn test_source_lookup() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_match_binding() -> anyhow::Result<()> {
+    let text = r#"
+            action foo(opt optional int, expected int) {
+                let actual = match opt {
+                    Some(val) => val
+                    None => 0
+                }
+                check expected == actual
+            }
+        "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    rs.call_action(name.clone(), [Value::Int(42), Value::Int(42)])?
+        .success();
+    rs.call_action(name.clone(), [Value::None, Value::Int(0)])?
+        .success();
+
+    let reason = rs.call_action(name, [Value::None, Value::Int(13)])?;
+    assert_eq!(reason, ExitReason::Check);
+
+    Ok(())
+}

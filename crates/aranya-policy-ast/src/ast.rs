@@ -642,6 +642,16 @@ pub enum MatchPattern {
     Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
+    /// Sum Variant
+    Binder(Binder),
+}
+
+// NB: Currently limited to `Some(name) | None`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Binder {
+    // pub namespace: Option<Ident>,
+    // pub variant: Ident,
+    pub bound: Option<Ident>,
 }
 
 impl Spanned for MatchPattern {
@@ -649,6 +659,7 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+            Self::Binder(binder) => todo!(),
         }
     }
 }

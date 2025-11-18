@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt};
 
 use aranya_policy_ast::{
-    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
+    self as ast, Binder, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
@@ -403,6 +403,124 @@ impl ChunkParser<'_> {
         })
     }
 
+    fn parse_literal(&self, token: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+        assert_eq!(token.as_rule(), Rule::literal);
+        let pc = descend(token);
+        let primary = pc.consume()?;
+        match primary.as_rule() {
+            Rule::int_literal => {
+                let n = primary.as_str().parse::<i64>().map_err(|e| {
+                    ParseError::new(
+                        ParseErrorKind::InvalidNumber,
+                        e.to_string(),
+                        Some(primary.as_span()),
+                    )
+                })?;
+                let span = self.to_ast_span(primary.as_span())?;
+                Ok(Expression {
+                    kind: ExprKind::Int(n),
+                    span,
+                })
+            }
+            Rule::string_literal => {
+                let span = self.to_ast_span(primary.as_span())?;
+                let s = Self::parse_string_literal(primary)?;
+                Ok(Expression {
+                    kind: ExprKind::String(s),
+                    span,
+                })
+            }
+            Rule::bool_literal => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("bad bool expression"),
+                        Some(primary.as_span()),
+                    )
+                })?;
+                match token.as_rule() {
+                    Rule::btrue => {
+                        let span = self.to_ast_span(primary.as_span())?;
+                        Ok(Expression {
+                            kind: ExprKind::Bool(true),
+                            span,
+                        })
+                    }
+                    Rule::bfalse => {
+                        let span = self.to_ast_span(primary.as_span())?;
+                        Ok(Expression {
+                            kind: ExprKind::Bool(false),
+                            span,
+                        })
+                    }
+                    t => Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("impossible token: {:?}", t),
+                        Some(primary.as_span()),
+                    )),
+                }
+            }
+            Rule::optional_literal => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no token in optional literal"),
+                        Some(primary.as_span()),
+                    )
+                })?;
+                let span = self.to_ast_span(primary.as_span())?;
+                let opt_expr = match token.as_rule() {
+                    Rule::none => None,
+                    Rule::some => {
+                        let token = pairs.next().ok_or_else(|| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("bad Some expression"),
+                                Some(primary.as_span()),
+                            )
+                        })?;
+                        let e = self.parse_literal(token)?;
+                        Some(Box::new(e))
+                    }
+                    t => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("invalid token in optional: {:?}", t),
+                            Some(primary.as_span()),
+                        ));
+                    }
+                };
+                Ok(Expression {
+                    kind: ExprKind::Optional(opt_expr),
+                    span,
+                })
+            }
+            Rule::named_struct_literal => {
+                let span = self.to_ast_span(primary.as_span())?;
+                let ns = self.parse_named_struct_literal(primary)?;
+                Ok(Expression {
+                    kind: ExprKind::NamedStruct(ns),
+                    span,
+                })
+            }
+            Rule::enum_reference => {
+                let span = self.to_ast_span(primary.as_span())?;
+                let er = self.parse_enum_reference(primary)?;
+                Ok(Expression {
+                    kind: ExprKind::EnumReference(er),
+                    span,
+                })
+            }
+            _ => Err(ParseError::new(
+                ParseErrorKind::Expression,
+                format!("bad literal: {:?}", primary.as_rule()),
+                Some(primary.as_span()),
+            )),
+        }
+    }
+
     /// Parses a Rule::expression into an Expression
     ///
     /// This uses the PrattParser to parse the syntax tree. As a part of
@@ -461,7 +579,7 @@ impl ChunkParser<'_> {
                         )),
                     }
                 }
-                Rule::optional_literal => {
+                Rule::optional_expr => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
                         ParseError::new(
@@ -755,26 +873,7 @@ impl ChunkParser<'_> {
             assert_eq!(arm.as_rule(), Rule::match_expression_arm);
             let pc = descend(arm.clone());
             let token = pc.consume()?;
-
-            let span = self.to_ast_span(token.as_span())?;
-            let pattern = match token.as_rule() {
-                Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| self.parse_expression(token.clone()))
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
-
-                    MatchPattern::Values(values)
-                }
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in match arm"),
-                        Some(token.as_span()),
-                    ));
-                }
-            };
+            let pattern = self.parse_match_pattern(token)?;
 
             // Remaining tokens are policy statements
             let expression = self.parse_expression(pc.consume()?)?;
@@ -791,6 +890,51 @@ impl ChunkParser<'_> {
             kind: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
             span,
         })
+    }
+
+    fn parse_match_pattern(&self, token: Pair<'_, Rule>) -> Result<MatchPattern, ParseError> {
+        let span = self.to_ast_span(token.as_span())?;
+        match token.as_rule() {
+            Rule::match_default => Ok(MatchPattern::Default(span)),
+            Rule::match_binder => {
+                let pc = descend(token);
+                let token = pc.consume()?;
+                let binder = match token.as_rule() {
+                    Rule::none => Binder { bound: None },
+                    Rule::some => Binder {
+                        bound: Some(self.parse_ident(pc.consume()?)?),
+                    },
+                    _ => todo!(),
+                };
+                // let binder = Binder {
+                //     namespace: pc
+                //         .find_first_tagged("namespace")
+                //         .map(|t| self.parse_ident(t))
+                //         .transpose()?,
+                //     variant: pc
+                //         .find_first_tagged("variant")
+                //         .map(|t| self.parse_ident(t))
+                //         .assume("has mandatory field")??,
+                //     bound: pairs
+                //         .find_first_tagged("bound")
+                //         .map(|t| self.parse_ident(t))
+                //         .transpose()?,
+                // };
+                Ok(MatchPattern::Binder(binder))
+            }
+            Rule::match_arm_expression => {
+                let values = token
+                    .into_inner()
+                    .map(|token| self.parse_literal(token))
+                    .collect::<Result<Vec<Expression>, ParseError>>()?;
+                Ok(MatchPattern::Values(values))
+            }
+            _ => Err(ParseError::new(
+                ParseErrorKind::Unknown,
+                String::from("invalid token in match arm"),
+                Some(token.as_span()),
+            )),
+        }
     }
 
     fn parse_counting_fn(
@@ -996,28 +1140,7 @@ impl ChunkParser<'_> {
             let pc = descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
-            let pattern = match token.as_rule() {
-                Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| {
-                            let expr = self.parse_expression(token.clone())?;
-                            Ok(expr)
-                        })
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
-
-                    MatchPattern::Values(values)
-                }
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in match arm"),
-                        Some(token.as_span()),
-                    ));
-                }
-            };
+            let pattern = self.parse_match_pattern(token)?;
 
             // Remaining tokens are policy statements
             let statements = self.parse_statement_list(pc.into_inner())?;
