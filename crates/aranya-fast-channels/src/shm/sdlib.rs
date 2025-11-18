@@ -47,7 +47,6 @@ unsafe extern "C" {
         p_virt_addr: *mut *mut c_void,
     ) -> c_int;
     fn sdDelete(id: c_int, options: c_int) -> c_int;
-    fn sdUnmap(id: c_int, options: c_int) -> c_int;
 }
 
 /// Delete the shared data at `path`.
@@ -77,12 +76,6 @@ where
     }
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { sdDelete(id, 0) };
-    if ret < 0 { Err(errno()) } else { Ok(()) }
-}
-
-fn unmap(id: c_int) -> Result<(), Errno> {
-    // SAFETY: FFI call, no invariants.
-    let ret = unsafe { sdUnmap(id, 0) };
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
