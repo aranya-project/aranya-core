@@ -1,0 +1,3 @@
+action foo() {
+    let int = 3
+}

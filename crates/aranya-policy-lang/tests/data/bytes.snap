@@ -1,0 +1,39 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [
+        FunctionDefinition {
+            identifier: "foo" @ 9..12,
+            arguments: [
+                FieldDefinition {
+                    identifier: "x" @ 13..14,
+                    field_type: Bytes @ 15..20,
+                },
+            ],
+            return_type: Bytes @ 22..27,
+            statements: [
+                Return(
+                    ReturnStatement {
+                        expression: Identifier(
+                            "x" @ 41..42,
+                        ) @ 41..42,
+                    },
+                ) @ 34..43,
+            ],
+            span: 0..44,
+        },
+    ],
+    finish_functions: [],
+    global_lets: [],
+    text: "function foo(x bytes) bytes {\n    return x\n}\n",
+}

@@ -1,0 +1,6 @@
+struct Foo { x int }
+
+effect Bar {
+    +Foo,
+    y int
+}

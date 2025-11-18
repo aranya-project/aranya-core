@@ -1,0 +1,94 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: "foo" @ 32..35,
+            arguments: [],
+            statements: [
+                Let(
+                    LetStatement {
+                        identifier: "a" @ 48..49,
+                        expression: Unwrap(
+                            FunctionCall(
+                                FunctionCall {
+                                    identifier: "add" @ 59..62,
+                                    arguments: [
+                                        Identifier(
+                                            "x" @ 63..64,
+                                        ) @ 63..64,
+                                        Int(
+                                            1,
+                                        ) @ 66..67,
+                                    ],
+                                },
+                            ) @ 59..68,
+                        ) @ 52..68,
+                    },
+                ) @ 44..73,
+                Let(
+                    LetStatement {
+                        identifier: "c" @ 77..78,
+                        expression: Not(
+                            Identifier(
+                                "z" @ 82..83,
+                            ) @ 82..83,
+                        ) @ 81..83,
+                    },
+                ) @ 73..88,
+                Emit(
+                    NamedStruct(
+                        NamedStruct {
+                            identifier: "Bar" @ 93..96,
+                            fields: [
+                                (
+                                    "a" @ 107..108,
+                                    Identifier(
+                                        "a" @ 110..111,
+                                    ) @ 110..111,
+                                ),
+                                (
+                                    "c" @ 121..122,
+                                    Identifier(
+                                        "c" @ 124..125,
+                                    ) @ 124..125,
+                                ),
+                            ],
+                            sources: [],
+                        },
+                    ) @ 93..132,
+                ) @ 88..133,
+            ],
+            span: 25..134,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [
+        GlobalLetStatement {
+            identifier: "x" @ 4..5,
+            expression: Int(
+                42,
+            ) @ 8..10,
+            span: 0..11,
+        },
+        GlobalLetStatement {
+            identifier: "z" @ 15..16,
+            expression: Bool(
+                true,
+            ) @ 19..23,
+            span: 11..25,
+        },
+    ],
+    text: "let x = 42\nlet z = true\n\naction foo() {\n    let a = unwrap add(x, 1)\n    let c = !z\n    emit Bar {\n        a: a,\n        c: c,\n    }\n}\n",
+}

@@ -1,0 +1,6 @@
+fact Foo[i int]=>{n int}
+action foo() {
+    map Foo[i:1] as f {
+        process(f)
+    }
+}

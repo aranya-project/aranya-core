@@ -1,0 +1,22 @@
+action test() {
+    if 0 {
+        check 1
+    }
+
+    if 0 {
+        check 1
+    } else {
+        check 2
+    }
+
+    if 0 {
+        check 1
+        let c = add(1, 1)
+    } else if 2 {
+        check 3
+    } else if 4 {
+        check 5
+    } else {
+        check 6
+    }
+}

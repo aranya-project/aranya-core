@@ -1,0 +1,5 @@
+command Foo {
+    attributes {
+        priority: "high",
+    }
+}
