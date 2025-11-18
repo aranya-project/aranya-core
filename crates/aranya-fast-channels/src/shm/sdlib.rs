@@ -85,7 +85,7 @@ pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,
     /// The base of the mapping.
-    id: c_int,
+    _id: c_int,
 }
 
 // SAFETY: `Mapping` is !Send by default because it contains raw
@@ -140,7 +140,7 @@ impl<T> Mapping<T> {
             Err(Error::Errno(errno()))
         } else {
             let ptr = Aligned::new(addr.cast::<T>(), layout).assume("unable to align pointer")?;
-            Ok(Mapping { ptr, id })
+            Ok(Mapping { ptr, _id: id })
         }
     }
 }
