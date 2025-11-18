@@ -255,6 +255,15 @@ pub enum TypeKind {
     Optional(#[rkyv(omit_bounds)] Box<VType>),
     /// A type which cannot be instantiated.
     Never,
+    /// Result with value, or error
+    Result {
+        /// ok type
+        #[rkyv(omit_bounds)]
+        ok: Box<VType>,
+        /// error type
+        #[rkyv(omit_bounds)]
+        err: Box<VType>,
+    },
 }
 
 impl TypeKind {
@@ -303,6 +312,7 @@ impl fmt::Display for TypeKind {
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
+            Self::Result { ok, err } => write!(f, "result {ok}, {err}"),
         }
     }
 }

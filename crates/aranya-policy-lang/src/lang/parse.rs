@@ -275,6 +275,31 @@ impl ChunkParser<'_> {
                 let inner_type = self.parse_type_inner(token, style, !is_old)?;
                 TypeKind::Optional(Box::new(inner_type))
             }
+            Rule::result_t => {
+                let mut pairs = token.clone().into_inner();
+                let ok_token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no ok type following result"),
+                        Some(token.as_span()),
+                    )
+                })?;
+                let ok_type = self.parse_type(ok_token)?;
+
+                let err_token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no err type following result"),
+                        Some(token.as_span()),
+                    )
+                })?;
+                let err_type = self.parse_type(err_token)?;
+
+                TypeKind::Result {
+                    ok: Box::new(ok_type),
+                    err: Box::new(err_type),
+                }
+            }
             _ => {
                 return Err(ParseError::new(
                     ParseErrorKind::InvalidType,

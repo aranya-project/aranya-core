@@ -183,6 +183,18 @@ impl Display for DisplayType<'_> {
             TypeKind::Enum(id) => write!(f, "enum {}", id),
             TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
             TypeKind::Never => write!(f, "never"),
+            TypeKind::Result { ok, err } => {
+                write!(f, "result[{}, {}]", DisplayType(ok), DisplayType(err))
+            }
+        }
+    }
+}
+
+impl Display for NullableVType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Type(vtype) => DisplayType(vtype).fmt(f),
+            Self::Null => f.write_str("null"),
         }
     }
 }
