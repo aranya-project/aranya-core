@@ -181,6 +181,13 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
             }
         }
         TypeKind::Never => unreachable!("cannot use never type in definitions"),
+        TypeKind::Result { ok, err } => {
+            let ok_type = vtype_to_rtype(ok);
+            let err_type = vtype_to_rtype(err);
+            quote! {
+                Result<#ok_type, #err_type>
+            }
+        }
     }
 }
 
