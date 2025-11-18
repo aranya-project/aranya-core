@@ -150,3 +150,96 @@ fn test_many_nodes() {
         }
     }
 }
+
+/// Test adding many nodes with interleaved channel additions and deletions.
+#[test]
+fn test_many_nodes_interleaved() {
+    const MAX_CHANS: usize = 101;
+    const INITIAL_CHANS: usize = 25;
+
+    let label_id = LabelId::random(&mut Rng);
+
+    type E = TestEngine<DummyAead>;
+
+    let path = Path::from_bytes(b"/test_exhaustive_interleaved\x00").unwrap();
+    let _ = super::unlink(path);
+    let aranya = WriteState::<<E as Engine>::CS, Rng>::open(
+        path,
+        Flag::Create,
+        Mode::ReadWrite,
+        MAX_CHANS,
+        Rng,
+    )
+    .expect("unable to created shared memory");
+    let og_afc =
+        ReadState::<<E as Engine>::CS>::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
+            .expect("unable to created shared memory");
+
+    // All the channels we've stored in the shared memory.
+    let mut chans = util::Pool::with_capacity(MAX_CHANS);
+
+    let rng = &mut Rng;
+
+    for _ in 0..INITIAL_CHANS {
+        let keys = match util::rand_intn(&mut Rng, 2) {
+            0 => Directed::SealOnly {
+                seal: RawSealKey::random(rng),
+            },
+            1 => Directed::OpenOnly {
+                open: RawOpenKey::random(rng),
+            },
+            v => unreachable!("{v}"),
+        };
+        let id = aranya
+            .add(keys.clone(), label_id, DeviceId::random(&mut Rng))
+            .unwrap_or_else(|err| panic!("unable to add channel {err}"));
+        let chan = Channel { id, keys, label_id };
+        chans.add((chan, og_afc.clone()));
+    }
+
+    for i in 0..(MAX_CHANS * 2) {
+        if i % 2 == 0 && !chans.is_at_capacity() {
+            let keys = match util::rand_intn(&mut Rng, 2) {
+                0 => Directed::SealOnly {
+                    seal: RawSealKey::random(rng),
+                },
+                1 => Directed::OpenOnly {
+                    open: RawOpenKey::random(rng),
+                },
+                v => unreachable!("{v}"),
+            };
+            let id = aranya
+                .add(keys.clone(), label_id, DeviceId::random(&mut Rng))
+                .unwrap_or_else(|err| panic!("unable to add channel {err}"));
+            let chan = Channel { id, keys, label_id };
+            chans.add((chan, og_afc.clone()));
+        } else {
+            let hint = None;
+            let (want, afc_client) = chans.remove_random(rng).expect("list isn't empty");
+
+            let id = want.id;
+
+            let (got, _got_idx) = afc_client
+                .inner
+                .find_chan(id, hint)
+                .unwrap_or_else(|err| panic!("find_chan({id}, {hint:?}): {err}"))
+                .unwrap_or_else(|| panic!("find_chan({id}, {hint:?}) returned `None`"));
+
+            assert_eq!(got.magic, ShmChan::<<E as Engine>::CS>::MAGIC, "{i:?}");
+
+            let got_id = got
+                .id()
+                .unwrap_or_else(|err| panic!("unable to get channel for chan {i:?}: {err}"));
+            assert_eq!(got_id, want.id, "{i:?}");
+
+            let got_secret = got
+                .keys()
+                .unwrap_or_else(|err| panic!("unable to get keys: {err}"));
+            assert_eq!(got_secret, want.keys.as_ref(), "{i:?}");
+
+            aranya
+                .remove(id)
+                .expect("removing a channel should not fail");
+        }
+    }
+}

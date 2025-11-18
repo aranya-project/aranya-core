@@ -902,3 +902,38 @@ impl DataHeaderBuilder {
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }
 }
+
+/// An unordered collection of elements
+pub struct Pool<T>(Vec<T>);
+
+impl<T> Pool<T> {
+    /// Creates a new `Pool<T>` with the the specified capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    #[inline]
+    /// Returns true if the pool is at capacity.
+    pub fn is_at_capacity(&self) -> bool {
+        self.0.len() == self.0.capacity()
+    }
+
+    /// Adds a new element to the pool.
+    pub fn add(&mut self, new: T) {
+        if self.is_at_capacity() {
+            panic!("unable to add");
+        }
+        self.0.push(new);
+    }
+
+    /// Removes a random element from the pool.
+    /// Returns `None` if the pool is empty.
+    pub fn remove_random<R: Csprng>(&mut self, rng: &mut R) -> Option<T> {
+        if self.0.is_empty() {
+            return None;
+        }
+
+        let idx = rand_intn(rng, self.0.len().try_into().ok()?);
+        Some(self.0.swap_remove(idx as usize))
+    }
+}
