@@ -61,9 +61,9 @@ pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,
     /// The base of the mapping.
-    base: *mut c_void,
+    _base: *mut c_void,
     /// How the mapping is laid out.
-    layout: Layout,
+    _layout: Layout,
 }
 
 // SAFETY: `Mapping` is !Send by default because it contains raw
@@ -130,7 +130,11 @@ impl<T> Mapping<T> {
                 let ptr = Aligned::new(base.cast::<T>(), layout)
                     // TODO(eric): better error here.
                     .ok_or(invalid_argument("unable to align mapping"))?;
-                Ok(Self { ptr, base, layout })
+                Ok(Self {
+                    ptr,
+                    _base: base,
+                    _layout: layout,
+                })
             }
         }
     }
