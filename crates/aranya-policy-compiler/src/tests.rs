@@ -1516,7 +1516,7 @@ fn test_match_expression() {
         (
             // all match patterns are not listed (can't exhaustively match on strings)
             r#"
-            enum Color {
+            enum LightColor {
                 Red, Yellow, Green
             }
 
@@ -1548,10 +1548,27 @@ fn test_match_expression() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            r#"function f() int {
+                return match None {
+                    Some(true) => 0
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"function f() int {
+                return match None {
+                    Some(true) => 0
+                    None => 1
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected, "{src}");
     }
 
     let valid_cases = vec![
@@ -1606,6 +1623,13 @@ fn test_match_expression() {
             let x = match maybe_bool {
                 None | Some(false) => 0
                 Some(true) => 1
+            }
+        }"#,
+        r#"function f() int {
+            return match None {
+                None => 0
+                Some(true) => 1
+                Some(false) => 2
             }
         }"#,
     ];
@@ -2194,6 +2218,18 @@ fn test_type_errors() {
                 }
             "#,
             e: "Expression to the left of the substruct operator is not a struct",
+        },
+        Case {
+            t: r#"
+                action foo() {
+                    match None {
+                        Some(42) => {}
+                        Some("foo") => {}
+                        _ => {}
+                    }
+                }
+            "#,
+            e: "match pattern 2 has type string, expected type int",
         },
     ];
 

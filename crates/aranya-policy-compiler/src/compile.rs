@@ -2517,16 +2517,6 @@ impl<'a> CompileState<'a> {
         };
         let mut expr_pat_t = self.compile_expression(expr)?;
 
-        let need_default = default_count == 0
-            && self
-                .m
-                .cardinality(&expr_pat_t.kind)
-                .is_none_or(|c| c > all_values.len() as u64);
-
-        if need_default {
-            return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
-        }
-
         let end_label = self.anonymous_label();
 
         // 1. Generate branching instructions, and arm-start labels
@@ -2577,6 +2567,16 @@ impl<'a> CompileState<'a> {
                     }
                 }
             }
+        }
+
+        let need_default = default_count == 0
+            && self
+                .m
+                .cardinality(&expr_pat_t.kind)
+                .is_none_or(|c| c > all_values.len() as u64);
+
+        if need_default {
+            return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
         }
 
         // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
