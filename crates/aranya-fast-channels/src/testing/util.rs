@@ -908,8 +908,8 @@ pub struct Pool<T>(Vec<T>);
 
 impl<T> Pool<T> {
     /// Creates a new `Pool<T>` with the the specified capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self(Vec::with_capacity(capacity))
+    pub fn with_capacity(capacity: u32) -> Self {
+        Self(Vec::with_capacity(capacity as usize))
     }
 
     #[inline]
@@ -919,6 +919,10 @@ impl<T> Pool<T> {
     }
 
     /// Adds a new element to the pool.
+    ///
+    /// # Panics
+    ///
+    /// panics if the pool is at capacity.
     pub fn add(&mut self, new: T) {
         if self.is_at_capacity() {
             panic!("unable to add");
@@ -933,7 +937,13 @@ impl<T> Pool<T> {
             return None;
         }
 
-        let idx = rand_intn(rng, self.0.len().try_into().ok()?);
+        let idx = rand_intn(
+            rng,
+            self.0
+                .len()
+                .try_into()
+                .expect("Upper bound on capacity is `u32::MAX`"),
+        );
         Some(self.0.swap_remove(idx as usize))
     }
 }

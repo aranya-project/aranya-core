@@ -176,7 +176,7 @@ fn test_many_nodes_interleaved() {
             .expect("unable to created shared memory");
 
     // All the channels we've stored in the shared memory.
-    let mut chans = util::Pool::with_capacity(MAX_CHANS);
+    let mut chans = util::Pool::with_capacity(MAX_CHANS.try_into().expect("can fit into `u32`"));
 
     let rng = &mut Rng;
 
