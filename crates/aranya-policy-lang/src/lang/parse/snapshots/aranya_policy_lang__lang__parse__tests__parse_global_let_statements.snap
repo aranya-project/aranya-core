@@ -32,8 +32,15 @@ expression: policy
                 "kind": {
                   "Unwrap": {
                     "kind": {
-                      "InternalFunction": {
-                        "Add": [
+                      "FunctionCall": {
+                        "identifier": {
+                          "name": "add",
+                          "span": {
+                            "start": 92,
+                            "end": 95
+                          }
+                        },
+                        "arguments": [
                           {
                             "kind": {
                               "Identifier": {
