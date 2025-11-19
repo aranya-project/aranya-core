@@ -2261,7 +2261,7 @@ fn test_struct_composition() {
     let valid_cases = [Case {
         t: r#"
                 struct Foo { x int, y bool }
-                struct Bar { x int, y bool, z string}
+                struct Bar { x int, y bool, z string }
                 function baz(foo struct Foo) struct Bar {
                     return Bar {
                         z: "z",
