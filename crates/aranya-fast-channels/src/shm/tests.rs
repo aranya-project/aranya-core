@@ -161,7 +161,7 @@ fn test_many_nodes_interleaved() {
 
     type E = TestEngine<DummyAead>;
 
-    let path = Path::from_bytes(b"/test_exhaustive_interleaved\x00").unwrap();
+    let path = Path::from_bytes(b"/test_many_nodes_interleaved\x00").unwrap();
     let _ = super::unlink(path);
     let aranya = WriteState::<<E as Engine>::CS, Rng>::open(
         path,

@@ -144,7 +144,7 @@ macro_rules! bench_impl {
                 let seal_ctx = afc.setup_seal_ctx(seal_local_id).unwrap();
 				(seal_ctx, open_local_id)
 			});
-			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
+			let client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 
 			for size in SIZES {
 				let mut g = c.benchmark_group(stringify!($aead));
