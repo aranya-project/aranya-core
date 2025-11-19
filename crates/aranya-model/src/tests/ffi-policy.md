@@ -100,7 +100,6 @@ function seal_basic_command(payload bytes) struct Envelope {
     )
 
     return envelope::new(
-        parent_id,
         author_id,
         signed.command_id,
         signed.signature,
@@ -112,11 +111,9 @@ function seal_basic_command(payload bytes) struct Envelope {
 function open_basic_command(envelope_input struct Envelope) bytes {
     let author_id = envelope::author_id(envelope_input)
     let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
-    let parent_id = envelope::parent_id(envelope_input)
 
     let crypto_command = crypto::verify(
         author_sign_pk.key,
-        parent_id,
         envelope::payload(envelope_input),
         envelope::command_id(envelope_input),
         envelope::signature(envelope_input),
@@ -154,7 +151,6 @@ command Init {
         let author_id = device::current_device_id()
 
         return envelope::new(
-            parent_id,
             author_id,
             signed.command_id,
             signed.signature,
@@ -164,14 +160,12 @@ command Init {
 
     open {
         let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
         let payload = envelope::payload(envelope)
         let cmd = deserialize(payload)
         let author_sign_pk = cmd.sign_pk
 
         let crypto_command = crypto::verify(
             author_sign_pk,
-            parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
@@ -215,7 +209,6 @@ command AddDeviceKeys {
         let author_id = device::current_device_id()
 
         return envelope::new(
-            parent_id,
             author_id,
             signed.command_id,
             signed.signature,
@@ -225,14 +218,12 @@ command AddDeviceKeys {
 
     open {
         let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
         let payload = envelope::payload(envelope)
         let cmd = deserialize(payload)
         let author_sign_pk = cmd.sign_pk
 
         let crypto_command = crypto::verify(
             author_sign_pk,
-            parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
