@@ -53,16 +53,6 @@ impl<S: AfcState> Client<S> {
         v
     }
 
-    /// Set up the seal context for the given channel.
-    ///
-    /// This must only be called once for any given channel ID. Failure to
-    /// do so will result in repeated usage of sequence numbers and thus a
-    /// repeated use of a nonce. This will open the channel up to a variety
-    /// of attacks and remove any security guarantees.
-    pub fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<S::SealCtx, Error> {
-        self.state.setup_seal_ctx(id)
-    }
-
     /// Encrypts and authenticates `plaintext` for a channel.
     ///
     /// The resulting ciphertext is written to `dst`, which must
@@ -70,7 +60,7 @@ impl<S: AfcState> Client<S> {
     /// long.
     pub fn seal(
         &mut self,
-        ctx: &mut S::SealCtx,
+        id: LocalChannelId,
         dst: &mut [u8],
         plaintext: &[u8],
     ) -> Result<Header, Error> {
@@ -91,7 +81,7 @@ impl<S: AfcState> Client<S> {
             .split_last_chunk_mut()
             .assume("we've already checked that `dst` contains enough space")?;
 
-        self.do_seal(ctx, header, |aead, ad| {
+        self.do_seal(id, header, |aead, ad| {
             aead.seal(out, plaintext, ad).map_err(Into::into)
         })
         // This isn't necessary since AEAD encryption shouldn't
@@ -108,7 +98,7 @@ impl<S: AfcState> Client<S> {
     /// The resulting ciphertext is written in-place to `data`.
     pub fn seal_in_place<T: Buf>(
         &mut self,
-        ctx: &mut S::SealCtx,
+        id: LocalChannelId,
         data: &mut T,
     ) -> Result<Header, Error> {
         // Ensure we have space for the header and tag. Don't
@@ -132,7 +122,7 @@ impl<S: AfcState> Client<S> {
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
 
-        self.do_seal(ctx, header, |aead, ad| {
+        self.do_seal(id, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
         })
         // This isn't strictly necessary since AEAD
@@ -148,7 +138,7 @@ impl<S: AfcState> Client<S> {
     /// `id`.
     fn do_seal<F>(
         &mut self,
-        ctx: &mut S::SealCtx,
+        id: LocalChannelId,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
     ) -> Result<Header, Error>
@@ -158,7 +148,11 @@ impl<S: AfcState> Client<S> {
             /* ad: */ &AuthData,
         ) -> Result<Seq, Error>,
     {
-        let seq = self.state.seal(ctx, |aead, label_id| {
+        debug!("finding seal info: id={id}");
+
+        let seq = self.state.seal(id, |aead, label_id| {
+            debug!("encrypting id={id}");
+
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),
