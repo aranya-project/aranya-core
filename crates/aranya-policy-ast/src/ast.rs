@@ -447,14 +447,6 @@ impl Spanned for FactCountType {
 /// Expression atoms with special rules or effects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
-    /// A `add` expression
-    Add(Box<Expression>, Box<Expression>),
-    /// A `saturating_add` expression
-    SaturatingAdd(Box<Expression>, Box<Expression>),
-    /// A `sub` expression
-    Sub(Box<Expression>, Box<Expression>),
-    /// A `saturating_sub` expression
-    SaturatingSub(Box<Expression>, Box<Expression>),
     /// A `query` expression
     Query(FactLiteral),
     /// An `exists` fact query
@@ -475,10 +467,6 @@ pub enum InternalFunction {
 impl Spanned for InternalFunction {
     fn span(&self) -> Span {
         match self {
-            Self::Add(lhs, rhs) => lhs.span().merge(rhs.span()),
-            Self::SaturatingAdd(lhs, rhs) => lhs.span().merge(rhs.span()),
-            Self::Sub(lhs, rhs) => lhs.span().merge(rhs.span()),
-            Self::SaturatingSub(lhs, rhs) => lhs.span().merge(rhs.span()),
             Self::Query(fact) => fact.span(),
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),

@@ -19,8 +19,15 @@ expression: expr_parsed
               "kind": {
                 "Unwrap": {
                   "kind": {
-                    "InternalFunction": {
-                      "Add": [
+                    "FunctionCall": {
+                      "identifier": {
+                        "name": "add",
+                        "span": {
+                          "start": 19,
+                          "end": 22
+                        }
+                      },
+                      "arguments": [
                         {
                           "kind": {
                             "Int": 3
@@ -55,8 +62,15 @@ expression: expr_parsed
             },
             {
               "kind": {
-                "InternalFunction": {
-                  "SaturatingSub": [
+                "FunctionCall": {
+                  "identifier": {
+                    "name": "saturating_sub",
+                    "span": {
+                      "start": 30,
+                      "end": 44
+                    }
+                  },
+                  "arguments": [
                     {
                       "kind": {
                         "Int": 0

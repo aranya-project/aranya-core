@@ -1908,7 +1908,7 @@ fn test_type_errors() {
                     return saturating_add(x, "foo")
                 }
             "#,
-            e: "Cannot do math on non-int types",
+            e: "Argument 2 (`y`) in call to `saturating_add` found `string`, expected `int`",
         },
         Case {
             t: r#"
@@ -1924,7 +1924,7 @@ fn test_type_errors() {
                     return saturating_add("3", "4")
                 }
             "#,
-            e: "Cannot do math on non-int types",
+            e: "Argument 1 (`x`) in call to `saturating_add` found `string`, expected `int`",
         },
         Case {
             t: r#"
