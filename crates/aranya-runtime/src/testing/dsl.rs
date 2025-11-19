@@ -605,6 +605,7 @@ where
                         &mut request_client,
                         &mut response_client,
                         client,
+                        from,
                         &mut sink,
                         *storage_id,
                     )?;
@@ -698,10 +699,23 @@ where
                 if same != equal {
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
-                    debug!("Graph A");
-                    print_graph(storage_a, head_a)?;
-                    debug!("Graph B");
-                    print_graph(storage_b, head_b)?;
+                    debug!("Graph A (client {})", clienta);
+                    let cmds_a = print_graph(storage_a, head_a)?;
+                    debug!("Graph B (client {})", clientb);
+                    let cmds_b = print_graph(storage_b, head_b)?;
+
+                    // Compare command sets
+                    let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
+                    let only_in_b: Vec<_> = cmds_b.difference(&cmds_a).collect();
+
+                    debug!("Commands only in Graph A: {} commands", only_in_a.len());
+                    for &cmd in &only_in_a {
+                        debug!("  Only in A: {}", short_b58(*cmd));
+                    }
+                    debug!("Commands only in Graph B: {} commands", only_in_b.len());
+                    for &cmd in &only_in_b {
+                        debug!("  Only in B: {}", short_b58(*cmd));
+                    }
                 }
                 assert_eq!(equal, same);
             }
@@ -919,17 +933,27 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     response_cache: &mut PeerCache,
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
-    server_address: u64,
+    requester_address: u64,
+    responder_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, server_address);
+    debug!(
+        "SYNC START: Client {} requesting sync from client {} for graph {:?}",
+        requester_address, responder_address, storage_id
+    );
+    debug!("SYNC: Requester cache before: {:?}", request_cache.heads());
+    debug!("SYNC: Responder cache before: {:?}", response_cache.heads());
+
+    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(storage_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
+
+    debug!("SYNC: Requester sent {} commands in request", sent);
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -940,16 +964,31 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         response_cache,
     )?;
 
+    debug!("SYNC: Responder sent {} bytes in response", len);
+
     if len == 0 {
+        debug!("SYNC END: No response from responder");
         return Ok((sent, received));
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
+        debug!("SYNC: Requester received {} commands", cmds.len());
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
         let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
+        debug!(
+            "SYNC: Added {} commands to graph, updating heads with {} addresses",
+            received,
+            addresses.len()
+        );
         request_state.update_heads(storage_id, addresses, request_cache)?;
+    } else {
+        debug!("SYNC: No commands received from responder");
     }
+
+    debug!("SYNC: Requester cache after: {:?}", request_cache.heads());
+    debug!("SYNC: Responder cache after: {:?}", response_cache.heads());
+    debug!("SYNC END: Sent {}, Received {}", sent, received);
 
     Ok((sent, received))
 }
@@ -968,23 +1007,28 @@ impl Display for Parent {
     }
 }
 
-pub fn print_graph<S>(storage: &S, location: Location) -> Result<(), StorageError>
+pub fn print_graph<S>(storage: &S, location: Location) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
 {
     let mut visited = BTreeSet::new();
     let mut locations = vec![location];
+    let mut command_ids = BTreeSet::new();
+
     while let Some(loc) = locations.pop() {
         if visited.contains(&loc.segment) {
             continue;
         }
         visited.insert(loc.segment);
+        debug!("PRINT_GRAPH: Visiting segment {}", loc.segment);
         let segment = storage.get_segment(loc)?;
         let commands = segment.get_from(segment.first_location());
         for command in commands.iter().rev() {
+            let cmd_id = command.id();
+            command_ids.insert(cmd_id);
             debug!(
                 "id: {} location {:?} max_cut: {} parent: {}",
-                short_b58(command.id()),
+                short_b58(cmd_id),
                 storage
                     .get_location(command.address()?)?
                     .assume("location must exist"),
@@ -994,7 +1038,9 @@ where
         }
         locations.extend(segment.prior());
     }
-    Ok(())
+
+    debug!("Graph contains {} total commands", command_ids.len());
+    Ok(command_ids)
 }
 
 /// Walk the graph and yield all visited IDs.

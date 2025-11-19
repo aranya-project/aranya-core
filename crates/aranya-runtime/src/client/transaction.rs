@@ -2,6 +2,7 @@ use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
 use buggy::{BugExt as _, bug};
+use tracing::debug;
 
 use super::braiding;
 use crate::{
@@ -157,11 +158,14 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let mut commands = commands.iter();
         let mut count: usize = 0;
 
+        debug!("ADD_COMMANDS: Processing {} commands", commands.len());
+
         // Get storage or try to initialize with first command.
         let storage = match provider.get_storage(self.storage_id) {
             Ok(s) => s,
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
+                debug!("ADD_COMMANDS: Initializing graph with command {:?}", command.id());
                 count = count.checked_add(1).assume("must not overflow")?;
                 self.init(command, engine, provider, sink)?
             }
@@ -170,37 +174,46 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         // Handle remaining commands.
         for command in commands {
+            debug!("ADD_COMMANDS: Processing command {:?}", command.id());
+
             if self
                 .perspective
                 .as_ref()
                 .is_some_and(|p| p.includes(command.id()))
             {
+                debug!("ADD_COMMANDS: Skipping command {:?} - already in current perspective", command.id());
                 // Command in current perspective.
                 continue;
             }
             if (self.locate(storage, command.address()?)?).is_some() {
+                debug!("ADD_COMMANDS: Skipping command {:?} - already added to graph", command.id());
                 // Command already added.
                 continue;
             }
+
             match command.parent() {
                 Prior::None => {
                     if command.id().as_base() == self.storage_id.as_base() {
+                        debug!("ADD_COMMANDS: Skipping init command {:?} - graph already initialized", command.id());
                         // Graph already initialized, extra init just spurious
                     } else {
                         bug!("init command does not belong in graph");
                     }
                 }
                 Prior::Single(parent) => {
+                    debug!("ADD_COMMANDS: Adding single-parent command {:?} with parent {:?}", command.id(), parent);
                     self.add_single(storage, engine, sink, command, parent)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
+                    debug!("ADD_COMMANDS: Adding merge command {:?} with parents {:?} and {:?}", command.id(), left, right);
                     self.add_merge(storage, engine, sink, command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             }
         }
 
+        debug!("ADD_COMMANDS: Successfully added {} commands to graph", count);
         Ok(count)
     }
 

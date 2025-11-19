@@ -1,9 +1,10 @@
-use alloc::vec;
+use alloc::{collections::BTreeSet, vec};
 use core::mem;
 
 use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
@@ -214,7 +215,10 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                         response_cache.add_command(storage, *command, cmd_loc)?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage)?;
+                // Only compute to_send once, not on every poll call
+                if self.to_send.is_empty() {
+                    self.to_send = Self::find_needed_segments(&self.has, storage)?;
+                }
 
                 self.get_next(target, provider)?
             }
@@ -284,9 +288,15 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         commands: &[Address],
         storage: &impl Storage,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
+        debug!("FIND_NEEDED_SEGMENTS: Requester claims to have {} commands", commands.len());
+        for &addr in commands {
+            debug!("FIND_NEEDED_SEGMENTS: Requester has command {:?}", addr);
+        }
+
         let mut have_locations = vec::Vec::new(); //BUG: not constant size
         for &addr in commands {
             let Some(location) = storage.get_location(addr)? else {
+                debug!("FIND_NEEDED_SEGMENTS: Requester claims command {:?} but it's not in our graph", addr);
                 // Note: We could use things we don't
                 // have as a hint to know we should
                 // perform a sync request.
@@ -294,42 +304,83 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             };
 
             have_locations.push(location);
+            debug!("FIND_NEEDED_SEGMENTS: Requester has command {:?} at location {:?}", addr, location);
         }
+
+        debug!("FIND_NEEDED_SEGMENTS: Requester has {} valid commands in our graph", have_locations.len());
 
         let mut heads = vec::Vec::new();
         heads.push(storage.get_head()?);
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
+        debug!("FIND_NEEDED_SEGMENTS: Starting segment traversal from graph head");
+        let mut examined_segments = BTreeSet::new();
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
+                if examined_segments.contains(&head.segment) {
+                    debug!("FIND_NEEDED_SEGMENTS: Already examined segment {}, skipping", head.segment);
+                    continue;
+                }
+                examined_segments.insert(head.segment);
+
                 let segment = storage.get_segment(head)?;
+                debug!("FIND_NEEDED_SEGMENTS: Examining segment {} at {:?}", head.segment, head);
+
                 if segment.contains_any(&result) {
+                    debug!("FIND_NEEDED_SEGMENTS: Segment {} already in result, skipping", head.segment);
                     continue 'heads;
                 }
 
+                let mut requester_has_in_segment = false;
                 for &location in &have_locations {
                     if segment.contains(location) {
-                        if location != segment.head_location() {
-                            if result.is_full() {
-                                result.pop_back();
-                            }
-                            result
-                                .push_front(location)
-                                .ok()
-                                .assume("too many segments")?;
+                        requester_has_in_segment = true;
+                        if location == segment.head_location() {
+                            debug!("FIND_NEEDED_SEGMENTS: Requester has segment {} head at {:?}", head.segment, location);
+                        } else {
+                            debug!("FIND_NEEDED_SEGMENTS: Requester has command in middle of segment {} at {:?}", head.segment, location);
                         }
-                        continue 'heads;
                     }
                 }
+
+                if requester_has_in_segment {
+                    // Find the latest location in this segment that the requester has
+                    let mut latest_requester_location: Option<Location> = None;
+                    for &location in &have_locations {
+                        if segment.contains(location) && (latest_requester_location.is_none() || location.command > latest_requester_location.unwrap().command) {
+                            latest_requester_location = Some(location);
+                        }
+                    }
+
+                    if let Some(latest_loc) = latest_requester_location {
+                        debug!("FIND_NEEDED_SEGMENTS: Requester has commands in segment {} (latest at {:?}), sending from next location", head.segment, latest_loc);
+                        // Send from the next command in the segment
+                        let next_command = latest_loc.command + 1;
+                        let next_location = Location { segment: head.segment, command: next_command };
+                        if result.is_full() {
+                            let removed = result.pop_back().unwrap();
+                            debug!("FIND_NEEDED_SEGMENTS: Result full, removed segment {:?}", removed);
+                        }
+                        result
+                            .push_front(next_location)
+                            .ok()
+                            .assume("too many segments")?;
+                    }
+                    continue 'heads;
+                }
+
+                debug!("FIND_NEEDED_SEGMENTS: Requester missing entire segment {}, adding to traversal and sending from start", head.segment);
                 heads.extend(segment.prior());
 
                 if result.is_full() {
-                    result.pop_back();
+                    let removed = result.pop_back().unwrap();
+                    debug!("FIND_NEEDED_SEGMENTS: Result full, removed segment {:?}", removed);
                 }
 
                 let location = segment.first_location();
+                debug!("FIND_NEEDED_SEGMENTS: Adding segment {} location {:?}", head.segment, location);
                 result
                     .push_front(location)
                     .ok()
@@ -343,6 +394,12 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
         r.sort();
+
+        debug!("FIND_NEEDED_SEGMENTS: Final result - sending {} segments", r.len());
+        for &location in &r {
+            debug!("FIND_NEEDED_SEGMENTS: Will send from segment {} at {:?}", location.segment, location);
+        }
+
         Ok(r)
     }
 
