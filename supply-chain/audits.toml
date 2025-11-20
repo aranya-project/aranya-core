@@ -11,6 +11,11 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 version = "0.3.1"
 
+[[audits.futures-timer]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+version = "3.0.3"
+
 [[audits.itertools]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -31,10 +36,25 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.46.0 -> 0.50.1"
 
+[[audits.proc-macro-crate]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "2.0.1 -> 3.3.0"
+
 [[audits.rcgen]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 delta = "0.11.3 -> 0.13.2"
+
+[[audits.rstest]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "0.22.0 -> 0.26.1"
+
+[[audits.rstest_macros]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "0.22.0 -> 0.26.1"
 
 [[audits.scc]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -90,6 +110,36 @@ delta = "0.7.35 -> 0.8.25"
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.7.35 -> 0.8.25"
+
+[[trusted.anstream]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-16"
+end = "2026-11-19"
+
+[[trusted.anstyle]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-05-18"
+end = "2026-11-19"
+
+[[trusted.anstyle-parse]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-08"
+end = "2026-11-19"
+
+[[trusted.anstyle-query]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-04-13"
+end = "2026-11-19"
+
+[[trusted.anstyle-wincon]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-08"
+end = "2026-11-19"
 
 [[trusted.aranya-afc-util]]
 criteria = "safe-to-deploy"
@@ -235,6 +285,30 @@ user-id = 293722 # aranya-project-bot
 start = "2025-01-24"
 end = "2026-01-24"
 
+[[trusted.clap_builder]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-28"
+end = "2026-11-19"
+
+[[trusted.clap_lex]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-04-15"
+end = "2026-11-19"
+
+[[trusted.colorchoice]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-04-13"
+end = "2026-11-19"
+
+[[trusted.is_terminal_polyfill]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2024-05-02"
+end = "2026-11-19"
+
 [[trusted.spideroak-base58]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
@@ -252,3 +326,27 @@ criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2025-01-23"
 end = "2026-01-23"
+
+[[trusted.toml_datetime]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-10-21"
+end = "2026-11-19"
+
+[[trusted.toml_edit]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2021-09-13"
+end = "2026-11-19"
+
+[[trusted.toml_parser]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2025-07-08"
+end = "2026-11-19"
+
+[[trusted.winnow]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-02-22"
+end = "2026-11-19"

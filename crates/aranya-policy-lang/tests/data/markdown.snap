@@ -1,0 +1,44 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [
+        FactDefinition {
+            immutable: false,
+            identifier: "Markdown" @ 52..60,
+            key: [],
+            value: [],
+            span: 47..66,
+        },
+    ],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: "foo" @ 125..128,
+            arguments: [],
+            statements: [
+                Publish(
+                    NamedStruct(
+                        NamedStruct {
+                            identifier: "SomeCommand" @ 145..156,
+                            fields: [],
+                            sources: [],
+                        },
+                    ) @ 145..158,
+                ) @ 137..159,
+            ],
+            span: 118..160,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "---\npolicy-version: 2\n---\n\n# A fact\n\n```policy\nfact Markdown[]=>{}\n```\n\n```\nfact NotAPolicyBlock[]=>{}\n```\n\n```policy\naction foo() {\n    publish SomeCommand{}\n}\n```\n",
+}

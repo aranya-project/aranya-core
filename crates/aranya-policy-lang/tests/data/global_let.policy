@@ -1,0 +1,11 @@
+let x = 42
+let z = true
+
+action foo() {
+    let a = unwrap add(x, 1)
+    let c = !z
+    emit Bar {
+        a: a,
+        c: c,
+    }
+}

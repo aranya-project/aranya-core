@@ -30,4 +30,5 @@ serde_yaml = { version = "0.9" }
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
+rstest = { version = "0.26" }
 serde_json = { version = "1" }

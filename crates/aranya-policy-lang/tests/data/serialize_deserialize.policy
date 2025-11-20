@@ -1,0 +1,9 @@
+command Foo {
+    seal {
+        return serialize(this)
+    }
+
+    open {
+        return deserialize(envelope)
+    }
+}
