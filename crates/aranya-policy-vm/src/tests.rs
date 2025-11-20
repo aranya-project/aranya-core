@@ -510,7 +510,7 @@ fn test_errors() {
         MachineErrorType::InvalidStructMember(x.clone()),
     );
 
-    // InvalidFact: Update a fact that does not exist
+    // FactNotFound: Update a fact that does not exist
     error_test_harness(
         &[
             Instruction::Const(Value::Fact(Fact {
@@ -521,7 +521,7 @@ fn test_errors() {
             Instruction::Dup,
             Instruction::Update,
         ],
-        MachineErrorType::InvalidFact(x.clone()),
+        MachineErrorType::IO(MachineIOError::FactNotFound),
     );
 
     // InvalidSchema: Publish a command that was not defined
