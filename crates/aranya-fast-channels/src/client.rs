@@ -63,6 +63,11 @@ impl<S: AfcState> Client<S> {
         self.state.setup_seal_ctx(id)
     }
 
+    /// Set up the open context for the given channel.
+    pub fn setup_open_ctx(&self, id: LocalChannelId) -> Result<S::OpenCtx, Error> {
+        self.state.setup_open_ctx(id)
+    }
+
     /// Encrypts and authenticates `plaintext` for a channel.
     ///
     /// The resulting ciphertext is written to `dst`, which must
@@ -187,7 +192,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open(
         &self,
-        local_channel_id: LocalChannelId,
+        ctx: &mut S::OpenCtx,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<(LabelId, Seq), Error> {
@@ -204,7 +209,7 @@ impl<S: AfcState> Client<S> {
             (seq, ciphertext)
         };
         debug!(
-            "seq={seq} ciphertext=[{:?}; {}] local_channel_id={local_channel_id}",
+            "seq={seq} ciphertext=[{:?}; {}]",
             ciphertext.as_ptr(),
             ciphertext.len()
         );
@@ -221,7 +226,7 @@ impl<S: AfcState> Client<S> {
         }
 
         let label_id = self
-            .do_open(local_channel_id, seq, |aead, ad, seq| {
+            .do_open(ctx, seq, |aead, ad, seq| {
                 aead.open(dst, ciphertext, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -247,7 +252,7 @@ impl<S: AfcState> Client<S> {
     /// sequence number associated with the ciphertext.
     pub fn open_in_place<T: Buf>(
         &self,
-        local_channel_id: LocalChannelId,
+        ctx: &mut S::OpenCtx,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
@@ -270,15 +275,11 @@ impl<S: AfcState> Client<S> {
                 .ok_or(Error::Authentication)?;
             (seq, ciphertext, tag)
         };
-        debug!(
-            "local_channel_id={local_channel_id} data=[{:?}; {}]",
-            out.as_ptr(),
-            out.len()
-        );
+        debug!("data=[{:?}; {}]", out.as_ptr(), out.len());
 
         let plaintext_len = out.len();
         let label_id = self
-            .do_open(local_channel_id, seq, |aead, ad, seq| {
+            .do_open(ctx, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -296,7 +297,7 @@ impl<S: AfcState> Client<S> {
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: LocalChannelId, seq: Seq, f: F) -> Result<T, Error>
+    fn do_open<F, T>(&self, ctx: &mut S::OpenCtx, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -304,9 +305,7 @@ impl<S: AfcState> Client<S> {
             /* seq: */ Seq,
         ) -> Result<T, Error>,
     {
-        debug!("decrypting: id={id}");
-
-        self.state.open(id, |aead, label_id| {
+        self.state.open(ctx, |aead, label_id| {
             let ad = AuthData {
                 // TODO(eric): update `AuthData` to use `u16`.
                 version: u32::from(Version::current().to_u16()),

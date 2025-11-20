@@ -81,6 +81,9 @@ where
 /// Sealing channel context.
 pub struct SealCtx<CS: CipherSuite>(Option<Cache<SealKey<CS>>>);
 
+/// Opening channel context.
+pub struct OpenCtx<CS: CipherSuite>(Option<Cache<OpenKey<CS>>>);
+
 impl<CS> AfcState for ReadState<CS>
 where
     CS: CipherSuite + Sized,
@@ -88,6 +91,8 @@ where
     type CipherSuite = CS;
 
     type SealCtx = SealCtx<CS>;
+
+    type OpenCtx = OpenCtx<CS>;
 
     fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, crate::Error> {
         let mutex = self.inner.load_read_list()?;
@@ -104,6 +109,29 @@ where
 
         let key = SealKey::from_raw(&chan.seal_key, Seq::ZERO)?;
         Ok(SealCtx(Some(Cache {
+            id,
+            label_id: chan.label_id,
+            key,
+            generation,
+            idx,
+        })))
+    }
+
+    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, crate::Error> {
+        let mutex = self.inner.load_read_list()?;
+        let mut list = mutex.lock().assume("poisoned")?;
+
+        let generation = list.generation.load(Ordering::Relaxed);
+
+        let (chan, idx) = match list.find_mut(id, None, Op::Open)? {
+            None => {
+                return Err(crate::Error::NotFound(id));
+            }
+            Some((chan, idx)) => (chan, idx),
+        };
+
+        let key = OpenKey::from_raw(&chan.open_key)?;
+        Ok(OpenCtx(Some(Cache {
             id,
             label_id: chan.label_id,
             key,
@@ -186,38 +214,38 @@ where
         Ok(result)
     }
 
-    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
+    fn open<F, T>(
+        &self,
+        ctx: &mut Self::OpenCtx,
+        f: F,
+    ) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&OpenKey<CS>, LabelId) -> Result<T, crate::Error>,
     {
+        let cache = ctx.0.as_mut().ok_or(crate::Error::KeyExpired)?;
+
+        let id = cache.id;
+
         let mutex = self.inner.load_read_list()?;
 
-        // Check to see if the current `OpenKey` for this channel
-        // is cached.
-        let mut cache = self.last_open.lock().assume("poisoned")?;
-        let hint = match cache.as_mut().filter(|c| c.id == id) {
-            // There is a cache entry for this channel.
-            Some(c) => {
-                // SAFETY: we only access an atomic field.
-                let generation = unsafe {
-                    mutex
-                        .inner_unsynchronized()
-                        .generation
-                        .load(Ordering::Acquire)
-                };
-                if c.generation == generation {
-                    // Same generation, so we can use the key.
-                    // so we can use it.
-                    debug!("cache hit: id={id} generation={generation}");
+        let hint = {
+            // SAFETY: we only access an atomic field.
+            let generation = unsafe {
+                mutex
+                    .inner_unsynchronized()
+                    .generation
+                    .load(Ordering::Acquire)
+            };
+            if cache.generation == generation {
+                // Same generation, so we can use the key.
+                debug!("cache hit: id={id} generation={generation}");
 
-                    return Ok(f(&c.key, c.label_id));
-                }
-                // The generations are different, so
-                // optimistically use `idx` to try and speed up
-                // the list traversal.
-                Some(c.idx)
+                return Ok(f(&cache.key, cache.label_id));
             }
-            _ => None,
+            // The generations are different, so
+            // optimistically use `idx` to try and speed up
+            // the list traversal.
+            Some(cache.idx)
         };
 
         // We don't have a cached key, so we need to traverse the
@@ -235,17 +263,9 @@ where
         let result = f(&key, label_id);
         if result.is_ok() {
             // Decryption was successful, so update the cache.
-            *cache = Some(Cache {
-                id,
-                label_id,
-                key,
-                // The list is currently locked (precluding
-                // writes to `list.generation`), so we don't *need*
-                // atomics here. But we might as well since
-                // relaxed is ~free.
-                generation: list.generation.load(Ordering::Relaxed),
-                idx,
-            });
+            cache.idx = idx;
+            cache.generation = list.generation.load(Ordering::Relaxed);
+            cache.key = key;
         }
         Ok(result)
     }
