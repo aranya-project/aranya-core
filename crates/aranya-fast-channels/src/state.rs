@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 /// AFC's view of the shared state.
-pub trait AfcState: Clone {
+pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 

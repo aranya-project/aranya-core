@@ -56,20 +56,27 @@ where
 }
 
 /// Memory mapped shared memory.
-#[derive_where(Clone, Debug)]
+#[derive_where(Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,
     /// The base of the mapping.
-    _base: *mut c_void,
+    base: *mut c_void,
     /// How the mapping is laid out.
-    _layout: Layout,
+    layout: Layout,
 }
 
 // SAFETY: `Mapping` is !Send by default because it contains raw
 // pointers. But since it does not have any thread affinity, we
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
+
+impl<T> Drop for Mapping<T> {
+    fn drop(&mut self) {
+        // SAFETY: FFI call, no invariants.
+        let _ = unsafe { libc::munmap(self.base, self.layout.size()) };
+    }
+}
 
 impl<T: Sync> AsRef<T> for Mapping<T> {
     fn as_ref(&self) -> &T {
@@ -130,11 +137,7 @@ impl<T> Mapping<T> {
                 let ptr = Aligned::new(base.cast::<T>(), layout)
                     // TODO(eric): better error here.
                     .ok_or(invalid_argument("unable to align mapping"))?;
-                Ok(Self {
-                    ptr,
-                    _base: base,
-                    _layout: layout,
-                })
+                Ok(Self { ptr, base, layout })
             }
         }
     }

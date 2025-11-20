@@ -47,6 +47,7 @@ unsafe extern "C" {
         p_virt_addr: *mut *mut c_void,
     ) -> c_int;
     fn sdDelete(id: c_int, options: c_int) -> c_int;
+    fn sdUnmap(id: c_int, options: c_int) -> c_int;
 }
 
 /// Delete the shared data at `path`.
@@ -79,19 +80,31 @@ where
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
+fn unmap(id: c_int) -> Result<(), Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { sdUnmap(id, 0) };
+    if ret < 0 { Err(errno()) } else { Ok(()) }
+}
+
 /// Shared data mapping.
-#[derive_where(Clone, Debug)]
+#[derive_where(Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,
     /// The base of the mapping.
-    _id: c_int,
+    id: c_int,
 }
 
 // SAFETY: `Mapping` is !Send by default because it contains raw
 // pointers.  But since it does not have any thread affinity, we
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
+
+impl<T> Drop for Mapping<T> {
+    fn drop(&mut self) {
+        let _ = unmap(self.id);
+    }
+}
 
 impl<T: Sync> AsRef<T> for Mapping<T> {
     fn as_ref(&self) -> &T {
@@ -140,7 +153,7 @@ impl<T> Mapping<T> {
             Err(Error::Errno(errno()))
         } else {
             let ptr = Aligned::new(addr.cast::<T>(), layout).assume("unable to align pointer")?;
-            Ok(Mapping { ptr, _id: id })
+            Ok(Mapping { ptr, id })
         }
     }
 }

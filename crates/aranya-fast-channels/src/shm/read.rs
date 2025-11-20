@@ -44,11 +44,6 @@ struct Cache<K> {
 }
 
 /// The reader's view of the shared memory state.
-///
-/// # Notes
-///
-/// Dropping a `ReadState` instance and its clones will not unmap
-/// the shared memory object.
 #[derive(Debug)]
 pub struct ReadState<CS>
 where
@@ -80,16 +75,6 @@ where
             last_open: StdMutex::new(None),
             _no_sync: PhantomData,
         })
-    }
-}
-
-impl<CS: CipherSuite> Clone for ReadState<CS> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            last_open: StdMutex::default(),
-            _no_sync: PhantomData,
-        }
     }
 }
 

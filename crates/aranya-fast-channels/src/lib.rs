@@ -122,14 +122,14 @@
 //! let client_b_channel_id =
 //!     aranya_client_b.add(Directed::OpenOnly { open }, label_id, device1_id)?;
 //!
-//! let afc_client_a = {
+//! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")
 //!         .map_err(|err| Error::SharedMem(err.into()))?;
 //!     let state = ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 //!         .map_err(Error::SharedMem)?;
 //!     Client::<ReadState<CS>>::new(state)
 //! };
-//! let afc_client_b = {
+//! let mut afc_client_b = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_b\x00")
 //!         .map_err(|err| Error::SharedMem(err.into()))?;
 //!     let state = ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)

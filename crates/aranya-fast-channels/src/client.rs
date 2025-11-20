@@ -20,7 +20,7 @@ use crate::{
 /// Client is a connection to Aranya.
 ///
 /// See the crate documentation for more information.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Client<S> {
     state: S,
 }
@@ -69,7 +69,7 @@ impl<S: AfcState> Client<S> {
     /// be at least `plaintext.len() + Client::OVERHEAD` bytes
     /// long.
     pub fn seal(
-        &self,
+        &mut self,
         ctx: &mut S::SealCtx,
         dst: &mut [u8],
         plaintext: &[u8],
@@ -147,7 +147,7 @@ impl<S: AfcState> Client<S> {
     /// Initializes `header` and invokes `f` with the key for
     /// `id`.
     fn do_seal<F>(
-        &self,
+        &mut self,
         ctx: &mut S::SealCtx,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,
