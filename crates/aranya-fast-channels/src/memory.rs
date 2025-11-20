@@ -87,7 +87,7 @@ where
     {
         let inner = self.inner.lock().assume("poisoned")?;
         let ChanMapValue { keys, label_id, .. } =
-            inner.chans.get(&ctx).ok_or(Error::NotFound(*ctx))?;
+            inner.chans.get(ctx).ok_or(Error::NotFound(*ctx))?;
         let key = keys.open().ok_or(Error::NotFound(*ctx))?;
 
         Ok(f(key, *label_id))
