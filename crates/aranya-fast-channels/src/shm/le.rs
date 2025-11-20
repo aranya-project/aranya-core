@@ -21,6 +21,30 @@ macro_rules! little_endian {
                 pub const fn into(self) -> $type {
                     <$type>::from_le(self.0)
                 }
+
+                /// Checked addition.
+                #[allow(dead_code, reason = "not all methods are used for all types")]
+                pub const fn checked_add(self, rhs: $type) -> Option<Self> {
+                    match self.into().checked_add(rhs) {
+                        Some(val) => Some(Self::new(val)),
+                        None => None,
+                    }
+                }
+
+                /// Checked subtraction.
+                #[allow(dead_code, reason = "not all methods are used for all types")]
+                pub const fn checked_sub(self, rhs: $type) -> Option<Self> {
+                    match self.into().checked_sub(rhs) {
+                        Some(val) => Some(Self::new(val)),
+                        None => None,
+                    }
+                }
+
+                /// Wrapping subtraction.
+                #[allow(dead_code, reason = "not all methods are used for all types")]
+                pub const fn wrapping_sub(self, rhs: $type) -> Self {
+                    Self::new(self.into().wrapping_sub(rhs))
+                }
             }
 
             impl ::core::cmp::PartialEq<$type> for $name {
@@ -76,7 +100,15 @@ macro_rules! little_endian {
                 type Error = <usize as ::core::convert::TryFrom<$type>>::Error;
 
                 fn try_from(v: $name) -> Result<Self, Self::Error> {
-                    usize::try_from(v.0)
+                    usize::try_from(v.into())
+                }
+            }
+
+            impl ::core::convert::TryFrom<$name> for isize {
+                type Error = <isize as ::core::convert::TryFrom<$type>>::Error;
+
+                fn try_from(v: $name) -> Result<Self, Self::Error> {
+                    isize::try_from(v.into())
                 }
             }
 
