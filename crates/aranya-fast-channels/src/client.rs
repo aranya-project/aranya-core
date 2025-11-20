@@ -74,7 +74,7 @@ impl<S: AfcState> Client<S> {
     /// be at least `plaintext.len() + Client::OVERHEAD` bytes
     /// long.
     pub fn seal(
-        &mut self,
+        &self,
         ctx: &mut S::SealCtx,
         dst: &mut [u8],
         plaintext: &[u8],
@@ -112,7 +112,7 @@ impl<S: AfcState> Client<S> {
     ///
     /// The resulting ciphertext is written in-place to `data`.
     pub fn seal_in_place<T: Buf>(
-        &mut self,
+        &self,
         ctx: &mut S::SealCtx,
         data: &mut T,
     ) -> Result<Header, Error> {
@@ -152,7 +152,7 @@ impl<S: AfcState> Client<S> {
     /// Initializes `header` and invokes `f` with the key for
     /// `id`.
     fn do_seal<F>(
-        &mut self,
+        &self,
         ctx: &mut S::SealCtx,
         header: &mut [u8; DataHeader::PACKED_SIZE],
         f: F,

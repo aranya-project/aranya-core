@@ -128,7 +128,7 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_seal_open_basic", label_ids.len() * 2, eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -171,7 +171,7 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_seal_open_in_place_basic", label_ids.len() * 2, eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -349,7 +349,7 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove", 2 * 3 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
 
@@ -410,7 +410,7 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove_all", 2 * 3 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
 
@@ -484,7 +484,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove_if", 2 * 3 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
 
@@ -569,7 +569,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_remove_no_channels", 2 * 3 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
 
@@ -646,7 +646,7 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * 3 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
 
@@ -728,7 +728,7 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
     ];
 
     let mut d = Aranya::<T, _>::new("test_channels_not_exist", 2 * 3 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
     let (c3, id3) = d.new_client(label_ids);
 
@@ -791,7 +791,7 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_id = LabelId::random(&mut eng);
     let mut d = Aranya::<T, TestEngine<A>>::new("test_issue_112", 2, eng);
-    let (mut c1, id1) = d.new_client([label_id]);
+    let (c1, id1) = d.new_client([label_id]);
     let (c2, id2) = d.new_client([label_id]);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -1141,7 +1141,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let label_ids = [LabelId::random(&mut eng)];
 
     let mut d = Aranya::<T, _>::new("test_key_expiry", 2 * 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -1210,7 +1210,7 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_open_truncated_tag", 2 * 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -1250,7 +1250,7 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_open_modified_tag", 2 * 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -1288,7 +1288,7 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<A>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng), LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_open_different_seq", 2 * 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -1348,7 +1348,7 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
         2 * 2 * label_ids.len(),
         eng,
     );
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(open_labels);
 
     let d1 = d.devices.get(id1).expect("device to exist");
@@ -1400,7 +1400,7 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     let (mut eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
     let label_ids = [LabelId::random(&mut eng)];
     let mut d = Aranya::<T, _>::new("test_monotonic_seq_by_one", 2 * 2 * label_ids.len(), eng);
-    let (mut c1, id1) = d.new_client(label_ids);
+    let (c1, id1) = d.new_client(label_ids);
     let (c2, id2) = d.new_client(label_ids);
 
     let d1 = d.devices.get(id1).expect("device to exist");
