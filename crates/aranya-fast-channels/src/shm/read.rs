@@ -14,7 +14,6 @@ use super::{
     shared::{Index, Op, State},
 };
 use crate::{
-    mutex::StdMutex,
     state::{AfcState, LocalChannelId},
     util::debug,
 };
@@ -52,11 +51,6 @@ where
     // `pub(super)` for testing.
     pub(super) inner: State<CS>,
 
-    // APS is typically used to seal/open many messages with the
-    // same peer, so cache the most recent successful invocations
-    // of seal/open.
-    last_open: StdMutex<Option<Cache<OpenKey<CS>>>>,
-
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
 }
@@ -72,7 +66,6 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
-            last_open: StdMutex::new(None),
             _no_sync: PhantomData,
         })
     }
