@@ -106,6 +106,7 @@ impl CompileTarget {
                 let defs = self.enum_defs.get(&ident.name)?;
                 Some(defs.len() as u64)
             }
+            TypeKind::Never => Some(0),
         }
     }
 }

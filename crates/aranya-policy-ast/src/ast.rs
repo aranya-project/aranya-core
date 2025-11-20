@@ -161,6 +161,7 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
+#[must_use]
 #[derive(
     Debug,
     Clone,
@@ -183,6 +184,20 @@ impl VType {
     /// Reports whether the types are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         self.kind.matches(&other.kind)
+    }
+
+    /// Checks if two types fit, where `Never` matches with any type.
+    pub fn fits_type(&self, other: &Self) -> bool {
+        self.kind.fits_type(&other.kind)
+    }
+
+    /// Gets the struct name if this type is a struct.
+    pub fn as_struct(&self) -> Option<&Ident> {
+        if let TypeKind::Struct(name) = &self.kind {
+            Some(name)
+        } else {
+            None
+        }
     }
 }
 
@@ -238,6 +253,8 @@ pub enum TypeKind {
     Enum(Ident),
     /// An optional type of some other type
     Optional(#[rkyv(omit_bounds)] Box<VType>),
+    /// A type which cannot be instantiated.
+    Never,
 }
 
 impl TypeKind {
@@ -248,10 +265,27 @@ impl TypeKind {
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
+            | (Self::Id, Self::Id)
+            | (Self::Never, Self::Never) => true,
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            _ => false,
+        }
+    }
+
+    fn fits_type(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Never, _) => true,
+            (_, Self::Never) => true,
+            (Self::String, Self::String)
+            | (Self::Bytes, Self::Bytes)
+            | (Self::Int, Self::Int)
+            | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id) => true,
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.matches(rhs),
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
             _ => false,
         }
     }
@@ -268,6 +302,7 @@ impl fmt::Display for TypeKind {
             Self::Struct(name) => write!(f, "struct {name}"),
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "optional {vtype}"),
+            Self::Never => write!(f, "never"),
         }
     }
 }
