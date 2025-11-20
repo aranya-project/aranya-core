@@ -16,7 +16,9 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 pub mod linear;
 pub mod memory;
 
-/// The maximum size of a serialized message
+#[cfg(feature = "low-mem-usage")]
+pub const MAX_COMMAND_LENGTH: usize = 400;
+#[cfg(not(feature = "low-mem-usage"))]
 pub const MAX_COMMAND_LENGTH: usize = 2048;
 
 aranya_crypto::custom_id! {
