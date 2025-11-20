@@ -9,60 +9,33 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: Ident {
-                name: "test",
-                span: 16..20,
-            },
+            identifier: "test" @ 16..20,
             arguments: [],
             statements: [
-                Statement {
-                    kind: Let(
-                        LetStatement {
-                            identifier: Ident {
-                                name: "b",
-                                span: 41..42,
-                            },
-                            expression: Expression {
-                                kind: InternalFunction(
-                                    If(
-                                        Expression {
-                                            kind: Bool(
-                                                true,
-                                            ),
-                                            span: 48..52,
-                                        },
-                                        Expression {
-                                            kind: Block(
-                                                [],
-                                                Expression {
-                                                    kind: Int(
-                                                        1,
-                                                    ),
-                                                    span: 56..57,
-                                                },
-                                            ),
-                                            span: 53..59,
-                                        },
-                                        Expression {
-                                            kind: Block(
-                                                [],
-                                                Expression {
-                                                    kind: Int(
-                                                        0,
-                                                    ),
-                                                    span: 68..69,
-                                                },
-                                            ),
-                                            span: 65..71,
-                                        },
-                                    ),
-                                ),
-                                span: 45..71,
-                            },
-                        },
-                    ),
-                    span: 37..80,
-                },
+                Let(
+                    LetStatement {
+                        identifier: "b" @ 41..42,
+                        expression: InternalFunction(
+                            If(
+                                Bool(
+                                    true,
+                                ) @ 48..52,
+                                Block(
+                                    [],
+                                    Int(
+                                        1,
+                                    ) @ 56..57,
+                                ) @ 53..59,
+                                Block(
+                                    [],
+                                    Int(
+                                        0,
+                                    ) @ 68..69,
+                                ) @ 65..71,
+                            ),
+                        ) @ 45..71,
+                    },
+                ) @ 37..80,
             ],
             span: 9..81,
         },

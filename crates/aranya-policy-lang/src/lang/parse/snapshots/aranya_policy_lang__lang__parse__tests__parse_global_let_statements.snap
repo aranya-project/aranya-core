@@ -9,130 +9,61 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: Ident {
-                name: "foo",
-                span: 57..60,
-            },
+            identifier: "foo" @ 57..60,
             arguments: [],
             statements: [
-                Statement {
-                    kind: Let(
-                        LetStatement {
-                            identifier: Ident {
-                                name: "a",
-                                span: 81..82,
-                            },
-                            expression: Expression {
-                                kind: Unwrap(
-                                    Expression {
-                                        kind: FunctionCall(
-                                            FunctionCall {
-                                                identifier: Ident {
-                                                    name: "add",
-                                                    span: 92..95,
-                                                },
-                                                arguments: [
-                                                    Expression {
-                                                        kind: Identifier(
-                                                            Ident {
-                                                                name: "x",
-                                                                span: 96..97,
-                                                            },
-                                                        ),
-                                                        span: 96..97,
-                                                    },
-                                                    Expression {
-                                                        kind: Int(
-                                                            1,
-                                                        ),
-                                                        span: 99..100,
-                                                    },
-                                                ],
-                                            },
-                                        ),
-                                        span: 92..101,
-                                    },
-                                ),
-                                span: 85..101,
-                            },
-                        },
-                    ),
-                    span: 77..114,
-                },
-                Statement {
-                    kind: Let(
-                        LetStatement {
-                            identifier: Ident {
-                                name: "c",
-                                span: 118..119,
-                            },
-                            expression: Expression {
-                                kind: Not(
-                                    Expression {
-                                        kind: Identifier(
-                                            Ident {
-                                                name: "z",
-                                                span: 123..124,
-                                            },
-                                        ),
-                                        span: 123..124,
-                                    },
-                                ),
-                                span: 122..124,
-                            },
-                        },
-                    ),
-                    span: 114..137,
-                },
-                Statement {
-                    kind: Emit(
-                        Expression {
-                            kind: NamedStruct(
-                                NamedStruct {
-                                    identifier: Ident {
-                                        name: "Bar",
-                                        span: 142..145,
-                                    },
-                                    fields: [
-                                        (
-                                            Ident {
-                                                name: "a",
-                                                span: 164..165,
-                                            },
-                                            Expression {
-                                                kind: Identifier(
-                                                    Ident {
-                                                        name: "a",
-                                                        span: 167..168,
-                                                    },
-                                                ),
-                                                span: 167..168,
-                                            },
-                                        ),
-                                        (
-                                            Ident {
-                                                name: "c",
-                                                span: 186..187,
-                                            },
-                                            Expression {
-                                                kind: Identifier(
-                                                    Ident {
-                                                        name: "c",
-                                                        span: 189..190,
-                                                    },
-                                                ),
-                                                span: 189..190,
-                                            },
-                                        ),
+                Let(
+                    LetStatement {
+                        identifier: "a" @ 81..82,
+                        expression: Unwrap(
+                            FunctionCall(
+                                FunctionCall {
+                                    identifier: "add" @ 92..95,
+                                    arguments: [
+                                        Identifier(
+                                            "x" @ 96..97,
+                                        ) @ 96..97,
+                                        Int(
+                                            1,
+                                        ) @ 99..100,
                                     ],
-                                    sources: [],
                                 },
-                            ),
-                            span: 142..205,
+                            ) @ 92..101,
+                        ) @ 85..101,
+                    },
+                ) @ 77..114,
+                Let(
+                    LetStatement {
+                        identifier: "c" @ 118..119,
+                        expression: Not(
+                            Identifier(
+                                "z" @ 123..124,
+                            ) @ 123..124,
+                        ) @ 122..124,
+                    },
+                ) @ 114..137,
+                Emit(
+                    NamedStruct(
+                        NamedStruct {
+                            identifier: "Bar" @ 142..145,
+                            fields: [
+                                (
+                                    "a" @ 164..165,
+                                    Identifier(
+                                        "a" @ 167..168,
+                                    ) @ 167..168,
+                                ),
+                                (
+                                    "c" @ 186..187,
+                                    Identifier(
+                                        "c" @ 189..190,
+                                    ) @ 189..190,
+                                ),
+                            ],
+                            sources: [],
                         },
-                    ),
-                    span: 137..214,
-                },
+                    ) @ 142..205,
+                ) @ 137..214,
             ],
             span: 50..215,
         },
@@ -145,29 +76,17 @@ Policy {
     finish_functions: [],
     global_lets: [
         GlobalLetStatement {
-            identifier: Ident {
-                name: "x",
-                span: 13..14,
-            },
-            expression: Expression {
-                kind: Int(
-                    42,
-                ),
-                span: 17..19,
-            },
+            identifier: "x" @ 13..14,
+            expression: Int(
+                42,
+            ) @ 17..19,
             span: 9..28,
         },
         GlobalLetStatement {
-            identifier: Ident {
-                name: "z",
-                span: 32..33,
-            },
-            expression: Expression {
-                kind: Bool(
-                    true,
-                ),
-                span: 36..40,
-            },
+            identifier: "z" @ 32..33,
+            expression: Bool(
+                true,
+            ) @ 36..40,
             span: 28..50,
         },
     ],

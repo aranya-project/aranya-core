@@ -2,85 +2,43 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: expr_parsed
 ---
-Expression {
-    kind: Unwrap(
-        Expression {
-            kind: FunctionCall(
-                FunctionCall {
-                    identifier: Ident {
-                        name: "call",
-                        span: 7..11,
+Unwrap(
+    FunctionCall(
+        FunctionCall {
+            identifier: "call" @ 7..11,
+            arguments: [
+                Unwrap(
+                    FunctionCall(
+                        FunctionCall {
+                            identifier: "add" @ 19..22,
+                            arguments: [
+                                Int(
+                                    3,
+                                ) @ 23..24,
+                                Int(
+                                    7,
+                                ) @ 26..27,
+                            ],
+                        },
+                    ) @ 19..28,
+                ) @ 12..28,
+                FunctionCall(
+                    FunctionCall {
+                        identifier: "saturating_sub" @ 30..44,
+                        arguments: [
+                            Int(
+                                0,
+                            ) @ 45..46,
+                            Identifier(
+                                "b" @ 48..49,
+                            ) @ 48..49,
+                        ],
                     },
-                    arguments: [
-                        Expression {
-                            kind: Unwrap(
-                                Expression {
-                                    kind: FunctionCall(
-                                        FunctionCall {
-                                            identifier: Ident {
-                                                name: "add",
-                                                span: 19..22,
-                                            },
-                                            arguments: [
-                                                Expression {
-                                                    kind: Int(
-                                                        3,
-                                                    ),
-                                                    span: 23..24,
-                                                },
-                                                Expression {
-                                                    kind: Int(
-                                                        7,
-                                                    ),
-                                                    span: 26..27,
-                                                },
-                                            ],
-                                        },
-                                    ),
-                                    span: 19..28,
-                                },
-                            ),
-                            span: 12..28,
-                        },
-                        Expression {
-                            kind: FunctionCall(
-                                FunctionCall {
-                                    identifier: Ident {
-                                        name: "saturating_sub",
-                                        span: 30..44,
-                                    },
-                                    arguments: [
-                                        Expression {
-                                            kind: Int(
-                                                0,
-                                            ),
-                                            span: 45..46,
-                                        },
-                                        Expression {
-                                            kind: Identifier(
-                                                Ident {
-                                                    name: "b",
-                                                    span: 48..49,
-                                                },
-                                            ),
-                                            span: 48..49,
-                                        },
-                                    ],
-                                },
-                            ),
-                            span: 30..50,
-                        },
-                        Expression {
-                            kind: String(
-                                "foo{",
-                            ),
-                            span: 52..61,
-                        },
-                    ],
-                },
-            ),
-            span: 7..62,
+                ) @ 30..50,
+                String(
+                    "foo{",
+                ) @ 52..61,
+            ],
         },
-    ),
-    span: 0..62,
-}
+    ) @ 7..62,
+) @ 0..62

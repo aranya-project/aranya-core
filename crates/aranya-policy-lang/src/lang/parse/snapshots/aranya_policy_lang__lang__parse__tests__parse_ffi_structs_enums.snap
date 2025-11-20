@@ -5,66 +5,36 @@ expression: types
 FfiTypes {
     structs: [
         StructDefinition {
-            identifier: Ident {
-                name: "A",
-                span: 7..8,
-            },
+            identifier: "A" @ 7..8,
             items: [
                 Field(
                     FieldDefinition {
-                        identifier: Ident {
-                            name: "x",
-                            span: 23..24,
-                        },
-                        field_type: VType {
-                            kind: Int,
-                            span: 25..28,
-                        },
+                        identifier: "x" @ 23..24,
+                        field_type: Int @ 25..28,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: Ident {
-                            name: "y",
-                            span: 42..43,
-                        },
-                        field_type: VType {
-                            kind: Bool,
-                            span: 44..48,
-                        },
+                        identifier: "y" @ 42..43,
+                        field_type: Bool @ 44..48,
                     },
                 ),
             ],
             span: 0..58,
         },
         StructDefinition {
-            identifier: Ident {
-                name: "B",
-                span: 75..76,
-            },
+            identifier: "B" @ 75..76,
             items: [],
             span: 68..79,
         },
     ],
     enums: [
         EnumDefinition {
-            identifier: Ident {
-                name: "Color",
-                span: 94..99,
-            },
+            identifier: "Color" @ 94..99,
             variants: [
-                Ident {
-                    name: "Red",
-                    span: 102..105,
-                },
-                Ident {
-                    name: "White",
-                    span: 107..112,
-                },
-                Ident {
-                    name: "Blue",
-                    span: 114..118,
-                },
+                "Red" @ 102..105,
+                "White" @ 107..112,
+                "Blue" @ 114..118,
             ],
             span: 89..120,
         },

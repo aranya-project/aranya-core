@@ -11,23 +11,11 @@ Policy {
     structs: [],
     enums: [
         EnumDefinition {
-            identifier: Ident {
-                name: "Color",
-                span: 5..10,
-            },
+            identifier: "Color" @ 5..10,
             variants: [
-                Ident {
-                    name: "Red",
-                    span: 25..28,
-                },
-                Ident {
-                    name: "Green",
-                    span: 42..47,
-                },
-                Ident {
-                    name: "Blue",
-                    span: 61..65,
-                },
+                "Red" @ 25..28,
+                "Green" @ 42..47,
+                "Blue" @ 61..65,
             ],
             span: 0..76,
         },

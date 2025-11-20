@@ -8,20 +8,14 @@ Policy {
     facts: [
         FactDefinition {
             immutable: false,
-            identifier: Ident {
-                name: "A",
-                span: 14..15,
-            },
+            identifier: "A" @ 14..15,
             key: [],
             value: [],
             span: 9..21,
         },
         FactDefinition {
             immutable: true,
-            identifier: Ident {
-                name: "B",
-                span: 45..46,
-            },
+            identifier: "B" @ 45..46,
             key: [],
             value: [],
             span: 30..52,

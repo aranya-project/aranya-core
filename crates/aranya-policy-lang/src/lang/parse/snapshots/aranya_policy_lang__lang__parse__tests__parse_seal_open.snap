@@ -14,72 +14,39 @@ Policy {
         CommandDefinition {
             persistence: Persistent,
             attributes: [],
-            identifier: Ident {
-                name: "Foo",
-                span: 8..11,
-            },
+            identifier: "Foo" @ 8..11,
             fields: [],
             seal: [
-                Statement {
-                    kind: Return(
-                        ReturnStatement {
-                            expression: Expression {
-                                kind: FunctionCall(
-                                    FunctionCall {
-                                        identifier: Ident {
-                                            name: "bar",
-                                            span: 56..59,
-                                        },
-                                        arguments: [
-                                            Expression {
-                                                kind: Identifier(
-                                                    Ident {
-                                                        name: "this",
-                                                        span: 60..64,
-                                                    },
-                                                ),
-                                                span: 60..64,
-                                            },
-                                        ],
-                                    },
-                                ),
-                                span: 56..65,
+                Return(
+                    ReturnStatement {
+                        expression: FunctionCall(
+                            FunctionCall {
+                                identifier: "bar" @ 56..59,
+                                arguments: [
+                                    Identifier(
+                                        "this" @ 60..64,
+                                    ) @ 60..64,
+                                ],
                             },
-                        },
-                    ),
-                    span: 49..78,
-                },
+                        ) @ 56..65,
+                    },
+                ) @ 49..78,
             ],
             open: [
-                Statement {
-                    kind: Return(
-                        ReturnStatement {
-                            expression: Expression {
-                                kind: FunctionCall(
-                                    FunctionCall {
-                                        identifier: Ident {
-                                            name: "baz",
-                                            span: 123..126,
-                                        },
-                                        arguments: [
-                                            Expression {
-                                                kind: Identifier(
-                                                    Ident {
-                                                        name: "envelope",
-                                                        span: 127..135,
-                                                    },
-                                                ),
-                                                span: 127..135,
-                                            },
-                                        ],
-                                    },
-                                ),
-                                span: 123..136,
+                Return(
+                    ReturnStatement {
+                        expression: FunctionCall(
+                            FunctionCall {
+                                identifier: "baz" @ 123..126,
+                                arguments: [
+                                    Identifier(
+                                        "envelope" @ 127..135,
+                                    ) @ 127..135,
+                                ],
                             },
-                        },
-                    ),
-                    span: 116..149,
-                },
+                        ) @ 123..136,
+                    },
+                ) @ 116..149,
             ],
             policy: [],
             recall: [],

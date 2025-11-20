@@ -9,100 +9,49 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: Ident {
-                name: "foo",
-                span: 12..15,
-            },
+            identifier: "foo" @ 12..15,
             arguments: [],
             statements: [
-                Statement {
-                    kind: Let(
-                        LetStatement {
-                            identifier: Ident {
-                                name: "x",
-                                span: 32..33,
-                            },
-                            expression: Expression {
-                                kind: Block(
-                                    [
-                                        Statement {
-                                            kind: Let(
-                                                LetStatement {
-                                                    identifier: Ident {
-                                                        name: "a",
-                                                        span: 54..55,
-                                                    },
-                                                    expression: Expression {
-                                                        kind: Int(
-                                                            3,
-                                                        ),
-                                                        span: 58..59,
-                                                    },
-                                                },
-                                            ),
-                                            span: 50..72,
-                                        },
-                                        Statement {
-                                            kind: Let(
-                                                LetStatement {
-                                                    identifier: Ident {
-                                                        name: "b",
-                                                        span: 76..77,
-                                                    },
-                                                    expression: Expression {
-                                                        kind: Int(
-                                                            4,
-                                                        ),
-                                                        span: 80..81,
-                                                    },
-                                                },
-                                            ),
-                                            span: 72..94,
-                                        },
-                                    ],
-                                    Expression {
-                                        kind: Unwrap(
-                                            Expression {
-                                                kind: FunctionCall(
-                                                    FunctionCall {
-                                                        identifier: Ident {
-                                                            name: "saturating_add",
-                                                            span: 103..117,
-                                                        },
-                                                        arguments: [
-                                                            Expression {
-                                                                kind: Identifier(
-                                                                    Ident {
-                                                                        name: "a",
-                                                                        span: 118..119,
-                                                                    },
-                                                                ),
-                                                                span: 118..119,
-                                                            },
-                                                            Expression {
-                                                                kind: Identifier(
-                                                                    Ident {
-                                                                        name: "b",
-                                                                        span: 121..122,
-                                                                    },
-                                                                ),
-                                                                span: 121..122,
-                                                            },
-                                                        ],
-                                                    },
-                                                ),
-                                                span: 103..123,
-                                            },
-                                        ),
-                                        span: 96..123,
+                Let(
+                    LetStatement {
+                        identifier: "x" @ 32..33,
+                        expression: Block(
+                            [
+                                Let(
+                                    LetStatement {
+                                        identifier: "a" @ 54..55,
+                                        expression: Int(
+                                            3,
+                                        ) @ 58..59,
                                     },
-                                ),
-                                span: 36..133,
-                            },
-                        },
-                    ),
-                    span: 28..138,
-                },
+                                ) @ 50..72,
+                                Let(
+                                    LetStatement {
+                                        identifier: "b" @ 76..77,
+                                        expression: Int(
+                                            4,
+                                        ) @ 80..81,
+                                    },
+                                ) @ 72..94,
+                            ],
+                            Unwrap(
+                                FunctionCall(
+                                    FunctionCall {
+                                        identifier: "saturating_add" @ 103..117,
+                                        arguments: [
+                                            Identifier(
+                                                "a" @ 118..119,
+                                            ) @ 118..119,
+                                            Identifier(
+                                                "b" @ 121..122,
+                                            ) @ 121..122,
+                                        ],
+                                    },
+                                ) @ 103..123,
+                            ) @ 96..123,
+                        ) @ 36..133,
+                    },
+                ) @ 28..138,
             ],
             span: 5..139,
         },

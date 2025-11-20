@@ -9,34 +9,22 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: Ident {
-                name: "ping",
-                span: 12..16,
-            },
+            identifier: "ping" @ 12..16,
             arguments: [],
             statements: [],
             span: 5..21,
         },
         ActionDefinition {
             persistence: Persistent,
-            identifier: Ident {
-                name: "pong",
-                span: 33..37,
-            },
+            identifier: "pong" @ 33..37,
             arguments: [],
             statements: [
-                Statement {
-                    kind: ActionCall(
-                        FunctionCall {
-                            identifier: Ident {
-                                name: "ping",
-                                span: 57..61,
-                            },
-                            arguments: [],
-                        },
-                    ),
-                    span: 50..63,
-                },
+                ActionCall(
+                    FunctionCall {
+                        identifier: "ping" @ 57..61,
+                        arguments: [],
+                    },
+                ) @ 50..63,
             ],
             span: 26..69,
         },

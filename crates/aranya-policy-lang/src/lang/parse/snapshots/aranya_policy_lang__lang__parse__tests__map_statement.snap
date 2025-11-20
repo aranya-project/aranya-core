@@ -8,32 +8,17 @@ Policy {
     facts: [
         FactDefinition {
             immutable: false,
-            identifier: Ident {
-                name: "Foo",
-                span: 14..17,
-            },
+            identifier: "Foo" @ 14..17,
             key: [
                 FieldDefinition {
-                    identifier: Ident {
-                        name: "i",
-                        span: 18..19,
-                    },
-                    field_type: VType {
-                        kind: Int,
-                        span: 20..23,
-                    },
+                    identifier: "i" @ 18..19,
+                    field_type: Int @ 20..23,
                 },
             ],
             value: [
                 FieldDefinition {
-                    identifier: Ident {
-                        name: "n",
-                        span: 27..28,
-                    },
-                    field_type: VType {
-                        kind: Int,
-                        span: 29..32,
-                    },
+                    identifier: "n" @ 27..28,
+                    field_type: Int @ 29..32,
                 },
             ],
             span: 9..33,
@@ -42,47 +27,29 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: Ident {
-                name: "foo",
-                span: 49..52,
-            },
+            identifier: "foo" @ 49..52,
             arguments: [],
             statements: [
-                Statement {
-                    kind: Map(
-                        MapStatement {
-                            fact: FactLiteral {
-                                identifier: Ident {
-                                    name: "Foo",
-                                    span: 73..76,
-                                },
-                                key_fields: [
-                                    (
-                                        Ident {
-                                            name: "i",
-                                            span: 77..78,
-                                        },
-                                        Expression(
-                                            Expression {
-                                                kind: Int(
-                                                    1,
-                                                ),
-                                                span: 79..80,
-                                            },
-                                        ),
+                Map(
+                    MapStatement {
+                        fact: FactLiteral {
+                            identifier: "Foo" @ 73..76,
+                            key_fields: [
+                                (
+                                    "i" @ 77..78,
+                                    Expression(
+                                        Int(
+                                            1,
+                                        ) @ 79..80,
                                     ),
-                                ],
-                                value_fields: None,
-                            },
-                            identifier: Ident {
-                                name: "f",
-                                span: 85..86,
-                            },
-                            statements: [],
+                                ),
+                            ],
+                            value_fields: None,
                         },
-                    ),
-                    span: 69..102,
-                },
+                        identifier: "f" @ 85..86,
+                        statements: [],
+                    },
+                ) @ 69..102,
             ],
             span: 42..112,
         },
