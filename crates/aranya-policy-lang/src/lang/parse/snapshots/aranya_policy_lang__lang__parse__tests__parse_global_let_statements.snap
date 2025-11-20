@@ -2,264 +2,174 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: policy
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [],
-  "actions": [
-    {
-      "persistence": "Persistent",
-      "identifier": {
-        "name": "foo",
-        "span": {
-          "start": 57,
-          "end": 60
-        }
-      },
-      "arguments": [],
-      "statements": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "a",
-                "span": {
-                  "start": 81,
-                  "end": 82
-                }
-              },
-              "expression": {
-                "kind": {
-                  "Unwrap": {
-                    "kind": {
-                      "FunctionCall": {
-                        "identifier": {
-                          "name": "add",
-                          "span": {
-                            "start": 92,
-                            "end": 95
-                          }
-                        },
-                        "arguments": [
-                          {
-                            "kind": {
-                              "Identifier": {
-                                "name": "x",
-                                "span": {
-                                  "start": 96,
-                                  "end": 97
-                                }
-                              }
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: Ident {
+                name: "foo",
+                span: 57..60,
+            },
+            arguments: [],
+            statements: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "a",
+                                span: 81..82,
                             },
-                            "span": {
-                              "start": 96,
-                              "end": 97
-                            }
-                          },
-                          {
-                            "kind": {
-                              "Int": 1
+                            expression: Expression {
+                                kind: Unwrap(
+                                    Expression {
+                                        kind: FunctionCall(
+                                            FunctionCall {
+                                                identifier: Ident {
+                                                    name: "add",
+                                                    span: 92..95,
+                                                },
+                                                arguments: [
+                                                    Expression {
+                                                        kind: Identifier(
+                                                            Ident {
+                                                                name: "x",
+                                                                span: 96..97,
+                                                            },
+                                                        ),
+                                                        span: 96..97,
+                                                    },
+                                                    Expression {
+                                                        kind: Int(
+                                                            1,
+                                                        ),
+                                                        span: 99..100,
+                                                    },
+                                                ],
+                                            },
+                                        ),
+                                        span: 92..101,
+                                    },
+                                ),
+                                span: 85..101,
                             },
-                            "span": {
-                              "start": 99,
-                              "end": 100
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    "span": {
-                      "start": 92,
-                      "end": 101
-                    }
-                  }
-                },
-                "span": {
-                  "start": 85,
-                  "end": 101
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 77,
-            "end": 114
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "c",
-                "span": {
-                  "start": 118,
-                  "end": 119
-                }
-              },
-              "expression": {
-                "kind": {
-                  "Not": {
-                    "kind": {
-                      "Identifier": {
-                        "name": "z",
-                        "span": {
-                          "start": 123,
-                          "end": 124
-                        }
-                      }
-                    },
-                    "span": {
-                      "start": 123,
-                      "end": 124
-                    }
-                  }
-                },
-                "span": {
-                  "start": 122,
-                  "end": 124
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 114,
-            "end": 137
-          }
-        },
-        {
-          "kind": {
-            "Emit": {
-              "kind": {
-                "NamedStruct": {
-                  "identifier": {
-                    "name": "Bar",
-                    "span": {
-                      "start": 142,
-                      "end": 145
-                    }
-                  },
-                  "fields": [
-                    [
-                      {
-                        "name": "a",
-                        "span": {
-                          "start": 164,
-                          "end": 165
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "a",
-                            "span": {
-                              "start": 167,
-                              "end": 168
-                            }
-                          }
                         },
-                        "span": {
-                          "start": 167,
-                          "end": 168
-                        }
-                      }
-                    ],
-                    [
-                      {
-                        "name": "c",
-                        "span": {
-                          "start": 186,
-                          "end": 187
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "c",
-                            "span": {
-                              "start": 189,
-                              "end": 190
-                            }
-                          }
+                    ),
+                    span: 77..114,
+                },
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "c",
+                                span: 118..119,
+                            },
+                            expression: Expression {
+                                kind: Not(
+                                    Expression {
+                                        kind: Identifier(
+                                            Ident {
+                                                name: "z",
+                                                span: 123..124,
+                                            },
+                                        ),
+                                        span: 123..124,
+                                    },
+                                ),
+                                span: 122..124,
+                            },
                         },
-                        "span": {
-                          "start": 189,
-                          "end": 190
-                        }
-                      }
-                    ]
-                  ],
-                  "sources": []
-                }
-              },
-              "span": {
-                "start": 142,
-                "end": 205
-              }
-            }
-          },
-          "span": {
-            "start": 137,
-            "end": 214
-          }
-        }
-      ],
-      "span": {
-        "start": 50,
-        "end": 215
-      }
-    }
-  ],
-  "effects": [],
-  "structs": [],
-  "enums": [],
-  "commands": [],
-  "functions": [],
-  "finish_functions": [],
-  "global_lets": [
-    {
-      "identifier": {
-        "name": "x",
-        "span": {
-          "start": 13,
-          "end": 14
-        }
-      },
-      "expression": {
-        "kind": {
-          "Int": 42
+                    ),
+                    span: 114..137,
+                },
+                Statement {
+                    kind: Emit(
+                        Expression {
+                            kind: NamedStruct(
+                                NamedStruct {
+                                    identifier: Ident {
+                                        name: "Bar",
+                                        span: 142..145,
+                                    },
+                                    fields: [
+                                        (
+                                            Ident {
+                                                name: "a",
+                                                span: 164..165,
+                                            },
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "a",
+                                                        span: 167..168,
+                                                    },
+                                                ),
+                                                span: 167..168,
+                                            },
+                                        ),
+                                        (
+                                            Ident {
+                                                name: "c",
+                                                span: 186..187,
+                                            },
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "c",
+                                                        span: 189..190,
+                                                    },
+                                                ),
+                                                span: 189..190,
+                                            },
+                                        ),
+                                    ],
+                                    sources: [],
+                                },
+                            ),
+                            span: 142..205,
+                        },
+                    ),
+                    span: 137..214,
+                },
+            ],
+            span: 50..215,
         },
-        "span": {
-          "start": 17,
-          "end": 19
-        }
-      },
-      "span": {
-        "start": 9,
-        "end": 28
-      }
-    },
-    {
-      "identifier": {
-        "name": "z",
-        "span": {
-          "start": 32,
-          "end": 33
-        }
-      },
-      "expression": {
-        "kind": {
-          "Bool": true
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [
+        GlobalLetStatement {
+            identifier: Ident {
+                name: "x",
+                span: 13..14,
+            },
+            expression: Expression {
+                kind: Int(
+                    42,
+                ),
+                span: 17..19,
+            },
+            span: 9..28,
         },
-        "span": {
-          "start": 36,
-          "end": 40
-        }
-      },
-      "span": {
-        "start": 28,
-        "end": 50
-      }
-    }
-  ],
-  "text": "\n        let x = 42\n        let z = true\n\n        action foo() {\n            let a = unwrap add(x, 1)\n            let c = !z\n            emit Bar {\n                a: a,\n                c: c,\n            }\n        }\n    "
+        GlobalLetStatement {
+            identifier: Ident {
+                name: "z",
+                span: 32..33,
+            },
+            expression: Expression {
+                kind: Bool(
+                    true,
+                ),
+                span: 36..40,
+            },
+            span: 28..50,
+        },
+    ],
+    text: "\n        let x = 42\n        let z = true\n\n        action foo() {\n            let a = unwrap add(x, 1)\n            let c = !z\n            emit Bar {\n                a: a,\n                c: c,\n            }\n        }\n    ",
 }

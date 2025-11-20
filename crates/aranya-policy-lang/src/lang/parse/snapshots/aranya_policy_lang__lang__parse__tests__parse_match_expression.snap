@@ -2,189 +2,127 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: policy
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [],
-  "actions": [
-    {
-      "persistence": "Persistent",
-      "identifier": {
-        "name": "foo",
-        "span": {
-          "start": 16,
-          "end": 19
-        }
-      },
-      "arguments": [
-        {
-          "identifier": {
-            "name": "n",
-            "span": {
-              "start": 20,
-              "end": 21
-            }
-          },
-          "field_type": {
-            "kind": "Int",
-            "span": {
-              "start": 22,
-              "end": 25
-            }
-          }
-        }
-      ],
-      "statements": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "x",
-                "span": {
-                  "start": 45,
-                  "end": 46
-                }
-              },
-              "expression": {
-                "kind": {
-                  "Match": {
-                    "scrutinee": {
-                      "kind": {
-                        "Identifier": {
-                          "name": "n",
-                          "span": {
-                            "start": 55,
-                            "end": 56
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 55,
-                        "end": 56
-                      }
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: Ident {
+                name: "foo",
+                span: 16..19,
+            },
+            arguments: [
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "n",
+                        span: 20..21,
                     },
-                    "arms": [
-                      {
-                        "pattern": {
-                          "Values": [
-                            {
-                              "kind": {
-                                "Int": 0
-                              },
-                              "span": {
-                                "start": 75,
-                                "end": 76
-                              }
-                            }
-                          ]
-                        },
-                        "expression": {
-                          "kind": {
-                            "Block": [
-                              [
-                                {
-                                  "kind": {
-                                    "Let": {
-                                      "identifier": {
-                                        "name": "x",
-                                        "span": {
-                                          "start": 106,
-                                          "end": 107
-                                        }
-                                      },
-                                      "expression": {
-                                        "kind": {
-                                          "Bool": true
-                                        },
-                                        "span": {
-                                          "start": 110,
-                                          "end": 114
-                                        }
-                                      }
-                                    }
-                                  },
-                                  "span": {
-                                    "start": 102,
-                                    "end": 135
-                                  }
-                                }
-                              ],
-                              {
-                                "kind": {
-                                  "Identifier": {
-                                    "name": "x",
-                                    "span": {
-                                      "start": 137,
-                                      "end": 138
-                                    }
-                                  }
-                                },
-                                "span": {
-                                  "start": 137,
-                                  "end": 138
-                                }
-                              }
-                            ]
-                          },
-                          "span": {
-                            "start": 80,
-                            "end": 156
-                          }
-                        },
-                        "span": {
-                          "start": 75,
-                          "end": 173
-                        }
-                      },
-                      {
-                        "pattern": {
-                          "Default": {
-                            "start": 173,
-                            "end": 174
-                          }
-                        },
-                        "expression": {
-                          "kind": {
-                            "Bool": false
-                          },
-                          "span": {
-                            "start": 178,
-                            "end": 183
-                          }
-                        },
-                        "span": {
-                          "start": 173,
-                          "end": 196
-                        }
-                      }
-                    ]
-                  }
+                    field_type: VType {
+                        kind: Int,
+                        span: 22..25,
+                    },
                 },
-                "span": {
-                  "start": 49,
-                  "end": 197
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 41,
-            "end": 206
-          }
-        }
-      ],
-      "span": {
-        "start": 9,
-        "end": 207
-      }
-    }
-  ],
-  "effects": [],
-  "structs": [],
-  "enums": [],
-  "commands": [],
-  "functions": [],
-  "finish_functions": [],
-  "global_lets": [],
-  "text": "\n        action foo(n int) {\n            let x = match n {\n                0 => {\n                    let x = true\n                    : x\n                }\n                _ => false\n            }\n        }\n    "
+            ],
+            statements: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "x",
+                                span: 45..46,
+                            },
+                            expression: Expression {
+                                kind: Match(
+                                    MatchExpression {
+                                        scrutinee: Expression {
+                                            kind: Identifier(
+                                                Ident {
+                                                    name: "n",
+                                                    span: 55..56,
+                                                },
+                                            ),
+                                            span: 55..56,
+                                        },
+                                        arms: [
+                                            MatchExpressionArm {
+                                                pattern: Values(
+                                                    [
+                                                        Expression {
+                                                            kind: Int(
+                                                                0,
+                                                            ),
+                                                            span: 75..76,
+                                                        },
+                                                    ],
+                                                ),
+                                                expression: Expression {
+                                                    kind: Block(
+                                                        [
+                                                            Statement {
+                                                                kind: Let(
+                                                                    LetStatement {
+                                                                        identifier: Ident {
+                                                                            name: "x",
+                                                                            span: 106..107,
+                                                                        },
+                                                                        expression: Expression {
+                                                                            kind: Bool(
+                                                                                true,
+                                                                            ),
+                                                                            span: 110..114,
+                                                                        },
+                                                                    },
+                                                                ),
+                                                                span: 102..135,
+                                                            },
+                                                        ],
+                                                        Expression {
+                                                            kind: Identifier(
+                                                                Ident {
+                                                                    name: "x",
+                                                                    span: 137..138,
+                                                                },
+                                                            ),
+                                                            span: 137..138,
+                                                        },
+                                                    ),
+                                                    span: 80..156,
+                                                },
+                                                span: 75..173,
+                                            },
+                                            MatchExpressionArm {
+                                                pattern: Default(
+                                                    173..174,
+                                                ),
+                                                expression: Expression {
+                                                    kind: Bool(
+                                                        false,
+                                                    ),
+                                                    span: 178..183,
+                                                },
+                                                span: 173..196,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 49..197,
+                            },
+                        },
+                    ),
+                    span: 41..206,
+                },
+            ],
+            span: 9..207,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "\n        action foo(n int) {\n            let x = match n {\n                0 => {\n                    let x = true\n                    : x\n                }\n                _ => false\n            }\n        }\n    ",
 }

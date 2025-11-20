@@ -2,113 +2,77 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: policy
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [],
-  "actions": [
-    {
-      "persistence": "Persistent",
-      "identifier": {
-        "name": "test",
-        "span": {
-          "start": 16,
-          "end": 20
-        }
-      },
-      "arguments": [],
-      "statements": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "b",
-                "span": {
-                  "start": 41,
-                  "end": 42
-                }
-              },
-              "expression": {
-                "kind": {
-                  "InternalFunction": {
-                    "If": [
-                      {
-                        "kind": {
-                          "Bool": true
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: Ident {
+                name: "test",
+                span: 16..20,
+            },
+            arguments: [],
+            statements: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "b",
+                                span: 41..42,
+                            },
+                            expression: Expression {
+                                kind: InternalFunction(
+                                    If(
+                                        Expression {
+                                            kind: Bool(
+                                                true,
+                                            ),
+                                            span: 48..52,
+                                        },
+                                        Expression {
+                                            kind: Block(
+                                                [],
+                                                Expression {
+                                                    kind: Int(
+                                                        1,
+                                                    ),
+                                                    span: 56..57,
+                                                },
+                                            ),
+                                            span: 53..59,
+                                        },
+                                        Expression {
+                                            kind: Block(
+                                                [],
+                                                Expression {
+                                                    kind: Int(
+                                                        0,
+                                                    ),
+                                                    span: 68..69,
+                                                },
+                                            ),
+                                            span: 65..71,
+                                        },
+                                    ),
+                                ),
+                                span: 45..71,
+                            },
                         },
-                        "span": {
-                          "start": 48,
-                          "end": 52
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Block": [
-                            [],
-                            {
-                              "kind": {
-                                "Int": 1
-                              },
-                              "span": {
-                                "start": 56,
-                                "end": 57
-                              }
-                            }
-                          ]
-                        },
-                        "span": {
-                          "start": 53,
-                          "end": 59
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Block": [
-                            [],
-                            {
-                              "kind": {
-                                "Int": 0
-                              },
-                              "span": {
-                                "start": 68,
-                                "end": 69
-                              }
-                            }
-                          ]
-                        },
-                        "span": {
-                          "start": 65,
-                          "end": 71
-                        }
-                      }
-                    ]
-                  }
+                    ),
+                    span: 37..80,
                 },
-                "span": {
-                  "start": 45,
-                  "end": 71
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 37,
-            "end": 80
-          }
-        }
-      ],
-      "span": {
-        "start": 9,
-        "end": 81
-      }
-    }
-  ],
-  "effects": [],
-  "structs": [],
-  "enums": [],
-  "commands": [],
-  "functions": [],
-  "finish_functions": [],
-  "global_lets": [],
-  "text": "\n        action test() {\n            let b = if true { :1 } else { :0 }\n        }\n    "
+            ],
+            span: 9..81,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "\n        action test() {\n            let b = if true { :1 } else { :0 }\n        }\n    ",
 }

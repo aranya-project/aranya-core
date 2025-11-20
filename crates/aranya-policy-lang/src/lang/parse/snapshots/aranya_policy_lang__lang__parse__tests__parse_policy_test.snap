@@ -2,1951 +2,1311 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: policy
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [
-    {
-      "immutable": false,
-      "identifier": {
-        "name": "F",
-        "span": {
-          "start": 150,
-          "end": 151
-        }
-      },
-      "key": [
-        {
-          "identifier": {
-            "name": "v",
-            "span": {
-              "start": 152,
-              "end": 153
-            }
-          },
-          "field_type": {
-            "kind": "String",
-            "span": {
-              "start": 154,
-              "end": 160
-            }
-          }
-        }
-      ],
-      "value": [
-        {
-          "identifier": {
-            "name": "x",
-            "span": {
-              "start": 164,
-              "end": 165
-            }
-          },
-          "field_type": {
-            "kind": "Int",
-            "span": {
-              "start": 166,
-              "end": 169
-            }
-          }
-        },
-        {
-          "identifier": {
-            "name": "y",
-            "span": {
-              "start": 171,
-              "end": 172
-            }
-          },
-          "field_type": {
-            "kind": "Bool",
-            "span": {
-              "start": 173,
-              "end": 177
-            }
-          }
-        }
-      ],
-      "span": {
-        "start": 145,
-        "end": 178
-      }
-    }
-  ],
-  "actions": [
-    {
-      "persistence": "Persistent",
-      "identifier": {
-        "name": "add2",
-        "span": {
-          "start": 195,
-          "end": 199
-        }
-      },
-      "arguments": [
-        {
-          "identifier": {
-            "name": "x",
-            "span": {
-              "start": 200,
-              "end": 201
-            }
-          },
-          "field_type": {
-            "kind": "Int",
-            "span": {
-              "start": 202,
-              "end": 205
-            }
-          }
-        },
-        {
-          "identifier": {
-            "name": "y",
-            "span": {
-              "start": 207,
-              "end": 208
-            }
-          },
-          "field_type": {
-            "kind": "Int",
-            "span": {
-              "start": 209,
-              "end": 212
-            }
-          }
-        }
-      ],
-      "statements": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "obj",
-                "span": {
-                  "start": 232,
-                  "end": 235
-                }
-              },
-              "expression": {
-                "kind": {
-                  "NamedStruct": {
-                    "identifier": {
-                      "name": "Add",
-                      "span": {
-                        "start": 238,
-                        "end": 241
-                      }
-                    },
-                    "fields": [
-                      [
-                        {
-                          "name": "count",
-                          "span": {
-                            "start": 260,
-                            "end": 265
-                          }
-                        },
-                        {
-                          "kind": {
-                            "Identifier": {
-                              "name": "x",
-                              "span": {
-                                "start": 267,
-                                "end": 268
-                              }
-                            }
-                          },
-                          "span": {
-                            "start": 267,
-                            "end": 268
-                          }
-                        }
-                      ]
-                    ],
-                    "sources": []
-                  }
-                },
-                "span": {
-                  "start": 238,
-                  "end": 283
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 228,
-            "end": 296
-          }
-        },
-        {
-          "kind": {
-            "Publish": {
-              "kind": {
-                "Identifier": {
-                  "name": "obj",
-                  "span": {
-                    "start": 304,
-                    "end": 307
-                  }
-                }
-              },
-              "span": {
-                "start": 304,
-                "end": 307
-              }
-            }
-          },
-          "span": {
-            "start": 296,
-            "end": 316
-          }
-        }
-      ],
-      "span": {
-        "start": 188,
-        "end": 317
-      }
-    },
-    {
-      "persistence": {
-        "Ephemeral": {
-          "start": 2378,
-          "end": 2387
-        }
-      },
-      "identifier": {
-        "name": "a",
-        "span": {
-          "start": 2395,
-          "end": 2396
-        }
-      },
-      "arguments": [],
-      "statements": [],
-      "span": {
-        "start": 2378,
-        "end": 2401
-      }
-    }
-  ],
-  "effects": [
-    {
-      "identifier": {
-        "name": "Added",
-        "span": {
-          "start": 334,
-          "end": 339
-        }
-      },
-      "items": [
-        {
-          "Field": {
-            "identifier": {
-              "name": "x",
-              "span": {
-                "start": 354,
-                "end": 355
-              }
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [
+        FactDefinition {
+            immutable: false,
+            identifier: Ident {
+                name: "F",
+                span: 150..151,
             },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 356,
-                "end": 359
-              }
+            key: [
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "v",
+                        span: 152..153,
+                    },
+                    field_type: VType {
+                        kind: String,
+                        span: 154..160,
+                    },
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "x",
+                        span: 164..165,
+                    },
+                    field_type: VType {
+                        kind: Int,
+                        span: 166..169,
+                    },
+                },
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "y",
+                        span: 171..172,
+                    },
+                    field_type: VType {
+                        kind: Bool,
+                        span: 173..177,
+                    },
+                },
+            ],
+            span: 145..178,
+        },
+    ],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: Ident {
+                name: "add2",
+                span: 195..199,
             },
-            "dynamic": true
-          }
-        },
-        {
-          "Field": {
-            "identifier": {
-              "name": "y",
-              "span": {
-                "start": 381,
-                "end": 382
-              }
-            },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 383,
-                "end": 386
-              }
-            },
-            "dynamic": false
-          }
-        }
-      ],
-      "span": {
-        "start": 327,
-        "end": 397
-      }
-    }
-  ],
-  "structs": [],
-  "enums": [],
-  "commands": [
-    {
-      "persistence": "Persistent",
-      "attributes": [],
-      "identifier": {
-        "name": "Add",
-        "span": {
-          "start": 415,
-          "end": 418
-        }
-      },
-      "fields": [
-        {
-          "Field": {
-            "identifier": {
-              "name": "count",
-              "span": {
-                "start": 458,
-                "end": 463
-              }
-            },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 464,
-                "end": 467
-              }
-            }
-          }
-        }
-      ],
-      "seal": [],
-      "open": [],
-      "policy": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "envelope_id",
-                "span": {
-                  "start": 524,
-                  "end": 535
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 538,
-                        "end": 546
-                      }
+            arguments: [
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "x",
+                        span: 200..201,
                     },
-                    "identifier": {
-                      "name": "command_id",
-                      "span": {
-                        "start": 548,
-                        "end": 558
-                      }
+                    field_type: VType {
+                        kind: Int,
+                        span: 202..205,
                     },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
-                            "span": {
-                              "start": 559,
-                              "end": 567
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 559,
-                          "end": 567
-                        }
-                      }
-                    ]
-                  }
                 },
-                "span": {
-                  "start": 538,
-                  "end": 568
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 520,
-            "end": 585
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "author",
-                "span": {
-                  "start": 589,
-                  "end": 595
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 598,
-                        "end": 606
-                      }
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "y",
+                        span: 207..208,
                     },
-                    "identifier": {
-                      "name": "author_id",
-                      "span": {
-                        "start": 608,
-                        "end": 617
-                      }
+                    field_type: VType {
+                        kind: Int,
+                        span: 209..212,
                     },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
-                            "span": {
-                              "start": 618,
-                              "end": 626
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 618,
-                          "end": 626
-                        }
-                      }
-                    ]
-                  }
                 },
-                "span": {
-                  "start": 598,
-                  "end": 627
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 585,
-            "end": 644
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "new_x",
-                "span": {
-                  "start": 648,
-                  "end": 653
-                }
-              },
-              "expression": {
-                "kind": {
-                  "FunctionCall": {
-                    "identifier": {
-                      "name": "add2",
-                      "span": {
-                        "start": 656,
-                        "end": 660
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "x",
-                            "span": {
-                              "start": 661,
-                              "end": 662
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 661,
-                          "end": 662
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "count",
-                            "span": {
-                              "start": 664,
-                              "end": 669
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 664,
-                          "end": 669
-                        }
-                      }
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 656,
-                  "end": 670
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 644,
-            "end": 687
-          }
-        },
-        {
-          "kind": {
-            "Check": {
-              "expression": {
-                "kind": {
-                  "InternalFunction": {
-                    "Exists": {
-                      "identifier": {
-                        "name": "TestFact",
-                        "span": {
-                          "start": 700,
-                          "end": 708
-                        }
-                      },
-                      "key_fields": [
-                        [
-                          {
-                            "name": "v",
-                            "span": {
-                              "start": 709,
-                              "end": 710
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "test"
-                              },
-                              "span": {
-                                "start": 712,
-                                "end": 718
-                              }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": []
-                    }
-                  }
-                },
-                "span": {
-                  "start": 693,
-                  "end": 723
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 687,
-            "end": 740
-          }
-        },
-        {
-          "kind": {
-            "Match": {
-              "expression": {
-                "kind": {
-                  "Identifier": {
-                    "name": "x",
-                    "span": {
-                      "start": 746,
-                      "end": 747
-                    }
-                  }
-                },
-                "span": {
-                  "start": 746,
-                  "end": 747
-                }
-              },
-              "arms": [
-                {
-                  "pattern": {
-                    "Values": [
-                      {
-                        "kind": {
-                          "Int": 0
-                        },
-                        "span": {
-                          "start": 770,
-                          "end": 771
-                        }
-                      }
-                    ]
-                  },
-                  "statements": [
-                    {
-                      "kind": {
-                        "Check": {
-                          "expression": {
-                            "kind": {
-                              "FunctionCall": {
-                                "identifier": {
-                                  "name": "positive",
-                                  "span": {
-                                    "start": 807,
-                                    "end": 815
-                                  }
-                                },
-                                "arguments": [
-                                  {
-                                    "kind": {
-                                      "Optional": {
-                                        "kind": {
-                                          "Identifier": {
-                                            "name": "new_x",
-                                            "span": {
-                                              "start": 821,
-                                              "end": 826
-                                            }
-                                          }
+            ],
+            statements: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "obj",
+                                span: 232..235,
+                            },
+                            expression: Expression {
+                                kind: NamedStruct(
+                                    NamedStruct {
+                                        identifier: Ident {
+                                            name: "Add",
+                                            span: 238..241,
                                         },
-                                        "span": {
-                                          "start": 821,
-                                          "end": 826
-                                        }
-                                      }
+                                        fields: [
+                                            (
+                                                Ident {
+                                                    name: "count",
+                                                    span: 260..265,
+                                                },
+                                                Expression {
+                                                    kind: Identifier(
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 267..268,
+                                                        },
+                                                    ),
+                                                    span: 267..268,
+                                                },
+                                            ),
+                                        ],
+                                        sources: [],
                                     },
-                                    "span": {
-                                      "start": 816,
-                                      "end": 827
-                                    }
-                                  }
-                                ]
-                              }
+                                ),
+                                span: 238..283,
                             },
-                            "span": {
-                              "start": 807,
-                              "end": 828
-                            }
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 801,
-                        "end": 849
-                      }
-                    }
-                  ]
-                },
-                {
-                  "pattern": {
-                    "Values": [
-                      {
-                        "kind": {
-                          "Int": 1
                         },
-                        "span": {
-                          "start": 871,
-                          "end": 872
-                        }
-                      }
-                    ]
-                  },
-                  "statements": [
-                    {
-                      "kind": {
-                        "Check": {
-                          "expression": {
-                            "kind": {
-                              "FunctionCall": {
-                                "identifier": {
-                                  "name": "positive",
-                                  "span": {
-                                    "start": 908,
-                                    "end": 916
-                                  }
+                    ),
+                    span: 228..296,
+                },
+                Statement {
+                    kind: Publish(
+                        Expression {
+                            kind: Identifier(
+                                Ident {
+                                    name: "obj",
+                                    span: 304..307,
                                 },
-                                "arguments": [
-                                  {
-                                    "kind": {
-                                      "Optional": null
-                                    },
-                                    "span": {
-                                      "start": 917,
-                                      "end": 921
-                                    }
-                                  }
-                                ]
-                              }
-                            },
-                            "span": {
-                              "start": 908,
-                              "end": 922
-                            }
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 902,
-                        "end": 943
-                      }
-                    }
-                  ]
-                },
-                {
-                  "pattern": {
-                    "Default": {
-                      "start": 965,
-                      "end": 966
-                    }
-                  },
-                  "statements": []
-                }
-              ]
-            }
-          },
-          "span": {
-            "start": 740,
-            "end": 1012
-          }
-        },
-        {
-          "kind": {
-            "If": {
-              "branches": [
-                [
-                  {
-                    "kind": {
-                      "Equal": [
-                        {
-                          "kind": {
-                            "Identifier": {
-                              "name": "x",
-                              "span": {
-                                "start": 1033,
-                                "end": 1034
-                              }
-                            }
-                          },
-                          "span": {
-                            "start": 1033,
-                            "end": 1034
-                          }
+                            ),
+                            span: 304..307,
                         },
-                        {
-                          "kind": {
-                            "Int": 3
-                          },
-                          "span": {
-                            "start": 1038,
-                            "end": 1039
-                          }
-                        }
-                      ]
+                    ),
+                    span: 296..316,
+                },
+            ],
+            span: 188..317,
+        },
+        ActionDefinition {
+            persistence: Ephemeral(
+                2378..2387,
+            ),
+            identifier: Ident {
+                name: "a",
+                span: 2395..2396,
+            },
+            arguments: [],
+            statements: [],
+            span: 2378..2401,
+        },
+    ],
+    effects: [
+        EffectDefinition {
+            identifier: Ident {
+                name: "Added",
+                span: 334..339,
+            },
+            items: [
+                Field(
+                    EffectFieldDefinition {
+                        identifier: Ident {
+                            name: "x",
+                            span: 354..355,
+                        },
+                        field_type: VType {
+                            kind: Int,
+                            span: 356..359,
+                        },
+                        dynamic: true,
                     },
-                    "span": {
-                      "start": 1033,
-                      "end": 1039
-                    }
-                  },
-                  [
-                    {
-                      "kind": {
-                        "Check": {
-                          "expression": {
-                            "kind": {
-                              "LessThan": [
-                                {
-                                  "kind": {
-                                    "Identifier": {
-                                      "name": "new_x",
-                                      "span": {
-                                        "start": 1068,
-                                        "end": 1073
-                                      }
-                                    }
-                                  },
-                                  "span": {
-                                    "start": 1068,
-                                    "end": 1073
-                                  }
+                ),
+                Field(
+                    EffectFieldDefinition {
+                        identifier: Ident {
+                            name: "y",
+                            span: 381..382,
+                        },
+                        field_type: VType {
+                            kind: Int,
+                            span: 383..386,
+                        },
+                        dynamic: false,
+                    },
+                ),
+            ],
+            span: 327..397,
+        },
+    ],
+    structs: [],
+    enums: [],
+    commands: [
+        CommandDefinition {
+            persistence: Persistent,
+            attributes: [],
+            identifier: Ident {
+                name: "Add",
+                span: 415..418,
+            },
+            fields: [
+                Field(
+                    FieldDefinition {
+                        identifier: Ident {
+                            name: "count",
+                            span: 458..463,
+                        },
+                        field_type: VType {
+                            kind: Int,
+                            span: 464..467,
+                        },
+                    },
+                ),
+            ],
+            seal: [],
+            open: [],
+            policy: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "envelope_id",
+                                span: 524..535,
+                            },
+                            expression: Expression {
+                                kind: ForeignFunctionCall(
+                                    ForeignFunctionCall {
+                                        module: Ident {
+                                            name: "envelope",
+                                            span: 538..546,
+                                        },
+                                        identifier: Ident {
+                                            name: "command_id",
+                                            span: 548..558,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "envelope",
+                                                        span: 559..567,
+                                                    },
+                                                ),
+                                                span: 559..567,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 538..568,
+                            },
+                        },
+                    ),
+                    span: 520..585,
+                },
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "author",
+                                span: 589..595,
+                            },
+                            expression: Expression {
+                                kind: ForeignFunctionCall(
+                                    ForeignFunctionCall {
+                                        module: Ident {
+                                            name: "envelope",
+                                            span: 598..606,
+                                        },
+                                        identifier: Ident {
+                                            name: "author_id",
+                                            span: 608..617,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "envelope",
+                                                        span: 618..626,
+                                                    },
+                                                ),
+                                                span: 618..626,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 598..627,
+                            },
+                        },
+                    ),
+                    span: 585..644,
+                },
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "new_x",
+                                span: 648..653,
+                            },
+                            expression: Expression {
+                                kind: FunctionCall(
+                                    FunctionCall {
+                                        identifier: Ident {
+                                            name: "add2",
+                                            span: 656..660,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "x",
+                                                        span: 661..662,
+                                                    },
+                                                ),
+                                                span: 661..662,
+                                            },
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "count",
+                                                        span: 664..669,
+                                                    },
+                                                ),
+                                                span: 664..669,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 656..670,
+                            },
+                        },
+                    ),
+                    span: 644..687,
+                },
+                Statement {
+                    kind: Check(
+                        CheckStatement {
+                            expression: Expression {
+                                kind: InternalFunction(
+                                    Exists(
+                                        FactLiteral {
+                                            identifier: Ident {
+                                                name: "TestFact",
+                                                span: 700..708,
+                                            },
+                                            key_fields: [
+                                                (
+                                                    Ident {
+                                                        name: "v",
+                                                        span: 709..710,
+                                                    },
+                                                    Expression(
+                                                        Expression {
+                                                            kind: String(
+                                                                "test",
+                                                            ),
+                                                            span: 712..718,
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                            value_fields: Some(
+                                                [],
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                span: 693..723,
+                            },
+                        },
+                    ),
+                    span: 687..740,
+                },
+                Statement {
+                    kind: Match(
+                        MatchStatement {
+                            expression: Expression {
+                                kind: Identifier(
+                                    Ident {
+                                        name: "x",
+                                        span: 746..747,
+                                    },
+                                ),
+                                span: 746..747,
+                            },
+                            arms: [
+                                MatchArm {
+                                    pattern: Values(
+                                        [
+                                            Expression {
+                                                kind: Int(
+                                                    0,
+                                                ),
+                                                span: 770..771,
+                                            },
+                                        ],
+                                    ),
+                                    statements: [
+                                        Statement {
+                                            kind: Check(
+                                                CheckStatement {
+                                                    expression: Expression {
+                                                        kind: FunctionCall(
+                                                            FunctionCall {
+                                                                identifier: Ident {
+                                                                    name: "positive",
+                                                                    span: 807..815,
+                                                                },
+                                                                arguments: [
+                                                                    Expression {
+                                                                        kind: Optional(
+                                                                            Some(
+                                                                                Expression {
+                                                                                    kind: Identifier(
+                                                                                        Ident {
+                                                                                            name: "new_x",
+                                                                                            span: 821..826,
+                                                                                        },
+                                                                                    ),
+                                                                                    span: 821..826,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        span: 816..827,
+                                                                    },
+                                                                ],
+                                                            },
+                                                        ),
+                                                        span: 807..828,
+                                                    },
+                                                },
+                                            ),
+                                            span: 801..849,
+                                        },
+                                    ],
                                 },
-                                {
-                                  "kind": {
-                                    "Int": 10
-                                  },
-                                  "span": {
-                                    "start": 1076,
-                                    "end": 1078
-                                  }
-                                }
-                              ]
-                            },
-                            "span": {
-                              "start": 1068,
-                              "end": 1078
-                            }
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 1062,
-                        "end": 1095
-                      }
-                    }
-                  ]
-                ]
-              ],
-              "fallback": null
-            }
-          },
-          "span": {
-            "start": 1030,
-            "end": 1114
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "a",
-                "span": {
-                  "start": 1118,
-                  "end": 1119
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "foo",
-                      "span": {
-                        "start": 1122,
-                        "end": 1125
-                      }
-                    },
-                    "identifier": {
-                      "name": "ext_func",
-                      "span": {
-                        "start": 1127,
-                        "end": 1135
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "x",
-                            "span": {
-                              "start": 1136,
-                              "end": 1137
-                            }
-                          }
+                                MatchArm {
+                                    pattern: Values(
+                                        [
+                                            Expression {
+                                                kind: Int(
+                                                    1,
+                                                ),
+                                                span: 871..872,
+                                            },
+                                        ],
+                                    ),
+                                    statements: [
+                                        Statement {
+                                            kind: Check(
+                                                CheckStatement {
+                                                    expression: Expression {
+                                                        kind: FunctionCall(
+                                                            FunctionCall {
+                                                                identifier: Ident {
+                                                                    name: "positive",
+                                                                    span: 908..916,
+                                                                },
+                                                                arguments: [
+                                                                    Expression {
+                                                                        kind: Optional(
+                                                                            None,
+                                                                        ),
+                                                                        span: 917..921,
+                                                                    },
+                                                                ],
+                                                            },
+                                                        ),
+                                                        span: 908..922,
+                                                    },
+                                                },
+                                            ),
+                                            span: 902..943,
+                                        },
+                                    ],
+                                },
+                                MatchArm {
+                                    pattern: Default(
+                                        965..966,
+                                    ),
+                                    statements: [],
+                                },
+                            ],
                         },
-                        "span": {
-                          "start": 1136,
-                          "end": 1137
-                        }
-                      }
-                    ]
-                  }
+                    ),
+                    span: 740..1012,
                 },
-                "span": {
-                  "start": 1122,
-                  "end": 1138
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 1114,
-            "end": 1156
-          }
-        },
-        {
-          "kind": {
-            "Finish": [
-              {
-                "kind": {
-                  "Create": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1192,
-                          "end": 1193
-                        }
-                      },
-                      "key_fields": [
-                        [
-                          {
-                            "name": "v",
-                            "span": {
-                              "start": 1194,
-                              "end": 1195
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "hello"
-                              },
-                              "span": {
-                                "start": 1197,
-                                "end": 1204
-                              }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": [
-                        [
-                          {
-                            "name": "x",
-                            "span": {
-                              "start": 1208,
-                              "end": 1209
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "x",
-                                  "span": {
-                                    "start": 1211,
-                                    "end": 1212
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1211,
-                                "end": 1212
-                              }
-                            }
-                          }
-                        ],
-                        [
-                          {
-                            "name": "y",
-                            "span": {
-                              "start": 1214,
-                              "end": 1215
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "FunctionCall": {
-                                  "identifier": {
-                                    "name": "saturating_sub",
-                                    "span": {
-                                      "start": 1217,
-                                      "end": 1231
-                                    }
-                                  },
-                                  "arguments": [
-                                    {
-                                      "kind": {
-                                        "Int": 0
-                                      },
-                                      "span": {
-                                        "start": 1232,
-                                        "end": 1233
-                                      }
+                Statement {
+                    kind: If(
+                        IfStatement {
+                            branches: [
+                                (
+                                    Expression {
+                                        kind: Equal(
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "x",
+                                                        span: 1033..1034,
+                                                    },
+                                                ),
+                                                span: 1033..1034,
+                                            },
+                                            Expression {
+                                                kind: Int(
+                                                    3,
+                                                ),
+                                                span: 1038..1039,
+                                            },
+                                        ),
+                                        span: 1033..1039,
                                     },
-                                    {
-                                      "kind": {
-                                        "Identifier": {
-                                          "name": "x",
-                                          "span": {
-                                            "start": 1235,
-                                            "end": 1236
-                                          }
-                                        }
-                                      },
-                                      "span": {
-                                        "start": 1235,
-                                        "end": 1236
-                                      }
-                                    }
-                                  ]
-                                }
-                              },
-                              "span": {
-                                "start": 1217,
-                                "end": 1237
-                              }
-                            }
-                          }
-                        ]
-                      ]
-                    }
-                  }
-                },
-                "span": {
-                  "start": 1185,
-                  "end": 1238
-                }
-              },
-              {
-                "kind": {
-                  "Update": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1266,
-                          "end": 1267
-                        }
-                      },
-                      "key_fields": [],
-                      "value_fields": [
-                        [
-                          {
-                            "name": "x",
-                            "span": {
-                              "start": 1272,
-                              "end": 1273
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "x",
-                                  "span": {
-                                    "start": 1275,
-                                    "end": 1276
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1275,
-                                "end": 1276
-                              }
-                            }
-                          }
-                        ]
-                      ]
-                    },
-                    "to": [
-                      [
-                        {
-                          "name": "x",
-                          "span": {
-                            "start": 1282,
-                            "end": 1283
-                          }
+                                    [
+                                        Statement {
+                                            kind: Check(
+                                                CheckStatement {
+                                                    expression: Expression {
+                                                        kind: LessThan(
+                                                            Expression {
+                                                                kind: Identifier(
+                                                                    Ident {
+                                                                        name: "new_x",
+                                                                        span: 1068..1073,
+                                                                    },
+                                                                ),
+                                                                span: 1068..1073,
+                                                            },
+                                                            Expression {
+                                                                kind: Int(
+                                                                    10,
+                                                                ),
+                                                                span: 1076..1078,
+                                                            },
+                                                        ),
+                                                        span: 1068..1078,
+                                                    },
+                                                },
+                                            ),
+                                            span: 1062..1095,
+                                        },
+                                    ],
+                                ),
+                            ],
+                            fallback: None,
                         },
-                        {
-                          "Expression": {
-                            "kind": {
-                              "Identifier": {
-                                "name": "new_x",
-                                "span": {
-                                  "start": 1285,
-                                  "end": 1290
-                                }
-                              }
+                    ),
+                    span: 1030..1114,
+                },
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "a",
+                                span: 1118..1119,
                             },
-                            "span": {
-                              "start": 1285,
-                              "end": 1290
-                            }
-                          }
-                        }
-                      ]
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 1259,
-                  "end": 1291
-                }
-              },
-              {
-                "kind": {
-                  "Delete": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1319,
-                          "end": 1320
-                        }
-                      },
-                      "key_fields": [
-                        [
-                          {
-                            "name": "v",
-                            "span": {
-                              "start": 1321,
-                              "end": 1322
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "hello"
-                              },
-                              "span": {
-                                "start": 1324,
-                                "end": 1331
-                              }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": null
-                    }
-                  }
-                },
-                "span": {
-                  "start": 1312,
-                  "end": 1353
-                }
-              },
-              {
-                "kind": {
-                  "Emit": {
-                    "kind": {
-                      "NamedStruct": {
-                        "identifier": {
-                          "name": "Added",
-                          "span": {
-                            "start": 1358,
-                            "end": 1363
-                          }
-                        },
-                        "fields": [
-                          [
-                            {
-                              "name": "x",
-                              "span": {
-                                "start": 1390,
-                                "end": 1391
-                              }
-                            },
-                            {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "new_x",
-                                  "span": {
-                                    "start": 1393,
-                                    "end": 1398
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1393,
-                                "end": 1398
-                              }
-                            }
-                          ],
-                          [
-                            {
-                              "name": "y",
-                              "span": {
-                                "start": 1424,
-                                "end": 1425
-                              }
-                            },
-                            {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "count",
-                                  "span": {
-                                    "start": 1427,
-                                    "end": 1432
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1427,
-                                "end": 1432
-                              }
-                            }
-                          ]
-                        ],
-                        "sources": []
-                      }
-                    },
-                    "span": {
-                      "start": 1358,
-                      "end": 1455
-                    }
-                  }
-                },
-                "span": {
-                  "start": 1353,
-                  "end": 1472
-                }
-              }
-            ]
-          },
-          "span": {
-            "start": 1156,
-            "end": 1473
-          }
-        }
-      ],
-      "recall": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "envelope_id",
-                "span": {
-                  "start": 1529,
-                  "end": 1540
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 1543,
-                        "end": 1551
-                      }
-                    },
-                    "identifier": {
-                      "name": "command_id",
-                      "span": {
-                        "start": 1553,
-                        "end": 1563
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
-                            "span": {
-                              "start": 1564,
-                              "end": 1572
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 1564,
-                          "end": 1572
-                        }
-                      }
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 1543,
-                  "end": 1573
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 1525,
-            "end": 1590
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "author",
-                "span": {
-                  "start": 1594,
-                  "end": 1600
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ForeignFunctionCall": {
-                    "module": {
-                      "name": "envelope",
-                      "span": {
-                        "start": 1603,
-                        "end": 1611
-                      }
-                    },
-                    "identifier": {
-                      "name": "author_id",
-                      "span": {
-                        "start": 1613,
-                        "end": 1622
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "envelope",
-                            "span": {
-                              "start": 1623,
-                              "end": 1631
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 1623,
-                          "end": 1631
-                        }
-                      }
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 1603,
-                  "end": 1632
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 1590,
-            "end": 1649
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "new_x",
-                "span": {
-                  "start": 1653,
-                  "end": 1658
-                }
-              },
-              "expression": {
-                "kind": {
-                  "FunctionCall": {
-                    "identifier": {
-                      "name": "add2",
-                      "span": {
-                        "start": 1661,
-                        "end": 1665
-                      }
-                    },
-                    "arguments": [
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "x",
-                            "span": {
-                              "start": 1666,
-                              "end": 1667
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 1666,
-                          "end": 1667
-                        }
-                      },
-                      {
-                        "kind": {
-                          "Identifier": {
-                            "name": "count",
-                            "span": {
-                              "start": 1669,
-                              "end": 1674
-                            }
-                          }
-                        },
-                        "span": {
-                          "start": 1669,
-                          "end": 1674
-                        }
-                      }
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 1661,
-                  "end": 1675
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 1649,
-            "end": 1692
-          }
-        },
-        {
-          "kind": {
-            "Finish": [
-              {
-                "kind": {
-                  "Create": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1728,
-                          "end": 1729
-                        }
-                      },
-                      "key_fields": [
-                        [
-                          {
-                            "name": "v",
-                            "span": {
-                              "start": 1730,
-                              "end": 1731
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "hello"
-                              },
-                              "span": {
-                                "start": 1733,
-                                "end": 1740
-                              }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": [
-                        [
-                          {
-                            "name": "x",
-                            "span": {
-                              "start": 1744,
-                              "end": 1745
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "x",
-                                  "span": {
-                                    "start": 1747,
-                                    "end": 1748
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1747,
-                                "end": 1748
-                              }
-                            }
-                          }
-                        ],
-                        [
-                          {
-                            "name": "y",
-                            "span": {
-                              "start": 1750,
-                              "end": 1751
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "FunctionCall": {
-                                  "identifier": {
-                                    "name": "saturating_sub",
-                                    "span": {
-                                      "start": 1753,
-                                      "end": 1767
-                                    }
-                                  },
-                                  "arguments": [
-                                    {
-                                      "kind": {
-                                        "Int": 0
-                                      },
-                                      "span": {
-                                        "start": 1768,
-                                        "end": 1769
-                                      }
+                            expression: Expression {
+                                kind: ForeignFunctionCall(
+                                    ForeignFunctionCall {
+                                        module: Ident {
+                                            name: "foo",
+                                            span: 1122..1125,
+                                        },
+                                        identifier: Ident {
+                                            name: "ext_func",
+                                            span: 1127..1135,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "x",
+                                                        span: 1136..1137,
+                                                    },
+                                                ),
+                                                span: 1136..1137,
+                                            },
+                                        ],
                                     },
-                                    {
-                                      "kind": {
-                                        "Identifier": {
-                                          "name": "x",
-                                          "span": {
-                                            "start": 1771,
-                                            "end": 1772
-                                          }
-                                        }
-                                      },
-                                      "span": {
-                                        "start": 1771,
-                                        "end": 1772
-                                      }
-                                    }
-                                  ]
-                                }
-                              },
-                              "span": {
-                                "start": 1753,
-                                "end": 1773
-                              }
-                            }
-                          }
-                        ]
-                      ]
-                    }
-                  }
-                },
-                "span": {
-                  "start": 1721,
-                  "end": 1774
-                }
-              },
-              {
-                "kind": {
-                  "Update": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1802,
-                          "end": 1803
-                        }
-                      },
-                      "key_fields": [],
-                      "value_fields": [
-                        [
-                          {
-                            "name": "x",
-                            "span": {
-                              "start": 1808,
-                              "end": 1809
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "x",
-                                  "span": {
-                                    "start": 1811,
-                                    "end": 1812
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1811,
-                                "end": 1812
-                              }
-                            }
-                          }
-                        ]
-                      ]
-                    },
-                    "to": [
-                      [
-                        {
-                          "name": "x",
-                          "span": {
-                            "start": 1818,
-                            "end": 1819
-                          }
+                                ),
+                                span: 1122..1138,
+                            },
                         },
-                        {
-                          "Expression": {
-                            "kind": {
-                              "Identifier": {
-                                "name": "new_x",
-                                "span": {
-                                  "start": 1821,
-                                  "end": 1826
-                                }
-                              }
-                            },
-                            "span": {
-                              "start": 1821,
-                              "end": 1826
-                            }
-                          }
-                        }
-                      ]
-                    ]
-                  }
+                    ),
+                    span: 1114..1156,
                 },
-                "span": {
-                  "start": 1795,
-                  "end": 1827
-                }
-              },
-              {
-                "kind": {
-                  "Delete": {
-                    "fact": {
-                      "identifier": {
-                        "name": "F",
-                        "span": {
-                          "start": 1855,
-                          "end": 1856
-                        }
-                      },
-                      "key_fields": [
+                Statement {
+                    kind: Finish(
                         [
-                          {
-                            "name": "v",
-                            "span": {
-                              "start": 1857,
-                              "end": 1858
-                            }
-                          },
-                          {
-                            "Expression": {
-                              "kind": {
-                                "String": "hello"
-                              },
-                              "span": {
-                                "start": 1860,
-                                "end": 1867
-                              }
-                            }
-                          }
-                        ]
-                      ],
-                      "value_fields": null
-                    }
-                  }
-                },
-                "span": {
-                  "start": 1848,
-                  "end": 1889
-                }
-              },
-              {
-                "kind": {
-                  "Emit": {
-                    "kind": {
-                      "NamedStruct": {
-                        "identifier": {
-                          "name": "Added",
-                          "span": {
-                            "start": 1894,
-                            "end": 1899
-                          }
-                        },
-                        "fields": [
-                          [
-                            {
-                              "name": "x",
-                              "span": {
-                                "start": 1926,
-                                "end": 1927
-                              }
+                            Statement {
+                                kind: Create(
+                                    CreateStatement {
+                                        fact: FactLiteral {
+                                            identifier: Ident {
+                                                name: "F",
+                                                span: 1192..1193,
+                                            },
+                                            key_fields: [
+                                                (
+                                                    Ident {
+                                                        name: "v",
+                                                        span: 1194..1195,
+                                                    },
+                                                    Expression(
+                                                        Expression {
+                                                            kind: String(
+                                                                "hello",
+                                                            ),
+                                                            span: 1197..1204,
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                            value_fields: Some(
+                                                [
+                                                    (
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 1208..1209,
+                                                        },
+                                                        Expression(
+                                                            Expression {
+                                                                kind: Identifier(
+                                                                    Ident {
+                                                                        name: "x",
+                                                                        span: 1211..1212,
+                                                                    },
+                                                                ),
+                                                                span: 1211..1212,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    (
+                                                        Ident {
+                                                            name: "y",
+                                                            span: 1214..1215,
+                                                        },
+                                                        Expression(
+                                                            Expression {
+                                                                kind: FunctionCall(
+                                                                    FunctionCall {
+                                                                        identifier: Ident {
+                                                                            name: "saturating_sub",
+                                                                            span: 1217..1231,
+                                                                        },
+                                                                        arguments: [
+                                                                            Expression {
+                                                                                kind: Int(
+                                                                                    0,
+                                                                                ),
+                                                                                span: 1232..1233,
+                                                                            },
+                                                                            Expression {
+                                                                                kind: Identifier(
+                                                                                    Ident {
+                                                                                        name: "x",
+                                                                                        span: 1235..1236,
+                                                                                    },
+                                                                                ),
+                                                                                span: 1235..1236,
+                                                                            },
+                                                                        ],
+                                                                    },
+                                                                ),
+                                                                span: 1217..1237,
+                                                            },
+                                                        ),
+                                                    ),
+                                                ],
+                                            ),
+                                        },
+                                    },
+                                ),
+                                span: 1185..1238,
                             },
-                            {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "new_x",
-                                  "span": {
-                                    "start": 1929,
-                                    "end": 1934
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1929,
-                                "end": 1934
-                              }
-                            }
-                          ],
-                          [
-                            {
-                              "name": "y",
-                              "span": {
-                                "start": 1960,
-                                "end": 1961
-                              }
+                            Statement {
+                                kind: Update(
+                                    UpdateStatement {
+                                        fact: FactLiteral {
+                                            identifier: Ident {
+                                                name: "F",
+                                                span: 1266..1267,
+                                            },
+                                            key_fields: [],
+                                            value_fields: Some(
+                                                [
+                                                    (
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 1272..1273,
+                                                        },
+                                                        Expression(
+                                                            Expression {
+                                                                kind: Identifier(
+                                                                    Ident {
+                                                                        name: "x",
+                                                                        span: 1275..1276,
+                                                                    },
+                                                                ),
+                                                                span: 1275..1276,
+                                                            },
+                                                        ),
+                                                    ),
+                                                ],
+                                            ),
+                                        },
+                                        to: [
+                                            (
+                                                Ident {
+                                                    name: "x",
+                                                    span: 1282..1283,
+                                                },
+                                                Expression(
+                                                    Expression {
+                                                        kind: Identifier(
+                                                            Ident {
+                                                                name: "new_x",
+                                                                span: 1285..1290,
+                                                            },
+                                                        ),
+                                                        span: 1285..1290,
+                                                    },
+                                                ),
+                                            ),
+                                        ],
+                                    },
+                                ),
+                                span: 1259..1291,
                             },
-                            {
-                              "kind": {
-                                "Identifier": {
-                                  "name": "count",
-                                  "span": {
-                                    "start": 1963,
-                                    "end": 1968
-                                  }
-                                }
-                              },
-                              "span": {
-                                "start": 1963,
-                                "end": 1968
-                              }
-                            }
-                          ]
+                            Statement {
+                                kind: Delete(
+                                    DeleteStatement {
+                                        fact: FactLiteral {
+                                            identifier: Ident {
+                                                name: "F",
+                                                span: 1319..1320,
+                                            },
+                                            key_fields: [
+                                                (
+                                                    Ident {
+                                                        name: "v",
+                                                        span: 1321..1322,
+                                                    },
+                                                    Expression(
+                                                        Expression {
+                                                            kind: String(
+                                                                "hello",
+                                                            ),
+                                                            span: 1324..1331,
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                            value_fields: None,
+                                        },
+                                    },
+                                ),
+                                span: 1312..1353,
+                            },
+                            Statement {
+                                kind: Emit(
+                                    Expression {
+                                        kind: NamedStruct(
+                                            NamedStruct {
+                                                identifier: Ident {
+                                                    name: "Added",
+                                                    span: 1358..1363,
+                                                },
+                                                fields: [
+                                                    (
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 1390..1391,
+                                                        },
+                                                        Expression {
+                                                            kind: Identifier(
+                                                                Ident {
+                                                                    name: "new_x",
+                                                                    span: 1393..1398,
+                                                                },
+                                                            ),
+                                                            span: 1393..1398,
+                                                        },
+                                                    ),
+                                                    (
+                                                        Ident {
+                                                            name: "y",
+                                                            span: 1424..1425,
+                                                        },
+                                                        Expression {
+                                                            kind: Identifier(
+                                                                Ident {
+                                                                    name: "count",
+                                                                    span: 1427..1432,
+                                                                },
+                                                            ),
+                                                            span: 1427..1432,
+                                                        },
+                                                    ),
+                                                ],
+                                                sources: [],
+                                            },
+                                        ),
+                                        span: 1358..1455,
+                                    },
+                                ),
+                                span: 1353..1472,
+                            },
                         ],
-                        "sources": []
-                      }
-                    },
-                    "span": {
-                      "start": 1894,
-                      "end": 1991
-                    }
-                  }
+                    ),
+                    span: 1156..1473,
                 },
-                "span": {
-                  "start": 1889,
-                  "end": 2008
-                }
-              }
-            ]
-          },
-          "span": {
-            "start": 1692,
-            "end": 2009
-          }
-        }
-      ],
-      "span": {
-        "start": 407,
-        "end": 2033
-      }
-    },
-    {
-      "persistence": {
-        "Ephemeral": {
-          "start": 2280,
-          "end": 2289
-        }
-      },
-      "attributes": [],
-      "identifier": {
-        "name": "C",
-        "span": {
-          "start": 2298,
-          "end": 2299
-        }
-      },
-      "fields": [
-        {
-          "Field": {
-            "identifier": {
-              "name": "x",
-              "span": {
-                "start": 2339,
-                "end": 2340
-              }
-            },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 2341,
-                "end": 2344
-              }
-            }
-          }
-        }
-      ],
-      "seal": [],
-      "open": [],
-      "policy": [],
-      "recall": [],
-      "span": {
-        "start": 2280,
-        "end": 2368
-      }
-    }
-  ],
-  "functions": [
-    {
-      "identifier": {
-        "name": "positive",
-        "span": {
-          "start": 2052,
-          "end": 2060
-        }
-      },
-      "arguments": [
-        {
-          "identifier": {
-            "name": "v",
-            "span": {
-              "start": 2061,
-              "end": 2062
-            }
-          },
-          "field_type": {
-            "kind": {
-              "Optional": {
-                "kind": "Int",
-                "span": {
-                  "start": 2072,
-                  "end": 2075
-                }
-              }
-            },
-            "span": {
-              "start": 2063,
-              "end": 2075
-            }
-          }
-        }
-      ],
-      "return_type": {
-        "kind": "Bool",
-        "span": {
-          "start": 2077,
-          "end": 2081
-        }
-      },
-      "statements": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "x",
-                "span": {
-                  "start": 2100,
-                  "end": 2101
-                }
-              },
-              "expression": {
-                "kind": {
-                  "Unwrap": {
-                    "kind": {
-                      "Identifier": {
-                        "name": "v",
-                        "span": {
-                          "start": 2111,
-                          "end": 2112
-                        }
-                      }
-                    },
-                    "span": {
-                      "start": 2111,
-                      "end": 2112
-                    }
-                  }
+            ],
+            recall: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "envelope_id",
+                                span: 1529..1540,
+                            },
+                            expression: Expression {
+                                kind: ForeignFunctionCall(
+                                    ForeignFunctionCall {
+                                        module: Ident {
+                                            name: "envelope",
+                                            span: 1543..1551,
+                                        },
+                                        identifier: Ident {
+                                            name: "command_id",
+                                            span: 1553..1563,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "envelope",
+                                                        span: 1564..1572,
+                                                    },
+                                                ),
+                                                span: 1564..1572,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 1543..1573,
+                            },
+                        },
+                    ),
+                    span: 1525..1590,
                 },
-                "span": {
-                  "start": 2104,
-                  "end": 2112
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 2096,
-            "end": 2125
-          }
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "author",
+                                span: 1594..1600,
+                            },
+                            expression: Expression {
+                                kind: ForeignFunctionCall(
+                                    ForeignFunctionCall {
+                                        module: Ident {
+                                            name: "envelope",
+                                            span: 1603..1611,
+                                        },
+                                        identifier: Ident {
+                                            name: "author_id",
+                                            span: 1613..1622,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "envelope",
+                                                        span: 1623..1631,
+                                                    },
+                                                ),
+                                                span: 1623..1631,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 1603..1632,
+                            },
+                        },
+                    ),
+                    span: 1590..1649,
+                },
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "new_x",
+                                span: 1653..1658,
+                            },
+                            expression: Expression {
+                                kind: FunctionCall(
+                                    FunctionCall {
+                                        identifier: Ident {
+                                            name: "add2",
+                                            span: 1661..1665,
+                                        },
+                                        arguments: [
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "x",
+                                                        span: 1666..1667,
+                                                    },
+                                                ),
+                                                span: 1666..1667,
+                                            },
+                                            Expression {
+                                                kind: Identifier(
+                                                    Ident {
+                                                        name: "count",
+                                                        span: 1669..1674,
+                                                    },
+                                                ),
+                                                span: 1669..1674,
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: 1661..1675,
+                            },
+                        },
+                    ),
+                    span: 1649..1692,
+                },
+                Statement {
+                    kind: Finish(
+                        [
+                            Statement {
+                                kind: Create(
+                                    CreateStatement {
+                                        fact: FactLiteral {
+                                            identifier: Ident {
+                                                name: "F",
+                                                span: 1728..1729,
+                                            },
+                                            key_fields: [
+                                                (
+                                                    Ident {
+                                                        name: "v",
+                                                        span: 1730..1731,
+                                                    },
+                                                    Expression(
+                                                        Expression {
+                                                            kind: String(
+                                                                "hello",
+                                                            ),
+                                                            span: 1733..1740,
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                            value_fields: Some(
+                                                [
+                                                    (
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 1744..1745,
+                                                        },
+                                                        Expression(
+                                                            Expression {
+                                                                kind: Identifier(
+                                                                    Ident {
+                                                                        name: "x",
+                                                                        span: 1747..1748,
+                                                                    },
+                                                                ),
+                                                                span: 1747..1748,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    (
+                                                        Ident {
+                                                            name: "y",
+                                                            span: 1750..1751,
+                                                        },
+                                                        Expression(
+                                                            Expression {
+                                                                kind: FunctionCall(
+                                                                    FunctionCall {
+                                                                        identifier: Ident {
+                                                                            name: "saturating_sub",
+                                                                            span: 1753..1767,
+                                                                        },
+                                                                        arguments: [
+                                                                            Expression {
+                                                                                kind: Int(
+                                                                                    0,
+                                                                                ),
+                                                                                span: 1768..1769,
+                                                                            },
+                                                                            Expression {
+                                                                                kind: Identifier(
+                                                                                    Ident {
+                                                                                        name: "x",
+                                                                                        span: 1771..1772,
+                                                                                    },
+                                                                                ),
+                                                                                span: 1771..1772,
+                                                                            },
+                                                                        ],
+                                                                    },
+                                                                ),
+                                                                span: 1753..1773,
+                                                            },
+                                                        ),
+                                                    ),
+                                                ],
+                                            ),
+                                        },
+                                    },
+                                ),
+                                span: 1721..1774,
+                            },
+                            Statement {
+                                kind: Update(
+                                    UpdateStatement {
+                                        fact: FactLiteral {
+                                            identifier: Ident {
+                                                name: "F",
+                                                span: 1802..1803,
+                                            },
+                                            key_fields: [],
+                                            value_fields: Some(
+                                                [
+                                                    (
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 1808..1809,
+                                                        },
+                                                        Expression(
+                                                            Expression {
+                                                                kind: Identifier(
+                                                                    Ident {
+                                                                        name: "x",
+                                                                        span: 1811..1812,
+                                                                    },
+                                                                ),
+                                                                span: 1811..1812,
+                                                            },
+                                                        ),
+                                                    ),
+                                                ],
+                                            ),
+                                        },
+                                        to: [
+                                            (
+                                                Ident {
+                                                    name: "x",
+                                                    span: 1818..1819,
+                                                },
+                                                Expression(
+                                                    Expression {
+                                                        kind: Identifier(
+                                                            Ident {
+                                                                name: "new_x",
+                                                                span: 1821..1826,
+                                                            },
+                                                        ),
+                                                        span: 1821..1826,
+                                                    },
+                                                ),
+                                            ),
+                                        ],
+                                    },
+                                ),
+                                span: 1795..1827,
+                            },
+                            Statement {
+                                kind: Delete(
+                                    DeleteStatement {
+                                        fact: FactLiteral {
+                                            identifier: Ident {
+                                                name: "F",
+                                                span: 1855..1856,
+                                            },
+                                            key_fields: [
+                                                (
+                                                    Ident {
+                                                        name: "v",
+                                                        span: 1857..1858,
+                                                    },
+                                                    Expression(
+                                                        Expression {
+                                                            kind: String(
+                                                                "hello",
+                                                            ),
+                                                            span: 1860..1867,
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                            value_fields: None,
+                                        },
+                                    },
+                                ),
+                                span: 1848..1889,
+                            },
+                            Statement {
+                                kind: Emit(
+                                    Expression {
+                                        kind: NamedStruct(
+                                            NamedStruct {
+                                                identifier: Ident {
+                                                    name: "Added",
+                                                    span: 1894..1899,
+                                                },
+                                                fields: [
+                                                    (
+                                                        Ident {
+                                                            name: "x",
+                                                            span: 1926..1927,
+                                                        },
+                                                        Expression {
+                                                            kind: Identifier(
+                                                                Ident {
+                                                                    name: "new_x",
+                                                                    span: 1929..1934,
+                                                                },
+                                                            ),
+                                                            span: 1929..1934,
+                                                        },
+                                                    ),
+                                                    (
+                                                        Ident {
+                                                            name: "y",
+                                                            span: 1960..1961,
+                                                        },
+                                                        Expression {
+                                                            kind: Identifier(
+                                                                Ident {
+                                                                    name: "count",
+                                                                    span: 1963..1968,
+                                                                },
+                                                            ),
+                                                            span: 1963..1968,
+                                                        },
+                                                    ),
+                                                ],
+                                                sources: [],
+                                            },
+                                        ),
+                                        span: 1894..1991,
+                                    },
+                                ),
+                                span: 1889..2008,
+                            },
+                        ],
+                    ),
+                    span: 1692..2009,
+                },
+            ],
+            span: 407..2033,
         },
-        {
-          "kind": {
-            "Return": {
-              "expression": {
-                "kind": {
-                  "GreaterThan": [
-                    {
-                      "kind": {
-                        "Identifier": {
-                          "name": "x",
-                          "span": {
-                            "start": 2132,
-                            "end": 2133
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 2132,
-                        "end": 2133
-                      }
+        CommandDefinition {
+            persistence: Ephemeral(
+                2280..2289,
+            ),
+            attributes: [],
+            identifier: Ident {
+                name: "C",
+                span: 2298..2299,
+            },
+            fields: [
+                Field(
+                    FieldDefinition {
+                        identifier: Ident {
+                            name: "x",
+                            span: 2339..2340,
+                        },
+                        field_type: VType {
+                            kind: Int,
+                            span: 2341..2344,
+                        },
                     },
-                    {
-                      "kind": {
-                        "Int": 0
-                      },
-                      "span": {
-                        "start": 2136,
-                        "end": 2137
-                      }
-                    }
-                  ]
+                ),
+            ],
+            seal: [],
+            open: [],
+            policy: [],
+            recall: [],
+            span: 2280..2368,
+        },
+    ],
+    functions: [
+        FunctionDefinition {
+            identifier: Ident {
+                name: "positive",
+                span: 2052..2060,
+            },
+            arguments: [
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "v",
+                        span: 2061..2062,
+                    },
+                    field_type: VType {
+                        kind: Optional(
+                            VType {
+                                kind: Int,
+                                span: 2072..2075,
+                            },
+                        ),
+                        span: 2063..2075,
+                    },
                 },
-                "span": {
-                  "start": 2132,
-                  "end": 2137
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 2125,
-            "end": 2146
-          }
-        }
-      ],
-      "span": {
-        "start": 2043,
-        "end": 2147
-      }
-    }
-  ],
-  "finish_functions": [
-    {
-      "identifier": {
-        "name": "next",
-        "span": {
-          "start": 2173,
-          "end": 2177
-        }
-      },
-      "arguments": [
-        {
-          "identifier": {
-            "name": "x",
-            "span": {
-              "start": 2178,
-              "end": 2179
-            }
-          },
-          "field_type": {
-            "kind": "Int",
-            "span": {
-              "start": 2180,
-              "end": 2183
-            }
-          }
-        }
-      ],
-      "statements": [
-        {
-          "kind": {
-            "Create": {
-              "fact": {
-                "identifier": {
-                  "name": "Next",
-                  "span": {
-                    "start": 2206,
-                    "end": 2210
-                  }
+            ],
+            return_type: VType {
+                kind: Bool,
+                span: 2077..2081,
+            },
+            statements: [
+                Statement {
+                    kind: Let(
+                        LetStatement {
+                            identifier: Ident {
+                                name: "x",
+                                span: 2100..2101,
+                            },
+                            expression: Expression {
+                                kind: Unwrap(
+                                    Expression {
+                                        kind: Identifier(
+                                            Ident {
+                                                name: "v",
+                                                span: 2111..2112,
+                                            },
+                                        ),
+                                        span: 2111..2112,
+                                    },
+                                ),
+                                span: 2104..2112,
+                            },
+                        },
+                    ),
+                    span: 2096..2125,
                 },
-                "key_fields": [],
-                "value_fields": []
-              }
-            }
-          },
-          "span": {
-            "start": 2199,
-            "end": 2216
-          }
-        }
-      ],
-      "span": {
-        "start": 2157,
-        "end": 2226
-      }
-    }
-  ],
-  "global_lets": [],
-  "text": "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    "
+                Statement {
+                    kind: Return(
+                        ReturnStatement {
+                            expression: Expression {
+                                kind: GreaterThan(
+                                    Expression {
+                                        kind: Identifier(
+                                            Ident {
+                                                name: "x",
+                                                span: 2132..2133,
+                                            },
+                                        ),
+                                        span: 2132..2133,
+                                    },
+                                    Expression {
+                                        kind: Int(
+                                            0,
+                                        ),
+                                        span: 2136..2137,
+                                    },
+                                ),
+                                span: 2132..2137,
+                            },
+                        },
+                    ),
+                    span: 2125..2146,
+                },
+            ],
+            span: 2043..2147,
+        },
+    ],
+    finish_functions: [
+        FinishFunctionDefinition {
+            identifier: Ident {
+                name: "next",
+                span: 2173..2177,
+            },
+            arguments: [
+                FieldDefinition {
+                    identifier: Ident {
+                        name: "x",
+                        span: 2178..2179,
+                    },
+                    field_type: VType {
+                        kind: Int,
+                        span: 2180..2183,
+                    },
+                },
+            ],
+            statements: [
+                Statement {
+                    kind: Create(
+                        CreateStatement {
+                            fact: FactLiteral {
+                                identifier: Ident {
+                                    name: "Next",
+                                    span: 2206..2210,
+                                },
+                                key_fields: [],
+                                value_fields: Some(
+                                    [],
+                                ),
+                            },
+                        },
+                    ),
+                    span: 2199..2216,
+                },
+            ],
+            span: 2157..2226,
+        },
+    ],
+    global_lets: [],
+    text: "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    ",
 }

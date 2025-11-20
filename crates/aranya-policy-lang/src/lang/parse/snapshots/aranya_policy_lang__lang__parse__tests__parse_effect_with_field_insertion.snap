@@ -2,95 +2,68 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: policy
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [],
-  "actions": [],
-  "effects": [
-    {
-      "identifier": {
-        "name": "Bar",
-        "span": {
-          "start": 36,
-          "end": 39
-        }
-      },
-      "items": [
-        {
-          "StructRef": {
-            "name": "Foo",
-            "span": {
-              "start": 55,
-              "end": 58
-            }
-          }
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [
+        EffectDefinition {
+            identifier: Ident {
+                name: "Bar",
+                span: 36..39,
+            },
+            items: [
+                StructRef(
+                    Ident {
+                        name: "Foo",
+                        span: 55..58,
+                    },
+                ),
+                Field(
+                    EffectFieldDefinition {
+                        identifier: Ident {
+                            name: "y",
+                            span: 72..73,
+                        },
+                        field_type: VType {
+                            kind: Int,
+                            span: 74..77,
+                        },
+                        dynamic: false,
+                    },
+                ),
+            ],
+            span: 29..87,
         },
-        {
-          "Field": {
-            "identifier": {
-              "name": "y",
-              "span": {
-                "start": 72,
-                "end": 73
-              }
+    ],
+    structs: [
+        StructDefinition {
+            identifier: Ident {
+                name: "Foo",
+                span: 7..10,
             },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 74,
-                "end": 77
-              }
-            },
-            "dynamic": false
-          }
-        }
-      ],
-      "span": {
-        "start": 29,
-        "end": 87
-      }
-    }
-  ],
-  "structs": [
-    {
-      "identifier": {
-        "name": "Foo",
-        "span": {
-          "start": 7,
-          "end": 10
-        }
-      },
-      "items": [
-        {
-          "Field": {
-            "identifier": {
-              "name": "x",
-              "span": {
-                "start": 13,
-                "end": 14
-              }
-            },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 15,
-                "end": 18
-              }
-            }
-          }
-        }
-      ],
-      "span": {
-        "start": 0,
-        "end": 20
-      }
-    }
-  ],
-  "enums": [],
-  "commands": [],
-  "functions": [],
-  "finish_functions": [],
-  "global_lets": [],
-  "text": "struct Foo { x int }\n        effect Bar {\n            +Foo,\n            y int\n        }\n        "
+            items: [
+                Field(
+                    FieldDefinition {
+                        identifier: Ident {
+                            name: "x",
+                            span: 13..14,
+                        },
+                        field_type: VType {
+                            kind: Int,
+                            span: 15..18,
+                        },
+                    },
+                ),
+            ],
+            span: 0..20,
+        },
+    ],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "struct Foo { x int }\n        effect Bar {\n            +Foo,\n            y int\n        }\n        ",
 }
