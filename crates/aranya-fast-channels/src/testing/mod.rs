@@ -236,6 +236,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     const GOLDEN: &str = "hello, world!";
 
+    #[allow(clippy::too_many_arguments)]
     fn test<T: TestImpl, CS: CipherSuite>(
         clients: &mut [Client<T::Afc<CS>>],
         devices: &[Device<T, CS>],
