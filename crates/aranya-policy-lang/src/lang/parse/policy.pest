@@ -362,12 +362,12 @@ seal_block = { "seal" ~ statement_block }
 open_block = { "open" ~ statement_block }
 // Union of all command blocks
 command_blocks = _{
-    | attributes_block
-    | fields_block
+    | attributes_block?
+    | fields_block?
     | seal_block
     | open_block
     | policy_block
-    | recall_block
+    | recall_block?
 }
 
 // # Top-level Statements
