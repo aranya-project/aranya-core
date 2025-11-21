@@ -1257,3 +1257,49 @@ Next chunk:
         assert_eq!(err.to_string(), expected);
     }
 }
+
+#[test]
+fn test_match_arm_should_be_limited_to_literals() {
+    let policies = vec![
+        r#"
+            action foo(x int) {
+                match x {
+                    saturating_add(0, 1)=> {}
+                    _ => {}
+                }
+            }
+        "#,
+        r#"
+        function f() int { return 0 }
+        action foo(x int) {
+            match x {
+                f() => {}
+                _ => {}
+            }
+        }
+        "#,
+    ];
+
+    for text in policies {
+        let err = parse_policy_str(text, Version::V2).unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::Syntax);
+    }
+}
+
+#[test]
+fn test_match_binding() {
+    let policies = vec![
+        r#"
+            function foo(opt optional int) int {
+                return match opt {
+                    Some(val) => val
+                    None => 0
+                }
+            }
+        "#,
+    ];
+
+    for text in policies {
+        parse_policy_str(text, Version::V2).unwrap();
+    }
+}

@@ -147,7 +147,24 @@ enum_reference = { identifier ~ "::" ~ identifier }
 // invalid types like `Some None`. This is checked in a later stage.
 none = { "None" }
 some = { "Some" }
-optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
+optional_expr = { none | (some ~ "(" ~ expression ~ ")") }
+optional_literal = { none | (some ~ "(" ~ literal ~ ")") }
+
+literal = {
+    int_literal |
+    string_literal |
+    bool_literal |
+    optional_literal |
+    named_struct_literal |
+    enum_reference
+}
+
+match_pattern = _{ match_default | match_arm_expression | match_binder }
+// binder_variant = { some | none | ((#namespace = identifier ~ "::")? ~ #variant = identifier) }
+// match_binder = { binder_variant ~ ("(" ~ #bound = identifier ~ ")")? }
+match_binder = { none | (some ~ "(" ~ identifier ~ ")") }
+match_arm_expression = { literal ~ ("|" ~ literal)* }
+match_default = { "_" }
 
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
@@ -165,7 +182,7 @@ at_most = { "at_most" ~ int_literal ~ fact_literal }
 exactly = { "exactly" ~ int_literal ~ fact_literal }
 // Similar to the `match` statement, but resolves to a value. e.g. `let x = match { ... }`
 match_expression = { "match" ~ expression ~ "{" ~ match_expression_arm* ~ "}" }
-match_expression_arm = { (match_arm_expression | match_default) ~ "=>" ~ expression }
+match_expression_arm = { match_pattern ~ "=>" ~ expression }
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.
@@ -199,7 +216,7 @@ atom = _{
     int_literal |
     string_literal |
     bool_literal |
-    optional_literal |
+    optional_expr |
     named_struct_literal |
     match_expression |
     internal_function |
@@ -257,9 +274,7 @@ check_statement = { "check" ~ expression }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
-match_arm_expression = { expression ~ ("|" ~ expression)* }
-match_default = { "_" }
-match_arm = { (match_arm_expression | match_default) ~ "=>" ~ statement_block }
+match_arm = { match_pattern ~ "=>" ~ statement_block }
 match_statement = { "match" ~ expression ~ "{" ~ match_arm* ~ "}" }
 // if - else if - else
 if_statement = {

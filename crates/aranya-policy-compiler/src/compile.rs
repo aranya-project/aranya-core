@@ -12,8 +12,8 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
-    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
+    self as ast, Binder, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
+    FactField, FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
     MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement,
     StmtKind, StructItem, TypeKind, VType, ident,
 };
@@ -2489,6 +2489,7 @@ impl<'a> CompileState<'a> {
             .iter()
             .flat_map(|pattern| match pattern {
                 MatchPattern::Values(values) => values.as_slice(),
+                MatchPattern::Binder(binder) => &[], // ?
                 MatchPattern::Default(_) => &[],
             })
             .collect::<Vec<&Expression>>();
@@ -2532,6 +2533,18 @@ impl<'a> CompileState<'a> {
             arm_labels.push(arm_label.clone());
 
             match pattern {
+                MatchPattern::Binder(binder) => {
+                    self.append_instruction(Instruction::Dup);
+                    self.append_instruction(Instruction::Const(Value::None));
+                    // if value != None, jump to start-of-arm
+                    self.append_instruction(Instruction::Eq);
+                    if binder.bound.is_some() {
+                        self.append_instruction(Instruction::Not);
+                    }
+                    self.append_instruction(Instruction::Branch(Target::Unresolved(
+                        arm_label.clone(),
+                    )));
+                }
                 MatchPattern::Values(values) => {
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
@@ -2573,7 +2586,20 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        let need_default = default_count == 0
+        let has_binder = patterns
+            .iter()
+            .any(|pat| matches!(pat, MatchPattern::Binder(_)));
+        let inner_ty = if has_binder {
+            Some(match &expr_pat_t.kind {
+                TypeKind::Optional(inner) => inner.as_ref().clone(),
+                _ => return Err(todo!()),
+            })
+        } else {
+            None
+        };
+
+        let need_default = !has_binder
+            && default_count == 0
             && self
                 .m
                 .cardinality(&expr_pat_t.kind)
@@ -2593,8 +2619,16 @@ impl<'a> CompileState<'a> {
                     let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    if let MatchPattern::Binder(Binder { bound: Some(name) }) = &arm.pattern {
+                        self.identifier_types
+                            .add(name.name.clone(), inner_ty.clone().unwrap())
+                            .map_err(|e| self.err(e))?;
+                        self.append_instruction(Instruction::Meta(Meta::Let(name.name.clone())));
+                        self.append_instruction(Instruction::Def(name.name.clone()));
+                    } else {
+                        // Drop expression value (It's still around because of the Dup)
+                        self.append_instruction(Instruction::Pop);
+                    }
 
                     self.compile_statements(&arm.statements, Scope::Layered)?;
 
@@ -2609,8 +2643,16 @@ impl<'a> CompileState<'a> {
                     let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    if let MatchPattern::Binder(Binder { bound: Some(name) }) = &arm.pattern {
+                        self.identifier_types
+                            .add(name.name.clone(), inner_ty.clone().unwrap())
+                            .map_err(|e| self.err(e))?;
+                        self.append_instruction(Instruction::Meta(Meta::Let(name.name.clone())));
+                        self.append_instruction(Instruction::Def(name.name.clone()));
+                    } else {
+                        // Drop expression value (It's still around because of the Dup)
+                        self.append_instruction(Instruction::Pop);
+                    }
 
                     let etype = self.compile_expression(&arm.expression)?;
                     match expr_type {
