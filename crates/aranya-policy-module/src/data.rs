@@ -224,11 +224,17 @@ impl Value {
     /// ```
     pub fn fits_type(&self, expected_type: &VType) -> bool {
         use aranya_policy_ast::TypeKind;
-        match (self.vtype(), &expected_type.kind) {
-            (None, TypeKind::Optional(_)) => true,
-            (None, _) => false,
-            (Some(vtype), TypeKind::Optional(inner)) => vtype.matches(&inner.kind),
-            (Some(vtype), kind) => vtype.matches(kind),
+        match (self, &expected_type.kind) {
+            (Self::None, TypeKind::Optional(_)) => true,
+            (_, TypeKind::Optional(inner)) => self.fits_type(inner),
+            (Self::Int(_), TypeKind::Int) => true,
+            (Self::Bool(_), TypeKind::Bool) => true,
+            (Self::String(_), TypeKind::String) => true,
+            (Self::Bytes(_), TypeKind::Bytes) => true,
+            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.name,
+            (Self::Id(_), TypeKind::Id) => true,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            _ => false,
         }
     }
 }

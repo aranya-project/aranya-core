@@ -180,6 +180,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
                 Option<#inner>
             }
         }
+        TypeKind::Never => unreachable!("cannot use never type in definitions"),
     }
 }
 

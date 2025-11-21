@@ -26,11 +26,9 @@ use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
-use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
-use self::types::{DisplayType, IdentifierTypeStack, Typeish};
-use crate::compile::types::NullableVType;
+use self::types::{DisplayType, IdentifierTypeStack};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -47,6 +45,66 @@ enum FunctionColor {
 struct FunctionSignature {
     args: Vec<(Identifier, VType)>,
     color: FunctionColor,
+}
+
+/// Create a `(Identifier, FunctionSignature)` from a policy function declaration.
+macro_rules! sig {
+    (function $func:ident($($argname:ident $($argtype:ident)+),*) $($ret:ident)+) => {
+        (
+            ident!(stringify!($func)),
+            FunctionSignature {
+                args: vec![$(
+                    (
+                        ident!(stringify!($argname)),
+                        vtype!($($argtype)+)
+                    )
+                ),*],
+                color: FunctionColor::Pure(vtype!($($ret)+)),
+            }
+        )
+    };
+}
+
+macro_rules! vtype {
+    ($($t:tt)*) => {
+        VType {
+            kind: typekind!($($t)*),
+            span: Span::empty(),
+        }
+    }
+}
+
+macro_rules! typekind {
+    (string) => {
+        TypeKind::String
+    };
+    (bytes) => {
+        TypeKind::Bytes
+    };
+    (int) => {
+        TypeKind::Int
+    };
+    (bool) => {
+        TypeKind::Bool
+    };
+    (id) => {
+        TypeKind::Id
+    };
+    (struct $name:ident) => {
+        TypeKind::Struct(Ident {
+            name: ident!(stringify!($name)),
+            span: Span::empty(),
+        })
+    };
+    (enum $name:ident) => {
+        TypeKind::Enum(Ident {
+            name: ident!(stringify!($name)),
+            span: Span::empty(),
+        })
+    };
+    (optional $inner:ident) => {
+        TypeKind::Optional(Box::new(vtype!($inner)))
+    };
 }
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
@@ -77,6 +135,9 @@ impl fmt::Display for StatementContext {
     }
 }
 
+/// Called to compile a builtin function call.
+type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
+
 /// The "compile state" of the machine.
 struct CompileState<'a> {
     /// Policy being compiled
@@ -89,7 +150,9 @@ struct CompileState<'a> {
     c: usize,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
-    function_signatures: BTreeMap<&'a Identifier, FunctionSignature>,
+    function_signatures: BTreeMap<Identifier, FunctionSignature>,
+    /// Builtin functions which have special behavior when compiling a function call.
+    builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last span seen, for imprecise source locating.
     last_span: Span,
     /// The current statement context, implemented as a stack so that it can be
@@ -143,7 +206,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
-            .add(identifier, Typeish::known(vtype))
+            .add(identifier, vtype)
             .map_err(|e| self.err(e))?;
         Ok(())
     }
@@ -308,7 +371,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FunctionDefinition,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = function_node;
-        match self.function_signatures.entry(&def.identifier.name) {
+        match self.function_signatures.entry(def.identifier.name.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def
@@ -320,11 +383,17 @@ impl<'a> CompileState<'a> {
                 };
                 Ok(e.insert(signature))
             }
-            Entry::Occupied(_) => Err(CompileError::from_span(
-                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
-                def.span,
-                self.m.codemap.as_ref(),
-            )),
+            Entry::Occupied(_) => {
+                let mut name = def.identifier.to_string();
+                if self.builtin_functions.contains_key(def.identifier.as_str()) {
+                    name.push_str(" (builtin)");
+                }
+                Err(CompileError::from_span(
+                    CompileErrorType::AlreadyDefined(name),
+                    def.span,
+                    self.m.codemap.as_ref(),
+                ))
+            }
         }
     }
 
@@ -335,7 +404,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = function_node;
-        match self.function_signatures.entry(&def.identifier.name) {
+        match self.function_signatures.entry(def.identifier.name.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def
@@ -347,11 +416,17 @@ impl<'a> CompileState<'a> {
                 };
                 Ok(e.insert(signature))
             }
-            Entry::Occupied(_) => Err(CompileError::from_span(
-                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
-                def.span,
-                self.m.codemap.as_ref(),
-            )),
+            Entry::Occupied(_) => {
+                let mut name = def.identifier.to_string();
+                if self.builtin_functions.contains_key(def.identifier.as_str()) {
+                    name.push_str(" (builtin)");
+                }
+                Err(CompileError::from_span(
+                    CompileErrorType::AlreadyDefined(name),
+                    def.span,
+                    self.m.codemap.as_ref(),
+                ))
+            }
         }
     }
 
@@ -634,7 +709,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile an expression
-    fn compile_expression(&mut self, expression: &Expression) -> Result<Typeish, CompileError> {
+    fn compile_expression(&mut self, expression: &Expression) -> Result<VType, CompileError> {
         if self.get_statement_context()? == StatementContext::Finish {
             self.check_finish_expression(expression)?;
         }
@@ -642,51 +717,49 @@ impl<'a> CompileState<'a> {
         let expression_type = match &expression.kind {
             ExprKind::Int(n) => {
                 self.append_instruction(Instruction::Const(Value::Int(*n)));
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Int,
                     span: expression.span,
-                })
+                }
             }
             ExprKind::String(s) => {
                 self.append_instruction(Instruction::Const(Value::String(s.clone())));
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::String,
                     span: expression.span,
-                })
+                }
             }
             ExprKind::Bool(b) => {
                 self.append_instruction(Instruction::Const(Value::Bool(*b)));
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Bool,
                     span: expression.span,
-                })
-            }
-            ExprKind::Optional(o) => match o {
-                None => {
-                    self.append_instruction(Instruction::Const(Value::None));
-                    Typeish::Known(NullableVType::Null)
                 }
-                Some(v) => self
-                    .compile_expression(v)?
-                    .try_map(|nty| match nty {
-                        NullableVType::Type(ref ty) if matches!(ty.kind, TypeKind::Optional(_)) => {
-                            Err(TypeError::new("Cannot wrap option in another option"))
+            }
+            ExprKind::Optional(o) => {
+                let inner = match o {
+                    None => {
+                        self.append_instruction(Instruction::Const(Value::None));
+                        VType {
+                            kind: TypeKind::Never,
+                            span: Span::empty(),
                         }
-                        NullableVType::Null => {
-                            Err(TypeError::new("Cannot wrap option in another option"))
-                        }
-                        NullableVType::Type(ty) => Ok(NullableVType::Type(VType {
-                            kind: TypeKind::Optional(Box::new(ty)),
-                            span: expression.span,
-                        })),
-                    })
-                    .map_err(|err| self.err(err.into()))?,
-            },
+                    }
+                    Some(v) => self.compile_expression(v)?,
+                };
+                if matches!(inner.kind, TypeKind::Optional(_)) {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Cannot wrap option in another option".into(),
+                    )));
+                }
+                VType {
+                    kind: TypeKind::Optional(Box::new(inner)),
+                    span: expression.span,
+                }
+            }
             ExprKind::NamedStruct(s) => {
-                // TODO: Carry intederminism from struct fields? Same for all compile_struct_literals.
                 self.compile_struct_literal(s)?;
-                let vtype = self.struct_type(s).map_err(|e| self.err(e.into()))?;
-                Typeish::known(vtype)
+                self.struct_type(s)?
             }
             ExprKind::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
@@ -694,11 +767,11 @@ impl<'a> CompileState<'a> {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
 
-                    let vtype = self.query_fact_type(f).map_err(|e| self.err(e.into()))?;
-                    Typeish::known(VType {
+                    let vtype = self.query_fact_type(f)?;
+                    VType {
                         kind: TypeKind::Optional(Box::new(vtype)),
                         span: expression.span,
-                    })
+                    }
                 }
                 ast::InternalFunction::Exists(f) => {
                     self.verify_fact_against_schema(f, false)?;
@@ -708,23 +781,23 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
 
-                    Typeish::known(VType {
+                    VType {
                         kind: TypeKind::Bool,
                         span: expression.span,
-                    })
+                    }
                 }
                 ast::InternalFunction::FactCount(cmp_type, n, fact) => {
                     self.compile_counting_function(cmp_type, *n, fact)?;
 
                     match cmp_type {
-                        FactCountType::UpTo(span) => Typeish::known(VType {
+                        FactCountType::UpTo(span) => VType {
                             kind: TypeKind::Int,
                             span: *span,
-                        }),
-                        _ => Typeish::known(VType {
+                        },
+                        _ => VType {
                             kind: TypeKind::Bool,
                             span: expression.span,
-                        }),
+                        },
                     }
                 }
                 ast::InternalFunction::If(c, t, f) => {
@@ -753,8 +826,7 @@ impl<'a> CompileState<'a> {
 
                     // The type of `if` is whatever the subexpressions
                     // are, as long as they are the same type
-                    self.unify_pair(true_type, false_type)
-                        .map_err(|e| self.err(e.into()))?
+                    types::unify_pair(true_type, false_type).map_err(|e| self.err(e.into()))?
                 }
                 ast::InternalFunction::Serialize(e) => {
                     match self.get_statement_context()? {
@@ -769,12 +841,10 @@ impl<'a> CompileState<'a> {
                         }
                     }
 
-                    let Typeish::Known(NullableVType::Type(
-                        struct_type @ VType {
-                            kind: TypeKind::Struct(_),
-                            ..
-                        },
-                    )) = self
+                    let struct_type @ VType {
+                        kind: TypeKind::Struct(_),
+                        ..
+                    } = self
                         .identifier_types
                         .get(&ident!("this"))
                         .assume("seal must have `this`")?
@@ -782,25 +852,20 @@ impl<'a> CompileState<'a> {
                         bug!("seal::this must be a struct type");
                     };
 
-                    let result_type = self
-                        .compile_expression(e)?
-                        .try_map(|ty| {
-                            if !ty.fits_type(&struct_type) {
-                                return Err(CompileErrorType::InvalidType(format!(
-                                    "serializing {ty}, expected {}",
-                                    DisplayType(&struct_type)
-                                )));
-                            }
-                            Ok(NullableVType::Type(VType {
-                                kind: TypeKind::Bytes,
-                                span: expression.span,
-                            }))
-                        })
-                        .map_err(|err| self.err(err))?;
+                    let ty = self.compile_expression(e)?;
+                    if !ty.fits_type(&struct_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "serializing {ty}, expected {}",
+                            DisplayType(&struct_type)
+                        ))));
+                    }
 
                     self.append_instruction(Instruction::Serialize);
 
-                    result_type
+                    VType {
+                        kind: TypeKind::Bytes,
+                        span: expression.span,
+                    }
                 }
                 ast::InternalFunction::Deserialize(e) => {
                     // A bit hacky, but you can't manually define a function named "open".
@@ -821,94 +886,32 @@ impl<'a> CompileState<'a> {
                         }
                     };
 
-                    let result_type = self
-                        .compile_expression(e)?
-                        .try_map(|ty| {
-                            if !ty.fits_type(&VType {
-                                kind: TypeKind::Bytes,
-                                span: e.span,
-                            }) {
-                                return Err(CompileErrorType::InvalidType(format!(
-                                    "deserializing {ty}, expected bytes",
-                                )));
-                            }
-                            Ok(NullableVType::Type(VType {
-                                kind: TypeKind::Struct(struct_name),
-                                span: expression.span,
-                            }))
-                        })
-                        .map_err(|err| self.err(err))?;
+                    let ty = self.compile_expression(e)?;
+                    if !ty.fits_type(&VType {
+                        kind: TypeKind::Bytes,
+                        span: e.span,
+                    }) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "deserializing {ty}, expected bytes",
+                        ))));
+                    }
 
                     self.append_instruction(Instruction::Deserialize);
 
-                    result_type
-                }
-                ast::InternalFunction::Add(a, b) | ast::InternalFunction::Sub(a, b) => {
-                    let left_type = self.compile_expression(a)?;
-                    let right_type = self.compile_expression(b)?;
-                    let _ = self
-                        .unify_pair_as(
-                            left_type,
-                            right_type,
-                            VType {
-                                kind: TypeKind::Int,
-                                span: expression.span,
-                            },
-                            "Cannot do math on non-int types",
-                        )
-                        .map_err(|e| self.err(e))?;
-
-                    let instruction = match f {
-                        ast::InternalFunction::Add(_, _) => Instruction::Add,
-                        ast::InternalFunction::Sub(_, _) => Instruction::Sub,
-                        _ => unreachable!(),
-                    };
-                    self.append_instruction(instruction);
-
-                    // Checked operations return Optional<Int>
-                    Typeish::known(VType {
-                        kind: TypeKind::Optional(Box::new(VType {
-                            kind: TypeKind::Int,
-                            span: expression.span,
-                        })),
+                    VType {
+                        kind: TypeKind::Struct(struct_name),
                         span: expression.span,
-                    })
-                }
-                ast::InternalFunction::SaturatingAdd(a, b)
-                | ast::InternalFunction::SaturatingSub(a, b) => {
-                    let left_type = self.compile_expression(a)?;
-                    let right_type = self.compile_expression(b)?;
-                    let _ = self
-                        .unify_pair_as(
-                            left_type,
-                            right_type,
-                            VType {
-                                kind: TypeKind::Int,
-                                span: expression.span,
-                            },
-                            "Cannot do math on non-int types",
-                        )
-                        .map_err(|e| self.err(e))?;
-
-                    let instruction = match f {
-                        ast::InternalFunction::SaturatingAdd(_, _) => Instruction::SaturatingAdd,
-                        ast::InternalFunction::SaturatingSub(_, _) => Instruction::SaturatingSub,
-                        _ => unreachable!(),
-                    };
-                    self.append_instruction(instruction);
-
-                    // Saturating operations return Int
-                    Typeish::known(VType {
-                        kind: TypeKind::Int,
-                        span: expression.span,
-                    })
+                    }
                 }
                 ast::InternalFunction::Todo(_) => {
                     let err = self.err(CompileErrorType::TodoFound);
                     if self.is_debug {
                         warn!("{err}");
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                        Typeish::Never
+                        VType {
+                            kind: TypeKind::Never,
+                            span: Span::empty(),
+                        }
                     } else {
                         return Err(err);
                     }
@@ -942,7 +945,7 @@ impl<'a> CompileState<'a> {
                 }
                 self.compile_function_call(f, false)?;
 
-                Typeish::known(return_type)
+                return_type
             }
             ExprKind::ForeignFunctionCall(f) => {
                 // If the policy hasn't imported this module, don't allow using it
@@ -961,7 +964,10 @@ impl<'a> CompileState<'a> {
                 )));
                 if self.stub_ffi {
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                    Typeish::Never
+                    VType {
+                        kind: TypeKind::Never,
+                        span: Span::empty(),
+                    }
                 } else {
                     // find module by name
                     let (module_id, module) = self
@@ -1017,7 +1023,7 @@ impl<'a> CompileState<'a> {
 
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
 
-                    Typeish::known(VType::from(&procedure.return_type))
+                    VType::from(&procedure.return_type)
                 }
             }
             ExprKind::Identifier(i) => {
@@ -1036,39 +1042,35 @@ impl<'a> CompileState<'a> {
             ExprKind::EnumReference(e) => {
                 let value = self.enum_value(e)?;
                 self.append_instruction(Instruction::Const(value));
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Enum(e.identifier.clone()),
                     span: expression.span,
-                })
+                }
             }
             ExprKind::Dot(t, s) => {
                 let left_type = self.compile_expression(t)?;
                 self.append_instruction(Instruction::StructGet(s.name.clone()));
 
-                left_type
-                    .try_map(|nty| match nty {
-                        NullableVType::Type(VType {
-                            kind: TypeKind::Struct(name),
-                            ..
-                        }) => {
-                            let struct_def =
-                                self.m.struct_defs.get(name.as_str()).ok_or_else(|| {
-                                    TypeError::new_owned(format!("Struct `{name}` not defined"))
-                                })?;
-                            let field_def = struct_def
-                                .iter()
-                                .find(|f| f.identifier.name == s.name)
-                                .ok_or_else(|| {
-                                    TypeError::new_owned(format!(
-                                        "Struct `{}` has no member `{}`",
-                                        name, s.name
-                                    ))
-                                })?;
-                            Ok(NullableVType::Type(field_def.field_type.clone()))
-                        }
-                        _ => Err(TypeError::new("Expression left of `.` is not a struct")),
-                    })
-                    .map_err(|err| self.err(err.into()))?
+                let name = left_type.as_struct().ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(
+                        "Expression left of `.` is not a struct".into(),
+                    ))
+                })?;
+                let struct_def = self.m.struct_defs.get(name.as_str()).ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(format!(
+                        "Struct `{name}` not defined"
+                    )))
+                })?;
+                let field_def = struct_def
+                    .iter()
+                    .find(|f| f.identifier.name == s.name)
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "Struct `{}` has no member `{}`",
+                            name, s.name
+                        )))
+                    })?;
+                field_def.field_type.clone()
             }
             ExprKind::Substruct(lhs, sub) => {
                 self.append_instruction(Instruction::StructNew(sub.name.clone()));
@@ -1081,43 +1083,29 @@ impl<'a> CompileState<'a> {
                 };
 
                 let lhs_expression = self.compile_expression(lhs)?;
-                let result_type = lhs_expression
-                    .try_map(|nty| match nty {
-                        NullableVType::Type(VType {
-                            kind: TypeKind::Struct(lhs_struct_name),
-                            ..
-                        }) => {
-                            let Some(lhs_field_defns) =
-                                self.m.struct_defs.get(&lhs_struct_name.name)
-                            else {
-                                return Err(CompileErrorType::NotDefined(format!(
-                                    "Struct `{lhs_struct_name}` is not defined",
-                                )));
-                            };
+                let lhs_struct_name = lhs_expression.as_struct().ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(
+                        "Expression to the left of the substruct operator is not a struct".into(),
+                    ))
+                })?;
+                let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name.name) else {
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{lhs_struct_name}` is not defined",
+                    ))));
+                };
 
-                            // Check that the struct type on the RHS is a subset of the struct expression on the LHS
-                            if !sub_field_defns.iter().all(|field_def| {
-                                lhs_field_defns.iter().any(|lhs_field| {
-                                    lhs_field.identifier.name == field_def.identifier.name
-                                        && lhs_field.field_type.kind == field_def.field_type.kind
-                                })
-                            }) {
-                                return Err(CompileErrorType::InvalidSubstruct(
-                                    sub.name.clone(),
-                                    lhs_struct_name.name,
-                                ));
-                            }
-                            Ok(NullableVType::Type(VType {
-                                kind: TypeKind::Struct(sub.clone()),
-                                span: expression.span,
-                            }))
-                        }
-                        _ => Err(CompileErrorType::InvalidType(
-                            "Expression to the left of the substruct operator is not a struct"
-                                .into(),
-                        )),
+                // Check that the struct type on the RHS is a subset of the struct expression on the LHS
+                if !sub_field_defns.iter().all(|field_def| {
+                    lhs_field_defns.iter().any(|lhs_field| {
+                        lhs_field.identifier.name == field_def.identifier.name
+                            && lhs_field.field_type.kind == field_def.field_type.kind
                     })
-                    .map_err(|err| self.err(err))?;
+                }) {
+                    return Err(self.err(CompileErrorType::InvalidSubstruct(
+                        sub.name.clone(),
+                        lhs_struct_name.name.clone(),
+                    )));
+                }
 
                 let field_count = sub_field_defns.len();
                 for field in sub_field_defns {
@@ -1131,7 +1119,10 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::MStructSet(field_count));
                 }
 
-                result_type
+                VType {
+                    kind: TypeKind::Struct(sub.clone()),
+                    span: expression.span,
+                }
             }
             ExprKind::Cast(lhs, rhs_ident) => {
                 // NOTE this is implemented only for structs
@@ -1147,48 +1138,39 @@ impl<'a> CompileState<'a> {
                     })?;
 
                 let lhs_type = self.compile_expression(lhs)?;
-                _ = lhs_type.try_map(|t| match t {
-                    NullableVType::Type(VType {
-                        kind: TypeKind::Struct(lhs_struct_name),
-                        ..
-                    }) => {
-                        let lhs_fields =
-                            self.m
-                                .struct_defs
-                                .get(&lhs_struct_name.name)
-                                .ok_or_else(|| {
-                                    self.err(CompileErrorType::NotDefined(format!(
-                                        "struct {lhs_struct_name}"
-                                    )))
-                                })?;
-
-                        // Check that both structs have the same field names and types (though not necessarily in the same order)
-                        if lhs_fields.len() != rhs_fields.len()
-                            || !lhs_fields
-                                .iter()
-                                .all(|f| rhs_fields.iter().any(|v| f.matches(v)))
-                        {
-                            return Err(self.err(CompileErrorType::InvalidCast(
-                                lhs_struct_name.name,
-                                rhs_ident.name.clone(),
-                            )));
-                        }
-                        Ok(NullableVType::Type(VType {
-                            kind: TypeKind::Struct(rhs_ident.clone()),
-                            span: rhs_ident.span(),
-                        }))
-                    }
-                    _ => Err(self.err(CompileErrorType::InvalidType(
+                let lhs_struct_name = lhs_type.as_struct().ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(
                         "Expression to the left of `as` is not a struct".to_string(),
-                    ))),
+                    ))
                 })?;
+                let lhs_fields =
+                    self.m
+                        .struct_defs
+                        .get(&lhs_struct_name.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(format!(
+                                "struct {lhs_struct_name}"
+                            )))
+                        })?;
+
+                // Check that both structs have the same field names and types (though not necessarily in the same order)
+                if lhs_fields.len() != rhs_fields.len()
+                    || !lhs_fields
+                        .iter()
+                        .all(|f| rhs_fields.iter().any(|v| f.matches(v)))
+                {
+                    return Err(self.err(CompileErrorType::InvalidCast(
+                        lhs_struct_name.name.clone(),
+                        rhs_ident.name.clone(),
+                    )));
+                }
 
                 self.append_instruction(Instruction::Cast(rhs_ident.name.clone()));
 
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(rhs_ident.clone()),
                     span: rhs_ident.span(),
-                })
+                }
             }
             ExprKind::And(a, b) | ExprKind::Or(a, b) => {
                 // `a && b` becomes `if a { b } else { false }`
@@ -1227,7 +1209,7 @@ impl<'a> CompileState<'a> {
 
                 self.define_label(end, self.wp)?;
 
-                self.unify_pair_as(
+                types::unify_pair_as(
                     left_type,
                     right_type,
                     VType {
@@ -1245,14 +1227,13 @@ impl<'a> CompileState<'a> {
 
                 // We don't actually care what types the subexpressions
                 // are as long as they can be tested for equality.
-                self.unify_pair(left_type, right_type)
-                    .map_err(|e| self.err(e.into()))?
-                    .map(|_| {
-                        NullableVType::Type(VType {
-                            kind: TypeKind::Bool,
-                            span: expression.span,
-                        })
-                    })
+                let _ty =
+                    types::unify_pair(left_type, right_type).map_err(|e| self.err(e.into()))?;
+
+                VType {
+                    kind: TypeKind::Bool,
+                    span: expression.span,
+                }
             }
             ExprKind::NotEqual(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -1260,14 +1241,13 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Eq);
                 self.append_instruction(Instruction::Not);
 
-                self.unify_pair(left_type, right_type)
-                    .map_err(|e| self.err(e.into()))?
-                    .map(|_| {
-                        NullableVType::Type(VType {
-                            kind: TypeKind::Bool,
-                            span: expression.span,
-                        })
-                    })
+                let _ty =
+                    types::unify_pair(left_type, right_type).map_err(|e| self.err(e.into()))?;
+
+                VType {
+                    kind: TypeKind::Bool,
+                    span: expression.span,
+                }
             }
             ExprKind::GreaterThan(a, b) | ExprKind::LessThan(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -1279,7 +1259,7 @@ impl<'a> CompileState<'a> {
                     _ => unreachable!(),
                 });
 
-                self.unify_pair_as(
+                let _ty = types::unify_pair_as(
                     left_type,
                     right_type,
                     VType {
@@ -1288,13 +1268,12 @@ impl<'a> CompileState<'a> {
                     },
                     "Cannot compare non-int expressions",
                 )
-                .map_err(|e| self.err(e))?
-                .map(|_| {
-                    NullableVType::Type(VType {
-                        kind: TypeKind::Bool,
-                        span: expression.span,
-                    })
-                })
+                .map_err(|e| self.err(e))?;
+
+                VType {
+                    kind: TypeKind::Bool,
+                    span: expression.span,
+                }
             }
             ExprKind::GreaterThanOrEqual(a, b) | ExprKind::LessThanOrEqual(a, b) => {
                 // `a >= b` becomes `!(a < b)`. This relies on total ordering, which integers meet.
@@ -1308,7 +1287,7 @@ impl<'a> CompileState<'a> {
                 });
                 self.append_instruction(Instruction::Not);
 
-                self.unify_pair_as(
+                let _ty = types::unify_pair_as(
                     left_type,
                     right_type,
                     VType {
@@ -1317,13 +1296,12 @@ impl<'a> CompileState<'a> {
                     },
                     "Cannot compare non-int expressions",
                 )
-                .map_err(|e| self.err(e))?
-                .map(|_| {
-                    NullableVType::Type(VType {
-                        kind: TypeKind::Bool,
-                        span: expression.span,
-                    })
-                })
+                .map_err(|e| self.err(e))?;
+
+                VType {
+                    kind: TypeKind::Bool,
+                    span: expression.span,
+                }
             }
             ExprKind::Not(e) => {
                 // Evaluate the expression
@@ -1332,27 +1310,36 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
 
-                inner_type
-                    .check_type(
-                        VType {
-                            kind: TypeKind::Bool,
-                            span: expression.span,
-                        },
-                        "",
-                    )
-                    .map_err(|err| {
-                        CompileErrorType::InvalidType(format!(
-                            "cannot invert non-boolean expression of type {}",
-                            err.left
-                        ))
-                    })
-                    .map_err(|e| self.err(e))?
+                types::check_type(
+                    inner_type,
+                    VType {
+                        kind: TypeKind::Bool,
+                        span: expression.span,
+                    },
+                    "",
+                )
+                .map_err(|err| {
+                    CompileErrorType::InvalidType(format!(
+                        "cannot invert non-boolean expression of type {}",
+                        err.left
+                    ))
+                })
+                .map_err(|e| self.err(e))?
             }
             ExprKind::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             ExprKind::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let inner_type = self.compile_expression(e)?;
+                match &inner_type.kind {
+                    TypeKind::Optional(_) => {}
+                    _ => {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "`is` must operate on an optional expression".into(),
+                        )));
+                    }
+                }
+
                 // Push a None to compare against
                 self.append_instruction(Instruction::Const(Value::None));
                 // Check if the value is equal to None
@@ -1363,21 +1350,10 @@ impl<'a> CompileState<'a> {
                 }
                 // The result true or false is on the stack
 
-                inner_type
-                    .try_map(|nty| match nty {
-                        NullableVType::Type(VType {
-                            kind: TypeKind::Optional(_),
-                            ..
-                        })
-                        | NullableVType::Null => Ok(NullableVType::Type(VType {
-                            kind: TypeKind::Bool,
-                            span: expression.span,
-                        })),
-                        NullableVType::Type(_) => Err(TypeError::new(
-                            "`is` must operate on an optional expression",
-                        )),
-                    })
-                    .map_err(|err| self.err(err.into()))?
+                VType {
+                    kind: TypeKind::Bool,
+                    span: expression.span,
+                }
             }
             ExprKind::Block(statements, e) => {
                 self.append_instruction(Instruction::Block);
@@ -1543,43 +1519,32 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_label, self.wp)?;
                 }
                 (StmtKind::Publish(s), StatementContext::Action(action)) => {
-                    let t = self.compile_expression(s)?;
-                    let _ty: Typeish = t
-                        .try_map(|nty| match nty {
-                            NullableVType::Type(VType {
-                                kind: TypeKind::Struct(ref ident),
-                                ..
-                            }) => {
-                                if !self.m.command_defs.contains(ident.as_str()) {
-                                    return Err(CompileErrorType::InvalidType(format!(
-                                        "Struct `{ident}` is not a Command struct",
-                                    )));
-                                }
+                    let ty = self.compile_expression(s)?;
+                    let ident = ty.as_struct().ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "Cannot publish `{ty}`, must be a command struct"
+                        )))
+                    })?;
+                    if !self.m.command_defs.contains(ident.as_str()) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Struct `{ident}` is not a Command struct",
+                        ))));
+                    }
 
-                                //  Persistent actions can publish only persistent commands, and vice versa.
-                                let command_persistence = &self
-                                    .policy
-                                    .commands
-                                    .iter()
-                                    .find(|c| c.identifier.name == ident.name)
-                                    .assume("command must be defined")?
-                                    .persistence;
-                                if !action.persistence.matches(command_persistence) {
-                                    return Err(CompileErrorType::InvalidType(format!(
-                                        "{} action `{}` cannot publish {} command `{}`",
-                                        action.persistence,
-                                        action.identifier,
-                                        command_persistence,
-                                        ident
-                                    )));
-                                }
-                                Ok(nty)
-                            }
-                            ot => Err(CompileErrorType::InvalidType(format!(
-                                "Cannot publish `{ot}`, must be a command struct"
-                            ))),
-                        })
-                        .map_err(|err| self.err(err))?;
+                    //  Persistent actions can publish only persistent commands, and vice versa.
+                    let command_persistence = &self
+                        .policy
+                        .commands
+                        .iter()
+                        .find(|c| c.identifier.name == ident.name)
+                        .assume("command must be defined")?
+                        .persistence;
+                    if !action.persistence.matches(command_persistence) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "{} action `{}` cannot publish {} command `{}`",
+                            action.persistence, action.identifier, command_persistence, ident
+                        ))));
+                    }
                     self.append_instruction(Instruction::Publish);
                 }
                 (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
@@ -1625,10 +1590,10 @@ impl<'a> CompileState<'a> {
                     self.identifier_types
                         .add(
                             map_stmt.identifier.name.clone(),
-                            Typeish::known(VType {
+                            VType {
                                 kind: TypeKind::Struct(map_stmt.fact.identifier.clone()),
                                 span: map_stmt.fact.identifier.span,
-                            }),
+                            },
                         )
                         .map_err(|e| self.err(e))?;
                     // Consume results...
@@ -1765,25 +1730,17 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Delete);
                 }
                 (StmtKind::Emit(s), StatementContext::Finish) => {
-                    let et = self.compile_expression(s)?;
-                    let _ty: Typeish = et
-                        .try_map(|nty| match nty {
-                            NullableVType::Type(VType {
-                                kind: TypeKind::Struct(ref struct_name),
-                                ..
-                            }) => {
-                                if !self.m.effects.contains(struct_name.as_str()) {
-                                    return Err(CompileErrorType::InvalidType(format!(
-                                        "Struct `{struct_name}` is not an effect struct",
-                                    )));
-                                }
-                                Ok(nty)
-                            }
-                            ot => Err(CompileErrorType::InvalidType(format!(
-                                "Cannot emit `{ot}`, must be an effect struct"
-                            ))),
-                        })
-                        .map_err(|err| self.err(err))?;
+                    let ty = self.compile_expression(s)?;
+                    let struct_name = ty.as_struct().ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "Cannot emit `{ty}`, must be an effect struct"
+                        )))
+                    })?;
+                    if !self.m.effects.contains(struct_name.as_str()) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Struct `{struct_name}` is not an effect struct",
+                        ))));
+                    }
                     self.append_instruction(Instruction::Emit);
                 }
                 (StmtKind::FunctionCall(f), StatementContext::Finish) => {
@@ -1869,21 +1826,21 @@ impl<'a> CompileState<'a> {
                     if self.is_debug {
                         // Compile the expression within `debug_assert(e)`
                         let t = self.compile_expression(s)?;
-                        let _: Typeish = t
-                            .check_type(
-                                VType {
-                                    kind: TypeKind::Bool,
-                                    span: s.span,
-                                },
-                                "",
-                            )
-                            .map_err(|err| {
-                                CompileErrorType::InvalidType(format!(
-                                    "debug assertion must be a boolean expression, was type {}",
-                                    err.left
-                                ))
-                            })
-                            .map_err(|e| self.err(e))?;
+                        let _: VType = types::check_type(
+                            t,
+                            VType {
+                                kind: TypeKind::Bool,
+                                span: s.span,
+                            },
+                            "",
+                        )
+                        .map_err(|err| {
+                            CompileErrorType::InvalidType(format!(
+                                "debug assertion must be a boolean expression, was type {}",
+                                err.left
+                            ))
+                        })
+                        .map_err(|e| self.err(e))?;
                         // Now, branch to the next instruction if the top of the stack is true
                         let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
                         self.append_instruction(Instruction::Branch(Target::Resolved(next)));
@@ -2043,15 +2000,20 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        let label = Label::new(
-            fc.identifier.name.clone(),
-            if is_finish {
-                LabelType::Temporary
-            } else {
-                LabelType::Function
-            },
-        );
-        self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+        if let Some(handler) = self.builtin_functions.get(fc.identifier.as_str()).copied() {
+            handler(self)?;
+        } else {
+            let label = Label::new(
+                fc.identifier.name.clone(),
+                if is_finish {
+                    LabelType::Temporary
+                } else {
+                    LabelType::Function
+                },
+            );
+            self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+        }
+
         Ok(())
     }
 
@@ -2126,10 +2088,10 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add_global(
                 identifier.name.clone(),
-                Typeish::known(VType {
+                VType {
                     kind: vt,
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
 
@@ -2141,7 +2103,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         e: &Expression,
         exit_reason: ExitReason,
-    ) -> Result<Typeish, CompileError> {
+    ) -> Result<VType, CompileError> {
         let not_none = self.anonymous_label();
         // evaluate the expression
         let inner_type = self.compile_expression(e)?;
@@ -2159,18 +2121,15 @@ impl<'a> CompileState<'a> {
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
 
-        inner_type
-            .try_map(|nty| match nty {
-                NullableVType::Type(VType {
-                    kind: TypeKind::Optional(t),
-                    ..
-                }) => Ok(NullableVType::Type(*t)),
-                NullableVType::Null => Err(TypeError::new("Cannot unwrap None")),
-                NullableVType::Type(_) => {
-                    Err(TypeError::new("Cannot unwrap non-option expression"))
-                }
-            })
-            .map_err(|err| self.err(err.into()))
+        match inner_type {
+            VType {
+                kind: TypeKind::Optional(t),
+                ..
+            } => Ok(*t),
+            _ => Err(self.err(CompileErrorType::InvalidType(
+                "Cannot unwrap non-option expression".into(),
+            ))),
+        }
     }
 
     fn compile_command_policy(
@@ -2186,22 +2145,22 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("this"),
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(command.identifier.clone()),
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
         self.identifier_types
             .add(
                 ident!("envelope"),
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(Ident {
                         name: ident!("Envelope"),
                         span: Span::default(),
                     }),
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
@@ -2225,22 +2184,22 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("this"),
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(command.identifier.clone()),
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
         self.identifier_types
             .add(
                 ident!("envelope"),
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(Ident {
                         name: ident!("Envelope"),
                         span: Span::default(),
                     }),
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
@@ -2297,10 +2256,10 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("this"),
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(command.identifier.clone()),
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("this")));
@@ -2357,13 +2316,13 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("envelope"),
-                Typeish::known(VType {
+                VType {
                     kind: TypeKind::Struct(Ident {
                         name: ident!("Envelope"),
                         span: Span::default(),
                     }),
                     span: Span::default(),
-                }),
+                },
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
@@ -2514,7 +2473,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         s: LanguageContext<&MatchStatement, &MatchExpression>,
         span: Span,
-    ) -> Result<Option<Typeish>, CompileError> {
+    ) -> Result<Option<VType>, CompileError> {
         let patterns: Vec<MatchPattern> = match s {
             LanguageContext::Statement(s) => s.arms.iter().map(|a| a.pattern.clone()).collect(),
             LanguageContext::Expression(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
@@ -2558,19 +2517,6 @@ impl<'a> CompileState<'a> {
         };
         let mut expr_pat_t = self.compile_expression(expr)?;
 
-        let need_default = default_count == 0
-            && if let Typeish::Known(NullableVType::Type(ref known_type)) = expr_pat_t {
-                let maybe_cardinality = self.m.cardinality(&known_type.kind);
-
-                maybe_cardinality.is_none_or(|c| c > all_values.len() as u64)
-            } else {
-                true
-            };
-
-        if need_default {
-            return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
-        }
-
         let end_label = self.anonymous_label();
 
         // 1. Generate branching instructions, and arm-start labels
@@ -2592,8 +2538,7 @@ impl<'a> CompileState<'a> {
                             ))));
                         }
                         let arm_t = self.compile_expression(value)?;
-                        expr_pat_t = self
-                            .unify_pair(expr_pat_t, arm_t)
+                        expr_pat_t = types::unify_pair(expr_pat_t, arm_t)
                             .map_err(|err| {
                                 CompileErrorType::InvalidType(format!(
                                     "match pattern {n} has type {}, expected type {}",
@@ -2624,8 +2569,18 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        let need_default = default_count == 0
+            && self
+                .m
+                .cardinality(&expr_pat_t.kind)
+                .is_none_or(|c| c > all_values.len() as u64);
+
+        if need_default {
+            return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
+        }
+
         // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
-        let mut expr_type: Option<Typeish> = None;
+        let mut expr_type: Option<VType> = None;
 
         // 2. Define arm labels, and compile instructions
         match s {
@@ -2658,7 +2613,7 @@ impl<'a> CompileState<'a> {
                         None => expr_type = Some(etype),
                         Some(t) => {
                             expr_type = Some(
-                                self.unify_pair(t, etype)
+                                types::unify_pair(t, etype)
                                     .map_err(|err| {
                                         #[allow(
                                             clippy::arithmetic_side_effects,
@@ -2691,6 +2646,8 @@ impl<'a> CompileState<'a> {
     pub fn compile(&mut self) -> Result<(), CompileError> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
+
+        self.define_builtins()?;
 
         for struct_def in &self.policy.structs {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
@@ -2888,23 +2845,11 @@ impl<'a> CompileState<'a> {
                 .get(src_var_name)
                 .map_err(|err| self.err(err))?;
 
-            let src_struct_type_name = match src_type {
-                Typeish::Known(NullableVType::Type(VType {
-                    kind: TypeKind::Struct(type_name),
-                    ..
-                })) => type_name,
-                // Known type, but not a struct
-                Typeish::Known(other_type) => {
-                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "Expected `{src_var_name}` to be a struct, but it's a(n) {other_type}",
-                    ))));
-                }
-                Typeish::Never => {
-                    // Never-typed expressions panic at runtime, making this struct composition
-                    // operation unreachable. Skip to continue type checking.
-                    continue;
-                }
-            };
+            let src_struct_type_name = src_type.as_struct().ok_or_else(|| {
+                self.err(CompileErrorType::InvalidType(format!(
+                    "Expected `{src_var_name}` to be a struct, but it's a(n) {src_type}",
+                )))
+            })?;
             let src_field_defns = self
                 .m
                 .struct_defs
@@ -2924,7 +2869,7 @@ impl<'a> CompileState<'a> {
                     src_struct_type_name.clone(),
                 ) {
                     return Err(self.err(CompileErrorType::DuplicateSourceFields(
-                        src_struct_type_name.name,
+                        src_struct_type_name.name.clone(),
                         other.name,
                     )));
                 }
@@ -2969,6 +2914,73 @@ impl<'a> CompileState<'a> {
         }
 
         Ok(Cow::Owned(resolved_struct))
+    }
+
+    /// Define builtin functions which are specially handled when compiling function calls.
+    fn define_builtins(&mut self) -> Result<(), CompileError> {
+        self.define_builtin(
+            sig! {
+                function add(x int, y int) optional int
+            },
+            |this| {
+                this.append_instruction(Instruction::Add);
+                Ok(())
+            },
+        )?;
+
+        self.define_builtin(
+            sig! {
+                function saturating_add(x int, y int) int
+            },
+            |this| {
+                this.append_instruction(Instruction::SaturatingAdd);
+                Ok(())
+            },
+        )?;
+
+        self.define_builtin(
+            sig! {
+                function sub(x int, y int) optional int
+            },
+            |this| {
+                this.append_instruction(Instruction::Sub);
+                Ok(())
+            },
+        )?;
+
+        self.define_builtin(
+            sig! {
+                function saturating_sub(x int, y int) int
+            },
+            |this| {
+                this.append_instruction(Instruction::SaturatingSub);
+                Ok(())
+            },
+        )?;
+
+        Ok(())
+    }
+
+    fn define_builtin(
+        &mut self,
+        (name, signature): (Identifier, FunctionSignature),
+        handler: BuiltinHandler,
+    ) -> Result<(), CompileError> {
+        let Entry::Vacant(e) = self.function_signatures.entry(name.clone()) else {
+            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
+                name.to_string(),
+            )));
+        };
+        e.insert(signature);
+
+        let Entry::Vacant(e) = self.builtin_functions.entry(name.clone()) else {
+            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
+                name.to_string(),
+            )));
+        };
+        e.insert(handler);
+
+        Ok(())
     }
 }
 
@@ -3035,6 +3047,7 @@ impl<'a> Compiler<'a> {
             wp: 0,
             c: 0,
             function_signatures: BTreeMap::new(),
+            builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),

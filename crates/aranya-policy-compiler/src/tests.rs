@@ -1516,7 +1516,7 @@ fn test_match_expression() {
         (
             // all match patterns are not listed (can't exhaustively match on strings)
             r#"
-            enum Color {
+            enum LightColor {
                 Red, Yellow, Green
             }
 
@@ -1548,10 +1548,27 @@ fn test_match_expression() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            r#"function f() int {
+                return match None {
+                    Some(true) => 0
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"function f() int {
+                return match None {
+                    Some(true) => 0
+                    None => 1
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected, "{src}");
     }
 
     let valid_cases = vec![
@@ -1606,6 +1623,13 @@ fn test_match_expression() {
             let x = match maybe_bool {
                 None | Some(false) => 0
                 Some(true) => 1
+            }
+        }"#,
+        r#"function f() int {
+            return match None {
+                None => 0
+                Some(true) => 1
+                Some(false) => 2
             }
         }"#,
     ];
@@ -1908,7 +1932,7 @@ fn test_type_errors() {
                     return saturating_add(x, "foo")
                 }
             "#,
-            e: "Cannot do math on non-int types",
+            e: "Argument 2 (`y`) in call to `saturating_add` found `string`, expected `int`",
         },
         Case {
             t: r#"
@@ -1924,7 +1948,7 @@ fn test_type_errors() {
                     return saturating_add("3", "4")
                 }
             "#,
-            e: "Cannot do math on non-int types",
+            e: "Argument 1 (`x`) in call to `saturating_add` found `string`, expected `int`",
         },
         Case {
             t: r#"
@@ -2195,6 +2219,18 @@ fn test_type_errors() {
             "#,
             e: "Expression to the left of the substruct operator is not a struct",
         },
+        Case {
+            t: r#"
+                action foo() {
+                    match None {
+                        Some(42) => {}
+                        Some("foo") => {}
+                        _ => {}
+                    }
+                }
+            "#,
+            e: "match pattern 2 has type string, expected type int",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -2224,15 +2260,13 @@ fn test_struct_composition() {
 
     let valid_cases = [Case {
         t: r#"
-                struct Bar { x int, y bool }
-                function baz(b struct Bar) struct Bar {
-                    let other = todo()
-                    let new_bar = Bar {
-                        y: b.y,
-                        ...other
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string }
+                function baz(foo struct Foo) struct Bar {
+                    return Bar {
+                        z: "z",
+                        ...foo
                     }
-
-                    return new_bar
                 }
             "#,
         e: None,
@@ -2393,13 +2427,8 @@ fn test_struct_literal_duplicate_field() {
 
 #[test]
 fn test_optional_types() {
-    let err = compile_fail("function f() bool { return unwrap None }");
-    assert_eq!(
-        err,
-        CompileErrorType::InvalidType("Cannot unwrap None".into())
-    );
-
     let cases = [
+        "unwrap None",
         "42 == unwrap Some(42)",
         "None is Some",
         "None is None",
