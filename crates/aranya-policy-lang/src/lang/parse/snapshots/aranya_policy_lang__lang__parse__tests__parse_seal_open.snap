@@ -118,12 +118,12 @@ expression: policy
       "recall": [],
       "span": {
         "start": 0,
-        "end": 160
+        "end": 182
       }
     }
   ],
   "functions": [],
   "finish_functions": [],
   "global_lets": [],
-  "text": "command Foo {\n            seal {\n                return bar(this)\n            }\n\n            open {\n                return baz(envelope)\n            }\n        }"
+  "text": "command Foo {\n            seal {\n                return bar(this)\n            }\n\n            open {\n                return baz(envelope)\n            }\n            policy {}\n        }"
 }
