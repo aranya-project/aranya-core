@@ -561,6 +561,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// A return expression. Valid only in functions.
+    Return(Box<Expression>),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`

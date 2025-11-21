@@ -1030,6 +1030,29 @@ impl<'a> CompileState<'a> {
                     VType::from(&procedure.return_type)
                 }
             }
+            ExprKind::Return(ret_expr) => {
+                let ctx = self.get_statement_context()?;
+                let StatementContext::PureFunction(fd) = ctx else {
+                    return Err(self.err(CompileErrorType::Unknown(
+                        "cannot return outside of function".into(),
+                    ))); // TODO(jdygert): Better variant?
+                };
+                // TODO: Pop stuff.
+                // ensure return expression type matches function signature
+                let et = self.compile_expression(ret_expr)?;
+                if !et.fits_type(&fd.return_type) {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Return value of `{}()` must be {}",
+                        fd.identifier,
+                        DisplayType(&fd.return_type)
+                    ))));
+                }
+                self.append_instruction(Instruction::Return);
+                VType {
+                    kind: TypeKind::Never,
+                    span: expression.span,
+                }
+            }
             ExprKind::Identifier(i) => {
                 let t = self.identifier_types.get(i).map_err(|_| {
                     self.err(CompileErrorType::NotDefined(format!(
