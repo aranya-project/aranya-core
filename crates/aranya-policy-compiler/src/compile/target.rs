@@ -15,7 +15,7 @@ use indexmap::IndexMap;
 /// for compilation
 #[derive(Debug)]
 #[cfg_attr(test, derive(Clone, Eq, PartialEq))]
-pub struct CompileTarget {
+pub(crate) struct CompileTarget {
     // static state (things which do not change after compilation)
     /// The program memory
     pub progmem: Vec<Instruction>,
@@ -130,5 +130,29 @@ impl Display for CompileTarget {
             writeln!(f, "  {}: {:?}", k, v)?;
         }
         Ok(())
+    }
+}
+
+/// The public interface of a policy.
+#[derive(Debug)]
+pub struct PolicyInterface {
+    /// Action definitions
+    pub action_defs: NamedMap<ActionDef>,
+    /// Effect identifiers. The effect definitions can be found in `struct_defs`.
+    pub effects: BTreeSet<Identifier>,
+    /// Struct schemas
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    /// Enum definitions
+    pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
+}
+
+impl From<CompileTarget> for PolicyInterface {
+    fn from(t: CompileTarget) -> Self {
+        Self {
+            action_defs: t.action_defs,
+            effects: t.effects,
+            struct_defs: t.struct_defs,
+            enum_defs: t.enum_defs,
+        }
     }
 }

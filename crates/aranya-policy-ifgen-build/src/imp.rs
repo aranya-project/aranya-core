@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use aranya_policy_ast::{FieldDefinition, Persistence, TypeKind, VType};
-use aranya_policy_compiler::compile::target::CompileTarget;
+use aranya_policy_compiler::PolicyInterface;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
-/// Generate rust source code from a policy [`CompileTarget`].
+/// Generate rust source code from a [`PolicyInterface`].
 #[allow(clippy::panic)]
-pub fn generate_code(target: &CompileTarget) -> String {
+pub fn generate_code(target: &PolicyInterface) -> String {
     let reachable = collect_reachable_types(target);
 
     let structs = target
@@ -186,7 +186,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 
 /// Returns the name of all custom types reachable from actions or effects.
 #[allow(clippy::panic)]
-fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
+fn collect_reachable_types(target: &PolicyInterface) -> HashSet<&str> {
     fn visit<'a>(
         struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
         found: &mut HashSet<&'a str>,
