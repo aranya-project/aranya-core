@@ -108,3 +108,10 @@ macro_rules! debug {
     );
 }
 pub(crate) use debug;
+
+pub(crate) const fn layout_error() -> core::alloc::LayoutError {
+    match core::alloc::Layout::from_size_align(usize::MAX, 1) {
+        Err(err) => err,
+        _ => core::unreachable!(),
+    }
+}
