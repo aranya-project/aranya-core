@@ -1,4 +1,4 @@
-use core::{cell::Cell, fmt::Debug, marker::PhantomData, sync::atomic::Ordering};
+use core::{fmt::Debug, sync::atomic::Ordering};
 
 use aranya_crypto::{
     CipherSuite,
@@ -50,9 +50,6 @@ where
 {
     // `pub(super)` for testing.
     pub(super) inner: State<CS>,
-
-    /// Make `State` `!Sync` pending issues/95.
-    _no_sync: PhantomData<Cell<()>>,
 }
 
 impl<CS> ReadState<CS>
@@ -66,7 +63,6 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
-            _no_sync: PhantomData,
         })
     }
 }
