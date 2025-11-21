@@ -5,7 +5,7 @@ use aranya_policy_compiler::PolicyInterface;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
-/// Generate rust source code from a policy [`CompileTarget`].
+/// Generate rust source code from a [`PolicyInterface`].
 #[allow(clippy::panic)]
 pub fn generate_code(target: &PolicyInterface) -> String {
     let reachable = collect_reachable_types(target);
