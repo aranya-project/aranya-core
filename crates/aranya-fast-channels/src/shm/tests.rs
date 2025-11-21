@@ -150,3 +150,11 @@ fn test_many_nodes() {
         }
     }
 }
+
+#[test]
+fn read_state_is_send_sync() {
+    use aranya_crypto::default::DefaultCipherSuite;
+    fn is_send_sync<T: Send + Sync>() {}
+
+    is_send_sync::<ReadState<DefaultCipherSuite>>();
+}

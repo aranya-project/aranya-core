@@ -71,6 +71,11 @@ pub(super) struct Mapping<T> {
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
 
+// SAFETY: `Mapping` is !Sync by default because it contains raw
+// pointers. But since it does not have any thread affinity, we
+// can safely make it Sync.
+unsafe impl<T: Sync> Sync for Mapping<T> {}
+
 impl<T> Drop for Mapping<T> {
     fn drop(&mut self) {
         // SAFETY: FFI call, no invariants.
