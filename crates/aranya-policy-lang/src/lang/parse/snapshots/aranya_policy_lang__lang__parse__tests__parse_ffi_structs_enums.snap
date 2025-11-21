@@ -2,110 +2,41 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: types
 ---
-{
-  "structs": [
-    {
-      "identifier": {
-        "name": "A",
-        "span": {
-          "start": 7,
-          "end": 8
-        }
-      },
-      "items": [
-        {
-          "Field": {
-            "identifier": {
-              "name": "x",
-              "span": {
-                "start": 23,
-                "end": 24
-              }
-            },
-            "field_type": {
-              "kind": "Int",
-              "span": {
-                "start": 25,
-                "end": 28
-              }
-            }
-          }
+FfiTypes {
+    structs: [
+        StructDefinition {
+            identifier: "A" @ 7..8,
+            items: [
+                Field(
+                    FieldDefinition {
+                        identifier: "x" @ 23..24,
+                        field_type: Int @ 25..28,
+                    },
+                ),
+                Field(
+                    FieldDefinition {
+                        identifier: "y" @ 42..43,
+                        field_type: Bool @ 44..48,
+                    },
+                ),
+            ],
+            span: 0..58,
         },
-        {
-          "Field": {
-            "identifier": {
-              "name": "y",
-              "span": {
-                "start": 42,
-                "end": 43
-              }
-            },
-            "field_type": {
-              "kind": "Bool",
-              "span": {
-                "start": 44,
-                "end": 48
-              }
-            }
-          }
-        }
-      ],
-      "span": {
-        "start": 0,
-        "end": 58
-      }
-    },
-    {
-      "identifier": {
-        "name": "B",
-        "span": {
-          "start": 75,
-          "end": 76
-        }
-      },
-      "items": [],
-      "span": {
-        "start": 68,
-        "end": 79
-      }
-    }
-  ],
-  "enums": [
-    {
-      "identifier": {
-        "name": "Color",
-        "span": {
-          "start": 94,
-          "end": 99
-        }
-      },
-      "variants": [
-        {
-          "name": "Red",
-          "span": {
-            "start": 102,
-            "end": 105
-          }
+        StructDefinition {
+            identifier: "B" @ 75..76,
+            items: [],
+            span: 68..79,
         },
-        {
-          "name": "White",
-          "span": {
-            "start": 107,
-            "end": 112
-          }
+    ],
+    enums: [
+        EnumDefinition {
+            identifier: "Color" @ 94..99,
+            variants: [
+                "Red" @ 102..105,
+                "White" @ 107..112,
+                "Blue" @ 114..118,
+            ],
+            span: 89..120,
         },
-        {
-          "name": "Blue",
-          "span": {
-            "start": 114,
-            "end": 118
-          }
-        }
-      ],
-      "span": {
-        "start": 89,
-        "end": 120
-      }
-    }
-  ]
+    ],
 }

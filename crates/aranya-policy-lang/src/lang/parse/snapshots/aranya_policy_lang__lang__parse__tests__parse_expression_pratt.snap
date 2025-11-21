@@ -2,127 +2,43 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: expr_parsed
 ---
-{
-  "kind": {
-    "Unwrap": {
-      "kind": {
-        "FunctionCall": {
-          "identifier": {
-            "name": "call",
-            "span": {
-              "start": 7,
-              "end": 11
-            }
-          },
-          "arguments": [
-            {
-              "kind": {
-                "Unwrap": {
-                  "kind": {
-                    "FunctionCall": {
-                      "identifier": {
-                        "name": "add",
-                        "span": {
-                          "start": 19,
-                          "end": 22
-                        }
-                      },
-                      "arguments": [
-                        {
-                          "kind": {
-                            "Int": 3
-                          },
-                          "span": {
-                            "start": 23,
-                            "end": 24
-                          }
+Unwrap(
+    FunctionCall(
+        FunctionCall {
+            identifier: "call" @ 7..11,
+            arguments: [
+                Unwrap(
+                    FunctionCall(
+                        FunctionCall {
+                            identifier: "add" @ 19..22,
+                            arguments: [
+                                Int(
+                                    3,
+                                ) @ 23..24,
+                                Int(
+                                    7,
+                                ) @ 26..27,
+                            ],
                         },
-                        {
-                          "kind": {
-                            "Int": 7
-                          },
-                          "span": {
-                            "start": 26,
-                            "end": 27
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "span": {
-                    "start": 19,
-                    "end": 28
-                  }
-                }
-              },
-              "span": {
-                "start": 12,
-                "end": 28
-              }
-            },
-            {
-              "kind": {
-                "FunctionCall": {
-                  "identifier": {
-                    "name": "saturating_sub",
-                    "span": {
-                      "start": 30,
-                      "end": 44
-                    }
-                  },
-                  "arguments": [
-                    {
-                      "kind": {
-                        "Int": 0
-                      },
-                      "span": {
-                        "start": 45,
-                        "end": 46
-                      }
+                    ) @ 19..28,
+                ) @ 12..28,
+                FunctionCall(
+                    FunctionCall {
+                        identifier: "saturating_sub" @ 30..44,
+                        arguments: [
+                            Int(
+                                0,
+                            ) @ 45..46,
+                            Identifier(
+                                "b" @ 48..49,
+                            ) @ 48..49,
+                        ],
                     },
-                    {
-                      "kind": {
-                        "Identifier": {
-                          "name": "b",
-                          "span": {
-                            "start": 48,
-                            "end": 49
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 48,
-                        "end": 49
-                      }
-                    }
-                  ]
-                }
-              },
-              "span": {
-                "start": 30,
-                "end": 50
-              }
-            },
-            {
-              "kind": {
-                "String": "foo{"
-              },
-              "span": {
-                "start": 52,
-                "end": 61
-              }
-            }
-          ]
-        }
-      },
-      "span": {
-        "start": 7,
-        "end": 62
-      }
-    }
-  },
-  "span": {
-    "start": 0,
-    "end": 62
-  }
-}
+                ) @ 30..50,
+                String(
+                    "foo{",
+                ) @ 52..61,
+            ],
+        },
+    ) @ 7..62,
+) @ 0..62

@@ -255,7 +255,7 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
     let p = ChunkParser::new(0, &pratt, source.len());
     let expr_pair = pairs.next().unwrap();
     let expr_parsed = p.parse_expression(expr_pair)?;
-    insta::assert_json_snapshot!(expr_parsed);
+    insta::assert_debug_snapshot!(expr_parsed);
     Ok(())
 }
 
@@ -428,7 +428,7 @@ fn test_parse_effect_with_field_insertion() {
         }
         "#;
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -620,7 +620,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
 
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 
     Ok(())
 }
@@ -640,7 +640,7 @@ fn parse_tictactoe() {
     };
 
     let policy = parse_policy_document(&text).unwrap_or_else(|e| panic!("{e}"));
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
     assert_eq!(policy.facts.len(), 4);
     assert_eq!(policy.actions.len(), 2);
     assert_eq!(policy.actions.len(), 2);
@@ -657,7 +657,7 @@ fn parse_policy_immutable_facts() -> Result<(), ParseError> {
     "#;
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 
     Ok(())
 }
@@ -730,7 +730,7 @@ fn parse_struct() {
     .trim();
 
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -798,7 +798,7 @@ fn parse_enum_definition() {
     .trim();
 
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -821,7 +821,7 @@ fn parse_enum_reference() -> Result<(), PestError<Rule>> {
 fn parse_ffi_decl() {
     let text = "function foo(x int, y struct bar) bool";
     let decl = super::parse_ffi_decl(text).expect("parse");
-    insta::assert_json_snapshot!(decl);
+    insta::assert_debug_snapshot!(decl);
 }
 
 #[test]
@@ -838,7 +838,7 @@ fn parse_ffi_structs_enums() {
     "#
     .trim();
     let types = super::parse_ffi_structs_enums(text).expect("parse");
-    insta::assert_json_snapshot!(types);
+    insta::assert_debug_snapshot!(types);
 }
 
 #[test]
@@ -856,7 +856,7 @@ fn parse_seal_open() {
     "#
     .trim();
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -973,7 +973,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
     "#;
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 
     Ok(())
 }
@@ -1053,7 +1053,7 @@ fn if_expression() {
         }
     "#;
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -1066,7 +1066,7 @@ fn test_action_call() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V2)?;
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 
     Ok(())
 }
@@ -1082,7 +1082,7 @@ fn test_map_statement() {
     "#;
 
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -1098,7 +1098,7 @@ fn test_block_expression() {
     "#;
 
     let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
@@ -1116,7 +1116,7 @@ fn parse_match_expression() {
     "#;
 
     let policy = parse_policy_str(src, Version::V2).expect("should parse");
-    insta::assert_json_snapshot!(policy);
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]

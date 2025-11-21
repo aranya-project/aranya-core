@@ -2,61 +2,21 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: decl
 ---
-{
-  "identifier": {
-    "name": "foo",
-    "span": {
-      "start": 9,
-      "end": 12
-    }
-  },
-  "arguments": [
-    {
-      "identifier": {
-        "name": "x",
-        "span": {
-          "start": 13,
-          "end": 14
-        }
-      },
-      "field_type": {
-        "kind": "Int",
-        "span": {
-          "start": 15,
-          "end": 18
-        }
-      }
-    },
-    {
-      "identifier": {
-        "name": "y",
-        "span": {
-          "start": 20,
-          "end": 21
-        }
-      },
-      "field_type": {
-        "kind": {
-          "Struct": {
-            "name": "bar",
-            "span": {
-              "start": 29,
-              "end": 32
-            }
-          }
+FunctionDecl {
+    identifier: "foo" @ 9..12,
+    arguments: [
+        FieldDefinition {
+            identifier: "x" @ 13..14,
+            field_type: Int @ 15..18,
         },
-        "span": {
-          "start": 22,
-          "end": 32
-        }
-      }
-    }
-  ],
-  "return_type": {
-    "kind": "Bool",
-    "span": {
-      "start": 34,
-      "end": 38
-    }
-  }
+        FieldDefinition {
+            identifier: "y" @ 20..21,
+            field_type: Struct(
+                "bar" @ 29..32,
+            ) @ 22..32,
+        },
+    ],
+    return_type: Some(
+        Bool @ 34..38,
+    ),
 }
