@@ -1,0 +1,2052 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
+---
+{
+  "version": "V2",
+  "ffi_imports": [],
+  "facts": [
+    {
+      "immutable": false,
+      "identifier": {
+        "name": "F",
+        "span": {
+          "start": 150,
+          "end": 151
+        }
+      },
+      "key": [
+        {
+          "identifier": {
+            "name": "v",
+            "span": {
+              "start": 152,
+              "end": 153
+            }
+          },
+          "field_type": {
+            "kind": "String",
+            "span": {
+              "start": 154,
+              "end": 160
+            }
+          }
+        }
+      ],
+      "value": [
+        {
+          "identifier": {
+            "name": "x",
+            "span": {
+              "start": 164,
+              "end": 165
+            }
+          },
+          "field_type": {
+            "kind": "Int",
+            "span": {
+              "start": 166,
+              "end": 169
+            }
+          }
+        },
+        {
+          "identifier": {
+            "name": "y",
+            "span": {
+              "start": 171,
+              "end": 172
+            }
+          },
+          "field_type": {
+            "kind": "Bool",
+            "span": {
+              "start": 173,
+              "end": 177
+            }
+          }
+        }
+      ],
+      "span": {
+        "start": 145,
+        "end": 178
+      }
+    }
+  ],
+  "actions": [
+    {
+      "persistence": "Persistent",
+      "identifier": {
+        "name": "add2",
+        "span": {
+          "start": 195,
+          "end": 199
+        }
+      },
+      "arguments": [
+        {
+          "identifier": {
+            "name": "x",
+            "span": {
+              "start": 200,
+              "end": 201
+            }
+          },
+          "field_type": {
+            "kind": "Int",
+            "span": {
+              "start": 202,
+              "end": 205
+            }
+          }
+        },
+        {
+          "identifier": {
+            "name": "y",
+            "span": {
+              "start": 207,
+              "end": 208
+            }
+          },
+          "field_type": {
+            "kind": "Int",
+            "span": {
+              "start": 209,
+              "end": 212
+            }
+          }
+        }
+      ],
+      "statements": [
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "obj",
+                "span": {
+                  "start": 232,
+                  "end": 235
+                }
+              },
+              "expression": {
+                "kind": {
+                  "NamedStruct": {
+                    "identifier": {
+                      "name": "Add",
+                      "span": {
+                        "start": 238,
+                        "end": 241
+                      }
+                    },
+                    "fields": [
+                      [
+                        {
+                          "name": "count",
+                          "span": {
+                            "start": 260,
+                            "end": 265
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Identifier": {
+                              "name": "x",
+                              "span": {
+                                "start": 267,
+                                "end": 268
+                              }
+                            }
+                          },
+                          "span": {
+                            "start": 267,
+                            "end": 268
+                          }
+                        }
+                      ]
+                    ],
+                    "sources": []
+                  }
+                },
+                "span": {
+                  "start": 238,
+                  "end": 283
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 228,
+            "end": 296
+          }
+        },
+        {
+          "kind": {
+            "Publish": {
+              "kind": {
+                "Identifier": {
+                  "name": "obj",
+                  "span": {
+                    "start": 304,
+                    "end": 307
+                  }
+                }
+              },
+              "span": {
+                "start": 304,
+                "end": 307
+              }
+            }
+          },
+          "span": {
+            "start": 296,
+            "end": 316
+          }
+        }
+      ],
+      "span": {
+        "start": 188,
+        "end": 317
+      }
+    },
+    {
+      "persistence": {
+        "Ephemeral": {
+          "start": 2664,
+          "end": 2673
+        }
+      },
+      "identifier": {
+        "name": "a",
+        "span": {
+          "start": 2681,
+          "end": 2682
+        }
+      },
+      "arguments": [],
+      "statements": [],
+      "span": {
+        "start": 2664,
+        "end": 2687
+      }
+    }
+  ],
+  "effects": [
+    {
+      "identifier": {
+        "name": "Added",
+        "span": {
+          "start": 334,
+          "end": 339
+        }
+      },
+      "items": [
+        {
+          "Field": {
+            "identifier": {
+              "name": "x",
+              "span": {
+                "start": 354,
+                "end": 355
+              }
+            },
+            "field_type": {
+              "kind": "Int",
+              "span": {
+                "start": 356,
+                "end": 359
+              }
+            },
+            "dynamic": true
+          }
+        },
+        {
+          "Field": {
+            "identifier": {
+              "name": "y",
+              "span": {
+                "start": 381,
+                "end": 382
+              }
+            },
+            "field_type": {
+              "kind": "Int",
+              "span": {
+                "start": 383,
+                "end": 386
+              }
+            },
+            "dynamic": false
+          }
+        }
+      ],
+      "span": {
+        "start": 327,
+        "end": 397
+      }
+    }
+  ],
+  "structs": [],
+  "enums": [],
+  "commands": [
+    {
+      "persistence": "Persistent",
+      "attributes": [],
+      "identifier": {
+        "name": "Add",
+        "span": {
+          "start": 415,
+          "end": 418
+        }
+      },
+      "fields": [
+        {
+          "Field": {
+            "identifier": {
+              "name": "count",
+              "span": {
+                "start": 458,
+                "end": 463
+              }
+            },
+            "field_type": {
+              "kind": "Int",
+              "span": {
+                "start": 464,
+                "end": 467
+              }
+            }
+          }
+        }
+      ],
+      "seal": [
+        {
+          "kind": {
+            "Return": {
+              "expression": {
+                "kind": {
+                  "InternalFunction": {
+                    "Todo": {
+                      "start": 524,
+                      "end": 530
+                    }
+                  }
+                },
+                "span": {
+                  "start": 524,
+                  "end": 530
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 517,
+            "end": 543
+          }
+        }
+      ],
+      "open": [
+        {
+          "kind": {
+            "Return": {
+              "expression": {
+                "kind": {
+                  "InternalFunction": {
+                    "Todo": {
+                      "start": 587,
+                      "end": 593
+                    }
+                  }
+                },
+                "span": {
+                  "start": 587,
+                  "end": 593
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 580,
+            "end": 606
+          }
+        }
+      ],
+      "policy": [
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "envelope_id",
+                "span": {
+                  "start": 649,
+                  "end": 660
+                }
+              },
+              "expression": {
+                "kind": {
+                  "ForeignFunctionCall": {
+                    "module": {
+                      "name": "envelope",
+                      "span": {
+                        "start": 663,
+                        "end": 671
+                      }
+                    },
+                    "identifier": {
+                      "name": "command_id",
+                      "span": {
+                        "start": 673,
+                        "end": 683
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "envelope",
+                            "span": {
+                              "start": 684,
+                              "end": 692
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 684,
+                          "end": 692
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 663,
+                  "end": 693
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 645,
+            "end": 710
+          }
+        },
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "author",
+                "span": {
+                  "start": 714,
+                  "end": 720
+                }
+              },
+              "expression": {
+                "kind": {
+                  "ForeignFunctionCall": {
+                    "module": {
+                      "name": "envelope",
+                      "span": {
+                        "start": 723,
+                        "end": 731
+                      }
+                    },
+                    "identifier": {
+                      "name": "author_id",
+                      "span": {
+                        "start": 733,
+                        "end": 742
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "envelope",
+                            "span": {
+                              "start": 743,
+                              "end": 751
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 743,
+                          "end": 751
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 723,
+                  "end": 752
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 710,
+            "end": 769
+          }
+        },
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "new_x",
+                "span": {
+                  "start": 773,
+                  "end": 778
+                }
+              },
+              "expression": {
+                "kind": {
+                  "FunctionCall": {
+                    "identifier": {
+                      "name": "add2",
+                      "span": {
+                        "start": 781,
+                        "end": 785
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "x",
+                            "span": {
+                              "start": 786,
+                              "end": 787
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 786,
+                          "end": 787
+                        }
+                      },
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "count",
+                            "span": {
+                              "start": 789,
+                              "end": 794
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 789,
+                          "end": 794
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 781,
+                  "end": 795
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 769,
+            "end": 812
+          }
+        },
+        {
+          "kind": {
+            "Check": {
+              "expression": {
+                "kind": {
+                  "InternalFunction": {
+                    "Exists": {
+                      "identifier": {
+                        "name": "TestFact",
+                        "span": {
+                          "start": 825,
+                          "end": 833
+                        }
+                      },
+                      "key_fields": [
+                        [
+                          {
+                            "name": "v",
+                            "span": {
+                              "start": 834,
+                              "end": 835
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "String": "test"
+                              },
+                              "span": {
+                                "start": 837,
+                                "end": 843
+                              }
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": []
+                    }
+                  }
+                },
+                "span": {
+                  "start": 818,
+                  "end": 848
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 812,
+            "end": 865
+          }
+        },
+        {
+          "kind": {
+            "Match": {
+              "expression": {
+                "kind": {
+                  "Identifier": {
+                    "name": "x",
+                    "span": {
+                      "start": 871,
+                      "end": 872
+                    }
+                  }
+                },
+                "span": {
+                  "start": 871,
+                  "end": 872
+                }
+              },
+              "arms": [
+                {
+                  "pattern": {
+                    "Values": [
+                      {
+                        "kind": {
+                          "Int": 0
+                        },
+                        "span": {
+                          "start": 895,
+                          "end": 896
+                        }
+                      }
+                    ]
+                  },
+                  "statements": [
+                    {
+                      "kind": {
+                        "Check": {
+                          "expression": {
+                            "kind": {
+                              "FunctionCall": {
+                                "identifier": {
+                                  "name": "positive",
+                                  "span": {
+                                    "start": 932,
+                                    "end": 940
+                                  }
+                                },
+                                "arguments": [
+                                  {
+                                    "kind": {
+                                      "Optional": {
+                                        "kind": {
+                                          "Identifier": {
+                                            "name": "new_x",
+                                            "span": {
+                                              "start": 946,
+                                              "end": 951
+                                            }
+                                          }
+                                        },
+                                        "span": {
+                                          "start": 946,
+                                          "end": 951
+                                        }
+                                      }
+                                    },
+                                    "span": {
+                                      "start": 941,
+                                      "end": 952
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "span": {
+                              "start": 932,
+                              "end": 953
+                            }
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": 926,
+                        "end": 974
+                      }
+                    }
+                  ]
+                },
+                {
+                  "pattern": {
+                    "Values": [
+                      {
+                        "kind": {
+                          "Int": 1
+                        },
+                        "span": {
+                          "start": 996,
+                          "end": 997
+                        }
+                      }
+                    ]
+                  },
+                  "statements": [
+                    {
+                      "kind": {
+                        "Check": {
+                          "expression": {
+                            "kind": {
+                              "FunctionCall": {
+                                "identifier": {
+                                  "name": "positive",
+                                  "span": {
+                                    "start": 1033,
+                                    "end": 1041
+                                  }
+                                },
+                                "arguments": [
+                                  {
+                                    "kind": {
+                                      "Optional": null
+                                    },
+                                    "span": {
+                                      "start": 1042,
+                                      "end": 1046
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "span": {
+                              "start": 1033,
+                              "end": 1047
+                            }
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": 1027,
+                        "end": 1068
+                      }
+                    }
+                  ]
+                },
+                {
+                  "pattern": {
+                    "Default": {
+                      "start": 1090,
+                      "end": 1091
+                    }
+                  },
+                  "statements": []
+                }
+              ]
+            }
+          },
+          "span": {
+            "start": 865,
+            "end": 1137
+          }
+        },
+        {
+          "kind": {
+            "If": {
+              "branches": [
+                [
+                  {
+                    "kind": {
+                      "Equal": [
+                        {
+                          "kind": {
+                            "Identifier": {
+                              "name": "x",
+                              "span": {
+                                "start": 1158,
+                                "end": 1159
+                              }
+                            }
+                          },
+                          "span": {
+                            "start": 1158,
+                            "end": 1159
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Int": 3
+                          },
+                          "span": {
+                            "start": 1163,
+                            "end": 1164
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "start": 1158,
+                      "end": 1164
+                    }
+                  },
+                  [
+                    {
+                      "kind": {
+                        "Check": {
+                          "expression": {
+                            "kind": {
+                              "LessThan": [
+                                {
+                                  "kind": {
+                                    "Identifier": {
+                                      "name": "new_x",
+                                      "span": {
+                                        "start": 1193,
+                                        "end": 1198
+                                      }
+                                    }
+                                  },
+                                  "span": {
+                                    "start": 1193,
+                                    "end": 1198
+                                  }
+                                },
+                                {
+                                  "kind": {
+                                    "Int": 10
+                                  },
+                                  "span": {
+                                    "start": 1201,
+                                    "end": 1203
+                                  }
+                                }
+                              ]
+                            },
+                            "span": {
+                              "start": 1193,
+                              "end": 1203
+                            }
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": 1187,
+                        "end": 1220
+                      }
+                    }
+                  ]
+                ]
+              ],
+              "fallback": null
+            }
+          },
+          "span": {
+            "start": 1155,
+            "end": 1239
+          }
+        },
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "a",
+                "span": {
+                  "start": 1243,
+                  "end": 1244
+                }
+              },
+              "expression": {
+                "kind": {
+                  "ForeignFunctionCall": {
+                    "module": {
+                      "name": "foo",
+                      "span": {
+                        "start": 1247,
+                        "end": 1250
+                      }
+                    },
+                    "identifier": {
+                      "name": "ext_func",
+                      "span": {
+                        "start": 1252,
+                        "end": 1260
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "x",
+                            "span": {
+                              "start": 1261,
+                              "end": 1262
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 1261,
+                          "end": 1262
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 1247,
+                  "end": 1263
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 1239,
+            "end": 1281
+          }
+        },
+        {
+          "kind": {
+            "Finish": [
+              {
+                "kind": {
+                  "Create": {
+                    "fact": {
+                      "identifier": {
+                        "name": "F",
+                        "span": {
+                          "start": 1317,
+                          "end": 1318
+                        }
+                      },
+                      "key_fields": [
+                        [
+                          {
+                            "name": "v",
+                            "span": {
+                              "start": 1319,
+                              "end": 1320
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "String": "hello"
+                              },
+                              "span": {
+                                "start": 1322,
+                                "end": 1329
+                              }
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": [
+                        [
+                          {
+                            "name": "x",
+                            "span": {
+                              "start": 1333,
+                              "end": 1334
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "x",
+                                  "span": {
+                                    "start": 1336,
+                                    "end": 1337
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 1336,
+                                "end": 1337
+                              }
+                            }
+                          }
+                        ],
+                        [
+                          {
+                            "name": "y",
+                            "span": {
+                              "start": 1339,
+                              "end": 1340
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "FunctionCall": {
+                                  "identifier": {
+                                    "name": "saturating_sub",
+                                    "span": {
+                                      "start": 1342,
+                                      "end": 1356
+                                    }
+                                  },
+                                  "arguments": [
+                                    {
+                                      "kind": {
+                                        "Int": 0
+                                      },
+                                      "span": {
+                                        "start": 1357,
+                                        "end": 1358
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Identifier": {
+                                          "name": "x",
+                                          "span": {
+                                            "start": 1360,
+                                            "end": 1361
+                                          }
+                                        }
+                                      },
+                                      "span": {
+                                        "start": 1360,
+                                        "end": 1361
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "span": {
+                                "start": 1342,
+                                "end": 1362
+                              }
+                            }
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "span": {
+                  "start": 1310,
+                  "end": 1363
+                }
+              },
+              {
+                "kind": {
+                  "Update": {
+                    "fact": {
+                      "identifier": {
+                        "name": "F",
+                        "span": {
+                          "start": 1391,
+                          "end": 1392
+                        }
+                      },
+                      "key_fields": [],
+                      "value_fields": [
+                        [
+                          {
+                            "name": "x",
+                            "span": {
+                              "start": 1397,
+                              "end": 1398
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "x",
+                                  "span": {
+                                    "start": 1400,
+                                    "end": 1401
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 1400,
+                                "end": 1401
+                              }
+                            }
+                          }
+                        ]
+                      ]
+                    },
+                    "to": [
+                      [
+                        {
+                          "name": "x",
+                          "span": {
+                            "start": 1407,
+                            "end": 1408
+                          }
+                        },
+                        {
+                          "Expression": {
+                            "kind": {
+                              "Identifier": {
+                                "name": "new_x",
+                                "span": {
+                                  "start": 1410,
+                                  "end": 1415
+                                }
+                              }
+                            },
+                            "span": {
+                              "start": 1410,
+                              "end": 1415
+                            }
+                          }
+                        }
+                      ]
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 1384,
+                  "end": 1416
+                }
+              },
+              {
+                "kind": {
+                  "Delete": {
+                    "fact": {
+                      "identifier": {
+                        "name": "F",
+                        "span": {
+                          "start": 1444,
+                          "end": 1445
+                        }
+                      },
+                      "key_fields": [
+                        [
+                          {
+                            "name": "v",
+                            "span": {
+                              "start": 1446,
+                              "end": 1447
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "String": "hello"
+                              },
+                              "span": {
+                                "start": 1449,
+                                "end": 1456
+                              }
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": null
+                    }
+                  }
+                },
+                "span": {
+                  "start": 1437,
+                  "end": 1478
+                }
+              },
+              {
+                "kind": {
+                  "Emit": {
+                    "kind": {
+                      "NamedStruct": {
+                        "identifier": {
+                          "name": "Added",
+                          "span": {
+                            "start": 1483,
+                            "end": 1488
+                          }
+                        },
+                        "fields": [
+                          [
+                            {
+                              "name": "x",
+                              "span": {
+                                "start": 1515,
+                                "end": 1516
+                              }
+                            },
+                            {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "new_x",
+                                  "span": {
+                                    "start": 1518,
+                                    "end": 1523
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 1518,
+                                "end": 1523
+                              }
+                            }
+                          ],
+                          [
+                            {
+                              "name": "y",
+                              "span": {
+                                "start": 1549,
+                                "end": 1550
+                              }
+                            },
+                            {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "count",
+                                  "span": {
+                                    "start": 1552,
+                                    "end": 1557
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 1552,
+                                "end": 1557
+                              }
+                            }
+                          ]
+                        ],
+                        "sources": []
+                      }
+                    },
+                    "span": {
+                      "start": 1483,
+                      "end": 1580
+                    }
+                  }
+                },
+                "span": {
+                  "start": 1478,
+                  "end": 1597
+                }
+              }
+            ]
+          },
+          "span": {
+            "start": 1281,
+            "end": 1598
+          }
+        }
+      ],
+      "recall": [
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "envelope_id",
+                "span": {
+                  "start": 1654,
+                  "end": 1665
+                }
+              },
+              "expression": {
+                "kind": {
+                  "ForeignFunctionCall": {
+                    "module": {
+                      "name": "envelope",
+                      "span": {
+                        "start": 1668,
+                        "end": 1676
+                      }
+                    },
+                    "identifier": {
+                      "name": "command_id",
+                      "span": {
+                        "start": 1678,
+                        "end": 1688
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "envelope",
+                            "span": {
+                              "start": 1689,
+                              "end": 1697
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 1689,
+                          "end": 1697
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 1668,
+                  "end": 1698
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 1650,
+            "end": 1715
+          }
+        },
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "author",
+                "span": {
+                  "start": 1719,
+                  "end": 1725
+                }
+              },
+              "expression": {
+                "kind": {
+                  "ForeignFunctionCall": {
+                    "module": {
+                      "name": "envelope",
+                      "span": {
+                        "start": 1728,
+                        "end": 1736
+                      }
+                    },
+                    "identifier": {
+                      "name": "author_id",
+                      "span": {
+                        "start": 1738,
+                        "end": 1747
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "envelope",
+                            "span": {
+                              "start": 1748,
+                              "end": 1756
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 1748,
+                          "end": 1756
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 1728,
+                  "end": 1757
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 1715,
+            "end": 1774
+          }
+        },
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "new_x",
+                "span": {
+                  "start": 1778,
+                  "end": 1783
+                }
+              },
+              "expression": {
+                "kind": {
+                  "FunctionCall": {
+                    "identifier": {
+                      "name": "add2",
+                      "span": {
+                        "start": 1786,
+                        "end": 1790
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "x",
+                            "span": {
+                              "start": 1791,
+                              "end": 1792
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 1791,
+                          "end": 1792
+                        }
+                      },
+                      {
+                        "kind": {
+                          "Identifier": {
+                            "name": "count",
+                            "span": {
+                              "start": 1794,
+                              "end": 1799
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": 1794,
+                          "end": 1799
+                        }
+                      }
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 1786,
+                  "end": 1800
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 1774,
+            "end": 1817
+          }
+        },
+        {
+          "kind": {
+            "Finish": [
+              {
+                "kind": {
+                  "Create": {
+                    "fact": {
+                      "identifier": {
+                        "name": "F",
+                        "span": {
+                          "start": 1853,
+                          "end": 1854
+                        }
+                      },
+                      "key_fields": [
+                        [
+                          {
+                            "name": "v",
+                            "span": {
+                              "start": 1855,
+                              "end": 1856
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "String": "hello"
+                              },
+                              "span": {
+                                "start": 1858,
+                                "end": 1865
+                              }
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": [
+                        [
+                          {
+                            "name": "x",
+                            "span": {
+                              "start": 1869,
+                              "end": 1870
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "x",
+                                  "span": {
+                                    "start": 1872,
+                                    "end": 1873
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 1872,
+                                "end": 1873
+                              }
+                            }
+                          }
+                        ],
+                        [
+                          {
+                            "name": "y",
+                            "span": {
+                              "start": 1875,
+                              "end": 1876
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "FunctionCall": {
+                                  "identifier": {
+                                    "name": "saturating_sub",
+                                    "span": {
+                                      "start": 1878,
+                                      "end": 1892
+                                    }
+                                  },
+                                  "arguments": [
+                                    {
+                                      "kind": {
+                                        "Int": 0
+                                      },
+                                      "span": {
+                                        "start": 1893,
+                                        "end": 1894
+                                      }
+                                    },
+                                    {
+                                      "kind": {
+                                        "Identifier": {
+                                          "name": "x",
+                                          "span": {
+                                            "start": 1896,
+                                            "end": 1897
+                                          }
+                                        }
+                                      },
+                                      "span": {
+                                        "start": 1896,
+                                        "end": 1897
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "span": {
+                                "start": 1878,
+                                "end": 1898
+                              }
+                            }
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "span": {
+                  "start": 1846,
+                  "end": 1899
+                }
+              },
+              {
+                "kind": {
+                  "Update": {
+                    "fact": {
+                      "identifier": {
+                        "name": "F",
+                        "span": {
+                          "start": 1927,
+                          "end": 1928
+                        }
+                      },
+                      "key_fields": [],
+                      "value_fields": [
+                        [
+                          {
+                            "name": "x",
+                            "span": {
+                              "start": 1933,
+                              "end": 1934
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "x",
+                                  "span": {
+                                    "start": 1936,
+                                    "end": 1937
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 1936,
+                                "end": 1937
+                              }
+                            }
+                          }
+                        ]
+                      ]
+                    },
+                    "to": [
+                      [
+                        {
+                          "name": "x",
+                          "span": {
+                            "start": 1943,
+                            "end": 1944
+                          }
+                        },
+                        {
+                          "Expression": {
+                            "kind": {
+                              "Identifier": {
+                                "name": "new_x",
+                                "span": {
+                                  "start": 1946,
+                                  "end": 1951
+                                }
+                              }
+                            },
+                            "span": {
+                              "start": 1946,
+                              "end": 1951
+                            }
+                          }
+                        }
+                      ]
+                    ]
+                  }
+                },
+                "span": {
+                  "start": 1920,
+                  "end": 1952
+                }
+              },
+              {
+                "kind": {
+                  "Delete": {
+                    "fact": {
+                      "identifier": {
+                        "name": "F",
+                        "span": {
+                          "start": 1980,
+                          "end": 1981
+                        }
+                      },
+                      "key_fields": [
+                        [
+                          {
+                            "name": "v",
+                            "span": {
+                              "start": 1982,
+                              "end": 1983
+                            }
+                          },
+                          {
+                            "Expression": {
+                              "kind": {
+                                "String": "hello"
+                              },
+                              "span": {
+                                "start": 1985,
+                                "end": 1992
+                              }
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": null
+                    }
+                  }
+                },
+                "span": {
+                  "start": 1973,
+                  "end": 2014
+                }
+              },
+              {
+                "kind": {
+                  "Emit": {
+                    "kind": {
+                      "NamedStruct": {
+                        "identifier": {
+                          "name": "Added",
+                          "span": {
+                            "start": 2019,
+                            "end": 2024
+                          }
+                        },
+                        "fields": [
+                          [
+                            {
+                              "name": "x",
+                              "span": {
+                                "start": 2051,
+                                "end": 2052
+                              }
+                            },
+                            {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "new_x",
+                                  "span": {
+                                    "start": 2054,
+                                    "end": 2059
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 2054,
+                                "end": 2059
+                              }
+                            }
+                          ],
+                          [
+                            {
+                              "name": "y",
+                              "span": {
+                                "start": 2085,
+                                "end": 2086
+                              }
+                            },
+                            {
+                              "kind": {
+                                "Identifier": {
+                                  "name": "count",
+                                  "span": {
+                                    "start": 2088,
+                                    "end": 2093
+                                  }
+                                }
+                              },
+                              "span": {
+                                "start": 2088,
+                                "end": 2093
+                              }
+                            }
+                          ]
+                        ],
+                        "sources": []
+                      }
+                    },
+                    "span": {
+                      "start": 2019,
+                      "end": 2116
+                    }
+                  }
+                },
+                "span": {
+                  "start": 2014,
+                  "end": 2133
+                }
+              }
+            ]
+          },
+          "span": {
+            "start": 1817,
+            "end": 2134
+          }
+        }
+      ],
+      "span": {
+        "start": 407,
+        "end": 2158
+      }
+    },
+    {
+      "persistence": {
+        "Ephemeral": {
+          "start": 2405,
+          "end": 2414
+        }
+      },
+      "attributes": [],
+      "identifier": {
+        "name": "C",
+        "span": {
+          "start": 2423,
+          "end": 2424
+        }
+      },
+      "fields": [
+        {
+          "Field": {
+            "identifier": {
+              "name": "x",
+              "span": {
+                "start": 2464,
+                "end": 2465
+              }
+            },
+            "field_type": {
+              "kind": "Int",
+              "span": {
+                "start": 2466,
+                "end": 2469
+              }
+            }
+          }
+        }
+      ],
+      "seal": [
+        {
+          "kind": {
+            "Return": {
+              "expression": {
+                "kind": {
+                  "InternalFunction": {
+                    "Todo": {
+                      "start": 2526,
+                      "end": 2532
+                    }
+                  }
+                },
+                "span": {
+                  "start": 2526,
+                  "end": 2532
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 2519,
+            "end": 2545
+          }
+        }
+      ],
+      "open": [
+        {
+          "kind": {
+            "Return": {
+              "expression": {
+                "kind": {
+                  "InternalFunction": {
+                    "Todo": {
+                      "start": 2589,
+                      "end": 2595
+                    }
+                  }
+                },
+                "span": {
+                  "start": 2589,
+                  "end": 2595
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 2582,
+            "end": 2608
+          }
+        }
+      ],
+      "policy": [],
+      "recall": [],
+      "span": {
+        "start": 2405,
+        "end": 2654
+      }
+    }
+  ],
+  "functions": [
+    {
+      "identifier": {
+        "name": "positive",
+        "span": {
+          "start": 2177,
+          "end": 2185
+        }
+      },
+      "arguments": [
+        {
+          "identifier": {
+            "name": "v",
+            "span": {
+              "start": 2186,
+              "end": 2187
+            }
+          },
+          "field_type": {
+            "kind": {
+              "Optional": {
+                "kind": "Int",
+                "span": {
+                  "start": 2197,
+                  "end": 2200
+                }
+              }
+            },
+            "span": {
+              "start": 2188,
+              "end": 2200
+            }
+          }
+        }
+      ],
+      "return_type": {
+        "kind": "Bool",
+        "span": {
+          "start": 2202,
+          "end": 2206
+        }
+      },
+      "statements": [
+        {
+          "kind": {
+            "Let": {
+              "identifier": {
+                "name": "x",
+                "span": {
+                  "start": 2225,
+                  "end": 2226
+                }
+              },
+              "expression": {
+                "kind": {
+                  "Unwrap": {
+                    "kind": {
+                      "Identifier": {
+                        "name": "v",
+                        "span": {
+                          "start": 2236,
+                          "end": 2237
+                        }
+                      }
+                    },
+                    "span": {
+                      "start": 2236,
+                      "end": 2237
+                    }
+                  }
+                },
+                "span": {
+                  "start": 2229,
+                  "end": 2237
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 2221,
+            "end": 2250
+          }
+        },
+        {
+          "kind": {
+            "Return": {
+              "expression": {
+                "kind": {
+                  "GreaterThan": [
+                    {
+                      "kind": {
+                        "Identifier": {
+                          "name": "x",
+                          "span": {
+                            "start": 2257,
+                            "end": 2258
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": 2257,
+                        "end": 2258
+                      }
+                    },
+                    {
+                      "kind": {
+                        "Int": 0
+                      },
+                      "span": {
+                        "start": 2261,
+                        "end": 2262
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "start": 2257,
+                  "end": 2262
+                }
+              }
+            }
+          },
+          "span": {
+            "start": 2250,
+            "end": 2271
+          }
+        }
+      ],
+      "span": {
+        "start": 2168,
+        "end": 2272
+      }
+    }
+  ],
+  "finish_functions": [
+    {
+      "identifier": {
+        "name": "next",
+        "span": {
+          "start": 2298,
+          "end": 2302
+        }
+      },
+      "arguments": [
+        {
+          "identifier": {
+            "name": "x",
+            "span": {
+              "start": 2303,
+              "end": 2304
+            }
+          },
+          "field_type": {
+            "kind": "Int",
+            "span": {
+              "start": 2305,
+              "end": 2308
+            }
+          }
+        }
+      ],
+      "statements": [
+        {
+          "kind": {
+            "Create": {
+              "fact": {
+                "identifier": {
+                  "name": "Next",
+                  "span": {
+                    "start": 2331,
+                    "end": 2335
+                  }
+                },
+                "key_fields": [],
+                "value_fields": []
+              }
+            }
+          },
+          "span": {
+            "start": 2324,
+            "end": 2341
+          }
+        }
+      ],
+      "span": {
+        "start": 2282,
+        "end": 2351
+      }
+    }
+  ],
+  "global_lets": [],
+  "text": "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n            seal {\n                return todo()\n            }\n            open {\n                return todo()\n            }\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n            seal {\n                return todo()\n            }\n            open {\n                return todo()\n            }\n            policy {\n            }\n        }\n\n        ephemeral action a() {}\n    "
+}

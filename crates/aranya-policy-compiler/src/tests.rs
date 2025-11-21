@@ -224,43 +224,6 @@ fn test_seal_open_command() {
 }
 
 #[test]
-fn test_command_without_seal_block() {
-    let text = r#"
-        command Foo {
-            fields {}
-            policy {
-                finish {}
-            }
-        }
-    "#;
-
-    let err = compile_fail(text);
-    assert_eq!(
-        err,
-        CompileErrorType::Unknown(String::from("Empty/missing seal block in command"))
-    );
-}
-
-#[test]
-fn test_command_without_open_block() {
-    let text = r#"
-        command Foo {
-            fields {}
-            seal { return todo() }
-            policy {
-                finish {}
-            }
-        }
-    "#;
-
-    let err = compile_fail(text);
-    assert_eq!(
-        err,
-        CompileErrorType::Unknown(String::from("Empty/missing open block in command"))
-    );
-}
-
-#[test]
 fn test_command_with_no_return_in_seal_block() {
     let text = r#"
         command Foo {
@@ -292,22 +255,6 @@ fn test_command_with_no_return_in_open_block() {
 
     let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
-}
-
-#[test]
-fn test_command_without_policy_block() {
-    let text = r#"
-        command Foo {
-            seal { return todo() }
-            open { return todo() }
-        }
-    "#;
-
-    let err = compile_fail(text);
-    assert_eq!(
-        err,
-        CompileErrorType::Unknown(String::from("Empty/missing policy block in command"))
-    );
 }
 
 #[test]
@@ -361,8 +308,8 @@ fn test_command_attributes_should_be_unique() {
             a: 5,
             a: "five"
         }
-        open { return todo() }
         seal { return todo() }
+        open { return todo() }
         policy {
             finish {}
         }
@@ -1439,6 +1386,7 @@ fn test_match_default_not_last() {
             }
             seal { return todo() }
             open { return todo() }
+            policy { }
         }
 
         action foo(x int) {
@@ -1800,6 +1748,8 @@ fn test_invalid_finish_expressions() {
     let invalid_expression = &r#"
             fact Foo[]=>{x int}
             command Test {
+                seal { return todo() }
+                open { return todo() }
                 policy {
                     finish {
                         create Foo[]=>{x: saturating_add(1, 2)}
@@ -2118,13 +2068,9 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
+                    seal { return serialize(3) }
                     open { return todo() }
-                    policy {
-                        finish {}
-                    }
-                    seal {
-                      return serialize(3)
-                    }
+                    policy {}
                 }
             "#,
             e: "serializing int, expected struct Foo",
@@ -2138,9 +2084,7 @@ fn test_type_errors() {
                     open {
                       return deserialize(3)
                     }
-                    policy {
-                        finish {}
-                    }
+                    policy {}
                 }
             "#,
             e: "deserializing int, expected bytes",

@@ -121,6 +121,7 @@ pub const POLICY_MATCH: &str = r#"
         }
         seal { return todo() }
         open { return todo() }
+        policy {}
     }
 
     action foo(x int) {
@@ -145,11 +146,13 @@ pub const POLICY_IS: &str = r#"
         }
         seal { return todo() }
         open { return todo() }
+        policy {}
     }
     command Empty {
         fields { }
         seal { return todo() }
         open { return todo() }
+        policy {}
     }
     action check_none(x option[int]) {
         if x is None {
