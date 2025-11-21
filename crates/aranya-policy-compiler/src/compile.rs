@@ -1,5 +1,5 @@
 mod error;
-pub mod target;
+mod target;
 mod types;
 
 use std::{
@@ -24,11 +24,16 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
-use target::CompileTarget;
 use tracing::warn;
 
-pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
-use self::types::{DisplayType, IdentifierTypeStack};
+pub use self::{
+    error::{CompileError, CompileErrorType, InvalidCallColor},
+    target::PolicyInterface,
+};
+use self::{
+    target::CompileTarget,
+    types::{DisplayType, IdentifierTypeStack},
+};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -3050,21 +3055,16 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
-        let target = self.compile_to_target()?;
-        Ok(target.into_module())
+        let mut cs = self.set_up_compile_state();
+        cs.compile()?;
+        Ok(cs.m.into_module())
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
-    pub fn compile_interface(self) -> Result<CompileTarget, CompileError> {
+    pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
-        Ok(cs.m)
-    }
-
-    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
-        let mut cs = self.set_up_compile_state();
-        cs.compile()?;
-        Ok(cs.m)
+        Ok(cs.m.into())
     }
 
     fn set_up_compile_state(&self) -> CompileState<'_> {
