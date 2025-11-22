@@ -439,7 +439,8 @@ fn parse_command() -> Result<(), PestError<Rule>> {
             fields {
                 owner id,
             }
-
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create Foo[]=>{}
@@ -462,6 +463,9 @@ fn parse_command_attributes() {
             attributes {
                 priority: "high",
             }
+            seal { return todo() }
+            open { return todo() }
+            policy {}
         }
     "#;
     let policy = parse_policy_str(src, Version::V2).expect("should parse");
@@ -547,7 +551,12 @@ fn parse_policy_test() -> Result<(), ParseError> {
             fields {
                 count int
             }
-
+            seal {
+                return todo()
+            }
+            open {
+                return todo()
+            }
             policy {
                 let envelope_id = envelope::command_id(envelope)
                 let author = envelope::author_id(envelope)
@@ -612,6 +621,14 @@ fn parse_policy_test() -> Result<(), ParseError> {
         ephemeral command C {
             fields {
                 x int
+            }
+            seal {
+                return todo()
+            }
+            open {
+                return todo()
+            }
+            policy {
             }
         }
 
@@ -852,6 +869,7 @@ fn parse_seal_open() {
             open {
                 return baz(envelope)
             }
+            policy {}
         }
     "#
     .trim();
@@ -862,13 +880,15 @@ fn parse_seal_open() {
 #[test]
 fn parse_serialize_deserialize() {
     let text = r#"
-        command Foo {
+        command Foo {            
             seal {
                 return serialize(this)
             }
 
             open {
                 return deserialize(envelope)
+            }
+            policy {
             }
         }
     "#
@@ -886,24 +906,24 @@ fn parse_serialize_deserialize() {
             seal: vec![
                 StmtKind::Return(ast::ReturnStatement {
                     expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
-                        Box::new(ExprKind::Identifier(ident!("this").at(66..70)).at(66..70))
+                        Box::new(ExprKind::Identifier(ident!("this").at(78..82)).at(78..82))
                     ))
-                    .at(56..71)
+                    .at(68..83)
                 })
-                .at(49..84)
+                .at(61..96)
             ],
             open: vec![
                 StmtKind::Return(ast::ReturnStatement {
                     expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
                         Box::new(
-                            ExprKind::Identifier(ident!("envelope").at(141..149)).at(141..149)
+                            ExprKind::Identifier(ident!("envelope").at(153..161)).at(153..161)
                         )
                     ))
-                    .at(129..150)
+                    .at(141..162)
                 })
-                .at(122..163)
+                .at(134..175)
             ],
-            span: Span::new(0, 174),
+            span: Span::new(0, 221),
         }]
     );
 }
@@ -1256,4 +1276,67 @@ Next chunk:
         let err = parse_policy_document(policy).unwrap_err();
         assert_eq!(err.to_string(), expected);
     }
+}
+
+#[test]
+fn parse_command_without_seal_block() {
+    let text = r#"
+        command Foo {
+            fields {}
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let err = parse_policy_str(text, Version::V2).unwrap_err();
+    assert!(
+        err.to_string().contains("expected seal_block"),
+        "Expected parse error about missing seal_block, got: {}",
+        err
+    );
+}
+
+#[test]
+fn parse_command_without_open_block() {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal {
+                return ok()
+            }
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let err = parse_policy_str(text, Version::V2).unwrap_err();
+    assert!(
+        err.to_string().contains("expected open_block"),
+        "Expected parse error about missing open_block, got: {}",
+        err
+    );
+}
+
+#[test]
+fn parse_command_without_policy_block() {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal {
+                return ok()
+            }
+            open {
+                return ok()
+            }
+        }
+    "#;
+
+    let err = parse_policy_str(text, Version::V2).unwrap_err();
+    assert!(
+        err.to_string().contains("expected policy_block"),
+        "Expected parse error about missing policy_block, got: {}",
+        err
+    );
 }
