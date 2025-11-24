@@ -48,7 +48,6 @@ const SEGMENT_BUFFER_MAX: usize = 10;
 #[cfg(not(feature = "low-mem-usage"))]
 const SEGMENT_BUFFER_MAX: usize = 100;
 
-
 /// The maximum size of a sync message
 // TODO: Use postcard to calculate max size (which accounts for overhead)
 // https://docs.rs/postcard/latest/postcard/experimental/max_size/index.html
