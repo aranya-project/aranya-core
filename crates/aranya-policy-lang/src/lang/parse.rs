@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Param, Persistence, Statement, StmtKind, Text, TypeKind, UpdateStatement, VType,
-    Version, ident,
+    NamedStruct, Param, Persistence, ResultPattern, Statement, StmtKind, Text, TypeKind,
+    UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -563,6 +563,82 @@ impl ChunkParser<'_> {
                     };
                     Ok(Expression { kind: ExprKind::Optional(opt_expr), span })
                 }
+                Rule::result_literal => {
+                    let token = primary.clone().into_inner().next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("no token in result literal"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
+                    match token.as_rule() {
+                        Rule::ok => {
+                            let span = self.to_ast_span(primary.as_span())?;
+                            let v = token.into_inner().next().ok_or_else(|| {
+                                ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("no value in Ok expression"),
+                                    Some(primary.as_span()),
+                                )
+                            })?;
+                            let expr = self.parse_expression(v)?;
+                            Ok(Expression {
+                                kind: ExprKind::ResultOk(Box::new(expr)),
+                                span
+                            })
+                        }
+                        Rule::err => {
+                            let span = self.to_ast_span(primary.as_span())?;
+                            let v = token.into_inner().next().ok_or_else(|| {
+                                ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("no value in Err expression"),
+                                    Some(primary.as_span()),
+                                )
+                            })?;
+                            let expr = self.parse_expression(v)?;
+                            Ok(Expression {
+                                kind: ExprKind::ResultErr(Box::new(expr)),
+                                span,
+                            })
+                        }
+                        _ => Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("invalid token in result_literal: {:?}", token.as_rule()),
+                            Some(primary.as_span()),
+                        ))
+                    }
+                }
+                Rule::ok => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let v = primary.clone().into_inner().next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("no value in Ok expression"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
+                    let expr = self.parse_expression(v)?;
+                    Ok(Expression {
+                        kind: ExprKind::ResultOk(Box::new(expr)),
+                        span
+                    })
+                }
+                Rule::err => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let v = primary.clone().into_inner().next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("no value in Err expression"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
+                    let expr = self.parse_expression(v)?;
+                    Ok(Expression {
+                        kind: ExprKind::ResultErr(Box::new(expr)),
+                        span,
+                    })
+                }
                 Rule::named_struct_literal => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ns = self.parse_named_struct_literal(primary)?;
@@ -861,7 +937,33 @@ impl ChunkParser<'_> {
                         .map(|token| self.parse_expression(token.clone()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    MatchPattern::Values(values)
+                    // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
+                    let pattern = if values.len() == 1 {
+                        if let ExprKind::FunctionCall(fc) = &values[0].kind {
+                            if fc.identifier.name.as_str() == "Ok" && fc.arguments.len() == 1 {
+                                if let ExprKind::Identifier(id) = &fc.arguments[0].kind {
+                                    MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
+                                } else {
+                                    MatchPattern::Values(values)
+                                }
+                            } else if fc.identifier.name.as_str() == "Err"
+                                && fc.arguments.len() == 1
+                            {
+                                if let ExprKind::Identifier(id) = &fc.arguments[0].kind {
+                                    MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
+                                } else {
+                                    MatchPattern::Values(values)
+                                }
+                            } else {
+                                MatchPattern::Values(values)
+                            }
+                        } else {
+                            MatchPattern::Values(values)
+                        }
+                    } else {
+                        MatchPattern::Values(values)
+                    };
+                    pattern
                 }
                 _ => {
                     return Err(ParseError::new(
