@@ -1384,6 +1384,36 @@ impl<'a> CompileState<'a> {
                     expression.span(),
                 )?
                 .assume("match expression must return a type")?,
+            ExprKind::Return(e) => {
+                // Compile the return expression
+                let et = self.compile_expression(e)?;
+
+                // Get the current function context to validate return type
+                let ctx = self.get_statement_context()?;
+                if let StatementContext::PureFunction(fd) = ctx {
+                    // Validate that the return type matches the function signature
+                    if !et.fits_type(&fd.return_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Return value of `{}()` must be {}",
+                            fd.identifier,
+                            DisplayType(&fd.return_type)
+                        ))));
+                    }
+                } else {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Return expression can only be used inside a function".to_string(),
+                    )));
+                }
+
+                // Emit the return instruction
+                self.append_instruction(Instruction::Return);
+
+                // Return Never type - this expression doesn't produce a value on the stack
+                VType {
+                    kind: TypeKind::Never,
+                    span: Span::empty(),
+                }
+            }
         };
 
         Ok(expression_type)
@@ -1450,6 +1480,12 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandRecall(_),
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
+                    // `Never` expressions cannot be assigned to variables
+                    if matches!(et.kind, TypeKind::Never) {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Cannot assign a Never value.".to_string(),
+                        )));
+                    }
                     self.identifier_types
                         .add(s.identifier.name.clone(), et)
                         .map_err(|e| self.err(e))?;
@@ -1559,18 +1595,6 @@ impl<'a> CompileState<'a> {
                         ))));
                     }
                     self.append_instruction(Instruction::Publish);
-                }
-                (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
-                    // ensure return expression type matches function signature
-                    let et = self.compile_expression(&s.expression)?;
-                    if !et.fits_type(&fd.return_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
-                        ))));
-                    }
-                    self.append_instruction(Instruction::Return);
                 }
                 (
                     StmtKind::Finish(s),
@@ -1860,6 +1884,13 @@ impl<'a> CompileState<'a> {
                         // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
                     }
+                }
+                (StmtKind::Expr(expr), _) => {
+                    // Compile the expression. For return expressions with Never type,
+                    // this will emit a Return instruction and never leave a value on the stack.
+                    let _ty = self.compile_expression(expr)?;
+                    // Note: No need to pop the value - expressions with Never type
+                    // (like return) don't leave values on the stack.
                 }
                 (_, _) => {
                     return Err(
