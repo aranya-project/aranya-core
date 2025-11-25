@@ -1,4 +1,17 @@
-use super::*;
+use aranya_policy_ast::{
+    ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
+    FunctionDefinition, Ident, Identifier, InternalFunction, LanguageContext, MatchExpression,
+    MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement, StmtKind, TypeKind,
+    VType, ident, thir,
+};
+use buggy::{Bug, BugExt as _, bug};
+use tracing::warn;
+
+use super::{
+    CompileError, CompileErrorType, CompileState, FunctionColor, InvalidCallColor, Scope,
+    StatementContext, find_duplicate,
+    types::{self, DisplayType},
+};
 
 impl CompileState<'_> {
     /// Get the statement context
@@ -309,7 +322,7 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::InternalFunction(f) => match f {
-                ast::InternalFunction::Query(f) => {
+                InternalFunction::Query(f) => {
                     let fact = self.lower_fact_literal(f, false)?;
                     let vtype = self.query_fact_type(f)?;
                     thir::Expression {
@@ -321,7 +334,7 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                ast::InternalFunction::Exists(f) => {
+                InternalFunction::Exists(f) => {
                     let fact = self.lower_fact_literal(f, false)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Exists(
@@ -334,7 +347,7 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                ast::InternalFunction::FactCount(cmp_type, n, fact) => {
+                InternalFunction::FactCount(cmp_type, n, fact) => {
                     let fact = self.lower_fact_literal(fact, false)?;
                     let ty = match cmp_type {
                         FactCountType::UpTo(span) => VType {
@@ -354,7 +367,7 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                ast::InternalFunction::If(c, t, f) => {
+                InternalFunction::If(c, t, f) => {
                     let cond = self.lower_expression(c)?;
                     if !cond.vtype.fits_type(&VType {
                         kind: TypeKind::Bool,
@@ -382,11 +395,10 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                ast::InternalFunction::Serialize(e) => {
+                InternalFunction::Serialize(e) => {
                     match self.get_statement_context()? {
-                        StatementContext::PureFunction(ast::FunctionDefinition {
-                            identifier,
-                            ..
+                        StatementContext::PureFunction(FunctionDefinition {
+                            identifier, ..
                         }) if identifier == "seal" => {}
                         _ => {
                             return Err(
@@ -427,10 +439,10 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                ast::InternalFunction::Deserialize(e) => {
+                InternalFunction::Deserialize(e) => {
                     // A bit hacky, but you can't manually define a function named "open".
                     let struct_name = match self.get_statement_context()? {
-                        StatementContext::PureFunction(ast::FunctionDefinition {
+                        StatementContext::PureFunction(FunctionDefinition {
                             identifier,
                             return_type:
                                 VType {
@@ -469,7 +481,7 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                ast::InternalFunction::Todo(span) => {
+                InternalFunction::Todo(span) => {
                     let err = self.err(CompileErrorType::TodoFound);
                     if !self.is_debug {
                         return Err(err);

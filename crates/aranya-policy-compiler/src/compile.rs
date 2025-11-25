@@ -13,23 +13,22 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
-    FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
-    MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement,
-    StmtKind, StructItem, TypeKind, VType, ident, thir,
+    self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
+    FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Span, Statement, StructItem,
+    TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
     Meta, Module, Param, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::{Bug, BugExt as _, bug};
+use buggy::BugExt as _;
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
-use self::types::{DisplayType, IdentifierTypeStack};
+use self::types::IdentifierTypeStack;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
