@@ -640,6 +640,8 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
+    /// Return expression - can be used in match arms to short-circuit
+    Return(Box<Expression>),
 }
 
 spanned! {
@@ -823,17 +825,6 @@ pub struct DeleteStatement {
 }
 }
 
-spanned! {
-/// Return from a function
-///
-/// Only valid within functions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReturnStatement {
-    /// The value to return
-    pub expression: Expression,
-}
-}
-
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -874,8 +865,6 @@ pub enum StmtKind {
     Finish(Vec<Statement>),
     /// Map over a fact result set
     Map(MapStatement),
-    /// A [ReturnStatement]. Valid only in functions.
-    Return(ReturnStatement),
     /// Calls an action
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
@@ -893,6 +882,8 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// An expression used as a statement (e.g., return expressions)
+    Expr(Expression),
 }
 
 /// A schema definition for a fact
