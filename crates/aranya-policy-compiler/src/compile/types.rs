@@ -190,15 +190,6 @@ impl Display for DisplayType<'_> {
     }
 }
 
-impl Display for NullableVType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Type(vtype) => DisplayType(vtype).fmt(f),
-            Self::Null => f.write_str("null"),
-        }
-    }
-}
-
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {

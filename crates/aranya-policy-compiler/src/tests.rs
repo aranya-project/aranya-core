@@ -1645,6 +1645,84 @@ fn test_match_expression() {
     }
 }
 
+#[test]
+fn test_match_expression_with_return() {
+    let valid_cases = vec![
+        // Basic case: return in one arm, value in another
+        r#"function f(n int) int {
+            let x = match n {
+                0 => 1
+                _ => return 2
+            }
+            return x
+        }"#,
+        // Nested match with return
+        r#"function f(n int, m int) int {
+            let x = match n {
+                0 => match m {
+                    0 => 1
+                    _ => return 2
+                }
+                _ => 3
+            }
+            return x
+        }"#,
+    ];
+
+    for (i, src) in valid_cases.iter().enumerate() {
+        eprintln!("Testing case {}:\n{}\n", i, src);
+        compile_pass(src);
+    }
+
+    // Test invalid cases
+    let invalid_cases = vec![
+        (
+            // Return outside function context
+            r#"action f() {
+                let x = match 0 {
+                    0 => 1
+                    _ => (return 2)
+                }
+            }"#,
+            "Return expression can only be used inside a function",
+        ),
+        (
+            // Wrong return type
+            r#"function f(n int) int {
+                let x = match n {
+                    0 => 1
+                    _ => (return "wrong")
+                }
+                return x
+            }"#,
+            "Return value of `f()` must be int",
+        ),
+        (
+            // All arms return - match has Never type and can't be assigned
+            r#"function f(n int) int {
+                let x = match n {
+                    _ => return 3
+                }
+            }"#,
+            "Cannot assign a Never value.",
+        ),
+    ];
+
+    for (src, expected_msg) in invalid_cases {
+        let err = compile_fail(src);
+        if let CompileErrorType::InvalidType(msg) = err {
+            assert!(
+                msg.contains(expected_msg),
+                "Expected error message to contain '{}', got '{}'",
+                expected_msg,
+                msg
+            );
+        } else {
+            panic!("Expected InvalidType error, got {:?}", err);
+        }
+    }
+}
+
 // Note: this test is not exhaustive
 #[test]
 fn test_bad_statements() {
@@ -2529,7 +2607,9 @@ fn test_duplicate_definitions() {
                     return false
                 }
             "#,
-            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+            e: Some(CompileErrorType::InvalidType(String::from(
+                "Cannot assign a Never value.",
+            ))),
         },
         Case {
             t: r#"
@@ -2579,12 +2659,13 @@ fn test_duplicate_definitions() {
         },
     ];
 
-    for c in cases {
-        if let Some(expected) = c.e {
-            let actual = compile_fail(c.t);
-            assert_eq!(actual, expected);
+    for (i, case) in cases.iter().enumerate() {
+        println!("Testing case {}:\n{}\n", i, case.t);
+        if let Some(expected) = &case.e {
+            let actual = compile_fail(case.t);
+            assert_eq!(actual, *expected);
         } else {
-            compile_pass(c.t);
+            compile_pass(case.t);
         }
     }
 }
