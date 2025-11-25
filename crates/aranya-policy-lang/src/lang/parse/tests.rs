@@ -294,6 +294,23 @@ fn parse_result() {
 }
 
 #[test]
+fn test_result_literal() -> Result<(), ParseError> {
+    let cases = [
+        "Ok(42)",
+        "Ok(true)",
+        "Ok(get_value())",
+        "Ok(Foo {})",
+        "Err(\"error message\")",
+        "Err(Error::NotFound)",
+    ];
+    for src in cases {
+        let r = PolicyParser::parse(Rule::result_literal, src);
+        assert!(r.is_ok(), "Failed to parse result literal: {}", src);
+    }
+    Ok(())
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
@@ -840,6 +857,23 @@ fn test_match_expression_with_return() {
     "#;
 
     let policy = parse_policy_str(src, Version::V2).expect("should parse");
+    insta::assert_json_snapshot!(policy);
+}
+
+#[test]
+fn test_result_pattern_match() {
+    let src = r#"
+        function foo() result int, int {
+            let n = Ok(42)
+            let x = match n {
+                Ok(42) => 42
+                Err(e) => return -1
+            }
+            return Ok(42)
+        }
+    "#;
+
+    let policy = parse_policy_str(src, Version::V2).expect("should parse result patterns");
     insta::assert_json_snapshot!(policy);
 }
 

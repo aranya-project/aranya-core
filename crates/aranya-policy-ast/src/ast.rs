@@ -592,6 +592,10 @@ pub enum ExprKind {
     Bool(bool),
     /// An optional literal
     Optional(Option<Box<Expression>>),
+    /// A Result Ok literal
+    ResultOk(Box<Expression>),
+    /// A Result Err literal
+    ResultErr(Box<Expression>),
     /// A named struct
     NamedStruct(NamedStruct),
     /// One of the [InternalFunction]s
@@ -678,6 +682,23 @@ pub struct CheckStatement {
 }
 }
 
+/// Result pattern for matching Ok(x) or Err(e)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ResultPattern {
+    /// Match Ok(identifier)
+    Ok(Ident),
+    /// Match Err(identifier)
+    Err(Ident),
+}
+
+impl Spanned for ResultPattern {
+    fn span(&self) -> Span {
+        match self {
+            Self::Ok(ident) | Self::Err(ident) => ident.span(),
+        }
+    }
+}
+
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
@@ -685,6 +706,8 @@ pub enum MatchPattern {
     Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
+    /// Result pattern for matching Ok(x) and Err(e)
+    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -692,6 +715,7 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+            Self::ResultPattern(result_pattern) => result_pattern.span(),
         }
     }
 }
