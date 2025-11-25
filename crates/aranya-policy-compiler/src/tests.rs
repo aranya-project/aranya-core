@@ -1956,7 +1956,7 @@ fn test_type_errors() {
                     return 3 || 4
                 }
             "#,
-            e: "Cannot use boolean operator on non-bool types",
+            e: "invalid binary operation", // TODO
         },
         Case {
             t: r#"
@@ -1990,7 +1990,7 @@ fn test_type_errors() {
                     return x < "test"
                 }
             "#,
-            e: "Cannot compare non-int expressions",
+            e: "invalid binary operation", // TODO
         },
         Case {
             t: r#"

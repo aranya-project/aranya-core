@@ -9,6 +9,7 @@ extern crate alloc;
 
 mod ast;
 mod span;
+pub mod thir;
 mod util;
 
 pub use aranya_policy_text::*;
