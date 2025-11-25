@@ -158,6 +158,10 @@ none = { "None" }
 some = { "Some" }
 optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
 
+ok = { "Ok(" ~ expression ~ ")" }
+err = { "Err(" ~ expression ~ ")" }
+result_literal = { ok | err }
+
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
 // token.
@@ -213,6 +217,7 @@ atom = _{
     | string_literal
     | bool_literal
     | optional_literal
+    | result_literal
     | named_struct_literal
     | match_expression
     | internal_function
