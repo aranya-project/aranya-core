@@ -1,6 +1,53 @@
 use super::*;
 
 impl CompileState<'_> {
+    /// Get the statement context
+    fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
+        let cs = self
+            .statement_context
+            .last()
+            .ok_or_else(|| {
+                self.err(CompileErrorType::Bug(Bug::new(
+                    "compiling statement without statement context",
+                )))
+            })?
+            .clone();
+        Ok(cs)
+    }
+
+    fn get_fact_def(&self, name: &Identifier) -> Result<&FactDefinition, CompileError> {
+        self.m
+            .fact_defs
+            .get(name)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
+    }
+
+    fn verify_fact_values(
+        &self,
+        values: &[(Ident, FactField)],
+        fact_def: &FactDefinition,
+    ) -> Result<(), CompileError> {
+        // value block must have the same number of values as the schema
+        if values.len() != fact_def.value.len() {
+            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
+                "incorrect number of values",
+            ))));
+        }
+
+        // Ensure values exist in schema, and have matching types
+        for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
+            if lit_value.0.name != schema_value.identifier.name {
+                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                    "Expected value {}, got {}",
+                    schema_value.identifier, lit_value.0
+                ))));
+            }
+            // Type checking handled in compile_fact_literal() now
+        }
+
+        Ok(())
+    }
+
     /// Compile instructions to construct a struct literal
     fn lower_struct_literal(&mut self, s: &NamedStruct) -> Result<thir::NamedStruct, CompileError> {
         let Some(struct_def) = self.m.struct_defs.get(&s.identifier.name).cloned() else {
@@ -168,6 +215,24 @@ impl CompileState<'_> {
             key_fields,
             value_fields,
         })
+    }
+
+    /// Check if finish blocks only use appropriate expressions
+    fn check_finish_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
+        match &expression.kind {
+            ExprKind::Int(_)
+            | ExprKind::String(_)
+            | ExprKind::Bool(_)
+            | ExprKind::Identifier(_)
+            | ExprKind::NamedStruct(_)
+            | ExprKind::Dot(_, _)
+            | ExprKind::Optional(_)
+            | ExprKind::EnumReference(_) => Ok(()),
+            _ => Err(self.err_loc(
+                CompileErrorType::InvalidExpression(expression.clone()),
+                expression.span(),
+            )),
+        }
     }
 
     fn lower_expression(
@@ -1449,10 +1514,6 @@ impl CompileState<'_> {
                     })
                 }
                 (StmtKind::DebugAssert(e), _) => {
-                    if !self.is_debug {
-                        continue;
-                    }
-                    // Compile the expression within `debug_assert(e)`
                     let e = self.lower_expression(e)?;
                     let _: VType = types::check_type(
                         e.vtype.clone(),

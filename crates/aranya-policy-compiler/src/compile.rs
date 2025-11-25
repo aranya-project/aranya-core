@@ -180,20 +180,6 @@ impl<'a> CompileState<'a> {
         self.statement_context.pop();
     }
 
-    /// Get the statement context
-    fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
-        let cs = self
-            .statement_context
-            .last()
-            .ok_or_else(|| {
-                self.err(CompileErrorType::Bug(Bug::new(
-                    "compiling statement without statement context",
-                )))
-            })?
-            .clone();
-        Ok(cs)
-    }
-
     /// Append an instruction to the program memory, and increment the
     /// program counter. If no other PC manipulation has been done,
     /// this means that the program counter points to the new
@@ -526,39 +512,6 @@ impl<'a> CompileState<'a> {
         CompileError::from_span(err_type, span, self.m.codemap.as_ref())
     }
 
-    fn get_fact_def(&self, name: &Identifier) -> Result<&FactDefinition, CompileError> {
-        self.m
-            .fact_defs
-            .get(name)
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
-    }
-
-    fn verify_fact_values(
-        &self,
-        values: &[(Ident, FactField)],
-        fact_def: &FactDefinition,
-    ) -> Result<(), CompileError> {
-        // value block must have the same number of values as the schema
-        if values.len() != fact_def.value.len() {
-            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
-                "incorrect number of values",
-            ))));
-        }
-
-        // Ensure values exist in schema, and have matching types
-        for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
-            if lit_value.0.name != schema_value.identifier.name {
-                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
-                    "Expected value {}, got {}",
-                    schema_value.identifier, lit_value.0
-                ))));
-            }
-            // Type checking handled in compile_fact_literal() now
-        }
-
-        Ok(())
-    }
-
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
         self.append_instruction(Instruction::FactNew(f.identifier.name.clone()));
@@ -579,10 +532,6 @@ impl<'a> CompileState<'a> {
         &mut self,
         expression: thir::Expression,
     ) -> Result<(), CompileError> {
-        // if self.get_statement_context()? == StatementContext::Finish {
-        //     self.check_finish_expression(expression)?;
-        // }
-
         match expression.kind {
             thir::ExprKind::Int(n) => {
                 self.append_instruction(Instruction::Const(Value::Int(n)));
@@ -838,24 +787,6 @@ impl<'a> CompileState<'a> {
         Ok(*value)
     }
 
-    /// Check if finish blocks only use appropriate expressions
-    fn check_finish_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
-        match &expression.kind {
-            ExprKind::Int(_)
-            | ExprKind::String(_)
-            | ExprKind::Bool(_)
-            | ExprKind::Identifier(_)
-            | ExprKind::NamedStruct(_)
-            | ExprKind::Dot(_, _)
-            | ExprKind::Optional(_)
-            | ExprKind::EnumReference(_) => Ok(()),
-            _ => Err(self.err_loc(
-                CompileErrorType::InvalidExpression(expression.clone()),
-                expression.span(),
-            )),
-        }
-    }
-
     fn compile_statements(
         &mut self,
         statements: &[Statement],
@@ -873,206 +804,141 @@ impl<'a> CompileState<'a> {
         if scope == Scope::Layered {
             self.append_instruction(Instruction::Block);
         }
-        let context = self.get_statement_context()?;
         for statement in statements {
-            self.map_range(statement.span)?;
-            // This match statement matches on a pair of the statement and its allowable
-            // contexts, so that disallowed contexts will fall through to the default at the
-            // bottom. This only checks the context at the statement level. It cannot, for
-            // example, check whether an expression disallowed in finish context has been
-            // evaluated from deep within a call chain. Further static analysis will have to
-            // be done to ensure that.
-            match (statement.kind, &context) {
-                (
-                    thir::StmtKind::Let(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
-                    self.compile_typed_expression(s.expression)?;
-                    self.append_instruction(Instruction::Meta(Meta::Let(
-                        s.identifier.name.clone(),
-                    )));
-                    self.append_instruction(Instruction::Def(s.identifier.name.clone()));
-                }
-                (
-                    thir::StmtKind::Check(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
-                    self.compile_typed_expression(s.expression)?;
-                    // The current instruction is the branch. The next
-                    // instruction is the following panic you arrive at
-                    // if the expression is false. The instruction you
-                    // branch to if the check succeeds is the
-                    // instruction after that - current instruction + 2.
-                    let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
-                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    self.append_instruction(Instruction::Exit(ExitReason::Check));
-                }
-                (
-                    thir::StmtKind::Match(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
-                    self.compile_match_statement_or_expression(LanguageContext::Statement(s))?;
-                }
-                (
-                    thir::StmtKind::If(s),
-                    StatementContext::Action(_)
-                    | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
-                ) => {
-                    let end_label = self.anonymous_label();
-                    for (cond, branch) in s.branches {
-                        let next_label = self.anonymous_label();
-                        self.compile_typed_expression(cond)?;
-
-                        self.append_instruction(Instruction::Not);
-                        self.append_instruction(Instruction::Branch(Target::Unresolved(
-                            next_label.clone(),
-                        )));
-                        self.compile_typed_statements(branch, Scope::Layered)?;
-                        self.append_instruction(Instruction::Jump(Target::Unresolved(
-                            end_label.clone(),
-                        )));
-                        self.define_label(next_label, self.wp)?;
-                    }
-                    if let Some(fallback) = s.fallback {
-                        self.compile_typed_statements(fallback, Scope::Layered)?;
-                    }
-                    self.define_label(end_label, self.wp)?;
-                }
-                (thir::StmtKind::Publish(s), StatementContext::Action(_)) => {
-                    self.compile_typed_expression(s)?;
-                    self.append_instruction(Instruction::Publish);
-                }
-                (thir::StmtKind::Return(s), StatementContext::PureFunction(_)) => {
-                    self.compile_typed_expression(s.expression)?;
-                    self.append_instruction(Instruction::Return);
-                }
-                (
-                    thir::StmtKind::Finish(s),
-                    StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
-                ) => {
-                    self.enter_statement_context(StatementContext::Finish);
-                    self.append_instruction(Instruction::Meta(Meta::Finish(true)));
-                    self.compile_typed_statements(s, Scope::Layered)?;
-                    self.exit_statement_context();
-                    // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
-                    self.append_instruction(Instruction::Exit(ExitReason::Normal));
-                }
-                (thir::StmtKind::Map(map_stmt), StatementContext::Action(_action)) => {
-                    // Execute query and store results
-                    self.compile_fact_literal(map_stmt.fact)?;
-                    self.append_instruction(Instruction::QueryStart);
-                    // Consume results...
-                    let top_label = self.anonymous_label();
-                    let end_label = self.anonymous_label();
-                    self.define_label(top_label.clone(), self.wp)?;
-                    // Fetch next result
-                    self.append_instruction(Instruction::Block);
-                    self.append_instruction(Instruction::QueryNext(
-                        map_stmt.identifier.name.clone(),
-                    ));
-                    // If no more results, break
-                    self.append_instruction(Instruction::Branch(Target::Unresolved(
-                        end_label.clone(),
-                    )));
-                    // body
-                    self.compile_typed_statements(map_stmt.statements, Scope::Same)?;
-                    self.append_instruction(Instruction::End);
-                    // Jump back to top of loop
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(top_label)));
-                    // Exit loop
-                    self.define_label(end_label, self.wp)?;
-                    self.append_instruction(Instruction::End);
-                }
-                (thir::StmtKind::Create(s), StatementContext::Finish) => {
-                    self.compile_fact_literal(s.fact)?;
-                    self.append_instruction(Instruction::Create);
-                }
-                (thir::StmtKind::Update(s), StatementContext::Finish) => {
-                    // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
-
-                    self.compile_fact_literal(s.fact)?;
-                    self.append_instruction(Instruction::Dup);
-
-                    for (k, e) in s.to {
-                        self.compile_typed_expression(e)?;
-                        self.append_instruction(Instruction::FactValueSet(k.name));
-                    }
-                    self.append_instruction(Instruction::Update);
-                }
-                (thir::StmtKind::Delete(s), StatementContext::Finish) => {
-                    self.compile_fact_literal(s.fact)?;
-                    self.append_instruction(Instruction::Delete);
-                }
-                (thir::StmtKind::Emit(s), StatementContext::Finish) => {
-                    self.compile_typed_expression(s)?;
-                    self.append_instruction(Instruction::Emit);
-                }
-                (thir::StmtKind::FunctionCall(f), StatementContext::Finish) => {
-                    self.compile_function_call(f, true)?;
-                }
-                (thir::StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
-                    let Some(action_def) = self
-                        .policy
-                        .actions
-                        .iter()
-                        .find(|a| a.identifier == fc.identifier.name)
-                    else {
-                        return Err(self.err_loc(
-                            CompileErrorType::NotDefined(fc.identifier.name.to_string()),
-                            statement.span,
-                        ));
-                    };
-
-                    if action_def.arguments.len() != fc.arguments.len() {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(format!(
-                                "call to `{}` has {} arguments, but it should have {}",
-                                fc.identifier.name,
-                                fc.arguments.len(),
-                                action_def.arguments.len()
-                            )),
-                            statement.span,
-                        ));
-                    }
-
-                    for arg in fc.arguments {
-                        self.compile_typed_expression(arg)?;
-                    }
-
-                    let label = Label::new(fc.identifier.name.clone(), LabelType::Action);
-                    self.append_instruction(Instruction::Call(Target::Unresolved(label)));
-                }
-                (thir::StmtKind::DebugAssert(s), _) => {
-                    if self.is_debug {
-                        // Compile the expression within `debug_assert(e)`
-                        self.compile_typed_expression(s)?;
-                        // Now, branch to the next instruction if the top of the stack is true
-                        let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
-                        self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                        // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                    }
-                }
-                (_, _) => {
-                    return Err(
-                        self.err_loc(CompileErrorType::InvalidStatement(context), statement.span)
-                    );
-                }
-            }
+            self.compile_typed_statement(statement)?;
         }
         if scope == Scope::Layered {
             self.append_instruction(Instruction::End);
+        }
+        Ok(())
+    }
+
+    fn compile_typed_statement(&mut self, statement: thir::Statement) -> Result<(), CompileError> {
+        self.map_range(statement.span)?;
+        match statement.kind {
+            thir::StmtKind::Let(s) => {
+                self.compile_typed_expression(s.expression)?;
+                self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.name.clone())));
+                self.append_instruction(Instruction::Def(s.identifier.name));
+            }
+            thir::StmtKind::Check(s) => {
+                self.compile_typed_expression(s.expression)?;
+                // The current instruction is the branch. The next
+                // instruction is the following panic you arrive at
+                // if the expression is false. The instruction you
+                // branch to if the check succeeds is the
+                // instruction after that - current instruction + 2.
+                let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
+                self.append_instruction(Instruction::Branch(Target::Resolved(next)));
+                self.append_instruction(Instruction::Exit(ExitReason::Check));
+            }
+            thir::StmtKind::Match(s) => {
+                self.compile_match_statement_or_expression(LanguageContext::Statement(s))?;
+            }
+            thir::StmtKind::If(s) => {
+                let end_label = self.anonymous_label();
+                for (cond, branch) in s.branches {
+                    let next_label = self.anonymous_label();
+                    self.compile_typed_expression(cond)?;
+
+                    self.append_instruction(Instruction::Not);
+                    self.append_instruction(Instruction::Branch(Target::Unresolved(
+                        next_label.clone(),
+                    )));
+                    self.compile_typed_statements(branch, Scope::Layered)?;
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(
+                        end_label.clone(),
+                    )));
+                    self.define_label(next_label, self.wp)?;
+                }
+                if let Some(fallback) = s.fallback {
+                    self.compile_typed_statements(fallback, Scope::Layered)?;
+                }
+                self.define_label(end_label, self.wp)?;
+            }
+            thir::StmtKind::Publish(s) => {
+                self.compile_typed_expression(s)?;
+                self.append_instruction(Instruction::Publish);
+            }
+            thir::StmtKind::Return(s) => {
+                self.compile_typed_expression(s.expression)?;
+                self.append_instruction(Instruction::Return);
+            }
+            thir::StmtKind::Finish(s) => {
+                self.enter_statement_context(StatementContext::Finish);
+                self.append_instruction(Instruction::Meta(Meta::Finish(true)));
+                self.compile_typed_statements(s, Scope::Layered)?;
+                self.exit_statement_context();
+                // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
+                self.append_instruction(Instruction::Exit(ExitReason::Normal));
+            }
+            thir::StmtKind::Map(map_stmt) => {
+                // Execute query and store results
+                self.compile_fact_literal(map_stmt.fact)?;
+                self.append_instruction(Instruction::QueryStart);
+                // Consume results...
+                let top_label = self.anonymous_label();
+                let end_label = self.anonymous_label();
+                self.define_label(top_label.clone(), self.wp)?;
+                // Fetch next result
+                self.append_instruction(Instruction::Block);
+                self.append_instruction(Instruction::QueryNext(map_stmt.identifier.name.clone()));
+                // If no more results, break
+                self.append_instruction(Instruction::Branch(Target::Unresolved(end_label.clone())));
+                // body
+                self.compile_typed_statements(map_stmt.statements, Scope::Same)?;
+                self.append_instruction(Instruction::End);
+                // Jump back to top of loop
+                self.append_instruction(Instruction::Jump(Target::Unresolved(top_label)));
+                // Exit loop
+                self.define_label(end_label, self.wp)?;
+                self.append_instruction(Instruction::End);
+            }
+            thir::StmtKind::Create(s) => {
+                self.compile_fact_literal(s.fact)?;
+                self.append_instruction(Instruction::Create);
+            }
+            thir::StmtKind::Update(s) => {
+                // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
+
+                self.compile_fact_literal(s.fact)?;
+                self.append_instruction(Instruction::Dup);
+
+                for (k, e) in s.to {
+                    self.compile_typed_expression(e)?;
+                    self.append_instruction(Instruction::FactValueSet(k.name));
+                }
+                self.append_instruction(Instruction::Update);
+            }
+            thir::StmtKind::Delete(s) => {
+                self.compile_fact_literal(s.fact)?;
+                self.append_instruction(Instruction::Delete);
+            }
+            thir::StmtKind::Emit(s) => {
+                self.compile_typed_expression(s)?;
+                self.append_instruction(Instruction::Emit);
+            }
+            thir::StmtKind::FunctionCall(f) => {
+                self.compile_function_call(f, true)?;
+            }
+            thir::StmtKind::ActionCall(fc) => {
+                for arg in fc.arguments {
+                    self.compile_typed_expression(arg)?;
+                }
+                let label = Label::new(fc.identifier.name, LabelType::Action);
+                self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+            }
+            thir::StmtKind::DebugAssert(s) => {
+                if self.is_debug {
+                    // Compile the expression within `debug_assert(e)`
+                    self.compile_typed_expression(s)?;
+                    // Now, branch to the next instruction if the top of the stack is true
+                    let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
+                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
+                    // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                }
+            }
         }
         Ok(())
     }
