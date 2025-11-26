@@ -107,10 +107,10 @@ impl CompileTarget {
                 Some(defs.len() as u64)
             }
             TypeKind::Never => Some(0),
-            TypeKind::Result { ok, err } => {
-                let ok_card = self.cardinality(&ok.kind)?;
-                let err_card = self.cardinality(&err.kind)?;
-                ok_card.checked_add(err_card)
+            TypeKind::Result { .. } => {
+                // Result types always have cardinality 2: Ok and Err
+                // (regardless of the inner types' cardinalities)
+                Some(2)
             }
         }
     }
