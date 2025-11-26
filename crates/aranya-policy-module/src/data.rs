@@ -1,6 +1,10 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
+use alloc::{
+    
+    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
+,
+};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
@@ -42,6 +46,10 @@ pub enum ConstValue {
     Enum(Identifier, i64),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
+        /// Result Ok value
+    Ok(#[rkyv(omit_bounds)] Box<Self>),
+    /// Result Err value
+    Err(#[rkyv(omit_bounds)] Box<Self>),
 }
 
 impl ConstValue {
@@ -85,6 +93,8 @@ impl ConstValue {
             Self::Enum(name, _) => format!("Enum {}", name),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
+            Self::Ok(_) => String::from("Ok"),
+            Self::Err(_) => String::from("Err"),
         }
     }
 }
@@ -99,6 +109,8 @@ impl Display for ConstValue {
             Self::Enum(name, value) => write!(f, "{name}::{value}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
+            Self::Ok(v) => write!(f, "Ok({})", v),
+            Self::Err(v) => write!(f, "Err({})", v),
         }
     }
 }

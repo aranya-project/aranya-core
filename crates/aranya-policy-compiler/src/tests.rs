@@ -1608,6 +1608,22 @@ fn test_match_expression() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            r#"function f(r result int, string) int {
+                return match r {
+                    Ok(n) => n
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"function f(r result int, string) int {
+                return match r {
+                    Err(e) => 0
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
@@ -3558,5 +3574,101 @@ fn test_structs_listed_out_of_order() {
     for (src, expected_err) in invalid_cases {
         let err = compile_fail(src);
         assert_eq!(err, expected_err);
+    }
+}
+
+const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
+    name: ident!("cyclic_types"),
+    functions: &[],
+    structs: &[
+        ffi::Struct {
+            name: ident!("FFIFoo"),
+            fields: &[ffi::Arg {
+                name: ident!("bar"),
+                vtype: ffi::Type::Struct(ident!("FFIBar")),
+            }],
+        },
+        ffi::Struct {
+            name: ident!("FFIBar"),
+            fields: &[ffi::Arg {
+                name: ident!("foo"),
+                vtype: ffi::Type::Struct(ident!("FFIFoo")),
+            }],
+        },
+    ],
+    enums: &[],
+}];
+
+#[test]
+fn test_result_values() {
+    let invalid = [
+        // Not a result type
+        "function f() result int, string { return 0 }",
+        // Ok type mismatch
+        "function f() result int, string { return Ok(\"1\") }",
+        // Err type mismatch
+        "function f() result int, string { return Err(1) }",
+    ];
+
+    for src in invalid {
+        let result = compile_fail(src);
+        assert_eq!(
+            result,
+            CompileErrorType::InvalidType(
+                "Return value of `f()` must be result int, string".to_string(),
+            ),
+            "expected error for source: {}",
+            src
+        );
+    }
+}
+
+#[test]
+fn test_result_match() {
+    let policy_str = r#"
+        function may_fail(x int) result int, string {
+            if x > 0 {
+                return Ok(x)
+            } else {
+                return Err("negative input")
+            }
+        }
+
+        function match_statement(r result int, string) int {
+            match r {
+                Ok(v) => {
+                    return v
+                }
+                Err(e) => {
+                    return 0
+                }
+            }
+        }
+
+        function match_expr_with_return(x int) result int, string {
+            let result = match may_fail(x) {
+                Ok(v) => v
+                Err(e) => return Err(e)
+            }
+            return Ok(result)
+        }
+    "#;
+
+    compile_pass(policy_str);
+
+    let invalid = [(
+        r#"
+        function match_duplicate_arms(r result int, string) int {
+            return match r {
+                Ok(v) => v
+                Ok(v) => v
+                _ => 0
+            }
+        }"#,
+        CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+    )];
+    for (src, expected) in invalid {
+        let err_type = compile_fail(src);
+        assert_eq!(err_type, expected);
     }
 }

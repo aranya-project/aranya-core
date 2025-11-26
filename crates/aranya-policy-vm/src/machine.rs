@@ -11,7 +11,7 @@ use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
-    ModuleData, ModuleV0, Target, UnsupportedVersion, named::NamedMap,
+    ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -974,6 +974,43 @@ where
                 }
             }
             Instruction::Meta(_m) => {}
+            Instruction::Wrap(wrap_type) => {
+                match wrap_type {
+                    WrapType::Some => {
+                        // Optional values are not wrapped at the moment, so do nothing.
+                    }
+                    WrapType::Ok | WrapType::Err => {
+                        // Replace top of stack with wrapped value
+                        let value = self.ipop_value()?;
+                        let wrapped = match wrap_type {
+                            WrapType::Ok => Value::Ok(Box::new(value)),
+                            WrapType::Err => Value::Err(Box::new(value)),
+                            WrapType::Some => unreachable!(),
+                        };
+                        self.ipush(wrapped)?;
+                    }
+                }
+            }
+            Instruction::IsOk => {
+                let value = self.ipop_value()?;
+                let is_ok = matches!(value, Value::Ok(_));
+                self.ipush(value)?; // Put the value back
+                self.ipush(Value::Bool(is_ok))?;
+            }
+            Instruction::Unwrap => {
+                let value = self.ipop_value()?;
+                let inner = match value {
+                    Value::Ok(inner) | Value::Err(inner) => *inner,
+                    _ => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Result (Ok or Err)",
+                            value.type_name(),
+                            "Unwrap instruction only works on Result types (for now)",
+                        )));
+                    }
+                };
+                self.ipush(inner)?;
+            }
             Instruction::Cast(identifier) => {
                 let value = self.ipop_value()?;
                 match value {
