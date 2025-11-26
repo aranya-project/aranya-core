@@ -939,26 +939,22 @@ impl ChunkParser<'_> {
 
                     // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
                     let pattern = if values.len() == 1 {
-                        if let ExprKind::FunctionCall(fc) = &values[0].kind {
-                            if fc.identifier.name.as_str() == "Ok" && fc.arguments.len() == 1 {
-                                if let ExprKind::Identifier(id) = &fc.arguments[0].kind {
+                        match &values[0].kind {
+                            ExprKind::ResultOk(inner) => {
+                                if let ExprKind::Identifier(id) = &inner.kind {
                                     MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
                                 } else {
                                     MatchPattern::Values(values)
                                 }
-                            } else if fc.identifier.name.as_str() == "Err"
-                                && fc.arguments.len() == 1
-                            {
-                                if let ExprKind::Identifier(id) = &fc.arguments[0].kind {
+                            }
+                            ExprKind::ResultErr(inner) => {
+                                if let ExprKind::Identifier(id) = &inner.kind {
                                     MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
                                 } else {
                                     MatchPattern::Values(values)
                                 }
-                            } else {
-                                MatchPattern::Values(values)
                             }
-                        } else {
-                            MatchPattern::Values(values)
+                            _ => MatchPattern::Values(values),
                         }
                     } else {
                         MatchPattern::Values(values)
@@ -1206,7 +1202,29 @@ impl ChunkParser<'_> {
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    MatchPattern::Values(values)
+                    // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
+                    let pattern = if values.len() == 1 {
+                        match &values[0].kind {
+                            ExprKind::ResultOk(inner) => {
+                                if let ExprKind::Identifier(id) = &inner.kind {
+                                    MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
+                                } else {
+                                    MatchPattern::Values(values)
+                                }
+                            }
+                            ExprKind::ResultErr(inner) => {
+                                if let ExprKind::Identifier(id) = &inner.kind {
+                                    MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
+                                } else {
+                                    MatchPattern::Values(values)
+                                }
+                            }
+                            _ => MatchPattern::Values(values),
+                        }
+                    } else {
+                        MatchPattern::Values(values)
+                    };
+                    pattern
                 }
                 _ => {
                     return Err(ParseError::new(
