@@ -862,13 +862,12 @@ fn test_match_expression_with_return() {
 #[test]
 fn test_result_pattern_match() {
     let src = r#"
-        function foo() result int, int {
-            let n = Ok(42)
-            let x = match n {
-                Ok(42) => 42
-                Err(e) => return -1
+        function foo(r result int, string) int {
+            let x = match r {
+                Ok(val) => val
+                Err(err) => -1
             }
-            return Ok(42)
+            return x
         }
     "#;
 

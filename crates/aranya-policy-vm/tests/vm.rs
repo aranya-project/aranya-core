@@ -2600,3 +2600,98 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_result() -> anyhow::Result<()> {
+    let text = r#"
+        enum Err {
+            Fail
+        }
+
+        effect Result {
+            r result int, enum Err
+        }
+
+        command DoWork {
+            fields {
+                succeed bool
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                let e = match try(this.succeed) {
+                    Ok(v) => Result { r: Ok(v) }
+                    Err(e) => Result { r: Err(e) }
+                }
+                finish {
+                    emit e
+                }
+            }
+        }
+        
+        function try(succeed bool) result int, enum Err {
+            // error propagation is done explicilty, until we have `?` operator
+            return match try_return(succeed) {
+                Ok(n) => Ok(n)
+                _ => Err(Err::Fail)
+            }
+        }
+
+        function try_return(succeed bool) result int, enum Err {
+            let r = match succeed {
+                true => Ok(42)
+                false => return Err(Err::Fail) // early return from match
+            }
+            return r
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    // Test with succeed=true, should emit Ok(42)
+    {
+        let name = ident!("DoWork");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(true))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.borrow().effect_stack[0],
+            (
+                ident!("Result"),
+                vec![KVPair::new(
+                    ident!("r"),
+                    Value::Ok(Box::new(Value::Int(42)))
+                ),]
+            )
+        );
+    }
+
+    // Test with succeed=false, should emit Err(Err::Fail)
+    {
+        let name = ident!("DoWork");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(false))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.borrow().effect_stack[1],
+            (
+                ident!("Result"),
+                vec![KVPair::new(
+                    ident!("r"),
+                    Value::Err(Box::new(Value::Enum(ident!("Err"), 0)))
+                ),]
+            )
+        );
+    }
+
+    Ok(())
+}
