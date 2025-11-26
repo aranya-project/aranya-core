@@ -236,6 +236,7 @@ impl Spanned for VType {
         __C::Error: rkyv::rancor::Source,
     )
 ))]
+#[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
 pub enum TypeKind {
     /// A character (UTF-8) string
     String,
@@ -295,9 +296,16 @@ impl TypeKind {
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
             (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
-            (Self::Result { ok: lhs_ok, err: lhs_err }, Self::Result { ok: rhs_ok, err: rhs_err }) => {
-                lhs_ok.kind.fits_type(&rhs_ok.kind) && lhs_err.kind.fits_type(&rhs_err.kind)
-            }
+            (
+                Self::Result {
+                    ok: lhs_ok,
+                    err: lhs_err,
+                },
+                Self::Result {
+                    ok: rhs_ok,
+                    err: rhs_err,
+                },
+            ) => lhs_ok.kind.fits_type(&rhs_ok.kind) && lhs_err.kind.fits_type(&rhs_err.kind),
             _ => false,
         }
     }
@@ -686,7 +694,7 @@ pub struct CheckStatement {
 }
 
 /// Result pattern for matching Ok(x) or Err(e)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResultPattern {
     /// Match Ok(identifier)
     Ok(Ident),
