@@ -1,6 +1,9 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned as _, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{
+    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec,
+    vec::Vec,
+};
 use core::fmt::{self, Display};
 
 pub use aranya_id::BaseId;
@@ -135,6 +138,10 @@ pub enum Value {
     Identifier(Identifier),
     /// Empty optional value
     None,
+    /// Result Ok value
+    Ok(#[rkyv(omit_bounds)] Box<Value>),
+    /// Result Err value
+    Err(#[rkyv(omit_bounds)] Box<Value>),
 }
 
 /// Trait for converting from a [`Value`], similar to [`TryFrom<Value>`].
@@ -206,6 +213,8 @@ impl Value {
             Self::Enum(name, _) => format!("Enum {}", name),
             Self::Identifier(_) => String::from("Identifier"),
             Self::None => String::from("None"),
+            Self::Ok(_) => String::from("Ok"),
+            Self::Err(_) => String::from("Err"),
         }
     }
 
@@ -234,6 +243,8 @@ impl Value {
             (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.name,
             (Self::Id(_), TypeKind::Id) => true,
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            (Self::Ok(inner), TypeKind::Result { ok, .. }) => inner.fits_type(ok),
+            (Self::Err(inner), TypeKind::Result { err, .. }) => inner.fits_type(err),
             _ => false,
         }
     }
@@ -509,6 +520,8 @@ impl Display for Value {
             Self::Enum(name, value) => write!(f, "{name}::{value}"),
             Self::Identifier(name) => write!(f, "{name}"),
             Self::None => write!(f, "None"),
+            Self::Ok(v) => write!(f, "Ok({})", v),
+            Self::Err(v) => write!(f, "Err({})", v),
         }
     }
 }
