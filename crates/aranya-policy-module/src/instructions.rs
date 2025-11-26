@@ -93,6 +93,38 @@ impl Display for Target {
     }
 }
 
+/// Type of value wrapping
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub enum WrapType {
+    /// Wrap in Result::Ok
+    Ok,
+    /// Wrap in Result::Err
+    Err,
+    /// Wrap in Option::Some (for future use)
+    Some,
+}
+
+impl Display for WrapType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ok => f.write_str("ok"),
+            Self::Err => f.write_str("err"),
+            Self::Some => f.write_str("some"),
+        }
+    }
+}
+
 /// The machine instruction types
 #[derive(
     Debug,
@@ -175,6 +207,12 @@ pub enum Instruction {
     MStructGet(NonZeroUsize),
     /// Cast previous stack value to given type
     Cast(Identifier),
+    /// Wrap the value on top of the stack (Ok, Err, or Some)
+    Wrap(WrapType),
+    /// Check if the value on top of the stack is Ok (pushes bool)
+    IsOk,
+    /// Unwrap the inner value from a Result (Ok or Err). Will eventually support Optional (Some) as well.
+    Unwrap,
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -244,6 +282,10 @@ impl Display for Instruction {
             Self::StructGet(ident) => write!(f, "struct.get {ident}"),
             Self::MStructGet(n) => write!(f, "mstruct.get {n}"),
             Self::MStructSet(n) => write!(f, "mstruct.set {n}"),
+            Self::Cast(ident) => write!(f, "cast {ident}"),
+            Self::Wrap(wrap_type) => write!(f, "wrap {wrap_type}"),
+            Self::IsOk => write!(f, "is_ok"),
+            Self::Unwrap => write!(f, "unwrap"),
             Self::Publish => write!(f, "publish"),
             Self::Create => write!(f, "create"),
             Self::Delete => write!(f, "delete"),
@@ -260,7 +302,6 @@ impl Display for Instruction {
             Self::Some => write!(f, "some"),
             Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),
-            Self::Cast(identifier) => write!(f, "cast {identifier}"),
         }
     }
 }

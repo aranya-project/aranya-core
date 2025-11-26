@@ -235,6 +235,26 @@ pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyEr
                 span: aranya_policy_ast::Span::empty(), // TODO
             })
         }
+        (
+            TypeKind::Result {
+                ok: left_ok,
+                err: left_err,
+            },
+            TypeKind::Result {
+                ok: right_ok,
+                err: right_err,
+            },
+        ) => {
+            let ok = unify_pair(left_ok.as_ref().clone(), right_ok.as_ref().clone())?;
+            let err = unify_pair(left_err.as_ref().clone(), right_err.as_ref().clone())?;
+            Ok(VType {
+                kind: TypeKind::Result {
+                    ok: Box::new(ok),
+                    err: Box::new(err),
+                },
+                span: aranya_policy_ast::Span::empty(), // TODO
+            })
+        }
         (_, _) => {
             if left.matches(&right) {
                 Ok(left)
