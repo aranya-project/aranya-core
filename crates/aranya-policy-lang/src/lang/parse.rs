@@ -938,7 +938,7 @@ impl ChunkParser<'_> {
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
-                    let pattern = if values.len() == 1 {
+                    if values.len() == 1 {
                         match &values[0].kind {
                             ExprKind::ResultOk(inner) => {
                                 if let ExprKind::Identifier(id) = &inner.kind {
@@ -958,8 +958,7 @@ impl ChunkParser<'_> {
                         }
                     } else {
                         MatchPattern::Values(values)
-                    };
-                    pattern
+                    }
                 }
                 _ => {
                     return Err(ParseError::new(
@@ -1203,7 +1202,7 @@ impl ChunkParser<'_> {
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
-                    let pattern = if values.len() == 1 {
+                    if values.len() == 1 {
                         match &values[0].kind {
                             ExprKind::ResultOk(inner) => {
                                 if let ExprKind::Identifier(id) = &inner.kind {
@@ -1223,8 +1222,7 @@ impl ChunkParser<'_> {
                         }
                     } else {
                         MatchPattern::Values(values)
-                    };
-                    pattern
+                    }
                 }
                 _ => {
                     return Err(ParseError::new(

@@ -2,8 +2,7 @@ extern crate alloc;
 
 use alloc::{
     
-    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec,
-    vec::Vec,
+    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
 ,
 };
 use core::fmt::{self, Display};
