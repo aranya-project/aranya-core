@@ -20,29 +20,46 @@ expression: policy
           "end": 21
         }
       },
-      "arguments": [],
-      "return_type": {
-        "kind": {
-          "Result": {
-            "ok": {
-              "kind": "Int",
-              "span": {
-                "start": 31,
-                "end": 34
+      "arguments": [
+        {
+          "identifier": {
+            "name": "r",
+            "span": {
+              "start": 22,
+              "end": 23
+            }
+          },
+          "field_type": {
+            "kind": {
+              "Result": {
+                "ok": {
+                  "kind": "Int",
+                  "span": {
+                    "start": 31,
+                    "end": 34
+                  }
+                },
+                "err": {
+                  "kind": "String",
+                  "span": {
+                    "start": 36,
+                    "end": 42
+                  }
+                }
               }
             },
-            "err": {
-              "kind": "Int",
-              "span": {
-                "start": 36,
-                "end": 39
-              }
+            "span": {
+              "start": 24,
+              "end": 42
             }
           }
-        },
+        }
+      ],
+      "return_type": {
+        "kind": "Int",
         "span": {
-          "start": 24,
-          "end": 39
+          "start": 44,
+          "end": 47
         }
       },
       "statements": [
@@ -50,44 +67,10 @@ expression: policy
           "kind": {
             "Let": {
               "identifier": {
-                "name": "n",
-                "span": {
-                  "start": 58,
-                  "end": 59
-                }
-              },
-              "expression": {
-                "kind": {
-                  "ResultOk": {
-                    "kind": {
-                      "Int": 42
-                    },
-                    "span": {
-                      "start": 65,
-                      "end": 67
-                    }
-                  }
-                },
-                "span": {
-                  "start": 62,
-                  "end": 68
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 54,
-            "end": 81
-          }
-        },
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
                 "name": "x",
                 "span": {
-                  "start": 85,
-                  "end": 86
+                  "start": 66,
+                  "end": 67
                 }
               },
               "expression": {
@@ -96,118 +79,90 @@ expression: policy
                     "scrutinee": {
                       "kind": {
                         "Identifier": {
-                          "name": "n",
+                          "name": "r",
                           "span": {
-                            "start": 95,
-                            "end": 96
+                            "start": 76,
+                            "end": 77
                           }
                         }
                       },
                       "span": {
-                        "start": 95,
-                        "end": 96
+                        "start": 76,
+                        "end": 77
                       }
                     },
                     "arms": [
                       {
                         "pattern": {
-                          "Values": [
-                            {
-                              "kind": {
-                                "ResultOk": {
-                                  "kind": {
-                                    "Int": 42
-                                  },
-                                  "span": {
-                                    "start": 118,
-                                    "end": 120
-                                  }
-                                }
-                              },
+                          "ResultPattern": {
+                            "Ok": {
+                              "name": "val",
                               "span": {
-                                "start": 115,
-                                "end": 121
+                                "start": 99,
+                                "end": 102
                               }
                             }
-                          ]
+                          }
                         },
                         "expression": {
                           "kind": {
-                            "Int": 42
+                            "Identifier": {
+                              "name": "val",
+                              "span": {
+                                "start": 107,
+                                "end": 110
+                              }
+                            }
                           },
                           "span": {
-                            "start": 125,
-                            "end": 127
+                            "start": 107,
+                            "end": 110
                           }
                         },
                         "span": {
-                          "start": 115,
-                          "end": 144
+                          "start": 96,
+                          "end": 127
                         }
                       },
                       {
                         "pattern": {
-                          "Values": [
-                            {
-                              "kind": {
-                                "ResultErr": {
-                                  "kind": {
-                                    "Identifier": {
-                                      "name": "e",
-                                      "span": {
-                                        "start": 148,
-                                        "end": 149
-                                      }
-                                    }
-                                  },
-                                  "span": {
-                                    "start": 148,
-                                    "end": 149
-                                  }
-                                }
-                              },
+                          "ResultPattern": {
+                            "Err": {
+                              "name": "err",
                               "span": {
-                                "start": 144,
-                                "end": 150
+                                "start": 131,
+                                "end": 134
                               }
                             }
-                          ]
+                          }
                         },
                         "expression": {
                           "kind": {
-                            "Return": {
-                              "kind": {
-                                "Int": -1
-                              },
-                              "span": {
-                                "start": 161,
-                                "end": 163
-                              }
-                            }
+                            "Int": -1
                           },
                           "span": {
-                            "start": 154,
-                            "end": 176
+                            "start": 139,
+                            "end": 141
                           }
                         },
                         "span": {
-                          "start": 144,
-                          "end": 176
+                          "start": 127,
+                          "end": 154
                         }
                       }
                     ]
                   }
                 },
                 "span": {
-                  "start": 89,
-                  "end": 177
+                  "start": 70,
+                  "end": 155
                 }
               }
             }
           },
           "span": {
-            "start": 81,
-            "end": 190
+            "start": 62,
+            "end": 168
           }
         },
         {
@@ -216,41 +171,39 @@ expression: policy
               "kind": {
                 "Return": {
                   "kind": {
-                    "ResultOk": {
-                      "kind": {
-                        "Int": 42
-                      },
+                    "Identifier": {
+                      "name": "x",
                       "span": {
-                        "start": 200,
-                        "end": 202
+                        "start": 175,
+                        "end": 176
                       }
                     }
                   },
                   "span": {
-                    "start": 197,
-                    "end": 203
+                    "start": 175,
+                    "end": 176
                   }
                 }
               },
               "span": {
-                "start": 190,
-                "end": 212
+                "start": 168,
+                "end": 185
               }
             }
           },
           "span": {
-            "start": 190,
-            "end": 212
+            "start": 168,
+            "end": 185
           }
         }
       ],
       "span": {
         "start": 9,
-        "end": 213
+        "end": 186
       }
     }
   ],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n        function foo() result int, int {\n            let n = Ok(42)\n            let x = match n {\n                Ok(42) => 42\n                Err(e) => return -1\n            }\n            return Ok(42)\n        }\n    "
+  "text": "\n        function foo(r result int, string) int {\n            let x = match r {\n                Ok(val) => val\n                Err(err) => -1\n            }\n            return x\n        }\n    "
 }
