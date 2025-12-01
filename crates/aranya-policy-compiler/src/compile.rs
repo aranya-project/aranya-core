@@ -967,7 +967,11 @@ impl<'a> CompileState<'a> {
                     f.module.name.clone(),
                     f.identifier.name.clone(),
                 )));
+
                 if self.stub_ffi {
+                    for arg_e in &f.arguments {
+                        let _arg_ty = self.compile_expression(arg_e)?;
+                    }
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                     VType {
                         kind: TypeKind::Never,
