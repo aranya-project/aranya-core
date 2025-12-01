@@ -49,17 +49,21 @@ struct FunctionSignature {
 
 /// Create a `(Identifier, FunctionSignature)` from a policy function declaration.
 macro_rules! sig {
-    (function $func:ident($($argname:ident $($argtype:ident)+),*) $($ret:ident)+) => {
+    (
+        function $func:ident(
+            $($argname:ident $($argty0:ident $($argty1:ident)? $([ $($argty_tt:tt)+ ])?)?),*
+        ) $($ret0:ident $($ret1:ident)? $([ $($ret_tt:tt)+ ])?)?
+    ) => {
         (
             ident!(stringify!($func)),
             FunctionSignature {
                 args: vec![$(
                     (
                         ident!(stringify!($argname)),
-                        vtype!($($argtype)+)
+                        vtype!($($argty0 $($argty1)? $([ $($argty_tt)+ ])?)?)
                     )
                 ),*],
-                color: FunctionColor::Pure(vtype!($($ret)+)),
+                color: FunctionColor::Pure(vtype!($($ret0 $($ret1)? $([ $($ret_tt)+ ])?)?)),
             }
         )
     };
@@ -102,7 +106,7 @@ macro_rules! typekind {
             span: Span::empty(),
         })
     };
-    (optional $inner:ident) => {
+    (option [ $inner:ident ]) => {
         TypeKind::Optional(Box::new(vtype!($inner)))
     };
 }
@@ -2924,7 +2928,7 @@ impl<'a> CompileState<'a> {
     fn define_builtins(&mut self) -> Result<(), CompileError> {
         self.define_builtin(
             sig! {
-                function add(x int, y int) optional int
+                function add(x int, y int) option[int]
             },
             |this| {
                 this.append_instruction(Instruction::Add);
@@ -2944,7 +2948,7 @@ impl<'a> CompileState<'a> {
 
         self.define_builtin(
             sig! {
-                function sub(x int, y int) optional int
+                function sub(x int, y int) option[int]
             },
             |this| {
                 this.append_instruction(Instruction::Sub);

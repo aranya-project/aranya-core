@@ -211,22 +211,22 @@ expression: policy
     {
       "persistence": {
         "Ephemeral": {
-          "start": 2378,
-          "end": 2387
+          "start": 2377,
+          "end": 2386
         }
       },
       "identifier": {
         "name": "a",
         "span": {
-          "start": 2395,
-          "end": 2396
+          "start": 2394,
+          "end": 2395
         }
       },
       "arguments": [],
       "statements": [],
       "span": {
-        "start": 2378,
-        "end": 2401
+        "start": 2377,
+        "end": 2400
       }
     }
   ],
@@ -1715,16 +1715,16 @@ expression: policy
     {
       "persistence": {
         "Ephemeral": {
-          "start": 2280,
-          "end": 2289
+          "start": 2279,
+          "end": 2288
         }
       },
       "attributes": [],
       "identifier": {
         "name": "C",
         "span": {
-          "start": 2298,
-          "end": 2299
+          "start": 2297,
+          "end": 2298
         }
       },
       "fields": [
@@ -1733,15 +1733,15 @@ expression: policy
             "identifier": {
               "name": "x",
               "span": {
-                "start": 2339,
-                "end": 2340
+                "start": 2338,
+                "end": 2339
               }
             },
             "field_type": {
               "kind": "Int",
               "span": {
-                "start": 2341,
-                "end": 2344
+                "start": 2340,
+                "end": 2343
               }
             }
           }
@@ -1752,8 +1752,8 @@ expression: policy
       "policy": [],
       "recall": [],
       "span": {
-        "start": 2280,
-        "end": 2368
+        "start": 2279,
+        "end": 2367
       }
     }
   ],
@@ -1780,14 +1780,14 @@ expression: policy
               "Optional": {
                 "kind": "Int",
                 "span": {
-                  "start": 2072,
-                  "end": 2075
+                  "start": 2070,
+                  "end": 2073
                 }
               }
             },
             "span": {
               "start": 2063,
-              "end": 2075
+              "end": 2074
             }
           }
         }
@@ -1795,8 +1795,8 @@ expression: policy
       "return_type": {
         "kind": "Bool",
         "span": {
-          "start": 2077,
-          "end": 2081
+          "start": 2076,
+          "end": 2080
         }
       },
       "statements": [
@@ -1806,8 +1806,8 @@ expression: policy
               "identifier": {
                 "name": "x",
                 "span": {
-                  "start": 2100,
-                  "end": 2101
+                  "start": 2099,
+                  "end": 2100
                 }
               },
               "expression": {
@@ -1817,27 +1817,27 @@ expression: policy
                       "Identifier": {
                         "name": "v",
                         "span": {
-                          "start": 2111,
-                          "end": 2112
+                          "start": 2110,
+                          "end": 2111
                         }
                       }
                     },
                     "span": {
-                      "start": 2111,
-                      "end": 2112
+                      "start": 2110,
+                      "end": 2111
                     }
                   }
                 },
                 "span": {
-                  "start": 2104,
-                  "end": 2112
+                  "start": 2103,
+                  "end": 2111
                 }
               }
             }
           },
           "span": {
-            "start": 2096,
-            "end": 2125
+            "start": 2095,
+            "end": 2124
           }
         },
         {
@@ -1851,14 +1851,14 @@ expression: policy
                         "Identifier": {
                           "name": "x",
                           "span": {
-                            "start": 2132,
-                            "end": 2133
+                            "start": 2131,
+                            "end": 2132
                           }
                         }
                       },
                       "span": {
-                        "start": 2132,
-                        "end": 2133
+                        "start": 2131,
+                        "end": 2132
                       }
                     },
                     {
@@ -1866,28 +1866,28 @@ expression: policy
                         "Int": 0
                       },
                       "span": {
-                        "start": 2136,
-                        "end": 2137
+                        "start": 2135,
+                        "end": 2136
                       }
                     }
                   ]
                 },
                 "span": {
-                  "start": 2132,
-                  "end": 2137
+                  "start": 2131,
+                  "end": 2136
                 }
               }
             }
           },
           "span": {
-            "start": 2125,
-            "end": 2146
+            "start": 2124,
+            "end": 2145
           }
         }
       ],
       "span": {
         "start": 2043,
-        "end": 2147
+        "end": 2146
       }
     }
   ],
@@ -1896,8 +1896,8 @@ expression: policy
       "identifier": {
         "name": "next",
         "span": {
-          "start": 2173,
-          "end": 2177
+          "start": 2172,
+          "end": 2176
         }
       },
       "arguments": [
@@ -1905,15 +1905,15 @@ expression: policy
           "identifier": {
             "name": "x",
             "span": {
-              "start": 2178,
-              "end": 2179
+              "start": 2177,
+              "end": 2178
             }
           },
           "field_type": {
             "kind": "Int",
             "span": {
-              "start": 2180,
-              "end": 2183
+              "start": 2179,
+              "end": 2182
             }
           }
         }
@@ -1926,8 +1926,8 @@ expression: policy
                 "identifier": {
                   "name": "Next",
                   "span": {
-                    "start": 2206,
-                    "end": 2210
+                    "start": 2205,
+                    "end": 2209
                   }
                 },
                 "key_fields": [],
@@ -1936,17 +1936,17 @@ expression: policy
             }
           },
           "span": {
-            "start": 2199,
-            "end": 2216
+            "start": 2198,
+            "end": 2215
           }
         }
       ],
       "span": {
-        "start": 2157,
-        "end": 2226
+        "start": 2156,
+        "end": 2225
       }
     }
   ],
   "global_lets": [],
-  "text": "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    "
+  "text": "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v option[int]) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    "
 }

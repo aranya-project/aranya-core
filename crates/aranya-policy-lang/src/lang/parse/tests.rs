@@ -614,7 +614,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             }
         }
 
-        function positive(v optional int) bool {
+        function positive(v option[int]) bool {
             let x = unwrap v
             return x > 0
         }
