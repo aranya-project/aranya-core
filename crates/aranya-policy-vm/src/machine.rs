@@ -319,6 +319,8 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     pub stack: MachineStack,
     /// The call state stack - stores return addresses
     call_state: Vec<usize>,
+    /// Saves stack lengths for restoration upon return
+    stack_state: Vec<usize>,
     /// The program counter
     pc: usize,
     /// I/O callbacks
@@ -341,7 +343,8 @@ where
             machine,
             scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(HVec::new()),
-            call_state: vec![],
+            call_state: Vec::new(),
+            stack_state: Vec::new(),
             pc: 0,
             io,
             ctx,
@@ -504,6 +507,33 @@ where
         let instruction = self.machine.progmem[self.pc()].clone();
 
         match instruction {
+            Instruction::SaveSP => {
+                self.stack_state.push(self.stack.len());
+            }
+            Instruction::RestoreSP => {
+                let saved_sp = self.stack_state.pop().ok_or_else(|| {
+                    self.err(MachineErrorType::BadState("no saved stack pointer"))
+                })?;
+                match self
+                    .stack
+                    .len()
+                    .cmp(&saved_sp.checked_add(1).assume("stack size < isize::MAX")?)
+                {
+                    core::cmp::Ordering::Less => {
+                        return Err(self.err(MachineErrorType::BadState(
+                            "callable has consumed too many stack values",
+                        )));
+                    }
+                    core::cmp::Ordering::Equal => {}
+                    core::cmp::Ordering::Greater => {
+                        let v = self.stack.pop_value()?;
+                        while self.stack.len() > saved_sp {
+                            self.stack.pop_value()?;
+                        }
+                        self.stack.push_value(v)?;
+                    }
+                };
+            }
             Instruction::Const(v) => {
                 self.ipush(v)?;
             }

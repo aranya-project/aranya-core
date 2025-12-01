@@ -1033,11 +1033,8 @@ impl<'a> CompileState<'a> {
             ExprKind::Return(ret_expr) => {
                 let ctx = self.get_statement_context()?;
                 let StatementContext::PureFunction(fd) = ctx else {
-                    return Err(self.err(CompileErrorType::Unknown(
-                        "cannot return outside of function".into(),
-                    ))); // TODO(jdygert): Better variant?
+                    return Err(self.err(CompileErrorType::InvalidExpression(expression.clone())));
                 };
-                // TODO: Pop stuff.
                 // ensure return expression type matches function signature
                 let et = self.compile_expression(ret_expr)?;
                 if !et.fits_type(&fd.return_type) {
@@ -1047,6 +1044,7 @@ impl<'a> CompileState<'a> {
                         DisplayType(&fd.return_type)
                     ))));
                 }
+                self.append_instruction(Instruction::RestoreSP);
                 self.append_instruction(Instruction::Return);
                 VType {
                     kind: TypeKind::Never,
@@ -1584,6 +1582,7 @@ impl<'a> CompileState<'a> {
                             DisplayType(&fd.return_type)
                         ))));
                     }
+                    self.append_instruction(Instruction::RestoreSP);
                     self.append_instruction(Instruction::Return);
                 }
                 (
@@ -1959,8 +1958,9 @@ impl<'a> CompileState<'a> {
             self.ensure_type_is_defined(&arg.field_type)?;
             self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
         }
-        let from = self.wp;
         self.ensure_type_is_defined(&function_node.return_type)?;
+        self.append_instruction(Instruction::SaveSP);
+        let from = self.wp;
         self.compile_statements(&function_node.statements, Scope::Same)?;
 
         // Check that there is a return statement somewhere in the compiled instructions.
@@ -2290,6 +2290,7 @@ impl<'a> CompileState<'a> {
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("this")));
+        self.append_instruction(Instruction::SaveSP);
         let from = self.wp;
         self.compile_statements(&command.seal, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
@@ -2353,6 +2354,7 @@ impl<'a> CompileState<'a> {
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
+        self.append_instruction(Instruction::SaveSP);
         let from = self.wp;
         self.compile_statements(&command.open, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
