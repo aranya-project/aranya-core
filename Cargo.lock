@@ -392,9 +392,6 @@ dependencies = [
  "ciborium",
  "clap",
  "indexmap",
- "rkyv",
- "serde",
- "serde_derive",
  "thiserror 2.0.7",
  "tracing",
 ]
