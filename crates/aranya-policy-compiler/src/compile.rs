@@ -2022,6 +2022,7 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Define an action function
     fn define_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         let mut params = NamedMap::new();
         for param in &action_node.arguments {
