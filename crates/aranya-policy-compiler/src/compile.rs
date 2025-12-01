@@ -2219,13 +2219,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.seal.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the seal block
         let seal_function_definition = ast::FunctionDefinition {
             identifier: Ident {
@@ -2284,13 +2277,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.open.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the open block
         let open_function_definition = ast::FunctionDefinition {
             identifier: Ident {
