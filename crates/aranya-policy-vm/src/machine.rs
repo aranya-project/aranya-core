@@ -1,6 +1,7 @@
 extern crate alloc;
 
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
     string::{String, ToString as _},
     vec,
@@ -593,10 +594,7 @@ where
                     _ => unreachable!(),
                 };
                 // Checked operations return Optional<Int>
-                match r {
-                    Some(value) => self.ipush(value)?,
-                    None => self.ipush(Value::None)?,
-                }
+                self.ipush(r)?;
             }
             Instruction::SaturatingAdd | Instruction::SaturatingSub => {
                 let b: i64 = self.ipop()?;
@@ -842,17 +840,13 @@ where
                         Err(e) => Some(Err(e)),
                     })
                 };
-                match result {
-                    Some(r) => {
-                        let f = r?;
-                        let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
-                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
-                        let s = Struct::new(qf.name, fields);
-                        self.ipush(s)?;
-                    }
-                    None => self.ipush(Value::None)?,
-                }
+                let maybe_fact = result.transpose()?.map(|f| {
+                    let mut fields: Vec<KVPair> = vec![];
+                    fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                    fields.append(&mut f.1.into_iter().map(Into::into).collect());
+                    Struct::new(qf.name, fields)
+                });
+                self.ipush(maybe_fact)?;
             }
             Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
@@ -971,6 +965,26 @@ where
                     ));
                 }
                 self.ipush(s)?;
+            }
+            Instruction::Some => {
+                let value = self.ipop_value()?;
+                self.ipush(Value::Option(Some(Box::new(value))))?;
+            }
+            Instruction::Unwrap => {
+                let value = self.ipop_value()?;
+                if let Value::Option(opt) = value {
+                    if let Some(inner) = opt {
+                        self.ipush(*inner)?;
+                    } else {
+                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
+                    }
+                } else {
+                    return Err(self.err(MachineErrorType::invalid_type(
+                        "Option[_]",
+                        value.type_name(),
+                        "Option[T] -> T",
+                    )));
+                }
             }
             Instruction::Meta(_m) => {}
             Instruction::Cast(identifier) => {

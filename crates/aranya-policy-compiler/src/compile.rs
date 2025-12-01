@@ -748,13 +748,17 @@ impl<'a> CompileState<'a> {
             ExprKind::Optional(o) => {
                 let inner = match o {
                     None => {
-                        self.append_instruction(Instruction::Const(Value::None));
+                        self.append_instruction(Instruction::Const(Value::NONE));
                         VType {
                             kind: TypeKind::Never,
                             span: Span::empty(),
                         }
                     }
-                    Some(v) => self.compile_expression(v)?,
+                    Some(v) => {
+                        let ty = self.compile_expression(v)?;
+                        self.append_instruction(Instruction::Some);
+                        ty
+                    }
                 };
                 if matches!(inner.kind, TypeKind::Optional(_)) {
                     return Err(self.err(CompileErrorType::InvalidType(
@@ -786,7 +790,7 @@ impl<'a> CompileState<'a> {
                     self.verify_fact_against_schema(f, false)?;
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
-                    self.append_instruction(Instruction::Const(Value::None));
+                    self.append_instruction(Instruction::Const(Value::NONE));
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
 
@@ -1354,7 +1358,7 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::None));
+                self.append_instruction(Instruction::Const(Value::NONE));
                 // Check if the value is equal to None
                 self.append_instruction(Instruction::Eq);
                 if *expr_is_some {
@@ -2128,7 +2132,7 @@ impl<'a> CompileState<'a> {
         // Duplicate value for testing
         self.append_instruction(Instruction::Dup);
         // Push a None to compare against
-        self.append_instruction(Instruction::Const(Value::None));
+        self.append_instruction(Instruction::Const(Value::NONE));
         // Is the value not equal to None?
         self.append_instruction(Instruction::Eq);
         self.append_instruction(Instruction::Not);
@@ -2138,6 +2142,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(exit_reason));
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
+        self.append_instruction(Instruction::Unwrap);
 
         match inner_type {
             VType {

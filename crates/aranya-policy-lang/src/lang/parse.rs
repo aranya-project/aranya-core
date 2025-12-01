@@ -212,14 +212,6 @@ impl ChunkParser<'_> {
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
-        self.parse_type_inner(token, true)
-    }
-
-    fn parse_type_inner(
-        &self,
-        token: Pair<'_, Rule>,
-        accept_option: bool,
-    ) -> Result<VType, ParseError> {
         let span = self.to_ast_span(token.as_span())?;
         let kind = match token.as_rule() {
             Rule::string_t => TypeKind::String,
@@ -238,13 +230,6 @@ impl ChunkParser<'_> {
                 TypeKind::Enum(name)
             }
             Rule::optional_t => {
-                if !accept_option {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidType,
-                        String::from("cannot nest optional"),
-                        Some(token.as_span()),
-                    ));
-                }
                 if token.as_str().starts_with("optional") {
                     use std::sync::atomic::AtomicBool;
                     static WARNED: AtomicBool = AtomicBool::new(false);
@@ -262,7 +247,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let inner_type = self.parse_type_inner(token, false)?;
+                let inner_type = self.parse_type(token)?;
                 TypeKind::Optional(Box::new(inner_type))
             }
             _ => {
