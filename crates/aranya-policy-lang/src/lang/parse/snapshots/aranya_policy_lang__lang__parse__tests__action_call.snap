@@ -2,69 +2,39 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: policy
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [],
-  "actions": [
-    {
-      "persistence": "Persistent",
-      "identifier": {
-        "name": "ping",
-        "span": {
-          "start": 12,
-          "end": 16
-        }
-      },
-      "arguments": [],
-      "statements": [],
-      "span": {
-        "start": 5,
-        "end": 21
-      }
-    },
-    {
-      "persistence": "Persistent",
-      "identifier": {
-        "name": "pong",
-        "span": {
-          "start": 33,
-          "end": 37
-        }
-      },
-      "arguments": [],
-      "statements": [
-        {
-          "kind": {
-            "ActionCall": {
-              "identifier": {
-                "name": "ping",
-                "span": {
-                  "start": 57,
-                  "end": 61
-                }
-              },
-              "arguments": []
-            }
-          },
-          "span": {
-            "start": 50,
-            "end": 63
-          }
-        }
-      ],
-      "span": {
-        "start": 26,
-        "end": 69
-      }
-    }
-  ],
-  "effects": [],
-  "structs": [],
-  "enums": [],
-  "commands": [],
-  "functions": [],
-  "finish_functions": [],
-  "global_lets": [],
-  "text": "\n    action ping() {}\n    action pong() {\n        action ping()\n    }\n    "
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: "ping" @ 12..16,
+            arguments: [],
+            statements: [],
+            span: 5..21,
+        },
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: "pong" @ 33..37,
+            arguments: [],
+            statements: [
+                ActionCall(
+                    FunctionCall {
+                        identifier: "ping" @ 57..61,
+                        arguments: [],
+                    },
+                ) @ 50..63,
+            ],
+            span: 26..69,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "\n    action ping() {}\n    action pong() {\n        action ping()\n    }\n    ",
 }
