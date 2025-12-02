@@ -198,9 +198,9 @@ impl TraceAnalyzer<'_> {
                     } = jump_tracer.trace_inner(jump_pc)?;
                     for (idx, mut jf) in jump_failures.into_iter().enumerate() {
                         failures[idx].append(&mut jf);
-                        successful_branch_paths.append(&mut success_branches);
-                        successful_instruction_paths.append(&mut success_instr_paths);
                     }
+                    successful_branch_paths.append(&mut success_branches);
+                    successful_instruction_paths.append(&mut success_instr_paths);
                 }
                 Instruction::Call(t) => {
                     let next_addr = *match t {
@@ -219,9 +219,23 @@ impl TraceAnalyzer<'_> {
                     if !self.call_stack.is_empty() {
                         pc = self.call_stack.pop().expect("impossible stack");
                     }
-                    // Continue execution to allow analyzers to check for unreachable code... Unless we returned from an action (which uses a Return but doesn't return a value)
+                    // Continue execution to allow analyzers to check for unreachable code
                 }
-                Instruction::Meta(Meta::FunctionEnd) | Instruction::Exit(_) => {
+                Instruction::Meta(Meta::FunctionEnd) => {
+                    // FunctionEnd only terminates if we're at the top level (call stack is empty)
+                    // Otherwise, it's unreachable code after a return in a nested function
+                    if self.call_stack.is_empty() {
+                        successful_branch_paths.push(self.branches.clone());
+                        successful_instruction_paths.push(self.instruction_path.clone());
+                        return Ok(TraceIntermediate {
+                            failures,
+                            successful_branch_paths,
+                            successful_instruction_paths,
+                        });
+                    }
+                    // Continue to allow unreachable code detection in nested functions
+                }
+                Instruction::Exit(_) => {
                     successful_branch_paths.push(self.branches.clone());
                     successful_instruction_paths.push(self.instruction_path.clone());
                     return Ok(TraceIntermediate {
