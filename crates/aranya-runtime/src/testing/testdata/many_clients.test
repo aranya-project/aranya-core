@@ -1,0 +1,9 @@
+[
+  { 
+    "SetupClientsAndGraph": {
+      "clients": 1000, 
+      "graph": 0, 
+      "policy": 0
+    }
+  } 
+]

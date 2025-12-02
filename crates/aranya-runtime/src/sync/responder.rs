@@ -58,18 +58,26 @@ impl PeerCache {
         }
 
         let mut add_command = true;
+
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
                 .get_location(*request_head)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
-            if let Some(new_head_command) = new_head_seg.get_command(new_head) {
-                if request_head.id == new_head_command.address()?.id {
-                    add_command = false;
-                }
+            if request_head.id
+                == new_head_seg
+                    .get_command(new_head)
+                    .assume("location must exist")?
+                    .address()?
+                    .id
+            {
+                add_command = false;
             }
-            if storage.is_ancestor(new_head, &req_head_seg)? {
+            // If the new head is an ancestor of the request head, don't add it
+            if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
+                || storage.is_ancestor(new_head, &req_head_seg)?
+            {
                 add_command = false;
             }
             Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg)?)
@@ -82,6 +90,7 @@ impl PeerCache {
                 .ok()
                 .assume("command locations should not be full")?;
         }
+
         Ok(())
     }
 }

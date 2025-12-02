@@ -508,7 +508,15 @@ where
                             from: 0,
                             must_send: None,
                             must_receive: None,
-                            max_syncs: 1,
+                            max_syncs: 100000,
+                        });
+                    }
+                    for i in 1..clients {
+                        generated_actions.push(TestRule::CompareGraphs {
+                            clienta: 0,
+                            clientb: i,
+                            graph,
+                            equal: true,
                         });
                     }
                     generated_actions
@@ -1206,6 +1214,7 @@ test_vectors! {
     large_sync,
     list_multiple_graph_ids,
     many_branches,
+    many_clients,
     max_cut,
     missing_parent_after_sync,
     remove_graph,
