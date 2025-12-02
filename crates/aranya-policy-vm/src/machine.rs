@@ -317,10 +317,8 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     scope: ScopeManager<'a>,
     /// The stack
     pub stack: MachineStack,
-    /// The call state stack - stores return addresses
+    /// The call state stack - stores return addresses and stack depths
     call_state: Vec<usize>,
-    /// Saves stack lengths for restoration upon return
-    stack_state: Vec<usize>,
     /// The program counter
     pc: usize,
     /// I/O callbacks
@@ -344,7 +342,6 @@ where
             scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(HVec::new()),
             call_state: Vec::new(),
-            stack_state: Vec::new(),
             pc: 0,
             io,
             ctx,
@@ -508,10 +505,10 @@ where
 
         match instruction {
             Instruction::SaveSP => {
-                self.stack_state.push(self.stack.len());
+                self.call_state.push(self.stack.len());
             }
             Instruction::RestoreSP => {
-                let saved_sp = self.stack_state.pop().ok_or_else(|| {
+                let saved_sp = self.call_state.pop().ok_or_else(|| {
                     self.err(MachineErrorType::BadState("no saved stack pointer"))
                 })?;
                 match self
