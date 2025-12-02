@@ -1609,7 +1609,7 @@ fn test_match_expression() {
             CompileErrorType::MissingDefaultPattern,
         ),
         (
-            r#"function f(r result int, string) int {
+            r#"function f(r result[int, string]) int {
                 return match r {
                     Ok(n) => n
                 }
@@ -1617,7 +1617,7 @@ fn test_match_expression() {
             CompileErrorType::MissingDefaultPattern,
         ),
         (
-            r#"function f(r result int, string) int {
+            r#"function f(r result[int, string]) int {
                 return match r {
                     Err(e) => 0
                 }
@@ -1699,7 +1699,7 @@ fn test_match_expression() {
 
 #[test]
 fn test_match_expression_with_return() {
-    let valid_cases = vec![
+    let valid_cases = [
         // Basic case: return in one arm, value in another
         r#"function f(n int) int {
             let x = match n {
@@ -3603,11 +3603,11 @@ const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
 fn test_result_values() {
     let invalid = [
         // Not a result type
-        "function f() result int, string { return 0 }",
+        "function f() result[int, string] { return 0 }",
         // Ok type mismatch
-        "function f() result int, string { return Ok(\"1\") }",
+        "function f() result[int, string] { return Ok(\"1\") }",
         // Err type mismatch
-        "function f() result int, string { return Err(1) }",
+        "function f() result[int, string] { return Err(1) }",
     ];
 
     for src in invalid {
@@ -3615,7 +3615,7 @@ fn test_result_values() {
         assert_eq!(
             result,
             CompileErrorType::InvalidType(
-                "Return value of `f()` must be result int, string".to_string(),
+                "Return value of `f()` must be result[int, string]".to_string(),
             ),
             "expected error for source: {}",
             src
@@ -3626,7 +3626,7 @@ fn test_result_values() {
 #[test]
 fn test_result_match() {
     let policy_str = r#"
-        function may_fail(x int) result int, string {
+        function may_fail(x int) result[int, string] {
             if x > 0 {
                 return Ok(x)
             } else {
@@ -3634,7 +3634,7 @@ fn test_result_match() {
             }
         }
 
-        function match_statement(r result int, string) int {
+        function match_statement(r result[int, string]) int {
             match r {
                 Ok(v) => {
                     return v
@@ -3645,7 +3645,7 @@ fn test_result_match() {
             }
         }
 
-        function match_expr_with_return(x int) result int, string {
+        function match_expr_with_return(x int) result[int, string] {
             let result = match may_fail(x) {
                 Ok(v) => v
                 Err(e) => return Err(e)
@@ -3658,7 +3658,7 @@ fn test_result_match() {
 
     let invalid = [(
         r#"
-        function match_duplicate_arms(r result int, string) int {
+        function match_duplicate_arms(r result[int, string]) int {
             return match r {
                 Ok(v) => v
                 Ok(v) => v
