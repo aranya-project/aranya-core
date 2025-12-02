@@ -425,27 +425,34 @@ where
                             _ => {}
                         }
                     }
-                    // Sync client 1 with all clients so client 1 has the entire graph.
-                    for i in 2..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: 1,
-                            from: i,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
-                    }
-                    // Sync other clients with client 1 so all clients have the entire graph.
-                    for i in 2..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: i,
-                            from: 1,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
+                    // Converge clients 1, 2, 3, etc. by repeatedly syncing them with each other
+                    // until they all have the same graph. This is necessary because merge commands
+                    // created during syncs need to propagate to all clients.
+                    // We loop multiple times to ensure convergence (merge commands from one client
+                    // need to be sent to others, which may create new merges, etc.)
+                    for _convergence_round in 0..5 {
+                        // Sync client 1 with all other clients so client 1 has the entire graph.
+                        for i in 2..clients {
+                            generated_actions.push(TestRule::Sync {
+                                graph,
+                                client: 1,
+                                from: i,
+                                must_send: None,
+                                must_receive: None,
+                                max_syncs,
+                            });
+                        }
+                        // Sync other clients with client 1 so they get everything from client 1.
+                        for i in 2..clients {
+                            generated_actions.push(TestRule::Sync {
+                                graph,
+                                client: i,
+                                from: 1,
+                                must_send: None,
+                                must_receive: None,
+                                max_syncs,
+                            });
+                        }
                     }
                     // Sync the entire graph to client 0 at once.
                     generated_actions.push(TestRule::Sync {
@@ -611,7 +618,8 @@ where
                     )?;
                     total_received += received;
                     total_sent += sent;
-                    if received < COMMAND_RESPONSE_MAX {
+                    // Break when no commands are received, meaning the requester has caught up
+                    if received == 0 {
                         break;
                     }
                 }
@@ -972,18 +980,56 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        debug!("SYNC: Requester received {} commands", cmds.len());
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        request_state.commit(&mut request_trx, sink)?;
-        let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
         debug!(
-            "SYNC: Added {} commands to graph, updating heads with {} addresses",
-            received,
-            addresses.len()
+            "SYNC[client {}]: Requester received {} commands",
+            requester_address,
+            cmds.len()
         );
-        request_state.update_heads(storage_id, addresses, request_cache)?;
+        debug!(
+            "REQUESTER_RECEIVE[client {}]: Command IDs received from responder:",
+            requester_address
+        );
+        for cmd in &cmds {
+            debug!(
+                "REQUESTER_RECEIVE[client {}]: Command ID: {}",
+                requester_address,
+                short_b58(cmd.id())
+            );
+        }
+        debug!(
+            "SYNC[client {}]: Adding {} commands to client state",
+            requester_address,
+            cmds.len()
+        );
+        let (added_count, added_addresses) =
+            request_state.add_commands(&mut request_trx, sink, &cmds)?;
+        received = added_count;
+        debug!(
+            "SYNC[client {}]: add_commands returned {} commands added with {} addresses",
+            requester_address,
+            received,
+            added_addresses.len()
+        );
+        debug!("SYNC[client {}]: Committing transaction", requester_address);
+        request_state.commit(&mut request_trx, sink)?;
+        debug!(
+            "SYNC[client {}]: Transaction committed successfully",
+            requester_address
+        );
+        // Only update heads with addresses of commands that were actually added to the graph.
+        // update_heads will verify each address exists in storage before adding to cache.
+        debug!(
+            "SYNC[client {}]: Added {} commands to graph, updating heads with {} addresses (only for successfully added commands)",
+            requester_address,
+            received,
+            added_addresses.len()
+        );
+        request_state.update_heads(storage_id, added_addresses, request_cache)?;
     } else {
-        debug!("SYNC: No commands received from responder");
+        debug!(
+            "SYNC[client {}]: No commands received from responder",
+            requester_address
+        );
     }
 
     debug!("SYNC: Requester cache after: {:?}", request_cache.heads());

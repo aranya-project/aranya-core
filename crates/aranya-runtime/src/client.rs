@@ -1,8 +1,11 @@
 use buggy::Bug;
+use heapless::Vec;
+use tracing::debug;
 
 use crate::{
     Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
     Sink, Storage as _, StorageError, StorageProvider, engine::ActionPlacement,
+    sync::COMMAND_RESPONSE_MAX,
 };
 
 mod braiding;
@@ -119,15 +122,15 @@ where
 
     /// Add commands to the transaction, writing the results to
     /// `sink`.
-    /// Returns the number of commands that were added.
+    /// Returns the number of commands that were added and their addresses.
     pub fn add_commands(
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
-    ) -> Result<usize, ClientError> {
-        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
-        Ok(count)
+    ) -> Result<(usize, Vec<Address, COMMAND_RESPONSE_MAX>), ClientError> {
+        let (count, addresses) = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
+        Ok((count, addresses))
     }
 
     pub fn update_heads(
@@ -138,8 +141,14 @@ where
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
         for address in addrs {
-            if let Some(loc) = storage.get_location(address)? {
-                request_heads.add_command(storage, address, loc)?;
+            match storage.get_location(address)? {
+                Some(loc) => {
+                    debug!("UPDATE_HEADS: Address {:?} exists in storage at {:?}, adding to cache", address, loc);
+                    request_heads.add_command(storage, address, loc)?;
+                }
+                None => {
+                    debug!("UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)", address);
+                }
             }
         }
         Ok(())

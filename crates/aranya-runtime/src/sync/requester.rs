@@ -364,13 +364,13 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
             }
             Ok(storage) => {
                 let mut command_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
+                // First, add all PeerCache heads to the sample
                 for address in peer_cache.heads() {
+                    let loc = storage
+                        .get_location(*address)?
+                        .assume("location must exist")?;
                     command_locations
-                        .push(
-                            storage
-                                .get_location(*address)?
-                                .assume("location must exist")?,
-                        )
+                        .push(loc)
                         .ok()
                         .assume("command locations should not be full")?;
                     if commands.len() < COMMAND_SAMPLE_MAX {
@@ -382,9 +382,9 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         debug!("GET_COMMANDS: Sample full, skipping PeerCache head: {:?}", address);
                     }
                 }
+                // Start traversal from graph head and work backwards until we hit a PeerCache head
                 let head = storage.get_head()?;
                 debug!("GET_COMMANDS: Starting graph traversal from head {:?}", head);
-
                 let mut current = vec![head];
 
                 // Here we just get the first command from the most reaseant
@@ -400,16 +400,23 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         let head = segment.head()?;
                         let head_address = head.address()?;
 
-                        // Check if this segment is already represented in PeerCache
-                        for loc in &command_locations {
-                            if loc.segment == location.segment {
-                                debug!("GET_COMMANDS: Skipping segment {:?} (already in PeerCache)", location.segment);
+                        // Check if we've hit a PeerCache head - if so, stop traversing this path
+                        for &peer_cache_loc in &command_locations {
+                            // If this is the same location as a PeerCache head, we've hit it
+                            if location == peer_cache_loc {
+                                debug!("GET_COMMANDS: Hit PeerCache head at {:?}, stopping traversal", location);
+                                continue 'current;
+                            }
+                            // If the current location is an ancestor of a PeerCache head's segment,
+                            // we've passed the PeerCache head, so stop traversing this path
+                            let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
+                            if storage.is_ancestor(location, &peer_cache_segment)? {
+                                debug!("GET_COMMANDS: Location {:?} is ancestor of PeerCache head {:?}, stopping traversal", location, peer_cache_loc);
                                 continue 'current;
                             }
                         }
 
                         debug!("GET_COMMANDS: Adding command to sample: {:?}", head_address);
-                        // TODO(chip): check that this is not an ancestor of a head in the PeerCache
                         commands
                             .push(head_address)
                             .map_err(|_| SyncError::CommandOverflow)?;
