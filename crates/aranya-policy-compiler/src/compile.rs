@@ -1,6 +1,6 @@
 mod error;
 mod lower;
-pub mod target;
+mod target;
 mod types;
 
 use std::{
@@ -24,11 +24,13 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
 use indexmap::IndexMap;
-use target::CompileTarget;
 use tracing::warn;
 
-pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
-use self::types::IdentifierTypeStack;
+pub use self::{
+    error::{CompileError, CompileErrorType, InvalidCallColor},
+    target::PolicyInterface,
+};
+use self::{target::CompileTarget, types::IdentifierTypeStack};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -1076,15 +1078,8 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Compile an action function
-    fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
-        self.identifier_types.enter_function();
-        self.define_label(
-            Label::new(action_node.identifier.name.clone(), LabelType::Action),
-            self.wp,
-        )?;
-        self.map_range(action_node.span)?;
-
+    /// Define an action function
+    fn define_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         let mut params = NamedMap::new();
         for param in &action_node.arguments {
             params
@@ -1100,14 +1095,6 @@ impl<'a> CompileState<'a> {
                 })?;
         }
 
-        for arg in action_node.arguments.iter().rev() {
-            self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
-        }
-
-        self.compile_statements(&action_node.statements, Scope::Same)?;
-        self.append_instruction(Instruction::Return);
-        self.identifier_types.exit_function();
-
         self.m
             .action_defs
             .insert(ActionDef {
@@ -1120,6 +1107,26 @@ impl<'a> CompileState<'a> {
                     action_node.identifier.to_string(),
                 ))
             })?;
+
+        Ok(())
+    }
+
+    /// Compile an action function
+    fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
+        self.identifier_types.enter_function();
+        self.define_label(
+            Label::new(action_node.identifier.name.clone(), LabelType::Action),
+            self.wp,
+        )?;
+        self.map_range(action_node.span)?;
+
+        for arg in action_node.arguments.iter().rev() {
+            self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
+        }
+
+        self.compile_statements(&action_node.statements, Scope::Same)?;
+        self.append_instruction(Instruction::Return);
+        self.identifier_types.exit_function();
 
         Ok(())
     }
@@ -1612,20 +1619,9 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Compile a policy into instructions inside the given Machine.
-    pub fn compile(&mut self) -> Result<(), CompileError> {
-        // Panic when running a module without setup.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        self.define_builtins()?;
-
+    fn define_interfaces(&mut self) -> Result<(), CompileError> {
         for struct_def in &self.policy.structs {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
-        }
-
-        // Compile global let statements
-        for global_let in &self.policy.global_lets {
-            self.compile_global_let(global_let)?;
         }
 
         for effect in &self.policy.effects {
@@ -1691,6 +1687,29 @@ impl<'a> CompileState<'a> {
         for command in &self.policy.commands {
             self.define_struct(command.identifier.clone(), &command.fields)?;
         }
+
+        for action in &self.policy.actions {
+            self.define_action(action)?;
+        }
+
+        debug_assert!(self.m.progmem.is_empty(), "{:?}", self.m.progmem);
+
+        Ok(())
+    }
+
+    /// Compile a policy into instructions inside the given Machine.
+    pub fn compile(&mut self) -> Result<(), CompileError> {
+        self.define_interfaces()?;
+
+        // Panic when running a module without setup.
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+
+        // Compile global let statements
+        for global_let in &self.policy.global_lets {
+            self.compile_global_let(global_let)?;
+        }
+
+        self.define_builtins()?;
 
         // Define the finish function signatures before compiling them, so that they can be
         // used to catch usage errors in regular functions.
@@ -2007,14 +2026,22 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
-        let target = self.compile_to_target()?;
-        Ok(target.into_module())
+        let mut cs = self.set_up_compile_state();
+        cs.compile()?;
+        Ok(cs.m.into_module())
     }
 
-    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
+    /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
+    pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
+        let mut cs = self.set_up_compile_state();
+        cs.define_interfaces()?;
+        Ok(cs.m.into())
+    }
+
+    fn set_up_compile_state(&self) -> CompileState<'_> {
         let codemap = CodeMap::new(&self.policy.text);
         let machine = CompileTarget::new(codemap);
-        let mut cs = CompileState {
+        CompileState {
             policy: self.policy,
             m: machine,
             wp: 0,
@@ -2027,10 +2054,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
-        };
-
-        cs.compile()?;
-        Ok(cs.m)
+        }
     }
 }
 
