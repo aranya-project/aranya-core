@@ -2609,7 +2609,7 @@ fn test_result() -> anyhow::Result<()> {
         }
 
         effect Result {
-            r result int, enum Err
+            r result[int, enum Err]
         }
 
         command DoWork {
@@ -2629,7 +2629,7 @@ fn test_result() -> anyhow::Result<()> {
             }
         }
         
-        function try(succeed bool) result int, enum Err {
+        function try(succeed bool) result[int, enum Err] {
             // error propagation is done explicilty, until we have `?` operator
             return match try_return(succeed) {
                 Ok(n) => Ok(n)
@@ -2637,7 +2637,7 @@ fn test_result() -> anyhow::Result<()> {
             }
         }
 
-        function try_return(succeed bool) result int, enum Err {
+        function try_return(succeed bool) result[int, enum Err] {
             let r = match succeed {
                 true => Ok(42)
                 false => return Err(Err::Fail) // early return from match
@@ -2695,3 +2695,28 @@ fn test_result() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// #[test]
+// fn test_nested_result() -> anyhow::Result<()> {
+//     let text = r#"
+//         enum Err { Fail }
+//         enum Err2 { Fail2 }
+//         function foo() result result int, enum Err, enum Err2 {
+//             return Ok(Ok(42))
+//         }
+//         "#;
+//     let policy = parse_policy_str(text, Version::V2)?;
+//     let module = Compiler::new(&policy).compile()?;
+//     let machine = Machine::from_module(module)?;
+//     let io = RefCell::new(TestIO::new());
+//     let ctx = dummy_ctx_action(ident!("foo"));
+//     let mut rs = machine.create_run_state(&io, ctx);
+//     rs.call_action(ident!("foo"), iter::empty::<Value>())?
+//         .success();
+//     let result = rs.consume_return()?;
+//     assert_eq!(
+//         result,
+//         Value::Ok(Box::new(Value::Ok(Box::new(Value::Int(42)))))
+//     );
+//     Ok(())
+// }

@@ -323,7 +323,7 @@ impl fmt::Display for TypeKind {
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
-            Self::Result { ok, err } => write!(f, "result {ok}, {err}"),
+            Self::Result { ok, err } => write!(f, "result[{ok}, {err}]"),
         }
     }
 }
