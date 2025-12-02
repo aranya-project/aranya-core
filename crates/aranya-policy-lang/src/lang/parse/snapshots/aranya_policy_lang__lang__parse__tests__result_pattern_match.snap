@@ -50,7 +50,7 @@ expression: policy
             },
             "span": {
               "start": 24,
-              "end": 42
+              "end": 43
             }
           }
         }
@@ -58,8 +58,8 @@ expression: policy
       "return_type": {
         "kind": "Int",
         "span": {
-          "start": 44,
-          "end": 47
+          "start": 45,
+          "end": 48
         }
       },
       "statements": [
@@ -69,8 +69,8 @@ expression: policy
               "identifier": {
                 "name": "x",
                 "span": {
-                  "start": 66,
-                  "end": 67
+                  "start": 67,
+                  "end": 68
                 }
               },
               "expression": {
@@ -81,14 +81,14 @@ expression: policy
                         "Identifier": {
                           "name": "r",
                           "span": {
-                            "start": 76,
-                            "end": 77
+                            "start": 77,
+                            "end": 78
                           }
                         }
                       },
                       "span": {
-                        "start": 76,
-                        "end": 77
+                        "start": 77,
+                        "end": 78
                       }
                     },
                     "arms": [
@@ -98,8 +98,8 @@ expression: policy
                             "Ok": {
                               "name": "val",
                               "span": {
-                                "start": 99,
-                                "end": 102
+                                "start": 100,
+                                "end": 103
                               }
                             }
                           }
@@ -109,19 +109,19 @@ expression: policy
                             "Identifier": {
                               "name": "val",
                               "span": {
-                                "start": 107,
-                                "end": 110
+                                "start": 108,
+                                "end": 111
                               }
                             }
                           },
                           "span": {
-                            "start": 107,
-                            "end": 110
+                            "start": 108,
+                            "end": 111
                           }
                         },
                         "span": {
-                          "start": 96,
-                          "end": 127
+                          "start": 97,
+                          "end": 128
                         }
                       },
                       {
@@ -130,8 +130,8 @@ expression: policy
                             "Err": {
                               "name": "err",
                               "span": {
-                                "start": 131,
-                                "end": 134
+                                "start": 132,
+                                "end": 135
                               }
                             }
                           }
@@ -141,28 +141,28 @@ expression: policy
                             "Int": -1
                           },
                           "span": {
-                            "start": 139,
-                            "end": 141
+                            "start": 140,
+                            "end": 142
                           }
                         },
                         "span": {
-                          "start": 127,
-                          "end": 154
+                          "start": 128,
+                          "end": 155
                         }
                       }
                     ]
                   }
                 },
                 "span": {
-                  "start": 70,
-                  "end": 155
+                  "start": 71,
+                  "end": 156
                 }
               }
             }
           },
           "span": {
-            "start": 62,
-            "end": 168
+            "start": 63,
+            "end": 169
           }
         },
         {
@@ -174,36 +174,36 @@ expression: policy
                     "Identifier": {
                       "name": "x",
                       "span": {
-                        "start": 175,
-                        "end": 176
+                        "start": 176,
+                        "end": 177
                       }
                     }
                   },
                   "span": {
-                    "start": 175,
-                    "end": 176
+                    "start": 176,
+                    "end": 177
                   }
                 }
               },
               "span": {
-                "start": 168,
-                "end": 185
+                "start": 169,
+                "end": 186
               }
             }
           },
           "span": {
-            "start": 168,
-            "end": 185
+            "start": 169,
+            "end": 186
           }
         }
       ],
       "span": {
         "start": 9,
-        "end": 186
+        "end": 187
       }
     }
   ],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n        function foo(r result int, string) int {\n            let x = match r {\n                Ok(val) => val\n                Err(err) => -1\n            }\n            return x\n        }\n    "
+  "text": "\n        function foo(r result[int, string]) int {\n            let x = match r {\n                Ok(val) => val\n                Err(err) => -1\n            }\n            return x\n        }\n    "
 }
