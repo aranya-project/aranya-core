@@ -32,6 +32,7 @@ use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
+use tracing;
 use vec1::Vec1;
 
 use crate::{
@@ -642,7 +643,9 @@ impl<F: Write> Storage for LinearStorage<F> {
 
         let depth = if let Some(mut p) = prior.take() {
             if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
+                tracing::info!("write_facts: Compacting fact index at depth={} (max={})", p.depth, MAX_FACT_INDEX_DEPTH);
                 p = self.compact(p)?;
+                tracing::info!("write_facts: After compaction, depth={}", p.depth);
             }
             prior.insert(p).depth
         } else {
@@ -655,12 +658,29 @@ impl<F: Write> Storage for LinearStorage<F> {
             bug!("fact index too deep");
         }
 
+        // Log when DeviceSignPubKey facts are being written (before moving facts.map)
+        let has_device_sign_pub_key = facts.map.contains_key("DeviceSignPubKey");
+        let device_count = if has_device_sign_pub_key {
+            facts.map.get("DeviceSignPubKey").map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
+        let prior_depth = prior.as_ref().map(|p| p.depth).unwrap_or(0);
+        if has_device_sign_pub_key {
+            tracing::info!("write_facts: Writing DeviceSignPubKey facts (count={}) at depth={} (prior_depth={}), prior_offset={:?}", 
+                device_count, depth, prior_depth, prior.as_ref().map(|p| p.offset));
+        }
+
         let repr = self.writer.append(|offset| FactIndexRepr {
             offset,
             prior: prior.map(|p| p.offset),
             depth,
             facts: facts.map,
         })?;
+        
+        if has_device_sign_pub_key {
+            tracing::info!("write_facts: Created fact index at offset={}, depth={}", repr.offset, repr.depth);
+        }
 
         Ok(LinearFactIndex {
             repr,
@@ -853,12 +873,20 @@ impl<R: Read> Query for LinearFactIndex<R> {
     fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
+        let mut depth = 0;
         while let Some(facts) = prior {
+            depth += 1;
             if let Some(v) = facts.facts.get(name).and_then(|m| m.get(keys)) {
+                if name == "DeviceSignPubKey" {
+                    tracing::debug!("QUERY DeviceSignPubKey: found at depth={}, keys={:?}", depth, keys);
+                }
                 return Ok(v.clone());
             }
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
+        }
+        if name == "DeviceSignPubKey" {
+            tracing::warn!("QUERY DeviceSignPubKey: NOT FOUND after traversing depth={}, keys={:?}", depth, keys);
         }
         Ok(None)
     }
@@ -869,9 +897,19 @@ impl<R: Read> Query for LinearFactIndex<R> {
         name: &str,
         prefix: &[Box<[u8]>],
     ) -> Result<QueryIterator, StorageError> {
-        Ok(QueryIterator::new(
-            self.query_prefix_inner(name, prefix)?.into_iter(),
-        ))
+        // Log DeviceSignPubKey queries to diagnose seal failures
+        if name == "DeviceSignPubKey" {
+            tracing::info!("QUERY_PREFIX DeviceSignPubKey (LinearFactIndex): prefix={:?}", prefix);
+        }
+        let matches = self.query_prefix_inner(name, prefix)?;
+        if name == "DeviceSignPubKey" {
+            if matches.is_empty() {
+                tracing::warn!("QUERY_PREFIX DeviceSignPubKey (LinearFactIndex): NO MATCHES, prefix={:?}", prefix);
+            } else {
+                tracing::debug!("QUERY_PREFIX DeviceSignPubKey (LinearFactIndex): found {} matches, prefix={:?}", matches.len(), prefix);
+            }
+        }
+        Ok(QueryIterator::new(matches.into_iter()))
     }
 }
 
@@ -884,17 +922,44 @@ impl<R: Read> LinearFactIndex<R> {
         let mut matches = BTreeMap::new();
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
+        let mut depth = 0;
+        let start_depth = self.repr.depth;
+        if name == "DeviceSignPubKey" {
+            tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): START - fact_index_depth={}, offset={}, prefix={:?}", start_depth, self.repr.offset, prefix);
+        }
         while let Some(facts) = prior {
+            depth += 1;
+            if name == "DeviceSignPubKey" {
+                tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): checking depth={}, fact_index_depth={}, offset={}, has_prior={}, prefix={:?}", depth, facts.depth, facts.offset, facts.prior.is_some(), prefix);
+            }
             if let Some(map) = facts.facts.get(name) {
+                let fact_count = map.len();
+                if name == "DeviceSignPubKey" {
+                    tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): found {} DeviceSignPubKey facts at depth={}, offset={}", fact_count, depth, facts.offset);
+                }
                 for (k, v) in super::memory::find_prefixes(map, prefix) {
                     // don't override, if we've already found the fact (including deletions)
                     if !matches.contains_key(k) {
+                        if name == "DeviceSignPubKey" {
+                            tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): found match at depth={}, key={:?}, is_deleted={}", depth, k, v.is_none());
+                        }
                         matches.insert(k.clone(), v.map(Into::into));
                     }
+                }
+            } else {
+                if name == "DeviceSignPubKey" {
+                    tracing::debug!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): no DeviceSignPubKey map at depth={}, offset={}", depth, facts.offset);
                 }
             }
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
+        }
+        if name == "DeviceSignPubKey" {
+            if matches.is_empty() {
+                tracing::warn!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): NO MATCHES after traversing depth={} (started at fact_index_depth={}), prefix={:?}", depth, start_depth, prefix);
+            } else {
+                tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactIndex): found {} matches after traversing depth={} (started at fact_index_depth={})", matches.len(), depth, start_depth);
+            }
         }
         Ok(matches)
     }
@@ -933,7 +998,7 @@ impl<R: Read> Query for LinearFactPerspective<R> {
         if let Some(wrapped) = self.map.get(name).and_then(|m| m.get(keys)) {
             return Ok(wrapped.as_deref().map(Box::from));
         }
-        match &self.prior {
+        let result = match &self.prior {
             FactPerspectivePrior::None => Ok(None),
             FactPerspectivePrior::FactPerspective(prior) => prior.query(name, keys),
             FactPerspectivePrior::FactIndex { offset, reader } => {
@@ -944,7 +1009,16 @@ impl<R: Read> Query for LinearFactPerspective<R> {
                 };
                 prior.query(name, keys)
             }
+        };
+        // Log queries for DeviceSignPubKey to diagnose seal failures
+        if name == "DeviceSignPubKey" {
+            if let Ok(Some(_)) = &result {
+                tracing::debug!("QUERY DeviceSignPubKey: found, keys={:?}", keys);
+            } else {
+                tracing::warn!("QUERY DeviceSignPubKey: NOT FOUND, keys={:?}", keys);
+            }
         }
+        result
     }
 
     type QueryIterator = QueryIterator;
@@ -953,9 +1027,19 @@ impl<R: Read> Query for LinearFactPerspective<R> {
         name: &str,
         prefix: &[Box<[u8]>],
     ) -> Result<QueryIterator, StorageError> {
-        Ok(QueryIterator::new(
-            self.query_prefix_inner(name, prefix)?.into_iter(),
-        ))
+        // Log DeviceSignPubKey queries to diagnose seal failures
+        if name == "DeviceSignPubKey" {
+            tracing::info!("QUERY_PREFIX DeviceSignPubKey (LinearFactPerspective): prefix={:?}", prefix);
+        }
+        let matches = self.query_prefix_inner(name, prefix)?;
+        if name == "DeviceSignPubKey" {
+            if matches.is_empty() {
+                tracing::warn!("QUERY_PREFIX DeviceSignPubKey (LinearFactPerspective): NO MATCHES, prefix={:?}", prefix);
+            } else {
+                tracing::debug!("QUERY_PREFIX DeviceSignPubKey (LinearFactPerspective): found {} matches, prefix={:?}", matches.len(), prefix);
+            }
+        }
+        Ok(QueryIterator::new(matches.into_iter()))
     }
 }
 
@@ -965,13 +1049,37 @@ impl<R: Read> LinearFactPerspective<R> {
         name: &str,
         prefix: &[Box<[u8]>],
     ) -> Result<FactMap, StorageError> {
+        if name == "DeviceSignPubKey" {
+            let current_facts = self.map.get(name).map(|m| m.len()).unwrap_or(0);
+            tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): START - current_facts={}, prior={:?}", 
+                current_facts, 
+                match &self.prior {
+                    FactPerspectivePrior::None => "None",
+                    FactPerspectivePrior::FactPerspective(_) => "FactPerspective",
+                    FactPerspectivePrior::FactIndex { offset, .. } => {
+                        tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): prior is FactIndex at offset={}", offset);
+                        "FactIndex"
+                    }
+                });
+        }
         let mut matches = match &self.prior {
-            FactPerspectivePrior::None => BTreeMap::new(),
+            FactPerspectivePrior::None => {
+                if name == "DeviceSignPubKey" {
+                    tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): prior is None, only checking current map");
+                }
+                BTreeMap::new()
+            },
             FactPerspectivePrior::FactPerspective(prior) => {
+                if name == "DeviceSignPubKey" {
+                    tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): recursing into FactPerspective");
+                }
                 prior.query_prefix_inner(name, prefix)?
             }
             FactPerspectivePrior::FactIndex { offset, reader } => {
                 let repr: FactIndexRepr = reader.fetch(*offset)?;
+                if name == "DeviceSignPubKey" {
+                    tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): prior is FactIndex at offset={}, depth={}", offset, repr.depth);
+                }
                 let prior = LinearFactIndex {
                     repr,
                     reader: reader.clone(),
@@ -980,10 +1088,21 @@ impl<R: Read> LinearFactPerspective<R> {
             }
         };
         if let Some(map) = self.map.get(name) {
+            let mut found_in_current = 0;
             for (k, v) in super::memory::find_prefixes(map, prefix) {
+                found_in_current += 1;
                 // overwrite "earlier" facts
+                if name == "DeviceSignPubKey" {
+                    tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): adding fact from current map, key={:?}, is_deleted={}", k, v.is_none());
+                }
                 matches.insert(k.clone(), v.map(Into::into));
             }
+            if name == "DeviceSignPubKey" && found_in_current > 0 {
+                tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): found {} facts in current map", found_in_current);
+            }
+        }
+        if name == "DeviceSignPubKey" {
+            tracing::info!("QUERY_PREFIX_INNER DeviceSignPubKey (LinearFactPerspective): returning {} total matches", matches.len());
         }
         Ok(matches)
     }
@@ -1025,6 +1144,21 @@ impl<R: Read> Query for LinearPerspective<R> {
 
 impl<R: Read> QueryMut for LinearPerspective<R> {
     fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
+        if name == "DeviceSignPubKey" {
+            // Get current fact count in perspective
+            let current_count = self.facts.map.get("DeviceSignPubKey").map(|m| m.len()).unwrap_or(0);
+            tracing::info!("INSERT DeviceSignPubKey: keys={:?}, current_facts_in_perspective={}, prior_type={:?}", 
+                keys, 
+                current_count,
+                match &self.facts.prior {
+                    FactPerspectivePrior::None => "None",
+                    FactPerspectivePrior::FactPerspective(_) => "FactPerspective",
+                    FactPerspectivePrior::FactIndex { offset, .. } => {
+                        tracing::info!("INSERT DeviceSignPubKey: prior is FactIndex at offset={}", offset);
+                        "FactIndex"
+                    }
+                });
+        }
         self.facts.insert(name.clone(), keys.clone(), value.clone());
         self.current_updates.push((name, keys, Some(value)));
     }

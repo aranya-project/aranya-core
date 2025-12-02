@@ -1,16 +1,17 @@
-use alloc::vec;
+use alloc::{format, string::String, vec};
 use core::mem;
 
 use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
 use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
     SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
 };
 use crate::{
-    StorageError, SyncType,
+    Prior, StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
 };
@@ -38,31 +39,165 @@ impl PeerCache {
     where
         S: Storage,
     {
+        let num_heads_before = self.heads.len();
+
+        // Verify the command exists in the graph at the given location
+        let segment = storage.get_segment(cmd_loc)?;
+
+        let Some(cmd_at_loc) = segment.get_command(cmd_loc) else {
+            debug!(
+                "PEER_CACHE: Command {:?} not found at location {:?}, not adding to cache",
+                command, cmd_loc
+            );
+            return Ok(());
+        };
+        let cmd_address = cmd_at_loc.address()?;
+        if cmd_address != command {
+            debug!(
+                "PEER_CACHE: Command at location {:?} has address {:?}, expected {:?}, not adding to cache",
+                cmd_loc, cmd_address, command
+            );
+            return Ok(());
+        }
+
+        // OPTIMIZATION: Early check - if this command is an ancestor of any existing head,
+        // skip it immediately. Since we process commands in descending max_cut order,
+        // many commands will be ancestors of already-added commands.
+        //
+        // Note: We can't skip just based on max_cut comparison because commands on different
+        // branches might have different max_cuts without being ancestors/descendants.
+        for existing_head in &self.heads {
+            // Fast path: if command.max_cut > head.max_cut, it can't be an ancestor, skip the check
+            if command.max_cut > existing_head.max_cut {
+                continue;
+            }
+            // Check if this command is an ancestor of the existing head
+            let head_loc = storage
+                .get_location(*existing_head)?
+                .assume("location must exist")?;
+            let head_seg = storage.get_segment(head_loc)?;
+            let is_ancestor_result = storage.is_ancestor(cmd_loc, &head_seg)?;
+            info!(
+                "add_command: EARLY CHECK - cmd(max_cut={}, id={:?}, loc={:?}) vs head(max_cut={}, id={:?}, loc={:?}): is_ancestor={}",
+                command.max_cut,
+                command.id,
+                cmd_loc,
+                existing_head.max_cut,
+                existing_head.id,
+                head_loc,
+                is_ancestor_result
+            );
+            if is_ancestor_result {
+                // This command is an ancestor of an existing head, skip it
+                info!(
+                    "add_command: cmd(max_cut={}, id={:?}): EARLY SKIP - ancestor of existing head (head max_cut={}, checked {} heads)",
+                    command.max_cut,
+                    command.id,
+                    existing_head.max_cut,
+                    self.heads.len()
+                );
+                return Ok(());
+            }
+        }
+
         let mut add_command = true;
+        let mut retain_ops = 0usize;
+        let mut is_ancestor_calls = 0usize;
+        let mut get_segment_calls = 0usize;
+        let mut get_location_calls = 0usize;
+        let mut ancestors_found = 0usize;
+        let mut descendants_found = 0usize;
+
         let mut retain_head = |request_head: &Address, new_head: Location| {
+            retain_ops += 1;
+            get_segment_calls += 1;
             let new_head_seg = storage.get_segment(new_head)?;
+            get_location_calls += 1;
             let req_head_loc = storage
                 .get_location(*request_head)?
                 .assume("location must exist")?;
+            get_segment_calls += 1;
             let req_head_seg = storage.get_segment(req_head_loc)?;
             if let Some(new_head_command) = new_head_seg.get_command(new_head) {
                 if request_head.id == new_head_command.address()?.id {
                     add_command = false;
                 }
             }
+            is_ancestor_calls += 1;
             if storage.is_ancestor(new_head, &req_head_seg)? {
                 add_command = false;
+                ancestors_found += 1;
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg)?)
+            is_ancestor_calls += 1;
+            let is_descendant = storage.is_ancestor(req_head_loc, &new_head_seg)?;
+            if is_descendant {
+                descendants_found += 1;
+            }
+            Ok::<bool, StorageError>(!is_descendant)
         };
         self.heads
             .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
-        if add_command && !self.heads.is_full() {
+
+        let was_added = if add_command && !self.heads.is_full() {
             self.heads
                 .push(command)
                 .ok()
                 .assume("command locations should not be full")?;
+            true
+        } else {
+            false
+        };
+
+        let num_heads_after = self.heads.len();
+
+        // Log when a head is added with parent information
+        if was_added {
+            let parent = cmd_at_loc.parent();
+            let parent_str = match &parent {
+                Prior::None => String::from("None"),
+                Prior::Single(addr) => {
+                    format!("Single(max_cut={}, id={:?})", addr.max_cut, addr.id)
+                }
+                Prior::Merge(left, right) => format!(
+                    "Merge(left=max_cut={}, id={:?}, right=max_cut={}, id={:?})",
+                    left.max_cut, left.id, right.max_cut, right.id
+                ),
+            };
+            let existing_heads_str: alloc::vec::Vec<String> = self
+                .heads
+                .iter()
+                .map(|h| format!("max_cut={}, id={:?}", h.max_cut, h.id))
+                .collect();
+            info!(
+                "add_command: HEAD ADDED - cmd(max_cut={}, id={:?}), parent={}, heads_before={}, heads_after={}, existing_heads=[{}]",
+                command.max_cut,
+                command.id,
+                parent_str,
+                num_heads_before,
+                num_heads_after,
+                existing_heads_str.join("; ")
+            );
         }
+
+        // Log detailed information to identify bottlenecks
+        // Log all operations if there are many heads (potential bottleneck) or if command wasn't added
+        if num_heads_before > 3 || !was_added || retain_ops > 0 {
+            info!(
+                "add_command: cmd(max_cut={}, id={:?}): heads_before={}, heads_after={}, was_added={}, retain_ops={}, is_ancestor_calls={}, get_segment_calls={}, get_location_calls={}, ancestors_found={}, descendants_found={}",
+                command.max_cut,
+                command.id,
+                num_heads_before,
+                num_heads_after,
+                was_added,
+                retain_ops,
+                is_ancestor_calls,
+                get_segment_calls,
+                get_location_calls,
+                ancestors_found,
+                descendants_found
+            );
+        }
+
         Ok(())
     }
 }

@@ -251,6 +251,14 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
+        let head_loc = segment.head_location();
+
+        // Fast path: if both locations are in the same segment, check directly
+        if search_location.segment == head_loc.segment {
+            // In the same segment, if search_location.command < head_loc.command, it's an ancestor
+            return Ok(search_location.command < head_loc.command);
+        }
+
         let mut queue = Vec::new();
         queue.extend(segment.prior());
         let segment = self.get_segment(search_location)?;

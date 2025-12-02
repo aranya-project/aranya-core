@@ -711,6 +711,14 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         let command_name = command_struct.name.clone();
 
                         let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
+                        let head_id = match &seal_ctx {
+                            CommandContext::Seal(ctx) => ctx.head_id,
+                            _ => bug!("seal context must be Seal variant"),
+                        };
+                        info!(
+                            "Sealing command: name={}, head_id={:?}",
+                            command_name, head_id
+                        );
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal.call_seal(command_struct).map_err(|e| {
                             error!("Cannot seal command: {}", e);
@@ -718,7 +726,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         })? {
                             ExitReason::Normal => (),
                             r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
-                                error!("Could not seal command: {}", r);
+                                error!(
+                                    "Could not seal command: name={}, head_id={:?}, reason={}",
+                                    command_name, head_id, r
+                                );
                                 return Err(EngineError::Panic);
                             }
                         }

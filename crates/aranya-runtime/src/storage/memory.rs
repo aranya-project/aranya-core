@@ -2,6 +2,7 @@ use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::V
 use core::ops::{Bound, Deref};
 
 use buggy::{Bug, BugExt as _, bug};
+use tracing;
 use vec1::Vec1;
 
 use crate::{
@@ -387,11 +388,19 @@ impl FactIndex for MemFactIndex {}
 impl Query for MemFactIndex {
     fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
         let mut prior = Some(self.deref());
+        let mut depth = 0;
         while let Some(facts) = prior {
+            depth += 1;
             if let Some(slot) = facts.map.get(name).and_then(|m| m.get(keys)) {
+                if name == "DeviceSignPubKey" {
+                    tracing::debug!("QUERY DeviceSignPubKey: found at depth={}, keys={:?}", depth, keys);
+                }
                 return Ok(slot.clone());
             }
             prior = facts.prior.as_deref();
+        }
+        if name == "DeviceSignPubKey" {
+            tracing::warn!("QUERY DeviceSignPubKey: NOT FOUND after traversing depth={}, keys={:?}", depth, keys);
         }
         Ok(None)
     }

@@ -15,7 +15,7 @@ use aranya_policy_vm::{
 };
 use buggy::BugExt as _;
 use spin::Mutex;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
@@ -117,6 +117,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let keys = ser_keys(key);
+        // Log DeviceSignPubKey queries to diagnose seal failures
+        if name.as_str() == "DeviceSignPubKey" {
+            tracing::info!("FACT_QUERY DeviceSignPubKey: keys={:?}", keys);
+        }
         let iter = self
             .facts
             .try_borrow_mut()
