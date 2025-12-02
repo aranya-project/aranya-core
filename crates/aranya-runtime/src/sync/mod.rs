@@ -24,16 +24,28 @@ pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
 pub const PEER_HEAD_MAX: usize = 10;
 
 /// The maximum number of samples in a request
+#[cfg(feature = "low-mem-usage")]
+const COMMAND_SAMPLE_MAX: usize = 20;
+#[cfg(not(feature = "low-mem-usage"))]
 const COMMAND_SAMPLE_MAX: usize = 100;
 
 /// The maximum number of missing segments that can be requested
 /// in a single message
+#[cfg(feature = "low-mem-usage")]
+const REQUEST_MISSING_MAX: usize = 1;
+#[cfg(not(feature = "low-mem-usage"))]
 const REQUEST_MISSING_MAX: usize = 100;
 
 /// The maximum number of commands in a response
+#[cfg(feature = "low-mem-usage")]
+pub const COMMAND_RESPONSE_MAX: usize = 5;
+#[cfg(not(feature = "low-mem-usage"))]
 pub const COMMAND_RESPONSE_MAX: usize = 100;
 
 /// The maximum number of segments which can be stored to send
+#[cfg(feature = "low-mem-usage")]
+const SEGMENT_BUFFER_MAX: usize = 10;
+#[cfg(not(feature = "low-mem-usage"))]
 const SEGMENT_BUFFER_MAX: usize = 100;
 
 /// The maximum size of a sync message
