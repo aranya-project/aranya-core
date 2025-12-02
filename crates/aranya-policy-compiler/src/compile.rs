@@ -1107,6 +1107,7 @@ impl<'a> CompileState<'a> {
         // Actions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
         self.exit_statement_context();
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         Ok(())
     }
 

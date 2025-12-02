@@ -2903,6 +2903,7 @@ fn test_validate_publish() {
         ),
     ];
 
+    // all paths must publish
     let invalid = [
         concat(
             r#"
