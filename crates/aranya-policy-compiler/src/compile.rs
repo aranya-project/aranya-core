@@ -1034,7 +1034,7 @@ impl<'a> CompileState<'a> {
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, function_node.span));
         }
-        // Mark the end of the function body before the exit
+        // Mark end function body; used for additional validation, e.g. unreachable-code detection.
         self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1140,6 +1140,7 @@ impl<'a> CompileState<'a> {
 
         self.compile_statements(&action_node.statements, Scope::Same)?;
         self.append_instruction(Instruction::Return);
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.identifier_types.exit_function();
 
         Ok(())
