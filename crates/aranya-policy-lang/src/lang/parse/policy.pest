@@ -35,7 +35,7 @@ struct_t = { "struct" ~ identifier }
 enum_t = { "enum" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
-result_t = { "result" ~ vtype ~ "," ~ vtype }
+result_t = { "result" ~ "[" ~ vtype ~ "," ~ vtype ~ "]" }
 vtype = _{
     | string_t
     | bytes_t
