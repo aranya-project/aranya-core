@@ -22,7 +22,7 @@ fn generate_(input: &Path, output: &Path) -> Result<()> {
     let target = Compiler::new(&policy_ast)
         .debug(true)
         .stub_ffi(true)
-        .compile_to_target()?;
+        .compile_interface()?;
     let rust_code = generate_code(&target);
 
     fs::write(output, rust_code).with_context(|| format!("writing to {output:?}"))?;
