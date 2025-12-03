@@ -7,21 +7,21 @@ use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
 #[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 pub struct Ident {
     /// The identifier name
     pub name: Identifier,
     /// The source location of this identifier
     pub span: Span,
+}
+
+impl fmt::Debug for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Ident {
@@ -163,21 +163,21 @@ impl fmt::Display for Persistence {
 /// It is not called `Type` because that conflicts with reserved keywords.
 #[must_use]
 #[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 pub struct VType {
     /// The type kind
     pub kind: TypeKind,
     /// The source location of this type
     pub span: Span,
+}
+
+impl fmt::Debug for VType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl VType {
@@ -528,12 +528,20 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Expression {
     /// The expression kind
     pub kind: ExprKind,
     /// The source location of this expression
     pub span: Span,
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Spanned for Expression {
@@ -795,12 +803,20 @@ pub struct ReturnStatement {
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Statement {
     /// The statement kind
     pub kind: StmtKind,
     /// The source location of this statement
     pub span: Span,
+}
+
+impl fmt::Debug for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Spanned for Statement {
