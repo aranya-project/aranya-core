@@ -1322,9 +1322,9 @@ Policy {
             ],
             return_type: Bool @ 333..337,
             statements: [
-                Return(
-                    ReturnStatement {
-                        expression: And(
+                Expr(
+                    Return(
+                        And(
                             GreaterThanOrEqual(
                                 Identifier(
                                     "v" @ 351..352,
@@ -1342,7 +1342,7 @@ Policy {
                                 ) @ 366..367,
                             ) @ 361..367,
                         ) @ 351..367,
-                    },
+                    ) @ 344..368,
                 ) @ 344..368,
             ],
             span: 310..369,
@@ -2116,9 +2116,9 @@ Policy {
                         ) @ 5004..5094,
                     },
                 ) @ 4994..5099,
-                Return(
-                    ReturnStatement {
-                        expression: Or(
+                Expr(
+                    Return(
+                        Or(
                             Or(
                                 Or(
                                     Or(
@@ -2340,7 +2340,7 @@ Policy {
                                 ) @ 5528..5538,
                             ) @ 5499..5538,
                         ) @ 5107..5538,
-                    },
+                    ) @ 5099..5540,
                 ) @ 5099..5540,
             ],
             span: 4089..5541,
