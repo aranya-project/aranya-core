@@ -35,32 +35,6 @@ impl CompileState<'_> {
             .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
     }
 
-    fn verify_fact_values(
-        &self,
-        values: &[(Ident, FactField)],
-        fact_def: &FactDefinition,
-    ) -> Result<(), CompileError> {
-        // value block must have the same number of values as the schema
-        if values.len() != fact_def.value.len() {
-            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
-                "incorrect number of values",
-            ))));
-        }
-
-        // Ensure values exist in schema, and have matching types
-        for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
-            if lit_value.0.name != schema_value.identifier.name {
-                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
-                    "Expected value {}, got {}",
-                    schema_value.identifier, lit_value.0
-                ))));
-            }
-            // Type checking handled in lower_fact_literal() now
-        }
-
-        Ok(())
-    }
-
     /// Lower a struct literal, ensuring it matches its definition.
     ///
     /// Checks:
@@ -127,105 +101,16 @@ impl CompileState<'_> {
         require_value: bool,
     ) -> Result<thir::FactLiteral, CompileError> {
         // Fetch schema
-        let fact_def = self.get_fact_def(&fact.identifier)?;
-
-        // Note: Bind values exist at compile time (as FactField::Bind), so we can expect the literal
-        // key/value sets to match the schema. E.g. given `fact Foo[i int, j int]` and `query Foo[i:1, j:?]`,
-        // we will get two sequences with the same number of items. If not, abort.
-
-        // key sets must have the same length
-        if fact.key_fields.len() != fact_def.key.len() {
-            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
-                "Fact keys don't match definition",
-            ))));
-        }
-
-        // Ensure the fact has all keys defined in the schema.
-        for (schema_key, lit_key) in fact_def.key.iter().zip(fact.key_fields.iter()) {
-            if schema_key.identifier.name != lit_key.0.name {
-                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
-                    "Invalid key: expected {}, got {}",
-                    schema_key.identifier, lit_key.0
-                ))));
-            }
-
-            // Type checking handled in lower_fact_literal() now
-        }
-
-        match &fact.value_fields {
-            Some(values) => self.verify_fact_values(values, fact_def)?,
-            None => {
-                if require_value {
-                    return Err(self.err(CompileErrorType::InvalidFactLiteral(
-                        "fact literal requires value".to_string(),
-                    )));
-                }
-            }
-        }
-
         let fact_def = self.get_fact_def(&fact.identifier)?.clone();
 
-        let mut key_fields = Vec::new();
-        let mut bind_found = false;
-        for (k, v) in &fact.key_fields {
-            if let FactField::Expression(e) = v {
-                if bind_found {
-                    return Err(self.err(CompileErrorType::InvalidFactLiteral(
-                        "leading bind values not allowed".to_string(),
-                    )));
-                }
-                let def_field_type = &fact_def
-                    .get_key_field(k)
-                    .ok_or_else(|| {
-                        self.err(CompileErrorType::InvalidType(format!(
-                            "field `{}` not found in Fact `{}`",
-                            k, fact.identifier
-                        )))
-                    })?
-                    .field_type;
-                let e = self.lower_expression(e)?;
-                if !e.vtype.fits_type(def_field_type) {
-                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "Fact `{}` key field `{}` is not `{}`",
-                        fact.identifier,
-                        k,
-                        DisplayType(def_field_type)
-                    ))));
-                }
-                key_fields.push((k.clone(), e));
-            } else {
-                // Skip bind values
-                bind_found = true;
-                continue;
-            }
-        }
+        let key_fields = self.lower_fact_keys(&fact_def, &fact.key_fields)?;
 
         let value_fields = if let Some(fact_value_fields) = &fact.value_fields {
-            let mut value_fields = Vec::new();
-            for (k, v) in fact_value_fields {
-                if let FactField::Expression(e) = &v {
-                    let def_field_type = &fact_def
-                        .get_value_field(k)
-                        .ok_or_else(|| {
-                            self.err(CompileErrorType::InvalidType(format!(
-                                "field `{}` not found in Fact `{}`",
-                                k, fact.identifier
-                            )))
-                        })?
-                        .field_type;
-                    let e = self.lower_expression(e)?;
-                    if !e.vtype.fits_type(def_field_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Fact `{}` value field `{}` is not `{}`",
-                            fact.identifier,
-                            k,
-                            DisplayType(def_field_type)
-                        ))));
-                    }
-                    value_fields.push((k.clone(), e));
-                }
-            }
-            Some(value_fields)
+            Some(self.lower_fact_values(&fact_def, fact_value_fields)?)
+        } else if require_value {
+            return Err(self.err(CompileErrorType::InvalidFactLiteral(
+                "fact literal requires value".to_string(),
+            )));
         } else {
             None
         };
@@ -235,6 +120,94 @@ impl CompileState<'_> {
             key_fields,
             value_fields,
         })
+    }
+
+    fn lower_fact_keys(
+        &mut self,
+        fact_def: &FactDefinition,
+        fact_key_fields: &[(Ident, FactField)],
+    ) -> Result<Vec<(Ident, thir::Expression)>, CompileError> {
+        let name = &fact_def.identifier;
+
+        // Note: Bind values exist at compile time (as FactField::Bind), so we can expect the literal
+        // key/value sets to match the schema. E.g. given `fact Foo[i int, j int]` and `query Foo[i:1, j:?]`,
+        // we will get two sequences with the same number of items. If not, abort.
+
+        // key sets must have the same length
+        if fact_key_fields.len() != fact_def.key.len() {
+            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
+                "Fact keys don't match definition",
+            ))));
+        }
+        let mut key_fields = Vec::new();
+        let mut bind_found = false;
+        for ((lit_key_name, lit_key_field), schema_key) in fact_key_fields.iter().zip(&fact_def.key)
+        {
+            if schema_key.identifier.name != lit_key_name.name {
+                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                    "Invalid key: expected {}, got {}",
+                    schema_key.identifier, lit_key_name
+                ))));
+            }
+
+            match lit_key_field {
+                FactField::Expression(e) => {
+                    if bind_found {
+                        return Err(self.err(CompileErrorType::InvalidFactLiteral(
+                            "leading bind values not allowed".to_string(),
+                        )));
+                    }
+                    let e = self.lower_expression(e)?;
+                    let def_field_type = &schema_key.field_type;
+                    if !e.vtype.fits_type(def_field_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Fact `{name}` value field `{lit_key_name}` found `{}`, not `{}`",
+                            e.vtype,
+                            DisplayType(def_field_type)
+                        ))));
+                    }
+                    key_fields.push((lit_key_name.clone(), e));
+                }
+                FactField::Bind(_) => {
+                    // Skip bind values
+                    bind_found = true;
+                }
+            }
+        }
+        Ok(key_fields)
+    }
+
+    fn lower_fact_values(
+        &mut self,
+        fact_def: &FactDefinition,
+        fact_value_fields: &[(Ident, FactField)],
+    ) -> Result<Vec<(Ident, thir::Expression)>, CompileError> {
+        let name = &fact_def.identifier;
+        let mut value_fields = Vec::new();
+        // TODO: Allow any order for values?
+        for ((lit_value_name, lit_value_field), schema_value) in
+            fact_value_fields.iter().zip(&fact_def.value)
+        {
+            if lit_value_name.name != schema_value.identifier.name {
+                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                    "Expected value {}, got {}",
+                    schema_value.identifier, lit_value_name.name
+                ))));
+            }
+            if let FactField::Expression(e) = &lit_value_field {
+                let def_field_type = &schema_value.field_type;
+                let e = self.lower_expression(e)?;
+                if !e.vtype.fits_type(def_field_type) {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Fact `{name}` value field `{lit_value_name}` found `{}`, not `{}`",
+                        e.vtype,
+                        DisplayType(def_field_type)
+                    ))));
+                }
+                value_fields.push((lit_value_name.clone(), e));
+            }
+        }
+        Ok(value_fields)
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -1328,20 +1301,14 @@ impl CompileState<'_> {
                 }
                 (StmtKind::Create(s), StatementContext::Finish) => {
                     // Do not allow bind values during fact creation
-                    if s.fact
-                        .key_fields
-                        .iter()
-                        .any(|f| matches!(f.1, FactField::Bind(_)))
-                        || s.fact
-                            .value_fields
-                            .as_ref()
-                            .is_some_and(|v| v.iter().any(|f| matches!(f.1, FactField::Bind(_))))
+                    if let Some(span) = find_bind(&s.fact.key_fields)
+                        .or_else(|| s.fact.value_fields.as_ref().and_then(|f| find_bind(f)))
                     {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot create fact with bind values",
                             )),
-                            statement.span,
+                            span,
                         ));
                     }
 
@@ -1359,75 +1326,39 @@ impl CompileState<'_> {
                         );
                     }
 
-                    if s.fact
-                        .key_fields
-                        .iter()
-                        .any(|f| matches!(f.1, FactField::Bind(_)))
-                    {
+                    if let Some(span) = find_bind(&s.fact.key_fields) {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot update fact with wildcard keys",
                             )),
-                            statement.span,
+                            span,
                         ));
                     }
 
                     let fact = self.lower_fact_literal(&s.fact, false)?;
 
                     // Verify the 'to' fact literal
-                    let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
-                    self.verify_fact_values(&s.to, &fact_def)?;
-
-                    let mut to = Vec::new();
-                    for (k, v) in &s.to {
-                        match v {
-                            FactField::Bind(span) => {
-                                // Cannot bind in the set statement
-                                return Err(self.err_loc(
-                                    CompileErrorType::BadArgument(String::from(
-                                        "Cannot update fact to a bind value",
-                                    )),
-                                    *span,
-                                ));
-                            }
-                            FactField::Expression(e) => {
-                                let def_field_type = &fact_def
-                                    .get_value_field(k)
-                                    .ok_or_else(|| {
-                                        self.err(CompileErrorType::InvalidType(format!(
-                                            "field `{}` not found in Fact `{}`",
-                                            k, s.fact.identifier
-                                        )))
-                                    })?
-                                    .field_type;
-                                let e = self.lower_expression(e)?;
-                                if !e.vtype.fits_type(def_field_type) {
-                                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                                        "Fact `{}` value field `{}` found `{}`, not `{}`",
-                                        s.fact.identifier,
-                                        k,
-                                        e.vtype,
-                                        DisplayType(def_field_type)
-                                    ))));
-                                }
-                                to.push((k.clone(), e));
-                            }
-                        }
+                    if let Some(span) = find_bind(&s.to) {
+                        // Cannot bind in the set statement
+                        return Err(self.err_loc(
+                            CompileErrorType::BadArgument(String::from(
+                                "Cannot update fact to a bind value",
+                            )),
+                            span,
+                        ));
                     }
+                    let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
+                    let to = self.lower_fact_values(&fact_def, &s.to)?;
 
                     thir::StmtKind::Update(thir::UpdateStatement { fact, to })
                 }
                 (StmtKind::Delete(s), StatementContext::Finish) => {
-                    if s.fact
-                        .key_fields
-                        .iter()
-                        .any(|f| matches!(f.1, FactField::Bind(_)))
-                    {
+                    if let Some(span) = find_bind(&s.fact.key_fields) {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot delete fact with wildcard keys",
                             )),
-                            statement.span,
+                            span,
                         ));
                     }
 
@@ -1570,4 +1501,11 @@ impl CompileState<'_> {
         }
         Ok(output)
     }
+}
+
+fn find_bind(fields: &[(Ident, FactField)]) -> Option<Span> {
+    fields.iter().find_map(|(_, field)| match field {
+        FactField::Bind(span) => Some(*span),
+        FactField::Expression(_) => None,
+    })
 }
