@@ -39,9 +39,9 @@ Policy {
                 "Bar" @ 66..69,
             ) @ 59..69,
             statements: [
-                Return(
-                    ReturnStatement {
-                        expression: NamedStruct(
+                Expr(
+                    Return(
+                        NamedStruct(
                             NamedStruct {
                                 identifier: "Bar" @ 83..86,
                                 fields: [

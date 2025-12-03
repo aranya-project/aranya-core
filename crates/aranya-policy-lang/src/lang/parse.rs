@@ -928,7 +928,8 @@ impl ChunkParser<'_> {
                         .map(|token| self.parse_expression(token.clone()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-                    // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
+                    // Figure out what kind of pattern it is. Multiple values definitely means a
+                    // Values pattern; A single value could be a Result pattern, or a Values pattern.
                     if values.len() == 1 {
                         match &values[0].kind {
                             ExprKind::ResultOk(inner) => {
@@ -1342,11 +1343,10 @@ impl ChunkParser<'_> {
                     StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
                 }
                 Rule::expr_statement => {
-                    // statements used as expressions. currently, only "return" is supported
+                    // Statements used as expressions. Currently, only "return" is supported.
                     let pc = descend(statement);
                     let expr_token = pc.consume()?;
 
-                    // Handle different types of expression statements
                     match expr_token.as_rule() {
                         Rule::return_expr => {
                             let mut pairs = expr_token.clone().into_inner();

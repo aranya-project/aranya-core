@@ -282,10 +282,10 @@ fn parse_result() {
         ("result[int, optional string]", true),
         ("result[int, enum Error]", true),
         ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
-        ("result[int]", false),                     // missing error type
-        ("result[, string]", false),                // missing ok type
-        ("result[blargh, string]", false),          // invalid ok type
-        ("result[int, blargh]", false),             // invalid error type
+        ("result[int]", false),                      // missing error type
+        ("result[, string]", false),                 // missing ok type
+        ("result[blargh, string]", false),           // invalid ok type
+        ("result[int, blargh]", false),              // invalid error type
     ];
     for (case, is_valid) in result_types {
         let r = PolicyParser::parse(Rule::result_t, case);
@@ -849,6 +849,8 @@ fn test_match_expression_with_return() {
         function f(n int) int {
             let x = match n {
                 0 => 1
+                1 => { :return 2 }
+                // 2 => { return 3 } TODO not allowed. should it be?
                 _ => return -1
             }
             return x
