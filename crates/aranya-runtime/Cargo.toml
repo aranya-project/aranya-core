@@ -59,6 +59,8 @@ required-features = ["bench"]
 [features]
 default = []
 
+low-mem-usage = []
+
 bench = ["aranya-policy-vm/bench"]
 
 # Enable `libc`.
@@ -95,3 +97,7 @@ always_include_features = [
 	"std",
 	"testing",
 ]
+
+# low-mem-usage breaks brittle dsl tests and is only 
+# needed for the embedded build so we exclude it here.
+denylist = ["low-mem-usage"]
