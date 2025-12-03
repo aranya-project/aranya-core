@@ -55,13 +55,18 @@ impl CompileState<'_> {
                     schema_value.identifier, lit_value.0
                 ))));
             }
-            // Type checking handled in compile_fact_literal() now
+            // Type checking handled in lower_fact_literal() now
         }
 
         Ok(())
     }
 
-    /// Compile instructions to construct a struct literal
+    /// Lower a struct literal, ensuring it matches its definition.
+    ///
+    /// Checks:
+    /// - a struct with this name was defined
+    /// - the fields defined in the struct are present, and have the correct types
+    /// - there are no duplicate fields
     fn lower_struct_literal(&mut self, s: &NamedStruct) -> Result<thir::NamedStruct, CompileError> {
         let Some(struct_def) = self.m.struct_defs.get(&s.identifier.name).cloned() else {
             return Err(self.err(CompileErrorType::NotDefined(format!(
@@ -110,7 +115,9 @@ impl CompileState<'_> {
         })
     }
 
-    /// Make sure fact literal matches its schema. Checks that:
+    /// Lower a fact literal, ensuring it matches its schema.
+    ///
+    /// Checks:
     /// - a fact with this name was defined
     /// - the keys and values defined in the schema are present, and have the correct types
     /// - there are no duplicate keys or values
@@ -142,7 +149,7 @@ impl CompileState<'_> {
                 ))));
             }
 
-            // Type checking handled in compile_fact_literal() now
+            // Type checking handled in lower_fact_literal() now
         }
 
         match &fact.value_fields {
@@ -942,7 +949,10 @@ impl CompileState<'_> {
         })
     }
 
-    /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
+    /// Lowers a (check) unwrap expression.
+    ///
+    /// The `constructor` param is used to wrap the inner expression in either
+    /// [`thir::ExprKind::Unwrap`] or [`thir::ExprKind::CheckUnwrap`].
     fn lower_unwrap(
         &mut self,
         e: &Expression,
