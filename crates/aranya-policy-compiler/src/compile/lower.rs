@@ -183,6 +183,14 @@ impl CompileState<'_> {
         fact_value_fields: &[(Ident, FactField)],
     ) -> Result<Vec<(Ident, thir::Expression)>, CompileError> {
         let name = &fact_def.identifier;
+
+        // value block must have the same number of values as the schema
+        if fact_value_fields.len() != fact_def.value.len() {
+            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
+                "incorrect number of values",
+            ))));
+        }
+
         let mut value_fields = Vec::new();
         // TODO: Allow any order for values?
         for ((lit_value_name, lit_value_field), schema_value) in
