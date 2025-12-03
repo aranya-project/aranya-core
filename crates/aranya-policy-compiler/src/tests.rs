@@ -2830,6 +2830,158 @@ fn test_validate_unreachable_code() {
 }
 
 #[test]
+fn test_validate_finish() {
+    // Valid cases: policy and recall blocks with finish blocks
+    let valid = [
+        // Basic command with finish in both policy and recall
+        r#"
+            command FinishPolicyAndRecall {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall {
+                    finish {}
+                }
+            }
+        "#,
+        // Policy with statements before finish
+        r#"
+            fact Bar[] => {}
+            command Baz {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    check true
+                    let x = 5
+                    finish {
+                        create Bar[] => {}
+                    }
+                }
+            }
+        "#,
+        // Both blocks with statements and finish
+        r#"
+            fact Test[] => {}
+            command Complex {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    let x = 5
+                    check x > 0
+                    finish {
+                        create Test[] => {}
+                    }
+                }
+                recall {
+                    let y = 10
+                    finish {
+                        delete Test[]
+                    }
+                }
+            }
+        "#,
+        // Empty policy and recall blocks (no statements = no finish required)
+        r#"
+            command Empty {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+                recall {}
+            }
+        "#,
+        // Conditional paths all reaching finish
+        r#"
+            command Conditional {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    if true {
+                        finish {}
+                    } else {
+                    }
+                    finish {}
+                }
+                recall {
+                    finish {}
+                }
+            }
+        "#,
+    ];
+
+    // Invalid cases: policy or recall blocks with statements but no finish
+    let invalid = [
+        // Policy block with statements but no finish
+        r#"
+            command NoFinishPolicy {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    let x = 5
+                    // missing finish here
+                }
+            }
+        "#,
+        // Recall block with statements but no finish
+        r#"
+            command NoFinishRecall {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+                recall {
+                    let y = 10
+                    // missing finish here
+                }
+            }
+        "#,
+        // Not all paths in policy reach finish
+        r#"
+            command NoFinishConditional {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    if true {
+                        let z = 3 // missing finish here
+                    }
+                    else {
+                        finish {}
+                    }
+                }
+            }
+        "#,
+    ];
+
+    for (i, p) in valid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            !validate(&m),
+            "Case {}: Expected case to be valid: {}",
+            i,
+            p
+        );
+    }
+
+    for (i, p) in invalid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            validate(&m),
+            "Case {}: Expected case to be invalid (missing finish): {}",
+            i,
+            p
+        );
+    }
+}
+
+#[test]
 fn test_validate_publish() {
     let concat = |text| {
         let base = r#"
