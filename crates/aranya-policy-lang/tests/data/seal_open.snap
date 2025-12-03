@@ -17,9 +17,9 @@ Policy {
             identifier: "Foo" @ 8..11,
             fields: [],
             seal: [
-                Return(
-                    ReturnStatement {
-                        expression: FunctionCall(
+                Expr(
+                    Return(
+                        FunctionCall(
                             FunctionCall {
                                 identifier: "bar" @ 40..43,
                                 arguments: [
@@ -33,9 +33,9 @@ Policy {
                 ) @ 33..54,
             ],
             open: [
-                Return(
-                    ReturnStatement {
-                        expression: FunctionCall(
+                Expr(
+                    Return(
+                        FunctionCall(
                             FunctionCall {
                                 identifier: "baz" @ 82..85,
                                 arguments: [
