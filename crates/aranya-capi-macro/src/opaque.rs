@@ -7,12 +7,7 @@ use tracing::info;
 pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     info!("parsing `#[capi::opaque(...)]` attribute");
 
-    let Opaque {
-        size,
-        align,
-        capi,
-        generated,
-    } = syn::parse2::<Opaque>(attr)?;
+    let Opaque { size, align, capi } = syn::parse2::<Opaque>(attr)?;
 
     let capi: Path = capi
         .map(Into::into)
@@ -28,12 +23,9 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
     };
     let name = definition.ident.clone();
 
-    // Generated alias already has opaque wrapper on underlying type.
-    // Otherwise, wrap in `Opaque`.
-    if !generated {
-        let old = definition.ty;
-        definition.ty = parse_quote! { #capi::opaque::Opaque<#size, #align, #old> };
-    }
+    // Wrap in `Opaque`.
+    let old = definition.ty;
+    definition.ty = parse_quote! { #capi::opaque::Opaque<#size, #align, #old> };
 
     let code = quote! {
         #definition

@@ -259,13 +259,8 @@ impl ToTokens for Alias {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // NB: We do not emit `capi::` attributes.
 
-        if let Some(Opaque {
-            generated: true,
-            size,
-            align,
-            ..
-        }) = &self.opaque
-        {
+        // Manually expand opaque so we don't need expansion in cbindgen.
+        if let Some(Opaque { size, align, .. }) = &self.opaque {
             // Generate fake struct for cbindgen
             tokens.append_all({
                 let vis = &self.vis;
@@ -300,7 +295,7 @@ impl ToTokens for Alias {
 
         self.doc.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
-        self.opaque.to_tokens(tokens);
+        // `opaque` intentionally omitted, see above.
         self.vis.to_tokens(tokens);
         self.type_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
@@ -387,11 +382,17 @@ impl ToTokens for Struct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // NB: We do not emit `capi::` attributes.
 
+        // Opaque is not currently supported on structs. When supported, we will need to add
+        // similar handling as in `Alias`. We can't seem to remove the field, I think because it is
+        // used to pass an `Opaque` between `Struct` and `Alias`. This panic doesn't seem to be
+        // reachable though, so we correctly never generate a struct with an opaque attribute.
+        assert!(self.opaque.is_none(), "opaque struct: {:?}", self.opaque);
+
         self.doc.to_tokens(tokens);
         self.derives.to_tokens(tokens);
         self.repr.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
-        self.opaque.to_tokens(tokens);
+        // `opaque` intentionally omitted, see above.
         self.vis.to_tokens(tokens);
         self.struct_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);

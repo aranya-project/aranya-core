@@ -45,7 +45,6 @@ pub struct PrefixExtError {
 }
 #[cfg(not(cbindgen))]
 /// Extended error information.
-#[__capi::opaque(size = 72, align = 8, generated = true)]
 pub type PrefixExtError = self::__hidden::PrefixExtError;
 #[derive(::core::marker::Copy)]
 #[derive(::core::clone::Clone)]
