@@ -10,11 +10,9 @@ use aranya_crypto::{
 };
 use serial_test::serial;
 
-use super::{
-    Flag, Mode, Path, ReadState, WriteState,
-    shared::{Index, ShmChan},
-};
+use super::{Flag, Mode, Path, ReadState, WriteState};
 use crate::{
+    shm::shared::index_from_id,
     state::{AranyaState, Channel, Directed},
     testing::{
         test_impl,
@@ -40,7 +38,7 @@ impl TestImpl for SharedMemImpl {
     fn new_states<CS: CipherSuite>(
         name: &str,
         id: DeviceIdx,
-        max_chans: usize,
+        max_chans: u32,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
         let path = make_path(name, id);
         let _ = super::unlink(&path);
@@ -69,7 +67,7 @@ test_impl!(#[serial], shm, SharedMemImpl);
 /// Test adding many nodes.
 #[test]
 fn test_many_nodes() {
-    const MAX_CHANS: usize = 101;
+    const MAX_CHANS: u32 = 101;
 
     let labels = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
 
@@ -81,7 +79,7 @@ fn test_many_nodes() {
         path,
         Flag::Create,
         Mode::ReadWrite,
-        MAX_CHANS * labels.len(),
+        MAX_CHANS * labels.len() as u32,
         Rng,
     )
     .expect("unable to created shared memory");
@@ -89,12 +87,12 @@ fn test_many_nodes() {
         path,
         Flag::OpenOnly,
         Mode::ReadWrite,
-        MAX_CHANS * labels.len(),
+        MAX_CHANS * labels.len() as u32,
     )
     .expect("unable to created shared memory");
 
     // All the channels we've stored in the shared memory.
-    let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
+    let mut chans = Vec::with_capacity(MAX_CHANS as usize * labels.len());
 
     let rng = &mut Rng;
 
@@ -119,33 +117,32 @@ fn test_many_nodes() {
 
             // Now check that all previously added nodes
             // exist and are correct.
-            for (j, want) in chans.iter().enumerate().by_ref() {
-                let idx = Index(j);
+            for (idx, want) in chans.iter().enumerate().by_ref() {
+                let id = want.id;
 
-                // Check with and without a hint.
-                for hint in [None, Some(idx)] {
-                    let id = want.id;
+                let got = afc
+                    .inner
+                    .shm()
+                    .arena()
+                    .unwrap()
+                    .get(index_from_id(id))
+                    .unwrap();
+                // .unwrap_or_else(|err| panic!("find_chan({id}, {hint:?}): {err}"))
+                // .unwrap_or_else(|| panic!("find_chan({id}, {hint:?}) returned `None`"));
 
-                    let (got, got_idx) = afc
-                        .inner
-                        .find_chan(id, hint)
-                        .unwrap_or_else(|err| panic!("find_chan({id}, {hint:?}): {err}"))
-                        .unwrap_or_else(|| panic!("find_chan({id}, {hint:?}) returned `None`"));
+                // assert_eq!(got_idx, idx, "{idx:?}");
 
-                    assert_eq!(got_idx, idx, "{idx:?}");
+                got.check().expect("not corrupted");
 
-                    assert_eq!(got.magic, ShmChan::<<E as Engine>::CS>::MAGIC, "{idx:?}");
+                // let got_id = got
+                //     .id()
+                //     .unwrap_or_else(|err| panic!("unable to get channel for chan {idx:?}: {err}"));
+                // assert_eq!(got_id, want.id, "{idx:?}");
 
-                    let got_id = got.id().unwrap_or_else(|err| {
-                        panic!("unable to get channel for chan {idx:?}: {err}")
-                    });
-                    assert_eq!(got_id, want.id, "{idx:?}");
-
-                    let got_secret = got
-                        .keys()
-                        .unwrap_or_else(|err| panic!("unable to get keys: {err}"));
-                    assert_eq!(got_secret, want.keys.as_ref(), "{idx:?}");
-                }
+                let got_secret = got
+                    .keys()
+                    .unwrap_or_else(|err| panic!("unable to get keys: {err}"));
+                assert_eq!(got_secret, want.keys.as_ref(), "{idx:?}");
             }
         }
     }

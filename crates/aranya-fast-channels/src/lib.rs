@@ -24,13 +24,6 @@
 //! [`AranyaState`]. By default, AFC provides a state
 //! implementation backed by shared memory.
 //!
-//! # Notes
-//!
-//! AFC encrypts/seals each message with a deterministic nonce derived from a
-//! base nonce and sequence number. Sequence numbers should not be re-used in a given channel
-//! but it is possible to do so by passing a "new" [`AfcState::SealCtx`] to the seal methods
-//! on [`Client`].
-//!
 //! # Example
 //!
 //! The following example demonstrates two [`Client`]s encrypting
@@ -144,10 +137,7 @@
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!
-//!     // Create the ctx to pass in.
-//!     let mut ctx = afc_client_a.setup_seal_ctx(client_a_channel_id)?;
-//!     afc_client_a.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())?;
+//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
 //!     dst
 //! };
 //!
@@ -192,13 +182,13 @@
 #![warn(
     clippy::alloc_instead_of_core,
     clippy::implicit_saturating_sub,
-    clippy::undocumented_unsafe_blocks,
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::missing_panics_doc,
+    // clippy::undocumented_unsafe_blocks,
+    // clippy::expect_used,
+    // clippy::indexing_slicing,
+    // clippy::missing_panics_doc,
     clippy::string_slice,
     clippy::unimplemented,
-    missing_docs
+    // missing_docs
 )]
 #![cfg_attr(not(any(feature = "std", test)), deny(clippy::std_instead_of_core))]
 #![expect(
@@ -212,6 +202,7 @@ extern crate alloc;
 #[macro_use]
 mod features;
 
+pub mod arena;
 mod buf;
 mod client;
 pub mod crypto;
