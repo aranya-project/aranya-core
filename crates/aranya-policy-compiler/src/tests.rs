@@ -1565,6 +1565,22 @@ fn test_match_expression() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            r#"function f(r result[int, string]) int {
+                return match r {
+                    Ok(n) => n
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"function f(r result[int, string]) int {
+                return match r {
+                    Err(e) => 0
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
@@ -1635,6 +1651,84 @@ fn test_match_expression() {
     ];
     for src in valid_cases {
         compile_pass(src);
+    }
+}
+
+#[test]
+fn test_match_expression_with_return() {
+    let valid_cases = [
+        // Basic case: return in one arm, value in another
+        r#"function f(n int) int {
+            let x = match n {
+                0 => 1
+                _ => return 2
+            }
+            return x
+        }"#,
+        // Nested match with return
+        r#"function f(n int, m int) int {
+            let x = match n {
+                0 => match m {
+                    0 => 1
+                    _ => return 2
+                }
+                _ => 3
+            }
+            return x
+        }"#,
+    ];
+
+    for (i, src) in valid_cases.iter().enumerate() {
+        eprintln!("Testing case {}:\n{}\n", i, src);
+        compile_pass(src);
+    }
+
+    // Test invalid cases
+    let invalid_cases = vec![
+        (
+            // Return outside function context
+            r#"action f() {
+                let x = match 0 {
+                    0 => 1
+                    _ => (return 2)
+                }
+            }"#,
+            "Return expression can only be used inside a function",
+        ),
+        (
+            // Wrong return type
+            r#"function f(n int) int {
+                let x = match n {
+                    0 => 1
+                    _ => (return "wrong")
+                }
+                return x
+            }"#,
+            "Return value of `f()` must be int",
+        ),
+        (
+            // All arms return - match has Never type and can't be assigned
+            r#"function f(n int) int {
+                let x = match n {
+                    _ => return 3
+                }
+            }"#,
+            "Cannot assign a Never value.",
+        ),
+    ];
+
+    for (src, expected_msg) in invalid_cases {
+        let err = compile_fail(src);
+        if let CompileErrorType::InvalidType(msg) = err {
+            assert!(
+                msg.contains(expected_msg),
+                "Expected error message to contain '{}', got '{}'",
+                expected_msg,
+                msg
+            );
+        } else {
+            panic!("Expected InvalidType error, got {:?}", err);
+        }
     }
 }
 
@@ -2513,7 +2607,9 @@ fn test_duplicate_definitions() {
                     return false
                 }
             "#,
-            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
+            e: Some(CompileErrorType::InvalidType(String::from(
+                "Cannot assign a Never value.",
+            ))),
         },
         Case {
             t: r#"
@@ -2563,12 +2659,13 @@ fn test_duplicate_definitions() {
         },
     ];
 
-    for c in cases {
-        if let Some(expected) = c.e {
-            let actual = compile_fail(c.t);
-            assert_eq!(actual, expected);
+    for (i, case) in cases.iter().enumerate() {
+        println!("Testing case {}:\n{}\n", i, case.t);
+        if let Some(expected) = &case.e {
+            let actual = compile_fail(case.t);
+            assert_eq!(actual, *expected);
         } else {
-            compile_pass(c.t);
+            compile_pass(case.t);
         }
     }
 }
@@ -3282,5 +3379,79 @@ fn test_action_command_persistence() {
     for (text, expected) in invalid_cases {
         let err = compile_fail(text);
         assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_result_values() {
+    let invalid = [
+        // Not a result type
+        "function f() result[int, string] { return 0 }",
+        // Ok type mismatch
+        "function f() result[int, string] { return Ok(\"1\") }",
+        // Err type mismatch
+        "function f() result[int, string] { return Err(1) }",
+    ];
+
+    for src in invalid {
+        let result = compile_fail(src);
+        assert_eq!(
+            result,
+            CompileErrorType::InvalidType(
+                "Return value of `f()` must be result[int, string]".to_string(),
+            ),
+            "expected error for source: {}",
+            src
+        );
+    }
+}
+
+#[test]
+fn test_result_match() {
+    let policy_str = r#"
+        function may_fail(x int) result[int, string] {
+            if x > 0 {
+                return Ok(x)
+            } else {
+                return Err("negative input")
+            }
+        }
+
+        function match_statement(r result[int, string]) int {
+            match r {
+                Ok(v) => {
+                    return v
+                }
+                Err(e) => {
+                    return 0
+                }
+            }
+        }
+
+        function match_expr_with_return(x int) result[int, string] {
+            let result = match may_fail(x) {
+                Ok(v) => v
+                Err(e) => return Err(e)
+            }
+            return Ok(result)
+        }
+    "#;
+
+    compile_pass(policy_str);
+
+    let invalid = [(
+        r#"
+        function match_duplicate_arms(r result[int, string]) int {
+            return match r {
+                Ok(v) => v
+                Ok(v) => v
+                _ => 0
+            }
+        }"#,
+        CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+    )];
+    for (src, expected) in invalid {
+        let err_type = compile_fail(src);
+        assert_eq!(err_type, expected);
     }
 }

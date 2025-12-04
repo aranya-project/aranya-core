@@ -651,9 +651,9 @@ Policy {
                         ) @ 2103..2111,
                     },
                 ) @ 2095..2124,
-                Return(
-                    ReturnStatement {
-                        expression: GreaterThan(
+                Expr(
+                    Return(
+                        GreaterThan(
                             Identifier(
                                 "x" @ 2131..2132,
                             ) @ 2131..2132,
@@ -661,7 +661,7 @@ Policy {
                                 0,
                             ) @ 2135..2136,
                         ) @ 2131..2136,
-                    },
+                    ) @ 2124..2145,
                 ) @ 2124..2145,
             ],
             span: 2043..2146,

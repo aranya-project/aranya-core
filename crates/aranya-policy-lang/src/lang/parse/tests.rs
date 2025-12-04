@@ -274,9 +274,9 @@ fn parse_errors() -> Result<(), ParseError> {
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
-                action_call, publish_statement, let_statement, check_statement, match_statement, \
+                return_expr, action_call, publish_statement, let_statement, check_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
-                delete_statement, emit_statement, return_statement, or debug_assert",
+                delete_statement, emit_statement, or debug_assert",
         ),
         rule: Rule::top_level_statement,
     }];
@@ -372,6 +372,45 @@ fn parse_optional() {
         let r = parse_vtype(case);
         assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
+}
+
+#[test]
+fn parse_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[int, string]", true),
+        ("result[bytes, bool]", true),
+        ("result[struct Foo, string]", true),
+        ("result[optional int, string]", true),
+        ("result[int, optional string]", true),
+        ("result[int, enum Error]", true),
+        ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
+        ("result[int]", false),                      // missing error type
+        ("result[, string]", false),                 // missing ok type
+        ("result[blargh, string]", false),           // invalid ok type
+        ("result[int, blargh]", false),              // invalid error type
+    ];
+    for (case, is_valid) in result_types {
+        let r = PolicyParser::parse(Rule::result_t, case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+#[test]
+fn test_result_literal() -> Result<(), ParseError> {
+    let cases = [
+        "Ok(42)",
+        "Ok(true)",
+        "Ok(get_value())",
+        "Ok(Foo {})",
+        "Err(\"error message\")",
+        "Err(Error::NotFound)",
+    ];
+    for src in cases {
+        let r = PolicyParser::parse(Rule::result_literal, src);
+        assert!(r.is_ok(), "Failed to parse result literal: {}", src);
+    }
+    Ok(())
 }
 
 #[test]
@@ -901,23 +940,27 @@ fn parse_serialize_deserialize() {
             policy: vec![],
             recall: vec![],
             seal: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
-                        Box::new(ExprKind::Identifier(ident!("this").at(66..70)).at(66..70))
+                StmtKind::Expr(
+                    ExprKind::Return(Box::new(
+                        ExprKind::InternalFunction(ast::InternalFunction::Serialize(Box::new(
+                            ExprKind::Identifier(ident!("this").at(66..70)).at(66..70)
+                        )))
+                        .at(56..71)
                     ))
-                    .at(56..71)
-                })
+                    .at(49..84)
+                )
                 .at(49..84)
             ],
             open: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
-                        Box::new(
+                StmtKind::Expr(
+                    ExprKind::Return(Box::new(
+                        ExprKind::InternalFunction(ast::InternalFunction::Deserialize(Box::new(
                             ExprKind::Identifier(ident!("envelope").at(141..149)).at(141..149)
-                        )
+                        )))
+                        .at(129..150)
                     ))
-                    .at(129..150)
-                })
+                    .at(122..163)
+                )
                 .at(122..163)
             ],
             span: Span::new(0, 174),
@@ -1180,6 +1223,41 @@ fn test_match_expression() {
         let err_kind = parse_policy_str(src, Version::V2).unwrap_err().kind;
         assert_eq!(err_kind, expected);
     }
+}
+
+#[test]
+fn test_match_expression_with_return() {
+    // Test that return can be used as an expression in match arms
+    let src = r#"
+        function f(n int) int {
+            let x = match n {
+                0 => 1
+                1 => { :return 2 }
+                // 2 => { return 3 } TODO not allowed. should it be?
+                _ => return -1
+            }
+            return x
+        }
+    "#;
+
+    let policy = parse_policy_str(src, Version::V2).expect("should parse");
+    insta::assert_json_snapshot!(policy);
+}
+
+#[test]
+fn test_result_pattern_match() {
+    let src = r#"
+        function foo(r result[int, string]) int {
+            let x = match r {
+                Ok(val) => val
+                Err(err) => -1
+            }
+            return x
+        }
+    "#;
+
+    let policy = parse_policy_str(src, Version::V2).expect("should parse result patterns");
+    insta::assert_json_snapshot!(policy);
 }
 
 #[test]

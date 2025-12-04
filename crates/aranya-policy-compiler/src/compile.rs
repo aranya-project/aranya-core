@@ -14,12 +14,12 @@ use std::{
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField,
     FactLiteral, FieldDefinition, FunctionCall, Ident, Identifier, LanguageContext,
-    MatchExpression, MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement,
-    StmtKind, StructItem, TypeKind, VType, ident,
+    MatchExpression, MatchPattern, MatchStatement, NamedStruct, ResultPattern, Span, Spanned as _,
+    Statement, StmtKind, StructItem, TypeKind, VType, ident,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Param, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
+    Meta, Module, Param, Struct, Target, Value, WrapType, ffi::ModuleSchema, named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
@@ -1384,6 +1384,65 @@ impl<'a> CompileState<'a> {
                     expression.span(),
                 )?
                 .assume("match expression must return a type")?,
+            ExprKind::Return(e) => {
+                // Compile the return expression
+                let et = self.compile_expression(e)?;
+
+                // Get the current function context to validate return type
+                let ctx = self.get_statement_context()?;
+                if let StatementContext::PureFunction(fd) = ctx {
+                    // Validate that the return type matches the function signature
+                    if !et.fits_type(&fd.return_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Return value of `{}()` must be {}",
+                            fd.identifier,
+                            DisplayType(&fd.return_type)
+                        ))));
+                    }
+                } else {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Return expression can only be used inside a function".to_string(),
+                    )));
+                }
+
+                // Emit the return instruction
+                self.append_instruction(Instruction::Return);
+
+                // Return Never type - this expression doesn't produce a value on the stack
+                VType {
+                    kind: TypeKind::Never,
+                    span: Span::empty(),
+                }
+            }
+            ExprKind::ResultOk(e) => {
+                let inner_type = self.compile_expression(e)?;
+                // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
+                self.append_instruction(Instruction::Wrap(WrapType::Ok));
+                VType {
+                    kind: TypeKind::Result {
+                        ok: Box::new(inner_type),
+                        err: Box::new(VType {
+                            kind: TypeKind::Never,
+                            span: Span::empty(),
+                        }),
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::ResultErr(e) => {
+                let inner_type = self.compile_expression(e)?;
+                self.append_instruction(Instruction::Wrap(WrapType::Err));
+                VType {
+                    kind: TypeKind::Result {
+                        ok: Box::new(VType {
+                            kind: TypeKind::Never,
+                            span: Span::empty(),
+                        }),
+                        err: Box::new(inner_type),
+                    },
+                    span: expression.span,
+                }
+            }
         };
 
         Ok(expression_type)
@@ -1450,6 +1509,12 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandRecall(_),
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
+                    // `Never` expressions cannot be assigned to variables
+                    if matches!(et.kind, TypeKind::Never) {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Cannot assign a Never value.".to_string(),
+                        )));
+                    }
                     self.identifier_types
                         .add(s.identifier.name.clone(), et)
                         .map_err(|e| self.err(e))?;
@@ -1559,18 +1624,6 @@ impl<'a> CompileState<'a> {
                         ))));
                     }
                     self.append_instruction(Instruction::Publish);
-                }
-                (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
-                    // ensure return expression type matches function signature
-                    let et = self.compile_expression(&s.expression)?;
-                    if !et.fits_type(&fd.return_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
-                        ))));
-                    }
-                    self.append_instruction(Instruction::Return);
                 }
                 (
                     StmtKind::Finish(s),
@@ -1860,6 +1913,13 @@ impl<'a> CompileState<'a> {
                         // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
                     }
+                }
+                (StmtKind::Expr(expr), _) => {
+                    // Compile the expression. For return expressions with Never type,
+                    // this will emit a Return instruction and never leave a value on the stack.
+                    let _ty = self.compile_expression(expr)?;
+                    // Note: No need to pop the value - expressions with Never type
+                    // (like return) don't leave values on the stack.
                 }
                 (_, _) => {
                     return Err(
@@ -2499,13 +2559,44 @@ impl<'a> CompileState<'a> {
 
         // Ensure there are no duplicate arm values.
         // NOTE We don't check for zero arms, because that's enforced by the parser.
+
+        // Checking for duplicate result patterns is tricky, because their associated values are identifiers, not expressions.
+        // TODO this is really ugly, though.
+        let result_ok_marker = Expression {
+            kind: ExprKind::ResultOk(Box::new(Expression {
+                kind: ExprKind::Identifier(Ident {
+                    name: ident!("result_ok_pattern"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            })),
+            span: Span::empty(),
+        };
+        let result_err_marker = Expression {
+            kind: ExprKind::ResultErr(Box::new(Expression {
+                kind: ExprKind::Identifier(Ident {
+                    name: ident!("result_err_pattern"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            })),
+            span: Span::empty(),
+        };
+
         let all_values = patterns
             .iter()
             .flat_map(|pattern| match pattern {
                 MatchPattern::Values(values) => values.as_slice(),
                 MatchPattern::Default(_) => &[],
+                MatchPattern::ResultPattern(ResultPattern::Ok(_)) => {
+                    std::slice::from_ref(&result_ok_marker)
+                }
+                MatchPattern::ResultPattern(ResultPattern::Err(_)) => {
+                    std::slice::from_ref(&result_err_marker)
+                }
             })
             .collect::<Vec<&Expression>>();
+
         // Check for duplicates by comparing expression kinds, not including spans
         for (i, v1) in all_values.iter().enumerate() {
             for v2 in &all_values[..i] {
@@ -2584,6 +2675,23 @@ impl<'a> CompileState<'a> {
                         ))));
                     }
                 }
+                MatchPattern::ResultPattern(pattern) => match pattern {
+                    ResultPattern::Ok(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::IsOk);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                    ResultPattern::Err(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::IsOk);
+                        self.append_instruction(Instruction::Not);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                },
             }
         }
 
@@ -2607,10 +2715,65 @@ impl<'a> CompileState<'a> {
                     let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_statements(&arm.statements, Scope::Layered)?;
+                    // For Result patterns, unwrap and bind the inner value
+                    match &arm.pattern {
+                        MatchPattern::ResultPattern(ResultPattern::Ok(ident)) => {
+                            // Extract the Ok type from Result
+                            let inner_type = if let TypeKind::Result { ok, .. } = &expr_pat_t.kind {
+                                (**ok).clone()
+                            } else {
+                                return Err(self.err(CompileErrorType::InvalidType(
+                                    "Ok pattern requires Result type".to_string(),
+                                )));
+                            };
+
+                            // Unwrap the Result value and bind to variable in the arm scope
+                            self.append_instruction(Instruction::Unwrap);
+                            self.append_instruction(Instruction::Meta(Meta::Let(
+                                ident.name.clone(),
+                            )));
+                            self.append_instruction(Instruction::Def(ident.name.clone()));
+                            self.identifier_types
+                                .add(ident.name.clone(), inner_type)
+                                .map_err(|e| self.err(e))?;
+                        }
+                        MatchPattern::ResultPattern(ResultPattern::Err(ident)) => {
+                            // Extract the Err type from Result
+                            let inner_type = if let TypeKind::Result { err, .. } = &expr_pat_t.kind
+                            {
+                                (**err).clone()
+                            } else {
+                                return Err(self.err(CompileErrorType::InvalidType(
+                                    "Err pattern requires Result type".to_string(),
+                                )));
+                            };
+
+                            // Unwrap the Result value and bind to variable in the arm scope
+                            self.append_instruction(Instruction::Unwrap);
+                            self.append_instruction(Instruction::Meta(Meta::Let(
+                                ident.name.clone(),
+                            )));
+                            self.append_instruction(Instruction::Def(ident.name.clone()));
+                            self.identifier_types
+                                .add(ident.name.clone(), inner_type)
+                                .map_err(|e| self.err(e))?;
+                        }
+                        _ => {
+                            // Drop expression value (It's still around because of the Dup)
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
+
+                    // Compile statements in the current scope (we've already entered the block above)
+                    self.compile_statements(&arm.statements, Scope::Same)?;
+
+                    // Exit the block scope
+                    self.identifier_types.exit_block();
+                    self.append_instruction(Instruction::End);
 
                     // break out of match
                     self.append_instruction(Instruction::Jump(Target::Unresolved(
@@ -2623,10 +2786,64 @@ impl<'a> CompileState<'a> {
                     let arm_start = arm_labels[i].clone();
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for the match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
+
+                    // For Result patterns, unwrap and bind the inner value
+                    match &arm.pattern {
+                        MatchPattern::ResultPattern(ResultPattern::Ok(ident)) => {
+                            // Extract the Ok type from Result
+                            let inner_type = if let TypeKind::Result { ok, .. } = &expr_pat_t.kind {
+                                (**ok).clone()
+                            } else {
+                                return Err(self.err(CompileErrorType::InvalidType(
+                                    "Ok pattern requires Result type".to_string(),
+                                )));
+                            };
+
+                            // Unwrap the Result value to get the inner value
+                            self.append_instruction(Instruction::Unwrap);
+                            // Bind the inner value to the pattern variable
+                            self.append_instruction(Instruction::Meta(Meta::Let(
+                                ident.name.clone(),
+                            )));
+                            self.append_instruction(Instruction::Def(ident.name.clone()));
+                            self.identifier_types
+                                .add(ident.name.clone(), inner_type)
+                                .map_err(|e| self.err(e))?;
+                        }
+                        MatchPattern::ResultPattern(ResultPattern::Err(ident)) => {
+                            // Extract the Err type from Result
+                            let inner_type = if let TypeKind::Result { err, .. } = &expr_pat_t.kind
+                            {
+                                (**err).clone()
+                            } else {
+                                return Err(self.err(CompileErrorType::InvalidType(
+                                    "Err pattern requires Result type".to_string(),
+                                )));
+                            };
+
+                            // Unwrap the Result value to get the inner value
+                            self.append_instruction(Instruction::Unwrap);
+                            // Bind the inner value to the pattern variable
+                            self.append_instruction(Instruction::Meta(Meta::Let(
+                                ident.name.clone(),
+                            )));
+                            self.append_instruction(Instruction::Def(ident.name.clone()));
+                            self.identifier_types
+                                .add(ident.name.clone(), inner_type)
+                                .map_err(|e| self.err(e))?;
+                        }
+                        _ => {
+                            // Drop expression value (It's still around because of the Dup)
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
                     let etype = self.compile_expression(&arm.expression)?;
+                    self.identifier_types.exit_block();
+                    self.append_instruction(Instruction::End);
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {

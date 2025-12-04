@@ -174,6 +174,9 @@ impl Display for DisplayType<'_> {
             TypeKind::Enum(id) => write!(f, "enum {}", id),
             TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
             TypeKind::Never => write!(f, "never"),
+            TypeKind::Result { ok, err } => {
+                write!(f, "result[{}, {}]", DisplayType(ok), DisplayType(err))
+            }
         }
     }
 }
@@ -220,6 +223,26 @@ pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyEr
             let inner = unify_pair(left.as_ref().clone(), right.as_ref().clone())?;
             Ok(VType {
                 kind: TypeKind::Optional(Box::new(inner)),
+                span: aranya_policy_ast::Span::empty(), // TODO
+            })
+        }
+        (
+            TypeKind::Result {
+                ok: left_ok,
+                err: left_err,
+            },
+            TypeKind::Result {
+                ok: right_ok,
+                err: right_err,
+            },
+        ) => {
+            let ok = unify_pair(left_ok.as_ref().clone(), right_ok.as_ref().clone())?;
+            let err = unify_pair(left_err.as_ref().clone(), right_err.as_ref().clone())?;
+            Ok(VType {
+                kind: TypeKind::Result {
+                    ok: Box::new(ok),
+                    err: Box::new(err),
+                },
                 span: aranya_policy_ast::Span::empty(), // TODO
             })
         }
