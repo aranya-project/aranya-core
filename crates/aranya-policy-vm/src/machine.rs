@@ -77,7 +77,9 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
 }
 
 /// Compares a fact to the given keys and values.
-/// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so we only compare key/value pairs with exact values.
+///
+/// Bind keys/values are not included in the fact literal (see lower_fact_literal), so we only
+/// compare key/value pairs with exact values.
 ///
 /// Returns true if all given keys and values match the fact.
 fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
