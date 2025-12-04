@@ -156,7 +156,7 @@ struct S1 {
     d bool,
     e id,
     f struct S0,
-    g optional int,
+    g option[int],
 }
 struct S2 {
     a struct S0,
@@ -223,7 +223,7 @@ impl<T, G> TestModule<'_, T, G> {
         Ok(Self::CUSTOM_TYPE_RESULT)
     }
 
-    #[ffi_export(def = "function custom_type_optional(label optional int) optional int")]
+    #[ffi_export(def = "function custom_type_optional(label option[int]) option[int]")]
     fn custom_type_optional<E: Engine>(
         _ctx: &CommandContext,
         _eng: &mut E,

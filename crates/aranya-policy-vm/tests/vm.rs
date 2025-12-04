@@ -2096,7 +2096,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
     let text = r#"
         command TypeValidation {
             fields {
-                maybe_int optional int,
+                maybe_int option[int],
                 name string,
             }
             seal { return todo() }
@@ -2106,7 +2106,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             }
         }
 
-        action type_validation(maybe_int_input optional int, name_input string) {
+        action type_validation(maybe_int_input option[int], name_input string) {
             publish TypeValidation{maybe_int: maybe_int_input, name: name_input}
         }
     "#;

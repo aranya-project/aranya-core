@@ -172,7 +172,7 @@ impl Display for DisplayType<'_> {
             TypeKind::Id => f.write_str("id"),
             TypeKind::Struct(id) => write!(f, "struct {}", id),
             TypeKind::Enum(id) => write!(f, "enum {}", id),
-            TypeKind::Optional(inner) => write!(f, "optional {}", DisplayType(inner)),
+            TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
             TypeKind::Never => write!(f, "never"),
         }
     }
