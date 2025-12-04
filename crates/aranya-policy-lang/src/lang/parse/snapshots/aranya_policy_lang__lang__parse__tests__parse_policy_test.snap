@@ -72,12 +72,12 @@ Policy {
         },
         ActionDefinition {
             persistence: Ephemeral(
-                2378..2387,
+                2377..2386,
             ),
-            identifier: "a" @ 2395..2396,
+            identifier: "a" @ 2394..2395,
             arguments: [],
             statements: [],
-            span: 2378..2401,
+            span: 2377..2400,
         },
     ],
     effects: [
@@ -609,15 +609,15 @@ Policy {
         },
         CommandDefinition {
             persistence: Ephemeral(
-                2280..2289,
+                2279..2288,
             ),
             attributes: [],
-            identifier: "C" @ 2298..2299,
+            identifier: "C" @ 2297..2298,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "x" @ 2339..2340,
-                        field_type: Int @ 2341..2344,
+                        identifier: "x" @ 2338..2339,
+                        field_type: Int @ 2340..2343,
                     },
                 ),
             ],
@@ -625,7 +625,7 @@ Policy {
             open: [],
             policy: [],
             recall: [],
-            span: 2280..2368,
+            span: 2279..2367,
         },
     ],
     functions: [
@@ -635,63 +635,63 @@ Policy {
                 FieldDefinition {
                     identifier: "v" @ 2061..2062,
                     field_type: Optional(
-                        Int @ 2072..2075,
-                    ) @ 2063..2075,
+                        Int @ 2070..2073,
+                    ) @ 2063..2074,
                 },
             ],
-            return_type: Bool @ 2077..2081,
+            return_type: Bool @ 2076..2080,
             statements: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 2100..2101,
+                        identifier: "x" @ 2099..2100,
                         expression: Unwrap(
                             Identifier(
-                                "v" @ 2111..2112,
-                            ) @ 2111..2112,
-                        ) @ 2104..2112,
+                                "v" @ 2110..2111,
+                            ) @ 2110..2111,
+                        ) @ 2103..2111,
                     },
-                ) @ 2096..2125,
+                ) @ 2095..2124,
                 Return(
                     ReturnStatement {
                         expression: GreaterThan(
                             Identifier(
-                                "x" @ 2132..2133,
-                            ) @ 2132..2133,
+                                "x" @ 2131..2132,
+                            ) @ 2131..2132,
                             Int(
                                 0,
-                            ) @ 2136..2137,
-                        ) @ 2132..2137,
+                            ) @ 2135..2136,
+                        ) @ 2131..2136,
                     },
-                ) @ 2125..2146,
+                ) @ 2124..2145,
             ],
-            span: 2043..2147,
+            span: 2043..2146,
         },
     ],
     finish_functions: [
         FinishFunctionDefinition {
-            identifier: "next" @ 2173..2177,
+            identifier: "next" @ 2172..2176,
             arguments: [
                 FieldDefinition {
-                    identifier: "x" @ 2178..2179,
-                    field_type: Int @ 2180..2183,
+                    identifier: "x" @ 2177..2178,
+                    field_type: Int @ 2179..2182,
                 },
             ],
             statements: [
                 Create(
                     CreateStatement {
                         fact: FactLiteral {
-                            identifier: "Next" @ 2206..2210,
+                            identifier: "Next" @ 2205..2209,
                             key_fields: [],
                             value_fields: Some(
                                 [],
                             ),
                         },
                     },
-                ) @ 2199..2216,
+                ) @ 2198..2215,
             ],
-            span: 2157..2226,
+            span: 2156..2225,
         },
     ],
     global_lets: [],
-    text: "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v optional int) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    ",
+    text: "\n        // This is not a valid policy. It is just meant to exercise\n        // every feature of the parser.\n        /* block comment */\n        fact F[v string]=>{x int, y bool}\n\n        action add2(x int, y int) {\n            let obj = Add {\n                count: x,\n            }\n            publish obj\n        }\n\n        effect Added {\n            x int dynamic,\n            y int,\n        }\n\n        command Add {\n            fields {\n                count int\n            }\n\n            policy {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                check exists TestFact[v: \"test\"]=>{}\n                match x {\n                    0 => {\n                        check positive(Some(new_x))\n                    }\n                    1 => {\n                        check positive(None)\n                    }\n                    _ => {\n\n                    }\n                }\n\n                if x == 3 {\n                    check new_x < 10\n                }\n\n                let a = foo::ext_func(x)\n\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n            recall {\n                let envelope_id = envelope::command_id(envelope)\n                let author = envelope::author_id(envelope)\n                let new_x = add2(x, count)\n                finish {\n                    create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n                    update F[]=>{x: x} to {x: new_x}\n                    delete F[v: \"hello\"]\n                    emit Added {\n                        x: new_x,\n                        y: count,\n                    }\n                }\n            }\n        }\n\n        function positive(v option[int]) bool {\n            let x = unwrap v\n            return x > 0\n        }\n\n        finish function next(x int) {\n            create Next[]=>{}\n        }\n\n\n        // ephemeral commands and actions\n\n        ephemeral command C {\n            fields {\n                x int\n            }\n        }\n\n        ephemeral action a() {}\n    ",
 }

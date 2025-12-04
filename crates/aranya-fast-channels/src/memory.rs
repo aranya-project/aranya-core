@@ -58,7 +58,13 @@ where
 
     type SealCtx = LocalChannelId;
 
+    type OpenCtx = LocalChannelId;
+
     fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+        Ok(id)
+    }
+
+    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
         Ok(id)
     }
 
@@ -75,14 +81,14 @@ where
         Ok(f(key, *label_id))
     }
 
-    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let inner = self.inner.lock().assume("poisoned")?;
         let ChanMapValue { keys, label_id, .. } =
-            inner.chans.get(&id).ok_or(Error::NotFound(id))?;
-        let key = keys.open().ok_or(Error::NotFound(id))?;
+            inner.chans.get(ctx).ok_or(Error::NotFound(*ctx))?;
+        let key = keys.open().ok_or(Error::NotFound(*ctx))?;
 
         Ok(f(key, *label_id))
     }
