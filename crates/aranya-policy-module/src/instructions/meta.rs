@@ -24,6 +24,8 @@ pub enum Meta {
     Finish(bool),
     /// Mark an FFI call (module name, procedure name)
     FFI(Identifier, Identifier),
+    /// Mark the end of a function body (before the final Exit)
+    FunctionEnd,
 }
 
 impl fmt::Display for Meta {
@@ -39,6 +41,7 @@ impl fmt::Display for Meta {
                 }
             }
             Self::FFI(module, procedure) => write!(f, "FFI call `{module}.{procedure}"),
+            Self::FunctionEnd => write!(f, "function end"),
         }
     }
 }
