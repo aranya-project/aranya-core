@@ -1274,3 +1274,17 @@ Next chunk:
         assert_eq!(err.to_string(), expected);
     }
 }
+
+#[test]
+fn test_math() {
+    let src = r#"
+        function foo() int {
+            return 3 - 4
+        }
+    "#;
+    let err = parse_policy_str(src, Version::V2).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Invalid operator: line 3 column 22: found `-`, subtraction now uses functions `sub` or `saturating_sub`",
+    );
+}

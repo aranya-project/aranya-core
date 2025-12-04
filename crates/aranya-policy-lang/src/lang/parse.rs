@@ -678,6 +678,20 @@ impl ChunkParser<'_> {
                 let combined_span = lhs.span.merge(rhs.span);
 
                 let kind = match op.as_rule() {
+                    Rule::add => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidOperator,
+                            String::from("found `+`, addition now uses functions `add` or `saturating_add`"),
+                            Some(op.as_span())
+                        ));
+                    }
+                    Rule::subtract => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidOperator,
+                            String::from("found `-`, subtraction now uses functions `sub` or `saturating_sub`"),
+                            Some(op.as_span())
+                        ));
+                    }
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
                     Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
                     Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
@@ -1805,6 +1819,7 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
+        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
         .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
         .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
