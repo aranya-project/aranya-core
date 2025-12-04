@@ -1,4 +1,7 @@
 //! The Aranya Policy Language's AST.
+//!
+//! See [the policy book](https://aranya-project.github.io/policy-book/) for more information on
+//! the policy language.
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]

@@ -904,8 +904,6 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Create);
             }
             thir::StmtKind::Update(s) => {
-                // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
-
                 self.compile_fact_literal(s.fact)?;
                 self.append_instruction(Instruction::Dup);
 

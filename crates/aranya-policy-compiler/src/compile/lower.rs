@@ -1324,8 +1324,6 @@ impl CompileState<'_> {
                     thir::StmtKind::Create(thir::CreateStatement { fact })
                 }
                 (StmtKind::Update(s), StatementContext::Finish) => {
-                    // See https://github.com/aranya-project/aranya-docs/blob/main/docs/policy-v1.md#update
-
                     // ensure fact is mutable
                     let fact_def = self.get_fact_def(&s.fact.identifier)?;
                     if fact_def.immutable {
