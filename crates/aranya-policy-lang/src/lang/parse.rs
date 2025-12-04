@@ -212,7 +212,17 @@ impl ChunkParser<'_> {
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
-        let span = self.to_ast_span(token.as_span())?;
+        self.parse_type_inner(token, TypeStyle::Unknown, true)
+    }
+
+    fn parse_type_inner(
+        &self,
+        token: Pair<'_, Rule>,
+        mut style: TypeStyle,
+        allow_option: bool,
+    ) -> Result<VType, ParseError> {
+        let pest_span = token.as_span();
+        let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
             Rule::string_t => TypeKind::String,
             Rule::bytes_t => TypeKind::Bytes,
@@ -230,13 +240,28 @@ impl ChunkParser<'_> {
                 TypeKind::Enum(name)
             }
             Rule::optional_t => {
-                if token.as_str().starts_with("optional") {
+                let is_old = token.as_str().starts_with("optional");
+                if is_old {
                     use std::sync::atomic::AtomicBool;
                     static WARNED: AtomicBool = AtomicBool::new(false);
                     if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
                         warn!(
                             "`optional T` is being replaced with `option[T]` soon. Consider replacing all uses now to avoid later breakage."
                         );
+                    }
+                }
+                match (style, is_old) {
+                    (TypeStyle::Unknown, true) => style = TypeStyle::Old,
+                    (TypeStyle::Unknown, false) => style = TypeStyle::New,
+                    (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidType,
+                            String::from(
+                                "Replace `optional T` with the new `option[T]` to use complex types",
+                            ),
+                            Some(pest_span),
+                        ));
                     }
                 }
                 let mut pairs = token.clone().into_inner();
@@ -247,7 +272,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let inner_type = self.parse_type(token)?;
+                let inner_type = self.parse_type_inner(token, style, !is_old)?;
                 TypeKind::Optional(Box::new(inner_type))
             }
             _ => {
@@ -1793,6 +1818,13 @@ fn get_pratt_parser() -> PrattParser<Rule> {
         .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
         .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
+}
+
+#[derive(Copy, Clone)]
+enum TypeStyle {
+    Unknown,
+    Old,
+    New,
 }
 
 #[cfg(test)]

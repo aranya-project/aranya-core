@@ -363,9 +363,9 @@ fn parse_optional() {
         ("option[struct Foo]", true),
         ("optional blargh", false),
         ("option[blargh]", false),
-        ("optional optional bytes", true),
-        ("optional option[bytes]", true),
-        ("option[optional bytes]", true),
+        ("optional optional bytes", false),
+        ("optional option[bytes]", false),
+        ("option[optional bytes]", false),
         ("option[option[bytes]]", true),
     ];
     for (case, is_valid) in optional_types {
