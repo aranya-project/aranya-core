@@ -135,7 +135,7 @@ pub enum Value {
     Enum(Identifier, i64),
     /// Textual Identifier (name)
     Identifier(Identifier),
-    /// Empty optional value
+    /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
 }
 
@@ -157,9 +157,9 @@ impl<T: TryFromValue> TryFromValue for Option<T> {
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
         let Value::Option(opt) = value else {
             return Err(ValueConversionError::InvalidType {
-                want: "Option[T]".into(),
+                want: "Option".into(),
                 got: value.type_name(),
-                msg: "Option[T] -> Option<T>".into(),
+                msg: format!("Value -> {}", core::any::type_name::<Self>()),
             });
         };
         opt.map(|v| T::try_from_value(*v)).transpose()
@@ -908,5 +908,19 @@ impl Display for Struct {
             write!(f, "{}: {}", k, v)?;
         }
         write!(f, "}}")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{TryFromValue as _, Value};
+
+    #[test]
+    fn test_option_error() {
+        let err = <Option<i64>>::try_from_value(Value::Bool(true)).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "expected type Option, but got Bool: Value -> core::option::Option<i64>"
+        );
     }
 }
