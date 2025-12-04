@@ -301,7 +301,7 @@ impl fmt::Display for TypeKind {
             Self::Id => write!(f, "id"),
             Self::Struct(name) => write!(f, "struct {name}"),
             Self::Enum(name) => write!(f, "enum {name}"),
-            Self::Optional(vtype) => write!(f, "optional {vtype}"),
+            Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
         }
     }

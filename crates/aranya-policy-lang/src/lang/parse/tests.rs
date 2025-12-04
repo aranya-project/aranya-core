@@ -1,5 +1,6 @@
 #![allow(clippy::panic)]
 
+use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
@@ -245,18 +246,35 @@ fn parse_expression_errors() -> Result<(), ParseError> {
 
 #[test]
 fn parse_optional() {
+    fn parse_vtype(text: &str) -> Result<VType, ParseError> {
+        let pratt = get_pratt_parser();
+        let p = ChunkParser::new(0, &pratt, text.len());
+        let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
+        let pair = pairs.next().unwrap();
+        p.parse_type(pair)
+    }
+
     let optional_types = &[
         // (case, is valid)
         ("optional string", true),
+        ("option[string]", true),
         ("optional bytes", true),
+        ("option[bytes]", true),
         ("optional int", true),
+        ("option[int]", true),
         ("optional bool", true),
+        ("option[bool]", true),
         ("optional struct Foo", true),
-        ("optional optional bytes", false),
+        ("option[struct Foo]", true),
         ("optional blargh", false),
+        ("option[blargh]", false),
+        ("optional optional bytes", false),
+        ("optional option[bytes]", false),
+        ("option[optional bytes]", false),
+        ("option[option[bytes]]", false),
     ];
     for (case, is_valid) in optional_types {
-        let r = PolicyParser::parse(Rule::optional_t, case);
+        let r = parse_vtype(case);
         assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
 }
