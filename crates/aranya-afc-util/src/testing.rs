@@ -251,18 +251,26 @@ impl<T: TestImpl> Device<T> {
         let ciphertext = {
             let (sealer, chan_id) = sealer;
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
+            let mut ctx = sealer
+                .afc_client
+                .setup_seal_ctx(chan_id)
+                .expect("can set up ctx");
             sealer
                 .afc_client
-                .seal(chan_id, &mut dst[..], GOLDEN.as_bytes())
+                .seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({chan_id}, ...): {err}"));
             dst
         };
         let (plaintext, got_seq) = {
             let (opener, chan_id) = opener;
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
+            let mut open_ctx = opener
+                .afc_client
+                .setup_open_ctx(chan_id)
+                .expect("can set up ctx");
             let (_, seq) = opener
                 .afc_client
-                .open(chan_id, &mut dst[..], &ciphertext[..])
+                .open(&mut open_ctx, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({chan_id}, ...): {err}"));
             (dst, seq)
         };
@@ -275,9 +283,13 @@ impl<T: TestImpl> Device<T> {
     fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
+        let mut ctx = sealer
+            .afc_client
+            .setup_seal_ctx(channel_id)
+            .expect("can set up ctx");
         let err = sealer
             .afc_client
-            .seal(channel_id, &mut dst[..], GOLDEN.as_bytes())
+            .seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
             .expect_err("should have failed");
         assert_eq!(err, aranya_fast_channels::Error::NotFound(channel_id));
     }

@@ -19,13 +19,31 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
+    type SealCtx;
+
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
+    type OpenCtx;
+
+    /// Sets up the seal context for a given channel.
+    ///
+    /// This must only be called once for any `id`.
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error>;
+
+    /// Sets up the open context for a given channel.
+    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error>;
+
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
@@ -338,15 +356,25 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
+        type SealCtx = <memory::State<CS> as AfcState>::SealCtx;
+        type OpenCtx = <memory::State<CS> as AfcState>::OpenCtx;
 
-        fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+            self.state.setup_seal_ctx(id)
+        }
+
+        fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
+            self.state.setup_open_ctx(id)
+        }
+
+        fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(id, f)
+            self.state.seal(ctx, f)
         }
 
-        fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, id: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {

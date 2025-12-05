@@ -1,0 +1,80 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: "foo" @ 7..10,
+            arguments: [
+                FieldDefinition {
+                    identifier: "n" @ 11..12,
+                    field_type: Int @ 13..16,
+                },
+            ],
+            statements: [
+                Let(
+                    LetStatement {
+                        identifier: "x" @ 28..29,
+                        expression: Match(
+                            MatchExpression {
+                                scrutinee: Identifier(
+                                    "n" @ 38..39,
+                                ) @ 38..39,
+                                arms: [
+                                    MatchExpressionArm {
+                                        pattern: Values(
+                                            [
+                                                Int(
+                                                    0,
+                                                ) @ 50..51,
+                                            ],
+                                        ),
+                                        expression: Block(
+                                            [
+                                                Let(
+                                                    LetStatement {
+                                                        identifier: "x" @ 73..74,
+                                                        expression: Bool(
+                                                            true,
+                                                        ) @ 77..81,
+                                                    },
+                                                ) @ 69..94,
+                                            ],
+                                            Identifier(
+                                                "x" @ 96..97,
+                                            ) @ 96..97,
+                                        ) @ 55..107,
+                                        span: 50..116,
+                                    },
+                                    MatchExpressionArm {
+                                        pattern: Default(
+                                            116..117,
+                                        ),
+                                        expression: Bool(
+                                            false,
+                                        ) @ 121..126,
+                                        span: 116..131,
+                                    },
+                                ],
+                            },
+                        ) @ 32..132,
+                    },
+                ) @ 24..133,
+            ],
+            span: 0..134,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "action foo(n int) {\n    let x = match n {\n        0 => {\n            let x = true\n            : x\n        }\n        _ => false\n    }\n}\n",
+}

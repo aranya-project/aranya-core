@@ -1408,7 +1408,8 @@ fn test_match_arm_should_be_limited_to_literals() {
         r#"
             action foo(x int) {
                 match x {
-                    saturating_add(0, 1) => {}
+                    saturating_add(0, 1)=> {}
+                    _ => {}
                 }
             }
         "#,
@@ -1417,6 +1418,7 @@ fn test_match_arm_should_be_limited_to_literals() {
         action foo(x int) {
             match x {
                 f() => {}
+                _ => {}
             }
         }
         "#,
@@ -1477,10 +1479,96 @@ fn test_match_expression() {
                 "match arm expression 3 has type bool, expected int".into(),
             ),
         ),
+        (
+            // all match patterns are not listed
+            r#"
+            enum LightColor {
+                Red, Yellow, Green
+            }
+
+            struct Light {
+                color enum LightColor,
+                go bool
+            }
+
+            action f(traffic struct Light) {
+                let x = match traffic {
+                    Light {  color: LightColor::Red, go: false } => 0
+                    Light {  color: LightColor::Yellow, go: false } => 2
+                    Light {  color: LightColor::Yellow, go: true } => 3
+                    Light {  color: LightColor::Green, go: false } => 4
+                    Light {  color: LightColor::Green, go: true } => 5
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            // all match patterns are not listed
+            r#"
+            action f(maybe_bool option[bool]) {
+                let x = match maybe_bool {
+                    None => 0
+                    Some(false) => 2
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            // all match patterns are not listed (can't exhaustively match on strings)
+            r#"
+            enum LightColor {
+                Red, Yellow, Green
+            }
+
+            struct ColorName {
+                color enum LightColor,
+                name string
+            }
+
+            action f(c struct ColorName) {
+                let x = match c {
+                    ColorName {  color: LightColor::Red, name: "red" } => 0
+                    ColorName {  color: LightColor::Yellow, name: "yellow" } => 1
+                    ColorName {  color: LightColor::Green, name: "green" } => 2
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            // all match patterns are not listed (can't exhaustively match on ints)
+            r#"
+            function foo(c int) int {
+                let x = match c {
+                    0 => 0
+                    1 => 1
+                    2 => 2
+                }
+
+                return x
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"function f() int {
+                return match None {
+                    Some(true) => 0
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"function f() int {
+                return match None {
+                    Some(true) => 0
+                    None => 1
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
     ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected, "{src}");
     }
 
     let valid_cases = vec![
@@ -1497,6 +1585,51 @@ fn test_match_expression() {
             let x = match n {
                 0 => None
                 _ => Some(0)
+            }
+        }"#,
+        // exhaustively matches on structs
+        r#"
+        enum LightColor {
+            Red, Yellow, Green
+        }
+
+        struct Light {
+            color enum LightColor,
+            go bool
+        }
+
+        action f(traffic struct Light) {
+            let x = match traffic {
+                Light {  color: LightColor::Red, go: false } => 0
+                Light {  color: LightColor::Red, go: true } => 1
+                Light {  color: LightColor::Yellow, go: false } => 2
+                Light {  color: LightColor::Yellow, go: true } => 3
+                Light {  color: LightColor::Green, go: false } => 4
+                Light {  color: LightColor::Green, go: true } => 5
+            }
+        }"#,
+        // exhaustively matches on optionals
+        r#"
+        action f(maybe_bool option[bool]) {
+            let x = match maybe_bool {
+                None => 0
+                Some(true) => 1
+                Some(false) => 2
+            }
+        }"#,
+        // alternate patterns
+        r#"
+        action f(maybe_bool option[bool]) {
+            let x = match maybe_bool {
+                None | Some(false) => 0
+                Some(true) => 1
+            }
+        }"#,
+        r#"function f() int {
+            return match None {
+                None => 0
+                Some(true) => 1
+                Some(false) => 2
             }
         }"#,
     ];
@@ -1799,7 +1932,7 @@ fn test_type_errors() {
                     return saturating_add(x, "foo")
                 }
             "#,
-            e: "Cannot do math on non-int types",
+            e: "Argument 2 (`y`) in call to `saturating_add` found `string`, expected `int`",
         },
         Case {
             t: r#"
@@ -1815,7 +1948,7 @@ fn test_type_errors() {
                     return saturating_add("3", "4")
                 }
             "#,
-            e: "Cannot do math on non-int types",
+            e: "Argument 1 (`x`) in call to `saturating_add` found `string`, expected `int`",
         },
         Case {
             t: r#"
@@ -1823,7 +1956,7 @@ fn test_type_errors() {
                     return 3 || 4
                 }
             "#,
-            e: "Cannot use boolean operator on non-bool types",
+            e: "invalid binary operation", // TODO
         },
         Case {
             t: r#"
@@ -1857,7 +1990,7 @@ fn test_type_errors() {
                     return x < "test"
                 }
             "#,
-            e: "Cannot compare non-int expressions",
+            e: "invalid binary operation", // TODO
         },
         Case {
             t: r#"
@@ -1953,7 +2086,7 @@ fn test_type_errors() {
                     return bar(Some(3))
                 }
             "#,
-            e: "Argument 1 (`x`) in call to `bar` found `optional int`, expected `int`",
+            e: "Argument 1 (`x`) in call to `bar` found `option[int]`, expected `int`",
         },
         Case {
             t: r#"
@@ -1962,7 +2095,7 @@ fn test_type_errors() {
                     return test::doit(Some(3))
                 }
             "#,
-            e: "Argument 1 (`x`) in FFI call to `test::doit` found `optional int`, not `int`",
+            e: "Argument 1 (`x`) in FFI call to `test::doit` found `option[int]`, not `int`",
         },
         Case {
             t: r#"
@@ -1970,6 +2103,7 @@ fn test_type_errors() {
                     match x {
                         "foo" => {
                         }
+                        _ => {}
                     }
                 }
             "#,
@@ -2071,7 +2205,7 @@ fn test_type_errors() {
                     return new_foo
                 }
             "#,
-            e: "Expected `maybe_bar` to be a struct, but it's a(n) optional struct Bar",
+            e: "Expected `maybe_bar` to be a struct, but it's a(n) option[struct Bar]",
         },
         Case {
             t: r#"
@@ -2084,6 +2218,18 @@ fn test_type_errors() {
                 }
             "#,
             e: "Expression to the left of the substruct operator is not a struct",
+        },
+        Case {
+            t: r#"
+                action foo() {
+                    match None {
+                        Some(42) => {}
+                        Some("foo") => {}
+                        _ => {}
+                    }
+                }
+            "#,
+            e: "match pattern 2 has type string, expected type int",
         },
     ];
 
@@ -2114,15 +2260,13 @@ fn test_struct_composition() {
 
     let valid_cases = [Case {
         t: r#"
-                struct Bar { x int, y bool }
-                function baz(b struct Bar) struct Bar {
-                    let other = todo()
-                    let new_bar = Bar {
-                        y: b.y,
-                        ...other
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string }
+                function baz(foo struct Foo) struct Bar {
+                    return Bar {
+                        z: "z",
+                        ...foo
                     }
-
-                    return new_bar
                 }
             "#,
         e: None,
@@ -2283,13 +2427,8 @@ fn test_struct_literal_duplicate_field() {
 
 #[test]
 fn test_optional_types() {
-    let err = compile_fail("function f() bool { return unwrap None }");
-    assert_eq!(
-        err,
-        CompileErrorType::InvalidType("Cannot unwrap None".into())
-    );
-
     let cases = [
+        "unwrap None",
         "42 == unwrap Some(42)",
         "None is Some",
         "None is None",
@@ -2334,6 +2473,7 @@ fn test_duplicate_definitions() {
                     match y {
                         1 => { let x = 3 }
                         2 => { let x = 4 }
+                        _ => {}
                     }
                     return false
                 }
@@ -2730,7 +2870,7 @@ fn test_return_type_not_defined() {
         ),
         (
             r#"
-            function f() optional struct Foo {
+            function f() option[struct Foo] {
                 return Some(Foo {})
             }
             "#,
@@ -2765,7 +2905,7 @@ fn test_function_arguments_with_undefined_types() {
         ),
         (
             r#"
-            function baz(x optional struct UndefinedStruct) bool {
+            function baz(x option[struct UndefinedStruct]) bool {
                 return true
             }
             "#,

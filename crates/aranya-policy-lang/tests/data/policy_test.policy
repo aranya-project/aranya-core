@@ -1,0 +1,90 @@
+// This is not a valid policy. It is just meant to exercise
+// every feature of the parser.
+/* block comment */
+fact F[v string]=>{x int, y bool}
+
+action add2(x int, y int) {
+    let obj = Add {
+        count: x,
+    }
+    publish obj
+}
+
+effect Added {
+    x int dynamic,
+    y int,
+}
+
+command Add {
+    fields {
+        count int
+    }
+
+    policy {
+        let envelope_id = envelope::command_id(envelope)
+        let author = envelope::author_id(envelope)
+        let new_x = add2(x, count)
+        check exists TestFact[v: "test"]=>{}
+        match x {
+            0 => {
+                check positive(Some(new_x))
+            }
+            1 => {
+                check positive(None)
+            }
+            _ => {
+
+            }
+        }
+
+        if x == 3 {
+            check new_x < 10
+        }
+
+        let a = foo::ext_func(x)
+
+        finish {
+            create F[v: "hello"]=>{x: x, y: saturating_sub(0, x)}
+            update F[]=>{x: x} to {x: new_x}
+            delete F[v: "hello"]
+            emit Added {
+                x: new_x,
+                y: count,
+            }
+        }
+    }
+    recall {
+        let envelope_id = envelope::command_id(envelope)
+        let author = envelope::author_id(envelope)
+        let new_x = add2(x, count)
+        finish {
+            create F[v: "hello"]=>{x: x, y: saturating_sub(0, x)}
+            update F[]=>{x: x} to {x: new_x}
+            delete F[v: "hello"]
+            emit Added {
+                x: new_x,
+                y: count,
+            }
+        }
+    }
+}
+
+function positive(v option[int]) bool {
+    let x = unwrap v
+    return x > 0
+}
+
+finish function next(x int) {
+    create Next[]=>{}
+}
+
+
+// ephemeral commands and actions
+
+ephemeral command C {
+    fields {
+        x int
+    }
+}
+
+ephemeral action a() {}

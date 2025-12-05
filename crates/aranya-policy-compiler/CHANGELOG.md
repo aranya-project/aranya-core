@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.15.0...aranya-policy-compiler-v0.16.0) - 2025-11-12
+
+### Other
+
+- return 'None' for int cardinality ([#483](https://github.com/aranya-project/aranya-core/pull/483))
+- Exhaustive pattern matching ([#443](https://github.com/aranya-project/aranya-core/pull/443))
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.14.0...aranya-policy-compiler-v0.15.0) - 2025-11-05
+
+### Other
+
+- fix code map ([#472](https://github.com/aranya-project/aranya-core/pull/472))
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+
 ## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.13.0...aranya-policy-compiler-v0.14.0) - 2025-10-16
 
 ### Other

@@ -131,6 +131,9 @@ pub const POLICY_MATCH: &str = r#"
             6 => {
                 publish Result { x: x }
             }
+            _ => {
+                publish Result { x: saturating_add(1, x) }
+            }
         }
     }
 "#;
@@ -148,7 +151,7 @@ pub const POLICY_IS: &str = r#"
         seal { return todo() }
         open { return todo() }
     }
-    action check_none(x optional int) {
+    action check_none(x option[int]) {
         if x is None {
             publish Empty { }
         }

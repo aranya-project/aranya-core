@@ -1,0 +1,10 @@
+action foo(status string) {
+    let x = match a {
+        "ready" => {
+            1
+        }
+        _ => {
+            0
+        }
+    }
+}

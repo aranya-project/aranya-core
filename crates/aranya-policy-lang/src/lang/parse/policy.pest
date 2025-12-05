@@ -29,7 +29,7 @@ bool_t = { "bool" }
 id_t = { "id" }
 // An optional type is any of the core types preceded by "optional"
 // (so no "optional optional" allowed).
-optional_t = { "optional" ~ !"optional" ~ vtype }
+optional_t = { ("optional" ~ vtype) | ("option" ~ "[" ~ vtype ~ "]") }
 // All structs have a name
 struct_t = { "struct" ~ identifier }
 // enumeration type
@@ -149,10 +149,6 @@ none = { "None" }
 some = { "Some" }
 optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
 
-add = { "add(" ~ expression ~ "," ~ expression ~ ")" }
-saturating_add = { "saturating_add(" ~ expression ~ "," ~ expression ~ ")" }
-sub = { "sub(" ~ expression ~ "," ~ expression ~ ")" }
-saturating_sub = { "saturating_sub(" ~ expression ~ "," ~ expression ~ ")" }
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
 // token.
@@ -182,8 +178,6 @@ todo = { "todo()" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
-    add | saturating_add |
-    sub | saturating_sub |
     query |
     exists |
     count_up_to |

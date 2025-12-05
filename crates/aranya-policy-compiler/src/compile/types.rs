@@ -1,45 +1,18 @@
 use std::{
-    borrow::Cow,
     collections::{HashMap, hash_map},
     fmt::{self, Display},
 };
 
 use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
-use crate::{CompileErrorType, compile::CompileState};
-
-/// Describes the nature of a type error
-#[derive(Debug, PartialEq, Eq)]
-pub struct TypeError(Cow<'static, str>);
-
-impl TypeError {
-    pub(super) fn new(msg: &'static str) -> Self {
-        Self(Cow::from(msg))
-    }
-
-    pub(super) fn new_owned(msg: String) -> Self {
-        Self(Cow::from(msg))
-    }
-}
-
-impl Display for TypeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Type Error: {}", self.0)
-    }
-}
-
-impl From<TypeError> for CompileErrorType {
-    fn from(value: TypeError) -> Self {
-        Self::InvalidType(value.0.into_owned())
-    }
-}
+use crate::{CompileError, CompileErrorType, compile::CompileState};
 
 /// Could not unify a pair of types.
 pub struct TypeUnifyError {
     /// The left type which could not be unified
-    pub left: NullableVType,
+    pub left: VType,
     /// The right type which could not be unified
-    pub right: NullableVType,
+    pub right: VType,
     /// Context message for the cause of the unify error.
     pub ctx: &'static str,
 }
@@ -62,8 +35,8 @@ impl From<TypeUnifyError> for CompileErrorType {
 /// scope" is the one on the top of the stack.
 #[derive(Debug, Clone)]
 pub struct IdentifierTypeStack {
-    globals: HashMap<Identifier, Typeish>,
-    locals: Vec<Vec<HashMap<Identifier, Typeish>>>,
+    globals: HashMap<Identifier, VType>,
+    locals: Vec<Vec<HashMap<Identifier, VType>>>,
 }
 
 impl IdentifierTypeStack {
@@ -77,7 +50,7 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the global variables
     #[allow(clippy::result_large_err)]
-    pub fn add_global(&mut self, name: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
+    pub fn add_global(&mut self, name: Identifier, value: VType) -> Result<(), CompileErrorType> {
         match self.globals.entry(name) {
             hash_map::Entry::Occupied(o) => {
                 Err(CompileErrorType::AlreadyDefined(o.key().to_string()))
@@ -91,7 +64,7 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
+    pub fn add(&mut self, ident: Identifier, value: VType) -> Result<(), CompileErrorType> {
         if self.globals.contains_key(&ident) {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
         }
@@ -116,7 +89,7 @@ impl IdentifierTypeStack {
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
     #[allow(clippy::result_large_err)]
-    pub fn get(&self, name: &Identifier) -> Result<Typeish, CompileErrorType> {
+    pub fn get(&self, name: &Identifier) -> Result<VType, CompileErrorType> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
@@ -159,142 +132,29 @@ impl IdentifierTypeStack {
     }
 }
 
-/// A calculated type, which may be `Never`.
+/// Checks this [`VType`] against an expected [`VType`].
 ///
-/// [`PartialEq`] and [`Eq`] are intentionally not derived, as naive equality doesn't make
-/// sense here. Use one of the helper methods such as [`Self::unify`] or pattern matching.
-#[must_use]
-#[derive(Debug, Clone)]
-pub enum Typeish {
-    /// A known type.
-    Known(NullableVType),
-    /// The bottom type, which cannot be instantiated.
-    ///
-    /// This signifies a panic, currently from `todo()` or stubbed FFI.
-    Never,
-}
-
-impl Typeish {
-    /// Is this an instance of this type or a `Never` value?
-    pub fn fits_type(&self, ot: &VType) -> bool {
-        match self {
-            Self::Known(t) => t.fits_type(ot),
-            Self::Never => true,
-        }
-    }
-
-    /// Checks this [`Typeish`] against an expected [`VType`].
-    ///
-    /// If `self` is `Never`, it will become the expected type.
-    /// Otherwise, it will keep its value if the inner type matches the target,
-    /// or error out otherwise.
-    #[allow(clippy::result_large_err)]
-    pub fn check_type(
-        self,
-        target_type: VType,
-        errmsg: &'static str,
-    ) -> Result<Self, TypeUnifyError> {
-        match self {
-            Self::Never => Ok(Self::Known(NullableVType::Type(target_type))),
-            Self::Known(ty) => {
-                if ty.fits_type(&target_type) {
-                    Ok(Self::Known(ty))
-                } else {
-                    Err(TypeUnifyError {
-                        left: ty,
-                        right: NullableVType::Type(target_type),
-                        ctx: errmsg,
-                    })
-                }
+/// If `self` is `Never`, it will become the expected type.
+/// Otherwise, it will keep its value the type kind matches the target,
+/// or error out otherwise.
+#[allow(clippy::result_large_err)]
+pub fn check_type(
+    ty: VType,
+    target_type: VType,
+    errmsg: &'static str,
+) -> Result<VType, TypeUnifyError> {
+    match ty.kind {
+        TypeKind::Never => Ok(target_type),
+        _ => {
+            if ty.fits_type(&target_type) {
+                Ok(ty)
+            } else {
+                Err(TypeUnifyError {
+                    left: ty,
+                    right: target_type,
+                    ctx: errmsg,
+                })
             }
-        }
-    }
-
-    /// Create a known type.
-    pub fn known(vtype: VType) -> Self {
-        Self::Known(NullableVType::Type(vtype))
-    }
-
-    /// Map over a type, preserving indeterminism.
-    pub fn map<F>(self, f: F) -> Self
-    where
-        F: FnOnce(NullableVType) -> NullableVType,
-    {
-        match self {
-            Self::Known(t) => Self::Known(f(t)),
-            Self::Never => Self::Never,
-        }
-    }
-
-    /// Try to map over a type, preserving indeterminism.
-    pub fn try_map<F, R>(self, f: F) -> Result<Self, R>
-    where
-        F: FnOnce(NullableVType) -> Result<NullableVType, R>,
-    {
-        Ok(match self {
-            Self::Known(t) => Self::Known(f(t)?),
-            Self::Never => Self::Never,
-        })
-    }
-
-    /// Tries to unify two types.
-    #[allow(clippy::result_large_err)]
-    pub fn unify(self, other: Self) -> Result<Self, TypeUnifyError> {
-        Ok(match (self, other) {
-            (Self::Never, Self::Never) => Self::Never,
-            (Self::Never, Self::Known(t)) => Self::Known(t),
-            (Self::Known(t), Self::Never) => Self::Known(t),
-            (Self::Known(left), Self::Known(right)) => Self::Known(left.unify(right)?),
-        })
-    }
-}
-
-impl Display for Typeish {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Known(t) => t.fmt(f),
-            Self::Never => f.write_str("never"),
-        }
-    }
-}
-
-#[must_use]
-#[derive(Debug, Clone)]
-pub enum NullableVType {
-    Type(VType),
-    Null,
-}
-
-impl NullableVType {
-    /// Returns whether the type matches. Null will match any optional.
-    pub fn fits_type(&self, ot: &VType) -> bool {
-        match self {
-            Self::Type(vtype) => vtype.matches(ot),
-            Self::Null => matches!(ot.kind, TypeKind::Optional(_)),
-        }
-    }
-
-    /// Equal types will unify, and null will unify with any optional.
-    #[allow(clippy::result_large_err)]
-    fn unify(self, rhs: Self) -> Result<Self, TypeUnifyError> {
-        match (self, rhs) {
-            (ref t @ Self::Type(ref ty), Self::Null)
-                if matches!(ty.kind, TypeKind::Optional(_)) =>
-            {
-                Ok(t.clone())
-            }
-            (Self::Null, ref t @ Self::Type(ref ty))
-                if matches!(ty.kind, TypeKind::Optional(_)) =>
-            {
-                Ok(t.clone())
-            }
-            (Self::Type(left), Self::Type(right)) if left.matches(&right) => Ok(Self::Type(left)),
-            (Self::Null, Self::Null) => Ok(Self::Null),
-            (left, right) => Err(TypeUnifyError {
-                left,
-                right,
-                ctx: "type mismatch",
-            }),
         }
     }
 }
@@ -312,78 +172,84 @@ impl Display for DisplayType<'_> {
             TypeKind::Id => f.write_str("id"),
             TypeKind::Struct(id) => write!(f, "struct {}", id),
             TypeKind::Enum(id) => write!(f, "enum {}", id),
-            TypeKind::Optional(inner) => write!(f, "optional {}", DisplayType(inner)),
-        }
-    }
-}
-
-impl Display for NullableVType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Type(vtype) => DisplayType(vtype).fmt(f),
-            Self::Null => f.write_str("null"),
+            TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
+            TypeKind::Never => write!(f, "never"),
         }
     }
 }
 
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
-    pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, TypeError> {
+    pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
         if self.m.struct_defs.contains_key(&s.identifier.name) {
             Ok(VType {
                 kind: TypeKind::Struct(s.identifier.clone()),
                 span: s.identifier.span,
             })
         } else {
-            Err(TypeError::new_owned(format!(
+            Err(self.err(CompileErrorType::InvalidType(format!(
                 "Struct `{}` not defined",
                 s.identifier
-            )))
+            ))))
         }
     }
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
-    pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, TypeError> {
+    pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, CompileError> {
         if self.m.fact_defs.contains_key(&f.identifier.name) {
             Ok(VType {
                 kind: TypeKind::Struct(f.identifier.clone()),
                 span: f.identifier.span,
             })
         } else {
-            Err(TypeError::new_owned(format!(
+            Err(self.err(CompileErrorType::InvalidType(format!(
                 "Fact `{}` not defined",
                 f.identifier
-            )))
+            ))))
         }
     }
+}
 
-    #[allow(clippy::result_large_err)]
-    pub(super) fn unify_pair(
-        &self,
-        left_type: Typeish,
-        right_type: Typeish,
-    ) -> Result<Typeish, TypeUnifyError> {
-        left_type.unify(right_type)
+#[allow(clippy::result_large_err)]
+pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyError> {
+    match (&left.kind, &right.kind) {
+        (_, TypeKind::Never) => Ok(left),
+        (TypeKind::Never, _) => Ok(right),
+        (TypeKind::Optional(left), TypeKind::Optional(right)) => {
+            let inner = unify_pair(left.as_ref().clone(), right.as_ref().clone())?;
+            Ok(VType {
+                kind: TypeKind::Optional(Box::new(inner)),
+                span: aranya_policy_ast::Span::empty(), // TODO
+            })
+        }
+        (_, _) => {
+            if left.matches(&right) {
+                Ok(left)
+            } else {
+                Err(TypeUnifyError {
+                    left,
+                    right,
+                    ctx: "type mismatch",
+                })
+            }
+        }
     }
+}
 
-    /// Like [`unify_pair`], except additionally the pair is checked against `target_type`
-    /// and an error is produced if they don't match.
-    #[allow(clippy::result_large_err)]
-    pub(super) fn unify_pair_as(
-        &self,
-        left_type: Typeish,
-        right_type: Typeish,
-        target_type: VType,
-        errmsg: &'static str,
-    ) -> Result<Typeish, CompileErrorType> {
-        Ok(self.unify_pair(
-            left_type
-                .check_type(target_type.clone(), errmsg)
-                .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
-            right_type
-                .check_type(target_type, errmsg)
-                .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
-        )?)
-    }
+/// Like [`unify_pair`], except additionally the pair is checked against `target_type`
+/// and an error is produced if they don't match.
+#[allow(clippy::result_large_err)]
+pub(super) fn unify_pair_as(
+    left_type: VType,
+    right_type: VType,
+    target_type: VType,
+    errmsg: &'static str,
+) -> Result<VType, CompileErrorType> {
+    Ok(unify_pair(
+        check_type(left_type, target_type.clone(), errmsg)
+            .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
+        check_type(right_type, target_type, errmsg)
+            .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
+    )?)
 }

@@ -1,7 +1,7 @@
 [package]
 name = "aranya-crypto"
 description = "The Aranya Cryptography Engine"
-version = "0.11.0"
+version = "0.12.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -139,7 +139,7 @@ tls = []
 trng = ["spideroak-crypto/trng"]
 
 [dependencies]
-aranya-id = { version = "0.1.0", path = "../aranya-id", default-features = false }
+aranya-id = { version = "0.2.0", path = "../aranya-id", default-features = false }
 
 buggy = { version = "0.1.0", default-features = false }
 spideroak-base58 = { workspace = true, default-features = false }

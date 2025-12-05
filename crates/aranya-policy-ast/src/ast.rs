@@ -7,21 +7,21 @@ use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
 #[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 pub struct Ident {
     /// The identifier name
     pub name: Identifier,
     /// The source location of this identifier
     pub span: Span,
+}
+
+impl fmt::Debug for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Ident {
@@ -161,16 +161,9 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
+#[must_use]
 #[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 pub struct VType {
     /// The type kind
@@ -179,10 +172,32 @@ pub struct VType {
     pub span: Span,
 }
 
+impl fmt::Debug for VType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
+}
+
 impl VType {
     /// Reports whether the types are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         self.kind.matches(&other.kind)
+    }
+
+    /// Checks if two types fit, where `Never` matches with any type.
+    pub fn fits_type(&self, other: &Self) -> bool {
+        self.kind.fits_type(&other.kind)
+    }
+
+    /// Gets the struct name if this type is a struct.
+    pub fn as_struct(&self) -> Option<&Ident> {
+        if let TypeKind::Struct(name) = &self.kind {
+            Some(name)
+        } else {
+            None
+        }
     }
 }
 
@@ -238,6 +253,8 @@ pub enum TypeKind {
     Enum(Ident),
     /// An optional type of some other type
     Optional(#[rkyv(omit_bounds)] Box<VType>),
+    /// A type which cannot be instantiated.
+    Never,
 }
 
 impl TypeKind {
@@ -248,10 +265,27 @@ impl TypeKind {
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
+            | (Self::Id, Self::Id)
+            | (Self::Never, Self::Never) => true,
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            _ => false,
+        }
+    }
+
+    fn fits_type(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Never, _) => true,
+            (_, Self::Never) => true,
+            (Self::String, Self::String)
+            | (Self::Bytes, Self::Bytes)
+            | (Self::Int, Self::Int)
+            | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id) => true,
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.matches(rhs),
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
             _ => false,
         }
     }
@@ -267,7 +301,8 @@ impl fmt::Display for TypeKind {
             Self::Id => write!(f, "id"),
             Self::Struct(name) => write!(f, "struct {name}"),
             Self::Enum(name) => write!(f, "enum {name}"),
-            Self::Optional(vtype) => write!(f, "optional {vtype}"),
+            Self::Optional(vtype) => write!(f, "option[{vtype}]"),
+            Self::Never => write!(f, "never"),
         }
     }
 }
@@ -447,14 +482,6 @@ impl Spanned for FactCountType {
 /// Expression atoms with special rules or effects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
-    /// A `add` expression
-    Add(Box<Expression>, Box<Expression>),
-    /// A `saturating_add` expression
-    SaturatingAdd(Box<Expression>, Box<Expression>),
-    /// A `sub` expression
-    Sub(Box<Expression>, Box<Expression>),
-    /// A `saturating_sub` expression
-    SaturatingSub(Box<Expression>, Box<Expression>),
     /// A `query` expression
     Query(FactLiteral),
     /// An `exists` fact query
@@ -475,10 +502,6 @@ pub enum InternalFunction {
 impl Spanned for InternalFunction {
     fn span(&self) -> Span {
         match self {
-            Self::Add(lhs, rhs) => lhs.span().merge(rhs.span()),
-            Self::SaturatingAdd(lhs, rhs) => lhs.span().merge(rhs.span()),
-            Self::Sub(lhs, rhs) => lhs.span().merge(rhs.span()),
-            Self::SaturatingSub(lhs, rhs) => lhs.span().merge(rhs.span()),
             Self::Query(fact) => fact.span(),
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
@@ -505,12 +528,20 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Expression {
     /// The expression kind
     pub kind: ExprKind,
     /// The source location of this expression
     pub span: Span,
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Spanned for Expression {
@@ -772,12 +803,20 @@ pub struct ReturnStatement {
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Statement {
     /// The statement kind
     pub kind: StmtKind,
     /// The source location of this statement
     pub span: Span,
+}
+
+impl fmt::Debug for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Spanned for Statement {

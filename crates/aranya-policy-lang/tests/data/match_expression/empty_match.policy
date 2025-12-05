@@ -1,0 +1,3 @@
+function f(n int) bool {
+    return match n {}
+}
