@@ -1,0 +1,10 @@
+function f(n int) bool {
+    match n {
+        0 => {
+            :true
+        }
+        1 => {
+            :false
+        }
+    }
+}
