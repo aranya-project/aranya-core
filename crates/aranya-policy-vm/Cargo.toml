@@ -53,3 +53,12 @@ ciborium = { version = "0.2" }
 
 [package.metadata.docs.rs]
 all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = []
+
+skip_feature_sets = [
+	["bench", "std"]
+]
+
+denylist = []

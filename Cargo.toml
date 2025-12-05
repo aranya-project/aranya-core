@@ -130,17 +130,13 @@ proc-macro2 = "1.0.80"
 syn = "2.0.59"
 quote = "1.0"
 
-[profile.dev]
-panic = "abort"
-opt-level = 1
-
 [profile.dev.package]
+aranya-quic-syncer.opt-level = 1
+aranya-runtime.opt-level = 1
+aranya-model.opt-level = 1
+
 insta.opt-level = 3
 similar.opt-level = 3
-
-[profile.dev-std]
-inherits = "dev"
-panic = "unwind"
 
 [profile.release]
 lto = "thin"
