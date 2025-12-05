@@ -84,9 +84,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             self.phead = None;
             let segment = storage.write(p)?;
             let head = segment.head()?;
-            let head_addr = head.address()?;
-            let head_loc = segment.head_location();
-            self.heads.insert(head_addr, head_loc);
+            self.heads.insert(head.address()?, segment.head_location());
         }
 
         // Merge heads pairwise until single head left, then commit.
@@ -118,10 +116,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
                 let segment = storage.write(perspective)?;
                 let head = segment.head()?;
-                let head_addr = head.address()?;
-                let head_loc = segment.head_location();
-
-                heads.push_back((head_addr, head_loc));
+                self.heads.insert(head.address()?, segment.head_location());
             } else {
                 let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
@@ -142,8 +137,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                         let head_loc = storage.get_head()?;
                         let segment = storage.get_segment(head_loc)?;
                         let head = segment.head()?;
-                        let head_addr = head.address()?;
-                        heads.push_back((head_addr, segment.head_location()));
+                        heads.push_back((head.address()?, segment.head_location()));
                     }
                     Err(e) => {
                         return Err(e.into());
@@ -165,10 +159,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         provider: &mut SP,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
-    ) -> Result<(usize, Vec<Address, COMMAND_RESPONSE_MAX>), ClientError> {
+    ) -> Result<usize, ClientError> {
         let mut commands = commands.iter();
         let mut count: usize = 0;
-        let mut added_addresses: Vec<Address, COMMAND_RESPONSE_MAX> = Vec::new();
 
         // Get storage or try to initialize with first command.
         let storage = match provider.get_storage(self.storage_id) {
@@ -178,10 +171,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 count = count.checked_add(1).assume("must not overflow")?;
                 let addr = command.address()?;
                 let init_storage = self.init(command, engine, provider, sink)?;
-                added_addresses
-                    .push(addr)
-                    .ok()
-                    .assume("too many commands")?;
                 // Continue with the initialized storage
                 init_storage
             }
@@ -221,23 +210,15 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 Prior::Single(parent) => {
                     self.add_single(storage, engine, sink, command, parent)?;
                     count = count.checked_add(1).assume("must not overflow")?;
-                    added_addresses
-                        .push(cmd_addr)
-                        .ok()
-                        .assume("too many commands")?;
                 }
                 Prior::Merge(left, right) => {
                     self.add_merge(storage, engine, sink, command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
-                    added_addresses
-                        .push(cmd_addr)
-                        .ok()
-                        .assume("too many commands")?;
                 }
             }
         }
 
-        Ok((count, added_addresses))
+        Ok(count)
     }
 
     fn add_single(
@@ -248,7 +229,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         command: &impl Command,
         parent: Address,
     ) -> Result<(), ClientError> {
-        let cmd_id = command.id();
         let perspective = self.get_perspective(parent, storage)?;
 
         let policy_id = perspective.policy();
@@ -270,7 +250,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         perspective.add_command(command)?;
         sink.commit();
 
-        self.phead = Some(cmd_id);
+        self.phead = Some(command.id());
 
         Ok(())
     }
@@ -284,15 +264,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         left: Address,
         right: Address,
     ) -> Result<bool, ClientError> {
-        let cmd_id = command.id();
-
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
             let head = seg.head()?;
-            let head_addr = head.address()?;
-            let head_loc = seg.head_location();
-            self.heads.insert(head_addr, head_loc);
+            self.heads.insert(head.address()?, seg.head_location());
         }
 
         let left_loc = self
@@ -322,7 +298,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         self.heads.remove(&right);
 
         self.perspective = Some(perspective);
-        self.phead = Some(cmd_id);
+        self.phead = Some(command.id());
 
         Ok(true)
     }
@@ -349,9 +325,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             self.phead = None;
             let seg = storage.write(p)?;
             let head = seg.head()?;
-            let head_addr = head.address()?;
-            let head_loc = seg.head_location();
-            self.heads.insert(head_addr, head_loc);
+            self.heads.insert(head.address()?, seg.head_location());
         }
 
         let loc = self
@@ -697,7 +671,7 @@ mod test {
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {
                 let cmd = SeqCommand::new(id, prior, max_cut);
-                let (_count, _addresses) = trx.add_commands(
+                trx.add_commands(
                     &[cmd],
                     &mut client.provider,
                     &mut client.engine,
@@ -725,7 +699,7 @@ mod test {
             for &id in ids {
                 let max_cut = prev.max_cut.checked_add(1).unwrap();
                 let cmd = SeqCommand::new(id, Prior::Single(prev), max_cut);
-                let (_count, _addresses) = self.trx.add_commands(
+                self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
                     &mut self.client.engine,
@@ -741,7 +715,7 @@ mod test {
             let prev = self.get_addr(prev);
             let max_cut = prev.max_cut.checked_add(1).unwrap();
             let cmd = SeqCommand::finalize(id, prev, max_cut);
-            let (_count, _addresses) = self.trx.add_commands(
+            self.trx.add_commands(
                 &[cmd],
                 &mut self.client.provider,
                 &mut self.client.engine,
@@ -763,7 +737,7 @@ mod test {
                 max_cut: mergecmd.max_cut,
             };
             self.max_cuts.insert(mergecmd.id, mergecmd.max_cut);
-            let (_count, _addresses) = self.trx.add_commands(
+            self.trx.add_commands(
                 &[mergecmd],
                 &mut self.client.provider,
                 &mut self.client.engine,
@@ -780,7 +754,7 @@ mod test {
                     max_cut: cmd.max_cut,
                 };
                 self.max_cuts.insert(cmd.id, cmd.max_cut);
-                let (_count, _addresses) = self.trx.add_commands(
+                self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
                     &mut self.client.engine,
