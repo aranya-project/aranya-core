@@ -2526,3 +2526,71 @@ fn test_source_lookup() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_return_expr() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            check 42 == bar()
+        }
+
+        function bar() int {
+            let x = baz(
+                12,
+                return 42,
+                13,
+            )
+        }
+
+        function baz(x int, y int, z int) int {
+            return x
+        }
+    "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    rs.call_action(name, iter::empty::<Value>())?.success();
+    assert!(rs.stack.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn test_return_statement_in_expr() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            check 42 == bar()
+        }
+
+        function bar() int {
+            let x = baz(
+                12,
+                { return 42 :todo() },
+                13,
+            )
+        }
+
+        function baz(x int, y int, z int) int {
+            return x
+        }
+    "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    rs.call_action(name, iter::empty::<Value>())?.success();
+    assert!(rs.stack.is_empty());
+
+    Ok(())
+}
