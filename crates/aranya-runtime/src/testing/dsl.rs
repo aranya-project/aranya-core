@@ -954,13 +954,6 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    debug!(
-        "SYNC START: Client {} requesting sync from client {} for graph {:?}",
-        requester_address, responder_address, storage_id
-    );
-    debug!("SYNC: Requester cache before: {:?}", request_cache.heads());
-    debug!("SYNC: Responder cache before: {:?}", response_cache.heads());
-
     let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
 
@@ -968,8 +961,6 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
-
-    debug!("SYNC: Requester sent {} commands in request", sent);
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -980,69 +971,19 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         response_cache,
     )?;
 
-    debug!("SYNC: Responder sent {} bytes in response", len);
-
     if len == 0 {
-        debug!("SYNC END: No response from responder");
         return Ok((sent, received));
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        debug!(
-            "SYNC[client {}]: Requester received {} commands",
-            requester_address,
-            cmds.len()
-        );
-        debug!(
-            "REQUESTER_RECEIVE[client {}]: Command IDs received from responder:",
-            requester_address
-        );
-        for cmd in &cmds {
-            debug!(
-                "REQUESTER_RECEIVE[client {}]: Command ID: {}",
-                requester_address,
-                short_b58(cmd.id())
-            );
-        }
-        debug!(
-            "SYNC[client {}]: Adding {} commands to client state",
-            requester_address,
-            cmds.len()
-        );
         let (added_count, added_addresses) =
             request_state.add_commands(&mut request_trx, sink, &cmds)?;
         received = added_count;
-        debug!(
-            "SYNC[client {}]: add_commands returned {} commands added with {} addresses",
-            requester_address,
-            received,
-            added_addresses.len()
-        );
-        debug!("SYNC[client {}]: Committing transaction", requester_address);
         request_state.commit(&mut request_trx, sink)?;
-        debug!(
-            "SYNC[client {}]: Transaction committed successfully",
-            requester_address
-        );
         // Only update heads with addresses of commands that were actually added to the graph.
         // update_heads will verify each address exists in storage before adding to cache.
-        debug!(
-            "SYNC[client {}]: Added {} commands to graph, updating heads with {} addresses (only for successfully added commands)",
-            requester_address,
-            received,
-            added_addresses.len()
-        );
         request_state.update_heads(storage_id, added_addresses, request_cache)?;
-    } else {
-        debug!(
-            "SYNC[client {}]: No commands received from responder",
-            requester_address
-        );
     }
-
-    debug!("SYNC: Requester cache after: {:?}", request_cache.heads());
-    debug!("SYNC: Responder cache after: {:?}", response_cache.heads());
-    debug!("SYNC END: Sent {}, Received {}", sent, received);
 
     Ok((sent, received))
 }
@@ -1074,7 +1015,6 @@ where
             continue;
         }
         visited.insert(loc.segment);
-        debug!("PRINT_GRAPH: Visiting segment {}", loc.segment);
         let segment = storage.get_segment(loc)?;
         let commands = segment.get_from(segment.first_location());
         for command in commands.iter().rev() {
@@ -1093,7 +1033,6 @@ where
         locations.extend(segment.prior());
     }
 
-    debug!("Graph contains {} total commands", command_ids.len());
     Ok(command_ids)
 }
 
@@ -1209,8 +1148,7 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
-    generate_graph_100_failure,
-    generate_graph_minimal_failure,
+    four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
     many_branches,

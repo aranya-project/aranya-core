@@ -3,7 +3,6 @@ use core::{marker::PhantomData, mem};
 
 use buggy::{BugExt as _, bug};
 use heapless::Vec;
-use tracing::debug;
 
 use super::braiding;
 use crate::{
@@ -78,49 +77,32 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<(), ClientError> {
-        debug!("COMMIT: Starting commit for storage_id={:?}", self.storage_id);
-        debug!("COMMIT: Initial state - phead={:?}, heads={}, has_perspective={}", 
-            self.phead, self.heads.len(), self.perspective.is_some());
-        
         let storage = provider.get_storage(self.storage_id)?;
 
         // Write out current perspective.
         if let Some(p) = Option::take(&mut self.perspective) {
-            debug!("COMMIT: Writing out current perspective (phead={:?})", self.phead);
             self.phead = None;
             let segment = storage.write(p)?;
             let head = segment.head()?;
             let head_addr = head.address()?;
             let head_loc = segment.head_location();
-            debug!("COMMIT: Wrote perspective, new head: {:?} at {:?}", head_addr, head_loc);
             self.heads.insert(head_addr, head_loc);
-            debug!("COMMIT: Heads after writing perspective: {}", self.heads.len());
-        } else {
-            debug!("COMMIT: No current perspective to write out");
         }
 
         // Merge heads pairwise until single head left, then commit.
         // TODO(#370): Merge deterministically
         let mut heads: VecDeque<_> = mem::take(&mut self.heads).into_iter().collect();
-        debug!("COMMIT: Starting head merge process with {} heads", heads.len());
         let mut merging_head = false;
-        let mut merge_iteration = 0;
         while let Some((left_id, mut left_loc)) = heads.pop_front() {
-            merge_iteration += 1;
-            debug!("COMMIT: Merge iteration {} - processing left head: {:?} at {:?}", merge_iteration, left_id, left_loc);
-            
             if let Some((right_id, mut right_loc)) = heads.pop_front() {
-                debug!("COMMIT: Merging heads: {:?} and {:?}", left_id, right_id);
                 let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
                 if left_id > right_id {
                     mem::swap(&mut left_loc, &mut right_loc);
-                    debug!("COMMIT: Swapped left/right due to ID ordering");
                 }
                 let command = policy.merge(&mut buffer, merge_ids)?;
-                debug!("COMMIT: Created merge command: {:?}", command.id());
 
                 let (braid, last_common_ancestor) =
                     make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
@@ -133,28 +115,22 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     braid,
                 )?;
                 perspective.add_command(&command)?;
-                debug!("COMMIT: Added merge command to perspective");
 
                 let segment = storage.write(perspective)?;
                 let head = segment.head()?;
                 let head_addr = head.address()?;
                 let head_loc = segment.head_location();
-                debug!("COMMIT: Wrote merge perspective, new head: {:?} at {:?}", head_addr, head_loc);
 
                 heads.push_back((head_addr, head_loc));
-                debug!("COMMIT: After merge, {} heads remaining", heads.len());
             } else {
-                debug!("COMMIT: Only one head remaining: {:?} at {:?}, attempting storage commit", left_id, left_loc);
                 let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
                 // need to merge with the graph head.
                 match storage.commit(segment) {
                     Ok(()) => {
-                        debug!("COMMIT: Storage commit succeeded!");
                         break;
                     }
                     Err(StorageError::HeadNotAncestor) => {
-                        debug!("COMMIT: Storage commit failed with HeadNotAncestor, merging with graph head");
                         if merging_head {
                             bug!("merging with graph head again, would loop");
                         }
@@ -167,18 +143,15 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                         let segment = storage.get_segment(head_loc)?;
                         let head = segment.head()?;
                         let head_addr = head.address()?;
-                        debug!("COMMIT: Graph head is {:?} at {:?}, will merge with transaction head", head_addr, head_loc);
                         heads.push_back((head_addr, segment.head_location()));
                     }
                     Err(e) => {
-                        debug!("COMMIT: Storage commit failed with error: {:?}", e);
                         return Err(e.into());
                     }
                 }
             }
         }
 
-        debug!("COMMIT: Commit completed successfully");
         Ok(())
     }
 
@@ -197,18 +170,18 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let mut count: usize = 0;
         let mut added_addresses: Vec<Address, COMMAND_RESPONSE_MAX> = Vec::new();
 
-        debug!("ADD_COMMANDS: Processing {} commands", commands.len());
-
         // Get storage or try to initialize with first command.
         let storage = match provider.get_storage(self.storage_id) {
             Ok(s) => s,
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
-                debug!("ADD_COMMANDS: Initializing graph with command {:?}", command.id());
                 count = count.checked_add(1).assume("must not overflow")?;
                 let addr = command.address()?;
                 let init_storage = self.init(command, engine, provider, sink)?;
-                added_addresses.push(addr).ok().assume("too many commands")?;
+                added_addresses
+                    .push(addr)
+                    .ok()
+                    .assume("too many commands")?;
                 // Continue with the initialized storage
                 init_storage
             }
@@ -219,26 +192,20 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         for command in commands {
             let cmd_id = command.id();
             let cmd_addr = command.address()?;
-            debug!("ADD_COMMANDS: Processing command {:?} (address: {:?})", cmd_id, cmd_addr);
 
             // Check if command is in current perspective
             let in_perspective = self
                 .perspective
                 .as_ref()
                 .is_some_and(|p| p.includes(cmd_id));
-            debug!("ADD_COMMANDS: Perspective check for {:?}: in_perspective={}, has_perspective={}", 
-                cmd_id, in_perspective, self.perspective.is_some());
             if in_perspective {
-                debug!("ADD_COMMANDS: SKIP - Command {:?} already in current perspective", cmd_id);
                 // Command in current perspective.
                 continue;
             }
 
             // Check if command is already in graph
             let location_result = self.locate(storage, cmd_addr)?;
-            debug!("ADD_COMMANDS: Locate check for {:?}: found_location={:?}", cmd_id, location_result);
             if location_result.is_some() {
-                debug!("ADD_COMMANDS: SKIP - Command {:?} already added to graph at location {:?}", cmd_id, location_result);
                 // Command already added.
                 continue;
             }
@@ -246,29 +213,30 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             match command.parent() {
                 Prior::None => {
                     if command.id().as_base() == self.storage_id.as_base() {
-                        debug!("ADD_COMMANDS: Skipping init command {:?} - graph already initialized", command.id());
                         // Graph already initialized, extra init just spurious
                     } else {
                         bug!("init command does not belong in graph");
                     }
                 }
                 Prior::Single(parent) => {
-                    debug!("ADD_COMMANDS: Adding single-parent command {:?} with parent {:?}", command.id(), parent);
                     self.add_single(storage, engine, sink, command, parent)?;
                     count = count.checked_add(1).assume("must not overflow")?;
-                    added_addresses.push(cmd_addr).ok().assume("too many commands")?;
+                    added_addresses
+                        .push(cmd_addr)
+                        .ok()
+                        .assume("too many commands")?;
                 }
                 Prior::Merge(left, right) => {
-                    debug!("ADD_COMMANDS: Adding merge command {:?} with parents {:?} and {:?}", command.id(), left, right);
                     self.add_merge(storage, engine, sink, command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
-                    added_addresses.push(cmd_addr).ok().assume("too many commands")?;
+                    added_addresses
+                        .push(cmd_addr)
+                        .ok()
+                        .assume("too many commands")?;
                 }
             }
         }
 
-        debug!("ADD_COMMANDS: Successfully added {} commands to graph", count);
-        debug!("ADD_COMMANDS: Returning {} addresses for successfully added commands", added_addresses.len());
         Ok((count, added_addresses))
     }
 
@@ -281,7 +249,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         parent: Address,
     ) -> Result<(), ClientError> {
         let cmd_id = command.id();
-        debug!("ADD_SINGLE: Adding command {:?} with parent {:?}", cmd_id, parent);
         let perspective = self.get_perspective(parent, storage)?;
 
         let policy_id = perspective.policy();
@@ -296,17 +263,14 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             sink,
             CommandPlacement::OnGraphAtOrigin,
         ) {
-            debug!("ADD_SINGLE: Policy rule failed for {:?}, reverting", cmd_id);
             perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
         }
-        debug!("ADD_SINGLE: Adding command {:?} to perspective", cmd_id);
         perspective.add_command(command)?;
         sink.commit();
 
         self.phead = Some(cmd_id);
-        debug!("ADD_SINGLE: Command {:?} added, new phead={:?}", cmd_id, self.phead);
 
         Ok(())
     }
@@ -321,16 +285,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         right: Address,
     ) -> Result<bool, ClientError> {
         let cmd_id = command.id();
-        debug!("ADD_MERGE: Adding merge command {:?} with parents {:?} and {:?}", cmd_id, left, right);
-        
+
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
-            debug!("ADD_MERGE: Writing out current perspective before merge");
             let seg = storage.write(p)?;
             let head = seg.head()?;
             let head_addr = head.address()?;
             let head_loc = seg.head_location();
-            debug!("ADD_MERGE: Wrote perspective, new head: {:?} at {:?}", head_addr, head_loc);
             self.heads.insert(head_addr, head_loc);
         }
 
@@ -340,7 +301,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let right_loc = self
             .locate(storage, right)?
             .ok_or(ClientError::NoSuchParent(right.id))?;
-        debug!("ADD_MERGE: Found parent locations: left={:?}, right={:?}", left_loc, right_loc);
 
         let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
 
@@ -355,17 +315,14 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             policy_id,
             braid,
         )?;
-        debug!("ADD_MERGE: Created merge perspective, adding command {:?}", cmd_id);
         perspective.add_command(command)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
         self.heads.remove(&left);
         self.heads.remove(&right);
-        debug!("ADD_MERGE: Removed left and right from heads, remaining heads: {}", self.heads.len());
 
         self.perspective = Some(perspective);
         self.phead = Some(cmd_id);
-        debug!("ADD_MERGE: Merge command {:?} added, new phead={:?}", cmd_id, self.phead);
 
         Ok(true)
     }
@@ -379,11 +336,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         parent: Address,
         storage: &mut <SP as StorageProvider>::Storage,
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
-        debug!("GET_PERSPECTIVE: Requested for parent {:?}, current phead={:?}", parent, self.phead);
-        
         if self.phead == Some(parent.id) {
             // Command will append to current perspective.
-            debug!("GET_PERSPECTIVE: Reusing current perspective (phead matches parent)");
             return Ok(self
                 .perspective
                 .as_mut()
@@ -392,23 +346,17 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         // Write out the current perspective.
         if let Some(p) = Option::take(&mut self.perspective) {
-            debug!("GET_PERSPECTIVE: Writing out current perspective (phead={:?})", self.phead);
             self.phead = None;
             let seg = storage.write(p)?;
             let head = seg.head()?;
             let head_addr = head.address()?;
             let head_loc = seg.head_location();
-            debug!("GET_PERSPECTIVE: Wrote perspective, new head: {:?} at {:?}", head_addr, head_loc);
             self.heads.insert(head_addr, head_loc);
-            debug!("GET_PERSPECTIVE: Transaction heads after write: {} heads", self.heads.len());
-        } else {
-            debug!("GET_PERSPECTIVE: No current perspective to write out");
         }
 
         let loc = self
             .locate(storage, parent)?
             .ok_or(ClientError::NoSuchParent(parent.id))?;
-        debug!("GET_PERSPECTIVE: Found parent location {:?}, getting new linear perspective", loc);
 
         // Get a new perspective and store it in the transaction.
         let p = self
@@ -416,9 +364,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             .insert(storage.get_linear_perspective(loc)?);
 
         self.phead = Some(parent.id);
-        let removed = self.heads.remove(&parent);
-        debug!("GET_PERSPECTIVE: Created new perspective, phead={:?}, removed parent from heads: {:?}", 
-            self.phead, removed.is_some());
+        self.heads.remove(&parent);
 
         Ok(p)
     }

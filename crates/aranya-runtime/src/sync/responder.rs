@@ -4,7 +4,6 @@ use core::mem;
 use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 
 use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
@@ -42,18 +41,10 @@ impl PeerCache {
         // Verify the command exists in the graph at the given location
         let segment = storage.get_segment(cmd_loc)?;
         let Some(cmd_at_loc) = segment.get_command(cmd_loc) else {
-            debug!(
-                "PEER_CACHE: Command {:?} not found at location {:?}, not adding to cache",
-                command, cmd_loc
-            );
             return Ok(());
         };
         let cmd_address = cmd_at_loc.address()?;
         if cmd_address != command {
-            debug!(
-                "PEER_CACHE: Command at location {:?} has address {:?}, expected {:?}, not adding to cache",
-                cmd_loc, cmd_address, command
-            );
             return Ok(());
         }
 
@@ -315,27 +306,9 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         commands: &[Address],
         storage: &impl Storage,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        debug!(
-            "FIND_NEEDED_SEGMENTS: Requester claims to have {} commands",
-            commands.len()
-        );
-        for &addr in commands {
-            debug!("FIND_NEEDED_SEGMENTS: Requester has command {:?}", addr);
-        }
-
-        // DIAGNOSTIC: Look up segments for the missing commands we're tracking
-        // From logs: Y2RjLs has max_cut 53, QnChAc has max_cut 46
-        // We'll search for these by iterating through segments, but first let's
-        // store which segments we find them in during traversal
-        let mut target_segments: vec::Vec<(usize, Location)> = vec::Vec::new();
-
         let mut have_locations = vec::Vec::new(); //BUG: not constant size
         for &addr in commands {
             let Some(location) = storage.get_location(addr)? else {
-                debug!(
-                    "FIND_NEEDED_SEGMENTS: Requester claims command {:?} but it's not in our graph",
-                    addr
-                );
                 // Note: We could use things we don't
                 // have as a hint to know we should
                 // perform a sync request.
@@ -343,63 +316,25 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             };
 
             have_locations.push(location);
-            debug!(
-                "FIND_NEEDED_SEGMENTS: Requester has command {:?} at location {:?}",
-                addr, location
-            );
         }
-
-        debug!(
-            "FIND_NEEDED_SEGMENTS: Requester has {} valid commands in our graph",
-            have_locations.len()
-        );
 
         let mut heads = vec::Vec::new();
         heads.push(storage.get_head()?);
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
-        debug!("FIND_NEEDED_SEGMENTS: Starting segment traversal from graph head");
         let mut examined_segments = BTreeSet::new();
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
                 if examined_segments.contains(&head.segment) {
-                    debug!(
-                        "FIND_NEEDED_SEGMENTS: Already examined segment {}, skipping",
-                        head.segment
-                    );
                     continue;
                 }
                 examined_segments.insert(head.segment);
 
                 let segment = storage.get_segment(head)?;
-                debug!(
-                    "FIND_NEEDED_SEGMENTS: Examining segment {} at {:?}",
-                    head.segment, head
-                );
-
-                // DIAGNOSTIC: Check if this segment contains our target commands (max_cut 53 or 46)
-                let segment_commands = segment.get_from(segment.first_location());
-                for cmd in &segment_commands {
-                    if let Ok(max_cut) = cmd.max_cut() {
-                        if max_cut == 53 || max_cut == 46 {
-                            debug!(
-                                "DIAGNOSTIC: Segment {} contains command with max_cut {} (id: {:?})",
-                                head.segment,
-                                max_cut,
-                                cmd.id()
-                            );
-                            target_segments.push((head.segment, segment.first_location()));
-                        }
-                    }
-                }
 
                 if segment.contains_any(&result) {
-                    debug!(
-                        "FIND_NEEDED_SEGMENTS: Segment {} already in result, skipping",
-                        head.segment
-                    );
                     continue 'heads;
                 }
 
@@ -409,10 +344,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 for &have_location in &have_locations {
                     let have_segment = storage.get_segment(have_location)?;
                     if storage.is_ancestor(head, &have_segment)? {
-                        debug!(
-                            "FIND_NEEDED_SEGMENTS: Segment {} head {:?} is ancestor of requester's location {:?}, skipping (requester already has all ancestors)",
-                            head.segment, head, have_location
-                        );
                         continue 'heads;
                     }
                 }
@@ -421,28 +352,10 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 for &location in &have_locations {
                     if segment.contains(location) {
                         requester_has_in_segment = true;
-                        if location == segment.head_location() {
-                            debug!(
-                                "FIND_NEEDED_SEGMENTS: Requester has segment {} head at {:?}",
-                                head.segment, location
-                            );
-                        } else {
-                            debug!(
-                                "FIND_NEEDED_SEGMENTS: Requester has command in middle of segment {} at {:?}",
-                                head.segment, location
-                            );
-                        }
                     }
                 }
 
                 if requester_has_in_segment {
-                    // DIAGNOSTIC: Check if this is a target segment being skipped
-                    if target_segments.iter().any(|(seg, _)| *seg == head.segment) {
-                        debug!(
-                            "DIAGNOSTIC: WARNING - Target segment {} has commands that requester claims to have, checking if we should skip",
-                            head.segment
-                        );
-                    }
                     // Find the latest location in this segment that the requester has
                     let mut latest_requester_location: Option<Location> = None;
                     for &location in &have_locations {
@@ -455,17 +368,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     }
 
                     if let Some(latest_loc) = latest_requester_location {
-                        debug!(
-                            "FIND_NEEDED_SEGMENTS: Requester has commands in segment {} (latest at {:?}), sending from next location",
-                            head.segment, latest_loc
-                        );
-                        // DIAGNOSTIC: Check if this is a target segment
-                        if target_segments.iter().any(|(seg, _)| *seg == head.segment) {
-                            debug!(
-                                "DIAGNOSTIC: Target segment {} - requester has up to command {}, will send from next",
-                                head.segment, latest_loc.command
-                            );
-                        }
                         // Send from the next command in the segment
                         let next_command = latest_loc.command + 1;
                         let next_location = Location {
@@ -475,35 +377,10 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                         // Check if the next location is within the segment bounds
                         let head_loc = segment.head_location();
                         if next_location.command > head_loc.command {
-                            debug!(
-                                "FIND_NEEDED_SEGMENTS: Next location {:?} is beyond segment {} head {:?}, skipping (requester already has all commands in this segment)",
-                                next_location, head.segment, head_loc
-                            );
-                            // DIAGNOSTIC: Check if this is a target segment being skipped
-                            if target_segments.iter().any(|(seg, _)| *seg == head.segment) {
-                                debug!(
-                                    "DIAGNOSTIC: WARNING - Target segment {} has no more commands to send (requester has head)",
-                                    head.segment
-                                );
-                            }
                             continue 'heads;
                         }
                         if result.is_full() {
-                            let removed = result.pop_back().unwrap();
-                            debug!(
-                                "FIND_NEEDED_SEGMENTS: Result full, removed segment {:?}",
-                                removed
-                            );
-                            // DIAGNOSTIC: Check if we're removing a target segment
-                            if target_segments
-                                .iter()
-                                .any(|(seg, _)| *seg == removed.segment)
-                            {
-                                debug!(
-                                    "DIAGNOSTIC: WARNING - Removing target segment {} from result due to buffer limit!",
-                                    removed.segment
-                                );
-                            }
+                            result.pop_back().unwrap();
                         }
                         result
                             .push_front(next_location)
@@ -513,42 +390,13 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     continue 'heads;
                 }
 
-                debug!(
-                    "FIND_NEEDED_SEGMENTS: Requester missing entire segment {}, adding to traversal and sending from start",
-                    head.segment
-                );
                 heads.extend(segment.prior());
 
                 if result.is_full() {
-                    let removed = result.pop_back().unwrap();
-                    debug!(
-                        "FIND_NEEDED_SEGMENTS: Result full, removed segment {:?}",
-                        removed
-                    );
-                    // DIAGNOSTIC: Check if we're removing a target segment
-                    if target_segments
-                        .iter()
-                        .any(|(seg, _)| *seg == removed.segment)
-                    {
-                        debug!(
-                            "DIAGNOSTIC: WARNING - Removing target segment {} from result due to buffer limit!",
-                            removed.segment
-                        );
-                    }
+                    result.pop_back().unwrap();
                 }
 
                 let location = segment.first_location();
-                debug!(
-                    "FIND_NEEDED_SEGMENTS: Adding segment {} location {:?}",
-                    head.segment, location
-                );
-                // DIAGNOSTIC: Check if we're adding a target segment
-                if target_segments.iter().any(|(seg, _)| *seg == head.segment) {
-                    debug!(
-                        "DIAGNOSTIC: Adding target segment {} to result",
-                        head.segment
-                    );
-                }
                 result
                     .push_front(location)
                     .ok()
@@ -562,33 +410,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
         r.sort();
-
-        debug!(
-            "FIND_NEEDED_SEGMENTS: Final result - sending {} segments",
-            r.len()
-        );
-        for &location in &r {
-            debug!(
-                "FIND_NEEDED_SEGMENTS: Will send from segment {} at {:?}",
-                location.segment, location
-            );
-        }
-        // DIAGNOSTIC: Check if target segments are in final result
-        let target_segment_numbers: vec::Vec<usize> =
-            target_segments.iter().map(|(seg, _)| *seg).collect();
-        for &target_seg in &target_segment_numbers {
-            if r.iter().any(|loc| loc.segment == target_seg) {
-                debug!(
-                    "DIAGNOSTIC: Target segment {} IS in final result",
-                    target_seg
-                );
-            } else {
-                debug!(
-                    "DIAGNOSTIC: Target segment {} is NOT in final result!",
-                    target_seg
-                );
-            }
-        }
 
         Ok(r)
     }
@@ -610,18 +431,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         }
 
         let (commands, command_data, next_send) = self.get_commands(provider)?;
-
-        debug!(
-            "RESPONDER_SEND: Sending {} commands in SyncResponse (response_index: {})",
-            commands.len(),
-            self.message_index
-        );
-        for meta in &commands {
-            debug!(
-                "RESPONDER_SEND: Command ID: {:?}, priority: {:?}, max_cut: {}",
-                meta.id, meta.priority, meta.max_cut
-            );
-        }
 
         let message = SyncResponseMessage::SyncResponse {
             session_id: self.session_id()?,
@@ -722,17 +531,8 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
         let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         let mut index = self.next_send;
-        debug!(
-            "GET_COMMANDS: Starting extraction from segment index {}, total segments: {}",
-            self.next_send,
-            self.to_send.len()
-        );
         for i in self.next_send..self.to_send.len() {
             if commands.is_full() {
-                debug!(
-                    "GET_COMMANDS: Command buffer full ({} commands), stopping at segment index {}",
-                    COMMAND_RESPONSE_MAX, i
-                );
                 break;
             }
             index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
@@ -741,33 +541,13 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 bug!("send index OOB");
             };
 
-            debug!(
-                "GET_COMMANDS: Processing segment {} at location {:?} (index {})",
-                location.segment, location, i
-            );
-
             let segment = storage
                 .get_segment(location)
                 .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
             let found = segment.get_from(location);
-            debug!(
-                "GET_COMMANDS: Segment {} contains {} commands",
-                location.segment,
-                found.len()
-            );
 
             for command in &found {
-                // DIAGNOSTIC: Log command IDs from segments 58 and 63
-                if location.segment == 58 || location.segment == 63 {
-                    let cmd_max_cut = command.max_cut().unwrap_or(0);
-                    debug!(
-                        "DIAGNOSTIC: GET_COMMANDS: Extracting command from segment {}: id={:?}, max_cut={}",
-                        location.segment,
-                        command.id(),
-                        cmd_max_cut
-                    );
-                }
                 let mut policy_length = 0;
 
                 if let Some(policy) = command.policy() {
@@ -794,63 +574,15 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     max_cut,
                 };
 
-                // DIAGNOSTIC: Check if this is one of our target commands
-                if max_cut == 53 || max_cut == 46 {
-                    debug!(
-                        "DIAGNOSTIC: GET_COMMANDS: Found target command with max_cut {} (id: {:?}) in segment {}",
-                        max_cut,
-                        command.id(),
-                        location.segment
-                    );
-                }
-                // DIAGNOSTIC: Check for missing commands njHk7S (max_cut 50) and LrYsuu (max_cut 54)
-                if max_cut == 50 || max_cut == 54 {
-                    debug!(
-                        "DIAGNOSTIC: GET_COMMANDS: Found missing command with max_cut {} (id: {:?}) in segment {}",
-                        max_cut,
-                        command.id(),
-                        location.segment
-                    );
-                }
-
                 // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
-                let was_added = commands.push(meta).is_ok();
-                if !was_added {
-                    // DIAGNOSTIC: Check if we're failing to add a missing command
-                    if max_cut == 50 || max_cut == 54 {
-                        debug!(
-                            "DIAGNOSTIC: GET_COMMANDS: FAILED to add missing command with max_cut {} (id: {:?}) - command buffer full!",
-                            max_cut,
-                            command.id()
-                        );
-                    }
+                if commands.push(meta).is_err() {
                     bug!("too many commands in segment");
-                } else {
-                    // DIAGNOSTIC: Confirm missing command was added
-                    if max_cut == 50 || max_cut == 54 {
-                        debug!(
-                            "DIAGNOSTIC: GET_COMMANDS: Successfully added missing command with max_cut {} (id: {:?}) to response (commands.len()={})",
-                            max_cut,
-                            command.id(),
-                            commands.len()
-                        );
-                    }
                 }
                 if commands.is_full() {
-                    debug!(
-                        "GET_COMMANDS: Command buffer full after adding command from segment {} (max_cut: {})",
-                        location.segment, max_cut
-                    );
                     break;
                 }
             }
         }
-        debug!(
-            "GET_COMMANDS: Completed extraction - processed {} segments (up to index {}), extracted {} commands",
-            index - self.next_send,
-            index,
-            commands.len()
-        );
         Ok((commands, command_data, index))
     }
 

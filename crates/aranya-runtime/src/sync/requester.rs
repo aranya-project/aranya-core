@@ -4,7 +4,6 @@ use aranya_crypto::Csprng;
 use buggy::BugExt as _;
 use heapless::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::debug;
 
 use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
@@ -350,11 +349,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         provider: &mut impl StorageProvider,
         peer_cache: &mut PeerCache,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
-        debug!("GET_COMMANDS: PeerCache has {} heads", peer_cache.heads().len());
-        for &head in peer_cache.heads() {
-            debug!("GET_COMMANDS: PeerCache head: {:?}", head);
-        }
-
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
         match provider.get_storage(self.storage_id) {
@@ -377,14 +371,10 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         commands
                             .push(*address)
                             .map_err(|_| SyncError::CommandOverflow)?;
-                        debug!("GET_COMMANDS: Added PeerCache head to sample: {:?}", address);
-                    } else {
-                        debug!("GET_COMMANDS: Sample full, skipping PeerCache head: {:?}", address);
                     }
                 }
                 // Start traversal from graph head and work backwards until we hit a PeerCache head
                 let head = storage.get_head()?;
-                debug!("GET_COMMANDS: Starting graph traversal from head {:?}", head);
                 let mut current = vec![head];
 
                 // Here we just get the first command from the most reaseant
@@ -404,25 +394,21 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         for &peer_cache_loc in &command_locations {
                             // If this is the same location as a PeerCache head, we've hit it
                             if location == peer_cache_loc {
-                                debug!("GET_COMMANDS: Hit PeerCache head at {:?}, stopping traversal", location);
                                 continue 'current;
                             }
                             // If the current location is an ancestor of a PeerCache head's segment,
                             // we've passed the PeerCache head, so stop traversing this path
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if storage.is_ancestor(location, &peer_cache_segment)? {
-                                debug!("GET_COMMANDS: Location {:?} is ancestor of PeerCache head {:?}, stopping traversal", location, peer_cache_loc);
                                 continue 'current;
                             }
                         }
 
-                        debug!("GET_COMMANDS: Adding command to sample: {:?}", head_address);
                         commands
                             .push(head_address)
                             .map_err(|_| SyncError::CommandOverflow)?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {
-                            debug!("GET_COMMANDS: Sample full ({})", commands.len());
                             break 'current;
                         }
                     }
@@ -430,11 +416,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                     current.clone_from(&next);
                 }
             }
-        }
-
-        debug!("GET_COMMANDS: Final sample has {} commands", commands.len());
-        for &cmd in &commands {
-            debug!("GET_COMMANDS: Sending command in sample: {:?}", cmd);
         }
 
         Ok(commands)
