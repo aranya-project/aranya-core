@@ -147,14 +147,53 @@ expression: policy
                         },
                         "span": {
                           "start": 102,
-                          "end": 206
+                          "end": 137
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Values": [
+                            {
+                              "kind": {
+                                "Int": 2
+                              },
+                              "span": {
+                                "start": 137,
+                                "end": 138
+                              }
+                            }
+                          ]
+                        },
+                        "expression": {
+                          "kind": {
+                            "Block": [
+                              [],
+                              {
+                                "kind": {
+                                  "Int": 3
+                                },
+                                "span": {
+                                  "start": 145,
+                                  "end": 146
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "start": 142,
+                            "end": 148
+                          }
+                        },
+                        "span": {
+                          "start": 137,
+                          "end": 165
                         }
                       },
                       {
                         "pattern": {
                           "Default": {
-                            "start": 206,
-                            "end": 207
+                            "start": 165,
+                            "end": 166
                           }
                         },
                         "expression": {
@@ -164,19 +203,19 @@ expression: policy
                                 "Int": -1
                               },
                               "span": {
-                                "start": 218,
-                                "end": 220
+                                "start": 177,
+                                "end": 179
                               }
                             }
                           },
                           "span": {
-                            "start": 211,
-                            "end": 233
+                            "start": 170,
+                            "end": 192
                           }
                         },
                         "span": {
-                          "start": 206,
-                          "end": 233
+                          "start": 165,
+                          "end": 192
                         }
                       }
                     ]
@@ -184,14 +223,14 @@ expression: policy
                 },
                 "span": {
                   "start": 53,
-                  "end": 234
+                  "end": 193
                 }
               }
             }
           },
           "span": {
             "start": 45,
-            "end": 247
+            "end": 206
           }
         },
         {
@@ -203,36 +242,36 @@ expression: policy
                     "Identifier": {
                       "name": "x",
                       "span": {
-                        "start": 254,
-                        "end": 255
+                        "start": 213,
+                        "end": 214
                       }
                     }
                   },
                   "span": {
-                    "start": 254,
-                    "end": 255
+                    "start": 213,
+                    "end": 214
                   }
                 }
               },
               "span": {
-                "start": 247,
-                "end": 264
+                "start": 206,
+                "end": 223
               }
             }
           },
           "span": {
-            "start": 247,
-            "end": 264
+            "start": 206,
+            "end": 223
           }
         }
       ],
       "span": {
         "start": 9,
-        "end": 265
+        "end": 224
       }
     }
   ],
   "finish_functions": [],
   "global_lets": [],
-  "text": "\n        function f(n int) int {\n            let x = match n {\n                0 => 1\n                1 => { :return 2 }\n                // 2 => { return 3 } TODO not allowed. should it be?\n                _ => return -1\n            }\n            return x\n        }\n    "
+  "text": "\n        function f(n int) int {\n            let x = match n {\n                0 => 1\n                1 => { :return 2 }\n                2 => { :3 }\n                _ => return -1\n            }\n            return x\n        }\n    "
 }
