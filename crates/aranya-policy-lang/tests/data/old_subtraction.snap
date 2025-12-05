@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+Invalid operator: line 2 column 14: found `-`, subtraction now uses functions `sub` or `saturating_sub`
