@@ -27,7 +27,9 @@ pest = { version = "2" }
 pest_derive = { version = "2", features = ["grammar-extras"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_yaml = { version = "0.9" }
+tracing = { workspace = true }
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
+rstest = { version = "0.26" }
 serde_json = { version = "1" }

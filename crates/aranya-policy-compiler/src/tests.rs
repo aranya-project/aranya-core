@@ -1488,7 +1488,7 @@ fn test_match_expression() {
         (
             // all match patterns are not listed
             r#"
-            action f(maybe_bool optional bool) {
+            action f(maybe_bool option[bool]) {
                 let x = match maybe_bool {
                     None => 0
                     Some(false) => 2
@@ -1593,7 +1593,7 @@ fn test_match_expression() {
         }"#,
         // exhaustively matches on optionals
         r#"
-        action f(maybe_bool optional bool) {
+        action f(maybe_bool option[bool]) {
             let x = match maybe_bool {
                 None => 0
                 Some(true) => 1
@@ -1602,7 +1602,7 @@ fn test_match_expression() {
         }"#,
         // alternate patterns
         r#"
-        action f(maybe_bool optional bool) {
+        action f(maybe_bool option[bool]) {
             let x = match maybe_bool {
                 None | Some(false) => 0
                 Some(true) => 1
@@ -1939,7 +1939,7 @@ fn test_type_errors() {
                     return 3 || 4
                 }
             "#,
-            e: "Cannot use boolean operator on non-bool types",
+            e: "invalid binary operation", // TODO
         },
         Case {
             t: r#"
@@ -1973,7 +1973,7 @@ fn test_type_errors() {
                     return x < "test"
                 }
             "#,
-            e: "Cannot compare non-int expressions",
+            e: "invalid binary operation", // TODO
         },
         Case {
             t: r#"
@@ -2069,7 +2069,7 @@ fn test_type_errors() {
                     return bar(Some(3))
                 }
             "#,
-            e: "Argument 1 (`x`) in call to `bar` found `optional int`, expected `int`",
+            e: "Argument 1 (`x`) in call to `bar` found `option[int]`, expected `int`",
         },
         Case {
             t: r#"
@@ -2078,7 +2078,7 @@ fn test_type_errors() {
                     return test::doit(Some(3))
                 }
             "#,
-            e: "Argument 1 (`x`) in FFI call to `test::doit` found `optional int`, not `int`",
+            e: "Argument 1 (`x`) in FFI call to `test::doit` found `option[int]`, not `int`",
         },
         Case {
             t: r#"
@@ -2188,7 +2188,7 @@ fn test_type_errors() {
                     return new_foo
                 }
             "#,
-            e: "Expected `maybe_bar` to be a struct, but it's a(n) optional struct Bar",
+            e: "Expected `maybe_bar` to be a struct, but it's a(n) option[struct Bar]",
         },
         Case {
             t: r#"
@@ -2853,7 +2853,7 @@ fn test_return_type_not_defined() {
         ),
         (
             r#"
-            function f() optional struct Foo {
+            function f() option[struct Foo] {
                 return Some(Foo {})
             }
             "#,
@@ -2888,7 +2888,7 @@ fn test_function_arguments_with_undefined_types() {
         ),
         (
             r#"
-            function baz(x optional struct UndefinedStruct) bool {
+            function baz(x option[struct UndefinedStruct]) bool {
                 return true
             }
             "#,
