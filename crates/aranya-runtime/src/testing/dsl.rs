@@ -620,7 +620,6 @@ where
                         &mut request_client,
                         &mut response_client,
                         client,
-                        from,
                         &mut sink,
                         *storage_id,
                     )?;
@@ -950,7 +949,6 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
     requester_address: u64,
-    responder_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
@@ -976,13 +974,13 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        let (added_count, added_addresses) =
-            request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        received = added_count;
+        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
-        // Only update heads with addresses of commands that were actually added to the graph.
-        // update_heads will verify each address exists in storage before adding to cache.
-        request_state.update_heads(storage_id, added_addresses, request_cache)?;
+        request_state.update_heads(
+            storage_id,
+            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            request_cache,
+        )?;
     }
 
     Ok((sent, received))

@@ -152,7 +152,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Attempt to store the `command` in the graph with `storage_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
-    /// Returns the count of commands added and their addresses.
     pub(super) fn add_commands(
         &mut self,
         commands: &[impl Command],
@@ -169,10 +168,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
                 count = count.checked_add(1).assume("must not overflow")?;
-                let addr = command.address()?;
-                let init_storage = self.init(command, engine, provider, sink)?;
-                // Continue with the initialized storage
-                init_storage
+                self.init(command, engine, provider, sink)?
             }
             Err(e) => return Err(e.into()),
         };

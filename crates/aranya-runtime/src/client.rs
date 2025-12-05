@@ -128,10 +128,8 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
-    ) -> Result<(usize, Vec<Address, COMMAND_RESPONSE_MAX>), ClientError> {
-        let (count, addresses) =
-            trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
-        Ok((count, addresses))
+    ) -> Result<usize, ClientError> {
+        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)
     }
 
     pub fn update_heads(
