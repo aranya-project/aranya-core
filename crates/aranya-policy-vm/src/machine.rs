@@ -447,6 +447,13 @@ where
             .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
     }
 
+    fn ipeek_value(&mut self) -> Result<&mut Value, MachineError> {
+        let pc = self.pc;
+        self.stack
+            .peek_value()
+            .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
+    }
+
     /// Validate a struct against defined schema.
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
@@ -994,9 +1001,8 @@ where
                 }
             }
             Instruction::IsOk => {
-                let value = self.ipop_value()?;
+                let value = self.ipeek_value()?;
                 let is_ok = matches!(value, Value::Ok(_));
-                self.ipush(value)?; // Put the value back
                 self.ipush(Value::Bool(is_ok))?;
             }
             Instruction::Unwrap => {
