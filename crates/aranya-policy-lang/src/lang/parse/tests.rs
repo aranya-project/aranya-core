@@ -850,7 +850,7 @@ fn test_match_expression_with_return() {
             let x = match n {
                 0 => 1
                 1 => { :return 2 }
-                // 2 => { return 3 } TODO not allowed. should it be?
+                2 => { :3 }
                 _ => return -1
             }
             return x
