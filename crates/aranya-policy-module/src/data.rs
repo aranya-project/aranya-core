@@ -1,9 +1,7 @@
 extern crate alloc;
 
 use alloc::{
-    
     borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
-,
 };
 use core::fmt::{self, Display};
 
@@ -46,7 +44,7 @@ pub enum ConstValue {
     Enum(Identifier, i64),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
-        /// Result Ok value
+    /// Result Ok value
     Ok(#[rkyv(omit_bounds)] Box<Self>),
     /// Result Err value
     Err(#[rkyv(omit_bounds)] Box<Self>),

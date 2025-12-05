@@ -244,8 +244,6 @@ pub enum Instruction {
     RestoreSP,
     /// Wrap value in `Some`
     Some,
-    /// Unwrap `Some` value
-    Unwrap,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -303,7 +301,6 @@ impl Display for Instruction {
             Self::SaveSP => write!(f, "save SP"),
             Self::RestoreSP => write!(f, "restore SP"),
             Self::Some => write!(f, "some"),
-            Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),
         }
     }

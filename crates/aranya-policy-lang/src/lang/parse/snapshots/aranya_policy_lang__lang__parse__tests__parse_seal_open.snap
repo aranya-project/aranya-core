@@ -1,6 +1,6 @@
 ---
-source: crates/aranya-policy-lang/tests/tests.rs
-expression: ast
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
 ---
 Policy {
     version: V2,
@@ -21,40 +21,40 @@ Policy {
                     Return(
                         FunctionCall(
                             FunctionCall {
-                                identifier: "bar" @ 40..43,
+                                identifier: "bar" @ 56..59,
                                 arguments: [
                                     Identifier(
-                                        "this" @ 44..48,
-                                    ) @ 44..48,
+                                        "this" @ 60..64,
+                                    ) @ 60..64,
                                 ],
                             },
-                        ) @ 40..49,
-                    ) @ 33..54,
-                ) @ 33..54,
+                        ) @ 56..65,
+                    ) @ 49..78,
+                ) @ 49..78,
             ],
             open: [
                 Expr(
                     Return(
                         FunctionCall(
                             FunctionCall {
-                                identifier: "baz" @ 82..85,
+                                identifier: "baz" @ 123..126,
                                 arguments: [
                                     Identifier(
-                                        "envelope" @ 86..94,
-                                    ) @ 86..94,
+                                        "envelope" @ 127..135,
+                                    ) @ 127..135,
                                 ],
                             },
-                        ) @ 83..96,
-                    ) @ 76..101,
-                ) @ 76..101,
+                        ) @ 123..136,
+                    ) @ 116..149,
+                ) @ 116..149,
             ],
             policy: [],
             recall: [],
-            span: 0..131,
+            span: 0..160,
         },
     ],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo {\n    seal {\n        return bar(this)\n    }\n    open {\n        return baz(envelope)\n    }\n    policy {\n        \n    }\n}\n",
+    text: "command Foo {\n            seal {\n                return bar(this)\n            }\n\n            open {\n                return baz(envelope)\n            }\n        }",
 }

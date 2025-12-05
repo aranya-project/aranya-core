@@ -820,64 +820,16 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
-            ExprKind::Return(e) => {
-                // Compile the return expression
-                let et = self.compile_expression(e)?;
-
-                // Get the current function context to validate return type
-                let ctx = self.get_statement_context()?;
-                if let StatementContext::PureFunction(fd) = ctx {
-                    // Validate that the return type matches the function signature
-                    if !et.fits_type(&fd.return_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
-                        ))));
-                    }
-                } else {
-                    return Err(self.err(CompileErrorType::InvalidType(
-                        "Return expression can only be used inside a function".to_string(),
-                    )));
-                }
-
-                // Emit the return instruction
-                self.append_instruction(Instruction::Return);
-
-                // Return Never type - this expression doesn't produce a value on the stack
-                VType {
-                    kind: TypeKind::Never,
-                    span: Span::empty(),
-                }
-            }
-            ExprKind::ResultOk(e) => {
-                let inner_type = self.compile_typed_expression(e)?; // TODO need type
+            thir::ExprKind::ResultOk(e) => {
+                // Compile the inner expression and wrap it in Ok
+                self.compile_typed_expression(*e)?;
                 // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
                 self.append_instruction(Instruction::Wrap(WrapType::Ok));
-                VType {
-                    kind: TypeKind::Result {
-                        ok: Box::new(inner_type),
-                        err: Box::new(VType {
-                            kind: TypeKind::Never,
-                            span: Span::empty(),
-                        }),
-                    },
-                    span: expression.span,
-                }
             }
-            ExprKind::ResultErr(e) => {
-                let inner_type = self.compile_expression(e)?;
+            thir::ExprKind::ResultErr(e) => {
+                // Compile the inner expression and wrap it in Err
+                self.compile_typed_expression(*e)?;
                 self.append_instruction(Instruction::Wrap(WrapType::Err));
-                VType {
-                    kind: TypeKind::Result {
-                        ok: Box::new(VType {
-                            kind: TypeKind::Never,
-                            span: Span::empty(),
-                        }),
-                        err: Box::new(inner_type),
-                    },
-                    span: expression.span,
-                }
             }
         }
 
@@ -932,12 +884,7 @@ impl<'a> CompileState<'a> {
         match statement.kind {
             thir::StmtKind::Let(s) => {
                 self.compile_typed_expression(s.expression)?;
-                // TODO `Never` expressions cannot be assigned to variables
-                // if matches!(et.kind, TypeKind::Never) {
-                //     return Err(self.err(CompileErrorType::InvalidType(
-                //         "Cannot assign a Never value.".to_string(),
-                //     )));
-                // }
+                // Note: Never type check is done during lowering
                 self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.name.clone())));
                 self.append_instruction(Instruction::Def(s.identifier.name));
             }
@@ -979,11 +926,6 @@ impl<'a> CompileState<'a> {
             thir::StmtKind::Publish(s) => {
                 self.compile_typed_expression(s)?;
                 self.append_instruction(Instruction::Publish);
-            }
-            thir::StmtKind::Return(s) => {
-                self.compile_typed_expression(s.expression)?;
-                self.append_instruction(Instruction::RestoreSP);
-                self.append_instruction(Instruction::Return);
             }
             thir::StmtKind::Finish(s) => {
                 self.enter_statement_context(StatementContext::Finish);
@@ -1057,14 +999,15 @@ impl<'a> CompileState<'a> {
                     // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
-            } // TODO
-              // thir:StmtKind::Expr(expr), => {
-              //         // Compile the expression. For return expressions with Never type,
-              //         // this will emit a Return instruction and never leave a value on the stack.
-              //         let _ty = self.compile_expression(expr)?;
-              //         // Note: No need to pop the value - expressions with Never type
-              //         // (like return) don't leave values on the stack.
-              // }
+            }
+            thir::StmtKind::Expr(expr) => {
+                // Compile the expression. For return expressions with Never type,
+                // this will emit a Return instruction and never leave a value on the stack.
+                self.compile_typed_expression(expr)?;
+                // Expression statements are not meant to produce values - they're used for control flow only.
+                // Note: No need to pop the value - expressions with Never type
+                // (like return) don't leave values on the stack.
+            }
         }
         Ok(())
     }
@@ -1553,6 +1496,51 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_result_pattern_binding(
+        &mut self,
+        pattern: &thir::ResultPattern,
+        scrutinee_type: &VType,
+    ) -> Result<(), CompileError> {
+        // Make sure the scrutinee is actually a Result, and extract the identifier.
+        let ident = match pattern {
+            thir::ResultPattern::Ok(ident) => {
+                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Ok pattern requires Result type".to_string(),
+                    )));
+                }
+                ident
+            }
+            thir::ResultPattern::Err(ident) => {
+                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Err pattern requires Result type".to_string(),
+                    )));
+                }
+                ident
+            }
+        };
+
+        // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
+        self.append_instruction(Instruction::Unwrap);
+        self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
+        self.append_instruction(Instruction::Def(ident.name.clone()));
+        // NOTE: We don't call identifier_types.add() here because the pattern variable
+        // was already added during the lowering phase. Adding it again during compilation
+        // would conflict with any outer variables that were added after lowering the match.
+
+        Ok(())
+    }
+
+    /// Exit match arm (exit scope, jump to end)
+    fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
+        self.identifier_types.exit_block();
+        self.append_instruction(Instruction::End);
+        self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
+
+        Ok(())
+    }
+
     /// Compile a match statement or expression
     /// Returns the type of the `match` is an expression, or `None` if it's a statement.
     fn compile_match_statement_or_expression(
@@ -1578,37 +1566,15 @@ impl<'a> CompileState<'a> {
             }
         };
 
+        let expr_pat_t = scrutinee.vtype.clone();
         self.compile_typed_expression(scrutinee)?;
-
-        // Checking for duplicate result patterns is tricky, because their associated values are identifiers, not expressions.
-        // TODO this is really ugly, though.
-        let result_ok_marker = Expression {
-            kind: ExprKind::ResultOk(Box::new(Expression {
-                kind: ExprKind::Identifier(Ident {
-                    name: ident!("result_ok_pattern"),
-                    span: Span::empty(),
-                }),
-                span: Span::empty(),
-            })),
-            span: Span::empty(),
-        };
-        let result_err_marker = Expression {
-            kind: ExprKind::ResultErr(Box::new(Expression {
-                kind: ExprKind::Identifier(Ident {
-                    name: ident!("result_err_pattern"),
-                    span: Span::empty(),
-                }),
-                span: Span::empty(),
-            })),
-            span: Span::empty(),
-        };
 
         let end_label = self.anonymous_label();
 
         // 1. Generate branching instructions, and arm-start labels
         let mut arm_labels: Vec<Label> = vec![];
 
-        for pattern in patterns {
+        for pattern in &patterns {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
@@ -1616,7 +1582,7 @@ impl<'a> CompileState<'a> {
                 thir::MatchPattern::Values(values) => {
                     for value in values {
                         self.append_instruction(Instruction::Dup);
-                        self.compile_typed_expression(value)?;
+                        self.compile_typed_expression(value.clone())?;
 
                         // if value == target, jump to start-of-arm
                         self.append_instruction(Instruction::Eq);
@@ -1631,14 +1597,14 @@ impl<'a> CompileState<'a> {
                     )));
                 }
                 thir::MatchPattern::ResultPattern(pattern) => match pattern {
-                    ResultPattern::Ok(_) => {
+                    thir::ResultPattern::Ok(_) => {
                         self.append_instruction(Instruction::Dup);
                         self.append_instruction(Instruction::IsOk);
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             arm_label.clone(),
                         )));
                     }
-                    ResultPattern::Err(_) => {
+                    thir::ResultPattern::Err(_) => {
                         self.append_instruction(Instruction::Dup);
                         self.append_instruction(Instruction::IsOk);
                         self.append_instruction(Instruction::Not);
@@ -1647,142 +1613,59 @@ impl<'a> CompileState<'a> {
                         )));
                     }
                 },
+            }
         }
 
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for (arm_start, body) in iter::zip(arm_labels, s) {
+                for ((arm_start, pattern), statements) in
+                    iter::zip(iter::zip(arm_labels, &patterns), s)
+                {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm
                     self.identifier_types.enter_block();
                     self.append_instruction(Instruction::Block);
 
-                    // For Result patterns, unwrap and bind the inner value
-                    match &arm.pattern {
-                        MatchPattern::ResultPattern(ResultPattern::Ok(ident)) => {
-                            // Extract the Ok type from Result
-                            let inner_type = if let TypeKind::Result { ok, .. } = &expr_pat_t.kind {
-                                (**ok).clone()
-                            } else {
-                                return Err(self.err(CompileErrorType::InvalidType(
-                                    "Ok pattern requires Result type".to_string(),
-                                )));
-                            };
-
-                            // Unwrap the Result value and bind to variable in the arm scope
-                            self.append_instruction(Instruction::Unwrap);
-                            self.append_instruction(Instruction::Meta(Meta::Let(
-                                ident.name.clone(),
-                            )));
-                            self.append_instruction(Instruction::Def(ident.name.clone()));
-                            self.identifier_types
-                                .add(ident.name.clone(), inner_type)
-                                .map_err(|e| self.err(e))?;
-                        }
-                        MatchPattern::ResultPattern(ResultPattern::Err(ident)) => {
-                            // Extract the Err type from Result
-                            let inner_type = if let TypeKind::Result { err, .. } = &expr_pat_t.kind
-                            {
-                                (**err).clone()
-                            } else {
-                                return Err(self.err(CompileErrorType::InvalidType(
-                                    "Err pattern requires Result type".to_string(),
-                                )));
-                            };
-
-                            // Unwrap the Result value and bind to variable in the arm scope
-                            self.append_instruction(Instruction::Unwrap);
-                            self.append_instruction(Instruction::Meta(Meta::Let(
-                                ident.name.clone(),
-                            )));
-                            self.append_instruction(Instruction::Def(ident.name.clone()));
-                            self.identifier_types
-                                .add(ident.name.clone(), inner_type)
-                                .map_err(|e| self.err(e))?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern, &expr_pat_t)?;
                         }
                         _ => {
-                            // Drop expression value (It's still around because of the Dup)
+                            // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
+                            // Result patterns consume the value during unwrapping, but other patterns don't.
                             self.append_instruction(Instruction::Pop);
                         }
                     }
 
-                    // Compile statements in the current scope (we've already entered the block above)
-                    self.compile_typed_statements(body, Scope::Same)?;
-
-                    // Exit the block scope
-                    self.identifier_types.exit_block();
-                    self.append_instruction(Instruction::End);
-
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    self.compile_typed_statements(statements, Scope::Same)?;
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
             LanguageContext::Expression(e) => {
-                for (arm_start, body) in iter::zip(arm_labels, e) {
+                let mut expr_type: Option<VType> = None;
+                for (i, ((arm_start, pattern), expression)) in
+                    iter::zip(iter::zip(arm_labels, &patterns), e).enumerate()
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Enter a new scope for the match arm
+                    // Enter a new scope for this match arm
                     self.identifier_types.enter_block();
                     self.append_instruction(Instruction::Block);
 
-                    // For Result patterns, unwrap and bind the inner value
-                    match &arm.pattern {
-                        MatchPattern::ResultPattern(ResultPattern::Ok(ident)) => {
-                            // Extract the Ok type from Result
-                            let inner_type = if let TypeKind::Result { ok, .. } = &expr_pat_t.kind {
-                                (**ok).clone()
-                            } else {
-                                return Err(self.err(CompileErrorType::InvalidType(
-                                    "Ok pattern requires Result type".to_string(),
-                                )));
-                            };
-
-                            // Unwrap the Result value to get the inner value
-                            self.append_instruction(Instruction::Unwrap);
-                            // Bind the inner value to the pattern variable
-                            self.append_instruction(Instruction::Meta(Meta::Let(
-                                ident.name.clone(),
-                            )));
-                            self.append_instruction(Instruction::Def(ident.name.clone()));
-                            self.identifier_types
-                                .add(ident.name.clone(), inner_type)
-                                .map_err(|e| self.err(e))?;
-                        }
-                        MatchPattern::ResultPattern(ResultPattern::Err(ident)) => {
-                            // Extract the Err type from Result
-                            let inner_type = if let TypeKind::Result { err, .. } = &expr_pat_t.kind
-                            {
-                                (**err).clone()
-                            } else {
-                                return Err(self.err(CompileErrorType::InvalidType(
-                                    "Err pattern requires Result type".to_string(),
-                                )));
-                            };
-
-                            // Unwrap the Result value to get the inner value
-                            self.append_instruction(Instruction::Unwrap);
-                            // Bind the inner value to the pattern variable
-                            self.append_instruction(Instruction::Meta(Meta::Let(
-                                ident.name.clone(),
-                            )));
-                            self.append_instruction(Instruction::Def(ident.name.clone()));
-                            self.identifier_types
-                                .add(ident.name.clone(), inner_type)
-                                .map_err(|e| self.err(e))?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern, &expr_pat_t)?;
                         }
                         _ => {
-                            // Drop expression value (It's still around because of the Dup)
+                            // Pop the scrutinee value
                             self.append_instruction(Instruction::Pop);
                         }
                     }
 
-                    let etype = self.compile_typed_expression(&arm.expression)?; // TODO we need a type!
-                    self.identifier_types.exit_block();
-                    self.append_instruction(Instruction::End);
+                    let etype = expression.vtype.clone();
+                    self.compile_typed_expression(expression)?;
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {
@@ -1804,10 +1687,7 @@ impl<'a> CompileState<'a> {
                         }
                     }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
         }

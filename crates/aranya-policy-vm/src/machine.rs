@@ -442,6 +442,13 @@ where
             .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
     }
 
+    fn ipeek_value(&mut self) -> Result<&mut Value, MachineError> {
+        let pc = self.pc;
+        self.stack
+            .peek_value()
+            .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
+    }
+
     /// Validate a struct against defined schema.
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
@@ -957,22 +964,6 @@ where
                 let value = self.ipop_value()?;
                 self.ipush(Value::Option(Some(Box::new(value))))?;
             }
-            Instruction::Unwrap => {
-                let value = self.ipop_value()?;
-                if let Value::Option(opt) = value {
-                    if let Some(inner) = opt {
-                        self.ipush(*inner)?;
-                    } else {
-                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
-                    }
-                } else {
-                    return Err(self.err(MachineErrorType::invalid_type(
-                        "Option[_]",
-                        value.type_name(),
-                        "Option[T] -> T",
-                    )));
-                }
-            }
             Instruction::Meta(_m) => {}
             Instruction::Wrap(wrap_type) => {
                 match wrap_type {
@@ -992,14 +983,21 @@ where
                 }
             }
             Instruction::IsOk => {
-                let value = self.ipop_value()?;
+                let value = self.ipeek_value()?;
                 let is_ok = matches!(value, Value::Ok(_));
-                self.ipush(value)?; // Put the value back
                 self.ipush(Value::Bool(is_ok))?;
             }
             Instruction::Unwrap => {
                 let value = self.ipop_value()?;
                 let inner = match value {
+                    Value::Option(opt) => match opt {
+                        Some(inner) => *inner,
+                        None => {
+                            return Err(
+                                self.err(MachineErrorType::Unknown("unwrapped None".into()))
+                            );
+                        }
+                    },
                     Value::Ok(inner) | Value::Err(inner) => *inner,
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
