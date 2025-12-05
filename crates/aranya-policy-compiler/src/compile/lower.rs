@@ -975,6 +975,7 @@ impl CompileState<'_> {
             .iter()
             .flat_map(|pattern| match pattern {
                 MatchPattern::Values(values) => values.as_slice(),
+                MatchPattern::Binder(_) => &[], // ?
                 MatchPattern::Default(_) => &[],
             })
             .collect::<Vec<&Expression>>();
@@ -1008,10 +1009,28 @@ impl CompileState<'_> {
         let scrutinee = self.lower_expression(scrutinee)?;
         let mut scrutinee_t = scrutinee.vtype.clone();
 
+        let has_binder = patterns
+            .iter()
+            .any(|pat| matches!(pat, MatchPattern::Binder(_)));
+        let inner_ty = if has_binder {
+            Some(match &scrutinee_t.kind {
+                TypeKind::Optional(inner) => inner.as_ref().clone(),
+                _ => return Err(todo!()),
+            })
+        } else {
+            None
+        };
+
         let mut n: usize = 0;
         let mut patterns_out = Vec::new();
         for pattern in &patterns {
             let pattern = match pattern {
+                MatchPattern::Binder(binder) => thir::MatchPattern::Binder(thir::Binder {
+                    bound: binder
+                        .bound
+                        .as_ref()
+                        .map(|name| (name.clone(), inner_ty.clone().unwrap())),
+                }),
                 MatchPattern::Values(values) => {
                     let mut values_out = Vec::new();
                     for value in values {
@@ -1047,7 +1066,8 @@ impl CompileState<'_> {
             patterns_out.push(pattern);
         }
 
-        let need_default = default_count == 0
+        let need_default = !has_binder
+            && default_count == 0
             && self
                 .m
                 .cardinality(&scrutinee_t.kind)

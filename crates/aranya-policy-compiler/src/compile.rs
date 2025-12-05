@@ -1557,11 +1557,23 @@ impl<'a> CompileState<'a> {
         // 1. Generate branching instructions, and arm-start labels
         let mut arm_labels: Vec<Label> = vec![];
 
-        for pattern in patterns {
+        for pattern in &patterns {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
-            match pattern {
+            match pattern.clone() {
+                thir::MatchPattern::Binder(binder) => {
+                    self.append_instruction(Instruction::Dup);
+                    self.append_instruction(Instruction::Const(Value::None));
+                    // if value != None, jump to start-of-arm
+                    self.append_instruction(Instruction::Eq);
+                    if binder.bound.is_some() {
+                        self.append_instruction(Instruction::Not);
+                    }
+                    self.append_instruction(Instruction::Branch(Target::Unresolved(
+                        arm_label.clone(),
+                    )));
+                }
                 thir::MatchPattern::Values(values) => {
                     for value in values {
                         self.append_instruction(Instruction::Dup);
@@ -1585,11 +1597,22 @@ impl<'a> CompileState<'a> {
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for (arm_start, body) in iter::zip(arm_labels, s) {
+                for (pattern, (arm_start, body)) in iter::zip(patterns, iter::zip(arm_labels, s)) {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    if let thir::MatchPattern::Binder(thir::Binder {
+                        bound: Some((name, inner_ty)),
+                    }) = pattern
+                    {
+                        self.identifier_types
+                            .add(name.name.clone(), inner_ty)
+                            .map_err(|e| self.err(e))?;
+                        self.append_instruction(Instruction::Meta(Meta::Let(name.name.clone())));
+                        self.append_instruction(Instruction::Def(name.name.clone()));
+                    } else {
+                        // Drop expression value (It's still around because of the Dup)
+                        self.append_instruction(Instruction::Pop);
+                    }
 
                     self.compile_typed_statements(body, Scope::Layered)?;
 
@@ -1600,11 +1623,22 @@ impl<'a> CompileState<'a> {
                 }
             }
             LanguageContext::Expression(e) => {
-                for (arm_start, body) in iter::zip(arm_labels, e) {
+                for (pattern, (arm_start, body)) in iter::zip(patterns, iter::zip(arm_labels, e)) {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    if let thir::MatchPattern::Binder(thir::Binder {
+                        bound: Some((name, inner_ty)),
+                    }) = pattern
+                    {
+                        self.identifier_types
+                            .add(name.name.clone(), inner_ty)
+                            .map_err(|e| self.err(e))?;
+                        self.append_instruction(Instruction::Meta(Meta::Let(name.name.clone())));
+                        self.append_instruction(Instruction::Def(name.name.clone()));
+                    } else {
+                        // Drop expression value (It's still around because of the Dup)
+                        self.append_instruction(Instruction::Pop);
+                    }
 
                     self.compile_typed_expression(body)?;
 

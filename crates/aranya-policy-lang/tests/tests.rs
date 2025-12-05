@@ -73,6 +73,24 @@ fn parse_ffi_structs_enums() {
     insta::assert_debug_snapshot!(types);
 }
 
+#[test]
+fn test_match_binding() {
+    let policies = vec![
+        r#"
+            function foo(opt optional int) int {
+                return match opt {
+                    Some(val) => val
+                    None => 0
+                }
+            }
+        "#,
+    ];
+
+    for text in policies {
+        parse_policy_str(text, Version::V2).unwrap();
+    }
+}
+
 #[rstest::rstest]
 fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
     autotest(&src, |text| parse_policy_str(text, Version::V2));
