@@ -62,7 +62,7 @@ impl Ast {
             doc,
             derives,
             no_ext_error,
-            mut opaque,
+            opaque,
             builds,
             attrs,
             vis,
@@ -71,9 +71,6 @@ impl Ast {
             semi_token,
             ..
         } = alias;
-        if let Some(o) = &mut opaque {
-            o.generated = true;
-        }
         let strukt = Struct {
             doc,
             derives,
