@@ -12,14 +12,13 @@ use std::{
 
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache,
-    StorageError, SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder,
-    SyncType,
+    ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
+    SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
 };
 use buggy::{Bug, BugExt as _, bug};
-use heapless::{FnvIndexMap, Vec};
+use heapless::{Vec, index_map::FnvIndexMap};
 use s2n_quic::{
     Client, Connection, Server,
     client::Connect,
@@ -231,10 +230,9 @@ where
             if let Some(cmds) = syncer.receive(&received_data)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, &cmds)?;
+                client.add_commands(&mut trx, sink, cmds)?;
                 client.commit(&mut trx, sink)?;
-                let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
-                    cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
+                let addresses = cmds.into_iter().filter_map(|cmd| cmd.address().ok());
                 client.update_heads(storage_id, addresses, heads)?;
                 self.push(storage_id)?;
             }
@@ -376,10 +374,9 @@ where
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
                             let sink = sink_guard.deref_mut();
-                            client.add_commands(&mut trx, sink, &cmds)?;
+                            client.add_commands(&mut trx, sink, cmds)?;
                             client.commit(&mut trx, sink)?;
-                            let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
-                                cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
+                            let addresses = cmds.into_iter().filter_map(|cmd| cmd.address().ok());
                             client.update_heads(storage_id, addresses, response_cache)?;
                         }
                         self.push(storage_id)?;
