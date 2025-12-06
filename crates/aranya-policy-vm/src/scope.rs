@@ -133,7 +133,7 @@ mod test {
 
         assert_eq!(scope.get(&ident!("g")), Ok(Value::Int(42)));
         assert_eq!(
-            scope.set(ident!("g"), Value::None),
+            scope.set(ident!("g"), Value::NONE),
             Err(MachineErrorType::AlreadyDefined(ident!("g")))
         );
 
@@ -152,10 +152,10 @@ mod test {
         assert_eq!(scope.get(&ident!("a2")), Ok(Value::Int(2)));
         assert_eq!(scope.get(&ident!("a3")), Ok(Value::Int(3)));
 
-        assert!(scope.set(ident!("g"), Value::None).is_err());
-        assert!(scope.set(ident!("a1"), Value::None).is_err());
-        assert!(scope.set(ident!("a2"), Value::None).is_err());
-        assert!(scope.set(ident!("a3"), Value::None).is_err());
+        assert!(scope.set(ident!("g"), Value::NONE).is_err());
+        assert!(scope.set(ident!("a1"), Value::NONE).is_err());
+        assert!(scope.set(ident!("a2"), Value::NONE).is_err());
+        assert!(scope.set(ident!("a3"), Value::NONE).is_err());
 
         scope.enter_function();
         scope.set(ident!("b4"), Value::Int(4)).unwrap();

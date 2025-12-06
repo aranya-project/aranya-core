@@ -1266,7 +1266,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 
     // Test with a value that is not None
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &mut published, name, [Value::Int(10)])?.success();
+    call_action(&mut rs, &mut published, name, [Some(10)])?.success();
     drop(rs);
 
     assert_eq!(published, [vm_struct!(Result { x: 10 })],);
@@ -1286,7 +1286,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 
     // Test with a None value
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &mut published, name, [Value::None])?.success();
+    call_action(&mut rs, &mut published, name, [Value::NONE])?.success();
     drop(rs);
 
     assert_eq!(published, [vm_struct!(Empty {})],);
@@ -2123,26 +2123,26 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         (
             Ok(ExitReason::Normal),
             [
-                KVPair::new(ident!("maybe_int"), Value::None),
+                KVPair::new(ident!("maybe_int"), Value::NONE),
                 KVPair::new(ident!("name"), Value::String(text!("foo"))),
             ],
         ),
         (
             Ok(ExitReason::Normal),
             [
-                KVPair::new(ident!("maybe_int"), Value::Int(5)),
+                KVPair::new(ident!("maybe_int"), Value::from(Some(5))),
                 KVPair::new(ident!("name"), Value::String(text!("foo"))),
             ],
         ),
         (
             Err(MachineErrorType::invalid_type(
                 "string",
-                "None",
+                "Option[_]",
                 "invalid function argument",
             )),
             [
-                KVPair::new(ident!("maybe_int"), Value::None),
-                KVPair::new(ident!("name"), Value::None),
+                KVPair::new(ident!("maybe_int"), Value::NONE),
+                KVPair::new(ident!("name"), Value::NONE),
             ],
         ),
     ];

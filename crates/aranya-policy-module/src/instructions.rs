@@ -198,6 +198,10 @@ pub enum Instruction {
     Serialize,
     /// Deserialize a command struct
     Deserialize,
+    /// Wrap value in `Some`
+    Some,
+    /// Unwrap `Some` value
+    Unwrap,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -247,6 +251,8 @@ impl Display for Instruction {
             Self::QueryNext(ident) => write!(f, "query.next {ident}"),
             Self::Serialize => write!(f, "serialize"),
             Self::Deserialize => write!(f, "deserialize"),
+            Self::Some => write!(f, "some"),
+            Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),
             Self::Cast(identifier) => write!(f, "cast {identifier}"),
         }
