@@ -1626,6 +1626,11 @@ impl<'a> CompileState<'a> {
     }
 
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
+        // map enum names to constants
+        for enum_def in &self.policy.enums {
+            self.compile_enum_definition(enum_def)?;
+        }
+
         for struct_def in &self.policy.structs {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
         }
@@ -1668,11 +1673,6 @@ impl<'a> CompileState<'a> {
                 };
                 self.define_struct(ident, &fields)?;
             }
-        }
-
-        // map enum names to constants
-        for enum_def in &self.policy.enums {
-            self.compile_enum_definition(enum_def)?;
         }
 
         for fact in &self.policy.facts {
