@@ -1,8 +1,11 @@
 use buggy::Bug;
+use heapless::Vec;
+use tracing::debug;
 
 use crate::{
     Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
     Sink, Storage as _, StorageError, StorageProvider, engine::ActionPlacement,
+    sync::COMMAND_RESPONSE_MAX,
 };
 
 mod braiding;
@@ -126,8 +129,7 @@ where
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
     ) -> Result<usize, ClientError> {
-        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
-        Ok(count)
+        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)
     }
 
     pub fn update_heads(
@@ -137,11 +139,26 @@ where
         request_heads: &mut PeerCache,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
-        for address in addrs {
-            if let Some(loc) = storage.get_location(address)? {
-                request_heads.add_command(storage, address, loc)?;
+
+        // Collect addresses into a vector so we can sort them
+        let mut addresses: Vec<Address, { COMMAND_RESPONSE_MAX }> = addrs.into_iter().collect();
+
+        // Sort by max_cut descending - process highest max_cut first
+        // This allows us to skip ancestors since if a command is an ancestor of one we've already added,
+        // we don't need to add it
+        addresses.sort_by(|a, b| b.max_cut.cmp(&a.max_cut));
+
+        for address in &addresses {
+            if let Some(loc) = storage.get_location(*address)? {
+                request_heads.add_command(storage, *address, loc)?;
+            } else {
+                debug!(
+                    "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
+                    address
+                );
             }
         }
+
         Ok(())
     }
 

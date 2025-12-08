@@ -388,7 +388,7 @@ where
                         add_command_chance > 0,
                         "There must be a positive command chance or it will never exit"
                     );
-                    let max_syncs = 2;
+                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
                     let mut generated_actions = Vec::new();
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
@@ -425,27 +425,34 @@ where
                             _ => {}
                         }
                     }
-                    // Sync client 1 with all clients so client 1 has the entire graph.
-                    for i in 2..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: 1,
-                            from: i,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
-                    }
-                    // Sync other clients with client 1 so all clients have the entire graph.
-                    for i in 2..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: i,
-                            from: 1,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
+                    // Converge clients 1, 2, 3, etc. by repeatedly syncing them with each other
+                    // until they all have the same graph. This is necessary because merge commands
+                    // created during syncs need to propagate to all clients.
+                    // We loop multiple times to ensure convergence (merge commands from one client
+                    // need to be sent to others, which may create new merges, etc.)
+                    for _convergence_round in 0..5 {
+                        // Sync client 1 with all other clients so client 1 has the entire graph.
+                        for i in 2..clients {
+                            generated_actions.push(TestRule::Sync {
+                                graph,
+                                client: 1,
+                                from: i,
+                                must_send: None,
+                                must_receive: None,
+                                max_syncs,
+                            });
+                        }
+                        // Sync other clients with client 1 so they get everything from client 1.
+                        for i in 2..clients {
+                            generated_actions.push(TestRule::Sync {
+                                graph,
+                                client: i,
+                                from: 1,
+                                must_send: None,
+                                must_receive: None,
+                                max_syncs,
+                            });
+                        }
                     }
                     // Sync the entire graph to client 0 at once.
                     generated_actions.push(TestRule::Sync {
@@ -454,7 +461,7 @@ where
                         from: 1,
                         must_send: None,
                         must_receive: None,
-                        max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
+                        max_syncs,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -501,7 +508,15 @@ where
                             from: 0,
                             must_send: None,
                             must_receive: None,
-                            max_syncs: 1,
+                            max_syncs: 100000,
+                        });
+                    }
+                    for i in 1..clients {
+                        generated_actions.push(TestRule::CompareGraphs {
+                            clienta: 0,
+                            clientb: i,
+                            graph,
+                            equal: true,
                         });
                     }
                     generated_actions
@@ -610,7 +625,8 @@ where
                     )?;
                     total_received += received;
                     total_sent += sent;
-                    if received < COMMAND_RESPONSE_MAX {
+                    // Break when no commands are received, meaning the requester has caught up
+                    if received == 0 {
                         break;
                     }
                 }
@@ -698,10 +714,23 @@ where
                 if same != equal {
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
-                    debug!("Graph A");
-                    print_graph(storage_a, head_a)?;
-                    debug!("Graph B");
-                    print_graph(storage_b, head_b)?;
+                    debug!("Graph A (client {})", clienta);
+                    let cmds_a = print_graph(storage_a, head_a)?;
+                    debug!("Graph B (client {})", clientb);
+                    let cmds_b = print_graph(storage_b, head_b)?;
+
+                    // Compare command sets
+                    let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
+                    let only_in_b: Vec<_> = cmds_b.difference(&cmds_a).collect();
+
+                    debug!("Commands only in Graph A: {} commands", only_in_a.len());
+                    for &cmd in &only_in_a {
+                        debug!("  Only in A: {}", short_b58(*cmd));
+                    }
+                    debug!("Commands only in Graph B: {} commands", only_in_b.len());
+                    for &cmd in &only_in_b {
+                        debug!("  Only in B: {}", short_b58(*cmd));
+                    }
                 }
                 assert_eq!(equal, same);
             }
@@ -757,7 +786,15 @@ where
 ///
 /// This function takes a test that is known to fail and systematically
 /// removes commands to find a minimal failing test case. It operates
-/// only on the "interesting" section between IgnoreExpectations markers.
+/// only on the "interesting" section between IgnoreExpectations markers and the convergence phase.
+/// The convergence phase is defined as the first Sync with max_syncs > 10.
+/// The interesting section is defined as the section between IgnoreExpectations markers.
+/// The interesting section is then minimized using delta debugging.
+/// The minimized test is then run and if it fails, the process is repeated.
+/// The process is repeated until the test passes.
+/// The minimized test is then returned.
+///
+/// This function is used to minimize failing tests for debugging purposes.
 #[cfg(any(test, feature = "std"))]
 pub fn minimize_test<SB, F>(backend_factory: F, rules: &[TestRule]) -> Vec<TestRule>
 where
@@ -786,8 +823,6 @@ where
         return rules.to_vec();
     }
 
-    println!("Original test has {} rules", rules.len());
-
     // Find the interesting section (between IgnoreExpectations)
     let mut start_idx = 0;
     let mut end_idx = rules.len();
@@ -806,16 +841,33 @@ where
         }
     }
 
-    println!(
-        "Interesting section: rules {} to {} ({} rules)",
-        start_idx,
-        end_idx,
-        end_idx - start_idx
-    );
+    // Find the convergence phase which should be preserved
+    // The GenerateGraph rule creates a distinctive sync with high max_syncs
+    // (commands / COMMAND_RESPONSE_MAX + 100) before the verification CompareGraphs.
+    // We look for a Sync with max_syncs > 10 as the start of convergence.
+    let mut convergence_idx = end_idx;
+    for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+        if let TestRule::Sync { max_syncs, .. } = rule {
+            if *max_syncs > 10 {
+                convergence_idx = i;
+                break;
+            }
+        }
+    }
+
+    // If we didn't find a high max_syncs, fall back to looking for CompareGraphs
+    if convergence_idx == end_idx {
+        for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+            if matches!(rule, TestRule::CompareGraphs { .. }) {
+                convergence_idx = i;
+                break;
+            }
+        }
+    }
 
     let prefix: Vec<_> = rules[..start_idx].to_vec();
-    let mut interesting: Vec<_> = rules[start_idx..end_idx].to_vec();
-    let suffix: Vec<_> = rules[end_idx..].to_vec();
+    let mut interesting: Vec<_> = rules[start_idx..convergence_idx].to_vec();
+    let suffix: Vec<_> = rules[convergence_idx..].to_vec();
 
     let start_time = Instant::now();
     let mut iterations = 0;
@@ -889,11 +941,11 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     response_cache: &mut PeerCache,
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
-    server_address: u64,
+    requester_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, server_address);
+    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(storage_id);
@@ -917,8 +969,11 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
-        let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-        request_state.update_heads(storage_id, addresses, request_cache)?;
+        request_state.update_heads(
+            storage_id,
+            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            request_cache,
+        )?;
     }
 
     Ok((sent, received))
@@ -938,12 +993,14 @@ impl Display for Parent {
     }
 }
 
-pub fn print_graph<S>(storage: &S, location: Location) -> Result<(), StorageError>
+pub fn print_graph<S>(storage: &S, location: Location) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
 {
     let mut visited = BTreeSet::new();
     let mut locations = vec![location];
+    let mut command_ids = BTreeSet::new();
+
     while let Some(loc) = locations.pop() {
         if visited.contains(&loc.segment) {
             continue;
@@ -952,9 +1009,11 @@ where
         let segment = storage.get_segment(loc)?;
         let commands = segment.get_from(segment.first_location());
         for command in commands.iter().rev() {
+            let cmd_id = command.id();
+            command_ids.insert(cmd_id);
             debug!(
                 "id: {} location {:?} max_cut: {} parent: {}",
-                short_b58(command.id()),
+                short_b58(cmd_id),
                 storage
                     .get_location(command.address()?)?
                     .assume("location must exist"),
@@ -964,7 +1023,8 @@ where
         }
         locations.extend(segment.prior());
     }
-    Ok(())
+
+    Ok(command_ids)
 }
 
 /// Walk the graph and yield all visited IDs.
@@ -1079,11 +1139,11 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
-    generate_graph_100_failure,
-    generate_graph_minimal_failure,
+    four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
     many_branches,
+    many_clients,
     max_cut,
     missing_parent_after_sync,
     remove_graph,
