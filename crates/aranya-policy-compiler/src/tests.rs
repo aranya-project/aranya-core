@@ -2920,6 +2920,53 @@ fn test_function_arguments_with_undefined_types() {
 }
 
 #[test]
+fn test_structs_with_undefined_types() {
+    let cases = [
+        (
+            r#"
+            fact Foo[]=>{ s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ s option[struct Unknown] }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { self_ref struct Bar }
+            "#,
+            CompileErrorType::NotDefined("struct Bar".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
 fn test_substruct_errors() {
     struct Case {
         t: &'static str,

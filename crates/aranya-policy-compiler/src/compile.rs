@@ -315,6 +315,11 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        field_definitions
+            .iter()
+            .map(|f| self.ensure_type_is_defined(&f.field_type))
+            .collect::<Result<(), _>>()?;
+
         self.m
             .struct_defs
             .insert(identifier.name, field_definitions);
