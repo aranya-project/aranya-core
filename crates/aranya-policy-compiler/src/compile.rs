@@ -317,8 +317,7 @@ impl<'a> CompileState<'a> {
 
         field_definitions
             .iter()
-            .map(|f| self.ensure_type_is_defined(&f.field_type))
-            .collect::<Result<(), _>>()?;
+            .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
 
         self.m
             .struct_defs
