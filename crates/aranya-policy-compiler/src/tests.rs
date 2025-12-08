@@ -580,12 +580,12 @@ fn test_struct_field_insertion_errors() {
         ),
         (
             r#"struct Foo { +Foo }"#,
-            CompileErrorType::NotDefined("Foo".to_string()),
+            CompileErrorType::Unknown("Found cyclic dependencies when compiling structs".into()),
         ),
     ];
     for (text, err_type) in cases {
         let err = compile_fail(text);
-        assert_eq!(err, err_type);
+        assert_eq!(err, err_type, "{text}");
     }
 }
 
@@ -2956,7 +2956,7 @@ fn test_structs_with_undefined_types() {
             r#"
             struct Bar { self_ref struct Bar }
             "#,
-            CompileErrorType::NotDefined("struct Bar".to_string()),
+            CompileErrorType::Unknown("Found cyclic dependencies when compiling structs".into()),
         ),
     ];
 
@@ -3329,5 +3329,47 @@ fn test_action_command_persistence() {
     for (text, expected) in invalid_cases {
         let err = compile_fail(text);
         assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_structs_listed_out_of_order() {
+    let valid_cases = [
+        r#"
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo {}
+        "#,
+        r#"
+            function ret_bar() struct Bar {
+                let fum = Fum { b: true }
+                return Bar { s: "s", num: 1, f: fum }
+            }
+
+            struct Fum { b bool }
+            struct Bar { +Foo, num int, f struct Fum }
+            struct Foo { s string }
+
+        "#,
+    ];
+
+    let invalid_cases = [r#"
+        struct Fum { b struct Bar, f struct Foo }
+        struct Bar { f struct Foo }
+        struct Foo { fum struct Fum } // cycle
+    "#];
+
+    for case in valid_cases {
+        compile_pass(case);
+    }
+
+    for case in invalid_cases {
+        let err = compile_fail(case);
+        assert_eq!(
+            err,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs"
+            ))
+        );
     }
 }
