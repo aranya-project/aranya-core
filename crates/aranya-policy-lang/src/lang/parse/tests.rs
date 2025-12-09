@@ -1,9 +1,13 @@
 #![allow(clippy::panic)]
 
-use aranya_policy_ast::VType;
+use aranya_policy_ast::{VType, Version};
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
-use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
+use super::{
+    ChunkParser, ParseError, ParseErrorKind, PolicyParser, Rule, get_pratt_parser,
+    parse_policy_document,
+};
+use crate::lang::parse_policy_str;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -547,42 +551,7 @@ fn parse_serialize_deserialize() {
     "#
     .trim();
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(
-        policy.commands,
-        vec![ast::CommandDefinition {
-            persistence: ast::Persistence::Persistent,
-            attributes: vec![],
-            identifier: ident!("Foo").at(8..11),
-            fields: vec![],
-            policy: vec![],
-            recall: vec![],
-            seal: vec![
-                StmtKind::Expr(
-                    ExprKind::Return(Box::new(
-                        ExprKind::InternalFunction(ast::InternalFunction::Serialize(Box::new(
-                            ExprKind::Identifier(ident!("this").at(66..70)).at(66..70)
-                        )))
-                        .at(56..71)
-                    ))
-                    .at(49..84)
-                )
-                .at(49..84)
-            ],
-            open: vec![
-                StmtKind::Expr(
-                    ExprKind::Return(Box::new(
-                        ExprKind::InternalFunction(ast::InternalFunction::Deserialize(Box::new(
-                            ExprKind::Identifier(ident!("envelope").at(141..149)).at(141..149)
-                        )))
-                        .at(129..150)
-                    ))
-                    .at(122..163)
-                )
-                .at(122..163)
-            ],
-            span: Span::new(0, 174),
-        }]
-    );
+    insta::assert_debug_snapshot!(policy);
 }
 
 #[test]
