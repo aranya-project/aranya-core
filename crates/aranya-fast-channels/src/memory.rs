@@ -16,7 +16,7 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    ChannelId, RemoveIfParams,
+    LocalChannelId, RemoveIfParams,
     error::Error,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
@@ -33,7 +33,7 @@ struct ChanMapValue<CS: CipherSuite> {
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
     #[allow(clippy::type_complexity)]
-    chans: BTreeMap<ChannelId, ChanMapValue<CS>>,
+    chans: BTreeMap<LocalChannelId, ChanMapValue<CS>>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -56,10 +56,23 @@ where
 {
     type CipherSuite = CS;
 
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    type SealCtx = LocalChannelId;
+
+    type OpenCtx = LocalChannelId;
+
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+        Ok(id)
+    }
+
+    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
+        Ok(id)
+    }
+
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
+        let id = *ctx;
         let mut inner = self.inner.lock().assume("poisoned")?;
         let ChanMapValue { keys, label_id, .. } =
             inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
@@ -68,19 +81,19 @@ where
         Ok(f(key, *label_id))
     }
 
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
         let inner = self.inner.lock().assume("poisoned")?;
         let ChanMapValue { keys, label_id, .. } =
-            inner.chans.get(&id).ok_or(Error::NotFound(id))?;
-        let key = keys.open().ok_or(Error::NotFound(id))?;
+            inner.chans.get(ctx).ok_or(Error::NotFound(*ctx))?;
+        let key = keys.open().ok_or(Error::NotFound(*ctx))?;
 
         Ok(f(key, *label_id))
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Error> {
         Ok(self
             .inner
             .lock()
@@ -105,9 +118,9 @@ where
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
         peer_id: DeviceId,
-    ) -> Result<ChannelId, Self::Error> {
+    ) -> Result<LocalChannelId, Self::Error> {
         let mut inner = self.inner.lock().assume("poisoned")?;
-        let id = ChannelId::new(inner.next_chan_id);
+        let id = LocalChannelId::new(inner.next_chan_id);
         inner.next_chan_id = inner
             .next_chan_id
             .checked_add(1)
@@ -123,7 +136,7 @@ where
         Ok(id)
     }
 
-    fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
+    fn remove(&self, id: LocalChannelId) -> Result<(), Self::Error> {
         self.inner.lock().assume("poisoned")?.chans.remove(&id);
         Ok(())
     }
@@ -137,13 +150,22 @@ where
         self.inner.lock().assume("poisoned")?.chans.retain(
             |&id,
              ChanMapValue {
-                 label_id, peer_id, ..
-             }| !f(RemoveIfParams::new(id, *label_id, *peer_id)),
+                 label_id,
+                 peer_id,
+                 keys,
+             }| {
+                !f(RemoveIfParams::new(
+                    id,
+                    *label_id,
+                    *peer_id,
+                    keys.direction(),
+                ))
+            },
         );
         Ok(())
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
         Ok(self
             .inner
             .lock()

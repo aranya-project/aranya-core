@@ -1,3 +1,5 @@
+use core::time::Duration;
+
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
@@ -9,13 +11,15 @@ use crate::{Address, GraphId};
 pub enum SyncHelloType<A> {
     /// Subscribe to receive hello notifications from this peer
     Subscribe {
-        /// Delay in milliseconds between notifications to this subscriber
-        /// 0 = notify immediately, 1 = 1 millisecond delay between notifications, etc.
-        delay_milliseconds: u64,
-        /// Duration in milliseconds for which the subscription should last
-        duration_milliseconds: u64,
+        /// Delay between notifications when graph changes (rate limiting)
+        graph_change_delay: Duration,
+        /// How long the subscription should last
+        duration: Duration,
         /// The subscriber's address for receiving hello notifications
         address: A,
+        /// Schedule-based hello sending delay.
+        /// Send hello every `schedule_delay` duration regardless of graph changes.
+        schedule_delay: Duration,
     },
     /// Unsubscribe from hello notifications
     Unsubscribe {

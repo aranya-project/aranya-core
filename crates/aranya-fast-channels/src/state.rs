@@ -19,37 +19,63 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
+    type SealCtx;
+
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
+    type OpenCtx;
+
+    /// Sets up the seal context for a given channel.
+    ///
+    /// This must only be called once for any `id`.
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error>;
+
+    /// Sets up the open context for a given channel.
+    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error>;
+
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Reports whether the channel exists.
-    fn exists(&self, id: ChannelId) -> Result<bool, Error>;
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Error>;
 }
 
 /// The set of Params passed to the closure in [AranyaState::remove_if]
 pub struct RemoveIfParams {
     /// Channel ID
-    pub channel_id: ChannelId,
+    pub local_channel_id: LocalChannelId,
     /// Label ID associated with the channel
     pub label_id: LabelId,
     /// The device ID of the peer associated with this channel
     pub peer_id: DeviceId,
+    /// Describes the direction that data flows in the channel.
+    pub direction: ChannelDirection,
 }
 
 impl RemoveIfParams {
     /// Create a new [RemoveIfParams].
-    pub fn new(channel_id: ChannelId, label_id: LabelId, peer_id: DeviceId) -> Self {
+    pub fn new(
+        local_channel_id: LocalChannelId,
+        label_id: LabelId,
+        peer_id: DeviceId,
+        direction: ChannelDirection,
+    ) -> Self {
         Self {
-            channel_id,
+            local_channel_id,
             label_id,
             peer_id,
+            direction,
         }
     }
 }
@@ -74,13 +100,13 @@ pub trait AranyaState {
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
         peer_id: DeviceId,
-    ) -> Result<ChannelId, Self::Error>;
+    ) -> Result<LocalChannelId, Self::Error>;
 
     /// Removes an existing channel.
     ///
     /// It is not an error if the channel does not exist.
-    fn remove(&self, id: ChannelId) -> Result<(), Self::Error> {
-        self.remove_if(|p| p.channel_id == id)
+    fn remove(&self, id: LocalChannelId) -> Result<(), Self::Error> {
+        self.remove_if(|p| p.local_channel_id == id)
     }
 
     /// Removes all existing channels.
@@ -96,7 +122,7 @@ pub trait AranyaState {
     fn remove_if(&self, f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error>;
 
     /// Reports whether the channel exists.
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error>;
 }
 
 /// Uniquely identifies a channel inside the shared state.
@@ -105,23 +131,23 @@ pub trait AranyaState {
 // TODO(eric): Make this 32 bits on 32-bit platforms?
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
-pub struct ChannelId(u64);
+pub struct LocalChannelId(u64);
 
-impl ChannelId {
-    /// Creates a [`ChannelId`].
+impl LocalChannelId {
+    /// Creates a [`LocalChannelId`].
     #[cfg(any(test, feature = "sdlib", feature = "posix", feature = "memory"))]
     pub(crate) const fn new(id: u64) -> Self {
         Self(id)
     }
 
-    /// Converts the [`ChannelId`] to its `u64` representation.
+    /// Converts the [`LocalChannelId`] to its `u64` representation.
     #[cfg(any(feature = "sdlib", feature = "posix"))]
     pub(crate) const fn to_u64(self) -> u64 {
         self.0
     }
 }
 
-impl fmt::Display for ChannelId {
+impl fmt::Display for LocalChannelId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -132,7 +158,7 @@ impl fmt::Display for ChannelId {
 #[derive_where(Debug)]
 pub struct Channel<S, O> {
     /// Uniquely identifies the channel.
-    pub id: ChannelId,
+    pub id: LocalChannelId,
     /// The channel's encryption keys.
     pub keys: Directed<S, O>,
     /// Uniquely identifies the label.
@@ -195,6 +221,14 @@ impl<S, O> Directed<S, O> {
         match self {
             Self::OpenOnly { open } => Some(open),
             Self::SealOnly { .. } => None,
+        }
+    }
+
+    /// Returns the corresponding [ChannelDirection].
+    pub fn direction(&self) -> ChannelDirection {
+        match self {
+            Self::SealOnly { .. } => ChannelDirection::Seal,
+            Self::OpenOnly { .. } => ChannelDirection::Open,
         }
     }
 }
@@ -273,6 +307,15 @@ impl<S, O> Debug for Directed<S, O> {
     }
 }
 
+/// Describes the flow of data for an AFC channel.
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ChannelDirection {
+    /// See [`Directed::SealOnly`].
+    Seal,
+    /// See [`Directed::OpenOnly`].
+    Open,
+}
+
 #[cfg(test)]
 mod test {
     use aranya_crypto::{
@@ -283,7 +326,7 @@ mod test {
     use derive_where::derive_where;
 
     use crate::{
-        AfcState, AranyaState, ChannelId, Directed, RemoveIfParams,
+        AfcState, AranyaState, Directed, LocalChannelId, RemoveIfParams,
         error::Error,
         memory,
         testing::{
@@ -313,22 +356,32 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
+        type SealCtx = <memory::State<CS> as AfcState>::SealCtx;
+        type OpenCtx = <memory::State<CS> as AfcState>::OpenCtx;
 
-        fn seal<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+            self.state.setup_seal_ctx(id)
+        }
+
+        fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
+            self.state.setup_open_ctx(id)
+        }
+
+        fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(id, f)
+            self.state.seal(ctx, f)
         }
 
-        fn open<F, T>(&self, id: ChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, id: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
             self.state.open(id, f)
         }
 
-        fn exists(&self, id: ChannelId) -> Result<bool, Error> {
+        fn exists(&self, id: LocalChannelId) -> Result<bool, Error> {
             AfcState::exists(&self.state, id)
         }
     }
@@ -348,7 +401,7 @@ mod test {
             keys: Directed<Self::SealKey, Self::OpenKey>,
             label_id: LabelId,
             peer_id: DeviceId,
-        ) -> Result<ChannelId, Self::Error> {
+        ) -> Result<LocalChannelId, Self::Error> {
             let id = self.state.add(keys, label_id, peer_id)?;
             Ok(id)
         }
@@ -358,7 +411,7 @@ mod test {
             Ok(())
         }
 
-        fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
+        fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
             AranyaState::exists(&self.state, id)
         }
     }

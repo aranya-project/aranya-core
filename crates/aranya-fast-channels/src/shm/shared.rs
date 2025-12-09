@@ -9,7 +9,7 @@ use core::{
 
 use aranya_crypto::{
     CipherSuite, Csprng, DeviceId, Random,
-    afc::{RawOpenKey, RawSealKey, Seq},
+    afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     policy::LabelId,
 };
@@ -30,10 +30,10 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    RemoveIfParams,
+    ChannelDirection, RemoveIfParams,
     errno::{Errno, errno},
     mutex::Mutex,
-    state::{ChannelId, Directed},
+    state::{Directed, LocalChannelId},
     util::{const_assert, debug},
 };
 
@@ -216,7 +216,7 @@ impl<CS: CipherSuite> State<CS> {
     #[cfg(test)]
     pub fn find_chan(
         &self,
-        ch: ChannelId,
+        ch: LocalChannelId,
         hint: Option<Index>,
     ) -> Result<Option<(ShmChan<CS>, Index)>, Corrupted> {
         let list = self.load_read_list()?.lock().assume("poisoned")?;
@@ -335,6 +335,15 @@ impl PartialEq<Op> for ChanDirection {
     }
 }
 
+impl From<ChanDirection> for ChannelDirection {
+    fn from(value: ChanDirection) -> Self {
+        match value {
+            ChanDirection::SealOnly => Self::Seal,
+            ChanDirection::OpenOnly => Self::Open,
+        }
+    }
+}
+
 /// The in-memory representation of a channel.
 ///
 /// All integers are little endian.
@@ -346,9 +355,7 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// Describes the direction that data flows in the channel.
     pub direction: U32,
     /// The channel's ID.
-    pub channel_id: U64,
-    /// The current encryption sequence counter.
-    pub seq: U64,
+    pub local_channel_id: U64,
     /// The channel's label.
     pub label_id: LabelId,
     /// The ID of the peer.
@@ -378,7 +385,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     /// It uses `rng` to randomize unset fields.
     pub fn init<R: Csprng>(
         ptr: &mut MaybeUninit<Self>,
-        id: ChannelId,
+        id: LocalChannelId,
         label_id: LabelId,
         peer_id: DeviceId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
@@ -405,14 +412,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
         let chan = Self {
             magic: Self::MAGIC,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
-            channel_id: id.to_u64().into(),
-            // For the same reason that we randomize keys,
-            // manually exhaust the sequence number.
-            seq: if keys.seal().is_some() {
-                U64::new(0)
-            } else {
-                U64::MAX
-            },
+            local_channel_id: id.to_u64().into(),
             label_id,
             peer_id,
             seal_key,
@@ -436,10 +436,10 @@ impl<CS: CipherSuite> ShmChan<CS> {
 
     /// Returns the channel's unique ID.
     #[inline(always)]
-    pub fn id(&self) -> Result<ChannelId, Corrupted> {
+    pub fn id(&self) -> Result<LocalChannelId, Corrupted> {
         self.check()?;
 
-        Ok(ChannelId::new(self.channel_id.into()))
+        Ok(LocalChannelId::new(self.local_channel_id.into()))
     }
 
     /// Returns the [label ID][LabelId] associated with this channel.
@@ -468,23 +468,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         self.check()?;
 
         ChanDirection::try_from_u32(self.direction.into()).ok_or(bad_chan_direction(self.direction))
-    }
-
-    /// Returns the encryption sequence number.
-    pub fn seq(&self) -> Seq {
-        Seq::new(self.seq.into())
-    }
-
-    /// Updates the sequence number.
-    pub fn set_seq(&mut self, seq: Seq) {
-        debug_assert!(
-            seq.to_u64() > self.seq.into(),
-            "{} <= {}",
-            seq.to_u64(),
-            self.seq.into()
-        );
-
-        self.seq = seq.to_u64().into();
     }
 
     /// Performs basic sanity checking.
@@ -923,7 +906,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             let label_id = chan.label_id()?;
             let peer_id = chan.peer_id()?;
-            if !f(RemoveIfParams::new(id, label_id, peer_id)) {
+            let direction = chan.direction()?.into();
+            if !f(RemoveIfParams::new(id, label_id, peer_id, direction)) {
                 // Nope, try the next index.
                 idx += 1;
                 continue;
@@ -949,7 +933,12 @@ impl<CS: CipherSuite> ChanListData<CS> {
     }
 
     /// Checks if channel exists.
-    pub(super) fn exists(&self, id: ChannelId, hint: Option<Index>, op: Op) -> Result<bool, Error> {
+    pub(super) fn exists(
+        &self,
+        id: LocalChannelId,
+        hint: Option<Index>,
+        op: Op,
+    ) -> Result<bool, Error> {
         self.check();
 
         Ok(self.find(id, hint, op)?.is_some())
@@ -961,7 +950,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// The channel must match the particular `op`.
     pub(super) fn find(
         &self,
-        ch: ChannelId,
+        ch: LocalChannelId,
         hint: Option<Index>,
         op: Op,
     ) -> Result<Option<(&ShmChan<CS>, Index)>, Corrupted> {
@@ -1001,7 +990,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// The channel must match the particular `op`.
     pub(super) fn find_mut(
         &mut self,
-        ch: ChannelId,
+        ch: LocalChannelId,
         hint: Option<Index>,
         op: Op,
     ) -> Result<Option<(&mut ShmChan<CS>, Index)>, Corrupted> {

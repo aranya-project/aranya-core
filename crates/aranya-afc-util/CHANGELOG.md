@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.16.0...aranya-afc-util-v0.17.0) - 2025-11-12
+
+### Other
+
+- add `SealCtx` to fix `Seq` tracking ([#480](https://github.com/aranya-project/aranya-core/pull/480))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.15.0...aranya-afc-util-v0.16.0) - 2025-11-05
+
+### Other
+
+- rename local channel ID ([#453](https://github.com/aranya-project/aranya-core/pull/453))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.14.0...aranya-afc-util-v0.15.0) - 2025-10-16
 
 ### Other

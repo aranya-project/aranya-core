@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::{
-    Error, Ident, LitBool, LitInt,
+    Error, Ident, LitInt,
     parse::{Parse, ParseStream, Result},
 };
 
@@ -22,11 +22,6 @@ pub struct Opaque {
     pub align: LitInt,
     /// Path to the `capi` crate.
     pub capi: Option<Ident>,
-    /// Whether this attribute is in generated code.
-    ///
-    /// Will be enabled on generated aliases.
-    /// Determines whether to wrap in `Opaque` or apply `cfg(cbindgen)` def.
-    pub generated: bool,
 }
 
 impl Opaque {
@@ -35,17 +30,14 @@ impl Opaque {
             syn::custom_keyword!(size);
             syn::custom_keyword!(align);
             syn::custom_keyword!(capi);
-            syn::custom_keyword!(generated);
         }
         const SIZE: Symbol = Symbol("size");
         const ALIGN: Symbol = Symbol("align");
         const CAPI: Symbol = Symbol("capi");
-        const GENERATED: Symbol = Symbol("generated");
 
         let mut size = Attr::none(ALIGN);
         let mut align = Attr::none(SIZE);
         let mut capi = Attr::none(CAPI);
-        let mut generated = Attr::none(GENERATED);
 
         while !input.is_empty() {
             let lookahead = input.lookahead1();
@@ -58,10 +50,6 @@ impl Opaque {
             } else if lookahead.peek(kw::capi) {
                 let KeyValPair { key, val } = input.parse::<KeyValPair<kw::capi, Ident>>()?;
                 capi.set(key, val)?;
-            } else if lookahead.peek(kw::generated) {
-                let KeyValPair { key, val } =
-                    input.parse::<KeyValPair<kw::generated, LitBool>>()?;
-                generated.set(key, val)?;
             } else {
                 return Err(lookahead.error());
             }
@@ -76,13 +64,7 @@ impl Opaque {
             format!("missing `{ALIGN}` argument"),
         ))?;
         let capi = capi.get().or_else(|| ctx.map(|ctx| ctx.capi.clone()));
-        let generated = generated.get().is_some_and(|a| a.value);
-        Ok(Self {
-            size,
-            align,
-            capi,
-            generated,
-        })
+        Ok(Self { size, align, capi })
     }
 }
 
@@ -97,10 +79,9 @@ impl ToTokens for Opaque {
         let size = &self.size;
         let align = &self.align;
         let capi = &self.capi;
-        let generated = self.generated;
         // TODO(eric): `capi`?
         tokens.extend(quote! {
-            #[#capi::opaque(size = #size, align = #align, generated = #generated)]
+            #[#capi::opaque(size = #size, align = #align)]
         });
     }
 }

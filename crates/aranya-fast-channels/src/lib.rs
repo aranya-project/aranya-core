@@ -24,6 +24,13 @@
 //! [`AranyaState`]. By default, AFC provides a state
 //! implementation backed by shared memory.
 //!
+//! # Notes
+//!
+//! AFC encrypts/seals each message with a deterministic nonce derived from a
+//! base nonce and sequence number. Sequence numbers should not be re-used in a given channel
+//! but it is possible to do so by passing a "new" [`AfcState::SealCtx`] to the seal methods
+//! on [`Client`].
+//!
 //! # Example
 //!
 //! The following example demonstrates two [`Client`]s encrypting
@@ -45,7 +52,7 @@
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
-//!     AfcState, AranyaState, Channel, ChannelId, Client, Directed, Error,
+//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId,
 //!     crypto::Aes256Gcm,
 //!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };
@@ -137,7 +144,10 @@
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
+//!
+//!     // Create the ctx to pass in.
+//!     let mut ctx = afc_client_a.setup_seal_ctx(client_a_channel_id)?;
+//!     afc_client_a.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())?;
 //!     dst
 //! };
 //!
@@ -147,8 +157,9 @@
 //! // Have device2 decrypt the data from device1.
 //! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let (label_id, seq) =
-//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
+//!     // Create the ctx to pass in.
+//!     let mut ctx = afc_client_b.setup_open_ctx(client_b_channel_id)?;
+//!     let (label_id, seq) = afc_client_b.open(&mut ctx, &mut dst[..], &ciphertext[..])?;
 //!     (label_id, seq, dst)
 //! };
 //!
