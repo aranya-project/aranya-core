@@ -1,0 +1,42 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: types
+---
+FfiTypes {
+    structs: [
+        StructDefinition {
+            identifier: "A" @ 7..8,
+            items: [
+                Field(
+                    FieldDefinition {
+                        identifier: "x" @ 23..24,
+                        field_type: Int @ 25..28,
+                    },
+                ),
+                Field(
+                    FieldDefinition {
+                        identifier: "y" @ 42..43,
+                        field_type: Bool @ 44..48,
+                    },
+                ),
+            ],
+            span: 0..58,
+        },
+        StructDefinition {
+            identifier: "B" @ 75..76,
+            items: [],
+            span: 68..79,
+        },
+    ],
+    enums: [
+        EnumDefinition {
+            identifier: "Color" @ 94..99,
+            variants: [
+                "Red" @ 102..105,
+                "White" @ 107..112,
+                "Blue" @ 114..118,
+            ],
+            span: 89..120,
+        },
+    ],
+}

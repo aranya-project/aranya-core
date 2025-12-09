@@ -1,9 +1,7 @@
 extern crate alloc;
 
 use alloc::{
-    
     borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
-,
 };
 use core::fmt::{self, Display};
 
@@ -139,15 +137,15 @@ pub enum Value {
     Identifier(Identifier),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
+    /// Result Ok value
+    Ok(#[rkyv(omit_bounds)] Box<Value>),
+    /// Result Err value
+    Err(#[rkyv(omit_bounds)] Box<Value>),
 }
 
 impl Value {
     /// Shorthand for `Self::Option(None)`.
     pub const NONE: Self = Self::Option(None);
-    /// Result Ok value
-    Ok(#[rkyv(omit_bounds)] Box<Value>),
-    /// Result Err value
-    Err(#[rkyv(omit_bounds)] Box<Value>),
 }
 
 /// Trait for converting from a [`Value`], similar to [`TryFrom<Value>`].

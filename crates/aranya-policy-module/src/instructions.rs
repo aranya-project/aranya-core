@@ -238,8 +238,6 @@ pub enum Instruction {
     Deserialize,
     /// Wrap value in `Some`
     Some,
-    /// Unwrap `Some` value
-    Unwrap,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -294,7 +292,6 @@ impl Display for Instruction {
             Self::Serialize => write!(f, "serialize"),
             Self::Deserialize => write!(f, "deserialize"),
             Self::Some => write!(f, "some"),
-            Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),
         }
     }

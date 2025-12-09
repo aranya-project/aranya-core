@@ -1690,7 +1690,7 @@ fn test_match_expression_with_return() {
             r#"action f() {
                 let x = match 0 {
                     0 => 1
-                    _ => (return 2)
+                    _ => return 2
                 }
             }"#,
             "Return expression can only be used inside a function",
@@ -1700,14 +1700,14 @@ fn test_match_expression_with_return() {
             r#"function f(n int) int {
                 let x = match n {
                     0 => 1
-                    _ => (return "wrong")
+                    _ => return "wrong"
                 }
                 return x
             }"#,
             "Return value of `f()` must be int",
         ),
         (
-            // All arms return - match has Never type and can't be assigned
+            // All arms return - return has Never type and can't be assigned
             r#"function f(n int) int {
                 let x = match n {
                     _ => return 3
@@ -2607,9 +2607,7 @@ fn test_duplicate_definitions() {
                     return false
                 }
             "#,
-            e: Some(CompileErrorType::InvalidType(String::from(
-                "Cannot assign a Never value.",
-            ))),
+            e: Some(CompileErrorType::AlreadyDefined(String::from('x'))),
         },
         Case {
             t: r#"
@@ -3429,11 +3427,11 @@ fn test_result_match() {
         }
 
         function match_expr_with_return(x int) result[int, string] {
-            let result = match may_fail(x) {
-                Ok(v) => v
+            let n = match may_fail(x) {
+                Ok(n) => n
                 Err(e) => return Err(e)
             }
-            return Ok(result)
+            return Ok(n)
         }
     "#;
 
