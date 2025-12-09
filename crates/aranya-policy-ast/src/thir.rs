@@ -182,6 +182,12 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
+    /// Return expression
+    Return(Box<Expression>),
+    /// Result Ok variant
+    ResultOk(Box<Expression>),
+    /// Result Err variant
+    ResultErr(Box<Expression>),
 }
 
 spanned! {
@@ -204,6 +210,23 @@ pub struct CheckStatement {
 }
 }
 
+/// Result pattern for matching Ok/Err in Result types
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ResultPattern {
+    /// Match Ok(identifier)
+    Ok(Ident),
+    /// Match Err(identifier)
+    Err(Ident),
+}
+
+impl Spanned for ResultPattern {
+    fn span(&self) -> Span {
+        match self {
+            Self::Ok(ident) | Self::Err(ident) => ident.span(),
+        }
+    }
+}
+
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
@@ -211,6 +234,8 @@ pub enum MatchPattern {
     Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
+    /// Result pattern (Ok or Err)
+    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -218,6 +243,7 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+            Self::ResultPattern(pattern) => pattern.span(),
         }
     }
 }
@@ -329,17 +355,6 @@ pub struct DeleteStatement {
 }
 }
 
-spanned! {
-/// Return from a function
-///
-/// Only valid within functions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReturnStatement {
-    /// The value to return
-    pub expression: Expression,
-}
-}
-
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -372,8 +387,6 @@ pub enum StmtKind {
     Finish(Vec<Statement>),
     /// Map over a fact result set
     Map(MapStatement),
-    /// A [ReturnStatement]. Valid only in functions.
-    Return(ReturnStatement),
     /// Calls an action
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
@@ -391,4 +404,6 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// An expression used as a statement (for return expressions, etc.)
+    Expr(Expression),
 }
