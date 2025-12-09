@@ -34,8 +34,17 @@ pub type PrefixStruct = self::__hidden::PrefixStruct;
 pub struct PrefixSafeStruct(crate::defs::SafeStruct);
 #[cfg(not(cbindgen))]
 pub type PrefixSafeStruct = self::__hidden::PrefixSafeStruct;
+#[cfg(cbindgen)]
 /// Extended error information.
-#[__capi::opaque(size = 72, align = 8, generated = true)]
+#[repr(C, align(8))]
+pub struct PrefixExtError {
+    /// This field only exists for size purposes. It is
+    /// UNDEFINED BEHAVIOR to read from or write to it.
+    /// @private
+    __for_size_only: [u8; 72],
+}
+#[cfg(not(cbindgen))]
+/// Extended error information.
 pub type PrefixExtError = self::__hidden::PrefixExtError;
 #[derive(::core::marker::Copy)]
 #[derive(::core::clone::Clone)]

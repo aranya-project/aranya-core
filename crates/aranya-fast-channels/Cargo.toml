@@ -142,6 +142,9 @@ denylist = [
 	# It only works on VxWorks.
 	"sdlib",
 
+	# Just forwards to crypto, so already tested there.
+	"trng",
+
 	"unsafe_debug",
 
 	"allocator_api",
