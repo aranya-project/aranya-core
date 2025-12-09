@@ -1,6 +1,6 @@
 use buggy::Bug;
 use heapless::Vec;
-use tracing::debug;
+use tracing::error;
 
 use crate::{
     Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
@@ -152,7 +152,7 @@ where
             if let Some(loc) = storage.get_location(*address)? {
                 request_heads.add_command(storage, *address, loc)?;
             } else {
-                debug!(
+                error!(
                     "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
                     address
                 );

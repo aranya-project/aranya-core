@@ -295,6 +295,8 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         let mut have_locations = vec::Vec::new(); //BUG: not constant size
         for &addr in commands {
+            // Note: We could use things we don't have as a hint to
+            // know we should perform a sync request.
             if let Some(location) = storage.get_location(addr)? {
                 have_locations.push(location);
             }
