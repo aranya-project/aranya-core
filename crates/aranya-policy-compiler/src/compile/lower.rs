@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     FunctionDefinition, Ident, Identifier, InternalFunction, LanguageContext, MatchExpression,
-    MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement, StmtKind, TypeKind,
-    VType, ident, thir,
+    MatchPattern, MatchStatement, NamedStruct, ResultPattern, Span, Spanned as _, Statement,
+    StmtKind, TypeKind, VType, ident, thir,
 };
 use buggy::{Bug, BugExt as _, bug};
 use tracing::warn;
@@ -912,6 +912,68 @@ impl CompileState<'_> {
                 LanguageContext::Statement(_) => bug!("expected match expression"),
                 LanguageContext::Expression(m) => m,
             },
+            ExprKind::ResultOk(e) => {
+                let inner = self.lower_expression(e)?;
+                thir::Expression {
+                    kind: thir::ExprKind::ResultOk(Box::new(inner.clone())),
+                    vtype: VType {
+                        kind: TypeKind::Result {
+                            ok: Box::new(inner.vtype.clone()),
+                            err: Box::new(VType {
+                                kind: TypeKind::Never,
+                                span: Span::empty(),
+                            }),
+                        },
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::ResultErr(e) => {
+                let inner = self.lower_expression(e)?;
+                thir::Expression {
+                    kind: thir::ExprKind::ResultErr(Box::new(inner.clone())),
+                    vtype: VType {
+                        kind: TypeKind::Result {
+                            ok: Box::new(VType {
+                                kind: TypeKind::Never,
+                                span: Span::empty(),
+                            }),
+                            err: Box::new(inner.vtype.clone()),
+                        },
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::Return(e) => {
+                let inner = self.lower_expression(e)?;
+
+                // Validate return type matches function signature
+                let ctx = self.get_statement_context()?;
+                if let StatementContext::PureFunction(fd) = ctx {
+                    if !inner.vtype.fits_type(&fd.return_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Return value of `{}()` must be {}",
+                            fd.identifier,
+                            DisplayType(&fd.return_type)
+                        ))));
+                    }
+                } else {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Return expression can only be used inside a function".to_string(),
+                    )));
+                }
+
+                thir::Expression {
+                    kind: thir::ExprKind::Return(Box::new(inner.clone())),
+                    vtype: VType {
+                        kind: TypeKind::Never,
+                        span: Span::empty(),
+                    },
+                    span: expression.span,
+                }
+            }
         })
     }
 
@@ -993,13 +1055,44 @@ impl CompileState<'_> {
 
         // Ensure there are no duplicate arm values.
         // NOTE We don't check for zero arms, because that's enforced by the parser.
+        // Check for duplicate result patterns (Ok or Err)
+        // Checking for duplicate result patterns is tricky, because their associated values are identifiers, not expressions.
+        // TODO this is really ugly, though.
+        let result_ok_marker = Expression {
+            kind: ExprKind::ResultOk(Box::new(Expression {
+                kind: ExprKind::Identifier(Ident {
+                    name: ident!("result_ok_pattern"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            })),
+            span: Span::empty(),
+        };
+        let result_err_marker = Expression {
+            kind: ExprKind::ResultErr(Box::new(Expression {
+                kind: ExprKind::Identifier(Ident {
+                    name: ident!("result_err_pattern"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            })),
+            span: Span::empty(),
+        };
+
         let all_values = patterns
             .iter()
             .flat_map(|pattern| match pattern {
                 MatchPattern::Values(values) => values.as_slice(),
                 MatchPattern::Default(_) => &[],
+                MatchPattern::ResultPattern(ResultPattern::Ok(_)) => {
+                    std::slice::from_ref(&result_ok_marker)
+                }
+                MatchPattern::ResultPattern(ResultPattern::Err(_)) => {
+                    std::slice::from_ref(&result_err_marker)
+                }
             })
             .collect::<Vec<&Expression>>();
+
         // Check for duplicates by comparing expression kinds, not including spans
         for (i, v1) in all_values.iter().enumerate() {
             for v2 in &all_values[..i] {
@@ -1065,6 +1158,19 @@ impl CompileState<'_> {
                     }
                     thir::MatchPattern::Default(*span)
                 }
+                MatchPattern::ResultPattern(result_pattern) => {
+                    // Verify that the scrutinee is a Result type
+                    if !matches!(scrutinee_t.kind, TypeKind::Result { .. }) {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Result pattern requires scrutinee to be a Result type".to_string(),
+                        )));
+                    }
+                    let thir_pattern = match result_pattern {
+                        ResultPattern::Ok(ident) => thir::ResultPattern::Ok(ident.clone()),
+                        ResultPattern::Err(ident) => thir::ResultPattern::Err(ident.clone()),
+                    };
+                    thir::MatchPattern::ResultPattern(thir_pattern)
+                }
             };
             patterns_out.push(pattern);
         }
@@ -1087,9 +1193,41 @@ impl CompileState<'_> {
             LanguageContext::Statement(s) => {
                 let mut arms = Vec::new();
                 for arm in &s.arms {
-                    let stmts = self.lower_statements(&arm.statements, Scope::Layered)?;
+                    let pattern = patterns.next().assume("same number of patterns")?;
+
+                    // Enter a scope for each match arm (for variable isolation)
+                    self.identifier_types.enter_block();
+
+                    // For Result patterns, add the identifier to the scope for type-checking
+                    if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
+                        let (inner_type, ident) = match result_pattern {
+                            thir::ResultPattern::Ok(ident) => {
+                                if let TypeKind::Result { ok, .. } = &scrutinee_t.kind {
+                                    ((**ok).clone(), ident)
+                                } else {
+                                    bug!("Ok pattern without Result type");
+                                }
+                            }
+                            thir::ResultPattern::Err(ident) => {
+                                if let TypeKind::Result { err, .. } = &scrutinee_t.kind {
+                                    ((**err).clone(), ident)
+                                } else {
+                                    bug!("Err pattern without Result type");
+                                }
+                            }
+                        };
+                        self.identifier_types
+                            .add(ident.name.clone(), inner_type)
+                            .map_err(|e| self.err(e))?;
+                    }
+
+                    let stmts = self.lower_statements(&arm.statements, Scope::Same)?;
+
+                    // Exit the scope for this arm
+                    self.identifier_types.exit_block();
+
                     arms.push(thir::MatchArm {
-                        pattern: patterns.next().assume("same number of patterns")?,
+                        pattern,
                         statements: stmts,
                     });
                 }
@@ -1107,8 +1245,40 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => {
                 let mut arms = Vec::new();
                 for (i, arm) in e.arms.iter().enumerate() {
+                    let pattern = patterns.next().assume("same number of patterns")?;
+
+                    // Enter a scope for each match arm (for variable isolation)
+                    self.identifier_types.enter_block();
+
+                    // For Result patterns, add the identifier to the scope for type-checking
+                    if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
+                        let (inner_type, ident) = match result_pattern {
+                            thir::ResultPattern::Ok(ident) => {
+                                if let TypeKind::Result { ok, .. } = &scrutinee_t.kind {
+                                    ((**ok).clone(), ident)
+                                } else {
+                                    bug!("Ok pattern without Result type");
+                                }
+                            }
+                            thir::ResultPattern::Err(ident) => {
+                                if let TypeKind::Result { err, .. } = &scrutinee_t.kind {
+                                    ((**err).clone(), ident)
+                                } else {
+                                    bug!("Err pattern without Result type");
+                                }
+                            }
+                        };
+                        self.identifier_types
+                            .add(ident.name.clone(), inner_type)
+                            .map_err(|e| self.err(e))?;
+                    }
+
                     let e = self.lower_expression(&arm.expression)?;
                     let etype = e.vtype.clone();
+
+                    // Exit the scope for this arm
+                    self.identifier_types.exit_block();
+
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {
@@ -1130,7 +1300,7 @@ impl CompileState<'_> {
                         }
                     }
                     arms.push(thir::MatchExpressionArm {
-                        pattern: patterns.next().assume("same number of patterns")?,
+                        pattern,
                         expression: e,
                         span: arm.span,
                     });
@@ -1180,6 +1350,13 @@ impl CompileState<'_> {
                     self.identifier_types
                         .add(s.identifier.name.clone(), et.vtype.clone())
                         .map_err(|e| self.err(e))?;
+                    // Check for Never type after adding to identifier types
+                    // This ensures duplicate name errors are caught first (during add())
+                    if matches!(et.vtype.kind, TypeKind::Never) {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Cannot assign a Never value.".to_string(),
+                        )));
+                    }
                     thir::StmtKind::Let(thir::LetStatement {
                         identifier: s.identifier.clone(),
                         expression: et,
@@ -1275,17 +1452,26 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Publish(e)
                 }
-                (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
-                    // ensure return expression type matches function signature
-                    let e = self.lower_expression(&s.expression)?;
-                    if !e.vtype.fits_type(&fd.return_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
-                        ))));
+                (StmtKind::Expr(e), _) => {
+                    // Handle expression statements (like return expressions)
+                    let expr = self.lower_expression(e)?;
+                    // For return expressions, the type checking happens during lowering
+                    // We don't create a separate statement kind for them since they're expressions
+                    // They will be compiled as expression statements
+                    match &expr.kind {
+                        thir::ExprKind::Return(_) => {
+                            // Validate return is in a function context
+                            let ctx = self.get_statement_context()?;
+                            if !matches!(ctx, StatementContext::PureFunction(_)) {
+                                return Err(self.err(CompileErrorType::InvalidType(
+                                    "Return expression can only be used inside a function"
+                                        .to_string(),
+                                )));
+                            }
+                        }
+                        _ => {}
                     }
-                    thir::StmtKind::Return(thir::ReturnStatement { expression: e })
+                    thir::StmtKind::Expr(expr)
                 }
                 (
                     StmtKind::Finish(s),
