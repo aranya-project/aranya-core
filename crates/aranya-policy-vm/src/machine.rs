@@ -966,22 +966,6 @@ where
                 let value = self.ipop_value()?;
                 self.ipush(Value::Option(Some(Box::new(value))))?;
             }
-            Instruction::Unwrap => {
-                let value = self.ipop_value()?;
-                if let Value::Option(opt) = value {
-                    if let Some(inner) = opt {
-                        self.ipush(*inner)?;
-                    } else {
-                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
-                    }
-                } else {
-                    return Err(self.err(MachineErrorType::invalid_type(
-                        "Option[_]",
-                        value.type_name(),
-                        "Option[T] -> T",
-                    )));
-                }
-            }
             Instruction::Meta(_m) => {}
             Instruction::Wrap(wrap_type) => {
                 match wrap_type {
@@ -1008,6 +992,14 @@ where
             Instruction::Unwrap => {
                 let value = self.ipop_value()?;
                 let inner = match value {
+                    Value::Option(opt) => match opt {
+                        Some(inner) => *inner,
+                        None => {
+                            return Err(
+                                self.err(MachineErrorType::Unknown("unwrapped None".into()))
+                            );
+                        }
+                    },
                     Value::Ok(inner) | Value::Err(inner) => *inner,
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
