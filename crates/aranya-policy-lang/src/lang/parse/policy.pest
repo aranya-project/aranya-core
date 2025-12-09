@@ -342,7 +342,6 @@ statements = _{
     | update_statement
     | delete_statement
     | emit_statement
-    | return_statement
     // Note that debug_assert must take precendence over function_call due to the overlapping syntax
     | debug_assert
     | expr_statement // Must come before function_call so return is recognized

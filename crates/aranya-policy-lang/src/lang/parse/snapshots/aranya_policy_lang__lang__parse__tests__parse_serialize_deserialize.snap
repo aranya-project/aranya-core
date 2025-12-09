@@ -1,6 +1,6 @@
 ---
-source: crates/aranya-policy-lang/tests/tests.rs
-expression: ast
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
 ---
 Policy {
     version: V2,
@@ -22,12 +22,12 @@ Policy {
                         InternalFunction(
                             Serialize(
                                 Identifier(
-                                    "this" @ 50..54,
-                                ) @ 50..54,
+                                    "this" @ 66..70,
+                                ) @ 66..70,
                             ),
-                        ) @ 40..55,
-                    ) @ 33..60,
-                ) @ 33..60,
+                        ) @ 56..71,
+                    ) @ 49..84,
+                ) @ 49..84,
             ],
             open: [
                 Expr(
@@ -35,20 +35,20 @@ Policy {
                         InternalFunction(
                             Deserialize(
                                 Identifier(
-                                    "envelope" @ 101..109,
-                                ) @ 101..109,
+                                    "envelope" @ 141..149,
+                                ) @ 141..149,
                             ),
-                        ) @ 89..110,
-                    ) @ 82..115,
-                ) @ 82..115,
+                        ) @ 129..150,
+                    ) @ 122..163,
+                ) @ 122..163,
             ],
             policy: [],
             recall: [],
-            span: 0..118,
+            span: 0..174,
         },
     ],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo {\n    seal {\n        return serialize(this)\n    }\n\n    open {\n        return deserialize(envelope)\n    }\n}\n",
+    text: "command Foo {\n            seal {\n                return serialize(this)\n            }\n\n            open {\n                return deserialize(envelope)\n            }\n        }",
 }

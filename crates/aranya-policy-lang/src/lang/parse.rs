@@ -609,6 +609,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 }
+                // pattern match: `Ok(value) => ...`
                 Rule::ok => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let v = primary.clone().into_inner().next().ok_or_else(|| {
@@ -624,6 +625,7 @@ impl ChunkParser<'_> {
                         span
                     })
                 }
+                // pattern match: `Err(err) => ...`
                 Rule::err => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let v = primary.clone().into_inner().next().ok_or_else(|| {
