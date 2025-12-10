@@ -265,6 +265,15 @@ impl<'a> CompileState<'a> {
         for item in items {
             match item {
                 StructItem::Field(field) => {
+                    if field
+                        .field_type
+                        .as_struct()
+                        .is_some_and(|other_ident| other_ident.name == identifier.name)
+                    {
+                        let msg = format!("Cyclic reference found when compiling `{identifier}`");
+                        return Err(self.err(CompileErrorType::Unknown(msg)));
+                    }
+
                     if field_definitions
                         .iter()
                         .any(|f: &FieldDefinition| f.identifier.name == field.identifier.name)
@@ -273,6 +282,7 @@ impl<'a> CompileState<'a> {
                             field.identifier.to_string(),
                         )));
                     }
+
                     // TODO(eric): Use `Span::default()`?
                     if has_struct_refs {
                         field_definitions.push(FieldDefinition {
@@ -289,11 +299,16 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(field.clone());
                     }
                 }
-                StructItem::StructRef(ident) => {
-                    let other =
-                        self.m.struct_defs.get(&ident.name).ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ident.to_string()))
-                        })?;
+                StructItem::StructRef(other_ident) => {
+                    if other_ident.name == identifier.name {
+                        let msg = format!(
+                            "Cyclic struct insertion reference found when compiling `{identifier}`"
+                        );
+                        return Err(self.err(CompileErrorType::Unknown(msg)));
+                    }
+                    let other = self.m.struct_defs.get(&other_ident.name).ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(other_ident.to_string()))
+                    })?;
                     for field in other {
                         if field_definitions
                             .iter()

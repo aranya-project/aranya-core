@@ -578,6 +578,12 @@ fn test_struct_field_insertion_errors() {
             struct Foo { +Bar, a string }"#,
             CompileErrorType::AlreadyDefined("a".to_string()),
         ),
+        (
+            r#"struct Foo { +Foo }"#,
+            CompileErrorType::Unknown(
+                "Cyclic struct insertion reference found when compiling `Foo`".to_string(),
+            ),
+        ),
     ];
     for (text, err_type) in cases {
         let err = compile_fail(text);
@@ -2906,6 +2912,12 @@ fn test_function_arguments_with_undefined_types() {
             }
             "#,
             CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { self_ref struct Bar }
+            "#,
+            CompileErrorType::Unknown("Cyclic reference found when compiling `Bar`".to_string()),
         ),
     ];
 
