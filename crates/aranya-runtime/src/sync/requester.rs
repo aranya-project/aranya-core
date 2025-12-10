@@ -399,7 +399,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                             // we've passed the PeerCache head, so stop traversing this path
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
-                                && peer_cache_loc.command <= location.command)
+                                && location.command <= peer_cache_loc.command)
                                 || storage.is_ancestor(location, &peer_cache_segment)?
                             {
                                 continue 'current;
