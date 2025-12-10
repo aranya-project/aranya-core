@@ -81,7 +81,7 @@ fn test_add() {
         rs.stack.push(t.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::Int(t.2));
+        assert_eq!(rs.stack.0[0], Value::from(Some(t.2)));
     }
 }
 
@@ -105,7 +105,7 @@ fn test_add_overflow() {
         rs.stack.push(p.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::None);
+        assert_eq!(rs.stack.0[0], Value::NONE);
     }
 }
 
@@ -125,7 +125,7 @@ fn test_sub() {
         rs.stack.push(t.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::Int(t.2));
+        assert_eq!(rs.stack.0[0], Value::from(Some(t.2)));
     }
 }
 
@@ -151,7 +151,7 @@ fn test_sub_overflow() {
         rs.stack.push(p.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::None);
+        assert_eq!(rs.stack.0[0], Value::NONE);
     }
 }
 
@@ -195,7 +195,7 @@ fn test_stack() -> anyhow::Result<()> {
     s.push(text!("hello"))?;
     s.push(Struct::new(FOO, &[]))?;
     s.push(Fact::new(BAR))?;
-    s.push_value(Value::None)?;
+    s.push_value(Value::NONE)?;
     assert_eq!(
         s.stack,
         vec![
@@ -204,15 +204,15 @@ fn test_stack() -> anyhow::Result<()> {
             Value::String(text!("hello")),
             Value::Struct(Struct::new(FOO, &[])),
             Value::Fact(Fact::new(BAR)),
-            Value::None,
+            Value::NONE,
         ]
     );
 
     // Test pop and peek
     let v = s.peek_value()?;
-    assert_eq!(v, &Value::None);
+    assert_eq!(v, &Value::NONE);
     let v = s.pop_value()?;
-    assert_eq!(v, Value::None);
+    assert_eq!(v, Value::NONE);
 
     let v: &Fact = s.peek()?;
     assert_eq!(v, &Fact::new(BAR));
