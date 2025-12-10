@@ -32,7 +32,7 @@ fn compile_fail(text: &str) -> CompileErrorType {
         Err(err) => panic!("{err}"),
     };
     match Compiler::new(&policy).compile() {
-        Ok(_) => panic!("policy compilation should have failed"),
+        Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err.err_type(),
     }
 }
@@ -577,10 +577,6 @@ fn test_struct_field_insertion_errors() {
             r#"struct Bar { a int }
             struct Foo { +Bar, a string }"#,
             CompileErrorType::AlreadyDefined("a".to_string()),
-        ),
-        (
-            r#"struct Foo { +Foo }"#,
-            CompileErrorType::NotDefined("Foo".to_string()),
         ),
     ];
     for (text, err_type) in cases {
@@ -2951,12 +2947,6 @@ fn test_structs_with_undefined_types() {
             struct Bar { e enum Unknown }
             "#,
             CompileErrorType::NotDefined("enum Unknown".to_string()),
-        ),
-        (
-            r#"
-            struct Bar { self_ref struct Bar }
-            "#,
-            CompileErrorType::NotDefined("struct Bar".to_string()),
         ),
     ];
 

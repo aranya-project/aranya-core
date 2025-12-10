@@ -242,14 +242,18 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Insert a struct definition while preventing duplicates of the struct name and fields
+    /// Insert a struct definition
     pub fn define_struct(
         &mut self,
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if self.m.struct_defs.contains_key(&identifier.name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
+        if !self.m.struct_defs.contains_key(&identifier.name) {
+            let msg = format!(
+                "struct {} not listed. `CompileState::list_structs` was not called before `CompileState::define_struct`.",
+                identifier.name
+            );
+            return Err(self.err(CompileErrorType::Unknown(msg)));
         }
 
         let has_struct_refs = items
@@ -319,6 +323,7 @@ impl<'a> CompileState<'a> {
             .iter()
             .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
 
+        // TODO(Steve): Re-use the existing vec instead of passing a new one.
         self.m
             .struct_defs
             .insert(identifier.name, field_definitions);
@@ -1625,7 +1630,57 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Adds entries for the Struct, Effect, Fact, Command, and FFI Struct defintions
+    /// to [CompileTarget::struct_defs] before fully compiling.
+    fn list_structs(&mut self) -> Result<(), CompileError> {
+        let idents = self
+            .policy
+            .structs
+            .iter()
+            .map(|def| def.identifier.name.clone())
+            .chain(
+                self.policy
+                    .effects
+                    .iter()
+                    .map(|def| def.identifier.name.clone()),
+            )
+            .chain(
+                self.policy
+                    .facts
+                    .iter()
+                    .map(|def| def.identifier.name.clone()),
+            )
+            .chain(
+                self.ffi_modules
+                    .iter()
+                    .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone())),
+            )
+            .chain(
+                self.policy
+                    .commands
+                    .iter()
+                    .map(|def| def.identifier.name.clone()),
+            );
+
+        for ident in idents {
+            // TODO(Steve): Use a type that has span information so a better error message can be created
+            // when duplicate type defintions are found.
+            if self
+                .m
+                .struct_defs
+                .insert(ident.clone(), Vec::new())
+                .is_some()
+            {
+                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
+            }
+        }
+
+        Ok(())
+    }
+
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
+        self.list_structs()?;
+
         // map enum names to constants
         for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
