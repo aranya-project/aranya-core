@@ -399,6 +399,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
         r.sort();
+
         Ok(r)
     }
 

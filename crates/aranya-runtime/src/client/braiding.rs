@@ -121,9 +121,14 @@ pub(super) fn braid<S: Storage>(
         'location: for location in prior {
             for other in strands.iter() {
                 trace!("checking {}", other.next);
-                if (location.same_segment(other.next) && location.command <= other.next.command)
-                    || storage.is_ancestor(location, &other.segment)?
-                {
+                let same_segment_check =
+                    location.same_segment(other.next) && location.command <= other.next.command;
+                if same_segment_check {
+                    trace!("found ancestor");
+                    continue 'location;
+                }
+
+                if storage.is_ancestor(location, &other.segment)? {
                     trace!("found ancestor");
                     continue 'location;
                 }
@@ -148,6 +153,7 @@ pub(super) fn braid<S: Storage>(
     }
 
     braid.reverse();
+
     Ok(braid)
 }
 

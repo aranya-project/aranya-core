@@ -171,9 +171,19 @@ pub trait Storage {
         start: Location,
         address: Address,
     ) -> Result<Option<Location>, StorageError> {
+        // Track visited segments to avoid revisiting the same segment multiple times.
+        // Without this, merges and skip_lists can cause the same segment to be queued
+        // repeatedly, leading to exponential traversal time.
+        let mut visited = alloc::collections::BTreeSet::new();
+
         let mut queue = Vec::new();
         queue.push(start);
         'outer: while let Some(loc) = queue.pop() {
+            // Skip if we've already visited this segment
+            if !visited.insert(loc.segment) {
+                continue;
+            }
+
             let head = self.get_segment(loc)?;
             if address.max_cut > head.longest_max_cut()? {
                 continue;
@@ -253,6 +263,11 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
+        // Track visited segments to avoid revisiting the same segment multiple times.
+        // Without this, merges and skip_lists can cause exponential traversal time.
+        // We track the highest command index visited per segment to ensure correctness.
+        let mut visited = alloc::collections::BTreeMap::<usize, usize>::new();
+
         let mut queue = Vec::new();
         queue.extend(segment.prior());
         let segment = self.get_segment(search_location)?;
@@ -261,6 +276,15 @@ pub trait Storage {
             .assume("location must exist")?
             .address()?;
         'outer: while let Some(location) = queue.pop() {
+            // Check if we've already visited this segment at this or a higher command index.
+            // If so, skip to avoid redundant work.
+            if let Some(&max_cmd) = visited.get(&location.segment) {
+                if location.command <= max_cmd {
+                    continue;
+                }
+            }
+            visited.insert(location.segment, location.command);
+
             if location.segment == search_location.segment
                 && location.command >= search_location.command
             {
