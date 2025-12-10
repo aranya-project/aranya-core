@@ -550,9 +550,12 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Optional(o) => {
                 match o {
                     None => {
-                        self.append_instruction(Instruction::Const(Value::None));
+                        self.append_instruction(Instruction::Const(Value::NONE));
                     }
-                    Some(v) => self.compile_typed_expression(*v)?,
+                    Some(v) => {
+                        self.compile_typed_expression(*v)?;
+                        self.append_instruction(Instruction::Some);
+                    }
                 };
             }
             thir::ExprKind::NamedStruct(s) => {
@@ -566,7 +569,7 @@ impl<'a> CompileState<'a> {
                 thir::InternalFunction::Exists(f) => {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
-                    self.append_instruction(Instruction::Const(Value::None));
+                    self.append_instruction(Instruction::Const(Value::NONE));
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
@@ -760,7 +763,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*e)?;
 
                 // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::None));
+                self.append_instruction(Instruction::Const(Value::NONE));
                 // Check if the value is equal to None
                 self.append_instruction(Instruction::Eq);
                 if expr_is_some {
@@ -1185,7 +1188,7 @@ impl<'a> CompileState<'a> {
         // Duplicate value for testing
         self.append_instruction(Instruction::Dup);
         // Push a None to compare against
-        self.append_instruction(Instruction::Const(Value::None));
+        self.append_instruction(Instruction::Const(Value::NONE));
         // Is the value not equal to None?
         self.append_instruction(Instruction::Eq);
         self.append_instruction(Instruction::Not);
@@ -1195,6 +1198,8 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(exit_reason));
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
+        self.append_instruction(Instruction::Unwrap);
+
         Ok(())
     }
 

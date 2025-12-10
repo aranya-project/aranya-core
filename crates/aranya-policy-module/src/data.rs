@@ -1,6 +1,8 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned as _, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{
+    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
+};
 use core::fmt::{self, Display};
 
 pub use aranya_id::BaseId;
@@ -133,8 +135,13 @@ pub enum Value {
     Enum(Identifier, i64),
     /// Textual Identifier (name)
     Identifier(Identifier),
-    /// Empty optional value
-    None,
+    /// Optional value
+    Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
+}
+
+impl Value {
+    /// Shorthand for `Self::Option(None)`.
+    pub const NONE: Self = Self::Option(None);
 }
 
 /// Trait for converting from a [`Value`], similar to [`TryFrom<Value>`].
@@ -148,11 +155,14 @@ pub trait TryFromValue: Sized {
 
 impl<T: TryFromValue> TryFromValue for Option<T> {
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
-        if matches!(value, Value::None) {
-            Ok(None)
-        } else {
-            T::try_from_value(value).map(Some)
-        }
+        let Value::Option(opt) = value else {
+            return Err(ValueConversionError::InvalidType {
+                want: "Option".into(),
+                got: value.type_name(),
+                msg: format!("Value -> {}", core::any::type_name::<Self>()),
+            });
+        };
+        opt.map(|v| T::try_from_value(*v)).transpose()
     }
 }
 
@@ -205,7 +215,8 @@ impl Value {
             Self::Id(_) => String::from("Id"),
             Self::Enum(name, _) => format!("Enum {}", name),
             Self::Identifier(_) => String::from("Identifier"),
-            Self::None => String::from("None"),
+            Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
+            Self::Option(None) => String::from("Option[_]"),
         }
     }
 
@@ -225,8 +236,6 @@ impl Value {
     pub fn fits_type(&self, expected_type: &VType) -> bool {
         use aranya_policy_ast::TypeKind;
         match (self, &expected_type.kind) {
-            (Self::None, TypeKind::Optional(_)) => true,
-            (_, TypeKind::Optional(inner)) => self.fits_type(inner),
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
@@ -234,6 +243,8 @@ impl Value {
             (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.name,
             (Self::Id(_), TypeKind::Id) => true,
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
+            (Self::Option(None), TypeKind::Optional(_)) => true,
             _ => false,
         }
     }
@@ -241,7 +252,7 @@ impl Value {
 
 impl<T: Into<Self>> From<Option<T>> for Value {
     fn from(value: Option<T>) -> Self {
-        value.map_or(Self::None, Into::into)
+        Self::Option(value.map(Into::into).map(Box::new))
     }
 }
 
@@ -508,7 +519,8 @@ impl Display for Value {
             Self::Id(id) => id.fmt(f),
             Self::Enum(name, value) => write!(f, "{name}::{value}"),
             Self::Identifier(name) => write!(f, "{name}"),
-            Self::None => write!(f, "None"),
+            Self::Option(Some(v)) => write!(f, "Some({v})"),
+            Self::Option(None) => write!(f, "None"),
         }
     }
 }
@@ -896,5 +908,19 @@ impl Display for Struct {
             write!(f, "{}: {}", k, v)?;
         }
         write!(f, "}}")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{TryFromValue as _, Value};
+
+    #[test]
+    fn test_option_error() {
+        let err = <Option<i64>>::try_from_value(Value::Bool(true)).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "expected type Option, but got Bool: Value -> core::option::Option<i64>"
+        );
     }
 }

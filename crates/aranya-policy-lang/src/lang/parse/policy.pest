@@ -27,8 +27,7 @@ bytes_t = { "bytes" }
 int_t = { "int" }
 bool_t = { "bool" }
 id_t = { "id" }
-// An optional type is any of the core types preceded by "optional"
-// (so no "optional optional" allowed).
+// An optional type
 optional_t = { ("optional" ~ vtype) | ("option" ~ "[" ~ vtype ~ "]") }
 // All structs have a name
 struct_t = { "struct" ~ identifier }
