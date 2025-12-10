@@ -302,6 +302,30 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             }
         }
 
+        // Filter out locations that are ancestors of other locations in the list.
+        // If location A is an ancestor of location B, we only need to keep B since
+        // having B implies having A and all its ancestors.
+        // Iterate backwards so we can safely remove items
+        for i in (0..have_locations.len()).rev() {
+            let location_a = have_locations[i];
+            let mut is_ancestor_of_other = false;
+            for &location_b in &have_locations {
+                if location_a != location_b {
+                    let segment_b = storage.get_segment(location_b)?;
+                    if location_a.same_segment(location_b)
+                        && location_a.command <= location_b.command
+                        || storage.is_ancestor(location_a, &segment_b)?
+                    {
+                        is_ancestor_of_other = true;
+                        break;
+                    }
+                }
+            }
+            if is_ancestor_of_other {
+                have_locations.remove(i);
+            }
+        }
+
         let mut heads = vec::Vec::new();
         heads.push(storage.get_head()?);
 
