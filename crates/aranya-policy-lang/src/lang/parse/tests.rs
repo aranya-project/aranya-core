@@ -271,7 +271,7 @@ fn parse_optional() {
         ("optional optional bytes", false),
         ("optional option[bytes]", false),
         ("option[optional bytes]", false),
-        ("option[option[bytes]]", false),
+        ("option[option[bytes]]", true),
     ];
     for (case, is_valid) in optional_types {
         let r = parse_vtype(case);
