@@ -66,9 +66,9 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    Address, ClientError, ClientState, CmdId, Command as _, EngineError, GraphId, Location,
+    MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage, StorageError, StorageProvider,
+    SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestEngine, TestSink},
         short_b58,
@@ -454,7 +454,7 @@ where
                         from: 1,
                         must_send: None,
                         must_receive: None,
-                        max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
+                        max_syncs: u64::MAX,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -602,7 +602,7 @@ where
                     )?;
                     total_received += received;
                     total_sent += sent;
-                    if received < COMMAND_RESPONSE_MAX {
+                    if received == 0 {
                         break;
                     }
                 }
@@ -776,9 +776,9 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
+        received = request_state.add_commands(&mut request_trx, sink, cmds)?;
         request_state.commit(&mut request_trx, sink)?;
-        let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
+        let addresses = cmds.into_iter().filter_map(|cmd| cmd.address().ok());
         request_state.update_heads(storage_id, addresses, request_cache)?;
     }
 
