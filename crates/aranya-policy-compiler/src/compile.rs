@@ -242,7 +242,8 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Insert a struct definition
+    /// Insert a struct definition while preventing duplicates of the struct fields.
+    // Duplicate struct names are detected in [Self::list_structs].
     pub fn define_struct(
         &mut self,
         identifier: Ident,
