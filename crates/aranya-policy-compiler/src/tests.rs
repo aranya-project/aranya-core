@@ -2812,6 +2812,18 @@ fn test_validate_unreachable_code() {
             }
             let y = 2
         }"#,
+        r#"
+        function unreachable4() int {
+            return 0
+            return 1
+        }"#,
+        r#"function unreachable_with_match(x int) int {
+            match x {
+                0 => { return 0 }
+                _ => { return 2 }
+            }
+            let z = 3
+        }"#,
     ];
 
     for p in valid {
