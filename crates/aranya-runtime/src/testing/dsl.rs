@@ -52,6 +52,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
+use heapless::Vec as HVec;
 use core::{
     cell::RefCell,
     fmt::{self, Display},
@@ -969,11 +970,12 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
-        request_state.update_heads(
-            storage_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
-            request_cache,
-        )?;
+        let addresses: HVec<Address, COMMAND_RESPONSE_MAX> = cmds
+            .iter()
+            .filter_map(|cmd| cmd.address().ok())
+            .collect();
+        let addresses_iter = addresses.as_slice().iter().copied();
+        request_state.update_heads(storage_id, addresses_iter, request_cache)?;
     }
 
     Ok((sent, received))
