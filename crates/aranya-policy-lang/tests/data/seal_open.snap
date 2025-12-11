@@ -1,60 +1,10 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-expression: ast
+expression: err
 ---
-Policy {
-    version: V2,
-    ffi_imports: [],
-    facts: [],
-    actions: [],
-    effects: [],
-    structs: [],
-    enums: [],
-    commands: [
-        CommandDefinition {
-            persistence: Persistent,
-            attributes: [],
-            identifier: "Foo" @ 8..11,
-            fields: [],
-            seal: [
-                Return(
-                    ReturnStatement {
-                        expression: FunctionCall(
-                            FunctionCall {
-                                identifier: "bar" @ 40..43,
-                                arguments: [
-                                    Identifier(
-                                        "this" @ 44..48,
-                                    ) @ 44..48,
-                                ],
-                            },
-                        ) @ 40..49,
-                    },
-                ) @ 33..54,
-            ],
-            open: [
-                Return(
-                    ReturnStatement {
-                        expression: FunctionCall(
-                            FunctionCall {
-                                identifier: "baz" @ 83..86,
-                                arguments: [
-                                    Identifier(
-                                        "envelope" @ 87..95,
-                                    ) @ 87..95,
-                                ],
-                            },
-                        ) @ 83..96,
-                    },
-                ) @ 76..101,
-            ],
-            policy: [],
-            recall: [],
-            span: 0..104,
-        },
-    ],
-    functions: [],
-    finish_functions: [],
-    global_lets: [],
-    text: "command Foo {\n    seal {\n        return bar(this)\n    }\n\n    open {\n        return baz(envelope)\n    }\n}\n",
-}
+Syntax error: line 9 column 1:  --> 9:1
+  |
+9 | }
+  | ^---
+  |
+  = expected policy_block
