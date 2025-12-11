@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.15.0...aranya-policy-module-v0.16.0) - 2025-12-11
+
+### Other
+
+- allow nested option ([#502](https://github.com/aranya-project/aranya-core/pull/502))
+- remove `Typeish` and `NullableVType` ([#486](https://github.com/aranya-project/aranya-core/pull/486))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.14.0...aranya-policy-module-v0.15.0) - 2025-11-05
 
 ### Other
