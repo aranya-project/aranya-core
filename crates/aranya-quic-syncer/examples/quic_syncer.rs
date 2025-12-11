@@ -16,10 +16,10 @@ use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, Engine, GraphId, StorageProvider, SyncRequester,
-    engine::Sink,
+    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
+    policy::Sink,
     storage::memory::MemStorageProvider,
-    testing::protocol::{TestActions, TestEffect, TestEngine},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use clap::Parser;
 use s2n_quic::Server;
@@ -55,16 +55,16 @@ fn main() {
     std::process::exit(code);
 }
 
-async fn sync_peer<EN, SP, S>(
-    client: &mut ClientState<EN, SP>,
-    syncer: &mut Syncer<EN, SP, S>,
+async fn sync_peer<PS, SP, S>(
+    client: &mut ClientState<PS, SP>,
+    syncer: &mut Syncer<PS, SP, S>,
     sink: &mut S,
     storage_id: GraphId,
     server_addr: SocketAddr,
 ) where
-    EN: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effect>,
+    S: Sink<<PS as PolicyStore>::Effect>,
 {
     let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server_addr);
     let fut = syncer.sync(client, sync_requester, sink, storage_id);
@@ -108,10 +108,10 @@ async fn run(options: Opt) -> Result<()> {
         }
     };
 
-    let engine = TestEngine::new();
+    let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    let client = Arc::new(TMutex::new(ClientState::new(engine, storage)));
+    let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage)));
     let sink = Arc::new(TMutex::new(PrintSink {}));
     let server = get_server(cert.clone(), key, options.listen)?;
     let (tx1, _) = mpsc::unbounded_channel();
