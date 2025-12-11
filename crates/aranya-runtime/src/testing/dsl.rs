@@ -62,7 +62,6 @@ use std::{env, fs, time::Instant};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
-use heapless::Vec as HVec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
@@ -972,10 +971,11 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
-        let addresses: HVec<Address, COMMAND_RESPONSE_MAX> =
-            cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-        let addresses_iter = addresses.as_slice().iter().copied();
-        request_state.update_heads(storage_id, addresses_iter, request_cache)?;
+        request_state.update_heads(
+            storage_id,
+            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            request_cache,
+        )?;
     }
 
     Ok((sent, received))
