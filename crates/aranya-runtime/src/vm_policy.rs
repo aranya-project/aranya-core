@@ -648,11 +648,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<(), EngineError> {
         let VmAction { name, args } = action;
 
-        let def = self
-            .machine
-            .action_defs
-            .get(&name)
-            .ok_or(EngineError::InternalError)?;
+        let def = self.machine.action_defs.get(&name).ok_or_else(|| {
+            error!("action not found");
+            EngineError::InternalError
+        })?;
 
         match (action_placement, &def.persistence) {
             (ActionPlacement::OnGraph, Persistence::Persistent) => {}
