@@ -5,9 +5,9 @@ use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, SyncRequester,
-    engine::{Engine, Sink},
+    policy::{PolicyStore, Sink},
     storage::{StorageProvider, memory::MemStorageProvider},
-    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
 };
 use buggy::BugExt as _;
 use s2n_quic::{Server, provider::congestion_controller::Bbr};
@@ -276,15 +276,15 @@ fn get_server(cert: String, key: String) -> Result<Server> {
     Ok(server)
 }
 
-fn spawn_syncer<EN, SP, S>(
-    syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
+fn spawn_syncer<PS, SP, S>(
+    syncer: Arc<TMutex<Syncer<PS, SP, S>>>,
     receiver: mpsc::UnboundedReceiver<GraphId>,
     server: Server,
 ) -> Result<SocketAddr>
 where
-    EN: Engine + Send + 'static,
+    PS: PolicyStore + Send + 'static,
     SP: StorageProvider + Send + 'static,
-    S: Sink<<EN as Engine>::Effect> + Send + 'static,
+    S: Sink<<PS as PolicyStore>::Effect> + Send + 'static,
     <SP as StorageProvider>::Perspective: Send,
 {
     let server_addr = server.local_addr()?;
@@ -292,9 +292,9 @@ where
     Ok(server_addr)
 }
 
-fn make_client() -> Arc<TMutex<ClientState<TestEngine, MemStorageProvider>>> {
-    let engine = TestEngine::new();
+fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>> {
+    let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    Arc::new(TMutex::new(ClientState::new(engine, storage)))
+    Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
 }

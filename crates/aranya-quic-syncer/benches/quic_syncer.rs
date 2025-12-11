@@ -17,7 +17,7 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, Sink, SyncRequester,
     memory::MemStorageProvider,
-    testing::protocol::{TestActions, TestEffect, TestEngine},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use criterion::{Criterion, criterion_group, criterion_main};
 use s2n_quic::Server;
@@ -61,14 +61,14 @@ impl Sink<TestEffect> for CountSink {
     }
 }
 
-fn create_client() -> ClientState<TestEngine, MemStorageProvider> {
-    let engine = TestEngine::new();
+fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
+    let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
-    ClientState::new(engine, storage)
+    ClientState::new(policy_store, storage)
 }
 
 fn new_graph(
-    client: &mut ClientState<TestEngine, MemStorageProvider>,
+    client: &mut ClientState<TestPolicyStore, MemStorageProvider>,
     sink: &mut CountSink,
 ) -> Result<GraphId> {
     let policy_data = 0_u64.to_be_bytes();
@@ -78,7 +78,7 @@ fn new_graph(
 }
 
 fn add_commands(
-    client: &mut ClientState<TestEngine, MemStorageProvider>,
+    client: &mut ClientState<TestPolicyStore, MemStorageProvider>,
     storage_id: GraphId,
     sink: &mut CountSink,
     n: u64,

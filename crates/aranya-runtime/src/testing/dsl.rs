@@ -66,11 +66,11 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
+    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
-        protocol::{TestActions, TestEffect, TestEngine, TestSink},
+        protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
     },
 };
@@ -342,7 +342,7 @@ pub enum TestError {
     #[error(transparent)]
     Client(#[from] ClientError),
     #[error(transparent)]
-    Engine(#[from] EngineError),
+    Policy(#[from] PolicyError),
     #[error(transparent)]
     Sync(#[from] SyncError),
     #[error(transparent)]
@@ -552,10 +552,10 @@ where
 
         match rule {
             TestRule::AddClient { id } => {
-                let engine = TestEngine::new();
+                let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
-                let state = ClientState::new(engine, storage);
+                let state = ClientState::new(policy_store, storage);
                 clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
@@ -941,8 +941,8 @@ where
 fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     request_cache: &mut PeerCache,
     response_cache: &mut PeerCache,
-    request_state: &mut ClientState<TestEngine, SP>,
-    response_state: &mut ClientState<TestEngine, SP>,
+    request_state: &mut ClientState<TestPolicyStore, SP>,
+    response_state: &mut ClientState<TestPolicyStore, SP>,
     requester_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
