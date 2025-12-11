@@ -222,6 +222,8 @@ atom = _{
 this = { "this" }
 
 // ## Infix operators
+add = { "+" }
+subtract = { "-" }
 greater_than = { ">" }
 less_than = { "<" }
 greater_than_or_equal = { ">=" }
@@ -234,6 +236,8 @@ dot = { "." }
 substruct = { "substruct" }
 cast = { "as" }
 infix_op = _{
+    | add
+    | subtract
     | and
     | or
     | dot

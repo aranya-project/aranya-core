@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.16.1...aranya-runtime-v0.17.0) - 2025-12-11
+
+### Other
+
+- 473 sync failures ([#511](https://github.com/aranya-project/aranya-core/pull/511))
+- Low mem ([#491](https://github.com/aranya-project/aranya-core/pull/491))
+
 ## [0.16.1](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.16.0...aranya-runtime-v0.16.1) - 2025-11-12
 
 ### Other

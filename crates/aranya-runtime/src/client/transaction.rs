@@ -114,7 +114,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
                 let segment = storage.write(perspective)?;
                 let head = segment.head()?;
-
                 heads.push_back((head.address()?, segment.head_location()));
             } else {
                 let segment = storage.get_segment(left_loc)?;
@@ -178,7 +177,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 // Command in current perspective.
                 continue;
             }
-            if (self.locate(storage, command.address()?)?).is_some() {
+
+            if self.locate(storage, command.address()?)?.is_some() {
                 // Command already added.
                 continue;
             }
