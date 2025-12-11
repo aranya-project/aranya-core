@@ -1,6 +1,6 @@
 #![allow(clippy::panic)]
 
-use std::{fs::OpenOptions, io::Read};
+use std::{fs::OpenOptions, io::Read as _};
 
 use aranya_policy_ast::{
     CommandDefinition, ExprKind, Expression, Ident, InternalFunction, Persistence, ReturnStatement,
