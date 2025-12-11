@@ -236,6 +236,7 @@ impl Spanned for VType {
         __C::Error: rkyv::rancor::Source,
     )
 ))]
+#[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
 pub enum TypeKind {
     /// A character (UTF-8) string
     String,
@@ -255,6 +256,15 @@ pub enum TypeKind {
     Optional(#[rkyv(omit_bounds)] Box<VType>),
     /// A type which cannot be instantiated.
     Never,
+    /// Result with value, or error
+    Result {
+        /// ok type
+        #[rkyv(omit_bounds)]
+        ok: Box<VType>,
+        /// error type
+        #[rkyv(omit_bounds)]
+        err: Box<VType>,
+    },
 }
 
 impl TypeKind {
@@ -286,6 +296,16 @@ impl TypeKind {
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
             (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
+            (
+                Self::Result {
+                    ok: lhs_ok,
+                    err: lhs_err,
+                },
+                Self::Result {
+                    ok: rhs_ok,
+                    err: rhs_err,
+                },
+            ) => lhs_ok.kind.fits_type(&rhs_ok.kind) && lhs_err.kind.fits_type(&rhs_err.kind),
             _ => false,
         }
     }
@@ -303,6 +323,7 @@ impl fmt::Display for TypeKind {
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
+            Self::Result { ok, err } => write!(f, "result[{ok}, {err}]"),
         }
     }
 }
@@ -561,6 +582,10 @@ pub enum ExprKind {
     Bool(bool),
     /// An optional literal
     Optional(Option<Box<Expression>>),
+    /// A Result Ok literal
+    ResultOk(Box<Expression>),
+    /// A Result Err literal
+    ResultErr(Box<Expression>),
     /// A named struct
     NamedStruct(NamedStruct),
     /// One of the [InternalFunction]s
@@ -607,6 +632,8 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
+    /// Return expression - can be used in match arms to short-circuit
+    Return(Box<Expression>),
 }
 
 spanned! {
@@ -643,6 +670,23 @@ pub struct CheckStatement {
 }
 }
 
+/// Result pattern for matching Ok(x) or Err(e)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResultPattern {
+    /// Match Ok(identifier)
+    Ok(Ident),
+    /// Match Err(identifier)
+    Err(Ident),
+}
+
+impl Spanned for ResultPattern {
+    fn span(&self) -> Span {
+        match self {
+            Self::Ok(ident) | Self::Err(ident) => ident.span(),
+        }
+    }
+}
+
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
@@ -650,6 +694,8 @@ pub enum MatchPattern {
     Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
+    /// Result pattern for matching Ok(x) and Err(e)
+    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -657,6 +703,7 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+            Self::ResultPattern(result_pattern) => result_pattern.span(),
         }
     }
 }
@@ -790,17 +837,6 @@ pub struct DeleteStatement {
 }
 }
 
-spanned! {
-/// Return from a function
-///
-/// Only valid within functions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReturnStatement {
-    /// The value to return
-    pub expression: Expression,
-}
-}
-
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -841,8 +877,6 @@ pub enum StmtKind {
     Finish(Vec<Statement>),
     /// Map over a fact result set
     Map(MapStatement),
-    /// A [ReturnStatement]. Valid only in functions.
-    Return(ReturnStatement),
     /// Calls an action
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
@@ -860,6 +894,8 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// An expression used as a statement (e.g., return expressions)
+    Expr(Expression),
 }
 
 /// A schema definition for a fact

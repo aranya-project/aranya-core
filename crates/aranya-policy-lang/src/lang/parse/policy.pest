@@ -35,6 +35,7 @@ struct_t = { "struct" ~ identifier }
 enum_t = { "enum" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
+result_t = { "result" ~ "[" ~ vtype ~ "," ~ vtype ~ "]" }
 vtype = _{
     | string_t
     | bytes_t
@@ -44,7 +45,7 @@ vtype = _{
     | struct_t
     | enum_t
     | optional_t
-}
+    | result_t }
 
 // ## Fields
 // A field definition is an identifier followed by a type. Used in
@@ -157,6 +158,10 @@ none = { "None" }
 some = { "Some" }
 optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
 
+ok = { "Ok(" ~ expression ~ ")" }
+err = { "Err(" ~ expression ~ ")" }
+result_literal = { ok | err }
+
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
 // token.
@@ -183,6 +188,8 @@ serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
 // Indicates a not yet implemented panic
 todo = { "todo()" }
+// Return expression can be used in expression contexts like match arms
+return_expr = { "return" ~ expression }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
@@ -208,9 +215,11 @@ atom = _{
     | string_literal
     | bool_literal
     | optional_literal
+    | result_literal
     | named_struct_literal
     | match_expression
     | internal_function
+    | return_expr
     | function_call
     | foreign_function_call
     | enum_reference
@@ -311,10 +320,10 @@ update_statement = { "update" ~ fact_literal ~ "to" ~ fact_literal_value }
 delete_statement = { "delete" ~ fact_literal }
 // The emit statement outputs an effect with the given expression.
 emit_statement = { "emit" ~ expression }
-// The return statement returns from a function
-return_statement = { "return" ~ expression }
 // debug_assert() optionally runs the contained expression if the debug flag is enabled
 debug_assert = { "debug_assert(" ~ expression ~ ")" }
+// Expression as a statement (for return expressions and other expressions used as statements)
+expr_statement = { return_expr }
 
 // ## All statements
 statements = _{
@@ -329,9 +338,9 @@ statements = _{
     | update_statement
     | delete_statement
     | emit_statement
-    | return_statement
     // Note that debug_assert must take precendence over function_call due to the overlapping syntax
     | debug_assert
+    | expr_statement // Must come before function_call so return is recognized
     | function_call
     | action_call
 }
