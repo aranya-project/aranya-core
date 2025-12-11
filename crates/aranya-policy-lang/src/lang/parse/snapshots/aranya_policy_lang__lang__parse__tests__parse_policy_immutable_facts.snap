@@ -1,0 +1,51 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: policy
+---
+{
+  "version": "V2",
+  "ffi_imports": [],
+  "facts": [
+    {
+      "immutable": false,
+      "identifier": {
+        "name": "A",
+        "span": {
+          "start": 14,
+          "end": 15
+        }
+      },
+      "key": [],
+      "value": [],
+      "span": {
+        "start": 9,
+        "end": 21
+      }
+    },
+    {
+      "immutable": true,
+      "identifier": {
+        "name": "B",
+        "span": {
+          "start": 45,
+          "end": 46
+        }
+      },
+      "key": [],
+      "value": [],
+      "span": {
+        "start": 30,
+        "end": 52
+      }
+    }
+  ],
+  "actions": [],
+  "effects": [],
+  "structs": [],
+  "enums": [],
+  "commands": [],
+  "functions": [],
+  "finish_functions": [],
+  "global_lets": [],
+  "text": "\n        fact A[]=>{}\n        immutable fact B[]=>{}\n    "
+}

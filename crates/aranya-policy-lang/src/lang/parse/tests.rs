@@ -1,9 +1,15 @@
 #![allow(clippy::panic)]
 
-use aranya_policy_ast::VType;
+use std::{fs::OpenOptions, io::Read};
+
+use aranya_policy_ast::{
+    CommandDefinition, ExprKind, Expression, Ident, InternalFunction, Persistence, ReturnStatement,
+    Span, Statement, StmtKind, VType, Version, ident, text,
+};
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
+use crate::lang::{ParseErrorKind, parse_policy_document, parse_policy_str};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -375,7 +381,13 @@ fn parse_command_attributes() {
 
     let (id, value) = &command_def.attributes[0];
     assert_eq!(id, "priority");
-    assert_eq!(value, &ExprKind::String(text!("high")).at(74..80));
+    assert_eq!(
+        value,
+        &Expression {
+            kind: ExprKind::String(text!("high")),
+            span: Span::new(74, 80)
+        }
+    );
 }
 
 #[test]
@@ -552,7 +564,7 @@ fn parse_tictactoe() {
         let mut buf = vec![];
         let mut f = OpenOptions::new()
             .read(true)
-            .open("src/lang/tictactoe-policy.md")
+            .open("tests/data/tictactoe.md")
             .expect("could not open policy");
         f.read_to_end(&mut buf).expect("could not read policy file");
         String::from_utf8(buf).expect("File is not valid UTF-8")
@@ -757,33 +769,50 @@ fn parse_serialize_deserialize() {
     let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         policy.commands,
-        vec![ast::CommandDefinition {
-            persistence: ast::Persistence::Persistent,
+        vec![CommandDefinition {
+            persistence: Persistence::Persistent,
             attributes: vec![],
-            identifier: ident!("Foo").at(8..11),
+            identifier: Ident {
+                name: ident!("Foo"),
+                span: Span::new(8, 11)
+            },
             fields: vec![],
             policy: vec![],
             recall: vec![],
-            seal: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::InternalFunction(ast::InternalFunction::Serialize(
-                        Box::new(ExprKind::Identifier(ident!("this").at(78..82)).at(78..82))
-                    ))
-                    .at(68..83)
-                })
-                .at(61..96)
-            ],
-            open: vec![
-                StmtKind::Return(ast::ReturnStatement {
-                    expression: ExprKind::InternalFunction(ast::InternalFunction::Deserialize(
-                        Box::new(
-                            ExprKind::Identifier(ident!("envelope").at(153..161)).at(153..161)
-                        )
-                    ))
-                    .at(141..162)
-                })
-                .at(134..175)
-            ],
+            seal: vec![Statement {
+                kind: StmtKind::Return(ReturnStatement {
+                    expression: Expression {
+                        kind: ExprKind::InternalFunction(InternalFunction::Serialize(Box::new(
+                            Expression {
+                                kind: ExprKind::Identifier(Ident {
+                                    name: ident!("this"),
+                                    span: Span::new(78, 82)
+                                }),
+                                span: Span::new(78, 82)
+                            }
+                        ))),
+                        span: Span::new(68, 83)
+                    }
+                }),
+                span: Span::new(61, 96)
+            }],
+            open: vec![Statement {
+                kind: StmtKind::Return(ReturnStatement {
+                    expression: Expression {
+                        kind: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(
+                            Expression {
+                                kind: ExprKind::Identifier(Ident {
+                                    name: ident!("envelope"),
+                                    span: Span::new(153, 161)
+                                }),
+                                span: Span::new(153, 161)
+                            }
+                        ))),
+                        span: Span::new(141, 162)
+                    }
+                }),
+                span: Span::new(134, 175)
+            }],
             span: Span::new(0, 221),
         }]
     );
