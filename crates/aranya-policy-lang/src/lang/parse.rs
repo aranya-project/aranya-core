@@ -1434,6 +1434,12 @@ impl ChunkParser<'_> {
         let mut recall = vec![];
         let mut seal = vec![];
         let mut open = vec![];
+
+        // Track whether required blocks were present (even if empty)
+        let mut has_seal = false;
+        let mut has_open = false;
+        let mut has_policy = false;
+
         for token in pc.into_inner() {
             match token.as_rule() {
                 Rule::attributes_block => {
@@ -1469,6 +1475,7 @@ impl ChunkParser<'_> {
                     }
                 }
                 Rule::policy_block => {
+                    has_policy = true;
                     let pairs = token.into_inner();
                     policy = self.parse_statement_list(pairs)?;
                 }
@@ -1477,10 +1484,12 @@ impl ChunkParser<'_> {
                     recall = self.parse_statement_list(pairs)?;
                 }
                 Rule::seal_block => {
+                    has_seal = true;
                     let pairs = token.into_inner();
                     seal = self.parse_statement_list(pairs)?;
                 }
                 Rule::open_block => {
+                    has_open = true;
                     let pairs = token.into_inner();
                     open = self.parse_statement_list(pairs)?;
                 }
@@ -1492,6 +1501,21 @@ impl ChunkParser<'_> {
                     ));
                 }
             }
+        }
+
+        // Validate that required blocks are present
+        let missing = match (has_seal, has_open, has_policy) {
+            (false, _, _) => Some("seal"),
+            (_, false, _) => Some("open"),
+            (_, _, false) => Some("policy"),
+            (true, true, true) => None,
+        };
+        if let Some(block_name) = missing {
+            return Err(ParseError::new(
+                ParseErrorKind::Syntax,
+                format!("command definition missing required {} block", block_name),
+                None,
+            ));
         }
 
         Ok(ast::CommandDefinition {
