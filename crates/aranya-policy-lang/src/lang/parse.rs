@@ -1406,6 +1406,44 @@ impl ChunkParser<'_> {
         Ok(EnumReference { identifier, value })
     }
 
+    fn parse_attributes(
+        &self,
+        item: Pair<'_, Rule>,
+    ) -> Result<Vec<(Ident, Expression)>, ParseError> {
+        assert_eq!(item.as_rule(), Rule::attributes_block);
+
+        item.into_inner()
+            .map(|field| {
+                let pc = descend(field);
+                let identifier = pc.consume_ident(self)?;
+                let expr = pc.consume_expression(self)?;
+                Ok((identifier, expr))
+            })
+            .collect()
+    }
+
+    fn parse_command_fields(
+        &self,
+        item: Pair<'_, Rule>,
+    ) -> Result<Vec<ast::StructItem<FieldDefinition>>, ParseError> {
+        item.into_inner()
+            .map(|field| match field.as_rule() {
+                Rule::field_definition => {
+                    Ok(ast::StructItem::Field(self.parse_field_definition(field)?))
+                }
+                Rule::field_insertion => {
+                    let ident = descend(field).consume_ident(self)?;
+                    Ok(ast::StructItem::StructRef(ident))
+                }
+                _ => Err(ParseError::new(
+                    ParseErrorKind::Unknown,
+                    String::from("invalid token in command definition"),
+                    Some(field.as_span()),
+                )),
+            })
+            .collect()
+    }
+
     /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
     fn parse_command_definition(
         &self,
@@ -1422,71 +1460,28 @@ impl ChunkParser<'_> {
         };
         let identifier = pc.consume_ident(self)?;
 
-        let mut attributes = vec![];
-        let mut fields = vec![];
-        let mut policy = vec![];
-        let mut recall = vec![];
-        let mut seal = vec![];
-        let mut open = vec![];
-        for token in pc.into_inner() {
-            match token.as_rule() {
-                Rule::attributes_block => {
-                    let pairs = token.into_inner();
-                    for field in pairs {
-                        let pc = descend(field);
-                        let identifier = pc.consume_ident(self)?;
-                        let expr = pc.consume_expression(self)?;
-                        attributes.push((identifier, expr));
-                    }
-                }
-                Rule::fields_block => {
-                    let pairs = token.into_inner();
-                    for field in pairs {
-                        match field.as_rule() {
-                            Rule::field_definition => {
-                                fields.push(ast::StructItem::Field(
-                                    self.parse_field_definition(field)?,
-                                ));
-                            }
-                            Rule::field_insertion => {
-                                let ident = descend(field).consume_ident(self)?;
-                                fields.push(ast::StructItem::StructRef(ident));
-                            }
-                            _ => {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("invalid token in command definition"),
-                                    Some(field.as_span()),
-                                ));
-                            }
-                        }
-                    }
-                }
-                Rule::policy_block => {
-                    let pairs = token.into_inner();
-                    policy = self.parse_statement_list(pairs)?;
-                }
-                Rule::recall_block => {
-                    let pairs = token.into_inner();
-                    recall = self.parse_statement_list(pairs)?;
-                }
-                Rule::seal_block => {
-                    let pairs = token.into_inner();
-                    seal = self.parse_statement_list(pairs)?;
-                }
-                Rule::open_block => {
-                    let pairs = token.into_inner();
-                    open = self.parse_statement_list(pairs)?;
-                }
-                t => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidStatement,
-                        format!("found {:?} in command definition", t),
-                        Some(token.as_span()),
-                    ));
-                }
-            }
-        }
+        let attributes = pc
+            .consume_optional(Rule::attributes_block)
+            .map(|token| self.parse_attributes(token))
+            .transpose()?
+            .unwrap_or_default();
+
+        let fields = pc
+            .consume_optional(Rule::fields_block)
+            .map(|token| self.parse_command_fields(token))
+            .transpose()?
+            .unwrap_or_default();
+
+        let seal = self.parse_statement_list(pc.consume_of_type(Rule::seal_block)?.into_inner())?;
+        let open = self.parse_statement_list(pc.consume_of_type(Rule::open_block)?.into_inner())?;
+
+        let policy =
+            self.parse_statement_list(pc.consume_of_type(Rule::policy_block)?.into_inner())?;
+        let recall = pc
+            .consume_optional(Rule::recall_block)
+            .map(|token| self.parse_statement_list(token.into_inner()))
+            .transpose()?
+            .unwrap_or_default();
 
         Ok(ast::CommandDefinition {
             persistence,

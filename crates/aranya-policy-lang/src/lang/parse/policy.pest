@@ -355,14 +355,14 @@ seal_block = { "seal" ~ statement_block }
 // The open block is a pure function with an implicit `envelope`
 // parameter. It returns a command struct for the command it is part of.
 open_block = { "open" ~ statement_block }
-// Union of all command blocks
+// Sequence of command blocks
 command_blocks = _{
-    | attributes_block
-    | fields_block
-    | seal_block
-    | open_block
-    | policy_block
-    | recall_block
+    attributes_block?
+    ~ fields_block?
+    ~ seal_block
+    ~ open_block
+    ~ policy_block
+    ~ recall_block?
 }
 
 // # Top-level Statements
@@ -380,7 +380,7 @@ struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
-command_definition = { ephemeral_modifier? ~ "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
+command_definition = { ephemeral_modifier? ~ "command" ~ identifier ~ "{" ~ command_blocks ~ "}" }
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }
