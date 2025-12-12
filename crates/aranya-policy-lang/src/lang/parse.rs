@@ -544,6 +544,12 @@ impl ChunkParser<'_> {
                     let ffc = self.parse_foreign_function_call(primary)?;
                     Ok(Expression { kind: ExprKind::ForeignFunctionCall(ffc), span })
                 }
+                Rule::return_expression => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let pc = descend(primary);
+                    let expression = pc.consume_expression(self)?;
+                    Ok(Expression{kind:ExprKind::Return(Box::new(expression)),span})
+                }
                 Rule::enum_reference => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let er = self.parse_enum_reference(primary)?;
