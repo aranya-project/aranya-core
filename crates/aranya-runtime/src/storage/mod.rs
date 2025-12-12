@@ -171,35 +171,46 @@ pub trait Storage {
         start: Location,
         address: Address,
     ) -> Result<Option<Location>, StorageError> {
-        // Track visited segments to avoid revisiting the same segment multiple times.
-        // Without this, merges and skip_lists can cause the same segment to be queued
-        // repeatedly, leading to exponential traversal time.
+        // Track visited segments to avoid revisiting via different paths.
         let mut visited = alloc::collections::BTreeSet::new();
-
         let mut queue = Vec::new();
         queue.push(start);
-        'outer: while let Some(loc) = queue.pop() {
+
+        while let Some(loc) = queue.pop() {
             // Skip if we've already visited this segment
             if !visited.insert(loc.segment) {
                 continue;
             }
 
-            let head = self.get_segment(loc)?;
-            if address.max_cut > head.longest_max_cut()? {
+            let segment = self.get_segment(loc)?;
+
+            // Prune: if target's max_cut is higher than this segment's highest,
+            // the target cannot be in this segment or any of its ancestors.
+            if address.max_cut > segment.longest_max_cut()? {
                 continue;
             }
-            if let Some(loc) = head.get_by_address(address) {
-                return Ok(Some(loc));
+
+            // Check if target is in this segment
+            if let Some(found) = segment.get_by_address(address) {
+                return Ok(Some(found));
             }
-            // Assumes skip list is sorted in ascending order.
-            // We always want to skip as close to the root as possible.
-            for (skip, max_cut) in head.skip_list() {
-                if max_cut >= &address.max_cut {
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so first valid skip
+            // jumps as far back as possible.
+            let mut used_skip = false;
+            for (skip, skip_max_cut) in segment.skip_list() {
+                if skip_max_cut >= &address.max_cut {
                     queue.push(*skip);
-                    continue 'outer;
+                    used_skip = true;
+                    break;
                 }
             }
-            queue.extend(head.prior());
+
+            if !used_skip {
+                // No valid skip - add prior locations to queue
+                queue.extend(segment.prior());
+            }
         }
         Ok(None)
     }
@@ -263,44 +274,56 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
-        // Track visited segments to avoid revisiting the same segment multiple times.
-        // Without this, merges and skip_lists can cause exponential traversal time.
-        // We track the highest command index visited per segment to ensure correctness.
-        let mut visited = alloc::collections::BTreeMap::<usize, usize>::new();
-
-        let mut queue = Vec::new();
-        queue.extend(segment.prior());
-        let segment = self.get_segment(search_location)?;
-        let address = segment
+        let search_segment = self.get_segment(search_location)?;
+        let address = search_segment
             .get_command(search_location)
             .assume("location must exist")?
             .address()?;
-        'outer: while let Some(location) = queue.pop() {
+
+        // Track visited segments to avoid revisiting via different paths.
+        // We track the highest command index visited per segment.
+        let mut visited = alloc::collections::BTreeMap::<usize, usize>::new();
+        let mut queue = Vec::new();
+        queue.extend(segment.prior());
+
+        while let Some(loc) = queue.pop() {
             // Check if we've already visited this segment at this or a higher command index.
-            // If so, skip to avoid redundant work.
-            if let Some(&max_cmd) = visited.get(&location.segment) {
-                if location.command <= max_cmd {
+            if let Some(&max_cmd) = visited.get(&loc.segment) {
+                if loc.command <= max_cmd {
                     continue;
                 }
             }
-            visited.insert(location.segment, location.command);
+            visited.insert(loc.segment, loc.command);
 
-            if location.segment == search_location.segment
-                && location.command >= search_location.command
-            {
+            // Check if we've found the target
+            if loc.segment == search_location.segment && loc.command >= search_location.command {
                 return Ok(true);
             }
-            let segment = self.get_segment(location)?;
-            if address.max_cut > segment.longest_max_cut()? {
+
+            let seg = self.get_segment(loc)?;
+
+            // Prune: if target's max_cut is higher than this segment's highest,
+            // the target cannot be in this segment or any of its ancestors.
+            if address.max_cut > seg.longest_max_cut()? {
                 continue;
             }
-            for (skip, max_cut) in segment.skip_list() {
-                if max_cut >= &address.max_cut {
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so first valid skip
+            // jumps as far back as possible.
+            let mut used_skip = false;
+            for (skip, skip_max_cut) in seg.skip_list() {
+                if skip_max_cut >= &address.max_cut {
                     queue.push(*skip);
-                    continue 'outer;
+                    used_skip = true;
+                    break;
                 }
             }
-            queue.extend(segment.prior());
+
+            if !used_skip {
+                // No valid skip - add prior locations to queue
+                queue.extend(seg.prior());
+            }
         }
         Ok(false)
     }
