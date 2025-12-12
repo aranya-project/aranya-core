@@ -58,7 +58,7 @@ use core::{
     iter,
 };
 #[cfg(any(test, feature = "std"))]
-use std::{env, fs, time::Instant};
+use std::{env, fs};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
@@ -532,8 +532,27 @@ where
     #[cfg(any(test, feature = "std"))]
     if let Ok(dump_path) = env::var("DUMP_GENERATED_RULES") {
         let json = serde_json::to_string_pretty(&actions).unwrap();
-        fs::write(&dump_path, json).unwrap();
-        debug!("Dumped generated rules to {}", dump_path);
+        // If path is relative and doesn't start with ./, save to testdata directory
+        let final_path = if dump_path.starts_with('/') {
+            // Absolute path, use as-is
+            dump_path
+        } else if dump_path.starts_with("./") {
+            // Explicit relative path, use as-is
+            dump_path
+        } else {
+            // Relative path, save to testdata directory
+            let testdata_dir = format!("{}/src/testing/testdata", env!("CARGO_MANIFEST_DIR"));
+            // Create testdata directory if it doesn't exist
+            fs::create_dir_all(&testdata_dir).unwrap();
+            format!("{}/{}", testdata_dir, dump_path)
+        };
+        fs::write(&final_path, json).unwrap();
+        eprintln!(
+            "[DUMP] Dumped {} generated rules to {}",
+            actions.len(),
+            final_path
+        );
+        debug!("Dumped generated rules to {}", final_path);
     }
 
     let mut graphs = BTreeMap::new();
@@ -544,42 +563,39 @@ where
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
 
-    for rule in actions {
+    for rule in &actions {
         debug!(?rule);
-
-        #[cfg(any(test, feature = "std"))]
-        let start = Instant::now();
 
         match rule {
             TestRule::AddClient { id } => {
                 let engine = TestEngine::new();
-                let storage = backend.provider(id);
+                let storage = backend.provider(*id);
 
                 let state = ClientState::new(engine, storage);
-                clients.insert(id, RefCell::new(state));
+                clients.insert(*id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
                 let state = clients
-                    .get_mut(&client)
+                    .get_mut(client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
                 let storage_id = state.new_graph(
                     policy_data.as_slice(),
-                    TestActions::Init(policy),
+                    TestActions::Init(*policy),
                     &mut sink,
                 )?;
 
-                graphs.insert(id, storage_id);
+                graphs.insert(*id, storage_id);
 
                 assert_eq!(0, sink.count());
             }
             TestRule::RemoveGraph { client, id } => {
                 let state = clients
-                    .get_mut(&client)
+                    .get_mut(client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                let storage_id = graphs.get(id).ok_or(TestError::MissingGraph(*id))?;
                 state.remove_graph(*storage_id)?;
 
                 assert_eq!(0, sink.count());
@@ -592,39 +608,41 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
 
                 let mut request_client = clients
-                    .get(&client)
+                    .get(client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
                 let mut response_client = clients
-                    .get(&from)
+                    .get(from)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
                 let mut total_sent = 0;
                 let mut total_received = 0;
-                for _ in 0..max_syncs {
-                    client_heads.entry((graph, client, from)).or_default();
-                    client_heads.entry((graph, from, client)).or_default();
+                for _ in 0..*max_syncs {
+                    client_heads.entry((*graph, *client, *from)).or_default();
+                    client_heads.entry((*graph, *from, *client)).or_default();
                     let mut request_cache = client_heads
-                        .get(&(graph, client, from))
+                        .get(&(*graph, *client, *from))
                         .assume("cache must exist")?
                         .borrow_mut();
                     let mut response_cache = client_heads
-                        .get(&(graph, from, client))
+                        .get(&(*graph, *from, *client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
-                        &mut request_cache,
-                        &mut response_cache,
-                        &mut request_client,
-                        &mut response_client,
-                        client,
-                        &mut sink,
-                        *storage_id,
-                    )?;
+
+                    let (sent, received, _received_cmd_ids) =
+                        sync::<<SB as StorageBackend>::StorageProvider, u64>(
+                            &mut request_cache,
+                            &mut response_cache,
+                            &mut request_client,
+                            &mut response_client,
+                            *client,
+                            &mut sink,
+                            *storage_id,
+                        )?;
                     total_received += received;
                     total_sent += sent;
                     // Break when no commands are received, meaning the requester has caught up
@@ -634,26 +652,26 @@ where
                 }
 
                 if let Some(mr) = must_receive {
-                    assert_eq!(total_received, mr);
+                    assert_eq!(total_received, *mr);
                 }
 
                 if let Some(ms) = must_send {
-                    assert_eq!(total_sent, ms);
+                    assert_eq!(total_sent, *ms);
                 }
 
                 assert_eq!(0, sink.count());
             }
 
             TestRule::AddExpectation(expectation) => {
-                sink.add_expectation(TestEffect::Got(expectation));
+                sink.add_expectation(TestEffect::Got(*expectation));
             }
 
             TestRule::AddExpectations {
                 expectation,
                 repeat,
             } => {
-                for _ in 0..repeat {
-                    sink.add_expectation(TestEffect::Got(expectation));
+                for _ in 0..*repeat {
+                    sink.add_expectation(TestEffect::Got(*expectation));
                 }
             }
 
@@ -665,14 +683,14 @@ where
                 repeat,
             } => {
                 let state = clients
-                    .get_mut(&client)
+                    .get_mut(client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
 
-                for _ in 0..repeat {
-                    let set = TestActions::SetValue(key, value);
+                for _ in 0..*repeat {
+                    let set = TestActions::SetValue(*key, *value);
                     state.action(*storage_id, &mut sink, set)?;
                 }
 
@@ -681,11 +699,11 @@ where
 
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
-                    .get_mut(&client)
+                    .get_mut(client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
@@ -698,22 +716,22 @@ where
                 equal,
             } => {
                 let mut state_a = clients
-                    .get(&clienta)
+                    .get(clienta)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
                 let mut state_b = clients
-                    .get(&clientb)
+                    .get(clientb)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
 
                 let storage_a = state_a.provider().get_storage(*storage_id)?;
                 let storage_b = state_b.provider().get_storage(*storage_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
-                if same != equal {
+                if same != *equal {
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
@@ -734,7 +752,7 @@ where
                         debug!("  Only in B: {}", short_b58(*cmd));
                     }
                 }
-                assert_eq!(equal, same);
+                assert_eq!(*equal, same);
             }
             TestRule::MaxCut {
                 client,
@@ -742,20 +760,20 @@ where
                 max_cut,
             } => {
                 let mut state = clients
-                    .get(&client)
+                    .get(client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
                 let command = seg.get_command(head).assume("command must exist")?;
-                assert_eq!(max_cut, command.max_cut()?);
+                assert_eq!(*max_cut, command.max_cut()?);
             }
-            TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
-            TestRule::VerifyGraphIds { client, ref ids } => {
+            TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(*ignore),
+            TestRule::VerifyGraphIds { client, ids } => {
                 let mut state = clients
-                    .get(&client)
+                    .get(client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
@@ -771,13 +789,6 @@ where
                 assert_eq!(actual_ids, expected_ids);
             }
             _ => {}
-        }
-        #[cfg(any(test, feature = "std"))]
-        if false {
-            {
-                let duration = start.elapsed();
-                debug!("Time elapsed in rule {:?} is: {:?}", rule, duration);
-            }
         }
     }
 
@@ -946,7 +957,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     requester_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
-) -> Result<(usize, usize), TestError> {
+) -> Result<(usize, usize, Vec<CmdId>), TestError> {
     let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
 
@@ -965,7 +976,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     )?;
 
     if len == 0 {
-        return Ok((sent, received));
+        return Ok((sent, received, Vec::new()));
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
@@ -978,7 +989,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         )?;
     }
 
-    Ok((sent, received))
+    Ok((sent, received, Vec::new()))
 }
 
 struct Parent(Prior<Address>);
@@ -1141,6 +1152,7 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    generated_400_commands,
     four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
