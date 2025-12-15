@@ -30,7 +30,7 @@ pub(crate) struct CompileTarget {
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Mapping between program instructions and original code
@@ -65,6 +65,17 @@ impl CompileTarget {
             .map(|(k, v)| (k, v.into_iter().collect()))
             .collect::<BTreeMap<_, _>>();
 
+        // Filter out the struct defs that aren't fully compiled
+        let struct_defs = self
+            .struct_defs
+            .into_iter()
+            .filter_map(|(ident, maybe_field_defs)| {
+                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
+                debug_assert!(maybe_field_defs.is_some());
+                maybe_field_defs.map(|field_defs| (ident, field_defs))
+            })
+            .collect();
+
         Module {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
@@ -72,7 +83,7 @@ impl CompileTarget {
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
-                struct_defs: self.struct_defs,
+                struct_defs,
                 enum_defs,
                 codemap: self.codemap,
                 globals: self.globals,
@@ -93,7 +104,7 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self.struct_defs.get(&ident.name)?;
+                let defs = self.struct_defs.get(&ident.name)?.as_ref()?;
                 defs.iter()
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {
@@ -148,10 +159,21 @@ pub struct PolicyInterface {
 
 impl From<CompileTarget> for PolicyInterface {
     fn from(t: CompileTarget) -> Self {
+        // Filter out the struct defs that aren't fully compiled
+        let struct_defs = t
+            .struct_defs
+            .into_iter()
+            .filter_map(|(ident, maybe_field_defs)| {
+                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
+                debug_assert!(maybe_field_defs.is_some());
+                maybe_field_defs.map(|field_defs| (ident, field_defs))
+            })
+            .collect();
+
         Self {
             action_defs: t.action_defs,
             effects: t.effects,
-            struct_defs: t.struct_defs,
+            struct_defs,
             enum_defs: t.enum_defs,
         }
     }

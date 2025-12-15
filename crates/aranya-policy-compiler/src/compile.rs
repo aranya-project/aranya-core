@@ -307,9 +307,15 @@ impl<'a> CompileState<'a> {
                         );
                         return Err(self.err(CompileErrorType::Unknown(msg)));
                     }
-                    let other = self.m.struct_defs.get(&other_ident.name).ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(other_ident.to_string()))
-                    })?;
+                    let other = self
+                        .m
+                        .struct_defs
+                        .get(&other_ident.name)
+                        .map(Option::as_ref)
+                        .flatten()
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(other_ident.to_string()))
+                        })?;
                     for field in other {
                         if field_definitions
                             .iter()
@@ -339,10 +345,9 @@ impl<'a> CompileState<'a> {
             .iter()
             .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
 
-        // TODO(Steve): Re-use the existing vec instead of passing a new one.
         self.m
             .struct_defs
-            .insert(identifier.name, field_definitions);
+            .insert(identifier.name, Some(field_definitions));
         Ok(())
     }
 
@@ -666,7 +671,13 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name) else {
+                let Some(sub_field_defns) = self
+                    .m
+                    .struct_defs
+                    .get(&sub.name)
+                    .map(Option::as_ref)
+                    .flatten()
+                else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub
@@ -1474,9 +1485,15 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
-                    })?;
+                    let struct_def = self
+                        .m
+                        .struct_defs
+                        .get(&ref_name.name)
+                        .map(Option::as_ref)
+                        .flatten()
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                        })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1681,12 +1698,8 @@ impl<'a> CompileState<'a> {
         for ident in idents {
             // TODO(Steve): Use a type that has span information so a better error message can be created
             // when duplicate type defintions are found.
-            if self
-                .m
-                .struct_defs
-                .insert(ident.clone(), Vec::new())
-                .is_some()
-            {
+            // Insert `None` for the value to indicate that this type is partially compiled.
+            if self.m.struct_defs.insert(ident.clone(), None).is_some() {
                 return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
             }
         }
@@ -1837,7 +1850,13 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(Value::Bool(*v)),
             ExprKind::String(v) => Ok(Value::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name).cloned()
+                let Some(struct_def) = self
+                    .m
+                    .struct_defs
+                    .get(&struct_ast.identifier.name)
+                    .map(Option::as_ref)
+                    .flatten()
+                    .cloned()
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -1923,6 +1942,8 @@ impl<'a> CompileState<'a> {
                 .m
                 .struct_defs
                 .get(&src_struct_type_name.name)
+                .map(Option::as_ref)
+                .flatten()
                 .assume("identifier with a struct type has that struct already defined")
                 .map_err(|err| self.err(err.into()))?;
 

@@ -584,6 +584,13 @@ fn test_struct_field_insertion_errors() {
                 "Cyclic struct insertion reference found when compiling `Foo`".to_string(),
             ),
         ),
+        (
+            r#"
+            struct Foo { +Bar } // can't do this because `Bar` comes after `Foo`
+            struct Bar { x int }
+            "#,
+            CompileErrorType::NotDefined("Bar".to_string()),
+        ),
     ];
     for (text, err_type) in cases {
         let err = compile_fail(text);
