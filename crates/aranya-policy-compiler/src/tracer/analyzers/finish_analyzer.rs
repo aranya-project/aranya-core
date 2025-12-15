@@ -60,7 +60,8 @@ impl Analyzer for FinishAnalyzer {
                                 entered_finish = true;
                             }
                         }
-                        Instruction::Exit(ExitReason::Normal) => {
+                        Instruction::Meta(Meta::FunctionEnd)
+                        | Instruction::Exit(ExitReason::Normal) => {
                             // Empty blocks don't require finish blocks
                             if call_depth == 0 && !entered_finish && has_statements {
                                 return Some(TraceFailure {

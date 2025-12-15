@@ -1061,6 +1061,7 @@ impl<'a> CompileState<'a> {
         // Finish functions cannot have return statements, so we add a return instruction
         // manually.
         self.append_instruction(Instruction::Return);
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
 
         self.identifier_types.exit_function();
         Ok(())
@@ -1239,6 +1240,7 @@ impl<'a> CompileState<'a> {
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
         self.compile_statements(&command.policy, Scope::Same)?;
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.identifier_types.exit_function();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
@@ -1278,6 +1280,7 @@ impl<'a> CompileState<'a> {
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
         self.compile_statements(&command.recall, Scope::Same)?;
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.identifier_types.exit_function();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
@@ -1343,6 +1346,7 @@ impl<'a> CompileState<'a> {
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, span));
         }
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.identifier_types.exit_function();
         self.exit_statement_context();
         // If there is no return, this is an error. Panic if we get here.
@@ -1407,6 +1411,7 @@ impl<'a> CompileState<'a> {
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, span));
         }
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.identifier_types.exit_function();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
