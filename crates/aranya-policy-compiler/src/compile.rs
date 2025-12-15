@@ -311,8 +311,7 @@ impl<'a> CompileState<'a> {
                         .m
                         .struct_defs
                         .get(&other_ident.name)
-                        .map(Option::as_ref)
-                        .flatten()
+                        .and_then(Option::as_ref)
                         .ok_or_else(|| {
                             self.err(CompileErrorType::NotDefined(other_ident.to_string()))
                         })?;
@@ -671,12 +670,8 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self
-                    .m
-                    .struct_defs
-                    .get(&sub.name)
-                    .map(Option::as_ref)
-                    .flatten()
+                let Some(sub_field_defns) =
+                    self.m.struct_defs.get(&sub.name).and_then(Option::as_ref)
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -1489,8 +1484,7 @@ impl<'a> CompileState<'a> {
                         .m
                         .struct_defs
                         .get(&ref_name.name)
-                        .map(Option::as_ref)
-                        .flatten()
+                        .and_then(Option::as_ref)
                         .ok_or_else(|| {
                             self.err(CompileErrorType::NotDefined(ref_name.to_string()))
                         })?;
@@ -1854,8 +1848,7 @@ impl<'a> CompileState<'a> {
                     .m
                     .struct_defs
                     .get(&struct_ast.identifier.name)
-                    .map(Option::as_ref)
-                    .flatten()
+                    .and_then(Option::as_ref)
                     .cloned()
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
@@ -1942,8 +1935,7 @@ impl<'a> CompileState<'a> {
                 .m
                 .struct_defs
                 .get(&src_struct_type_name.name)
-                .map(Option::as_ref)
-                .flatten()
+                .and_then(Option::as_ref)
                 .assume("identifier with a struct type has that struct already defined")
                 .map_err(|err| self.err(err.into()))?;
 

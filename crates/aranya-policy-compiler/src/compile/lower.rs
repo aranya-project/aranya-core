@@ -46,8 +46,7 @@ impl CompileState<'_> {
             .m
             .struct_defs
             .get(&s.identifier.name)
-            .map(Option::as_ref)
-            .flatten()
+            .and_then(Option::as_ref)
             .cloned()
         else {
             return Err(self.err(CompileErrorType::NotDefined(format!(
@@ -658,8 +657,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(name.as_str())
-                    .map(Option::as_ref)
-                    .flatten()
+                    .and_then(Option::as_ref)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::InvalidType(format!(
                             "Struct `{name}` not defined"
@@ -686,8 +684,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&sub.name)
-                    .map(Option::as_ref)
-                    .flatten()
+                    .and_then(Option::as_ref)
                     .cloned()
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
@@ -706,8 +703,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&lhs_struct_name.name)
-                    .map(Option::as_ref)
-                    .flatten()
+                    .and_then(Option::as_ref)
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{lhs_struct_name}` is not defined",
@@ -745,8 +741,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&rhs_ident.name)
-                    .map(Option::as_ref)
-                    .flatten()
+                    .and_then(Option::as_ref)
                     .cloned()
                     .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
@@ -762,8 +757,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&lhs_struct_name.name)
-                    .map(Option::as_ref)
-                    .flatten()
+                    .and_then(Option::as_ref)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(format!(
                             "struct {lhs_struct_name}"
