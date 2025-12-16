@@ -24,7 +24,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
 use indexmap::IndexMap;
-use tracing::warn;
+use tracing::{error, warn};
 
 pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
@@ -251,11 +251,11 @@ impl<'a> CompileState<'a> {
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
         if !self.m.struct_defs.contains_key(&identifier.name) {
-            let msg = format!(
-                "struct {} not listed. `CompileState::list_structs` was not called before `CompileState::define_struct`.",
-                identifier.name
+            error!("struct `{}` not listed.", identifier.name);
+            let bug = buggy::Bug::new(
+                "`CompileState::list_structs` was not called before `CompileState::define_struct`.",
             );
-            return Err(self.err(CompileErrorType::Unknown(msg)));
+            return Err(self.err(bug.into()));
         }
 
         let has_struct_refs = items
