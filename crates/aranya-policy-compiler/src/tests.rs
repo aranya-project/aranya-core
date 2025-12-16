@@ -2913,14 +2913,6 @@ fn test_function_arguments_with_undefined_types() {
             "#,
             CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
         ),
-        (
-            r#"
-            struct Bar { self_ref struct Bar }
-            "#,
-            CompileErrorType::Unknown(
-                "Found cyclic dependencies when compiling structs".to_string(),
-            ),
-        ),
     ];
 
     for (text, expected) in cases {
@@ -2966,7 +2958,7 @@ fn test_structs_with_undefined_types() {
             r#"
             struct Bar { self_ref struct Bar }
             "#,
-            CompileErrorType::Unknown("Found cyclic dependencies when compiling structs".into()),
+            CompileErrorType::Unknown("Found cyclic dependencies when compiling structs: {\"Bar\": prec=1, succ={\"Bar\"}}".into()),
         ),
     ];
 
@@ -3364,23 +3356,23 @@ fn test_structs_listed_out_of_order() {
         "#,
     ];
 
-    let invalid_cases = [r#"
+    let invalid_cases = [(
+        r#"
         struct Fum { b struct Bar, f struct Foo }
         struct Bar { f struct Foo }
         struct Foo { fum struct Fum } // cycle
-    "#];
+    "#,
+        CompileErrorType::Unknown(String::from(
+            "Found cyclic dependencies when compiling structs: {\"Fum\": prec=2, succ={\"Foo\"}, \"Foo\": prec=1, succ={\"Fum\", \"Bar\"}, \"Bar\": prec=1, succ={\"Fum\"}}",
+        )),
+    )];
 
     for case in valid_cases {
         compile_pass(case);
     }
 
-    for case in invalid_cases {
-        let err = compile_fail(case);
-        assert_eq!(
-            err,
-            CompileErrorType::Unknown(String::from(
-                "Found cyclic dependencies when compiling structs"
-            ))
-        );
+    for (src, expected_err) in invalid_cases {
+        let err = compile_fail(src);
+        assert_eq!(err, expected_err,);
     }
 }
