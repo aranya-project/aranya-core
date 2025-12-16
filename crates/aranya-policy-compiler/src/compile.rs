@@ -1738,7 +1738,8 @@ impl<'a> CompileState<'a> {
                     // Check for cyclic dependencies
                     // https://docs.rs/topological-sort/0.2.2/topological_sort/struct.TopologicalSort.html#method.pop_all
                     if !ts.is_empty() {
-                        let msg = String::from("Found cyclic dependencies when compiling structs");
+                        let msg =
+                            format!("Found cyclic dependencies when compiling structs: {ts:#?}");
                         return Err(self.err(CompileErrorType::Unknown(msg)));
                     }
 
