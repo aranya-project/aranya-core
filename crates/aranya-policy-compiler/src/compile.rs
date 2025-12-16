@@ -14,8 +14,8 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
-    FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Span, Statement, StructItem,
-    TypeKind, VType, ident, thir,
+    FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Span, Statement,
+    StructDefinition, StructItem, TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
@@ -267,15 +267,6 @@ impl<'a> CompileState<'a> {
         for item in items {
             match item {
                 StructItem::Field(field) => {
-                    if field
-                        .field_type
-                        .as_struct()
-                        .is_some_and(|field_type_ident| field_type_ident.name == identifier.name)
-                    {
-                        let msg = format!("Cyclic reference found when compiling `{identifier}`");
-                        return Err(self.err(CompileErrorType::Unknown(msg)));
-                    }
-
                     if field_definitions
                         .iter()
                         .any(|f: &FieldDefinition| f.identifier.name == field.identifier.name)
@@ -302,12 +293,6 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    if field_type_ident.name == identifier.name {
-                        let msg = format!(
-                            "Cyclic struct insertion reference found when compiling `{identifier}`"
-                        );
-                        return Err(self.err(CompileErrorType::Unknown(msg)));
-                    }
                     let other = self
                         .m
                         .struct_defs
@@ -1717,6 +1702,63 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn sorted_struct_defintitions(
+        &self,
+    ) -> Result<impl Iterator<Item = &'a StructDefinition> + use<'a>, CompileError> {
+        use topological_sort::TopologicalSort;
+
+        let mut ts = TopologicalSort::<&Identifier>::new();
+
+        // Create dependency graph.
+        for struct_def in &self.policy.structs {
+            for item in &struct_def.items {
+                match item {
+                    StructItem::StructRef(ident) => {
+                        ts.add_dependency(&ident.name, &struct_def.identifier.name);
+                    }
+                    StructItem::Field(field) => {
+                        if let Some(ident) = &field.field_type.as_struct() {
+                            ts.add_dependency(&ident.name, &struct_def.identifier.name);
+                        }
+                    }
+                }
+            }
+
+            // Ensure the current struct's identifier is in the collection just in case
+            // this struct has no dependencies or no other struct depends on it.
+            let _ = ts.insert(&struct_def.identifier.name);
+        }
+
+        let sorted_idents = {
+            let mut buf = Vec::new();
+
+            loop {
+                let mut next = ts.pop_all();
+                if next.is_empty() {
+                    // Check for cyclic dependencies
+                    // https://docs.rs/topological-sort/0.2.2/topological_sort/struct.TopologicalSort.html#method.pop_all
+                    if !ts.is_empty() {
+                        let msg = String::from("Found cyclic dependencies when compiling structs");
+                        return Err(self.err(CompileErrorType::Unknown(msg)));
+                    }
+
+                    break buf;
+                }
+
+                buf.append(&mut next);
+            }
+        };
+
+        // TODO(Steve): Store hashmap in ` aranya_policy_ast::ast::Policy::structs` to make this more efficient.
+        let sorted_defs = sorted_idents.into_iter().filter_map(|ident| {
+            self.policy
+                .structs
+                .iter()
+                .find(|def| def.identifier.name == *ident)
+        });
+        Ok(sorted_defs)
+    }
+
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
         self.list_structs()?;
 
@@ -1725,7 +1767,7 @@ impl<'a> CompileState<'a> {
             self.compile_enum_definition(enum_def)?;
         }
 
-        for struct_def in &self.policy.structs {
+        for struct_def in self.sorted_struct_defintitions()? {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
         }
 
