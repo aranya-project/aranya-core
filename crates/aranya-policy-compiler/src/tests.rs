@@ -3340,3 +3340,30 @@ fn test_action_command_persistence() {
         assert_eq!(err, expected);
     }
 }
+
+#[test]
+fn test_structs_listed_out_of_order() {
+    let valid_cases = [
+        r#"
+            effect Fi { fum struct Fum }
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo {}
+        "#,
+        // TODO(PR #513): Make this invalid.
+        r#"
+            struct Foo { x struct Bar }
+            struct Bar { x struct Foo }
+        "#,
+        // TODO(PR #513): Make this invalid.
+        r#"
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo { fum struct Fum } // cycle
+        "#
+    ];
+
+    for case in valid_cases {
+        compile_pass(case);
+    }
+}
