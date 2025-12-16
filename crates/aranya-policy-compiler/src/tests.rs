@@ -3360,7 +3360,7 @@ fn test_structs_listed_out_of_order() {
             struct Fum { b struct Bar, f struct Foo }
             struct Bar { f struct Foo }
             struct Foo { fum struct Fum } // cycle
-        "#
+        "#,
     ];
 
     for case in valid_cases {
