@@ -579,9 +579,12 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Optional(o) => {
                 match o {
                     None => {
-                        self.append_instruction(Instruction::Const(Value::None));
+                        self.append_instruction(Instruction::Const(Value::NONE));
                     }
-                    Some(v) => self.compile_typed_expression(*v)?,
+                    Some(v) => {
+                        self.compile_typed_expression(*v)?;
+                        self.append_instruction(Instruction::Some);
+                    }
                 };
             }
             thir::ExprKind::NamedStruct(s) => {
@@ -595,7 +598,7 @@ impl<'a> CompileState<'a> {
                 thir::InternalFunction::Exists(f) => {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
-                    self.append_instruction(Instruction::Const(Value::None));
+                    self.append_instruction(Instruction::Const(Value::NONE));
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
@@ -654,6 +657,11 @@ impl<'a> CompileState<'a> {
                         f.ids.assume("must have IDs when ffi is not stubbed")?;
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
                 }
+            }
+            thir::ExprKind::Return(ret_expr) => {
+                self.compile_typed_expression(*ret_expr)?;
+                self.append_instruction(Instruction::RestoreSP);
+                self.append_instruction(Instruction::Return);
             }
             thir::ExprKind::Identifier(i) => {
                 self.append_instruction(Instruction::Meta(Meta::Get(i.name.clone())));
@@ -786,7 +794,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*e)?;
 
                 // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::None));
+                self.append_instruction(Instruction::Const(Value::NONE));
                 // Check if the value is equal to None
                 self.append_instruction(Instruction::Eq);
                 if expr_is_some {
@@ -898,6 +906,7 @@ impl<'a> CompileState<'a> {
             }
             thir::StmtKind::Return(s) => {
                 self.compile_typed_expression(s.expression)?;
+                self.append_instruction(Instruction::RestoreSP);
                 self.append_instruction(Instruction::Return);
             }
             thir::StmtKind::Finish(s) => {
@@ -1047,8 +1056,9 @@ impl<'a> CompileState<'a> {
             self.ensure_type_is_defined(&arg.field_type)?;
             self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
         }
-        let from = self.wp;
         self.ensure_type_is_defined(&function_node.return_type)?;
+        self.append_instruction(Instruction::SaveSP);
+        let from = self.wp;
         self.compile_statements(&function_node.statements, Scope::Same)?;
 
         // Check that there is a return statement somewhere in the compiled instructions.
@@ -1209,7 +1219,7 @@ impl<'a> CompileState<'a> {
         // Duplicate value for testing
         self.append_instruction(Instruction::Dup);
         // Push a None to compare against
-        self.append_instruction(Instruction::Const(Value::None));
+        self.append_instruction(Instruction::Const(Value::NONE));
         // Is the value not equal to None?
         self.append_instruction(Instruction::Eq);
         self.append_instruction(Instruction::Not);
@@ -1219,6 +1229,8 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(exit_reason));
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
+        self.append_instruction(Instruction::Unwrap);
+
         Ok(())
     }
 
@@ -1353,6 +1365,7 @@ impl<'a> CompileState<'a> {
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("this")));
+        self.append_instruction(Instruction::SaveSP);
         let from = self.wp;
         self.compile_statements(&command.seal, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
@@ -1416,6 +1429,7 @@ impl<'a> CompileState<'a> {
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
+        self.append_instruction(Instruction::SaveSP);
         let from = self.wp;
         self.compile_statements(&command.open, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {

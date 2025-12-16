@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-macro-v0.5.0...aranya-capi-macro-v0.6.0) - 2025-12-11
+
+### Other
+
+- expand opaque during codegen ([#503](https://github.com/aranya-project/aranya-core/pull/503))
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-macro-v0.4.0...aranya-capi-macro-v0.5.0) - 2025-10-16
 
 ### Other

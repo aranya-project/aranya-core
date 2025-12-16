@@ -12,9 +12,8 @@ use std::{
 
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache,
-    StorageError, SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder,
-    SyncType,
+    ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
+    SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -233,9 +232,11 @@ where
                 let mut trx = client.transaction(storage_id);
                 client.add_commands(&mut trx, sink, &cmds)?;
                 client.commit(&mut trx, sink)?;
-                let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
-                    cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-                client.update_heads(storage_id, addresses, heads)?;
+                client.update_heads(
+                    storage_id,
+                    cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                    heads,
+                )?;
                 self.push(storage_id)?;
             }
         }
@@ -346,7 +347,11 @@ where
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(address).or_default();
                         let mut client = self.client_state.lock().await;
-                        client.update_heads(storage_id, commands, response_cache)?;
+                        client.update_heads(
+                            storage_id,
+                            commands.as_slice().iter().copied(),
+                            response_cache,
+                        )?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
                     Err(_) => {
@@ -378,9 +383,11 @@ where
                             let sink = sink_guard.deref_mut();
                             client.add_commands(&mut trx, sink, &cmds)?;
                             client.commit(&mut trx, sink)?;
-                            let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
-                                cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-                            client.update_heads(storage_id, addresses, response_cache)?;
+                            client.update_heads(
+                                storage_id,
+                                cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                                response_cache,
+                            )?;
                         }
                         self.push(storage_id)?;
                     }
