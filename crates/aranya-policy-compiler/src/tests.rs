@@ -581,20 +581,13 @@ fn test_struct_field_insertion_errors() {
         (
             r#"struct Foo { +Foo }"#,
             CompileErrorType::Unknown(
-                "Cyclic struct insertion reference found when compiling `Foo`".to_string(),
+                "Found cyclic dependencies when compiling structs".to_string(),
             ),
-        ),
-        (
-            r#"
-            struct Foo { +Bar } // can't do this because `Bar` comes after `Foo`
-            struct Bar { x int }
-            "#,
-            CompileErrorType::NotDefined("Bar".to_string()),
         ),
     ];
     for (text, err_type) in cases {
         let err = compile_fail(text);
-        assert_eq!(err, err_type);
+        assert_eq!(err, err_type, "{text}");
     }
 }
 
@@ -2924,7 +2917,9 @@ fn test_function_arguments_with_undefined_types() {
             r#"
             struct Bar { self_ref struct Bar }
             "#,
-            CompileErrorType::Unknown("Cyclic reference found when compiling `Bar`".to_string()),
+            CompileErrorType::Unknown(
+                "Found cyclic dependencies when compiling structs".to_string(),
+            ),
         ),
     ];
 
@@ -2966,6 +2961,12 @@ fn test_structs_with_undefined_types() {
             struct Bar { e enum Unknown }
             "#,
             CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { self_ref struct Bar }
+            "#,
+            CompileErrorType::Unknown("Found cyclic dependencies when compiling structs".into()),
         ),
     ];
 
@@ -3350,20 +3351,36 @@ fn test_structs_listed_out_of_order() {
             struct Bar { f struct Foo }
             struct Foo {}
         "#,
-        // TODO(PR #513): Make this invalid.
         r#"
-            struct Foo { x struct Bar }
-            struct Bar { x struct Foo }
-        "#,
-        // TODO(PR #513): Make this invalid.
-        r#"
-            struct Fum { b struct Bar, f struct Foo }
-            struct Bar { f struct Foo }
-            struct Foo { fum struct Fum } // cycle
+            function ret_bar() struct Bar {
+                let fum = Fum { b: true }
+                return Bar { s: "s", num: 1, f: fum }
+            }
+
+            struct Fum { b bool }
+            struct Bar { +Foo, num int, f struct Fum }
+            struct Foo { s string }
+
         "#,
     ];
 
+    let invalid_cases = [r#"
+        struct Fum { b struct Bar, f struct Foo }
+        struct Bar { f struct Foo }
+        struct Foo { fum struct Fum } // cycle
+    "#];
+
     for case in valid_cases {
         compile_pass(case);
+    }
+
+    for case in invalid_cases {
+        let err = compile_fail(case);
+        assert_eq!(
+            err,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs"
+            ))
+        );
     }
 }
