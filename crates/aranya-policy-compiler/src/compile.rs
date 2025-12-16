@@ -243,6 +243,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Insert a struct definition while preventing duplicates of the struct fields.
+    // It is expected that [Self::list_structs] is called before this method.
     // Duplicate struct names are detected in [Self::list_structs].
     pub fn define_struct(
         &mut self,
@@ -269,7 +270,7 @@ impl<'a> CompileState<'a> {
                     if field
                         .field_type
                         .as_struct()
-                        .is_some_and(|other_ident| other_ident.name == identifier.name)
+                        .is_some_and(|field_type_ident| field_type_ident.name == identifier.name)
                     {
                         let msg = format!("Cyclic reference found when compiling `{identifier}`");
                         return Err(self.err(CompileErrorType::Unknown(msg)));
@@ -300,8 +301,8 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(field.clone());
                     }
                 }
-                StructItem::StructRef(other_ident) => {
-                    if other_ident.name == identifier.name {
+                StructItem::StructRef(field_type_ident) => {
+                    if field_type_ident.name == identifier.name {
                         let msg = format!(
                             "Cyclic struct insertion reference found when compiling `{identifier}`"
                         );
@@ -310,10 +311,10 @@ impl<'a> CompileState<'a> {
                     let other = self
                         .m
                         .struct_defs
-                        .get(&other_ident.name)
+                        .get(&field_type_ident.name)
                         .and_then(Option::as_ref)
                         .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(other_ident.to_string()))
+                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
                         })?;
                     for field in other {
                         if field_definitions
@@ -1674,36 +1675,36 @@ impl<'a> CompileState<'a> {
     /// Adds entries for the Struct, Effect, Fact, Command, and FFI Struct defintions
     /// to [CompileTarget::struct_defs] before fully compiling.
     fn list_structs(&mut self) -> Result<(), CompileError> {
-        let idents = self
+        let effect_idents = self
+            .policy
+            .effects
+            .iter()
+            .map(|def| def.identifier.name.clone());
+        let fact_idents = self
+            .policy
+            .facts
+            .iter()
+            .map(|def| def.identifier.name.clone());
+        let ffi_struct_idents = self
+            .ffi_modules
+            .iter()
+            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone()));
+        let command_idents = self
+            .ffi_modules
+            .iter()
+            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone()));
+
+        let struct_idents = self
             .policy
             .structs
             .iter()
             .map(|def| def.identifier.name.clone())
-            .chain(
-                self.policy
-                    .effects
-                    .iter()
-                    .map(|def| def.identifier.name.clone()),
-            )
-            .chain(
-                self.policy
-                    .facts
-                    .iter()
-                    .map(|def| def.identifier.name.clone()),
-            )
-            .chain(
-                self.ffi_modules
-                    .iter()
-                    .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone())),
-            )
-            .chain(
-                self.policy
-                    .commands
-                    .iter()
-                    .map(|def| def.identifier.name.clone()),
-            );
+            .chain(effect_idents)
+            .chain(fact_idents)
+            .chain(ffi_struct_idents)
+            .chain(command_idents);
 
-        for ident in idents {
+        for ident in struct_idents {
             // TODO(Steve): Use a type that has span information so a better error message can be created
             // when duplicate type defintions are found.
             // Insert `None` for the value to indicate that this type is partially compiled.
