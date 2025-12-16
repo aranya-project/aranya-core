@@ -1,10 +1,57 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-expression: err
+expression: ast
 ---
-Syntax error: line 5 column 1:  --> 5:1
-  |
-5 | }
-  | ^---
-  |
-  = expected fields_block or seal_block
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [
+        CommandDefinition {
+            persistence: Persistent,
+            attributes: [
+                (
+                    "priority" @ 39..47,
+                    String(
+                        "high",
+                    ) @ 49..55,
+                ),
+            ],
+            identifier: "Foo" @ 8..11,
+            fields: [],
+            seal: [
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
+                            Todo(
+                                81..87,
+                            ),
+                        ) @ 81..87,
+                    },
+                ) @ 74..88,
+            ],
+            open: [
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
+                            Todo(
+                                108..114,
+                            ),
+                        ) @ 108..114,
+                    },
+                ) @ 101..115,
+            ],
+            policy: [],
+            recall: [],
+            span: 0..132,
+        },
+    ],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "command Foo {\n    attributes {\n        priority: \"high\",\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {}\n}\n",
+}
