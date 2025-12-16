@@ -30,6 +30,8 @@ pub(crate) struct CompileTarget {
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
+    ///
+    /// A [None] value for an entry indicates that the type exists but is only partially compiled.
     pub struct_defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
@@ -65,17 +67,6 @@ impl CompileTarget {
             .map(|(k, v)| (k, v.into_iter().collect()))
             .collect::<BTreeMap<_, _>>();
 
-        // Filter out the struct defs that aren't fully compiled
-        let struct_defs = self
-            .struct_defs
-            .into_iter()
-            .filter_map(|(ident, maybe_field_defs)| {
-                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
-                debug_assert!(maybe_field_defs.is_some());
-                maybe_field_defs.map(|field_defs| (ident, field_defs))
-            })
-            .collect();
-
         Module {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
@@ -83,7 +74,7 @@ impl CompileTarget {
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
-                struct_defs,
+                struct_defs: Self::filter_defs(self.struct_defs),
                 enum_defs,
                 codemap: self.codemap,
                 globals: self.globals,
@@ -119,6 +110,19 @@ impl CompileTarget {
             }
             TypeKind::Never => Some(0),
         }
+    }
+
+    // Filter out the definitions that aren't fully compiled
+    fn filter_defs(
+        defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
+    ) -> BTreeMap<Identifier, Vec<ast::FieldDefinition>> {
+        defs.into_iter()
+            .filter_map(|(ident, maybe_field_defs)| {
+                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
+                debug_assert!(maybe_field_defs.is_some());
+                maybe_field_defs.map(|field_defs| (ident, field_defs))
+            })
+            .collect()
     }
 }
 
@@ -159,21 +163,10 @@ pub struct PolicyInterface {
 
 impl From<CompileTarget> for PolicyInterface {
     fn from(t: CompileTarget) -> Self {
-        // Filter out the struct defs that aren't fully compiled
-        let struct_defs = t
-            .struct_defs
-            .into_iter()
-            .filter_map(|(ident, maybe_field_defs)| {
-                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
-                debug_assert!(maybe_field_defs.is_some());
-                maybe_field_defs.map(|field_defs| (ident, field_defs))
-            })
-            .collect();
-
         Self {
             action_defs: t.action_defs,
             effects: t.effects,
-            struct_defs,
+            struct_defs: CompileTarget::filter_defs(t.struct_defs),
             enum_defs: t.enum_defs,
         }
     }
