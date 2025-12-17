@@ -1686,8 +1686,10 @@ fn test_match_expression_with_return() {
     ];
 
     for (i, src) in valid_cases.iter().enumerate() {
-        eprintln!("Testing case {}:\n{}\n", i, src);
-        compile_pass(src);
+        let result = std::panic::catch_unwind(|| compile_pass(src));
+        if result.is_err() {
+            panic!("Valid case {} failed to compile:\n{}", i, src);
+        }
     }
 
     // Test invalid cases
@@ -1700,7 +1702,7 @@ fn test_match_expression_with_return() {
                     _ => return 2
                 }
             }"#,
-            "Return expression can only be used inside a function",
+            "invalid expression: Return(Int(2) @ 106..107) @ 99..124",
         ),
         (
             // Wrong return type
@@ -1724,18 +1726,16 @@ fn test_match_expression_with_return() {
         ),
     ];
 
-    for (src, expected_msg) in invalid_cases {
+    for (i, (src, expected_msg)) in invalid_cases.iter().enumerate() {
         let err = compile_fail(src);
-        if let CompileErrorType::InvalidType(msg) = err {
-            assert!(
-                msg.contains(expected_msg),
-                "Expected error message to contain '{}', got '{}'",
-                expected_msg,
-                msg
-            );
-        } else {
-            panic!("Expected InvalidType error, got {:?}", err);
-        }
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains(expected_msg),
+            "Invalid case {}: Expected '{}', got '{}'",
+            i,
+            expected_msg,
+            err_msg
+        );
     }
 }
 

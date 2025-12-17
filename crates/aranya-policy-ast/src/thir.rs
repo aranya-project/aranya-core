@@ -182,8 +182,6 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
-    /// Return expression
-    Return(Box<Expression>),
     /// Result Ok variant
     ResultOk(Box<Expression>),
     /// Result Err variant
