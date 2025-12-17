@@ -780,14 +780,6 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
-            thir::ExprKind::Return(e) => {
-                // Compile the return expression
-                // Type validation already happened during lowering
-                self.compile_typed_expression(*e)?;
-
-                // Emit the return instruction
-                self.append_instruction(Instruction::Return);
-            }
             thir::ExprKind::ResultOk(e) => {
                 // Compile the inner expression and wrap it in Ok
                 self.compile_typed_expression(*e)?;
@@ -892,11 +884,6 @@ impl<'a> CompileState<'a> {
             thir::StmtKind::Publish(s) => {
                 self.compile_typed_expression(s)?;
                 self.append_instruction(Instruction::Publish);
-            }
-            thir::StmtKind::Return(s) => {
-                self.compile_typed_expression(s.expression)?;
-                self.append_instruction(Instruction::RestoreSP);
-                self.append_instruction(Instruction::Return);
             }
             thir::StmtKind::Finish(s) => {
                 self.enter_statement_context(StatementContext::Finish);

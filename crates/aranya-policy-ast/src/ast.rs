@@ -634,8 +634,6 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
-    /// Return expression - can be used in match arms to short-circuit
-    Return(Box<Expression>),
 }
 
 spanned! {

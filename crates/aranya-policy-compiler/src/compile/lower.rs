@@ -946,34 +946,6 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
-            ExprKind::Return(e) => {
-                let inner = self.lower_expression(e)?;
-
-                // Validate return type matches function signature
-                let ctx = self.get_statement_context()?;
-                if let StatementContext::PureFunction(fd) = ctx {
-                    if !inner.vtype.fits_type(&fd.return_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
-                        ))));
-                    }
-                } else {
-                    return Err(self.err(CompileErrorType::InvalidType(
-                        "Return expression can only be used inside a function".to_string(),
-                    )));
-                }
-
-                thir::Expression {
-                    kind: thir::ExprKind::Return(Box::new(inner.clone())),
-                    vtype: VType {
-                        kind: TypeKind::Never,
-                        span: Span::empty(),
-                    },
-                    span: expression.span,
-                }
-            }
         })
     }
 
@@ -1464,10 +1436,9 @@ impl CompileState<'_> {
                             // Validate return is in a function context
                             let ctx = self.get_statement_context()?;
                             if !matches!(ctx, StatementContext::PureFunction(_)) {
-                                return Err(self.err(CompileErrorType::InvalidType(
-                                    "Return expression can only be used inside a function"
-                                        .to_string(),
-                                )));
+                                return Err(
+                                    self.err(CompileErrorType::InvalidExpression(e.clone()))
+                                );
                             }
                         }
                         _ => {}
