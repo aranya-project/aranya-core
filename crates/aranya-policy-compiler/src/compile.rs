@@ -1690,9 +1690,10 @@ impl<'a> CompileState<'a> {
             .iter()
             .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone()));
         let command_idents = self
-            .ffi_modules
+            .policy
+            .commands
             .iter()
-            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone()));
+            .map(|def| def.identifier.name.clone());
 
         let struct_idents = self
             .policy
