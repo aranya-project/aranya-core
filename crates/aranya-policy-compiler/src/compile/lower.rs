@@ -918,7 +918,7 @@ impl CompileState<'_> {
                     kind: thir::ExprKind::ResultOk(Box::new(inner.clone())),
                     vtype: VType {
                         kind: TypeKind::Result {
-                            ok: Box::new(inner.vtype.clone()),
+                            ok: Box::new(inner.vtype),
                             err: Box::new(VType {
                                 kind: TypeKind::Never,
                                 span: Span::empty(),
@@ -939,7 +939,7 @@ impl CompileState<'_> {
                                 kind: TypeKind::Never,
                                 span: Span::empty(),
                             }),
-                            err: Box::new(inner.vtype.clone()),
+                            err: Box::new(inner.vtype),
                         },
                         span: expression.span,
                     },
@@ -1431,17 +1431,12 @@ impl CompileState<'_> {
                     // For return expressions, the type checking happens during lowering
                     // We don't create a separate statement kind for them since they're expressions
                     // They will be compiled as expression statements
-                    match &expr.kind {
-                        thir::ExprKind::Return(_) => {
-                            // Validate return is in a function context
-                            let ctx = self.get_statement_context()?;
-                            if !matches!(ctx, StatementContext::PureFunction(_)) {
-                                return Err(
-                                    self.err(CompileErrorType::InvalidExpression(e.clone()))
-                                );
-                            }
+                    if let thir::ExprKind::Return(_) = &expr.kind {
+                        // Validate return is in a function context
+                        let ctx = self.get_statement_context()?;
+                        if !matches!(ctx, StatementContext::PureFunction(_)) {
+                            return Err(self.err(CompileErrorType::InvalidExpression(e.clone())));
                         }
-                        _ => {}
                     }
                     thir::StmtKind::Expr(expr)
                 }
