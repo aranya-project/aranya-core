@@ -1686,7 +1686,7 @@ fn test_match_expression_with_return() {
     }
 
     // Test invalid cases
-    let invalid_cases = vec![
+    let invalid_cases = [
         (
             // Return outside function context
             r#"action f() {
