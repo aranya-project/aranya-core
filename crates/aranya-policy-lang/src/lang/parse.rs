@@ -1428,95 +1428,69 @@ impl ChunkParser<'_> {
         };
         let identifier = pc.consume_ident(self)?;
 
-        let mut attributes = vec![];
-        let mut fields = vec![];
-        let mut policy = vec![];
-        let mut recall = vec![];
-        let mut seal = vec![];
-        let mut open = vec![];
+        // Consume blocks in order: attributes?, fields?, seal, open, policy, recall?
 
-        // Track whether required blocks were present (even if empty)
-        let mut has_seal = false;
-        let mut has_open = false;
-        let mut has_policy = false;
+        // 1. Optional attributes block
+        let attributes = if let Some(token) = pc.consume_optional(Rule::attributes_block) {
+            let pairs = token.into_inner();
+            let mut attrs = vec![];
+            for field in pairs {
+                let field_pc = descend(field);
+                let ident = field_pc.consume_ident(self)?;
+                let expr = field_pc.consume_expression(self)?;
+                attrs.push((ident, expr));
+            }
+            attrs
+        } else {
+            vec![]
+        };
 
-        for token in pc.into_inner() {
-            match token.as_rule() {
-                Rule::attributes_block => {
-                    let pairs = token.into_inner();
-                    for field in pairs {
-                        let pc = descend(field);
-                        let identifier = pc.consume_ident(self)?;
-                        let expr = pc.consume_expression(self)?;
-                        attributes.push((identifier, expr));
+        // 2. Optional fields block
+        let fields = if let Some(token) = pc.consume_optional(Rule::fields_block) {
+            let pairs = token.into_inner();
+            let mut field_list = vec![];
+            for field in pairs {
+                match field.as_rule() {
+                    Rule::field_definition => {
+                        field_list
+                            .push(ast::StructItem::Field(self.parse_field_definition(field)?));
                     }
-                }
-                Rule::fields_block => {
-                    let pairs = token.into_inner();
-                    for field in pairs {
-                        match field.as_rule() {
-                            Rule::field_definition => {
-                                fields.push(ast::StructItem::Field(
-                                    self.parse_field_definition(field)?,
-                                ));
-                            }
-                            Rule::field_insertion => {
-                                let ident = descend(field).consume_ident(self)?;
-                                fields.push(ast::StructItem::StructRef(ident));
-                            }
-                            _ => {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("invalid token in command definition"),
-                                    Some(field.as_span()),
-                                ));
-                            }
-                        }
+                    Rule::field_insertion => {
+                        let ident = descend(field).consume_ident(self)?;
+                        field_list.push(ast::StructItem::StructRef(ident));
                     }
-                }
-                Rule::policy_block => {
-                    has_policy = true;
-                    let pairs = token.into_inner();
-                    policy = self.parse_statement_list(pairs)?;
-                }
-                Rule::recall_block => {
-                    let pairs = token.into_inner();
-                    recall = self.parse_statement_list(pairs)?;
-                }
-                Rule::seal_block => {
-                    has_seal = true;
-                    let pairs = token.into_inner();
-                    seal = self.parse_statement_list(pairs)?;
-                }
-                Rule::open_block => {
-                    has_open = true;
-                    let pairs = token.into_inner();
-                    open = self.parse_statement_list(pairs)?;
-                }
-                t => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidStatement,
-                        format!("found {:?} in command definition", t),
-                        Some(token.as_span()),
-                    ));
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("invalid token in command definition"),
+                            Some(field.as_span()),
+                        ));
+                    }
                 }
             }
-        }
-
-        // Validate that required blocks are present
-        let missing = match (has_seal, has_open, has_policy) {
-            (false, _, _) => Some("seal"),
-            (_, false, _) => Some("open"),
-            (_, _, false) => Some("policy"),
-            (true, true, true) => None,
+            field_list
+        } else {
+            vec![]
         };
-        if let Some(block_name) = missing {
-            return Err(ParseError::new(
-                ParseErrorKind::Syntax,
-                format!("command definition missing required {} block", block_name),
-                None,
-            ));
-        }
+
+        // 3. Required seal block
+        let token = pc.consume_of_type(Rule::seal_block)?;
+        let seal = self.parse_statement_list(token.into_inner())?;
+
+        // 4. Required open block
+        let token = pc.consume_of_type(Rule::open_block)?;
+        let open = self.parse_statement_list(token.into_inner())?;
+
+        // 5. Required policy block
+        let token = pc.consume_of_type(Rule::policy_block)?;
+        let policy = self.parse_statement_list(token.into_inner())?;
+
+        // 6. Optional recall block
+        let recall = if let Some(token) = pc.consume_optional(Rule::recall_block) {
+            self.parse_statement_list(token.into_inner())?
+        } else {
+            vec![]
+        };
 
         Ok(ast::CommandDefinition {
             persistence,
