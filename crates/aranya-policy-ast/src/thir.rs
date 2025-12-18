@@ -209,7 +209,7 @@ pub struct CheckStatement {
 }
 
 /// Result pattern for matching Ok/Err in Result types
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResultPattern {
     /// Match Ok(identifier)
     Ok(Ident),
