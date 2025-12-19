@@ -4,6 +4,7 @@ use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
+use crate::lang::ReportCell;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -150,12 +151,13 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-fn parse_expression_pratt() -> Result<(), ParseError> {
+fn parse_expression_pratt() -> Result<(), ReportCell> {
     let source = r#"
         unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
     "#
     .trim();
-    let mut pairs = PolicyParser::parse(Rule::expression, source)?;
+    let mut pairs = PolicyParser::parse(Rule::expression, source)
+        .map_err(|err| ReportCell::from_pest_error(err, source))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, source.len());
     let expr_pair = pairs.next().unwrap();
@@ -195,7 +197,7 @@ fn parse_errors() -> Result<(), ParseError> {
 }
 
 #[test]
-fn parse_expression_errors() -> Result<(), ParseError> {
+fn parse_expression_errors() -> Result<(), ReportCell> {
     let cases = vec![
         ErrorInput {
             description: String::from("Integer overflow"),
@@ -234,7 +236,8 @@ fn parse_expression_errors() -> Result<(), ParseError> {
     let pratt = get_pratt_parser();
     for case in cases {
         let p = ChunkParser::new(0, &pratt, case.input.len());
-        let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
+        let mut pairs = PolicyParser::parse(case.rule, &case.input)
+            .map_err(|err| ReportCell::from_pest_error(err, &case.input))?;
         let expr_pair = pairs.next().unwrap();
         match p.parse_expression(expr_pair.clone()) {
             Ok(parsed) => panic!("{}: {:?} - {expr_pair:?}", case.description, parsed),
@@ -246,10 +249,11 @@ fn parse_expression_errors() -> Result<(), ParseError> {
 
 #[test]
 fn parse_optional() {
-    fn parse_vtype(text: &str) -> Result<VType, ParseError> {
+    fn parse_vtype(text: &str) -> Result<VType, ReportCell> {
         let pratt = get_pratt_parser();
         let p = ChunkParser::new(0, &pratt, text.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
+        let mut pairs = PolicyParser::parse(Rule::vtype, text)
+            .map_err(|err| ReportCell::from_pest_error(err, text))?;
         let pair = pairs.next().unwrap();
         p.parse_type(pair)
     }

@@ -1,11 +1,12 @@
 use std::fmt::Display;
 
+use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::Version;
-use buggy::Bug;
 use pest::{
     Span,
-    error::{Error as PestError, LineColLocation},
+    error::{Error as PestError, InputLocation, LineColLocation},
 };
+use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
@@ -50,6 +51,52 @@ pub enum ParseErrorKind {
     Unknown,
 }
 
+/// Diagnostic Message
+#[derive(Debug)]
+pub struct Report<'a>(Vec<Group<'a>>);
+
+self_cell!(
+    pub struct ReportCell {
+        owner: String,
+
+        #[covariant]
+        dependent: Report,
+    }
+
+    impl {Debug}
+);
+
+impl std::error::Error for ReportCell {}
+
+/*
+impl ParseErrorKind {
+    #[must_use]
+    pub(crate) fn to_report(self, message: String, maybe_span: Option<Span<'_>>) -> Report<'_> {
+        let mut out = Vec::new();
+
+        let title = Level::ERROR.primary_title(self.to_string());
+        let Some(span) = maybe_span else {
+            out.push(title.element(Level::NOTE.message(message)));
+            return out;
+        };
+
+        let (line, _col) = span.start_pos().line_col();
+
+        let source = Snippet::source(span.get_input())
+            .line_start(line)
+            .annotation(
+                AnnotationKind::Primary
+                    .span(span.start()..span.end())
+                    .label(message),
+            );
+
+        out.push(title.element(source));
+
+        out
+    }
+}
+    */
+
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -86,13 +133,31 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> Self {
-        let location = span.map(|s| s.start_pos().line_col());
-        Self {
-            kind,
-            message,
-            location,
-        }
+    pub(crate) fn to_report(
+        kind: ParseErrorKind,
+        message: String,
+        maybe_span: Option<Span<'_>>,
+    ) -> ReportCell {
+        let title = Level::ERROR.primary_title(kind.to_string());
+        let Some(span) = maybe_span else {
+            return ReportCell::new("".to_owned(), move |_| {
+                Report(vec![title.element(Level::NOTE.message(message))])
+            });
+        };
+
+        let input = span.get_input().to_owned();
+
+        ReportCell::new(input, move |s| {
+            let (line, _col) = span.start_pos().line_col();
+
+            let source = Snippet::source(s).line_start(line).annotation(
+                AnnotationKind::Primary
+                    .span(span.start()..span.end())
+                    .label(message),
+            );
+
+            Report(vec![title.element(source)])
+        })
     }
 
     /// Return a new error with a location starting from the given line.
@@ -130,9 +195,32 @@ impl From<PestError<Rule>> for ParseError {
     }
 }
 
-impl From<Bug> for ParseError {
-    fn from(bug: Bug) -> Self {
-        Self::new(ParseErrorKind::Bug, bug.msg().to_owned(), None)
+impl ReportCell {
+    pub(crate) fn from_pest_error(e: PestError<Rule>, input: &str) -> Self {
+        let maybe_span = match e.location {
+            InputLocation::Pos(_) => None, // TODO: Fix.
+            InputLocation::Span(p) => Some(p),
+        };
+
+        ParseError::to_report(
+            ParseErrorKind::Syntax,
+            e.to_string(),
+            maybe_span.and_then(|(start, end)| Span::new(input, start, end)),
+        )
+    }
+}
+
+impl Display for Report<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = Renderer::plain().render(&self.0);
+        write!(f, "{message}")
+    }
+}
+
+impl Display for ReportCell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = Renderer::plain().render(&self.borrow_dependent().0);
+        write!(f, "{message}")
     }
 }
 

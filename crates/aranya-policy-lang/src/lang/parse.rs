@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 mod error;
 mod markdown;
 
-pub use error::{ParseError, ParseErrorKind};
+pub use error::{ParseError, ParseErrorKind, ReportCell};
 pub use markdown::{ChunkOffset, parse_policy_document};
 
 mod keywords;
@@ -40,9 +40,9 @@ struct PairContext<'a> {
     span: Span<'a>,
 }
 
-impl<'a> PairContext<'a> {
-    fn location_error(&self) -> ParseError {
-        ParseError::new(
+impl<'a, 'b> PairContext<'a> {
+    fn location_error(&self) -> ReportCell {
+        ParseError::to_report(
             ParseErrorKind::Unknown,
             format!("{:?}", &self.span),
             Some(self.span),
@@ -51,26 +51,26 @@ impl<'a> PairContext<'a> {
 
     /// Returns the next token from the interior Pairs in case you want
     /// to manipulate it directly.
-    fn next(&self) -> Option<Pair<'_, Rule>> {
+    fn next(&self) -> Option<Pair<'a, Rule>> {
         self.pairs.borrow_mut().next()
     }
 
-    fn peek(&self) -> Option<Pair<'_, Rule>> {
+    fn peek(&self) -> Option<Pair<'a, Rule>> {
         self.pairs.borrow_mut().peek()
     }
 
     /// Consumes the next Pair out of this context and returns it.
     /// Errors if the next pair doesn't exist.
-    fn consume(&self) -> Result<Pair<'_, Rule>, ParseError> {
-        self.next().ok_or_else(|| self.location_error())
+    fn consume(&self) -> Result<Pair<'a, Rule>, ReportCell> {
+        self.next().ok_or_else(move || self.location_error())
     }
 
     /// Consumes the next Pair out of this context and returns it if
     /// it matches the given type. Otherwise returns an error.
-    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'_, Rule>, ParseError> {
+    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'a, Rule>, ReportCell> {
         let token = self.consume()?;
         if token.as_rule() != rule {
-            return Err(ParseError::new(
+            return Err(ParseError::to_report(
                 ParseErrorKind::Unknown,
                 format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
                 Some(token.as_span()),
@@ -81,20 +81,20 @@ impl<'a> PairContext<'a> {
 
     /// Consumes the next Pair and returns it as a VType. Same error
     /// conditions as [consume]
-    fn consume_type(&self, p: &ChunkParser<'_>) -> Result<VType, ParseError> {
+    fn consume_type(&self, p: &ChunkParser<'b>) -> Result<VType, ReportCell> {
         let token = self.consume()?;
         let typ = p.parse_type(token)?;
         Ok(typ)
     }
 
-    fn consume_fact(&self, p: &ChunkParser<'_>) -> Result<FactLiteral, ParseError> {
+    fn consume_fact(&self, p: &ChunkParser<'b>) -> Result<FactLiteral, ReportCell> {
         let token = self.consume_of_type(Rule::fact_literal)?;
         p.parse_fact_literal(token)
     }
 
     /// Consumes the next Pair out of this context and returns it as an
     /// [ast::Expression].
-    fn consume_expression(&self, p: &ChunkParser<'_>) -> Result<Expression, ParseError> {
+    fn consume_expression(&self, p: &ChunkParser<'b>) -> Result<Expression, ReportCell> {
         let token = self.consume_of_type(Rule::expression)?;
         p.parse_expression(token)
     }
@@ -106,12 +106,13 @@ impl<'a> PairContext<'a> {
     }
 
     /// Consumes the next Pair and returns it as an [`Ident`].
-    fn consume_ident(&self, parser: &ChunkParser<'_>) -> Result<Ident, ParseError> {
+    fn consume_ident(&self, parser: &ChunkParser<'b>) -> Result<Ident, ReportCell>
+where {
         let token = self.consume_of_type(Rule::identifier)?;
         parser.parse_ident(token)
     }
 
-    fn consume_optional(&self, rule: Rule) -> Option<Pair<'_, Rule>> {
+    fn consume_optional(&self, rule: Rule) -> Option<Pair<'a, Rule>> {
         self.peek()
             .filter(|p| p.as_rule() == rule)
             .inspect(|_| _ = self.next())
@@ -147,7 +148,7 @@ struct ChunkParser<'a> {
     source_len: usize,
 }
 
-impl ChunkParser<'_> {
+impl<'a, 'b> ChunkParser<'b> {
     pub fn new(offset: usize, pratt: &PrattParser<Rule>, source_len: usize) -> ChunkParser<'_> {
         ChunkParser {
             offset,
@@ -157,16 +158,16 @@ impl ChunkParser<'_> {
     }
 
     /// Convert a Pest span to an AST span with offset
-    fn to_ast_span(&self, pest_span: Span<'_>) -> Result<ast::Span, ParseError> {
+    fn to_ast_span(&self, pest_span: Span<'a>) -> Result<ast::Span, ReportCell> {
         let start = pest_span.start().checked_add(self.offset).ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::Unknown,
                 String::from("span start overflow"),
                 Some(pest_span),
             )
         })?;
         let end = pest_span.end().checked_add(self.offset).ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::Unknown,
                 String::from("span end overflow"),
                 Some(pest_span),
@@ -175,7 +176,7 @@ impl ChunkParser<'_> {
 
         // Validate that the span doesn't exceed source bounds
         if end > self.source_len {
-            return Err(ParseError::new(
+            return Err(ParseError::to_report(
                 ParseErrorKind::Unknown,
                 format!(
                     "Span [{}, {}) exceeds source length {}",
@@ -189,14 +190,15 @@ impl ChunkParser<'_> {
     }
 
     /// Parse an identifier with span
-    fn parse_ident(&self, token: Pair<'_, Rule>) -> Result<Ident, ParseError> {
+    fn parse_ident(&self, token: Pair<'a, Rule>) -> Result<Ident, ReportCell>
+where {
         assert_eq!(token.as_rule(), Rule::identifier);
 
         let span = self.to_ast_span(token.as_span())?;
         let identifier = token.as_str();
 
         if KEYWORDS.contains(&identifier) {
-            return Err(ParseError::new(
+            return Err(ParseError::to_report(
                 ParseErrorKind::ReservedIdentifier,
                 identifier.to_string(),
                 Some(token.as_span()),
@@ -205,22 +207,29 @@ impl ChunkParser<'_> {
 
         let name = identifier
             .parse()
-            .assume("grammar produces valid identifiers")?;
+            .assume("grammar produces valid identifiers")
+            .map_err(|bug| {
+                ParseError::to_report(
+                    ParseErrorKind::Bug,
+                    bug.msg().to_owned(),
+                    Some(token.as_span()),
+                )
+            })?;
         Ok(Ident { name, span })
     }
 
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
-    fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
+    fn parse_type(&self, token: Pair<'a, Rule>) -> Result<VType, ReportCell> {
         self.parse_type_inner(token, TypeStyle::Unknown, true)
     }
 
     fn parse_type_inner(
         &self,
-        token: Pair<'_, Rule>,
+        token: Pair<'a, Rule>,
         mut style: TypeStyle,
         allow_option: bool,
-    ) -> Result<VType, ParseError> {
+    ) -> Result<VType, ReportCell> {
         let pest_span = token.as_span();
         let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
@@ -255,7 +264,7 @@ impl ChunkParser<'_> {
                     (TypeStyle::Unknown, false) => style = TypeStyle::New,
                     (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
                     _ => {
-                        return Err(ParseError::new(
+                        return Err(ParseError::to_report(
                             ParseErrorKind::InvalidType,
                             String::from(
                                 "Replace `optional T` with the new `option[T]` to use complex types",
@@ -266,7 +275,7 @@ impl ChunkParser<'_> {
                 }
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
+                    ParseError::to_report(
                         ParseErrorKind::Unknown,
                         String::from("no type following optional"),
                         Some(token.as_span()),
@@ -276,7 +285,7 @@ impl ChunkParser<'_> {
                 TypeKind::Optional(Box::new(inner_type))
             }
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::to_report(
                     ParseErrorKind::InvalidType,
                     format!("{:?} {}", token.as_rule(), token.as_str().to_owned()),
                     Some(token.as_span()),
@@ -287,11 +296,11 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::field_definition token into a FieldDef.
-    fn parse_field_definition(&self, field: Pair<'_, Rule>) -> Result<FieldDefinition, ParseError> {
+    fn parse_field_definition(&self, field: Pair<'a, Rule>) -> Result<FieldDefinition, ReportCell> {
         let pc = descend(field);
         let identifier = pc.consume_ident(self)?;
         let field_type = self.parse_type(pc.pairs.borrow_mut().next().ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::Unknown,
                 String::from("missing type in field definition"),
                 Some(pc.span),
@@ -306,8 +315,8 @@ impl ChunkParser<'_> {
 
     fn parse_effect_field_definition(
         &self,
-        field: Pair<'_, Rule>,
-    ) -> Result<EffectFieldDefinition, ParseError> {
+        field: Pair<'a, Rule>,
+    ) -> Result<EffectFieldDefinition, ReportCell> {
         let pc = descend(field);
         let identifier = pc.consume_ident(self)?;
         let field_type = pc.consume_type(self)?;
@@ -326,13 +335,13 @@ impl ChunkParser<'_> {
     /// Parse a Rule::string_literal into a String.
     ///
     /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<Text, ParseError> {
+    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<Text, ReportCell> {
         let src = string.as_str();
         let it = &mut src.chars();
         let mut out = String::new();
         // consume the first quote character
         if it.next() != Some('"') {
-            return Err(ParseError::new(
+            return Err(ParseError::to_report(
                 ParseErrorKind::InvalidString,
                 format!("bad string: {}", src),
                 Some(string.as_span()),
@@ -346,7 +355,7 @@ impl ChunkParser<'_> {
                             'x' => {
                                 let s: String = it.take(2).collect();
                                 let v = u8::from_str_radix(&s, 16).map_err(|e| {
-                                    ParseError::new(
+                                    ParseError::to_report(
                                         ParseErrorKind::InvalidNumber,
                                         format!("{}: {}", s, e),
                                         Some(string.as_span()),
@@ -358,7 +367,7 @@ impl ChunkParser<'_> {
                                 out.push('\n');
                             }
                             _ => {
-                                return Err(ParseError::new(
+                                return Err(ParseError::to_report(
                                     ParseErrorKind::InvalidString,
                                     format!("invalid escape: {}", next),
                                     Some(string.as_span()),
@@ -366,7 +375,7 @@ impl ChunkParser<'_> {
                             }
                         }
                     } else {
-                        return Err(ParseError::new(
+                        return Err(ParseError::to_report(
                             ParseErrorKind::InvalidString,
                             String::from("end of string while processing escape"),
                             Some(string.as_span()),
@@ -379,7 +388,7 @@ impl ChunkParser<'_> {
         }
 
         out.try_into().map_err(|_| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::InvalidString,
                 String::from("string contained nul byte"),
                 Some(string.as_span()),
@@ -389,8 +398,8 @@ impl ChunkParser<'_> {
 
     fn parse_named_struct_literal(
         &self,
-        named_struct: Pair<'_, Rule>,
-    ) -> Result<NamedStruct, ParseError> {
+        named_struct: Pair<'a, Rule>,
+    ) -> Result<NamedStruct, ReportCell> {
         let pc = descend(named_struct.clone());
         let identifier = pc.consume_ident(self)?;
 
@@ -403,7 +412,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_function_call(&self, call: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
+    fn parse_function_call(&self, call: Pair<'a, Rule>) -> Result<FunctionCall, ReportCell> {
         let pc = descend(call.clone());
         let identifier = pc.consume_ident(self)?;
 
@@ -421,8 +430,8 @@ impl ChunkParser<'_> {
 
     fn parse_foreign_function_call(
         &self,
-        call: Pair<'_, Rule>,
-    ) -> Result<ForeignFunctionCall, ParseError> {
+        call: Pair<'a, Rule>,
+    ) -> Result<ForeignFunctionCall, ReportCell> {
         let pc = descend(call.clone());
         let module = pc.consume_ident(self)?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
@@ -449,7 +458,7 @@ impl ChunkParser<'_> {
     /// equivalent precedence will create a lopsided tree. For example:
     ///
     /// `A + B + C` => `Add(Add(A, B), C)`
-    pub fn parse_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    pub fn parse_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         assert_eq!(expr.as_rule(), Rule::expression);
         let pairs = expr.into_inner();
 
@@ -457,7 +466,7 @@ impl ChunkParser<'_> {
             .map_primary(|primary| match primary.as_rule() {
                 Rule::int_literal => {
                     let n = primary.as_str().parse::<i64>().map_err(|e| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::InvalidNumber,
                             e.to_string(),
                             Some(primary.as_span()),
@@ -474,7 +483,7 @@ impl ChunkParser<'_> {
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::Unknown,
                             String::from("bad bool expression"),
                             Some(primary.as_span()),
@@ -489,7 +498,7 @@ impl ChunkParser<'_> {
                             let span = self.to_ast_span(primary.as_span())?;
                             Ok(Expression{kind:ExprKind::Bool(false), span})
                         }
-                        t => Err(ParseError::new(
+                        t => Err(ParseError::to_report(
                             ParseErrorKind::Unknown,
                             format!("impossible token: {:?}", t),
                             Some(primary.as_span()),
@@ -499,7 +508,7 @@ impl ChunkParser<'_> {
                 Rule::optional_literal => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::Unknown,
                             String::from("no token in optional literal"),
                             Some(primary.as_span()),
@@ -510,7 +519,7 @@ impl ChunkParser<'_> {
                         Rule::none => None,
                         Rule::some => {
                             let token = pairs.next().ok_or_else(|| {
-                                ParseError::new(
+                                ParseError::to_report(
                                     ParseErrorKind::Unknown,
                                     String::from("bad Some expression"),
                                     Some(primary.as_span()),
@@ -520,7 +529,7 @@ impl ChunkParser<'_> {
                             Some(Box::new(e))
                         }
                         t => {
-                            return Err(ParseError::new(
+                            return Err(ParseError::to_report(
                                 ParseErrorKind::Unknown,
                                 format!("invalid token in optional: {:?}", t),
                                 Some(primary.as_span()),
@@ -558,7 +567,7 @@ impl ChunkParser<'_> {
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("query requires fact literal"),
                             Some(primary.as_span()),
@@ -574,7 +583,7 @@ impl ChunkParser<'_> {
                 Rule::exists => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("exists requires fact literal"),
                             Some(primary.as_span()),
@@ -608,7 +617,7 @@ impl ChunkParser<'_> {
                 Rule::serialize => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("empty serialize function"),
                             Some(primary.as_span()),
@@ -623,7 +632,7 @@ impl ChunkParser<'_> {
                 Rule::deserialize => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
+                        ParseError::to_report(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("empty deserialize function"),
                             Some(primary.as_span()),
@@ -663,7 +672,7 @@ impl ChunkParser<'_> {
                 }
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
-                _ => Err(ParseError::new(
+                _ => Err(ParseError::to_report(
                     ParseErrorKind::Expression,
                     format!("bad atom: {:?}", primary.as_rule()),
                     Some(primary.as_span()),
@@ -679,7 +688,7 @@ impl ChunkParser<'_> {
                     Rule::unwrap => ExprKind::Unwrap(Box::new(rhs)),
                     Rule::check_unwrap => ExprKind::CheckUnwrap(Box::new(rhs)),
                     _ => {
-                        return Err(ParseError::new(
+                        return Err(ParseError::to_report(
                             ParseErrorKind::Expression,
                             format!("bad prefix: {:?}", op.as_rule()),
                             Some(op.as_span()),
@@ -695,14 +704,14 @@ impl ChunkParser<'_> {
 
                 let kind = match op.as_rule() {
                     Rule::add => {
-                        return Err(ParseError::new(
+                        return Err(ParseError::to_report(
                             ParseErrorKind::InvalidOperator,
                             String::from("found `+`, addition now uses functions `add` or `saturating_add`"),
                             Some(op.as_span())
                         ));
                     }
                     Rule::subtract => {
-                        return Err(ParseError::new(
+                        return Err(ParseError::to_report(
                             ParseErrorKind::InvalidOperator,
                             String::from("found `-`, subtraction now uses functions `sub` or `saturating_sub`"),
                             Some(op.as_span())
@@ -718,7 +727,7 @@ impl ChunkParser<'_> {
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::dot => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
+                        _ => return Err(ParseError::to_report(
                             ParseErrorKind::InvalidMember,
                             format!("Expected identifier after dot, got {:?}", rhs.kind),
                             Some(op.as_span()),
@@ -726,7 +735,7 @@ impl ChunkParser<'_> {
                     },
                     Rule::substruct => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
+                        _ => return Err(ParseError::to_report(
                             ParseErrorKind::InvalidSubstruct,
                             format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
                             Some(op.as_span()),
@@ -734,13 +743,13 @@ impl ChunkParser<'_> {
                     },
                     Rule::cast => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
-                        e => return Err(ParseError::new(
+                        e => return Err(ParseError::to_report(
                             ParseErrorKind::InvalidSubstruct,
                             format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
                             Some(op.as_span()),
                         )),
                     },
-                    _ => return Err(ParseError::new(
+                    _ => return Err(ParseError::to_report(
                         ParseErrorKind::Expression,
                         format!("bad infix: {:?}", op.as_rule()),
                         Some(op.as_span()),
@@ -758,7 +767,7 @@ impl ChunkParser<'_> {
                     Rule::is => {
                         let mut pairs = op.into_inner();
                         let token = pairs.next().ok_or_else(|| {
-                            ParseError::new(
+                            ParseError::to_report(
                                 ParseErrorKind::InvalidFunctionCall,
                                 String::from("is requires some or none"),
                                 Some(op_pest_span),
@@ -767,7 +776,7 @@ impl ChunkParser<'_> {
                         let some = match token.as_rule() {
                             Rule::some => true,
                             Rule::none => false,
-                            _ => return Err(ParseError::new(
+                            _ => return Err(ParseError::to_report(
                                 ParseErrorKind::Unknown,
                                 format!("not none or some after is: {:?}", token.as_rule()),
                                 Some(token.as_span()),
@@ -775,7 +784,7 @@ impl ChunkParser<'_> {
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
-                    _ => return Err(ParseError::new(
+                    _ => return Err(ParseError::to_report(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),
                         Some(op_pest_span),
@@ -786,7 +795,7 @@ impl ChunkParser<'_> {
             .parse(pairs)
     }
 
-    fn parse_block_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    fn parse_block_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         let pc = descend(expr.clone());
         let statements = pc.consume()?.into_inner();
         let statement_list = self.parse_statement_list(statements)?;
@@ -799,7 +808,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_match_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    fn parse_match_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         let span = self.to_ast_span(expr.as_span())?;
         let pc = descend(expr);
         let scrutinee = pc.consume_expression(self)?;
@@ -818,12 +827,12 @@ impl ChunkParser<'_> {
                     let values = token
                         .into_inner()
                         .map(|token| self.parse_expression(token.clone()))
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
+                        .collect::<Result<Vec<Expression>, _>>()?;
 
                     MatchPattern::Values(values)
                 }
                 _ => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
@@ -850,26 +859,26 @@ impl ChunkParser<'_> {
 
     fn parse_counting_fn(
         &self,
-        statement: Pair<'_, Rule>,
+        statement: Pair<'a, Rule>,
         cmp_type: ast::FactCountType,
-    ) -> Result<Expression, ParseError> {
+    ) -> Result<Expression, ReportCell> {
         let mut pairs = statement.clone().into_inner();
         let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::Expression,
                 format!("{} requires count limit (int)", cmp_type),
                 Some(statement.as_span()),
             )
         })?;
         let limit = token.as_str().parse::<i64>().map_err(|e| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::InvalidNumber,
                 e.to_string(),
                 Some(statement.as_span()),
             )
         })?;
         let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::Expression,
                 format!("{} requires fact literal", cmp_type),
                 Some(statement.as_span()),
@@ -883,10 +892,10 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_if_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    fn parse_if_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         let mut pairs = expr.clone().into_inner();
         let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires expression"),
                 Some(expr.as_span()),
@@ -895,7 +904,7 @@ impl ChunkParser<'_> {
         let condition = self.parse_expression(token)?;
 
         let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires then case"),
                 Some(expr.as_span()),
@@ -904,7 +913,7 @@ impl ChunkParser<'_> {
         let then_expr = self.parse_block_expression(token)?;
 
         let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
+            ParseError::to_report(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires else case"),
                 Some(expr.as_span()),
@@ -925,7 +934,7 @@ impl ChunkParser<'_> {
 
     /// Parses a list of Rule::struct_data items into lists of (String,
     /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
-    fn parse_struct_data(&self, fields: Pairs<'_, Rule>) -> Result<FieldsAndSources, ParseError> {
+    fn parse_struct_data(&self, fields: Pairs<'a, Rule>) -> Result<FieldsAndSources, ReportCell> {
         let mut field_expressions = vec![];
         let mut sources = vec![];
 
@@ -951,8 +960,8 @@ impl ChunkParser<'_> {
 
     fn parse_fact_literal_fields(
         &self,
-        fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(Ident, FactField)>, ParseError> {
+        fields: Pairs<'a, Rule>,
+    ) -> Result<Vec<(Ident, FactField)>, ReportCell> {
         let mut out = vec![];
 
         for field in fields {
@@ -964,7 +973,7 @@ impl ChunkParser<'_> {
                 Rule::expression => FactField::Expression(self.parse_expression(token)?),
                 Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
                 _ => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
                         Some(token.as_span()),
@@ -977,7 +986,7 @@ impl ChunkParser<'_> {
         Ok(out)
     }
 
-    fn parse_action_call(&self, item: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
+    fn parse_action_call(&self, item: Pair<'a, Rule>) -> Result<FunctionCall, ReportCell> {
         assert_eq!(item.as_rule(), Rule::action_call);
 
         let pc = descend(item);
@@ -987,7 +996,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::publish_statement into an PublishStatement.
-    fn parse_publish_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    fn parse_publish_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         assert_eq!(item.as_rule(), Rule::publish_statement);
 
         let pc = descend(item);
@@ -997,7 +1006,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::fact_literal into a FactLiteral.
-    fn parse_fact_literal(&self, fact: Pair<'_, Rule>) -> Result<FactLiteral, ParseError> {
+    fn parse_fact_literal(&self, fact: Pair<'a, Rule>) -> Result<FactLiteral, ReportCell> {
         let pc = descend(fact.clone());
         let identifier = pc.consume_ident(self)?;
 
@@ -1019,7 +1028,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::let_statement into a LetStatement.
-    fn parse_let_statement(&self, item: Pair<'_, Rule>) -> Result<LetStatement, ParseError> {
+    fn parse_let_statement(&self, item: Pair<'a, Rule>) -> Result<LetStatement, ReportCell> {
         let pc = descend(item);
         let identifier = pc.consume_ident(self)?;
         let expression = pc.consume_expression(self)?;
@@ -1031,7 +1040,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::check_statement into a CheckStatement.
-    fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
+    fn parse_check_statement(&self, item: Pair<'a, Rule>) -> Result<CheckStatement, ReportCell> {
         let pc = descend(item);
         let token = pc.consume()?;
         let expression = self.parse_expression(token)?;
@@ -1040,7 +1049,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
-    fn parse_match_statement(&self, item: Pair<'_, Rule>) -> Result<MatchStatement, ParseError> {
+    fn parse_match_statement(&self, item: Pair<'a, Rule>) -> Result<MatchStatement, ReportCell> {
         let pc = descend(item);
         let expression = pc.consume_expression(self)?;
 
@@ -1059,14 +1068,14 @@ impl ChunkParser<'_> {
                         .into_inner()
                         .map(|token| {
                             let expr = self.parse_expression(token.clone())?;
-                            Ok(expr)
+                            Ok::<Expression, ReportCell>(expr)
                         })
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
+                        .collect::<Result<Vec<Expression>, _>>()?;
 
                     MatchPattern::Values(values)
                 }
                 _ => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
@@ -1087,7 +1096,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a rule::if_statement into a IfStatement
-    fn parse_if_statement(&self, item: Pair<'_, Rule>) -> Result<IfStatement, ParseError> {
+    fn parse_if_statement(&self, item: Pair<'a, Rule>) -> Result<IfStatement, ReportCell> {
         let pc = descend(item);
 
         let mut branches = Vec::new();
@@ -1109,7 +1118,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::create_statement into a CreateStatement.
-    fn parse_create_statement(&self, item: Pair<'_, Rule>) -> Result<CreateStatement, ParseError> {
+    fn parse_create_statement(&self, item: Pair<'a, Rule>) -> Result<CreateStatement, ReportCell> {
         let pc = descend(item);
         let fact = pc.consume_fact(self)?;
 
@@ -1117,7 +1126,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::update_statement into an UpdateStatement.
-    fn parse_update_statement(&self, item: Pair<'_, Rule>) -> Result<UpdateStatement, ParseError> {
+    fn parse_update_statement(&self, item: Pair<'a, Rule>) -> Result<UpdateStatement, ReportCell> {
         assert_eq!(item.as_rule(), Rule::update_statement);
 
         let pc = descend(item);
@@ -1130,7 +1139,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::delete_statement into a DeleteStatement.
-    fn parse_delete_statement(&self, item: Pair<'_, Rule>) -> Result<DeleteStatement, ParseError> {
+    fn parse_delete_statement(&self, item: Pair<'a, Rule>) -> Result<DeleteStatement, ReportCell> {
         let pc = descend(item);
         let fact = pc.consume_fact(self)?;
 
@@ -1138,7 +1147,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::emit_statement into an EmitStatement.
-    fn parse_emit_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    fn parse_emit_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         assert_eq!(item.as_rule(), Rule::emit_statement);
 
         let pc = descend(item);
@@ -1148,7 +1157,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::return_statementinto a ReturnStatement.
-    fn parse_return_statement(&self, item: Pair<'_, Rule>) -> Result<ReturnStatement, ParseError> {
+    fn parse_return_statement(&self, item: Pair<'a, Rule>) -> Result<ReturnStatement, ReportCell> {
         let pc = descend(item);
         let expression = pc.consume_expression(self)?;
 
@@ -1156,7 +1165,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::effect_statement into an DebugAssert.
-    fn parse_debug_assert_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+    fn parse_debug_assert_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         assert_eq!(item.as_rule(), Rule::debug_assert);
 
         let pc = descend(item);
@@ -1172,7 +1181,7 @@ impl ChunkParser<'_> {
     /// - [UpdateStatement](ast::UpdateStatement)
     /// - [DeleteStatement](ast::DeleteStatement)
     /// - [EffectStatement](ast::EffectStatement)
-    fn parse_statement_list(&self, list: Pairs<'_, Rule>) -> Result<Vec<Statement>, ParseError> {
+    fn parse_statement_list(&self, list: Pairs<'a, Rule>) -> Result<Vec<Statement>, ReportCell> {
         let mut statements = vec![];
         for statement in list {
             let span = self.to_ast_span(statement.as_span())?;
@@ -1201,7 +1210,7 @@ impl ChunkParser<'_> {
                     StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
                 }
                 s => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::InvalidStatement,
                         format!("found invalid rule `{:?}`", s),
                         Some(statement.as_span()),
@@ -1214,7 +1223,7 @@ impl ChunkParser<'_> {
         Ok(statements)
     }
 
-    fn parse_map_statement(&self, field: Pair<'_, Rule>) -> Result<MapStatement, ParseError> {
+    fn parse_map_statement(&self, field: Pair<'a, Rule>) -> Result<MapStatement, ReportCell> {
         assert_eq!(field.as_rule(), Rule::map_statement);
         let pc = descend(field);
         let pair = pc.consume()?;
@@ -1229,7 +1238,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_use_definition(&self, field: Pair<'_, Rule>) -> Result<Ident, ParseError> {
+    fn parse_use_definition(&self, field: Pair<'a, Rule>) -> Result<Ident, ReportCell> {
         let pc = descend(field);
         pc.consume_ident(self)
     }
@@ -1237,8 +1246,8 @@ impl ChunkParser<'_> {
     /// Parse a Rule::fact_definition into a FactDefinition.
     fn parse_fact_definition(
         &self,
-        field: Pair<'_, Rule>,
-    ) -> Result<ast::FactDefinition, ParseError> {
+        field: Pair<'a, Rule>,
+    ) -> Result<ast::FactDefinition, ReportCell> {
         let span = self.to_ast_span(field.as_span())?;
         let pc = descend(field);
         let token = pc.consume()?;
@@ -1275,8 +1284,8 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::action_definition` into an [ActionDefinition](ast::ActionDefinition).
     fn parse_action_definition(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::ActionDefinition, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::ActionDefinition, ReportCell> {
         assert_eq!(item.as_rule(), Rule::action_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1308,8 +1317,8 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::effect_definition` into an [EffectDefinition](ast::EffectDefinition).
     fn parse_effect_definition(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::EffectDefinition, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::EffectDefinition, ReportCell> {
         assert_eq!(item.as_rule(), Rule::effect_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1328,7 +1337,7 @@ impl ChunkParser<'_> {
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in effect definition"),
                         Some(field.as_span()),
@@ -1347,8 +1356,8 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::struct_definition` into an [StructDefinition](ast::StructDefinition).
     fn parse_struct_definition(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::StructDefinition, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::StructDefinition, ReportCell> {
         assert_eq!(item.as_rule(), Rule::struct_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1367,7 +1376,7 @@ impl ChunkParser<'_> {
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in struct definition"),
                         Some(field.as_span()),
@@ -1383,7 +1392,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_enum_definition(&self, item: Pair<'_, Rule>) -> Result<EnumDefinition, ParseError> {
+    fn parse_enum_definition(&self, item: Pair<'a, Rule>) -> Result<EnumDefinition, ReportCell> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1402,7 +1411,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_enum_reference(&self, item: Pair<'_, Rule>) -> Result<EnumReference, ParseError> {
+    fn parse_enum_reference(&self, item: Pair<'a, Rule>) -> Result<EnumReference, ReportCell> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
         let pc = descend(item.clone());
@@ -1415,8 +1424,8 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
     fn parse_command_definition(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::CommandDefinition, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::CommandDefinition, ReportCell> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1459,7 +1468,7 @@ impl ChunkParser<'_> {
                                 fields.push(ast::StructItem::StructRef(ident));
                             }
                             _ => {
-                                return Err(ParseError::new(
+                                return Err(ParseError::to_report(
                                     ParseErrorKind::Unknown,
                                     String::from("invalid token in command definition"),
                                     Some(field.as_span()),
@@ -1485,7 +1494,7 @@ impl ChunkParser<'_> {
                     open = self.parse_statement_list(pairs)?;
                 }
                 t => {
-                    return Err(ParseError::new(
+                    return Err(ParseError::to_report(
                         ParseErrorKind::InvalidStatement,
                         format!("found {:?} in command definition", t),
                         Some(token.as_span()),
@@ -1509,7 +1518,7 @@ impl ChunkParser<'_> {
 
     /// Parse only the declaration of a function. Works for both `Rule::function_decl` and
     /// `Rule::finish_function_decl`.
-    fn parse_function_decl(&self, item: Pair<'_, Rule>) -> Result<ast::FunctionDecl, ParseError> {
+    fn parse_function_decl(&self, item: Pair<'a, Rule>) -> Result<ast::FunctionDecl, ReportCell> {
         let rule = item.as_rule();
 
         assert!(matches!(
@@ -1541,8 +1550,8 @@ impl ChunkParser<'_> {
 
     fn parse_function_definition(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::FunctionDefinition, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::FunctionDefinition, ReportCell> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
 
@@ -1565,8 +1574,8 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::finish_function_definition` into an [FinishFunctionDefinition](ast::FinishFunctionDefinition).
     fn parse_finish_function_definition(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::FinishFunctionDefinition, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::FinishFunctionDefinition, ReportCell> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
 
@@ -1587,8 +1596,8 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::global_let_statement` into an [GlobalLetStatement](ast::GlobalLetStatement).
     fn parse_global_let_statement(
         &self,
-        item: Pair<'_, Rule>,
-    ) -> Result<ast::GlobalLetStatement, ParseError> {
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::GlobalLetStatement, ReportCell> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
         let identifier = pc.consume_ident(self)?;
@@ -1617,7 +1626,7 @@ impl fmt::Debug for ChunkParser<'_> {
 /// version, as the bare code does not have any way to specify its
 /// own version. This does not account for any offset for enclosing
 /// text.
-pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
+pub fn parse_policy_str<'a>(data: &'a str, version: Version) -> Result<ast::Policy, ReportCell> {
     let mut policy = ast::Policy::new(version, data);
 
     parse_policy_chunk(data, &mut policy, ChunkOffset::default())?;
@@ -1627,23 +1636,29 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
 
 /// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
 /// in the source text.
-fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
+fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ReportCell {
     let pos = match &mut e.location {
         InputLocation::Pos(p) => {
             *p = match p.checked_add(offset).assume("p + offset must not wrap") {
                 Ok(n) => n,
-                Err(bug) => return bug.into(),
+                Err(bug) => {
+                    return ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None);
+                }
             };
             *p
         }
         InputLocation::Span((s, e)) => {
             *s = match s.checked_add(offset).assume("s + offset must not wrap") {
                 Ok(n) => n,
-                Err(bug) => return bug.into(),
+                Err(bug) => {
+                    return ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None);
+                }
             };
             *e = match e.checked_add(offset).assume("e + offset must not wrap") {
                 Ok(n) => n,
-                Err(bug) => return bug.into(),
+                Err(bug) => {
+                    return ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None);
+                }
             };
             *s
         }
@@ -1652,7 +1667,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
     let line_col = match Span::new(text, pos, pos) {
         Some(s) => s.start_pos().line_col(),
         None => {
-            return ParseError::new(
+            return ParseError::to_report(
                 ParseErrorKind::Unknown,
                 "error location error".to_string(),
                 None,
@@ -1667,17 +1682,18 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
         LineColLocation::Span(p, _) => *p = line_col,
     }
 
-    e.into()
+    // e.into()
+    todo!()
 }
 
 /// Parse more data into an existing [ast::Policy] object.
-fn parse_policy_chunk(
-    data: &str,
+fn parse_policy_chunk<'a>(
+    data: &'a str,
     policy: &mut ast::Policy,
     start: ChunkOffset,
-) -> Result<(), ParseError> {
+) -> Result<(), ReportCell> {
     if policy.version != Version::V2 {
-        return Err(ParseError::new(
+        return Err(ParseError::to_report(
             ParseErrorKind::InvalidVersion {
                 found: policy.version.to_string(),
                 required: Version::V2,
@@ -1690,14 +1706,14 @@ fn parse_policy_chunk(
         .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
-    parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.adjust_line_number(start.line))
+    parse_policy_chunk_inner(chunk, &p, policy)
 }
 
-fn parse_policy_chunk_inner(
-    chunk: Pairs<'_, Rule>,
+fn parse_policy_chunk_inner<'a>(
+    chunk: Pairs<'a, Rule>,
     p: &ChunkParser<'_>,
     policy: &mut ast::Policy,
-) -> Result<(), ParseError> {
+) -> Result<(), ReportCell> {
     for item in chunk {
         match item.as_rule() {
             Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?),
@@ -1716,7 +1732,7 @@ fn parse_policy_chunk_inner(
             }
             Rule::EOI => (),
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::to_report(
                     ParseErrorKind::Unknown,
                     format!("Impossible rule: {:?}", item.as_rule()),
                     Some(item.as_span()),
@@ -1728,10 +1744,14 @@ fn parse_policy_chunk_inner(
     Ok(())
 }
 
-pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
-    let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+pub fn parse_expression(s: &str) -> Result<Expression, ReportCell> {
+    let mut pairs = PolicyParser::parse(Rule::expression, s)
+        .map_err(|err| ReportCell::from_pest_error(err, s))?;
 
-    let token = pairs.next().assume("has tokens")?;
+    let token = pairs
+        .next()
+        .assume("has tokens")
+        .map_err(|bug| ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
 
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, s.len());
@@ -1739,13 +1759,14 @@ pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
 }
 
 /// Parse a function or finish function declaration for the FFI
-pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
+pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ReportCell> {
     let pratt = get_pratt_parser();
     let parser = ChunkParser::new(0, &pratt, data.len());
 
-    let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
+    let mut def = PolicyParser::parse(Rule::ffi_def, data)
+        .map_err(|err| ReportCell::from_pest_error(err, data))?;
     let decl = def.next().ok_or_else(|| {
-        ParseError::new(
+        ParseError::to_report(
             ParseErrorKind::Unknown,
             String::from("Not a function declaration"),
             None,
@@ -1791,8 +1812,9 @@ pub struct FfiTypes {
 }
 
 /// Parse a series of type definitions for the FFI
-pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
-    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
+pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ReportCell> {
+    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)
+        .map_err(|err| ReportCell::from_pest_error(err, data))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, data.len());
     let mut structs = vec![];
