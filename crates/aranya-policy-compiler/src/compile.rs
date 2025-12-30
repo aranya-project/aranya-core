@@ -1559,27 +1559,23 @@ impl<'a> CompileState<'a> {
         pattern: &thir::ResultPattern,
         scrutinee_type: &VType,
     ) -> Result<(), CompileError> {
-        // Make sure the scrutinee is actually a Result, and extract the expected type and identifier.
-        let (inner_type, ident) = match pattern {
+        // Make sure the scrutinee is actually a Result, and extract the identifier.
+        let ident = match pattern {
             thir::ResultPattern::Ok(ident) => {
-                let inner_type = if let TypeKind::Result { ok, .. } = &scrutinee_type.kind {
-                    (**ok).clone()
-                } else {
+                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
                     return Err(self.err(CompileErrorType::InvalidType(
                         "Ok pattern requires Result type".to_string(),
                     )));
-                };
-                (inner_type, ident)
+                }
+                ident
             }
             thir::ResultPattern::Err(ident) => {
-                let inner_type = if let TypeKind::Result { err, .. } = &scrutinee_type.kind {
-                    (**err).clone()
-                } else {
+                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
                     return Err(self.err(CompileErrorType::InvalidType(
                         "Err pattern requires Result type".to_string(),
                     )));
-                };
-                (inner_type, ident)
+                }
+                ident
             }
         };
 
@@ -1587,9 +1583,9 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Unwrap);
         self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
         self.append_instruction(Instruction::Def(ident.name.clone()));
-        self.identifier_types
-            .add(ident.name.clone(), inner_type)
-            .map_err(|e| self.err(e))?;
+        // NOTE: We don't call identifier_types.add() here because the pattern variable
+        // was already added during the lowering phase. Adding it again during compilation
+        // would conflict with any outer variables that were added after lowering the match.
 
         Ok(())
     }
