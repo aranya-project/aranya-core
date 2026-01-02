@@ -200,26 +200,10 @@ impl Display for ParseError<'_> {
     }
 }
 
-// TODO(Steve): Fix span.
-impl From<PestError<Rule>> for ParseError<'_> {
-    fn from(e: PestError<Rule>) -> Self {
-        let p = match e.line_col {
-            LineColLocation::Pos(p) => p,
-            LineColLocation::Span(p, _) => p,
-        };
-        Self {
-            kind: ParseErrorKind::Syntax,
-            message: e.to_string(),
-            span: None,
-            line_offset: None,
-        }
-    }
-}
-
 impl ReportCell {
     pub(crate) fn from_pest_error(e: PestError<Rule>, input: &str) -> Self {
         let maybe_span = match e.location {
-            InputLocation::Pos(_) => None, // TODO: Fix.
+            InputLocation::Pos(_) => None, // TODO(Steve): Fix.
             InputLocation::Span(p) => Some(p),
         };
 
