@@ -7,48 +7,50 @@ use aranya_policy_lang::lang::{
     self, ReportCell, Version, parse_policy_document, parse_policy_str,
 };
 
-// TODO(fix)
-// #[test]
-// #[allow(clippy::result_large_err)]
-// #[allow(deprecated)]
-// fn accept_only_latest_lang_version() {
-//     // parse string literal
-//     let src = "function f() int { return 0 }";
-//     assert_eq!(
-//         parse_policy_str(src, Version::V1)
-//             .expect_err("should not accept V1")
-//             .kind,
-//         ParseErrorKind::InvalidVersion {
-//             found: "1".to_string(),
-//             required: Version::V2
-//         }
-//     );
-//     parse_policy_str(src, Version::V2).expect("should accept V2");
+#[test]
+#[allow(clippy::result_large_err)]
+#[allow(deprecated)]
+fn accept_only_latest_lang_version() {
+    let help_msg = Version::help_message();
+    let err_msg = format!(
+        "error: Invalid policy version 1, supported version is 2\n  |\n  = note: {help_msg}"
+    );
 
-//     // parse markdown (v1)
-//     let policy_v1_md = r#"---
-// policy-version: 1
-// ---
+    // parse string literal
+    let src = "function f() int { return 0 }";
+    assert_eq!(
+        &parse_policy_str(src, Version::V1)
+            .expect_err("should not accept V1")
+            .to_string(),
+        &err_msg,
+    );
+    parse_policy_str(src, Version::V2).expect("should accept V2");
 
-// ```policy
-// ```
-// "#;
-//     assert!(parse_policy_document(policy_v1_md).is_err_and(|r| r.kind
-//         == ParseErrorKind::InvalidVersion {
-//             found: "1".to_string(),
-//             required: Version::V2
-//         }));
+    // parse markdown (v1)
+    let policy_v1_md = r#"---
+policy-version: 1
+---
 
-//     // parse markdown (v2)
-//     let policy_v2_md = r#"---
-// policy-version: 2
-// ---
+```policy
+```
+"#;
+    assert_eq!(
+        &parse_policy_document(policy_v1_md)
+            .expect_err("should not accept V1")
+            .to_string(),
+        &err_msg
+    );
 
-// ```policy
-// ```
-// "#;
-//     assert!(parse_policy_document(policy_v2_md).is_ok());
-// }
+    // parse markdown (v2)
+    let policy_v2_md = r#"---
+policy-version: 2
+---
+
+```policy
+```
+"#;
+    assert!(parse_policy_document(policy_v2_md).is_ok());
+}
 
 #[test]
 fn parse_ffi_decl() {

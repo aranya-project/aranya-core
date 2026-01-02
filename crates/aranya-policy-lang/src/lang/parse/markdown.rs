@@ -27,7 +27,7 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError<'static>> {
                     found: v.to_string(),
                     required: Version::V2,
                 },
-                "Update `policy-version`.".to_string(),
+                Version::help_message(),
                 None,
             ));
         }

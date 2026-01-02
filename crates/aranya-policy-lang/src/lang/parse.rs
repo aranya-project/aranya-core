@@ -1738,7 +1738,7 @@ fn parse_policy_chunk<'a>(
                 found: policy.version.to_string(),
                 required: Version::V2,
             },
-            "please update `policy-version` to 2".to_string(),
+            Version::help_message(),
             None,
         );
         return Err(err.to_report());
