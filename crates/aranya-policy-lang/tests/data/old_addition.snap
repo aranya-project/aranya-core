@@ -1,0 +1,19 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid operator
+  |
+2 |       return 3 + 4
+  |  ____________^
+3 | | }
+  | |_^ found `+`, addition now uses functions `add` or `saturating_add`
+  |
+help: you might have meant to use an arithmetic function
+  |
+2 -     return 3 + 4
+2 +     return saturating_add(_, _)
+  |
+2 -     return 3 + 4
+2 +     return add(_, _)
+  |
