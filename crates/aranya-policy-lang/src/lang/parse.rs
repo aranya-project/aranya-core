@@ -460,6 +460,7 @@ where {
     /// `A + B + C` => `Add(Add(A, B), C)`
     pub fn parse_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
         assert_eq!(expr.as_rule(), Rule::expression);
+        let expr_span = expr.as_span();
         let pairs = expr.into_inner();
 
         self.pratt
@@ -702,19 +703,23 @@ where {
                 let rhs = rhs?;
                 let combined_span = lhs.span.merge(rhs.span);
 
+                let op_span = {
+                    let span = op.as_span();
+                    ast::Span::new(span.start(), span.end())
+                };
                 let kind = match op.as_rule() {
                     Rule::add => {
                         return Err(ParseError::to_report(
-                            ParseErrorKind::InvalidOperator,
+                            ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
                             String::from("found `+`, addition now uses functions `add` or `saturating_add`"),
-                            Some(op.as_span())
+                            Some(expr_span)
                         ));
                     }
                     Rule::subtract => {
                         return Err(ParseError::to_report(
-                            ParseErrorKind::InvalidOperator,
+                            ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
                             String::from("found `-`, subtraction now uses functions `sub` or `saturating_sub`"),
-                            Some(op.as_span())
+                            Some(expr_span)
                         ));
                     }
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),

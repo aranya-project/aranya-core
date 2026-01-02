@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
-use aranya_policy_ast::Version;
+use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
+use aranya_policy_ast::{Span as ASTSpan, Version};
 use pest::{
     Span,
     error::{Error as PestError, InputLocation, LineColLocation},
@@ -18,7 +18,11 @@ use crate::lang::parse::Rule;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid operator was used.
-    InvalidOperator,
+    InvalidOperator {
+        lhs: ASTSpan,
+        op: ASTSpan,
+        rhs: ASTSpan,
+    },
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
     /// A statement is invalid for its scope.
@@ -100,7 +104,7 @@ impl ParseErrorKind {
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidOperator => write!(f, "Invalid operator"),
+            Self::InvalidOperator { .. } => write!(f, "Invalid operator"),
             Self::InvalidType => write!(f, "Invalid type"),
             Self::InvalidStatement => write!(f, "Invalid statement"),
             Self::InvalidNumber => write!(f, "Invalid number"),
@@ -156,7 +160,29 @@ impl ParseError {
                     .label(message),
             );
 
-            Report(vec![title.element(source)])
+            let mut out = Vec::new();
+            out.push(title.element(source));
+
+            if let ParseErrorKind::InvalidOperator { lhs, op, rhs } = kind {
+
+                let elements = if s[op.start()..op.end()] == *"+" {
+                    [
+                        Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
+                         Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
+                    ]
+                } else {
+                    [
+                        Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
+                        Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
+                    ]
+                };
+
+                let group = Level::HELP.secondary_title("you might have meant to use an arithmetic function").elements(elements);
+                
+                out.push(group);
+            }
+
+            Report(out)
         })
     }
 

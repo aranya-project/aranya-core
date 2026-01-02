@@ -81,14 +81,14 @@ pub enum ModelError {
     #[error(transparent)]
     VmPolicy(#[from] VmPolicyError),
     #[error("{0}")]
-    Parse(ReportCell),
+    Parse(String),
     #[error(transparent)]
     Compile(#[from] CompileError),
 }
 
 impl From<ReportCell> for ModelError {
     fn from(value: ReportCell) -> Self {
-        Self::Parse(value)
+        Self::Parse(value.to_string())
     }
 }
 
