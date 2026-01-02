@@ -3,7 +3,7 @@ use aranya_policy_module::{LabelType, Module, ModuleData};
 
 use crate::{
     ActionAnalyzer, FinishAnalyzer, FunctionAnalyzer, TraceAnalyzerBuilder, TraceFailure,
-    ValueAnalyzer,
+    UnusedResultAnalyzer, ValueAnalyzer,
 };
 
 /// Post-compilation validation. Ensure:
@@ -39,14 +39,18 @@ pub fn validate(module: &Module) -> bool {
         let tracer = match l.ltype {
             LabelType::Action => tracer
                 .add_analyzer(ActionAnalyzer::new())
-                .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names)),
-            LabelType::CommandSeal | LabelType::CommandOpen => {
-                tracer.add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
-            }
+                .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
+                .add_analyzer(UnusedResultAnalyzer::new()),
+            LabelType::CommandSeal | LabelType::CommandOpen => tracer
+                .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
+                .add_analyzer(UnusedResultAnalyzer::new()),
             LabelType::CommandPolicy | LabelType::CommandRecall => tracer
                 .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
-                .add_analyzer(FinishAnalyzer::new()),
-            LabelType::Function => tracer.add_analyzer(FunctionAnalyzer::new()),
+                .add_analyzer(FinishAnalyzer::new())
+                .add_analyzer(UnusedResultAnalyzer::new()),
+            LabelType::Function => tracer
+                .add_analyzer(FunctionAnalyzer::new())
+                .add_analyzer(UnusedResultAnalyzer::new()),
             LabelType::Temporary => unreachable!("Shouldn't have gotten this label type"),
         };
         let tracer = tracer.build();
