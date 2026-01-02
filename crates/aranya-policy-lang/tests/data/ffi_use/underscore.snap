@@ -2,9 +2,11 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Syntax error: line 1 column 5:  --> 1:5
+error: Syntax error
   |
-1 | use _
-  |     ^---
-  |
-  = expected identifier
+  = note:  --> 1:5
+            |
+          1 | use _
+            |     ^---
+            |
+            = expected identifier

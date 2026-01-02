@@ -3,10 +3,7 @@ use std::fmt::Display;
 use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
 use aranya_policy_ast::{Span as ASTSpan, Version};
 use buggy::Bug;
-use pest::{
-    Span,
-    error::{Error as PestError, InputLocation, LineColLocation},
-};
+use pest::{Span, error::Error as PestError};
 use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 
@@ -153,16 +150,18 @@ impl<'a> ParseError<'a> {
             out.push(title.element(source));
 
             if let ParseErrorKind::InvalidOperator { lhs, op, rhs } = kind {
-                let source =  Snippet::source(s).line_start(line_start);
+                let source = Snippet::source(s).line_start(line_start);
                 let elements = if s[op.start()..op.end()] == *"+" {
                     [
-                       source.clone()
+                        source
+                            .clone()
                             .patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
                         source.patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
                     ]
                 } else {
                     [
-                        source.clone()
+                        source
+                            .clone()
                             .patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
                         source.patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
                     ]
@@ -200,22 +199,6 @@ impl Display for ParseError<'_> {
     }
 }
 
-impl ReportCell {
-    pub(crate) fn from_pest_error(e: PestError<Rule>, input: &str) -> Self {
-        let maybe_span = match e.location {
-            InputLocation::Pos(_) => None, // TODO(Steve): Fix.
-            InputLocation::Span(p) => Some(p),
-        };
-
-        ParseError::new(
-            ParseErrorKind::Syntax,
-            e.to_string(),
-            maybe_span.and_then(|(start, end)| Span::new(input, start, end)),
-        )
-        .to_report()
-    }
-}
-
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = Renderer::plain().render(&self.0);
@@ -227,6 +210,17 @@ impl Display for ReportCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = Renderer::plain().render(&self.borrow_dependent().0);
         write!(f, "{message}")
+    }
+}
+
+impl From<PestError<Rule>> for ParseError<'static> {
+    fn from(e: PestError<Rule>) -> Self {
+        Self {
+            kind: ParseErrorKind::Syntax,
+            message: e.to_string(),
+            span: None, // span info is in the `Display` impl for the Pest error
+            line_offset: None,
+        }
     }
 }
 

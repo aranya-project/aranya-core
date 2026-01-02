@@ -1723,8 +1723,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
         LineColLocation::Span(p, _) => *p = line_col,
     }
 
-    // e.into()
-    todo!()
+    e.into()
 }
 
 /// Parse more data into an existing [ast::Policy] object.
@@ -1791,7 +1790,7 @@ fn parse_policy_chunk_inner<'a>(
 
 pub fn parse_expression(s: &str) -> Result<Expression, ReportCell> {
     let mut pairs = PolicyParser::parse(Rule::expression, s)
-        .map_err(|err| ReportCell::from_pest_error(err, s))?;
+        .map_err(|err| ParseError::from(err).to_report())?;
 
     let token = pairs.next().assume("has tokens").map_err(|bug| {
         ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None).to_report()
@@ -1808,7 +1807,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ReportCell> {
     let parser = ChunkParser::new(0, &pratt, data.len());
 
     let mut def = PolicyParser::parse(Rule::ffi_def, data)
-        .map_err(|err| ReportCell::from_pest_error(err, data))?;
+        .map_err(|err| ParseError::from(err).to_report())?;
     let decl = def.next().ok_or_else(|| {
         ParseError::new(
             ParseErrorKind::Unknown,
@@ -1865,7 +1864,7 @@ pub struct FfiTypes {
 /// Parse a series of type definitions for the FFI
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ReportCell> {
     let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)
-        .map_err(|err| ReportCell::from_pest_error(err, data))?;
+        .map_err(|err| ParseError::from(err).to_report())?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, data.len());
     let mut structs = vec![];
