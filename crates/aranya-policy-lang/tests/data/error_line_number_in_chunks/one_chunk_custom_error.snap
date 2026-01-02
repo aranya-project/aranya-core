@@ -1,5 +1,9 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
+assertion_line: 99
 expression: err
 ---
-Reserved identifier: line 6 column 9: int
+error: Reserved identifier
+  |
+6 |     let int = 0
+  |         ^^^ int

@@ -16,16 +16,13 @@ struct FrontMatter {
     policy_version: String,
 }
 
-fn parse_front_matter<'a, 'b>(yaml: &'a Yaml) -> Result<Version, ReportCell>
-where
-    'b: 'a,
-{
+fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError<'static>> {
     let fm: FrontMatter = serde_yaml::from_str(&yaml.value)
-        .map_err(|e| ParseError::to_report(ParseErrorKind::FrontMatter, e.to_string(), None))?;
+        .map_err(|e| ParseError::new(ParseErrorKind::FrontMatter, e.to_string(), None))?;
     let v = match fm.policy_version.as_str() {
         "2" => Version::V2,
         v => {
-            return Err(ParseError::to_report(
+            return Err(ParseError::new(
                 ParseErrorKind::InvalidVersion {
                     found: v.to_string(),
                     required: Version::V2,
@@ -52,12 +49,9 @@ pub struct ChunkOffset {
     pub byte: usize,
 }
 
-fn extract_policy_from_markdown<'a, 'b>(
-    node: &'a Node,
-) -> Result<(Vec<PolicyChunk>, Version), ReportCell>
-where
-    'b: 'a,
-{
+fn extract_policy_from_markdown(
+    node: &Node,
+) -> Result<(Vec<PolicyChunk>, Version), ParseError<'static>> {
     if let Node::Root(r) = node {
         let mut child_iter = r.children.iter();
         // The front matter should always be the first node below the
@@ -65,7 +59,7 @@ where
         let version = if let Some(Node::Yaml(y)) = child_iter.next() {
             parse_front_matter(y)?
         } else {
-            return Err(ParseError::to_report(
+            return Err(ParseError::new(
                 ParseErrorKind::FrontMatter,
                 String::from("No front matter found"),
                 None,
@@ -93,14 +87,7 @@ where
                         let byte = point
                             .offset
                             .checked_add(10)
-                            .assume("start.offset + 10 must not wrap")
-                            .map_err(|bug| {
-                                ParseError::to_report(
-                                    ParseErrorKind::Bug,
-                                    bug.msg().to_owned(),
-                                    None,
-                                )
-                            })?;
+                            .assume("start.offset + 10 must not wrap")?;
 
                         chunks.push(PolicyChunk {
                             text: c.value.clone(),
@@ -112,7 +99,7 @@ where
         }
         Ok((chunks, version))
     } else {
-        Err(ParseError::to_report(
+        Err(ParseError::new(
             ParseErrorKind::Unknown,
             String::from("Did not find Markdown Root node"),
             None,
@@ -123,13 +110,14 @@ where
 /// Parses a Markdown policy document into an AST. This AST will likely be further processed
 /// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
 pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ReportCell> {
-    let (chunks, version) = extract_policy(data)?;
+    let (chunks, version) = extract_policy(data).map_err(ParseError::to_report)?;
     if chunks.is_empty() {
-        return Err(ParseError::to_report(
+        return Err(ParseError::new(
             ParseErrorKind::Unknown,
             String::from("No policy code found in Markdown document"),
             None,
-        ));
+        )
+        .to_report());
     }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {
@@ -140,11 +128,11 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ReportCell> {
 
 /// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
 /// policy version.
-fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ReportCell> {
+fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError<'_>> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)
-        .map_err(|s| ParseError::to_report(ParseErrorKind::Unknown, s.to_string(), None))?;
+        .map_err(|s| ParseError::new(ParseErrorKind::Unknown, s.to_string(), None))?;
     let (chunks, version) = extract_policy_from_markdown(&tree)?;
     Ok((chunks, version))
 }

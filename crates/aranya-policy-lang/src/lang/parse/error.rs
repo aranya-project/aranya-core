@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
 use aranya_policy_ast::{Span as ASTSpan, Version};
+use buggy::Bug;
 use pest::{
     Span,
     error::{Error as PestError, InputLocation, LineColLocation},
@@ -72,35 +73,6 @@ self_cell!(
 
 impl std::error::Error for ReportCell {}
 
-/*
-impl ParseErrorKind {
-    #[must_use]
-    pub(crate) fn to_report(self, message: String, maybe_span: Option<Span<'_>>) -> Report<'_> {
-        let mut out = Vec::new();
-
-        let title = Level::ERROR.primary_title(self.to_string());
-        let Some(span) = maybe_span else {
-            out.push(title.element(Level::NOTE.message(message)));
-            return out;
-        };
-
-        let (line, _col) = span.start_pos().line_col();
-
-        let source = Snippet::source(span.get_input())
-            .line_start(line)
-            .annotation(
-                AnnotationKind::Primary
-                    .span(span.start()..span.end())
-                    .label(message),
-            );
-
-        out.push(title.element(source));
-
-        out
-    }
-}
-    */
-
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -128,20 +100,37 @@ impl Display for ParseErrorKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParseError {
+// TODO(Steve): Removing trait impls (Serialize/Deserialize) is a breaking change.
+#[derive(Debug, Clone)]
+pub struct ParseError<'a> {
     pub kind: ParseErrorKind,
     pub message: String,
     /// Line and column location of the error, if available.
-    pub location: Option<(usize, usize)>,
+    pub span: Option<Span<'a>>,
+    pub line_offset: Option<usize>,
 }
 
-impl ParseError {
-    pub(crate) fn to_report(
+impl<'a> ParseError<'a> {
+    pub(crate) fn new(
         kind: ParseErrorKind,
         message: String,
-        maybe_span: Option<Span<'_>>,
-    ) -> ReportCell {
+        span: Option<Span<'a>>,
+    ) -> ParseError<'a> {
+        Self {
+            kind,
+            message,
+            span,
+            line_offset: None,
+        }
+    }
+
+    pub(crate) fn to_report(self) -> ReportCell {
+        let Self {
+            kind,
+            message,
+            span: maybe_span,
+            line_offset,
+        } = self;
         let title = Level::ERROR.primary_title(kind.to_string());
         let Some(span) = maybe_span else {
             return ReportCell::new("".to_owned(), move |_| {
@@ -152,9 +141,9 @@ impl ParseError {
         let input = span.get_input().to_owned();
 
         ReportCell::new(input, move |s| {
-            let (line, _col) = span.start_pos().line_col();
+            let line_start = line_offset.unwrap_or_default() + 1;
 
-            let source = Snippet::source(s).line_start(line).annotation(
+            let source = Snippet::source(s).line_start(line_start).annotation(
                 AnnotationKind::Primary
                     .span(span.start()..span.end())
                     .label(message),
@@ -164,21 +153,25 @@ impl ParseError {
             out.push(title.element(source));
 
             if let ParseErrorKind::InvalidOperator { lhs, op, rhs } = kind {
-
+                let source =  Snippet::source(s).line_start(line_start);
                 let elements = if s[op.start()..op.end()] == *"+" {
                     [
-                        Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
-                         Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
+                       source.clone()
+                            .patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
+                        source.patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
                     ]
                 } else {
                     [
-                        Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
-                        Snippet::source(s).patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
+                        source.clone()
+                            .patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
+                        source.patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
                     ]
                 };
 
-                let group = Level::HELP.secondary_title("you might have meant to use an arithmetic function").elements(elements);
-                
+                let group = Level::HELP
+                    .secondary_title("you might have meant to use an arithmetic function")
+                    .elements(elements);
+
                 out.push(group);
             }
 
@@ -188,18 +181,18 @@ impl ParseError {
 
     /// Return a new error with a location starting from the given line.
     #[must_use]
-    pub fn adjust_line_number(mut self, start_line: usize) -> Self {
-        if let Some((line, _)) = &mut self.location {
-            *line = line.saturating_add(start_line);
+    pub(crate) fn adjust_line_number(self, line_offset: usize) -> Self {
+        Self {
+            line_offset: Some(line_offset),
+            ..self
         }
-        self
     }
 }
 
-impl Display for ParseError {
+impl Display for ParseError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: ", self.kind)?;
-        if let Some((line, column)) = self.location {
+        if let Some((line, column)) = self.span.map(|s| s.start_pos().line_col()) {
             write!(f, "line {line} column {column}: ")?;
         }
         write!(f, "{}", self.message)?;
@@ -207,7 +200,8 @@ impl Display for ParseError {
     }
 }
 
-impl From<PestError<Rule>> for ParseError {
+// TODO(Steve): Fix span.
+impl From<PestError<Rule>> for ParseError<'_> {
     fn from(e: PestError<Rule>) -> Self {
         let p = match e.line_col {
             LineColLocation::Pos(p) => p,
@@ -216,7 +210,8 @@ impl From<PestError<Rule>> for ParseError {
         Self {
             kind: ParseErrorKind::Syntax,
             message: e.to_string(),
-            location: Some(p),
+            span: None,
+            line_offset: None,
         }
     }
 }
@@ -228,11 +223,12 @@ impl ReportCell {
             InputLocation::Span(p) => Some(p),
         };
 
-        ParseError::to_report(
+        ParseError::new(
             ParseErrorKind::Syntax,
             e.to_string(),
             maybe_span.and_then(|(start, end)| Span::new(input, start, end)),
         )
+        .to_report()
     }
 }
 
@@ -250,5 +246,11 @@ impl Display for ReportCell {
     }
 }
 
+impl From<Bug> for ParseError<'_> {
+    fn from(bug: Bug) -> Self {
+        Self::new(ParseErrorKind::Bug, bug.msg().to_owned(), None)
+    }
+}
+
 // Implement default Error via Display and Debug
-impl core::error::Error for ParseError {}
+impl core::error::Error for ParseError<'_> {}

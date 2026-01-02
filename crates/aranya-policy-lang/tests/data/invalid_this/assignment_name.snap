@@ -2,4 +2,7 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Reserved identifier: line 1 column 5: this
+error: Reserved identifier
+  |
+1 | let this = 42
+  |     ^^^^ this

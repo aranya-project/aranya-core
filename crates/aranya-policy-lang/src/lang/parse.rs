@@ -40,9 +40,9 @@ struct PairContext<'a> {
     span: Span<'a>,
 }
 
-impl<'a, 'b> PairContext<'a> {
-    fn location_error(&self) -> ReportCell {
-        ParseError::to_report(
+impl<'a> PairContext<'a> {
+    fn location_error(&self) -> ParseError<'a> {
+        ParseError::new(
             ParseErrorKind::Unknown,
             format!("{:?}", &self.span),
             Some(self.span),
@@ -61,16 +61,16 @@ impl<'a, 'b> PairContext<'a> {
 
     /// Consumes the next Pair out of this context and returns it.
     /// Errors if the next pair doesn't exist.
-    fn consume(&self) -> Result<Pair<'a, Rule>, ReportCell> {
+    fn consume(&self) -> Result<Pair<'a, Rule>, ParseError<'a>> {
         self.next().ok_or_else(move || self.location_error())
     }
 
     /// Consumes the next Pair out of this context and returns it if
     /// it matches the given type. Otherwise returns an error.
-    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'a, Rule>, ReportCell> {
+    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'a, Rule>, ParseError<'a>> {
         let token = self.consume()?;
         if token.as_rule() != rule {
-            return Err(ParseError::to_report(
+            return Err(ParseError::new(
                 ParseErrorKind::Unknown,
                 format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
                 Some(token.as_span()),
@@ -81,20 +81,20 @@ impl<'a, 'b> PairContext<'a> {
 
     /// Consumes the next Pair and returns it as a VType. Same error
     /// conditions as [consume]
-    fn consume_type(&self, p: &ChunkParser<'b>) -> Result<VType, ReportCell> {
+    fn consume_type(&self, p: &ChunkParser<'a>) -> Result<VType, ParseError<'a>> {
         let token = self.consume()?;
         let typ = p.parse_type(token)?;
         Ok(typ)
     }
 
-    fn consume_fact(&self, p: &ChunkParser<'b>) -> Result<FactLiteral, ReportCell> {
+    fn consume_fact(&self, p: &ChunkParser<'a>) -> Result<FactLiteral, ParseError<'a>> {
         let token = self.consume_of_type(Rule::fact_literal)?;
         p.parse_fact_literal(token)
     }
 
     /// Consumes the next Pair out of this context and returns it as an
     /// [ast::Expression].
-    fn consume_expression(&self, p: &ChunkParser<'b>) -> Result<Expression, ReportCell> {
+    fn consume_expression(&self, p: &ChunkParser<'a>) -> Result<Expression, ParseError<'a>> {
         let token = self.consume_of_type(Rule::expression)?;
         p.parse_expression(token)
     }
@@ -106,7 +106,7 @@ impl<'a, 'b> PairContext<'a> {
     }
 
     /// Consumes the next Pair and returns it as an [`Ident`].
-    fn consume_ident(&self, parser: &ChunkParser<'b>) -> Result<Ident, ReportCell>
+    fn consume_ident(&self, parser: &ChunkParser<'a>) -> Result<Ident, ParseError<'a>>
 where {
         let token = self.consume_of_type(Rule::identifier)?;
         parser.parse_ident(token)
@@ -148,7 +148,7 @@ struct ChunkParser<'a> {
     source_len: usize,
 }
 
-impl<'a, 'b> ChunkParser<'b> {
+impl<'a> ChunkParser<'a> {
     pub fn new(offset: usize, pratt: &PrattParser<Rule>, source_len: usize) -> ChunkParser<'_> {
         ChunkParser {
             offset,
@@ -158,16 +158,16 @@ impl<'a, 'b> ChunkParser<'b> {
     }
 
     /// Convert a Pest span to an AST span with offset
-    fn to_ast_span(&self, pest_span: Span<'a>) -> Result<ast::Span, ReportCell> {
+    fn to_ast_span(&self, pest_span: Span<'a>) -> Result<ast::Span, ParseError<'a>> {
         let start = pest_span.start().checked_add(self.offset).ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::Unknown,
                 String::from("span start overflow"),
                 Some(pest_span),
             )
         })?;
         let end = pest_span.end().checked_add(self.offset).ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::Unknown,
                 String::from("span end overflow"),
                 Some(pest_span),
@@ -176,7 +176,7 @@ impl<'a, 'b> ChunkParser<'b> {
 
         // Validate that the span doesn't exceed source bounds
         if end > self.source_len {
-            return Err(ParseError::to_report(
+            return Err(ParseError::new(
                 ParseErrorKind::Unknown,
                 format!(
                     "Span [{}, {}) exceeds source length {}",
@@ -190,7 +190,7 @@ impl<'a, 'b> ChunkParser<'b> {
     }
 
     /// Parse an identifier with span
-    fn parse_ident(&self, token: Pair<'a, Rule>) -> Result<Ident, ReportCell>
+    fn parse_ident(&self, token: Pair<'a, Rule>) -> Result<Ident, ParseError<'a>>
 where {
         assert_eq!(token.as_rule(), Rule::identifier);
 
@@ -198,7 +198,7 @@ where {
         let identifier = token.as_str();
 
         if KEYWORDS.contains(&identifier) {
-            return Err(ParseError::to_report(
+            return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
                 identifier.to_string(),
                 Some(token.as_span()),
@@ -209,7 +209,7 @@ where {
             .parse()
             .assume("grammar produces valid identifiers")
             .map_err(|bug| {
-                ParseError::to_report(
+                ParseError::new(
                     ParseErrorKind::Bug,
                     bug.msg().to_owned(),
                     Some(token.as_span()),
@@ -220,7 +220,7 @@ where {
 
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
-    fn parse_type(&self, token: Pair<'a, Rule>) -> Result<VType, ReportCell> {
+    fn parse_type(&self, token: Pair<'a, Rule>) -> Result<VType, ParseError<'a>> {
         self.parse_type_inner(token, TypeStyle::Unknown, true)
     }
 
@@ -229,7 +229,7 @@ where {
         token: Pair<'a, Rule>,
         mut style: TypeStyle,
         allow_option: bool,
-    ) -> Result<VType, ReportCell> {
+    ) -> Result<VType, ParseError<'a>> {
         let pest_span = token.as_span();
         let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
@@ -264,7 +264,7 @@ where {
                     (TypeStyle::Unknown, false) => style = TypeStyle::New,
                     (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
                     _ => {
-                        return Err(ParseError::to_report(
+                        return Err(ParseError::new(
                             ParseErrorKind::InvalidType,
                             String::from(
                                 "Replace `optional T` with the new `option[T]` to use complex types",
@@ -275,7 +275,7 @@ where {
                 }
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
-                    ParseError::to_report(
+                    ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("no type following optional"),
                         Some(token.as_span()),
@@ -285,7 +285,7 @@ where {
                 TypeKind::Optional(Box::new(inner_type))
             }
             _ => {
-                return Err(ParseError::to_report(
+                return Err(ParseError::new(
                     ParseErrorKind::InvalidType,
                     format!("{:?} {}", token.as_rule(), token.as_str().to_owned()),
                     Some(token.as_span()),
@@ -296,11 +296,14 @@ where {
     }
 
     /// Parse a Rule::field_definition token into a FieldDef.
-    fn parse_field_definition(&self, field: Pair<'a, Rule>) -> Result<FieldDefinition, ReportCell> {
+    fn parse_field_definition(
+        &self,
+        field: Pair<'a, Rule>,
+    ) -> Result<FieldDefinition, ParseError<'a>> {
         let pc = descend(field);
         let identifier = pc.consume_ident(self)?;
         let field_type = self.parse_type(pc.pairs.borrow_mut().next().ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::Unknown,
                 String::from("missing type in field definition"),
                 Some(pc.span),
@@ -316,7 +319,7 @@ where {
     fn parse_effect_field_definition(
         &self,
         field: Pair<'a, Rule>,
-    ) -> Result<EffectFieldDefinition, ReportCell> {
+    ) -> Result<EffectFieldDefinition, ParseError<'a>> {
         let pc = descend(field);
         let identifier = pc.consume_ident(self)?;
         let field_type = pc.consume_type(self)?;
@@ -335,13 +338,13 @@ where {
     /// Parse a Rule::string_literal into a String.
     ///
     /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<Text, ReportCell> {
+    fn parse_string_literal(string: Pair<'a, Rule>) -> Result<Text, ParseError<'a>> {
         let src = string.as_str();
         let it = &mut src.chars();
         let mut out = String::new();
         // consume the first quote character
         if it.next() != Some('"') {
-            return Err(ParseError::to_report(
+            return Err(ParseError::new(
                 ParseErrorKind::InvalidString,
                 format!("bad string: {}", src),
                 Some(string.as_span()),
@@ -355,7 +358,7 @@ where {
                             'x' => {
                                 let s: String = it.take(2).collect();
                                 let v = u8::from_str_radix(&s, 16).map_err(|e| {
-                                    ParseError::to_report(
+                                    ParseError::new(
                                         ParseErrorKind::InvalidNumber,
                                         format!("{}: {}", s, e),
                                         Some(string.as_span()),
@@ -367,7 +370,7 @@ where {
                                 out.push('\n');
                             }
                             _ => {
-                                return Err(ParseError::to_report(
+                                return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
                                     format!("invalid escape: {}", next),
                                     Some(string.as_span()),
@@ -375,7 +378,7 @@ where {
                             }
                         }
                     } else {
-                        return Err(ParseError::to_report(
+                        return Err(ParseError::new(
                             ParseErrorKind::InvalidString,
                             String::from("end of string while processing escape"),
                             Some(string.as_span()),
@@ -388,7 +391,7 @@ where {
         }
 
         out.try_into().map_err(|_| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::InvalidString,
                 String::from("string contained nul byte"),
                 Some(string.as_span()),
@@ -399,7 +402,7 @@ where {
     fn parse_named_struct_literal(
         &self,
         named_struct: Pair<'a, Rule>,
-    ) -> Result<NamedStruct, ReportCell> {
+    ) -> Result<NamedStruct, ParseError<'a>> {
         let pc = descend(named_struct.clone());
         let identifier = pc.consume_ident(self)?;
 
@@ -412,7 +415,7 @@ where {
         })
     }
 
-    fn parse_function_call(&self, call: Pair<'a, Rule>) -> Result<FunctionCall, ReportCell> {
+    fn parse_function_call(&self, call: Pair<'a, Rule>) -> Result<FunctionCall, ParseError<'a>> {
         let pc = descend(call.clone());
         let identifier = pc.consume_ident(self)?;
 
@@ -431,7 +434,7 @@ where {
     fn parse_foreign_function_call(
         &self,
         call: Pair<'a, Rule>,
-    ) -> Result<ForeignFunctionCall, ReportCell> {
+    ) -> Result<ForeignFunctionCall, ParseError<'a>> {
         let pc = descend(call.clone());
         let module = pc.consume_ident(self)?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
@@ -458,7 +461,7 @@ where {
     /// equivalent precedence will create a lopsided tree. For example:
     ///
     /// `A + B + C` => `Add(Add(A, B), C)`
-    pub fn parse_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    pub fn parse_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ParseError<'a>> {
         assert_eq!(expr.as_rule(), Rule::expression);
         let expr_span = expr.as_span();
         let pairs = expr.into_inner();
@@ -467,7 +470,7 @@ where {
             .map_primary(|primary| match primary.as_rule() {
                 Rule::int_literal => {
                     let n = primary.as_str().parse::<i64>().map_err(|e| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::InvalidNumber,
                             e.to_string(),
                             Some(primary.as_span()),
@@ -484,7 +487,7 @@ where {
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::Unknown,
                             String::from("bad bool expression"),
                             Some(primary.as_span()),
@@ -499,7 +502,7 @@ where {
                             let span = self.to_ast_span(primary.as_span())?;
                             Ok(Expression{kind:ExprKind::Bool(false), span})
                         }
-                        t => Err(ParseError::to_report(
+                        t => Err(ParseError::new(
                             ParseErrorKind::Unknown,
                             format!("impossible token: {:?}", t),
                             Some(primary.as_span()),
@@ -509,7 +512,7 @@ where {
                 Rule::optional_literal => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::Unknown,
                             String::from("no token in optional literal"),
                             Some(primary.as_span()),
@@ -520,7 +523,7 @@ where {
                         Rule::none => None,
                         Rule::some => {
                             let token = pairs.next().ok_or_else(|| {
-                                ParseError::to_report(
+                                ParseError::new(
                                     ParseErrorKind::Unknown,
                                     String::from("bad Some expression"),
                                     Some(primary.as_span()),
@@ -530,7 +533,7 @@ where {
                             Some(Box::new(e))
                         }
                         t => {
-                            return Err(ParseError::to_report(
+                            return Err(ParseError::new(
                                 ParseErrorKind::Unknown,
                                 format!("invalid token in optional: {:?}", t),
                                 Some(primary.as_span()),
@@ -568,7 +571,7 @@ where {
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("query requires fact literal"),
                             Some(primary.as_span()),
@@ -584,7 +587,7 @@ where {
                 Rule::exists => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("exists requires fact literal"),
                             Some(primary.as_span()),
@@ -618,7 +621,7 @@ where {
                 Rule::serialize => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("empty serialize function"),
                             Some(primary.as_span()),
@@ -633,7 +636,7 @@ where {
                 Rule::deserialize => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or_else(|| {
-                        ParseError::to_report(
+                        ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("empty deserialize function"),
                             Some(primary.as_span()),
@@ -673,7 +676,7 @@ where {
                 }
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
-                _ => Err(ParseError::to_report(
+                _ => Err(ParseError::new(
                     ParseErrorKind::Expression,
                     format!("bad atom: {:?}", primary.as_rule()),
                     Some(primary.as_span()),
@@ -689,7 +692,7 @@ where {
                     Rule::unwrap => ExprKind::Unwrap(Box::new(rhs)),
                     Rule::check_unwrap => ExprKind::CheckUnwrap(Box::new(rhs)),
                     _ => {
-                        return Err(ParseError::to_report(
+                        return Err(ParseError::new(
                             ParseErrorKind::Expression,
                             format!("bad prefix: {:?}", op.as_rule()),
                             Some(op.as_span()),
@@ -709,14 +712,14 @@ where {
                 };
                 let kind = match op.as_rule() {
                     Rule::add => {
-                        return Err(ParseError::to_report(
+                        return Err(ParseError::new(
                             ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
                             String::from("found `+`, addition now uses functions `add` or `saturating_add`"),
                             Some(expr_span)
                         ));
                     }
                     Rule::subtract => {
-                        return Err(ParseError::to_report(
+                        return Err(ParseError::new(
                             ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
                             String::from("found `-`, subtraction now uses functions `sub` or `saturating_sub`"),
                             Some(expr_span)
@@ -732,7 +735,7 @@ where {
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::dot => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::to_report(
+                        _ => return Err(ParseError::new(
                             ParseErrorKind::InvalidMember,
                             format!("Expected identifier after dot, got {:?}", rhs.kind),
                             Some(op.as_span()),
@@ -740,7 +743,7 @@ where {
                     },
                     Rule::substruct => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::to_report(
+                        _ => return Err(ParseError::new(
                             ParseErrorKind::InvalidSubstruct,
                             format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
                             Some(op.as_span()),
@@ -748,13 +751,13 @@ where {
                     },
                     Rule::cast => match &rhs.kind {
                         ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
-                        e => return Err(ParseError::to_report(
+                        e => return Err(ParseError::new(
                             ParseErrorKind::InvalidSubstruct,
                             format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
                             Some(op.as_span()),
                         )),
                     },
-                    _ => return Err(ParseError::to_report(
+                    _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad infix: {:?}", op.as_rule()),
                         Some(op.as_span()),
@@ -772,7 +775,7 @@ where {
                     Rule::is => {
                         let mut pairs = op.into_inner();
                         let token = pairs.next().ok_or_else(|| {
-                            ParseError::to_report(
+                            ParseError::new(
                                 ParseErrorKind::InvalidFunctionCall,
                                 String::from("is requires some or none"),
                                 Some(op_pest_span),
@@ -781,7 +784,7 @@ where {
                         let some = match token.as_rule() {
                             Rule::some => true,
                             Rule::none => false,
-                            _ => return Err(ParseError::to_report(
+                            _ => return Err(ParseError::new(
                                 ParseErrorKind::Unknown,
                                 format!("not none or some after is: {:?}", token.as_rule()),
                                 Some(token.as_span()),
@@ -789,7 +792,7 @@ where {
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
-                    _ => return Err(ParseError::to_report(
+                    _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),
                         Some(op_pest_span),
@@ -800,7 +803,7 @@ where {
             .parse(pairs)
     }
 
-    fn parse_block_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    fn parse_block_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ParseError<'a>> {
         let pc = descend(expr.clone());
         let statements = pc.consume()?.into_inner();
         let statement_list = self.parse_statement_list(statements)?;
@@ -813,7 +816,7 @@ where {
         })
     }
 
-    fn parse_match_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    fn parse_match_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ParseError<'a>> {
         let span = self.to_ast_span(expr.as_span())?;
         let pc = descend(expr);
         let scrutinee = pc.consume_expression(self)?;
@@ -837,7 +840,7 @@ where {
                     MatchPattern::Values(values)
                 }
                 _ => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
@@ -866,24 +869,24 @@ where {
         &self,
         statement: Pair<'a, Rule>,
         cmp_type: ast::FactCountType,
-    ) -> Result<Expression, ReportCell> {
+    ) -> Result<Expression, ParseError<'a>> {
         let mut pairs = statement.clone().into_inner();
         let token = pairs.next().ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::Expression,
                 format!("{} requires count limit (int)", cmp_type),
                 Some(statement.as_span()),
             )
         })?;
         let limit = token.as_str().parse::<i64>().map_err(|e| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::InvalidNumber,
                 e.to_string(),
                 Some(statement.as_span()),
             )
         })?;
         let token = pairs.next().ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::Expression,
                 format!("{} requires fact literal", cmp_type),
                 Some(statement.as_span()),
@@ -897,10 +900,10 @@ where {
         })
     }
 
-    fn parse_if_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    fn parse_if_expression(&self, expr: Pair<'a, Rule>) -> Result<Expression, ParseError<'a>> {
         let mut pairs = expr.clone().into_inner();
         let token = pairs.next().ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires expression"),
                 Some(expr.as_span()),
@@ -909,7 +912,7 @@ where {
         let condition = self.parse_expression(token)?;
 
         let token = pairs.next().ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires then case"),
                 Some(expr.as_span()),
@@ -918,7 +921,7 @@ where {
         let then_expr = self.parse_block_expression(token)?;
 
         let token = pairs.next().ok_or_else(|| {
-            ParseError::to_report(
+            ParseError::new(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires else case"),
                 Some(expr.as_span()),
@@ -939,7 +942,10 @@ where {
 
     /// Parses a list of Rule::struct_data items into lists of (String,
     /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
-    fn parse_struct_data(&self, fields: Pairs<'a, Rule>) -> Result<FieldsAndSources, ReportCell> {
+    fn parse_struct_data(
+        &self,
+        fields: Pairs<'a, Rule>,
+    ) -> Result<FieldsAndSources, ParseError<'a>> {
         let mut field_expressions = vec![];
         let mut sources = vec![];
 
@@ -966,7 +972,7 @@ where {
     fn parse_fact_literal_fields(
         &self,
         fields: Pairs<'a, Rule>,
-    ) -> Result<Vec<(Ident, FactField)>, ReportCell> {
+    ) -> Result<Vec<(Ident, FactField)>, ParseError<'a>> {
         let mut out = vec![];
 
         for field in fields {
@@ -978,7 +984,7 @@ where {
                 Rule::expression => FactField::Expression(self.parse_expression(token)?),
                 Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
                 _ => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
                         Some(token.as_span()),
@@ -991,7 +997,7 @@ where {
         Ok(out)
     }
 
-    fn parse_action_call(&self, item: Pair<'a, Rule>) -> Result<FunctionCall, ReportCell> {
+    fn parse_action_call(&self, item: Pair<'a, Rule>) -> Result<FunctionCall, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::action_call);
 
         let pc = descend(item);
@@ -1001,7 +1007,7 @@ where {
     }
 
     /// Parse a Rule::publish_statement into an PublishStatement.
-    fn parse_publish_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    fn parse_publish_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::publish_statement);
 
         let pc = descend(item);
@@ -1011,7 +1017,7 @@ where {
     }
 
     /// Parse a Rule::fact_literal into a FactLiteral.
-    fn parse_fact_literal(&self, fact: Pair<'a, Rule>) -> Result<FactLiteral, ReportCell> {
+    fn parse_fact_literal(&self, fact: Pair<'a, Rule>) -> Result<FactLiteral, ParseError<'a>> {
         let pc = descend(fact.clone());
         let identifier = pc.consume_ident(self)?;
 
@@ -1033,7 +1039,7 @@ where {
     }
 
     /// Parse a Rule::let_statement into a LetStatement.
-    fn parse_let_statement(&self, item: Pair<'a, Rule>) -> Result<LetStatement, ReportCell> {
+    fn parse_let_statement(&self, item: Pair<'a, Rule>) -> Result<LetStatement, ParseError<'a>> {
         let pc = descend(item);
         let identifier = pc.consume_ident(self)?;
         let expression = pc.consume_expression(self)?;
@@ -1045,7 +1051,10 @@ where {
     }
 
     /// Parse a Rule::check_statement into a CheckStatement.
-    fn parse_check_statement(&self, item: Pair<'a, Rule>) -> Result<CheckStatement, ReportCell> {
+    fn parse_check_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<CheckStatement, ParseError<'a>> {
         let pc = descend(item);
         let token = pc.consume()?;
         let expression = self.parse_expression(token)?;
@@ -1054,7 +1063,10 @@ where {
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
-    fn parse_match_statement(&self, item: Pair<'a, Rule>) -> Result<MatchStatement, ReportCell> {
+    fn parse_match_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<MatchStatement, ParseError<'a>> {
         let pc = descend(item);
         let expression = pc.consume_expression(self)?;
 
@@ -1073,14 +1085,14 @@ where {
                         .into_inner()
                         .map(|token| {
                             let expr = self.parse_expression(token.clone())?;
-                            Ok::<Expression, ReportCell>(expr)
+                            Ok::<Expression, ParseError<'a>>(expr)
                         })
                         .collect::<Result<Vec<Expression>, _>>()?;
 
                     MatchPattern::Values(values)
                 }
                 _ => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
@@ -1101,7 +1113,7 @@ where {
     }
 
     /// Parse a rule::if_statement into a IfStatement
-    fn parse_if_statement(&self, item: Pair<'a, Rule>) -> Result<IfStatement, ReportCell> {
+    fn parse_if_statement(&self, item: Pair<'a, Rule>) -> Result<IfStatement, ParseError<'a>> {
         let pc = descend(item);
 
         let mut branches = Vec::new();
@@ -1123,7 +1135,10 @@ where {
     }
 
     /// Parse a Rule::create_statement into a CreateStatement.
-    fn parse_create_statement(&self, item: Pair<'a, Rule>) -> Result<CreateStatement, ReportCell> {
+    fn parse_create_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<CreateStatement, ParseError<'a>> {
         let pc = descend(item);
         let fact = pc.consume_fact(self)?;
 
@@ -1131,7 +1146,10 @@ where {
     }
 
     /// Parse a Rule::update_statement into an UpdateStatement.
-    fn parse_update_statement(&self, item: Pair<'a, Rule>) -> Result<UpdateStatement, ReportCell> {
+    fn parse_update_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<UpdateStatement, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::update_statement);
 
         let pc = descend(item);
@@ -1144,7 +1162,10 @@ where {
     }
 
     /// Parse a Rule::delete_statement into a DeleteStatement.
-    fn parse_delete_statement(&self, item: Pair<'a, Rule>) -> Result<DeleteStatement, ReportCell> {
+    fn parse_delete_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<DeleteStatement, ParseError<'a>> {
         let pc = descend(item);
         let fact = pc.consume_fact(self)?;
 
@@ -1152,7 +1173,7 @@ where {
     }
 
     /// Parse a Rule::emit_statement into an EmitStatement.
-    fn parse_emit_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    fn parse_emit_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::emit_statement);
 
         let pc = descend(item);
@@ -1162,7 +1183,10 @@ where {
     }
 
     /// Parse a Rule::return_statementinto a ReturnStatement.
-    fn parse_return_statement(&self, item: Pair<'a, Rule>) -> Result<ReturnStatement, ReportCell> {
+    fn parse_return_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<ReturnStatement, ParseError<'a>> {
         let pc = descend(item);
         let expression = pc.consume_expression(self)?;
 
@@ -1170,7 +1194,10 @@ where {
     }
 
     /// Parse a Rule::effect_statement into an DebugAssert.
-    fn parse_debug_assert_statement(&self, item: Pair<'a, Rule>) -> Result<Expression, ReportCell> {
+    fn parse_debug_assert_statement(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<Expression, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::debug_assert);
 
         let pc = descend(item);
@@ -1186,7 +1213,10 @@ where {
     /// - [UpdateStatement](ast::UpdateStatement)
     /// - [DeleteStatement](ast::DeleteStatement)
     /// - [EffectStatement](ast::EffectStatement)
-    fn parse_statement_list(&self, list: Pairs<'a, Rule>) -> Result<Vec<Statement>, ReportCell> {
+    fn parse_statement_list(
+        &self,
+        list: Pairs<'a, Rule>,
+    ) -> Result<Vec<Statement>, ParseError<'a>> {
         let mut statements = vec![];
         for statement in list {
             let span = self.to_ast_span(statement.as_span())?;
@@ -1215,7 +1245,7 @@ where {
                     StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
                 }
                 s => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
                         format!("found invalid rule `{:?}`", s),
                         Some(statement.as_span()),
@@ -1228,7 +1258,7 @@ where {
         Ok(statements)
     }
 
-    fn parse_map_statement(&self, field: Pair<'a, Rule>) -> Result<MapStatement, ReportCell> {
+    fn parse_map_statement(&self, field: Pair<'a, Rule>) -> Result<MapStatement, ParseError<'a>> {
         assert_eq!(field.as_rule(), Rule::map_statement);
         let pc = descend(field);
         let pair = pc.consume()?;
@@ -1243,7 +1273,7 @@ where {
         })
     }
 
-    fn parse_use_definition(&self, field: Pair<'a, Rule>) -> Result<Ident, ReportCell> {
+    fn parse_use_definition(&self, field: Pair<'a, Rule>) -> Result<Ident, ParseError<'a>> {
         let pc = descend(field);
         pc.consume_ident(self)
     }
@@ -1252,7 +1282,7 @@ where {
     fn parse_fact_definition(
         &self,
         field: Pair<'a, Rule>,
-    ) -> Result<ast::FactDefinition, ReportCell> {
+    ) -> Result<ast::FactDefinition, ParseError<'a>> {
         let span = self.to_ast_span(field.as_span())?;
         let pc = descend(field);
         let token = pc.consume()?;
@@ -1290,7 +1320,7 @@ where {
     fn parse_action_definition(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::ActionDefinition, ReportCell> {
+    ) -> Result<ast::ActionDefinition, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::action_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1323,7 +1353,7 @@ where {
     fn parse_effect_definition(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::EffectDefinition, ReportCell> {
+    ) -> Result<ast::EffectDefinition, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::effect_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1342,7 +1372,7 @@ where {
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in effect definition"),
                         Some(field.as_span()),
@@ -1362,7 +1392,7 @@ where {
     fn parse_struct_definition(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::StructDefinition, ReportCell> {
+    ) -> Result<ast::StructDefinition, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::struct_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1381,7 +1411,7 @@ where {
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in struct definition"),
                         Some(field.as_span()),
@@ -1397,7 +1427,10 @@ where {
         })
     }
 
-    fn parse_enum_definition(&self, item: Pair<'a, Rule>) -> Result<EnumDefinition, ReportCell> {
+    fn parse_enum_definition(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<EnumDefinition, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1416,7 +1449,7 @@ where {
         })
     }
 
-    fn parse_enum_reference(&self, item: Pair<'a, Rule>) -> Result<EnumReference, ReportCell> {
+    fn parse_enum_reference(&self, item: Pair<'a, Rule>) -> Result<EnumReference, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
         let pc = descend(item.clone());
@@ -1430,7 +1463,7 @@ where {
     fn parse_command_definition(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::CommandDefinition, ReportCell> {
+    ) -> Result<ast::CommandDefinition, ParseError<'a>> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1473,7 +1506,7 @@ where {
                                 fields.push(ast::StructItem::StructRef(ident));
                             }
                             _ => {
-                                return Err(ParseError::to_report(
+                                return Err(ParseError::new(
                                     ParseErrorKind::Unknown,
                                     String::from("invalid token in command definition"),
                                     Some(field.as_span()),
@@ -1499,7 +1532,7 @@ where {
                     open = self.parse_statement_list(pairs)?;
                 }
                 t => {
-                    return Err(ParseError::to_report(
+                    return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
                         format!("found {:?} in command definition", t),
                         Some(token.as_span()),
@@ -1523,7 +1556,10 @@ where {
 
     /// Parse only the declaration of a function. Works for both `Rule::function_decl` and
     /// `Rule::finish_function_decl`.
-    fn parse_function_decl(&self, item: Pair<'a, Rule>) -> Result<ast::FunctionDecl, ReportCell> {
+    fn parse_function_decl(
+        &self,
+        item: Pair<'a, Rule>,
+    ) -> Result<ast::FunctionDecl, ParseError<'a>> {
         let rule = item.as_rule();
 
         assert!(matches!(
@@ -1556,7 +1592,7 @@ where {
     fn parse_function_definition(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::FunctionDefinition, ReportCell> {
+    ) -> Result<ast::FunctionDefinition, ParseError<'a>> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
 
@@ -1580,7 +1616,7 @@ where {
     fn parse_finish_function_definition(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::FinishFunctionDefinition, ReportCell> {
+    ) -> Result<ast::FinishFunctionDefinition, ParseError<'a>> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
 
@@ -1602,7 +1638,7 @@ where {
     fn parse_global_let_statement(
         &self,
         item: Pair<'a, Rule>,
-    ) -> Result<ast::GlobalLetStatement, ReportCell> {
+    ) -> Result<ast::GlobalLetStatement, ParseError<'a>> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = descend(item);
         let identifier = pc.consume_ident(self)?;
@@ -1641,13 +1677,13 @@ pub fn parse_policy_str<'a>(data: &'a str, version: Version) -> Result<ast::Poli
 
 /// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
 /// in the source text.
-fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ReportCell {
+fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError<'_> {
     let pos = match &mut e.location {
         InputLocation::Pos(p) => {
             *p = match p.checked_add(offset).assume("p + offset must not wrap") {
                 Ok(n) => n,
                 Err(bug) => {
-                    return ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None);
+                    return ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None);
                 }
             };
             *p
@@ -1656,13 +1692,13 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
             *s = match s.checked_add(offset).assume("s + offset must not wrap") {
                 Ok(n) => n,
                 Err(bug) => {
-                    return ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None);
+                    return ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None);
                 }
             };
             *e = match e.checked_add(offset).assume("e + offset must not wrap") {
                 Ok(n) => n,
                 Err(bug) => {
-                    return ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None);
+                    return ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None);
                 }
             };
             *s
@@ -1672,7 +1708,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
     let line_col = match Span::new(text, pos, pos) {
         Some(s) => s.start_pos().line_col(),
         None => {
-            return ParseError::to_report(
+            return ParseError::new(
                 ParseErrorKind::Unknown,
                 "error location error".to_string(),
                 None,
@@ -1698,27 +1734,31 @@ fn parse_policy_chunk<'a>(
     start: ChunkOffset,
 ) -> Result<(), ReportCell> {
     if policy.version != Version::V2 {
-        return Err(ParseError::to_report(
+        let err = ParseError::new(
             ParseErrorKind::InvalidVersion {
                 found: policy.version.to_string(),
                 required: Version::V2,
             },
             "please update `policy-version` to 2".to_string(),
             None,
-        ));
+        );
+        return Err(err.to_report());
     }
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))?;
+        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))
+        .map_err(ParseError::to_report)?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
     parse_policy_chunk_inner(chunk, &p, policy)
+        .map_err(|e| e.adjust_line_number(start.line))
+        .map_err(ParseError::to_report)
 }
 
 fn parse_policy_chunk_inner<'a>(
     chunk: Pairs<'a, Rule>,
-    p: &ChunkParser<'_>,
+    p: &ChunkParser<'a>,
     policy: &mut ast::Policy,
-) -> Result<(), ReportCell> {
+) -> Result<(), ParseError<'a>> {
     for item in chunk {
         match item.as_rule() {
             Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?),
@@ -1737,7 +1777,7 @@ fn parse_policy_chunk_inner<'a>(
             }
             Rule::EOI => (),
             _ => {
-                return Err(ParseError::to_report(
+                return Err(ParseError::new(
                     ParseErrorKind::Unknown,
                     format!("Impossible rule: {:?}", item.as_rule()),
                     Some(item.as_span()),
@@ -1753,14 +1793,13 @@ pub fn parse_expression(s: &str) -> Result<Expression, ReportCell> {
     let mut pairs = PolicyParser::parse(Rule::expression, s)
         .map_err(|err| ReportCell::from_pest_error(err, s))?;
 
-    let token = pairs
-        .next()
-        .assume("has tokens")
-        .map_err(|bug| ParseError::to_report(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
+    let token = pairs.next().assume("has tokens").map_err(|bug| {
+        ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None).to_report()
+    })?;
 
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, s.len());
-    p.parse_expression(token)
+    p.parse_expression(token).map_err(ParseError::to_report)
 }
 
 /// Parse a function or finish function declaration for the FFI
@@ -1771,11 +1810,12 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ReportCell> {
     let mut def = PolicyParser::parse(Rule::ffi_def, data)
         .map_err(|err| ReportCell::from_pest_error(err, data))?;
     let decl = def.next().ok_or_else(|| {
-        ParseError::to_report(
+        ParseError::new(
             ParseErrorKind::Unknown,
             String::from("Not a function declaration"),
             None,
         )
+        .to_report()
     })?;
 
     let rule = decl.as_rule();
@@ -1786,16 +1826,22 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ReportCell> {
     ));
 
     let pc = descend(decl.clone());
-    let identifier = pc.consume_ident(&parser)?;
+    let identifier = pc.consume_ident(&parser).map_err(ParseError::to_report)?;
 
-    let token = pc.consume_of_type(Rule::function_arguments)?;
+    let token = pc
+        .consume_of_type(Rule::function_arguments)
+        .map_err(ParseError::to_report)?;
     let mut arguments = vec![];
     for field in token.into_inner() {
-        arguments.push(parser.parse_field_definition(field)?);
+        arguments.push(
+            parser
+                .parse_field_definition(field)
+                .map_err(ParseError::to_report)?,
+        );
     }
 
     let return_type = if rule == Rule::function_decl {
-        Some(pc.consume_type(&parser)?)
+        Some(pc.consume_type(&parser).map_err(ParseError::to_report)?)
     } else {
         None
     };
@@ -1827,10 +1873,13 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ReportCell> {
     for s in def {
         match s.as_rule() {
             Rule::struct_definition => {
-                structs.push(p.parse_struct_definition(s)?);
+                structs.push(
+                    p.parse_struct_definition(s)
+                        .map_err(ParseError::to_report)?,
+                );
             }
             Rule::enum_definition => {
-                enums.push(p.parse_enum_definition(s)?);
+                enums.push(p.parse_enum_definition(s).map_err(ParseError::to_report)?);
             }
             Rule::EOI => break,
             _ => break,

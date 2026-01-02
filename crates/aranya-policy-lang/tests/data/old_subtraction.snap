@@ -1,5 +1,20 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
+assertion_line: 99
 expression: err
 ---
-Invalid operator: line 2 column 14: found `-`, subtraction now uses functions `sub` or `saturating_sub`
+error: Invalid operator
+  |
+2 |       return 3 - 4
+  |  ____________^
+3 | | }
+  | |_^ found `-`, subtraction now uses functions `sub` or `saturating_sub`
+  |
+help: you might have meant to use an arithmetic function
+  |
+2 -     return 3 - 4
+2 +     return saturating_sub(_, _)
+  |
+2 -     return 3 - 4
+2 +     return sub(_, _)
+  |
