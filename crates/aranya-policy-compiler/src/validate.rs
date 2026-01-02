@@ -3,7 +3,7 @@ use aranya_policy_module::{LabelType, Module, ModuleData};
 
 use crate::{
     ActionAnalyzer, FinishAnalyzer, FunctionAnalyzer, TraceAnalyzerBuilder, TraceFailure,
-    ValueAnalyzer,
+    UnusedResultAnalyzer, ValueAnalyzer,
 };
 
 /// Post-compilation validation. Ensure:
