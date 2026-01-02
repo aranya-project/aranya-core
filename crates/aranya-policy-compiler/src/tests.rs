@@ -3479,3 +3479,74 @@ fn test_structs_listed_out_of_order() {
         assert_eq!(err, expected_err);
     }
 }
+
+#[test]
+fn test_unused_values() {
+    let cases = [
+        (
+            r#"
+            function f() int {
+                let x = 3 // unused variable
+                return 0
+            }
+            "#,
+            "unused variable: x",
+        ),
+        (
+            r#"
+            // Check that we're actually detecting ALL unused let variables
+            function g() int {
+                let a = 1
+                let b = 2
+                let c = saturating_add(a, b)
+                return 0  // c is unused
+            }
+            "#,
+            "unused variable: c",
+        ),
+        (
+            r#"
+            // Track variables in nested scopes
+            function bar() int {
+                let a = 0
+                if a > 0 {
+                    let x = 1 // x is unused
+                }
+                return a
+            }
+            "#,
+            "unused variable: x",
+        ),
+        (
+            r#"
+            function bar() int {
+                return 42
+            }
+
+            function foo() int {
+                return bar() // value used, without being assigned to a variable
+            }
+            "#,
+            "", // Should not produce an error
+        ),
+    ];
+
+    for (i, (text, expected_msg)) in cases.iter().enumerate() {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let module = Compiler::new(&policy).compile().expect("should compile");
+
+        if expected_msg.is_empty() {
+            // This case should NOT fail validation
+            assert!(
+                !validate(&module),
+                "case #{i} should not have validation errors"
+            );
+        } else {
+            // This case SHOULD fail validation
+            assert!(
+                validate(&module),
+                "expected validation error for unused variable in case #{i}"
+            );
+        }
+    }
+}
