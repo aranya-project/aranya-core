@@ -2,7 +2,13 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-error: Invalid type
+error: Invalid nested option
   |
 1 | function maybe_maybe_int() optional optional int {
-  |                                     ^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types
+  |                            ^^^^^^^^^^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types
+  |
+help: you might have meant to use `option[T]`
+  |
+1 - function maybe_maybe_int() optional optional int {
+1 + function maybe_maybe_int() option[option[int]] {
+  |

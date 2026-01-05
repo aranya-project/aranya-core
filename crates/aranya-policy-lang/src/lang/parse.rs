@@ -219,7 +219,7 @@ impl<'a> ChunkParser<'a> {
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'a, Rule>) -> Result<VType, ParseError<'a>> {
-        self.parse_type_inner(token, TypeStyle::Unknown, true)
+        self.parse_type_inner(token, TypeStyle::Unknown, true, None)
     }
 
     fn parse_type_inner(
@@ -227,6 +227,7 @@ impl<'a> ChunkParser<'a> {
         token: Pair<'a, Rule>,
         mut style: TypeStyle,
         allow_option: bool,
+        outer_span: Option<Span<'a>>,
     ) -> Result<VType, ParseError<'a>> {
         let pest_span = token.as_span();
         let span = self.to_ast_span(pest_span)?;
@@ -262,12 +263,17 @@ impl<'a> ChunkParser<'a> {
                     (TypeStyle::Unknown, false) => style = TypeStyle::New,
                     (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
                     _ => {
+                        let outer_span = outer_span.assume("outer span was passed in")?;
+                        let outer_ast_span = self.to_ast_span(outer_span.clone())?;
                         return Err(ParseError::new(
-                            ParseErrorKind::InvalidType,
+                            ParseErrorKind::InvalidNestedOption {
+                                outer: outer_ast_span,
+                                inner: span,
+                            },
                             String::from(
                                 "Replace `optional T` with the new `option[T]` to use complex types",
                             ),
-                            Some(pest_span),
+                            Some(outer_span),
                         ));
                     }
                 }
@@ -279,7 +285,7 @@ impl<'a> ChunkParser<'a> {
                         Some(token.as_span()),
                     )
                 })?;
-                let inner_type = self.parse_type_inner(token, style, !is_old)?;
+                let inner_type = self.parse_type_inner(token, style, !is_old, Some(pest_span))?;
                 TypeKind::Optional(Box::new(inner_type))
             }
             _ => {

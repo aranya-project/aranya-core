@@ -21,6 +21,8 @@ pub enum ParseErrorKind {
         op: ASTSpan,
         rhs: ASTSpan,
     },
+    /// Invalid usage of nesting optional types using the old syntax was found.
+    InvalidNestedOption { outer: ASTSpan, inner: ASTSpan },
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
     /// A statement is invalid for its scope.
@@ -74,6 +76,7 @@ impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidOperator { .. } => write!(f, "Invalid operator"),
+            Self::InvalidNestedOption { .. } => write!(f, "Invalid nested option"),
             Self::InvalidType => write!(f, "Invalid type"),
             Self::InvalidStatement => write!(f, "Invalid statement"),
             Self::InvalidNumber => write!(f, "Invalid number"),
@@ -149,29 +152,64 @@ impl<'a> ParseError<'a> {
             let mut out = Vec::new();
             out.push(title.element(source));
 
-            if let ParseErrorKind::InvalidOperator { lhs, op, rhs } = kind {
-                let source = Snippet::source(s).line_start(line_start);
-                let elements = if s[op.start()..op.end()] == *"+" {
-                    [
-                        source
-                            .clone()
-                            .patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
-                        source.patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
-                    ]
-                } else {
-                    [
-                        source
-                            .clone()
-                            .patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
-                        source.patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
-                    ]
-                };
+            let source = Snippet::source(s).line_start(line_start);
+            match kind {
+                ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
+                    let elements = if s[op.start()..op.end()] == *"+" {
+                        [
+                            source
+                                .clone()
+                                .patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
+                            source.patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
+                        ]
+                    } else {
+                        [
+                            source
+                                .clone()
+                                .patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
+                            source.patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
+                        ]
+                    };
 
-                let group = Level::HELP
-                    .secondary_title("you might have meant to use an arithmetic function")
-                    .elements(elements);
+                    let group = Level::HELP
+                        .secondary_title("you might have meant to use an arithmetic function")
+                        .elements(elements);
 
-                out.push(group);
+                    out.push(group);
+                }
+                ParseErrorKind::InvalidNestedOption { outer, inner } => {
+                    let old_prefix = "optional ";
+                    let is_old = |s: &str| s.starts_with(old_prefix);
+                    let is_old_outer = is_old(&s[outer.start()..outer.end()]);
+                    let is_old_inner = is_old(&s[inner.start()..inner.end()]);
+
+                    let mut snippet = source;
+
+                    if is_old_outer {
+                        snippet = snippet
+                            .patch(Patch::new(
+                                outer.start()..(outer.start() + old_prefix.len()),
+                                "option[",
+                            ))
+                            .patch(Patch::new(outer.end()..outer.end(), "]"))
+                    }
+
+                    if is_old_inner {
+                        snippet = snippet
+                            .patch(Patch::new(
+                                inner.start()..(inner.start() + old_prefix.len()),
+                                "option[",
+                            ))
+                            .patch(Patch::new(inner.end()..inner.end(), "]"))
+                    }
+
+                    let group = Level::HELP
+                        .secondary_title("you might have meant to use `option[T]`")
+                        .elements([snippet]);
+
+                    out.push(group);
+                }
+                _ => {}
             }
 
             Report(out)
