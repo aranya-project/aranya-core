@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid type
+  |
+1 | function maybe_maybe_int() optional optional int {
+  |                                     ^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types

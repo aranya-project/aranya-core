@@ -1,0 +1,3 @@
+function maybe_maybe_int() optional optional int {
+    return None
+}
