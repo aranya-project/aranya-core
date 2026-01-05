@@ -55,12 +55,14 @@ run_task = { name = [
 
 [tasks.cargo-audit]
 category = "security"
+toolchain = "stable"
 install_crate = { crate_name = "cargo-audit", version = "0.22.0", binary = "cargo-audit", test_arg = "-V" }
 command = "cargo"
 args = ["audit"]
 
 [tasks.cargo-deny]
 category = "security"
+toolchain = "stable"
 install_crate = { crate_name = "cargo-deny", version = "0.18.9", binary = "cargo-deny", test_arg = "-V" }
 command = "cargo"
 args = ["deny", "check"]
@@ -129,6 +131,7 @@ dependencies = ["install-cargo-vet"]
 
 [tasks.install-taplo]
 private = true
+toolchain = "stable"
 install_crate = { crate_name = "taplo-cli", version = "0.10.0", binary = "taplo", test_arg = ["-V"] }
 
 [tasks.check-features]
@@ -175,6 +178,7 @@ private = true
 script = "rustup target add aarch64-unknown-none"
 
 [tasks.machete]
+toolchain = "stable"
 command = "cargo"
 args = ["machete"]
 install_crate = { crate_name = "cargo-machete", version = "0.9.1", binary = "cargo-machete", test_arg = "--version" }
@@ -205,6 +209,7 @@ script = "rustup run ${NIGHTLY} true 2>/dev/null || rustup toolchain install ${N
 
 [tasks.install-cargo-vet]
 private = true
+toolchain = "stable"
 install_crate = { crate_name = "cargo-vet", version = "0.10.1", binary = "cargo-vet", test_arg = "-V" }
 
 [tasks.git-unchanged]
@@ -220,4 +225,5 @@ fi
 
 [tasks.install-cargo-all-features]
 private = true
+toolchain = "stable"
 install_crate = { crate_name = "cargo-all-features", version = "1.12.0", binary = "cargo-check-all-features", test_arg = ["-V"] }
