@@ -1,3 +1,5 @@
-function maybe_maybe_int() optional optional int {
+struct Foo {}
+
+function maybe_maybe_foo() optional optional struct Foo {
     return None
 }
