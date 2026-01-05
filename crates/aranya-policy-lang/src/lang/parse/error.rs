@@ -151,19 +151,27 @@ impl<'a> ParseError<'a> {
             let source = Snippet::source(s).line_start(line_start);
             match *kind {
                 ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
+                    fn add_patch<'a>(
+                        prefix: &'static str,
+                        snippet: Snippet<'a, Patch<'a>>,
+                        lhs: ASTSpan,
+                        rhs: ASTSpan,
+                    ) -> Snippet<'a, Patch<'a>> {
+                        snippet
+                            .patch(Patch::new(lhs.start()..lhs.start(), prefix))
+                            .patch(Patch::new(lhs.end()..rhs.start(), ", "))
+                            .patch(Patch::new(rhs.end()..rhs.end(), ")"))
+                    }
+
                     let elements = if s[op.start()..op.end()] == *"+" {
                         [
-                            source
-                                .clone()
-                                .patch(Patch::new(lhs.merge(rhs).into(), "saturating_add(_, _)")),
-                            source.patch(Patch::new(lhs.merge(rhs).into(), "add(_, _)")),
+                            add_patch("saturating_add(", source.clone(), lhs, rhs),
+                            add_patch("add(", source, lhs, rhs),
                         ]
                     } else {
                         [
-                            source
-                                .clone()
-                                .patch(Patch::new(lhs.merge(rhs).into(), "saturating_sub(_, _)")),
-                            source.patch(Patch::new(lhs.merge(rhs).into(), "sub(_, _)")),
+                            add_patch("saturating_sub(", source.clone(), lhs, rhs),
+                            add_patch("sub(", source, lhs, rhs),
                         ]
                     };
 

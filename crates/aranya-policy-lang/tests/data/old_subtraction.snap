@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-assertion_line: 99
 expression: err
 ---
 error: Invalid operator
@@ -13,8 +12,8 @@ error: Invalid operator
 help: you might have meant to use an arithmetic function
   |
 2 -     return 3 - 4
-2 +     return saturating_sub(_, _)
+2 +     return saturating_sub(3, 4)
   |
 2 -     return 3 - 4
-2 +     return sub(_, _)
+2 +     return sub(3, 4)
   |
