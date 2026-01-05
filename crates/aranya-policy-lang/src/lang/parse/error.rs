@@ -103,7 +103,7 @@ impl Display for ParseErrorKind {
 // TODO(Steve): Removing trait impls (Serialize/Deserialize) is a breaking change.
 #[derive(Debug, Clone)]
 pub struct ParseError<'a> {
-    pub kind: ParseErrorKind,
+    pub kind: Box<ParseErrorKind>,
     pub message: String,
     /// Line and column location of the error, if available.
     pub span: Option<Span<'a>>,
@@ -111,20 +111,16 @@ pub struct ParseError<'a> {
 }
 
 impl<'a> ParseError<'a> {
-    pub(crate) fn new(
-        kind: ParseErrorKind,
-        message: String,
-        span: Option<Span<'a>>,
-    ) -> ParseError<'a> {
+    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'a>>) -> Self {
         Self {
-            kind,
+            kind: Box::new(kind),
             message,
             span,
             line_offset: None,
         }
     }
 
-    pub(crate) fn to_report(self) -> ReportCell {
+    pub(crate) fn into_report(self) -> ReportCell {
         let Self {
             kind,
             message,
@@ -141,7 +137,7 @@ impl<'a> ParseError<'a> {
         let input = span.get_input().to_owned();
 
         ReportCell::new(input, move |s| {
-            let line_start = line_offset.unwrap_or_default() + 1;
+            let line_start = line_offset.unwrap_or_default().saturating_add(1);
 
             let source = Snippet::source(s).line_start(line_start).annotation(
                 AnnotationKind::Primary
@@ -153,7 +149,7 @@ impl<'a> ParseError<'a> {
             out.push(title.element(source));
 
             let source = Snippet::source(s).line_start(line_start);
-            match kind {
+            match *kind {
                 ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
                     let elements = if s[op.start()..op.end()] == *"+" {
                         [
@@ -188,19 +184,19 @@ impl<'a> ParseError<'a> {
                     if is_old_outer {
                         snippet = snippet
                             .patch(Patch::new(
-                                outer.start()..(outer.start() + old_prefix.len()),
+                                outer.start()..(outer.start().saturating_add(old_prefix.len())),
                                 "option[",
                             ))
-                            .patch(Patch::new(outer.end()..outer.end(), "]"))
+                            .patch(Patch::new(outer.end()..outer.end(), "]"));
                     }
 
                     if is_old_inner {
                         snippet = snippet
                             .patch(Patch::new(
-                                inner.start()..(inner.start() + old_prefix.len()),
+                                inner.start()..(inner.start().saturating_add(old_prefix.len())),
                                 "option[",
                             ))
-                            .patch(Patch::new(inner.end()..inner.end(), "]"))
+                            .patch(Patch::new(inner.end()..inner.end(), "]"));
                     }
 
                     let group = Level::HELP
@@ -254,7 +250,7 @@ impl Display for ReportCell {
 impl From<PestError<Rule>> for ParseError<'static> {
     fn from(e: PestError<Rule>) -> Self {
         Self {
-            kind: ParseErrorKind::Syntax,
+            kind: Box::new(ParseErrorKind::Syntax),
             message: e.to_string(),
             span: None, // span info is in the `Display` impl for the Pest error
             line_offset: None,

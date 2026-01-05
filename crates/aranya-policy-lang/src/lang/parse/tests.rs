@@ -157,13 +157,13 @@ fn parse_expression_pratt() -> Result<(), ReportCell> {
     "#
     .trim();
     let mut pairs = PolicyParser::parse(Rule::expression, source)
-        .map_err(|err| ParseError::from(err).to_report())?;
+        .map_err(|err| ParseError::from(err).into_report())?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, source.len());
     let expr_pair = pairs.next().unwrap();
     let expr_parsed = p
         .parse_expression(expr_pair)
-        .map_err(ParseError::to_report)?;
+        .map_err(ParseError::into_report)?;
     insta::assert_debug_snapshot!(expr_parsed);
     Ok(())
 }
@@ -240,7 +240,7 @@ fn parse_expression_errors() -> Result<(), ReportCell> {
     for case in cases {
         let p = ChunkParser::new(0, &pratt, case.input.len());
         let mut pairs = PolicyParser::parse(case.rule, &case.input)
-            .map_err(|err| ParseError::from(err).to_report())?;
+            .map_err(|err| ParseError::from(err).into_report())?;
         let expr_pair = pairs.next().unwrap();
         match p.parse_expression(expr_pair.clone()) {
             Ok(parsed) => panic!("{}: {:?} - {expr_pair:?}", case.description, parsed),
@@ -256,9 +256,9 @@ fn parse_optional() {
         let pratt = get_pratt_parser();
         let p = ChunkParser::new(0, &pratt, text.len());
         let mut pairs = PolicyParser::parse(Rule::vtype, text)
-            .map_err(|err| ParseError::from(err).to_report())?;
+            .map_err(|err| ParseError::from(err).into_report())?;
         let pair = pairs.next().unwrap();
-        p.parse_type(pair).map_err(ParseError::to_report)
+        p.parse_type(pair).map_err(ParseError::into_report)
     }
 
     let optional_types = &[

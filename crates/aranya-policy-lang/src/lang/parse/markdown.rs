@@ -110,14 +110,14 @@ fn extract_policy_from_markdown(
 /// Parses a Markdown policy document into an AST. This AST will likely be further processed
 /// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
 pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ReportCell> {
-    let (chunks, version) = extract_policy(data).map_err(ParseError::to_report)?;
+    let (chunks, version) = extract_policy(data).map_err(ParseError::into_report)?;
     if chunks.is_empty() {
         return Err(ParseError::new(
             ParseErrorKind::Unknown,
             String::from("No policy code found in Markdown document"),
             None,
         )
-        .to_report());
+        .into_report());
     }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {

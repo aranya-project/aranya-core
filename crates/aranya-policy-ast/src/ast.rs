@@ -70,7 +70,9 @@ pub struct InvalidVersion;
 mod version {
     #![allow(deprecated)] // for serde
 
-    use super::{Deserialize, Serialize};
+    use alloc::format;
+
+    use super::{Deserialize, Serialize, String};
 
     /// Policy language version
     #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -87,7 +89,7 @@ mod version {
     impl Version {
         /// A help message that suggests updating to the latest version.
         pub fn help_message() -> String {
-            let v = Version::default();
+            let v = Self::default();
             format!("please update `policy-version` to {v}")
         }
     }
