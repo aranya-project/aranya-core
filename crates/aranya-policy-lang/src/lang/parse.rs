@@ -198,7 +198,7 @@ impl<'a> ChunkParser<'a> {
         if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
-                identifier.to_string(),
+                format!("found reserved identifier: `{identifier}`"),
                 Some(token.as_span()),
             ));
         }

@@ -5,4 +5,4 @@ expression: err
 error: Reserved identifier
   |
 1 | enum A { this }
-  |          ^^^^ this
+  |          ^^^^ found reserved identifier: `this`

@@ -5,4 +5,4 @@ expression: err
 error: Reserved identifier
   |
 2 |     int int
-  |     ^^^ int
+  |     ^^^ found reserved identifier: `int`
