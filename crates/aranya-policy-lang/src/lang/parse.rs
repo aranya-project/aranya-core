@@ -106,8 +106,7 @@ impl<'a> PairContext<'a> {
     }
 
     /// Consumes the next Pair and returns it as an [`Ident`].
-    fn consume_ident(&self, parser: &ChunkParser<'a>) -> Result<Ident, ParseError<'a>>
-where {
+    fn consume_ident(&self, parser: &ChunkParser<'a>) -> Result<Ident, ParseError<'a>> {
         let token = self.consume_of_type(Rule::identifier)?;
         parser.parse_ident(token)
     }
@@ -190,8 +189,7 @@ impl<'a> ChunkParser<'a> {
     }
 
     /// Parse an identifier with span
-    fn parse_ident(&self, token: Pair<'a, Rule>) -> Result<Ident, ParseError<'a>>
-where {
+    fn parse_ident(&self, token: Pair<'a, Rule>) -> Result<Ident, ParseError<'a>> {
         assert_eq!(token.as_rule(), Rule::identifier);
 
         let span = self.to_ast_span(token.as_span())?;

@@ -87,8 +87,8 @@ mod version {
     impl Version {
         /// A help message that suggests updating to the latest version.
         pub fn help_message() -> String {
-            let s = Version::default().to_string();
-            format!("please update `policy-version` to {s}")
+            let v = Version::default();
+            format!("please update `policy-version` to {v}")
         }
     }
 }
