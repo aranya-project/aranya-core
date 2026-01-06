@@ -188,8 +188,6 @@ serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
 // Indicates a not yet implemented panic
 todo = { "todo()" }
-// Return expression can be used in expression contexts like match arms
-return_expr = { "return" ~ expression }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
@@ -327,7 +325,7 @@ emit_statement = { "emit" ~ expression }
 // debug_assert() optionally runs the contained expression if the debug flag is enabled
 debug_assert = { "debug_assert(" ~ expression ~ ")" }
 // Expression as a statement (for return expressions and other expressions used as statements)
-expr_statement = { return_expr }
+expr_statement = { return_expression }
 
 // ## All statements
 statements = _{
