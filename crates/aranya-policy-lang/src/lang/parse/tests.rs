@@ -183,7 +183,7 @@ fn parse_errors() -> Result<(), ParseError> {
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
-                return_expr, action_call, publish_statement, let_statement, check_statement, match_statement, \
+                return_expression, action_call, publish_statement, let_statement, check_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, or debug_assert",
         ),
