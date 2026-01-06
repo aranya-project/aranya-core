@@ -15,6 +15,14 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
+mod visited;
+
+use visited::CappedVisited;
+
+/// Default capacity for the visited segment cache used in graph traversal.
+/// This bounds memory usage while allowing efficient traversal of graphs
+/// with up to this many concurrent branches.
+const VISITED_CAPACITY: usize = 256;
 
 #[cfg(feature = "low-mem-usage")]
 pub const MAX_COMMAND_LENGTH: usize = 400;
@@ -172,17 +180,18 @@ pub trait Storage {
         address: Address,
     ) -> Result<Option<Location>, StorageError> {
         // Track visited segments to avoid revisiting via different paths.
-        let mut visited = alloc::collections::BTreeSet::new();
+        // Uses bounded memory with max_cut-based eviction for no-alloc environments.
+        let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
         let mut queue = Vec::new();
         queue.push(start);
 
         while let Some(loc) = queue.pop() {
+            let segment = self.get_segment(loc)?;
+
             // Skip if we've already visited this segment
-            if !visited.insert(loc.segment) {
+            if !visited.insert(loc.segment, segment.longest_max_cut()?) {
                 continue;
             }
-
-            let segment = self.get_segment(loc)?;
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
@@ -281,26 +290,23 @@ pub trait Storage {
             .address()?;
 
         // Track visited segments to avoid revisiting via different paths.
-        // We track the highest command index visited per segment.
-        let mut visited = alloc::collections::BTreeMap::<usize, usize>::new();
+        // Uses bounded memory with max_cut-based eviction for no-alloc environments.
+        let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
         let mut queue = Vec::new();
         queue.extend(segment.prior());
 
         while let Some(loc) = queue.pop() {
-            // Check if we've already visited this segment at this or a higher command index.
-            if let Some(&max_cmd) = visited.get(&loc.segment) {
-                if loc.command <= max_cmd {
-                    continue;
-                }
-            }
-            visited.insert(loc.segment, loc.command);
-
             // Check if we've found the target
             if loc.segment == search_location.segment && loc.command >= search_location.command {
                 return Ok(true);
             }
 
             let seg = self.get_segment(loc)?;
+
+            // Skip if we've already visited this segment
+            if !visited.insert(loc.segment, seg.longest_max_cut()?) {
+                continue;
+            }
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.

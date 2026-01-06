@@ -51,6 +51,9 @@ cargo test -p aranya-crypto
 
 # Run tests with specific features
 cargo test --no-default-features
+
+# Run tests faster on Linux (use tmpfs to avoid slow fsync)
+TMPDIR=/dev/shm cargo test -p aranya-runtime
 ```
 
 ### Linting & Quality
