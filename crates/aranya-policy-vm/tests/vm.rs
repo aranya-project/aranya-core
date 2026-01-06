@@ -2528,7 +2528,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_return_expr() -> anyhow::Result<()> {
+fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
             check 42 == bar()

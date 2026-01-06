@@ -756,22 +756,6 @@ impl ChunkParser<'_> {
                         span,
                     })
                 }
-                Rule::return_expr => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("empty return expression"),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression {
-                        kind: ExprKind::Return(Box::new(inner)),
-                        span,
-                    })
-                }
                 Rule::identifier => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ident = remain(primary).consume_ident(self)?;
@@ -1350,7 +1334,7 @@ impl ChunkParser<'_> {
                     let expr_token = pc.consume()?;
 
                     match expr_token.as_rule() {
-                        Rule::return_expr => {
+                        Rule::return_expression => {
                             let mut pairs = expr_token.clone().into_inner();
                             let inner_expr_token = pairs.next().ok_or_else(|| {
                                 ParseError::new(
