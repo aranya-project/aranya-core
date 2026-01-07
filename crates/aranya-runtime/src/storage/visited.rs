@@ -55,8 +55,9 @@ impl<const CAP: usize> CappedVisited<CAP> {
 
         if self.entries.len() < CAP {
             // Space available, just append
-            // unwrap is safe because we checked len < CAP
-            self.entries.push((segment, max_cut)).unwrap();
+            self.entries
+                .push((segment, max_cut))
+                .expect("len < CAP was checked");
         } else {
             // Evict entry with highest max_cut (already found above)
             self.entries[max_cut_idx] = (segment, max_cut);

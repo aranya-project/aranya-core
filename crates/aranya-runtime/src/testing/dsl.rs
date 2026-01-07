@@ -633,7 +633,7 @@ where
                         .assume("cache must exist")?
                         .borrow_mut();
 
-                    let (sent, received, _received_cmd_ids) =
+                    let (sent, received, _) =
                         sync::<<SB as StorageBackend>::StorageProvider, u64>(
                             &mut request_cache,
                             &mut response_cache,
