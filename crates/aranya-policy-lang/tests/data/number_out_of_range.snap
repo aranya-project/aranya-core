@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid number
+  |
+2 | let big_num = 9223372036854775808
+  |               ^^^^^^^^^^^^^^^^^^^ number too large to fit in target type

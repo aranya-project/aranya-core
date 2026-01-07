@@ -199,7 +199,6 @@ fn parse_errors() -> Result<(), ReportCell> {
 }
 
 #[test]
-#[ignore]
 fn parse_expression_errors() -> Result<(), ReportCell> {
     let cases = vec![
         ErrorInput {
