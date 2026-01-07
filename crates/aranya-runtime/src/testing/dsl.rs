@@ -563,39 +563,39 @@ where
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
 
-    for rule in &actions {
+    for rule in actions {
         debug!(?rule);
 
         match rule {
             TestRule::AddClient { id } => {
                 let engine = TestEngine::new();
-                let storage = backend.provider(*id);
+                let storage = backend.provider(id);
 
                 let state = ClientState::new(engine, storage);
-                clients.insert(*id, RefCell::new(state));
+                clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
                 let state = clients
-                    .get_mut(client)
+                    .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
                 let storage_id = state.new_graph(
                     policy_data.as_slice(),
-                    TestActions::Init(*policy),
+                    TestActions::Init(policy),
                     &mut sink,
                 )?;
 
-                graphs.insert(*id, storage_id);
+                graphs.insert(id, storage_id);
 
                 assert_eq!(0, sink.count());
             }
             TestRule::RemoveGraph { client, id } => {
                 let state = clients
-                    .get_mut(client)
+                    .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let storage_id = graphs.get(id).ok_or(TestError::MissingGraph(*id))?;
+                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
                 state.remove_graph(*storage_id)?;
 
                 assert_eq!(0, sink.count());
@@ -608,28 +608,28 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let mut request_client = clients
-                    .get(client)
+                    .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
                 let mut response_client = clients
-                    .get(from)
+                    .get(&from)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
                 let mut total_sent = 0;
                 let mut total_received = 0;
-                for _ in 0..*max_syncs {
-                    client_heads.entry((*graph, *client, *from)).or_default();
-                    client_heads.entry((*graph, *from, *client)).or_default();
+                for _ in 0..max_syncs {
+                    client_heads.entry((graph, client, from)).or_default();
+                    client_heads.entry((graph, from, client)).or_default();
                     let mut request_cache = client_heads
-                        .get(&(*graph, *client, *from))
+                        .get(&(graph, client, from))
                         .assume("cache must exist")?
                         .borrow_mut();
                     let mut response_cache = client_heads
-                        .get(&(*graph, *from, *client))
+                        .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
 
@@ -639,7 +639,7 @@ where
                             &mut response_cache,
                             &mut request_client,
                             &mut response_client,
-                            *client,
+                            client,
                             &mut sink,
                             *storage_id,
                         )?;
@@ -652,26 +652,26 @@ where
                 }
 
                 if let Some(mr) = must_receive {
-                    assert_eq!(total_received, *mr);
+                    assert_eq!(total_received, mr);
                 }
 
                 if let Some(ms) = must_send {
-                    assert_eq!(total_sent, *ms);
+                    assert_eq!(total_sent, ms);
                 }
 
                 assert_eq!(0, sink.count());
             }
 
             TestRule::AddExpectation(expectation) => {
-                sink.add_expectation(TestEffect::Got(*expectation));
+                sink.add_expectation(TestEffect::Got(expectation));
             }
 
             TestRule::AddExpectations {
                 expectation,
                 repeat,
             } => {
-                for _ in 0..*repeat {
-                    sink.add_expectation(TestEffect::Got(*expectation));
+                for _ in 0..repeat {
+                    sink.add_expectation(TestEffect::Got(expectation));
                 }
             }
 
@@ -683,14 +683,14 @@ where
                 repeat,
             } => {
                 let state = clients
-                    .get_mut(client)
+                    .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                for _ in 0..*repeat {
-                    let set = TestActions::SetValue(*key, *value);
+                for _ in 0..repeat {
+                    let set = TestActions::SetValue(key, value);
                     state.action(*storage_id, &mut sink, set)?;
                 }
 
@@ -699,11 +699,11 @@ where
 
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
-                    .get_mut(client)
+                    .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
@@ -716,22 +716,22 @@ where
                 equal,
             } => {
                 let mut state_a = clients
-                    .get(clienta)
+                    .get(&clienta)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
                 let mut state_b = clients
-                    .get(clientb)
+                    .get(&clientb)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let storage_a = state_a.provider().get_storage(*storage_id)?;
                 let storage_b = state_b.provider().get_storage(*storage_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
-                if same != *equal {
+                if same != equal {
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
@@ -752,7 +752,7 @@ where
                         debug!("  Only in B: {}", short_b58(*cmd));
                     }
                 }
-                assert_eq!(*equal, same);
+                assert_eq!(equal, same);
             }
             TestRule::MaxCut {
                 client,
@@ -760,20 +760,20 @@ where
                 max_cut,
             } => {
                 let mut state = clients
-                    .get(client)
+                    .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
-                let storage_id = graphs.get(graph).ok_or(TestError::MissingGraph(*graph))?;
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
                 let command = seg.get_command(head).assume("command must exist")?;
-                assert_eq!(*max_cut, command.max_cut()?);
+                assert_eq!(max_cut, command.max_cut()?);
             }
-            TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(*ignore),
+            TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             TestRule::VerifyGraphIds { client, ids } => {
                 let mut state = clients
-                    .get(client)
+                    .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 

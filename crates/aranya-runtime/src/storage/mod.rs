@@ -20,8 +20,17 @@ mod visited;
 use visited::CappedVisited;
 
 /// Default capacity for the visited segment cache used in graph traversal.
-/// This bounds memory usage while allowing efficient traversal of graphs
-/// with up to this many concurrent branches.
+///
+/// This bounds memory usage (~4 KB at 256 entries) while allowing efficient
+/// traversal of graphs with many concurrent branches. The capacity should
+/// accommodate the expected "active frontier" width during backward traversal,
+/// which is bounded by peer count. Recommended values:
+/// - Embedded (small): 64 entries (~1 KB)
+/// - Standard embedded: 256 entries (~4 KB)
+/// - Server: 512 entries (~8 KB)
+///
+/// If capacity is exceeded, the algorithm remains correct but may revisit
+/// segments (producing redundant work, not incorrect results).
 const VISITED_CAPACITY: usize = 256;
 
 #[cfg(feature = "low-mem-usage")]
@@ -187,15 +196,16 @@ pub trait Storage {
 
         while let Some(loc) = queue.pop() {
             let segment = self.get_segment(loc)?;
+            let segment_max_cut = segment.longest_max_cut()?;
 
             // Skip if we've already visited this segment
-            if !visited.insert(loc.segment, segment.longest_max_cut()?) {
+            if !visited.insert(loc.segment, segment_max_cut) {
                 continue;
             }
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
-            if address.max_cut > segment.longest_max_cut()? {
+            if address.max_cut > segment_max_cut {
                 continue;
             }
 
@@ -302,15 +312,16 @@ pub trait Storage {
             }
 
             let seg = self.get_segment(loc)?;
+            let seg_max_cut = seg.longest_max_cut()?;
 
             // Skip if we've already visited this segment
-            if !visited.insert(loc.segment, seg.longest_max_cut()?) {
+            if !visited.insert(loc.segment, seg_max_cut) {
                 continue;
             }
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
-            if address.max_cut > seg.longest_max_cut()? {
+            if address.max_cut > seg_max_cut {
                 continue;
             }
 
