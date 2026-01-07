@@ -882,20 +882,18 @@ fn test_invalid_text() {
 
 #[test]
 fn test_error_line_number_in_chunks() {
-    let cases = [
-        (
-            r#"---
+    let case1 = r#"---
 policy-version: 2
 ---
 
 ```policy
     let int = 0
 ```
-"#,
-            "Reserved identifier: line 6 column 9: int",
-        ),
-        (
-            r#"---
+"#;
+    let err1 = parse_policy_document(case1).unwrap_err();
+    insta::assert_debug_snapshot!(err1);
+
+    let case2 = r#"---
 policy-version: 2
 ---
 
@@ -907,11 +905,11 @@ Next chunk:
     let x = 0
     let y = "a\\0b"
 ```
-        "#,
-            "Invalid string: line 11 column 13: invalid escape: \\",
-        ),
-        (
-            r#"---
+        "#;
+    let err2 = parse_policy_document(case2).unwrap_err();
+    insta::assert_debug_snapshot!(err2);
+
+    let case3 = r#"---
 policy-version: 2
 ---
 
@@ -923,18 +921,7 @@ Next chunk:
     let x = 0
     let = 2
 ```
-        "#,
-            r#"Syntax error: line 11 column 9:   --> 11:9
-   |
-11 |     let = 2
-   |         ^---
-   |
-   = expected identifier"#,
-        ),
-    ];
-
-    for (policy, expected) in cases {
-        let err = parse_policy_document(policy).unwrap_err();
-        assert_eq!(err.to_string(), expected);
-    }
+        "#;
+    let err3 = parse_policy_document(case3).unwrap_err();
+    insta::assert_debug_snapshot!(err3);
 }
