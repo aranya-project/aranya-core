@@ -1,0 +1,14 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: err2
+---
+ParseError {
+    kind: InvalidString,
+    message: "invalid escape: \\",
+    location: Some(
+        (
+            11,
+            13,
+        ),
+    ),
+}
