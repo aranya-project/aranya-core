@@ -3,6 +3,8 @@
 //! Provides bounded-memory tracking of visited segments during DAG traversal,
 //! suitable for no-alloc embedded environments.
 
+use heapless::Vec;
+
 /// A fixed-size visited set for graph traversal.
 ///
 /// Tracks visited segments during backward traversal through the DAG.
@@ -16,8 +18,7 @@
 /// - Revisiting produces redundant work but not incorrect results
 /// - The algorithm converges as long as progress is made toward the root
 pub struct CappedVisited<const CAP: usize> {
-    entries: [(usize, usize); CAP], // (segment_id, max_cut)
-    len: usize,
+    entries: Vec<(usize, usize), CAP>, // (segment_id, max_cut)
 }
 
 impl<const CAP: usize> CappedVisited<CAP> {
@@ -25,8 +26,7 @@ impl<const CAP: usize> CappedVisited<CAP> {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            entries: [(0, 0); CAP],
-            len: 0,
+            entries: Vec::new(),
         }
     }
 
@@ -39,28 +39,27 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// before inserting the new entry.
     #[inline]
     pub fn insert(&mut self, segment: usize, max_cut: usize) -> bool {
-        // Check if already present
-        for i in 0..self.len {
-            if self.entries[i].0 == segment {
-                return false;
+        // Single pass: check for existing segment and track max_cut entry for potential eviction
+        let mut max_cut_idx = 0;
+        let mut max_cut_val = usize::MIN;
+
+        for (i, (s, mc)) in self.entries.iter().enumerate() {
+            if *s == segment {
+                return false; // Already present
+            }
+            if *mc > max_cut_val {
+                max_cut_val = *mc;
+                max_cut_idx = i;
             }
         }
 
-        if self.len < CAP {
+        if self.entries.len() < CAP {
             // Space available, just append
-            self.entries[self.len] = (segment, max_cut);
-            self.len += 1;
+            // unwrap is safe because we checked len < CAP
+            self.entries.push((segment, max_cut)).unwrap();
         } else {
-            // Full - evict entry with highest max_cut
-            let mut evict_idx = 0;
-            let mut max_mc = self.entries[0].1;
-            for i in 1..self.len {
-                if self.entries[i].1 > max_mc {
-                    max_mc = self.entries[i].1;
-                    evict_idx = i;
-                }
-            }
-            self.entries[evict_idx] = (segment, max_cut);
+            // Evict entry with highest max_cut (already found above)
+            self.entries[max_cut_idx] = (segment, max_cut);
         }
         true
     }
