@@ -100,7 +100,6 @@ impl Display for ParseErrorKind {
     }
 }
 
-// TODO(Steve): Removing trait impls (Serialize/Deserialize) is a breaking change.
 #[derive(Debug, Clone)]
 pub struct ParseError<'a> {
     pub kind: Box<ParseErrorKind>,
