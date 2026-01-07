@@ -788,11 +788,7 @@ impl<'a> ChunkParser<'a> {
                         let some = match token.as_rule() {
                             Rule::some => true,
                             Rule::none => false,
-                            _ => return Err(ParseError::new(
-                                ParseErrorKind::Unknown,
-                                format!("not none or some after is: {:?}", token.as_rule()),
-                                Some(token.as_span()),
-                            ))
+                            _ => unreachable!("The grammar requires that 'None' or 'Some' follow `is`. There should be an error from `PolicyParser::parse` if an unexpected rule is here.")
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
@@ -1727,7 +1723,14 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
         LineColLocation::Span(p, _) => *p = line_col,
     }
 
-    e.into()
+    // By default the lower-cased rule names are shown in Pest errors. Rules are renamed here to provide better error messages.
+    // See crates/aranya-policy-lang/tests/data/invalid_is.snap
+    e.renamed_rules(|rule| match *rule {
+        Rule::none => "None".to_owned(),
+        Rule::some => "Some".to_owned(),
+        _ => format!("{:?}", rule),
+    })
+    .into()
 }
 
 /// Parse more data into an existing [ast::Policy] object.

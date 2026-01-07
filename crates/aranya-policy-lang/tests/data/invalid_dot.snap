@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid member
+  |
+6 |     return f.1
+  |             ^ Expected identifier after dot, got Int(1)
