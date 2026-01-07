@@ -60,6 +60,7 @@ pub enum ParseErrorKind {
 pub struct Report<'a>(Vec<Group<'a>>);
 
 self_cell!(
+    /// Like [`Report`] but owns the code snippet that it references.
     pub struct ReportCell {
         owner: String,
 

@@ -788,7 +788,7 @@ impl<'a> ChunkParser<'a> {
                         let some = match token.as_rule() {
                             Rule::some => true,
                             Rule::none => false,
-                            _ => unreachable!("The grammar requires that 'None' or 'Some' follow `is`. There should be an error from `PolicyParser::parse` if an unexpected rule is here.")
+                            _ => return Err(ParseError::new(ParseErrorKind::Bug, "The grammar requires that 'None' or 'Some' follow `is`. There should be an error from `PolicyParser::parse` if an unexpected rule is here.".to_owned(), None))
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
