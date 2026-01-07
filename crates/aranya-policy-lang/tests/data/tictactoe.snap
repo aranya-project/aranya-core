@@ -135,16 +135,16 @@ Policy {
             identifier: "MakeMove" @ 1521..1529,
             arguments: [
                 Param {
-                    name: "gameID" @ 1453..1459,
-                    ty: Id @ 1460..1462,
+                    name: "gameID" @ 1530..1536,
+                    ty: Id @ 1537..1539,
                 },
                 Param {
-                    name: "x" @ 1464..1465,
-                    ty: Int @ 1466..1469,
+                    name: "x" @ 1541..1542,
+                    ty: Int @ 1543..1546,
                 },
                 Param {
-                    name: "y" @ 1471..1472,
-                    ty: Int @ 1473..1476,
+                    name: "y" @ 1548..1549,
+                    ty: Int @ 1550..1553,
                 },
             ],
             statements: [
@@ -1411,20 +1411,20 @@ Policy {
             identifier: "game_over" @ 4252..4261,
             arguments: [
                 Param {
-                    name: "gameID" @ 4108..4114,
-                    ty: Id @ 4115..4117,
+                    name: "gameID" @ 4262..4268,
+                    ty: Id @ 4269..4271,
                 },
                 Param {
-                    name: "x" @ 4119..4120,
-                    ty: Int @ 4121..4124,
+                    name: "x" @ 4273..4274,
+                    ty: Int @ 4275..4278,
                 },
                 Param {
-                    name: "y" @ 4126..4127,
-                    ty: Int @ 4128..4131,
+                    name: "y" @ 4280..4281,
+                    ty: Int @ 4282..4285,
                 },
                 Param {
-                    name: "p" @ 4133..4134,
-                    ty: String @ 4135..4141,
+                    name: "p" @ 4287..4288,
+                    ty: String @ 4289..4295,
                 },
             ],
             return_type: Bool @ 4297..4301,

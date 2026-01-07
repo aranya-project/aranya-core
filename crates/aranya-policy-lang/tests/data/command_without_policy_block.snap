@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+Syntax error: line 9 column 1:  --> 9:1
+  |
+9 | }
+  | ^---
+  |
+  = expected policy_block
