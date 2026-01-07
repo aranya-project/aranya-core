@@ -633,16 +633,15 @@ where
                         .assume("cache must exist")?
                         .borrow_mut();
 
-                    let (sent, received, _) =
-                        sync::<<SB as StorageBackend>::StorageProvider, u64>(
-                            &mut request_cache,
-                            &mut response_cache,
-                            &mut request_client,
-                            &mut response_client,
-                            client,
-                            &mut sink,
-                            *storage_id,
-                        )?;
+                    let (sent, received, _) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
+                        &mut request_cache,
+                        &mut response_cache,
+                        &mut request_client,
+                        &mut response_client,
+                        client,
+                        &mut sink,
+                        *storage_id,
+                    )?;
                     total_received += received;
                     total_sent += sent;
                     // Break when no commands are received, meaning the requester has caught up
