@@ -198,6 +198,10 @@ pub enum Instruction {
     Serialize,
     /// Deserialize a command struct
     Deserialize,
+    /// Save the stack depth for later restoration.
+    SaveSP,
+    /// Restore the stack depth.
+    RestoreSP,
     /// Wrap value in `Some`
     Some,
     /// Unwrap `Some` value
@@ -251,6 +255,8 @@ impl Display for Instruction {
             Self::QueryNext(ident) => write!(f, "query.next {ident}"),
             Self::Serialize => write!(f, "serialize"),
             Self::Deserialize => write!(f, "deserialize"),
+            Self::SaveSP => write!(f, "save SP"),
+            Self::RestoreSP => write!(f, "restore SP"),
             Self::Some => write!(f, "some"),
             Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),

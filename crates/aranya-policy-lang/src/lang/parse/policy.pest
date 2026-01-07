@@ -197,6 +197,8 @@ internal_function = _{
     | deserialize
     | todo
 }
+// The return expression returns from a function
+return_expression = { "return" ~ expression }
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing
 block_statement_list = { statements* }
@@ -211,6 +213,7 @@ atom = _{
     | named_struct_literal
     | match_expression
     | internal_function
+    | return_expression
     | function_call
     | foreign_function_call
     | enum_reference

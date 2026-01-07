@@ -629,6 +629,11 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
                 }
             }
+            thir::ExprKind::Return(ret_expr) => {
+                self.compile_typed_expression(*ret_expr)?;
+                self.append_instruction(Instruction::RestoreSP);
+                self.append_instruction(Instruction::Return);
+            }
             thir::ExprKind::Identifier(i) => {
                 self.append_instruction(Instruction::Meta(Meta::Get(i.name.clone())));
                 self.append_instruction(Instruction::Get(i.name));
@@ -870,6 +875,7 @@ impl<'a> CompileState<'a> {
             }
             thir::StmtKind::Return(s) => {
                 self.compile_typed_expression(s.expression)?;
+                self.append_instruction(Instruction::RestoreSP);
                 self.append_instruction(Instruction::Return);
             }
             thir::StmtKind::Finish(s) => {
@@ -1019,8 +1025,9 @@ impl<'a> CompileState<'a> {
             self.ensure_type_is_defined(&arg.field_type)?;
             self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
         }
-        let from = self.wp;
         self.ensure_type_is_defined(&function_node.return_type)?;
+        self.append_instruction(Instruction::SaveSP);
+        let from = self.wp;
         self.compile_statements(&function_node.statements, Scope::Same)?;
 
         // Check that there is a return statement somewhere in the compiled instructions.
@@ -1327,6 +1334,7 @@ impl<'a> CompileState<'a> {
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("this")));
+        self.append_instruction(Instruction::SaveSP);
         let from = self.wp;
         self.compile_statements(&command.seal, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
@@ -1390,6 +1398,7 @@ impl<'a> CompileState<'a> {
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
+        self.append_instruction(Instruction::SaveSP);
         let from = self.wp;
         self.compile_statements(&command.open, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {

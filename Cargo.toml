@@ -109,7 +109,7 @@ proptest = { version = "1.6", default-features = false, features = ["no_std", "a
 proptest-derive = { version = "0.5" }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
-rkyv = { version = "0.8.11", default-features = false, features = ["bytecheck"] }
+rkyv = { version = "0.8.13", default-features = false, features = ["bytecheck"] }
 rustix = { version = "0.38", default-features = false }
 s2n-quic = { version = "1.51.0", default-features = false, features = ["provider-address-token-default", "provider-tls-s2n"] }
 serde = { version = "1.0.210", default-features = false }
