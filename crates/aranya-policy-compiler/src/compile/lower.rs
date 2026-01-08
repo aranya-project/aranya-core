@@ -1173,17 +1173,17 @@ impl CompileState<'_> {
 
                     // For Result patterns, add the identifier to the scope for type-checking
                     if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
-                        let (inner_type, ident) = match result_pattern {
+                        let (ident, inner_type) = match result_pattern {
                             thir::ResultPattern::Ok(ident) => {
                                 if let TypeKind::Result { ok, .. } = &scrutinee_t.kind {
-                                    ((**ok).clone(), ident)
+                                    (ident, (**ok).clone())
                                 } else {
                                     bug!("Ok pattern without Result type");
                                 }
                             }
                             thir::ResultPattern::Err(ident) => {
                                 if let TypeKind::Result { err, .. } = &scrutinee_t.kind {
-                                    ((**err).clone(), ident)
+                                    (ident, (**err).clone())
                                 } else {
                                     bug!("Err pattern without Result type");
                                 }
