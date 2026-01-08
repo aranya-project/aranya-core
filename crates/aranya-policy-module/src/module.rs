@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, Param};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -141,26 +141,6 @@ pub struct ActionDef {
     pub params: NamedMap<Param>,
 }
 named!(ActionDef);
-
-/// An action or function parameter.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub struct Param {
-    /// The name of the parameter.
-    pub name: ast::Ident,
-    /// The type of the parameter.
-    pub ty: ast::VType,
-}
-named!(Param);
 
 /// A command definition.
 #[derive(

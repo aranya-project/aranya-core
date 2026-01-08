@@ -11,9 +11,9 @@ Policy {
             persistence: Persistent,
             identifier: "foo" @ 7..10,
             arguments: [
-                FieldDefinition {
-                    identifier: "n" @ 11..12,
-                    field_type: Int @ 13..16,
+                Param {
+                    name: "n" @ 11..12,
+                    ty: Int @ 13..16,
                 },
             ],
             statements: [

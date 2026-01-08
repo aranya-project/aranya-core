@@ -14,16 +14,10 @@ pub struct ValueAnalyzer {
 }
 
 impl ValueAnalyzer {
-    /// `predefined` is a list of words that are understood to have been defined before
-    /// execution starts. Usually used to add things like `this` or global values.
-    pub fn new(
-        globals: impl IntoIterator<Item = Identifier>,
-        predefined: impl IntoIterator<Item = Identifier>,
-    ) -> Self {
-        let initial_set = predefined.into_iter().collect();
+    pub fn new(globals: impl IntoIterator<Item = Identifier>) -> Self {
         Self {
             globals: globals.into_iter().collect(),
-            value_sets: vec![initial_set],
+            value_sets: vec![BTreeSet::new()],
         }
     }
 

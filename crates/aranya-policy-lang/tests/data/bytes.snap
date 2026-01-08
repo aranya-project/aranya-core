@@ -15,9 +15,9 @@ Policy {
         FunctionDefinition {
             identifier: "foo" @ 9..12,
             arguments: [
-                FieldDefinition {
-                    identifier: "x" @ 13..14,
-                    field_type: Bytes @ 15..20,
+                Param {
+                    name: "x" @ 13..14,
+                    ty: Bytes @ 15..20,
                 },
             ],
             return_type: Bytes @ 22..27,

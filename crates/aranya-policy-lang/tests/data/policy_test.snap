@@ -33,13 +33,13 @@ Policy {
             persistence: Persistent,
             identifier: "add2" @ 154..158,
             arguments: [
-                FieldDefinition {
-                    identifier: "x" @ 159..160,
-                    field_type: Int @ 161..164,
+                Param {
+                    name: "x" @ 159..160,
+                    ty: Int @ 161..164,
                 },
-                FieldDefinition {
-                    identifier: "y" @ 166..167,
-                    field_type: Int @ 168..171,
+                Param {
+                    name: "y" @ 166..167,
+                    ty: Int @ 168..171,
                 },
             ],
             statements: [
@@ -632,9 +632,9 @@ Policy {
         FunctionDefinition {
             identifier: "positive" @ 1547..1555,
             arguments: [
-                FieldDefinition {
-                    identifier: "v" @ 1556..1557,
-                    field_type: Optional(
+                Param {
+                    name: "v" @ 1556..1557,
+                    ty: Optional(
                         Int @ 1565..1568,
                     ) @ 1558..1569,
                 },
@@ -671,9 +671,9 @@ Policy {
         FinishFunctionDefinition {
             identifier: "next" @ 1635..1639,
             arguments: [
-                FieldDefinition {
-                    identifier: "x" @ 1640..1641,
-                    field_type: Int @ 1642..1645,
+                Param {
+                    name: "x" @ 1640..1641,
+                    ty: Int @ 1642..1645,
                 },
             ],
             statements: [

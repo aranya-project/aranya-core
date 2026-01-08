@@ -598,6 +598,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check count_all == 3
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
                 check count_max == 3
+                finish {}
             }
         }
 
@@ -608,6 +609,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check at_least 1 Foo[i:?]
                 check at_least 3 Foo[i:?]
                 check at_least 4 Foo[i:?] == false
+                finish {}
             }
         }
 
@@ -618,6 +620,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check at_most 1 Foo[i:?] == false
                 check at_most 3 Foo[i:?]
                 check at_most 4 Foo[i:?]
+                finish {}
             }
         }
 
@@ -628,6 +631,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check exactly 1 Foo[i:?] == false
                 check exactly 3 Foo[i:?]
                 check exactly 4 Foo[i:?] == false
+                finish {}
             }
         }
     "#;
@@ -1580,10 +1584,12 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 
             policy {
                 check envelope.payload == this.test
+                finish {}
             }
 
             recall {
                 check envelope.payload == this.test
+                finish {}
             }
         }
     "#;
