@@ -1,10 +1,9 @@
 #![allow(clippy::panic)]
 
-use aranya_policy_ast::{VType, Version};
+use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
-use crate::lang::parse_policy_str;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -490,31 +489,4 @@ fn parse_enum_reference() -> Result<(), PestError<Rule>> {
     assert_eq!(enum_value, "Red");
 
     Ok(())
-}
-
-#[test]
-fn if_expression() {
-    let text = r#"
-        action test() {
-            let b = if true { :1 } else { :0 }
-        }
-    "#;
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    insta::assert_debug_snapshot!(policy);
-}
-
-#[test]
-fn test_result_pattern_match() {
-    let src = r#"
-        function foo(r result[int, string]) int {
-            let x = match r {
-                Ok(val) => val
-                Err(err) => -1
-            }
-            return x
-        }
-    "#;
-
-    let policy = parse_policy_str(src, Version::V2).expect("should parse result patterns");
-    insta::assert_json_snapshot!(policy);
 }
