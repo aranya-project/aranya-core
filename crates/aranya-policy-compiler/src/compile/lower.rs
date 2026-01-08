@@ -1027,9 +1027,9 @@ impl CompileState<'_> {
 
         // Ensure there are no duplicate arm values.
         // NOTE We don't check for zero arms, because that's enforced by the parser.
-        // Check for duplicate result patterns (Ok or Err)
-        // Checking for duplicate result patterns is tricky, because their associated values are identifiers, not expressions.
-        // TODO this is really ugly, though.
+        // Checking for duplicate result patterns is special, because their associated values are
+        // identifiers, which can't be compared, like values can. So we ignore the identifiers, and
+        // just make sure the pattern (Ok/Err) isn't duplicated.
         let result_ok_marker = Expression {
             kind: ExprKind::ResultOk(Box::new(Expression {
                 kind: ExprKind::Identifier(Ident {
@@ -1257,11 +1257,7 @@ impl CompileState<'_> {
                             expr_type = Some(
                                 types::unify_pair(t, etype)
                                     .map_err(|err| {
-                                        #[allow(
-                                            clippy::arithmetic_side_effects,
-                                            reason = "can't have usize::MAX arms"
-                                        )]
-                                        let n = i + 1;
+                                        let n = i.saturating_add(1);
                                         CompileErrorType::InvalidType(format!(
                                             "match arm expression {n} has type {}, expected {}",
                                             err.right, err.left
