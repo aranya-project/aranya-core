@@ -1046,6 +1046,8 @@ impl<'a> CompileState<'a> {
             &function_node.statements,
             Label::new(function_node.identifier.name.clone(), LabelType::Function),
         )?;
+        // Finish functions cannot have return statements, so we add a return instruction manually.
+        self.append_instruction(Instruction::Return);
         self.exit_statement_context();
         Ok(())
     }
@@ -1103,6 +1105,8 @@ impl<'a> CompileState<'a> {
             &action_node.statements,
             Label::new(action_node.identifier.name.clone(), LabelType::Action),
         )?;
+        // Actions cannot have return statements, so we add a return instruction manually.
+        self.append_instruction(Instruction::Return);
         self.exit_statement_context();
         Ok(())
     }
@@ -1179,6 +1183,8 @@ impl<'a> CompileState<'a> {
             &command.policy,
             Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
         )?;
+        // Policy blocks should exit via a finish block, so panic if it doesn't.
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
         self.exit_statement_context();
         Ok(())
     }
@@ -1195,6 +1201,8 @@ impl<'a> CompileState<'a> {
             &command.recall,
             Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
         )?;
+        // Recall blocks should exit via a finish block, so panic if it doesn't.
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
         self.exit_statement_context();
         Ok(())
     }
@@ -1324,9 +1332,6 @@ impl<'a> CompileState<'a> {
             }
             // If execution does not hit a return statement, it will panic here.
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
-        } else {
-            // Function-likes without a return type won't have a return statement, so add one here.
-            self.append_instruction(Instruction::Return);
         }
 
         self.identifier_types.exit_function();
