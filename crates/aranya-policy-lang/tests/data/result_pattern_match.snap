@@ -1,0 +1,78 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [
+        FunctionDefinition {
+            identifier: "foo" @ 9..12,
+            arguments: [
+                FieldDefinition {
+                    identifier: "r" @ 13..14,
+                    field_type: Result {
+                        ok: Int @ 22..25,
+                        err: String @ 27..33,
+                    } @ 15..34,
+                },
+            ],
+            return_type: Int @ 36..39,
+            statements: [
+                Let(
+                    LetStatement {
+                        identifier: "x" @ 50..51,
+                        expression: Match(
+                            MatchExpression {
+                                scrutinee: Identifier(
+                                    "r" @ 60..61,
+                                ) @ 60..61,
+                                arms: [
+                                    MatchExpressionArm {
+                                        pattern: ResultPattern(
+                                            Ok(
+                                                "val" @ 75..78,
+                                            ),
+                                        ),
+                                        expression: Identifier(
+                                            "val" @ 83..86,
+                                        ) @ 83..86,
+                                        span: 72..95,
+                                    },
+                                    MatchExpressionArm {
+                                        pattern: ResultPattern(
+                                            Err(
+                                                "err" @ 99..102,
+                                            ),
+                                        ),
+                                        expression: Int(
+                                            -1,
+                                        ) @ 107..109,
+                                        span: 95..114,
+                                    },
+                                ],
+                            },
+                        ) @ 54..115,
+                    },
+                ) @ 46..120,
+                Expr(
+                    Return(
+                        Identifier(
+                            "x" @ 127..128,
+                        ) @ 127..128,
+                    ) @ 120..129,
+                ) @ 120..129,
+            ],
+            span: 0..130,
+        },
+    ],
+    finish_functions: [],
+    global_lets: [],
+    text: "function foo(r result[int, string]) int {\n    let x = match r {\n        Ok(val) => val\n        Err(err) => -1\n    }\n    return x\n}\n",
+}
