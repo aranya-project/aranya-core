@@ -42,6 +42,8 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`f`       |a fact|
 |`i`       |an id|
 |`z`       |an opaque value|
+|`ok`      |success result value|
+|`err`     |error result value|
 
 ## data/stack
 ||||
@@ -51,8 +53,11 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 | `get`              | `( s -- v )`   | get a value by name
 | `dup`              | `( v -- v v )` | duplicate the item at the top of the stack
 | `pop`              | `( v -- )`     | remove a value from the top of the stack
+| `wrap` (ok)        | `( v -- ok )`  | wrap value in Result::Ok variant
+| `wrap` (err)       | `( v -- err )` | wrap value in Result::Err variant
+| `is_ok`            | `( v -- v b )` | check if value is Ok variant (pushes bool, leaves value on stack)
 | `unwrap` (option)  | `( v -- v )`   | get the value from an optional, or none
-| `unwrap` (result)  | `( v -- v )`   | get the success/error value, which is an identifier
+| `unwrap` (result)  | `( v -- v )`   | get the success/error value from Ok or Err
 
 ## control flow
 ||||
