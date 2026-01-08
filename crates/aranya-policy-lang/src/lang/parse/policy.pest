@@ -235,23 +235,17 @@ equal = { "==" }
 not_equal = { "!=" }
 and = { "&&" }
 or = { "||" }
-dot = { "." }
-substruct = { "substruct" }
-cast = { "as" }
 infix_op = _{
     | add
     | subtract
     | and
     | or
-    | dot
     | equal
     | not_equal
     | greater_than_or_equal
     | less_than_or_equal
     | greater_than
     | less_than
-    | substruct
-    | cast
 }
 
 // ## Prefix operators
@@ -265,8 +259,16 @@ prefix_op = _{
 }
 
 // ## Postfix operators
+dot = { "." ~ identifier }
+substruct = { "substruct" ~ identifier }
+cast = { "as" ~ identifier }
 is = { "is" ~ (none | some) }
-postfix_op = _{ is }
+postfix_op = _{
+    | dot
+    | substruct
+    | cast
+    | is
+}
 
 // The core expression syntax - atoms joined by infix operators, where
 // each atom can have zero or more prefix or postfix operators. Note
