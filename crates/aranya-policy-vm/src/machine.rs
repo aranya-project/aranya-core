@@ -1159,9 +1159,8 @@ where
                 )));
             }
         }
-        self.scope
-            .set(ident!("this"), Value::Struct(this_data))
-            .map_err(|e| self.err(e))?;
+
+        self.ipush(this_data)?;
 
         #[cfg(feature = "bench")]
         self.stopwatch.stop();
