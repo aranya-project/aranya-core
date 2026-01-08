@@ -1702,9 +1702,8 @@ impl<'a> CompileState<'a> {
                 }
             }
             LanguageContext::Expression(e) => {
-                let mut expr_type: Option<VType> = None;
-                for (i, ((arm_start, pattern), expression)) in
-                    iter::zip(iter::zip(arm_labels, &patterns), e).enumerate()
+                for ((arm_start, pattern), expression) in
+                    iter::zip(iter::zip(arm_labels, &patterns), e)
                 {
                     self.define_label(arm_start, self.wp)?;
 
@@ -1722,28 +1721,8 @@ impl<'a> CompileState<'a> {
                         }
                     }
 
-                    let etype = expression.vtype.clone();
+                    // Note: Type checking is done during lowering
                     self.compile_typed_expression(expression)?;
-                    match expr_type {
-                        None => expr_type = Some(etype),
-                        Some(t) => {
-                            expr_type = Some(
-                                types::unify_pair(t, etype)
-                                    .map_err(|err| {
-                                        #[allow(
-                                            clippy::arithmetic_side_effects,
-                                            reason = "can't have usize::MAX arms"
-                                        )]
-                                        let n = i + 1;
-                                        CompileErrorType::InvalidType(format!(
-                                            "match arm expression {n} has type {}, expected {}",
-                                            err.right, err.left
-                                        ))
-                                    })
-                                    .map_err(|err| self.err(err))?,
-                            );
-                        }
-                    }
 
                     self.compile_match_arm_epilogue(&end_label)?;
                 }
