@@ -6,14 +6,18 @@ The stack contains a sequence of values. Values can only be created or destroyed
 
 The stack can hold these types:
 
-| name     | type                  |
-|----------|-----------------------|
-| int      | 64-bit signed integer |
-| bool     | boolean               |
-| string   | A UTF-8 string        |
-| struct   | A named struct (see lang spec) |
-| fact     | A fact (see lang spec) |
-| none     | An empty optional value |
+| name     | type                          |
+|----------|-------------------------------|
+| int      | 64-bit signed integer         |
+| bytes    | sequence of bytes             |
+| bool     | boolean                       |
+| id       | unique identifier             |
+| string   | UTF-8 string                  |
+| struct   | named struct (see lang spec)  |
+| fact     | fact (see lang spec)          |
+| none     | empty optional value          |
+| ok       | result success identifier     |
+| err      | result error identifier       |
 
 In particular, there is no explicit optional type, as they are elided during compilation.
 
@@ -42,11 +46,13 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 ## data/stack
 ||||
 |-|-|-|
-| `const(v)`   | `( -- v )`         | push a value onto the stack
-| `def`        | `( v s -- )`       | define a local value by name
-| `get`        | `( s -- v )`       | get a value by name
-| `dup`        | `( v -- v v )` | duplicate the item at the top of the stack
-| `pop`        | `( v -- )`         | remove a value from the top of the stack
+| `const(v)`         | `( -- v )`     | push a value onto the stack
+| `def`              | `( v s -- )`   | define a local value by name
+| `get`              | `( s -- v )`   | get a value by name
+| `dup`              | `( v -- v v )` | duplicate the item at the top of the stack
+| `pop`              | `( v -- )`     | remove a value from the top of the stack
+| `unwrap` (option)  | `( v -- v )`   | get the value from an optional, or none
+| `unwrap` (result)  | `( v -- v )`   | get the success/error value, which is an identifier
 
 ## control flow
 ||||
@@ -91,16 +97,16 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 ## context-specific
 ||||
 |-|-|-|
-|`publish`      | `( s -- )`           | publish a command struct
-|`create`       | `( f -- )`           | create a fact
-|`delete`       | `( f -- )`           | delete a fact
-|`update`       | `( f f -- )`         | update a fact
-|`emit`         | `( s -- )`           | emit an effect struct
-|`query`        | `( f -- s )`         | execute a fact query
-|`exists`       | `( f -- b )`         | determine whether or not the fact exists
-|`fact_count`   | `( x f -- y )`       | count facts (up to a limit) matching a given query
-|`id`           | `( z -- i )`         | get the `id` of a command
-|`author.id`    | `( z -- i )`         | get the `id` of the author of a command
+|`publish`         | `( s -- )`           | publish a command struct
+|`create`          | `( f -- )`           | create a fact
+|`delete`          | `( f -- )`           | delete a fact
+|`update`          | `( f f -- )`         | update a fact
+|`emit`            | `( s -- )`           | emit an effect struct
+|`query`           | `( f -- s )`         | execute a fact query
+|`exists`          | `( f -- b )`         | determine whether or not the fact exists
+|`fact_count`      | `( x f -- y )`       | count facts (up to a limit) matching a given query
+|`id`              | `( z -- i )`         | get the `id` of a command
+|`author.id`       | `( z -- i )`         | get the `id` of the author of a command
 
 # Examples
 
