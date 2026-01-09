@@ -651,9 +651,9 @@ Policy {
                         ) @ 1590..1598,
                     },
                 ) @ 1582..1603,
-                Expr(
-                    Return(
-                        GreaterThan(
+                Return(
+                    ReturnStatement {
+                        expression: GreaterThan(
                             Identifier(
                                 "x" @ 1610..1611,
                             ) @ 1610..1611,
@@ -661,7 +661,7 @@ Policy {
                                 0,
                             ) @ 1614..1615,
                         ) @ 1610..1615,
-                    ) @ 1603..1616,
+                    },
                 ) @ 1603..1616,
             ],
             span: 1538..1617,
