@@ -30,8 +30,6 @@ pub enum ParseErrorKind {
     /// A function call is badly formed.
     // TODO(chip): I'm not sure this is actually reachable.
     InvalidFunctionCall,
-    /// The right side of a dot operator is not an identifier.
-    InvalidMember,
     /// The right side of a substruct operator is not an identifier.
     InvalidSubstruct,
     /// The policy version expressed in the front matter is not valid.
@@ -60,7 +58,6 @@ impl Display for ParseErrorKind {
             Self::InvalidNumber => write!(f, "Invalid number"),
             Self::InvalidString => write!(f, "Invalid string"),
             Self::InvalidFunctionCall => write!(f, "Invalid function call"),
-            Self::InvalidMember => write!(f, "Invalid member"),
             Self::InvalidSubstruct => write!(f, "Invalid substruct operation"),
             Self::InvalidVersion { found, required } => {
                 write!(

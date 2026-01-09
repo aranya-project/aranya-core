@@ -4,5 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-6 |     return f.1
-  |              ^ expected identifier
+1 | let x = y substruct 4
+  |                     ^ expected identifier
