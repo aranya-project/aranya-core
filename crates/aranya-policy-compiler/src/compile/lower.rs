@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     FunctionDefinition, Ident, Identifier, InternalFunction, LanguageContext, MatchExpression,
-    MatchPattern, MatchStatement, NamedStruct, ResultPattern, Span, Spanned as _, Statement,
-    StmtKind, TypeKind, VType, ident, thir,
+    MatchPattern, MatchStatement, NamedStruct, ResultPattern, ResultTypeKind, Span, Spanned as _,
+    Statement, StmtKind, TypeKind, VType, ident, thir,
 };
 use buggy::{Bug, BugExt as _, bug};
 use tracing::warn;
@@ -917,13 +917,13 @@ impl CompileState<'_> {
                 thir::Expression {
                     kind: thir::ExprKind::ResultOk(Box::new(inner.clone())),
                     vtype: VType {
-                        kind: TypeKind::Result {
+                        kind: TypeKind::Result(Box::new(ResultTypeKind {
                             ok: Box::new(inner.vtype),
                             err: Box::new(VType {
                                 kind: TypeKind::Never,
                                 span: Span::empty(),
                             }),
-                        },
+                        })),
                         span: expression.span,
                     },
                     span: expression.span,
@@ -934,13 +934,13 @@ impl CompileState<'_> {
                 thir::Expression {
                     kind: thir::ExprKind::ResultErr(Box::new(inner.clone())),
                     vtype: VType {
-                        kind: TypeKind::Result {
+                        kind: TypeKind::Result(Box::new(ResultTypeKind {
                             ok: Box::new(VType {
                                 kind: TypeKind::Never,
                                 span: Span::empty(),
                             }),
                             err: Box::new(inner.vtype),
-                        },
+                        })),
                         span: expression.span,
                     },
                     span: expression.span,
@@ -1175,15 +1175,15 @@ impl CompileState<'_> {
                     if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
                         let (ident, inner_type) = match result_pattern {
                             thir::ResultPattern::Ok(ident) => {
-                                if let TypeKind::Result { ok, .. } = &scrutinee_t.kind {
-                                    (ident, (**ok).clone())
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    (ident, (*result_type.ok).clone())
                                 } else {
                                     bug!("Ok pattern without Result type");
                                 }
                             }
                             thir::ResultPattern::Err(ident) => {
-                                if let TypeKind::Result { err, .. } = &scrutinee_t.kind {
-                                    (ident, (**err).clone())
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    (ident, (*result_type.err).clone())
                                 } else {
                                     bug!("Err pattern without Result type");
                                 }
@@ -1227,15 +1227,15 @@ impl CompileState<'_> {
                     if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
                         let (inner_type, ident) = match result_pattern {
                             thir::ResultPattern::Ok(ident) => {
-                                if let TypeKind::Result { ok, .. } = &scrutinee_t.kind {
-                                    ((**ok).clone(), ident)
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    ((*result_type.ok).clone(), ident)
                                 } else {
                                     bug!("Ok pattern without Result type");
                                 }
                             }
                             thir::ResultPattern::Err(ident) => {
-                                if let TypeKind::Result { err, .. } = &scrutinee_t.kind {
-                                    ((**err).clone(), ident)
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    ((*result_type.err).clone(), ident)
                                 } else {
                                     bug!("Err pattern without Result type");
                                 }

@@ -213,6 +213,36 @@ impl Spanned for VType {
     }
 }
 
+/// Result type kind
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
+pub struct ResultTypeKind {
+    /// ok type
+    pub ok: Box<VType>,
+    /// error type
+    pub err: Box<VType>,
+}
+
 /// The kind of a [`VType`].
 #[derive(
     Debug,
@@ -257,14 +287,7 @@ pub enum TypeKind {
     /// A type which cannot be instantiated.
     Never,
     /// Result with value, or error
-    Result {
-        /// ok type
-        #[rkyv(omit_bounds)]
-        ok: Box<VType>,
-        /// error type
-        #[rkyv(omit_bounds)]
-        err: Box<VType>,
-    },
+    Result(#[rkyv(omit_bounds)] Box<ResultTypeKind>),
 }
 
 impl TypeKind {
@@ -280,6 +303,9 @@ impl TypeKind {
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
             (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            (Self::Result(lhs), Self::Result(rhs)) => {
+                lhs.ok.kind.matches(&rhs.ok.kind) && lhs.err.kind.matches(&rhs.err.kind)
+            }
             _ => false,
         }
     }
@@ -296,16 +322,9 @@ impl TypeKind {
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
             (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
-            (
-                Self::Result {
-                    ok: lhs_ok,
-                    err: lhs_err,
-                },
-                Self::Result {
-                    ok: rhs_ok,
-                    err: rhs_err,
-                },
-            ) => lhs_ok.kind.fits_type(&rhs_ok.kind) && lhs_err.kind.fits_type(&rhs_err.kind),
+            (Self::Result(lhs), Self::Result(rhs)) => {
+                lhs.ok.fits_type(&rhs.ok) && lhs.err.fits_type(&rhs.err)
+            }
             _ => false,
         }
     }
@@ -323,7 +342,9 @@ impl fmt::Display for TypeKind {
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
-            Self::Result { ok, err } => write!(f, "result[{ok}, {err}]"),
+            Self::Result(result_type) => {
+                write!(f, "result[{}, {}]", result_type.ok, result_type.err)
+            }
         }
     }
 }
