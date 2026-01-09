@@ -19,16 +19,16 @@ use tracing::warn;
 use yoke::{Yoke, Yokeable};
 
 use crate::{
-    Address, Checkpoint, ClientError, ClientState, CmdId, Command, Engine, Fact, FactPerspective,
-    GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut,
+    Address, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective, GraphId,
+    Keys, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority, Query, QueryMut,
     Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
-    engine::{ActionPlacement, CommandPlacement},
+    policy::{ActionPlacement, CommandPlacement},
 };
 
 type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
-pub struct Session<SP: StorageProvider, E> {
+pub struct Session<SP: StorageProvider, PS> {
     /// The ID of the associated storage.
     storage_id: GraphId,
     /// The policy ID for the session.
@@ -41,18 +41,18 @@ pub struct Session<SP: StorageProvider, E> {
     /// The current facts of the session, relative to `base_facts`.
     current_facts: Arc<BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>>,
 
-    /// Tag for associated engine.
-    _engine: PhantomData<E>,
+    /// Tag for associated policy store.
+    _policy_store: PhantomData<PS>,
 
     head: Address,
 }
 
-struct SessionPerspective<'a, SP: StorageProvider, E, MS> {
-    session: &'a mut Session<SP, E>,
+struct SessionPerspective<'a, SP: StorageProvider, PS, MS> {
+    session: &'a mut Session<SP, PS>,
     message_sink: &'a mut MS,
 }
 
-impl<SP: StorageProvider, E> Session<SP, E> {
+impl<SP: StorageProvider, PS> Session<SP, PS> {
     pub(super) fn new(provider: &mut SP, storage_id: GraphId) -> Result<Self, ClientError> {
         let storage = provider.get_storage(storage_id)?;
         let head_loc = storage.get_head()?;
@@ -67,7 +67,7 @@ impl<SP: StorageProvider, E> Session<SP, E> {
             base_facts,
             fact_log: Vec::new(),
             current_facts: Arc::default(),
-            _engine: PhantomData,
+            _policy_store: PhantomData,
             head: command.address()?,
         };
 
@@ -75,21 +75,21 @@ impl<SP: StorageProvider, E> Session<SP, E> {
     }
 }
 
-impl<SP: StorageProvider, E: Engine> Session<SP, E> {
+impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     /// Evaluate an action on the ephemeral session and generate serialized
     /// commands, so another client can [`Session::receive`] them.
     pub fn action<ES, MS>(
         &mut self,
-        client: &ClientState<E, SP>,
+        client: &ClientState<PS, SP>,
         effect_sink: &mut ES,
         message_sink: &mut MS,
-        action: <E::Policy as Policy>::Action<'_>,
+        action: <PS::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError>
     where
-        ES: Sink<E::Effect>,
+        ES: Sink<PS::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
     {
-        let policy = client.engine.get_policy(self.policy_id)?;
+        let policy = client.policy_store.get_policy(self.policy_id)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -127,8 +127,8 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
     /// same session.
     pub fn receive(
         &mut self,
-        client: &ClientState<E, SP>,
-        sink: &mut impl Sink<E::Effect>,
+        client: &ClientState<PS, SP>,
+        sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
         let command: SessionCommand<'_> =
@@ -139,7 +139,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             return Err(ClientError::NotAuthorized);
         }
 
-        let policy = client.engine.get_policy(self.policy_id)?;
+        let policy = client.policy_store.get_policy(self.policy_id)?;
 
         // Use a special perspective which doesn't check the head
         let mut perspective = SessionPerspective {
@@ -286,9 +286,9 @@ where
     }
 }
 
-impl<SP, E, MS> FactPerspective for SessionPerspective<'_, SP, E, MS> where SP: StorageProvider {}
+impl<SP, PS, MS> FactPerspective for SessionPerspective<'_, SP, PS, MS> where SP: StorageProvider {}
 
-impl<SP, E, MS> Query for SessionPerspective<'_, SP, E, MS>
+impl<SP, PS, MS> Query for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
 {
@@ -382,7 +382,7 @@ where
     }
 }
 
-impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> {
+impl<SP: StorageProvider, PS, MS> QueryMut for SessionPerspective<'_, SP, PS, MS> {
     fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
         self.session
             .fact_log
@@ -404,7 +404,7 @@ impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> 
     }
 }
 
-impl<SP, E, MS> Perspective for SessionPerspective<'_, SP, E, MS>
+impl<SP, PS, MS> Perspective for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
     MS: for<'b> Sink<&'b [u8]>,
@@ -433,7 +433,7 @@ where
     }
 }
 
-impl<SP, E, MS> Revertable for SessionPerspective<'_, SP, E, MS>
+impl<SP, PS, MS> Revertable for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
 {

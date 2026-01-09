@@ -3,7 +3,7 @@
 //!
 //! ## Creating a `VmPolicy` instance
 //!
-//! To use `VmPolicy` in your [`Engine`](super::Engine), you need to provide a Policy VM
+//! To use `VmPolicy` in your [`PolicyStore`](super::PolicyStore), you need to provide a Policy VM
 //! [`Machine`], a [`aranya_crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
 //! will be created by either compiling a policy document (see
 //! [`parse_policy_document()`](../../policy_lang/lang/fn.parse_policy_document.html) and
@@ -78,9 +78,9 @@
 //! This is an example of initializing a graph with `new_graph()`:
 //!
 //! ```ignore
-//! let engine = MyEngine::new();
+//! let policy_store = MyPolicyStore::new();
 //! let provider = MyStorageProvider::new();
-//! let mut cs = ClientState::new(engine, provider);
+//! let mut cs = ClientState::new(policy_store, provider);
 //! let mut sink = MySink::new();
 //!
 //! let storage_id = cs
@@ -133,7 +133,7 @@ use crate::{
     ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior,
     Priority,
     command::{CmdId, Command},
-    engine::{EngineError, NullSink, Policy, Sink},
+    policy::{NullSink, Policy, PolicyError, Sink},
 };
 
 mod error;
@@ -192,19 +192,19 @@ macro_rules! vm_effect {
 }
 
 /// A [Policy] implementation that uses the Policy VM.
-pub struct VmPolicy<E> {
+pub struct VmPolicy<CE> {
     machine: Machine,
-    engine: Mutex<E>,
-    ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
+    engine: Mutex<CE>,
+    ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
 
-impl<E> VmPolicy<E> {
+impl<CE> VmPolicy<CE> {
     /// Create a new `VmPolicy` from a [Machine]
     pub fn new(
         machine: Machine,
-        engine: E,
-        ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
+        engine: CE,
+        ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
@@ -331,7 +331,7 @@ fn get_command_priority(
     }
 }
 
-impl<E: aranya_crypto::Engine> VmPolicy<E> {
+impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(name = name.as_str()))]
     fn evaluate_rule<'a, P>(
@@ -343,7 +343,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
         placement: CommandPlacement,
-    ) -> Result<(), EngineError>
+    ) -> Result<(), PolicyError>
     where
         P: FactPerspective,
     {
@@ -362,7 +362,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     match placement {
                         CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
                             // Immediate check failure.
-                            return Err(EngineError::Check);
+                            return Err(PolicyError::Check);
                         }
                         CommandPlacement::OnGraphInBraid => {
                             // Perform recall.
@@ -375,7 +375,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                             "Non-policy context while evaluating rule: {:?}",
                             rs.get_context()
                         );
-                        return Err(EngineError::InternalError);
+                        return Err(PolicyError::InternalError);
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
                     rs.set_context(recall_ctx);
@@ -383,12 +383,12 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Panic)
+                    Err(PolicyError::Panic)
                 }
             },
             Err(e) => {
                 error!("\n{e}");
-                Err(EngineError::InternalError)
+                Err(PolicyError::InternalError)
             }
         }
     }
@@ -398,20 +398,20 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         rs: &mut RunState<'_, M>,
         this_data: Struct,
         envelope: Envelope<'_>,
-    ) -> Result<(), EngineError>
+    ) -> Result<(), PolicyError>
     where
         M: MachineIO<MachineStack>,
     {
         match rs.call_command_recall(this_data, envelope.into()) {
-            Ok(ExitReason::Normal) => Err(EngineError::Check),
+            Ok(ExitReason::Normal) => Err(PolicyError::Check),
             Ok(ExitReason::Yield) => bug!("unexpected yield"),
             Ok(ExitReason::Check) => {
                 info!("Recall failed: {}", self.source_location(rs));
-                Err(EngineError::Check)
+                Err(PolicyError::Check)
             }
             Ok(ExitReason::Panic) | Err(_) => {
                 info!("Recall panicked: {}", self.source_location(rs));
-                Err(EngineError::Panic)
+                Err(PolicyError::Panic)
             }
         }
     }
@@ -422,7 +422,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         name: Identifier,
         envelope: Envelope<'_>,
         facts: &mut P,
-    ) -> Result<Struct, EngineError>
+    ) -> Result<Struct, PolicyError>
     where
         P: FactPerspective,
     {
@@ -438,26 +438,26 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 ExitReason::Normal => {
                     let v = rs.consume_return().map_err(|e| {
                         error!("Could not pull envelope from stack: {e}");
-                        EngineError::InternalError
+                        PolicyError::InternalError
                     })?;
                     Ok(v.try_into().map_err(|e| {
                         error!("Envelope is not a struct: {e}");
-                        EngineError::InternalError
+                        PolicyError::InternalError
                     })?)
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
-                    Err(EngineError::Check)
+                    Err(PolicyError::Check)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Check)
+                    Err(PolicyError::Check)
                 }
             },
             Err(e) => {
                 error!("\n{e}");
-                Err(EngineError::InternalError)
+                Err(PolicyError::InternalError)
             }
         }
     }
@@ -531,14 +531,14 @@ impl From<VmPriority> for Priority {
     }
 }
 
-impl<E> VmPolicy<E> {
+impl<CE> VmPolicy<CE> {
     fn get_command_priority(&self, name: &Identifier) -> VmPriority {
         debug_assert!(self.machine.command_defs.contains(name));
         self.priority_map.get(name).copied().unwrap_or_default()
     }
 }
 
-impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
+impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
@@ -555,7 +555,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), PolicyError> {
         let parent_id = match command.parent() {
             Prior::None => CmdId::default(),
             Prior::Single(parent) => parent.id,
@@ -569,7 +569,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             signature,
         } = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
-            EngineError::Read
+            PolicyError::Read
         })?;
 
         let expected_priority = self.get_command_priority(&kind).into();
@@ -584,7 +584,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
         let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
             error!("unknown command {kind}");
-            EngineError::InternalError
+            PolicyError::InternalError
         })?;
 
         let envelope = Envelope {
@@ -601,15 +601,15 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             (CommandPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
             (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral(_)) => {
                 error!("cannot evaluate ephemeral command on-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
             (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral(_)) => {
                 error!("cannot evaluate ephemeral command in braid");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
             (CommandPlacement::OffGraph, Persistence::Persistent) => {
                 error!("cannot evaluate persistent command off-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
         }
 
@@ -645,12 +645,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), PolicyError> {
         let VmAction { name, args } = action;
 
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
             error!("action not found");
-            EngineError::InternalError
+            PolicyError::InternalError
         })?;
 
         match (action_placement, &def.persistence) {
@@ -658,11 +658,11 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             (ActionPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
             (ActionPlacement::OnGraph, Persistence::Ephemeral(_)) => {
                 error!("cannot call ephemeral action on-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
             (ActionPlacement::OffGraph, Persistence::Persistent) => {
                 error!("cannot call persistent action off-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
         }
 
@@ -693,7 +693,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             }
             .map_err(|e| {
                 error!("\n{e}");
-                EngineError::InternalError
+                PolicyError::InternalError
             })?;
             loop {
                 match exit_reason {
@@ -705,7 +705,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         // Command was published.
                         let command_struct: Struct = rs.stack.pop().map_err(|e| {
                             error!("should have command struct: {e}");
-                            EngineError::InternalError
+                            PolicyError::InternalError
                         })?;
                         let command_name = command_struct.name.clone();
 
@@ -713,23 +713,23 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal.call_seal(command_struct).map_err(|e| {
                             error!("Cannot seal command: {}", e);
-                            EngineError::Panic
+                            PolicyError::Panic
                         })? {
                             ExitReason::Normal => (),
                             r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
                                 error!("Could not seal command: {}", r);
-                                return Err(EngineError::Panic);
+                                return Err(PolicyError::Panic);
                             }
                         }
 
                         // Grab sealed envelope from stack
                         let envelope_struct: Struct = rs_seal.stack.pop().map_err(|e| {
                             error!("Expected a sealed envelope {e}");
-                            EngineError::InternalError
+                            PolicyError::InternalError
                         })?;
                         let envelope = Envelope::try_from(envelope_struct).map_err(|e| {
                             error!("Malformed envelope: {e}");
-                            EngineError::InternalError
+                            PolicyError::InternalError
                         })?;
 
                         // The parent of a basic command should be the command that was added to the perspective on the previous
@@ -746,7 +746,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
-                                    return Err(EngineError::InternalError);
+                                    return Err(PolicyError::InternalError);
                                 }
                             }
                             Prior::Single(_) => {
@@ -755,7 +755,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
-                                    return Err(EngineError::InternalError);
+                                    return Err(PolicyError::InternalError);
                                 }
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
@@ -789,7 +789,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             .add_command(&new_command)
                             .map_err(|e| {
                                 error!("{e}");
-                                EngineError::Write
+                                PolicyError::Write
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
@@ -798,16 +798,16 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {
                             error!("{e}");
-                            EngineError::InternalError
+                            PolicyError::InternalError
                         })?;
                     }
                     ExitReason::Check => {
                         info!("Check {}", self.source_location(&rs));
-                        return Err(EngineError::Check);
+                        return Err(PolicyError::Check);
                     }
                     ExitReason::Panic => {
                         info!("Panicked {}", self.source_location(&rs));
-                        return Err(EngineError::Panic);
+                        return Err(PolicyError::Panic);
                     }
                 }
             }
@@ -820,9 +820,9 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         &self,
         _target: &'a mut [u8],
         ids: MergeIds,
-    ) -> Result<Self::Command<'a>, EngineError> {
+    ) -> Result<Self::Command<'a>, PolicyError> {
         let (left, right): (Address, Address) = ids.into();
-        let id = aranya_crypto::merge_cmd_id::<E::CS>(left.id, right.id);
+        let id = aranya_crypto::merge_cmd_id::<CE::CS>(left.id, right.id);
         Ok(VmProtocol {
             id,
             priority: Priority::Merge,

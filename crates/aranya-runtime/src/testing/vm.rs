@@ -12,7 +12,7 @@ use super::dsl::dispatch;
 use crate::{
     ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
     VmEffect, VmEffectData, VmPolicy, VmPolicyError,
-    engine::{Engine, EngineError, PolicyId, Sink},
+    policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
     vm_action, vm_effect,
@@ -301,12 +301,12 @@ impl Sink<VmEffect> for VecSink {
 }
 
 /// Used by the VM tests.
-pub struct TestEngine {
+pub struct TestPolicyStore {
     policy: VmPolicy<DefaultEngine<Rng>>,
 }
 
-impl TestEngine {
-    /// Creates a `TestEngine` from a [`Module`].
+impl TestPolicyStore {
+    /// Creates a `TestPolicyStore` from a [`Module`].
     pub fn from_module(module: Module) -> Self {
         let machine = Machine::from_module(module).expect("could not load compiled module");
 
@@ -323,15 +323,15 @@ impl TestEngine {
     }
 }
 
-impl Engine for TestEngine {
+impl PolicyStore for TestPolicyStore {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
     type Effect = VmEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
     }
 }
@@ -340,11 +340,11 @@ impl Engine for TestEngine {
 /// the Policy VM to execute Policy. Hopefully the comments will
 /// make this useful for adaptation into a proper implementation.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
-    // TestEngine implements the Engine interface. It defines the core types that implement
-    // the Engine itself, one of which is the Policy implementation. This particular Engine
+pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    // TestPolicyStore implements the PolicyStore interface. It defines the core types that implement
+    // the PolicyStore itself, one of which is the Policy implementation. This particular PolicyStore
     // implementation parses a policy document to create a VMPolicy instance which it owns.
     // But there is no requirement that it should do this, and in the future, it is
     // expected that the VM will consume compiled policy code to eliminate the need for the
@@ -352,9 +352,9 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // We're using MemStorageProvider as our storage interface.
     let provider = MemStorageProvider::new();
-    // ClientState contains the engine and the storage provider. It is the main interface
+    // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
@@ -368,7 +368,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
     // Add an expected effect from the create action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    // Create and execute an action in the policy. The action type is defined by the Engine
+    // Create and execute an action in the policy. The action type is defined by the policy store
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
     // to the action call in policy language.
     //
@@ -418,11 +418,11 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
 /// Test creating a fact.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
+pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
 
     let graph = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
@@ -457,11 +457,11 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
 /// Test ephemeral Aranya session.
 /// See `https://github.com/aranya-project/aranya-docs/blob/main/src/Aranya-Sessions-note.md`.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
+pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
 
@@ -474,7 +474,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     // Add an expected effect from the create action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    // Create and execute an action in the policy. The action type is defined by the Engine
+    // Create and execute an action in the policy. The action type is defined by the policy store
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
     // to the action call in policy language.
     //
@@ -577,15 +577,15 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
 }
 
 /// Syncs the first client at `storage_id` to the second client.
-fn test_sync<E, P, S>(
+fn test_sync<PS, P, S>(
     storage_id: GraphId,
-    cs1: &mut ClientState<E, P>,
-    cs2: &mut ClientState<E, P>,
+    cs1: &mut ClientState<PS, P>,
+    cs2: &mut ClientState<PS, P>,
     sink: &mut S,
 ) where
     P: StorageProvider,
-    E: Engine,
-    S: Sink<<E>::Effect>,
+    PS: PolicyStore,
+    S: Sink<<PS>::Effect>,
 {
     let mut rng = Rng::new();
     let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
@@ -618,12 +618,15 @@ fn test_sync<E, P, S>(
 
 /// Tests the command ID and recall status in emitted `VmEffect`s.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(), VmPolicyError> {
+pub fn test_effect_metadata(
+    policy_store_1: TestPolicyStore,
+    policy_store_2: TestPolicyStore,
+) -> Result<(), VmPolicyError> {
     // create client 1 and initialize it with a nonce of 1
     let provider = MemStorageProvider::new();
-    let mut cs1 = ClientState::new(engine, provider);
+    let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
     let storage_id = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
@@ -639,7 +642,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
 
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::new();
-    let mut cs2 = ClientState::new(engine2, provider);
+    let mut cs2 = ClientState::new(policy_store_2, provider);
     test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();

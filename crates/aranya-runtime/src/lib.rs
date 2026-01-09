@@ -5,7 +5,7 @@
 //! The runtime crate is the starting point for integrating with Aranya.
 //!
 //! The runtime provides a higher level interface to:
-//! 1. An [`Engine`] responsible for enforcing a [`Policy`] on graph [`Command`]s.
+//! 1. An [`PolicyStore`] responsible for storing [`Policy`]s evaluated on graph [`Command`]s.
 //! 2. A [`StorageProvider`] responsible for providing a storage mechanism for graph commands.
 //! 3. A [`sync`] interface responsible for syncing graph state between peers.
 //!
@@ -16,9 +16,9 @@
 //!
 //! # Example
 //!
-//! Start by initializing a client with desired [`Engine`] and [`StorageProvider`]
+//! Start by initializing a client with desired [`PolicyStore`] and [`StorageProvider`]
 //! ```ignore
-//! let client = ClientState::new(engine, storage)
+//! let client = ClientState::new(policy_store, storage)
 //! ```
 //!
 //! Initialize graph for the client with:
@@ -45,8 +45,8 @@ extern crate alloc;
 
 mod client;
 pub mod command;
-pub mod engine;
 pub mod metrics;
+pub mod policy;
 mod prior;
 pub mod storage;
 pub mod sync;
@@ -54,5 +54,5 @@ pub mod testing;
 pub mod vm_policy;
 
 pub use crate::{
-    client::*, command::*, engine::*, prior::Prior, storage::*, sync::*, vm_policy::*,
+    client::*, command::*, policy::*, prior::Prior, storage::*, sync::*, vm_policy::*,
 };
