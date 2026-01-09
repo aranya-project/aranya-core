@@ -17,29 +17,29 @@ Policy {
             identifier: "Foo" @ 8..11,
             fields: [],
             seal: [
-                Expr(
-                    Return(
-                        InternalFunction(
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
                             Serialize(
                                 Identifier(
                                     "this" @ 50..54,
                                 ) @ 50..54,
                             ),
                         ) @ 40..55,
-                    ) @ 33..60,
+                    },
                 ) @ 33..60,
             ],
             open: [
-                Expr(
-                    Return(
-                        InternalFunction(
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
                             Deserialize(
                                 Identifier(
                                     "envelope" @ 101..109,
                                 ) @ 101..109,
                             ),
                         ) @ 89..110,
-                    ) @ 82..115,
+                    },
                 ) @ 82..115,
             ],
             policy: [],
