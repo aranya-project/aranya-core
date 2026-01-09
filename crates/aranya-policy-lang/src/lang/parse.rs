@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Param, Persistence, ResultPattern, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version, ident,
+    NamedStruct, Param, Persistence, ResultPattern, ResultTypeKind, Statement, StmtKind, Text,
+    TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -295,10 +295,10 @@ impl ChunkParser<'_> {
                 })?;
                 let err_type = self.parse_type(err_token)?;
 
-                TypeKind::Result {
-                    ok: Box::new(ok_type),
-                    err: Box::new(err_type),
-                }
+                TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: ok_type,
+                    err: err_type,
+                }))
             }
             _ => {
                 return Err(ParseError::new(
