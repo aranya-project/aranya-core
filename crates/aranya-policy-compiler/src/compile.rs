@@ -19,7 +19,7 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Param, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
+    Meta, Module, Param, Struct, Target, Value, WrapType, ffi::ModuleSchema, named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
@@ -780,6 +780,17 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
+            thir::ExprKind::ResultOk(e) => {
+                // Compile the inner expression and wrap it in Ok
+                self.compile_typed_expression(*e)?;
+                // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
+                self.append_instruction(Instruction::Wrap(WrapType::Ok));
+            }
+            thir::ExprKind::ResultErr(e) => {
+                // Compile the inner expression and wrap it in Err
+                self.compile_typed_expression(*e)?;
+                self.append_instruction(Instruction::Wrap(WrapType::Err));
+            }
         };
 
         Ok(())
@@ -831,6 +842,7 @@ impl<'a> CompileState<'a> {
         match statement.kind {
             thir::StmtKind::Let(s) => {
                 self.compile_typed_expression(s.expression)?;
+                // Note: Never type check is done during lowering
                 self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.name.clone())));
                 self.append_instruction(Instruction::Def(s.identifier.name));
             }
@@ -1539,6 +1551,51 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_result_pattern_binding(
+        &mut self,
+        pattern: &thir::ResultPattern,
+        scrutinee_type: &VType,
+    ) -> Result<(), CompileError> {
+        // Make sure the scrutinee is actually a Result, and extract the identifier.
+        let ident = match pattern {
+            thir::ResultPattern::Ok(ident) => {
+                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Ok pattern requires Result type".to_string(),
+                    )));
+                }
+                ident
+            }
+            thir::ResultPattern::Err(ident) => {
+                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
+                    return Err(self.err(CompileErrorType::InvalidType(
+                        "Err pattern requires Result type".to_string(),
+                    )));
+                }
+                ident
+            }
+        };
+
+        // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
+        self.append_instruction(Instruction::Unwrap);
+        self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
+        self.append_instruction(Instruction::Def(ident.name.clone()));
+        // NOTE: We don't call identifier_types.add() here because the pattern variable
+        // was already added during the lowering phase. Adding it again during compilation
+        // would conflict with any outer variables that were added after lowering the match.
+
+        Ok(())
+    }
+
+    /// Exit match arm (exit scope, jump to end)
+    fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
+        self.identifier_types.exit_block();
+        self.append_instruction(Instruction::End);
+        self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
+
+        Ok(())
+    }
+
     /// Compile a match statement or expression
     /// Returns the type of the `match` is an expression, or `None` if it's a statement.
     fn compile_match_statement_or_expression(
@@ -1564,6 +1621,7 @@ impl<'a> CompileState<'a> {
             }
         };
 
+        let expr_pat_t = scrutinee.vtype.clone();
         self.compile_typed_expression(scrutinee)?;
 
         let end_label = self.anonymous_label();
@@ -1571,7 +1629,7 @@ impl<'a> CompileState<'a> {
         // 1. Generate branching instructions, and arm-start labels
         let mut arm_labels: Vec<Label> = vec![];
 
-        for pattern in patterns {
+        for pattern in &patterns {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
@@ -1579,7 +1637,7 @@ impl<'a> CompileState<'a> {
                 thir::MatchPattern::Values(values) => {
                     for value in values {
                         self.append_instruction(Instruction::Dup);
-                        self.compile_typed_expression(value)?;
+                        self.compile_typed_expression(value.clone())?;
 
                         // if value == target, jump to start-of-arm
                         self.append_instruction(Instruction::Eq);
@@ -1593,39 +1651,77 @@ impl<'a> CompileState<'a> {
                         arm_label.clone(),
                     )));
                 }
+                thir::MatchPattern::ResultPattern(pattern) => match pattern {
+                    thir::ResultPattern::Ok(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::IsOk);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                    thir::ResultPattern::Err(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::IsOk);
+                        self.append_instruction(Instruction::Not);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                },
             }
         }
 
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for (arm_start, body) in iter::zip(arm_labels, s) {
+                for ((arm_start, pattern), statements) in
+                    iter::zip(iter::zip(arm_labels, &patterns), s)
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_typed_statements(body, Scope::Layered)?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern, &expr_pat_t)?;
+                        }
+                        _ => {
+                            // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
+                            // Result patterns consume the value during unwrapping, but other patterns don't.
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    self.compile_typed_statements(statements, Scope::Same)?;
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
             LanguageContext::Expression(e) => {
-                for (arm_start, body) in iter::zip(arm_labels, e) {
+                for ((arm_start, pattern), expression) in
+                    iter::zip(iter::zip(arm_labels, &patterns), e)
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_typed_expression(body)?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern, &expr_pat_t)?;
+                        }
+                        _ => {
+                            // Pop the scrutinee value
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    // Note: Type checking is done during lowering
+                    self.compile_typed_expression(expression)?;
+
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
         }
