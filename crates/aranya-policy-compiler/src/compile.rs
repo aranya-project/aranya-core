@@ -909,6 +909,11 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(s)?;
                 self.append_instruction(Instruction::Publish);
             }
+            thir::StmtKind::Return(s) => {
+                self.compile_typed_expression(s.expression)?;
+                self.append_instruction(Instruction::RestoreSP);
+                self.append_instruction(Instruction::Return);
+            }
             thir::StmtKind::Finish(s) => {
                 self.enter_statement_context(StatementContext::Finish);
                 self.append_instruction(Instruction::Meta(Meta::Finish(true)));
@@ -981,14 +986,6 @@ impl<'a> CompileState<'a> {
                     // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
-            }
-            thir::StmtKind::Expr(expr) => {
-                // Compile the expression. For return expressions with Never type,
-                // this will emit a Return instruction and never leave a value on the stack.
-                self.compile_typed_expression(expr)?;
-                // Expression statements are not meant to produce values - they're used for control flow only.
-                // Note: No need to pop the value - expressions with Never type
-                // (like return) don't leave values on the stack.
             }
         }
         Ok(())

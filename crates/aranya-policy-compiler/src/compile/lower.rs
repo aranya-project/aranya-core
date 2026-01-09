@@ -1420,20 +1420,17 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Publish(e)
                 }
-                (StmtKind::Expr(e), _) => {
-                    // Handle expression statements (like return expressions)
-                    let expr = self.lower_expression(e)?;
-                    // For return expressions, the type checking happens during lowering
-                    // We don't create a separate statement kind for them since they're expressions
-                    // They will be compiled as expression statements
-                    if let thir::ExprKind::Return(_) = &expr.kind {
-                        // Validate return is in a function context
-                        let ctx = self.get_statement_context()?;
-                        if !matches!(ctx, StatementContext::PureFunction(_)) {
-                            return Err(self.err(CompileErrorType::InvalidExpression(e.clone())));
-                        }
+                (StmtKind::Return(s), StatementContext::PureFunction(fd)) => {
+                    // ensure return expression type matches function signature
+                    let e = self.lower_expression(&s.expression)?;
+                    if !e.vtype.fits_type(&fd.return_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Return value of `{}()` must be {}",
+                            fd.identifier,
+                            DisplayType(&fd.return_type)
+                        ))));
                     }
-                    thir::StmtKind::Expr(expr)
+                    thir::StmtKind::Return(thir::ReturnStatement { expression: e })
                 }
                 (
                     StmtKind::Finish(s),
