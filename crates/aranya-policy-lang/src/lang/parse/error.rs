@@ -1,9 +1,9 @@
 use std::fmt::Display;
 
 use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
-use aranya_policy_ast::{Span as ASTSpan, Version};
+use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
-use pest::{Span, error::Error as PestError};
+use pest::error::Error as PestError;
 use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 
@@ -16,13 +16,9 @@ use crate::lang::parse::Rule;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid operator was used.
-    InvalidOperator {
-        lhs: ASTSpan,
-        op: ASTSpan,
-        rhs: ASTSpan,
-    },
+    InvalidOperator { lhs: Span, op: Span, rhs: Span },
     /// Invalid usage of nesting optional types using the old syntax was found.
-    InvalidNestedOption { outer: ASTSpan, inner: ASTSpan },
+    InvalidNestedOption { outer: Span, inner: Span },
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
     /// A statement is invalid for its scope.
@@ -102,21 +98,22 @@ impl Display for ParseErrorKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParseError<'a> {
+pub struct ParseError {
     pub kind: Box<ParseErrorKind>,
     pub message: String,
     /// Line and column location of the error, if available.
-    pub span: Option<Span<'a>>,
-    pub line_offset: Option<usize>,
+    pub span: Option<Span>,
+    /// Text containing the entire policy, if available.
+    pub source: Option<String>,
 }
 
-impl<'a> ParseError<'a> {
-    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'a>>) -> Self {
+impl ParseError {
+    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span>) -> Self {
         Self {
             kind: Box::new(kind),
             message,
             span,
-            line_offset: None,
+            source: None,
         }
     }
 
@@ -125,21 +122,17 @@ impl<'a> ParseError<'a> {
             kind,
             message,
             span: maybe_span,
-            line_offset,
+            source: maybe_source,
         } = self;
         let title = Level::ERROR.primary_title(kind.to_string());
-        let Some(span) = maybe_span else {
+        let (Some(span), Some(input)) = (maybe_span, maybe_source) else {
             return ReportCell::new("".to_owned(), move |_| {
                 Report(vec![title.element(Level::NOTE.message(message))])
             });
         };
 
-        let input = span.get_input().to_owned();
-
         ReportCell::new(input, move |s| {
-            let line_start = line_offset.unwrap_or_default().saturating_add(1);
-
-            let source = Snippet::source(s).line_start(line_start).annotation(
+            let source = Snippet::source(s).annotation(
                 AnnotationKind::Primary
                     .span(span.start()..span.end())
                     .label(message),
@@ -148,14 +141,14 @@ impl<'a> ParseError<'a> {
             let mut out = Vec::new();
             out.push(title.element(source));
 
-            let source = Snippet::source(s).line_start(line_start);
+            let source = Snippet::source(s);
             match *kind {
                 ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
                     fn add_patch<'a>(
                         prefix: &'static str,
                         snippet: Snippet<'a, Patch<'a>>,
-                        lhs: ASTSpan,
-                        rhs: ASTSpan,
+                        lhs: Span,
+                        rhs: Span,
                     ) -> Snippet<'a, Patch<'a>> {
                         snippet
                             .patch(Patch::new(lhs.start()..lhs.start(), prefix))
@@ -220,22 +213,23 @@ impl<'a> ParseError<'a> {
         })
     }
 
-    /// Return a new error with a location starting from the given line.
+    // Return a new error with the source text.
     #[must_use]
-    pub(crate) fn adjust_line_number(self, line_offset: usize) -> Self {
+    pub(crate) fn with_source(self, source: String) -> Self {
         Self {
-            line_offset: Some(line_offset),
+            source: Some(source),
             ..self
         }
     }
 }
 
-impl Display for ParseError<'_> {
+impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: ", self.kind)?;
-        if let Some((line, column)) = self.span.map(|s| s.start_pos().line_col()) {
-            write!(f, "line {line} column {column}: ")?;
-        }
+        // FIXME(Steve): Replace with annotate-snippet rendering
+        // if let Some((line, column)) = self.span.map(|s| s.start_pos().line_col()) {
+        //     write!(f, "line {line} column {column}: ")?;
+        // }
         write!(f, "{}", self.message)?;
         Ok(())
     }
@@ -255,22 +249,27 @@ impl Display for ReportCell {
     }
 }
 
-impl From<PestError<Rule>> for ParseError<'static> {
+impl From<PestError<Rule>> for ParseError {
     fn from(e: PestError<Rule>) -> Self {
-        Self {
-            kind: Box::new(ParseErrorKind::Syntax),
-            message: e.to_string(),
-            span: None, // span info is in the `Display` impl for the Pest error
-            line_offset: None,
-        }
+        use pest::error::InputLocation;
+        // Assumes that the error location has already been adjusted in `aranya_policy_lang::lang::parse::mangle_pest_error`
+        let span = match e.location {
+            InputLocation::Pos(start) => Span::new(start, start + 1),
+            InputLocation::Span((start, end)) => Span::new(start, end),
+        };
+        Self::new(
+            ParseErrorKind::Syntax,
+            e.variant.message().to_string(),
+            Some(span),
+        )
     }
 }
 
-impl From<Bug> for ParseError<'_> {
+impl From<Bug> for ParseError {
     fn from(bug: Bug) -> Self {
         Self::new(ParseErrorKind::Bug, bug.msg().to_owned(), None)
     }
 }
 
 // Implement default Error via Display and Debug
-impl core::error::Error for ParseError<'_> {}
+impl core::error::Error for ParseError {}

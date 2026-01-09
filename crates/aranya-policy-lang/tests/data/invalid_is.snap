@@ -4,9 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-  = note:  --> 2:17
-            |
-          2 |     return x is Sum
-            |                 ^---
-            |
-            = expected None or Some
+2 |     return x is Sum
+  |                 ^ expected None or Some

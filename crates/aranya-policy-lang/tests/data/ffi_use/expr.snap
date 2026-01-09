@@ -4,9 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-  = note:  --> 1:8
-            |
-          1 | use one, two
-            |        ^---
-            |
-            = expected EOI, ephemeral_modifier, immutable_modifier, use_definition, effect_definition, struct_definition, enum_definition, function_decl, finish_function_decl, or global_let_statement
+1 | use one, two
+  |        ^ expected EOI, ephemeral_modifier, immutable_modifier, use_definition, effect_definition, struct_definition, enum_definition, function_decl, finish_function_decl, or global_let_statement

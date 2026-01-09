@@ -16,7 +16,7 @@ struct FrontMatter {
     policy_version: String,
 }
 
-fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError<'static>> {
+fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
     let fm: FrontMatter = serde_yaml::from_str(&yaml.value)
         .map_err(|e| ParseError::new(ParseErrorKind::FrontMatter, e.to_string(), None))?;
     let v = match fm.policy_version.as_str() {
@@ -43,15 +43,14 @@ pub struct PolicyChunk {
 
 #[derive(Default, Debug)]
 pub struct ChunkOffset {
+    #[allow(unused)] // TODO(Steve): Remove this field?
     /// 0-based line offset of policy code within document.
     pub line: usize,
     /// 0-based byte offset of policy code within document.
     pub byte: usize,
 }
 
-fn extract_policy_from_markdown(
-    node: &Node,
-) -> Result<(Vec<PolicyChunk>, Version), ParseError<'static>> {
+fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
     if let Node::Root(r) = node {
         let mut child_iter = r.children.iter();
         // The front matter should always be the first node below the
@@ -128,7 +127,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ReportCell> {
 
 /// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
 /// policy version.
-fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError<'_>> {
+fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)

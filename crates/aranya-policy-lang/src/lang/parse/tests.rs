@@ -204,9 +204,7 @@ fn parse_expression_errors() -> Result<(), ReportCell> {
         ErrorInput {
             description: String::from("Integer overflow"),
             input: r#"18446744073709551617"#.to_string(),
-            error_message: String::from(
-                "Invalid number: line 1 column 1: number too large to fit in target type",
-            ),
+            error_message: String::from("Invalid number: number too large to fit in target type"),
             rule: Rule::expression,
         },
         ErrorInput {
@@ -215,22 +213,20 @@ fn parse_expression_errors() -> Result<(), ReportCell> {
                 18446744073709551617
             )"#
             .to_string(),
-            error_message: String::from(
-                "Invalid number: line 2 column 17: number too large to fit in target type",
-            ),
+            error_message: String::from("Invalid number: number too large to fit in target type"),
             rule: Rule::expression,
         },
         ErrorInput {
             description: String::from("Invalid string escape"),
             input: r#""\\""#.to_string(),
-            error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
+            error_message: String::from("Invalid string: invalid escape: \\"),
             rule: Rule::expression,
         },
         ErrorInput {
             description: String::from("Expect Invalid substruct operation"),
             input: r#"x substruct 4"#.to_string(),
             error_message: String::from(
-                "Invalid substruct operation: line 1 column 3: Expression to the right of the substruct operator must be an identifier, got Int(4)",
+                "Invalid substruct operation: Expression to the right of the substruct operator must be an identifier, got Int(4)",
             ),
             rule: Rule::expression,
         },

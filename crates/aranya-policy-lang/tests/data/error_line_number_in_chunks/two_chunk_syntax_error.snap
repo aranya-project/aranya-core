@@ -3,10 +3,6 @@ source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
 error: Syntax error
-  |
-  = note:   --> 11:9
-             |
-          11 |     let = 2
-             |         ^---
-             |
-             = expected identifier
+   |
+11 |     let = 2
+   |         ^ expected identifier

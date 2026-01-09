@@ -4,9 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-  = note:  --> 1:5
-            |
-          1 | use _
-            |     ^---
-            |
-            = expected identifier
+1 | use _
+  |     ^ expected identifier
