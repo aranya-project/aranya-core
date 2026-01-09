@@ -89,12 +89,23 @@ where
         key: impl IntoIterator<Item = FactKey>,
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
-        let keys = ser_keys(key);
-        let value = ser_values(value)?;
-        self.facts
+        let mut facts = self
+            .facts
             .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .insert(name.as_str().to_owned(), keys, value);
+            .assume("should be able to borrow facts")?;
+        let keys = ser_keys(key);
+        if facts
+            .query(name.as_str(), &keys)
+            .map_err(|e| {
+                error!("query failed: {e}");
+                MachineIOError::Internal
+            })?
+            .is_some()
+        {
+            return Err(MachineIOError::FactExists);
+        }
+        let value = ser_values(value)?;
+        facts.insert(name.as_str().to_owned(), keys, value);
         Ok(())
     }
 
@@ -103,11 +114,50 @@ where
         name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
-        let keys = ser_keys(key);
-        self.facts
+        let mut facts = self
+            .facts
             .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .delete(name.as_str().to_owned(), keys);
+            .assume("should be able to borrow facts")?;
+        let keys = ser_keys(key);
+        if facts
+            .query(name.as_str(), &keys)
+            .map_err(|e| {
+                error!("query failed: {e}");
+                MachineIOError::Internal
+            })?
+            .is_none()
+        {
+            return Err(MachineIOError::FactNotFound);
+        }
+        facts.delete(name.as_str().to_owned(), keys);
+        Ok(())
+    }
+
+    fn fact_update(
+        &mut self,
+        name: Identifier,
+        keys: impl IntoIterator<Item = FactKey>,
+        from_values: impl IntoIterator<Item = FactValue>,
+        to_values: impl IntoIterator<Item = FactValue>,
+    ) -> Result<(), MachineIOError> {
+        let mut facts = self
+            .facts
+            .try_borrow_mut()
+            .assume("should be able to borrow facts")?;
+        let keys = ser_keys(keys);
+        let old = facts
+            .query(name.as_str(), &keys)
+            .map_err(|e| {
+                error!("query failed: {e}");
+                MachineIOError::Internal
+            })?
+            .ok_or(MachineIOError::FactNotFound)?;
+        let from_values = ser_values(from_values)?;
+        if !from_values.is_empty() && old != from_values {
+            return Err(MachineIOError::FactUpdateMismatch);
+        }
+        let to_values = ser_values(to_values)?;
+        facts.insert(name.as_str().to_owned(), keys, to_values);
         Ok(())
     }
 
