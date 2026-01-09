@@ -22,12 +22,12 @@ Policy {
             ],
             return_type: Bytes @ 22..27,
             statements: [
-                Expr(
-                    Return(
-                        Identifier(
+                Return(
+                    ReturnStatement {
+                        expression: Identifier(
                             "x" @ 41..42,
                         ) @ 41..42,
-                    ) @ 34..43,
+                    },
                 ) @ 34..43,
             ],
             span: 0..44,
