@@ -251,8 +251,8 @@ impl Value {
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
-            (Self::Ok(inner), TypeKind::Result { ok, .. }) => inner.fits_type(ok),
-            (Self::Err(inner), TypeKind::Result { err, .. }) => inner.fits_type(err),
+            (Self::Ok(inner), TypeKind::Result(result_type)) => inner.fits_type(&result_type.ok),
+            (Self::Err(inner), TypeKind::Result(result_type)) => inner.fits_type(&result_type.err),
             _ => false,
         }
     }

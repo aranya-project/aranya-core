@@ -17,10 +17,12 @@ Policy {
             arguments: [
                 FieldDefinition {
                     identifier: "r" @ 13..14,
-                    field_type: Result {
-                        ok: Int @ 22..25,
-                        err: String @ 27..33,
-                    } @ 15..34,
+                    field_type: Result(
+                        ResultTypeKind {
+                            ok: Int @ 22..25,
+                            err: String @ 27..33,
+                        },
+                    ) @ 15..34,
                 },
             ],
             return_type: Int @ 36..39,
