@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::{ResultTypeKind, Span, TypeKind, VType};
 
 #[test]
