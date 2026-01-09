@@ -703,14 +703,14 @@ impl<'a, 'b> ChunkParser<'a> {
                     Rule::add => {
                         return Err(ParseError::new(
                             ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
-                            String::from("found `+`, addition now uses functions `add` or `saturating_add`"),
+                            String::from("found `+`"),
                             Some(expr_span)
                         ));
                     }
                     Rule::subtract => {
                         return Err(ParseError::new(
                             ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
-                            String::from("found `-`, subtraction now uses functions `sub` or `saturating_sub`"),
+                            String::from("found `-`"),
                             Some(expr_span)
                         ));
                     }

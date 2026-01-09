@@ -120,18 +120,31 @@ impl Display for ParseError {
             return write!(f, "{message}");
         };
 
-        let source = Snippet::source(input).annotation(
-            AnnotationKind::Primary
-                .span(span.start()..span.end())
-                .label(message),
-        );
-
         let mut report = Vec::new();
-        report.push(title.element(source));
+        let mut annotate_entire_span = || {
+            let primary_annoation = Snippet::source(input).annotation(
+                AnnotationKind::Primary
+                    .span(span.start()..span.end())
+                    .label(message),
+            );
+
+            report.push(title.clone().element(primary_annoation));
+        };
 
         let source = Snippet::source(input);
         match **kind {
             ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
+                report.push(
+                    title.elements([
+                        // The message should refer specifically to the operator and not the entire expression
+                        Snippet::source(input).annotation(
+                            AnnotationKind::Primary
+                                .span(op.start()..op.end())
+                                .label(message),
+                        ),
+                    ]),
+                );
+
                 fn add_patch<'a>(
                     prefix: &'static str,
                     snippet: Snippet<'a, Patch<'a>>,
@@ -163,6 +176,8 @@ impl Display for ParseError {
                 report.push(group);
             }
             ParseErrorKind::InvalidNestedOption { outer, inner } => {
+                annotate_entire_span();
+
                 let old_prefix = "optional ";
                 let is_old = |s: &str| s.starts_with(old_prefix);
                 let is_old_outer = is_old(&input[outer.start()..outer.end()]);
@@ -194,7 +209,9 @@ impl Display for ParseError {
 
                 report.push(group);
             }
-            _ => {}
+            _ => {
+                annotate_entire_span();
+            }
         }
 
         let message = Renderer::plain().render(&report);

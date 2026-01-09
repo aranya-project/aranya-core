@@ -4,10 +4,8 @@ expression: err
 ---
 error: Invalid operator
    |
-15 |           return x + y
-   |  ________________^
-16 | |     }
-   | |____^ found `+`, addition now uses functions `add` or `saturating_add`
+15 |         return x + y
+   |                  ^ found `+`
    |
 help: you might have meant to use an arithmetic function
    |
