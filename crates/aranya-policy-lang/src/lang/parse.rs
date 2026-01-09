@@ -1757,8 +1757,7 @@ fn parse_policy_chunk_inner<'a>(
 }
 
 pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
-    let mut pairs =
-        PolicyParser::parse(Rule::expression, s).map_err(|err| ParseError::from(err))?;
+    let mut pairs = PolicyParser::parse(Rule::expression, s).map_err(ParseError::from)?;
 
     let token = pairs
         .next()
@@ -1775,7 +1774,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     let pratt = get_pratt_parser();
     let parser = ChunkParser::new(0, &pratt, data.len());
 
-    let mut def = PolicyParser::parse(Rule::ffi_def, data).map_err(|err| ParseError::from(err))?;
+    let mut def = PolicyParser::parse(Rule::ffi_def, data).map_err(ParseError::from)?;
     let decl = def.next().ok_or_else(|| {
         ParseError::new(
             ParseErrorKind::Unknown,
@@ -1824,8 +1823,7 @@ pub struct FfiTypes {
 
 /// Parse a series of type definitions for the FFI
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
-    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)
-        .map_err(|err| ParseError::from(err))?;
+    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data).map_err(ParseError::from)?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, data.len());
     let mut structs = vec![];

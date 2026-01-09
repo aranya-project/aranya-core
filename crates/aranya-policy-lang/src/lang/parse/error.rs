@@ -224,7 +224,7 @@ impl From<PestError<Rule>> for ParseError {
         use pest::error::InputLocation;
         // Assumes that the error location has already been adjusted in `aranya_policy_lang::lang::parse::mangle_pest_error`
         let span = match e.location {
-            InputLocation::Pos(start) => Span::new(start, start + 1),
+            InputLocation::Pos(start) => Span::new(start, start.saturating_add(1)),
             InputLocation::Span((start, end)) => Span::new(start, end),
         };
         Self::new(
