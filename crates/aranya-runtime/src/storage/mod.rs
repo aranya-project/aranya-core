@@ -15,6 +15,23 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
+mod visited;
+
+use visited::CappedVisited;
+
+/// Default capacity for the visited segment cache used in graph traversal.
+///
+/// This bounds memory usage (~4 KB at 256 entries) while allowing efficient
+/// traversal of graphs with many concurrent branches. The capacity should
+/// accommodate the expected "active frontier" width during backward traversal,
+/// which is bounded by peer count. Recommended values:
+/// - Embedded (small): 64 entries (~1 KB)
+/// - Standard embedded: 256 entries (~4 KB)
+/// - Server: 512 entries (~8 KB)
+///
+/// If capacity is exceeded, the algorithm remains correct but may revisit
+/// segments (producing redundant work, not incorrect results).
+const VISITED_CAPACITY: usize = 256;
 
 #[cfg(feature = "low-mem-usage")]
 pub const MAX_COMMAND_LENGTH: usize = 400;
@@ -171,25 +188,48 @@ pub trait Storage {
         start: Location,
         address: Address,
     ) -> Result<Option<Location>, StorageError> {
+        // Track visited segments to avoid revisiting via different paths.
+        // Uses bounded memory with max_cut-based eviction for no-alloc environments.
+        let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
         let mut queue = Vec::new();
         queue.push(start);
-        'outer: while let Some(loc) = queue.pop() {
-            let head = self.get_segment(loc)?;
-            if address.max_cut > head.longest_max_cut()? {
+
+        while let Some(loc) = queue.pop() {
+            let segment = self.get_segment(loc)?;
+            let segment_max_cut = segment.longest_max_cut()?;
+
+            // Skip if we've already visited this segment
+            if !visited.insert(loc.segment, segment_max_cut) {
                 continue;
             }
-            if let Some(loc) = head.get_by_address(address) {
-                return Ok(Some(loc));
+
+            // Prune: if target's max_cut is higher than this segment's highest,
+            // the target cannot be in this segment or any of its ancestors.
+            if address.max_cut > segment_max_cut {
+                continue;
             }
-            // Assumes skip list is sorted in ascending order.
-            // We always want to skip as close to the root as possible.
-            for (skip, max_cut) in head.skip_list() {
-                if max_cut >= &address.max_cut {
+
+            // Check if target is in this segment
+            if let Some(found) = segment.get_by_address(address) {
+                return Ok(Some(found));
+            }
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so first valid skip
+            // jumps as far back as possible.
+            let mut used_skip = false;
+            for (skip, skip_max_cut) in segment.skip_list() {
+                if skip_max_cut >= &address.max_cut {
                     queue.push(*skip);
-                    continue 'outer;
+                    used_skip = true;
+                    break;
                 }
             }
-            queue.extend(head.prior());
+
+            if !used_skip {
+                // No valid skip - add prior locations to queue
+                queue.extend(segment.prior());
+            }
         }
         Ok(None)
     }
@@ -253,30 +293,54 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
-        let mut queue = Vec::new();
-        queue.extend(segment.prior());
-        let segment = self.get_segment(search_location)?;
-        let address = segment
+        let search_segment = self.get_segment(search_location)?;
+        let address = search_segment
             .get_command(search_location)
             .assume("location must exist")?
             .address()?;
-        'outer: while let Some(location) = queue.pop() {
-            if location.segment == search_location.segment
-                && location.command >= search_location.command
-            {
+
+        // Track visited segments to avoid revisiting via different paths.
+        // Uses bounded memory with max_cut-based eviction for no-alloc environments.
+        let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
+        let mut queue = Vec::new();
+        queue.extend(segment.prior());
+
+        while let Some(loc) = queue.pop() {
+            // Check if we've found the target
+            if loc.segment == search_location.segment && loc.command >= search_location.command {
                 return Ok(true);
             }
-            let segment = self.get_segment(location)?;
-            if address.max_cut > segment.longest_max_cut()? {
+
+            let seg = self.get_segment(loc)?;
+            let seg_max_cut = seg.longest_max_cut()?;
+
+            // Skip if we've already visited this segment
+            if !visited.insert(loc.segment, seg_max_cut) {
                 continue;
             }
-            for (skip, max_cut) in segment.skip_list() {
-                if max_cut >= &address.max_cut {
+
+            // Prune: if target's max_cut is higher than this segment's highest,
+            // the target cannot be in this segment or any of its ancestors.
+            if address.max_cut > seg_max_cut {
+                continue;
+            }
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so first valid skip
+            // jumps as far back as possible.
+            let mut used_skip = false;
+            for (skip, skip_max_cut) in seg.skip_list() {
+                if skip_max_cut >= &address.max_cut {
                     queue.push(*skip);
-                    continue 'outer;
+                    used_skip = true;
+                    break;
                 }
             }
-            queue.extend(segment.prior());
+
+            if !used_skip {
+                // No valid skip - add prior locations to queue
+                queue.extend(seg.prior());
+            }
         }
         Ok(false)
     }

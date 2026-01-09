@@ -58,7 +58,7 @@ use core::{
     iter,
 };
 #[cfg(any(test, feature = "std"))]
-use std::{env, fs, time::Instant};
+use std::{env, fs};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
@@ -532,8 +532,27 @@ where
     #[cfg(any(test, feature = "std"))]
     if let Ok(dump_path) = env::var("DUMP_GENERATED_RULES") {
         let json = serde_json::to_string_pretty(&actions).unwrap();
-        fs::write(&dump_path, json).unwrap();
-        debug!("Dumped generated rules to {}", dump_path);
+        // If path is relative and doesn't start with ./, save to testdata directory
+        let final_path = if dump_path.starts_with('/') {
+            // Absolute path, use as-is
+            dump_path
+        } else if dump_path.starts_with("./") {
+            // Explicit relative path, use as-is
+            dump_path
+        } else {
+            // Relative path, save to testdata directory
+            let testdata_dir = format!("{}/src/testing/testdata", env!("CARGO_MANIFEST_DIR"));
+            // Create testdata directory if it doesn't exist
+            fs::create_dir_all(&testdata_dir).unwrap();
+            format!("{}/{}", testdata_dir, dump_path)
+        };
+        fs::write(&final_path, json).unwrap();
+        eprintln!(
+            "[DUMP] Dumped {} generated rules to {}",
+            actions.len(),
+            final_path
+        );
+        debug!("Dumped generated rules to {}", final_path);
     }
 
     let mut graphs = BTreeMap::new();
@@ -546,9 +565,6 @@ where
 
     for rule in actions {
         debug!(?rule);
-
-        #[cfg(any(test, feature = "std"))]
-        let start = Instant::now();
 
         match rule {
             TestRule::AddClient { id } => {
@@ -616,7 +632,8 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
+
+                    let (sent, received, _) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
                         &mut request_cache,
                         &mut response_cache,
                         &mut request_client,
@@ -753,7 +770,7 @@ where
                 assert_eq!(max_cut, command.max_cut()?);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
-            TestRule::VerifyGraphIds { client, ref ids } => {
+            TestRule::VerifyGraphIds { client, ids } => {
                 let mut state = clients
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
@@ -771,13 +788,6 @@ where
                 assert_eq!(actual_ids, expected_ids);
             }
             _ => {}
-        }
-        #[cfg(any(test, feature = "std"))]
-        if false {
-            {
-                let duration = start.elapsed();
-                debug!("Time elapsed in rule {:?} is: {:?}", rule, duration);
-            }
         }
     }
 
@@ -946,7 +956,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     requester_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
-) -> Result<(usize, usize), TestError> {
+) -> Result<(usize, usize, Vec<CmdId>), TestError> {
     let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
 
@@ -965,7 +975,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     )?;
 
     if len == 0 {
-        return Ok((sent, received));
+        return Ok((sent, received, Vec::new()));
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
@@ -978,7 +988,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         )?;
     }
 
-    Ok((sent, received))
+    Ok((sent, received, Vec::new()))
 }
 
 struct Parent(Prior<Address>);
@@ -1141,6 +1151,7 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    generated_400_commands,
     four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
