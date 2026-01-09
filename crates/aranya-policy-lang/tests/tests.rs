@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use aranya_policy_ast::Policy;
 use aranya_policy_lang::lang::{
-    self, ReportCell, Version, parse_policy_document, parse_policy_str,
+    self, ParseError, Version, parse_policy_document, parse_policy_str,
 };
 
 #[test]
@@ -86,7 +86,7 @@ fn test_markdown(#[files("tests/data/**/*.md")] src: PathBuf) {
     autotest(&src, parse_policy_document);
 }
 
-fn autotest(src: &Path, parse: impl Fn(&str) -> Result<Policy, ReportCell>) {
+fn autotest(src: &Path, parse: impl Fn(&str) -> Result<Policy, ParseError>) {
     let base = src.parent().expect("can't get parent");
     let name = src
         .file_stem()

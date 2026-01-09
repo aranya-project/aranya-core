@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
-use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
+use annotate_snippets::{AnnotationKind, Level, Patch, Renderer, Snippet};
 use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
 use pest::error::Error as PestError;
-use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
@@ -50,24 +49,6 @@ pub enum ParseErrorKind {
     /// Every other possible error.
     Unknown,
 }
-
-/// Diagnostic Message
-#[derive(Debug)]
-pub struct Report<'a>(Vec<Group<'a>>);
-
-self_cell!(
-    /// Like [`Report`] but owns the code snippet that it references.
-    pub struct ReportCell {
-        owner: String,
-
-        #[covariant]
-        dependent: Report,
-    }
-
-    impl {Debug}
-);
-
-impl std::error::Error for ReportCell {}
 
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -117,102 +98,6 @@ impl ParseError {
         }
     }
 
-    pub(crate) fn into_report(self) -> ReportCell {
-        let Self {
-            kind,
-            message,
-            span: maybe_span,
-            source: maybe_source,
-        } = self;
-        let title = Level::ERROR.primary_title(kind.to_string());
-        let (Some(span), Some(input)) = (maybe_span, maybe_source) else {
-            return ReportCell::new("".to_owned(), move |_| {
-                Report(vec![title.element(Level::NOTE.message(message))])
-            });
-        };
-
-        ReportCell::new(input, move |s| {
-            let source = Snippet::source(s).annotation(
-                AnnotationKind::Primary
-                    .span(span.start()..span.end())
-                    .label(message),
-            );
-
-            let mut out = Vec::new();
-            out.push(title.element(source));
-
-            let source = Snippet::source(s);
-            match *kind {
-                ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
-                    fn add_patch<'a>(
-                        prefix: &'static str,
-                        snippet: Snippet<'a, Patch<'a>>,
-                        lhs: Span,
-                        rhs: Span,
-                    ) -> Snippet<'a, Patch<'a>> {
-                        snippet
-                            .patch(Patch::new(lhs.start()..lhs.start(), prefix))
-                            .patch(Patch::new(lhs.end()..rhs.start(), ", "))
-                            .patch(Patch::new(rhs.end()..rhs.end(), ")"))
-                    }
-
-                    let elements = if s[op.start()..op.end()] == *"+" {
-                        [
-                            add_patch("saturating_add(", source.clone(), lhs, rhs),
-                            add_patch("add(", source, lhs, rhs),
-                        ]
-                    } else {
-                        [
-                            add_patch("saturating_sub(", source.clone(), lhs, rhs),
-                            add_patch("sub(", source, lhs, rhs),
-                        ]
-                    };
-
-                    let group = Level::HELP
-                        .secondary_title("you might have meant to use an arithmetic function")
-                        .elements(elements);
-
-                    out.push(group);
-                }
-                ParseErrorKind::InvalidNestedOption { outer, inner } => {
-                    let old_prefix = "optional ";
-                    let is_old = |s: &str| s.starts_with(old_prefix);
-                    let is_old_outer = is_old(&s[outer.start()..outer.end()]);
-                    let is_old_inner = is_old(&s[inner.start()..inner.end()]);
-
-                    let mut snippet = source;
-
-                    if is_old_outer {
-                        snippet = snippet
-                            .patch(Patch::new(
-                                outer.start()..(outer.start().saturating_add(old_prefix.len())),
-                                "option[",
-                            ))
-                            .patch(Patch::new(outer.end()..outer.end(), "]"));
-                    }
-
-                    if is_old_inner {
-                        snippet = snippet
-                            .patch(Patch::new(
-                                inner.start()..(inner.start().saturating_add(old_prefix.len())),
-                                "option[",
-                            ))
-                            .patch(Patch::new(inner.end()..inner.end(), "]"));
-                    }
-
-                    let group = Level::HELP
-                        .secondary_title("you might have meant to use `option[T]`")
-                        .elements([snippet]);
-
-                    out.push(group);
-                }
-                _ => {}
-            }
-
-            Report(out)
-        })
-    }
-
     // Return a new error with the source text.
     #[must_use]
     pub(crate) fn with_source(self, source: String) -> Self {
@@ -225,26 +110,97 @@ impl ParseError {
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: ", self.kind)?;
-        // FIXME(Steve): Replace with annotate-snippet rendering
-        // if let Some((line, column)) = self.span.map(|s| s.start_pos().line_col()) {
-        //     write!(f, "line {line} column {column}: ")?;
-        // }
-        write!(f, "{}", self.message)?;
-        Ok(())
-    }
-}
+        let Self {
+            kind,
+            message,
+            span: maybe_span,
+            source: maybe_source,
+        } = self;
+        let title = Level::ERROR.primary_title(kind.to_string());
+        let (Some(span), Some(input)) = (maybe_span, maybe_source) else {
+            let report = vec![title.element(Level::NOTE.message(message))];
+            let message = Renderer::plain().render(&report);
+            return write!(f, "{message}");
+        };
 
-impl Display for Report<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let message = Renderer::plain().render(&self.0);
-        write!(f, "{message}")
-    }
-}
+        let source = Snippet::source(input).annotation(
+            AnnotationKind::Primary
+                .span(span.start()..span.end())
+                .label(message),
+        );
 
-impl Display for ReportCell {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let message = Renderer::plain().render(&self.borrow_dependent().0);
+        let mut report = Vec::new();
+        report.push(title.element(source));
+
+        let source = Snippet::source(input);
+        match **kind {
+            ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
+                fn add_patch<'a>(
+                    prefix: &'static str,
+                    snippet: Snippet<'a, Patch<'a>>,
+                    lhs: Span,
+                    rhs: Span,
+                ) -> Snippet<'a, Patch<'a>> {
+                    snippet
+                        .patch(Patch::new(lhs.start()..lhs.start(), prefix))
+                        .patch(Patch::new(lhs.end()..rhs.start(), ", "))
+                        .patch(Patch::new(rhs.end()..rhs.end(), ")"))
+                }
+
+                let elements = if input[op.start()..op.end()] == *"+" {
+                    [
+                        add_patch("saturating_add(", source.clone(), lhs, rhs),
+                        add_patch("add(", source, lhs, rhs),
+                    ]
+                } else {
+                    [
+                        add_patch("saturating_sub(", source.clone(), lhs, rhs),
+                        add_patch("sub(", source, lhs, rhs),
+                    ]
+                };
+
+                let group = Level::HELP
+                    .secondary_title("you might have meant to use an arithmetic function")
+                    .elements(elements);
+
+                report.push(group);
+            }
+            ParseErrorKind::InvalidNestedOption { outer, inner } => {
+                let old_prefix = "optional ";
+                let is_old = |s: &str| s.starts_with(old_prefix);
+                let is_old_outer = is_old(&input[outer.start()..outer.end()]);
+                let is_old_inner = is_old(&input[inner.start()..inner.end()]);
+
+                let mut snippet = source;
+
+                if is_old_outer {
+                    snippet = snippet
+                        .patch(Patch::new(
+                            outer.start()..(outer.start().saturating_add(old_prefix.len())),
+                            "option[",
+                        ))
+                        .patch(Patch::new(outer.end()..outer.end(), "]"));
+                }
+
+                if is_old_inner {
+                    snippet = snippet
+                        .patch(Patch::new(
+                            inner.start()..(inner.start().saturating_add(old_prefix.len())),
+                            "option[",
+                        ))
+                        .patch(Patch::new(inner.end()..inner.end(), "]"));
+                }
+
+                let group = Level::HELP
+                    .secondary_title("you might have meant to use `option[T]`")
+                    .elements([snippet]);
+
+                report.push(group);
+            }
+            _ => {}
+        }
+
+        let message = Renderer::plain().render(&report);
         write!(f, "{message}")
     }
 }

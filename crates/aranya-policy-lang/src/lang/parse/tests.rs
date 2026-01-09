@@ -4,7 +4,6 @@ use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
-use crate::lang::ReportCell;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -151,19 +150,17 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-fn parse_expression_pratt() -> Result<(), ReportCell> {
+fn parse_expression_pratt() -> Result<(), ParseError> {
     let source = r#"
         unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
     "#
     .trim();
-    let mut pairs = PolicyParser::parse(Rule::expression, source)
-        .map_err(|err| ParseError::from(err).into_report())?;
+    let mut pairs =
+        PolicyParser::parse(Rule::expression, source).map_err(|err| ParseError::from(err))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, source.len());
     let expr_pair = pairs.next().unwrap();
-    let expr_parsed = p
-        .parse_expression(expr_pair)
-        .map_err(ParseError::into_report)?;
+    let expr_parsed = p.parse_expression(expr_pair)?;
     insta::assert_debug_snapshot!(expr_parsed);
     Ok(())
 }
@@ -176,7 +173,7 @@ struct ErrorInput {
 }
 
 #[test]
-fn parse_errors() -> Result<(), ReportCell> {
+fn parse_errors() -> Result<(), ParseError> {
     let cases = vec![ErrorInput {
         description: String::from("Invalid function body"),
         input: r#"function foo(x int) bool { invalid }"#.to_string(),
@@ -199,12 +196,12 @@ fn parse_errors() -> Result<(), ReportCell> {
 }
 
 #[test]
-fn parse_expression_errors() -> Result<(), ReportCell> {
+fn parse_expression_errors() -> Result<(), ParseError> {
     let cases = vec![
         ErrorInput {
             description: String::from("Integer overflow"),
             input: r#"18446744073709551617"#.to_string(),
-            error_message: String::from("Invalid number: number too large to fit in target type"),
+            error_message: String::from("error: Invalid number\n  |\n  = note: number too large to fit in target type"),
             rule: Rule::expression,
         },
         ErrorInput {
@@ -213,7 +210,7 @@ fn parse_expression_errors() -> Result<(), ReportCell> {
                 18446744073709551617
             )"#
             .to_string(),
-            error_message: String::from("Invalid number: number too large to fit in target type"),
+            error_message: String::from("error: Invalid number\n  |\n  = note: number too large to fit in target type"),
             rule: Rule::expression,
         },
         ErrorInput {
@@ -234,8 +231,8 @@ fn parse_expression_errors() -> Result<(), ReportCell> {
     let pratt = get_pratt_parser();
     for case in cases {
         let p = ChunkParser::new(0, &pratt, case.input.len());
-        let mut pairs = PolicyParser::parse(case.rule, &case.input)
-            .map_err(|err| ParseError::from(err).into_report())?;
+        let mut pairs =
+            PolicyParser::parse(case.rule, &case.input).map_err(|err| ParseError::from(err))?;
         let expr_pair = pairs.next().unwrap();
         match p.parse_expression(expr_pair.clone()) {
             Ok(parsed) => panic!("{}: {:?} - {expr_pair:?}", case.description, parsed),
@@ -247,13 +244,13 @@ fn parse_expression_errors() -> Result<(), ReportCell> {
 
 #[test]
 fn parse_optional() {
-    fn parse_vtype(text: &str) -> Result<VType, ReportCell> {
+    fn parse_vtype(text: &str) -> Result<VType, ParseError> {
         let pratt = get_pratt_parser();
         let p = ChunkParser::new(0, &pratt, text.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, text)
-            .map_err(|err| ParseError::from(err).into_report())?;
+        let mut pairs =
+            PolicyParser::parse(Rule::vtype, text).map_err(|err| ParseError::from(err))?;
         let pair = pairs.next().unwrap();
-        p.parse_type(pair).map_err(ParseError::into_report)
+        p.parse_type(pair)
     }
 
     let optional_types = &[

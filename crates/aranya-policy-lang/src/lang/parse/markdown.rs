@@ -8,7 +8,6 @@ use markdown::{
 use serde::Deserialize;
 
 use super::{ParseError, ParseErrorKind, Version, parse_policy_chunk};
-use crate::lang::parse::ReportCell;
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -108,15 +107,14 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
 
 /// Parses a Markdown policy document into an AST. This AST will likely be further processed
 /// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
-pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ReportCell> {
-    let (chunks, version) = extract_policy(data).map_err(ParseError::into_report)?;
+pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
+    let (chunks, version) = extract_policy(data)?;
     if chunks.is_empty() {
         return Err(ParseError::new(
             ParseErrorKind::Unknown,
             String::from("No policy code found in Markdown document"),
             None,
-        )
-        .into_report());
+        ));
     }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {

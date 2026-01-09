@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 mod error;
 mod markdown;
 
-pub use error::{ParseError, ParseErrorKind, ReportCell};
+pub use error::{ParseError, ParseErrorKind};
 pub use markdown::{ChunkOffset, parse_policy_document};
 
 mod keywords;
@@ -1639,7 +1639,7 @@ impl fmt::Debug for ChunkParser<'_> {
 /// version, as the bare code does not have any way to specify its
 /// own version. This does not account for any offset for enclosing
 /// text.
-pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ReportCell> {
+pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
     let mut policy = ast::Policy::new(version, data);
 
     parse_policy_chunk(data, &mut policy, ChunkOffset::default())?;
@@ -1710,7 +1710,7 @@ fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
     start: ChunkOffset,
-) -> Result<(), ReportCell> {
+) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         let err = ParseError::new(
             ParseErrorKind::InvalidVersion {
@@ -1720,17 +1720,14 @@ fn parse_policy_chunk(
             Version::help_message(),
             None,
         );
-        return Err(err.into_report());
+        return Err(err);
     }
     let chunk = PolicyParser::parse(Rule::file, data)
         .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))
-        .map_err(|e| e.with_source(policy.text.clone()))
-        .map_err(ParseError::into_report)?;
+        .map_err(|e| e.with_source(policy.text.clone()))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
-    parse_policy_chunk_inner(chunk, &p, policy)
-        .map_err(|e| e.with_source(policy.text.clone()))
-        .map_err(ParseError::into_report)
+    parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.with_source(policy.text.clone()))
 }
 
 fn parse_policy_chunk_inner<'a>(
@@ -1768,33 +1765,32 @@ fn parse_policy_chunk_inner<'a>(
     Ok(())
 }
 
-pub fn parse_expression(s: &str) -> Result<Expression, ReportCell> {
-    let mut pairs = PolicyParser::parse(Rule::expression, s)
-        .map_err(|err| ParseError::from(err).into_report())?;
+pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
+    let mut pairs =
+        PolicyParser::parse(Rule::expression, s).map_err(|err| ParseError::from(err))?;
 
-    let token = pairs.next().assume("has tokens").map_err(|bug| {
-        ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None).into_report()
-    })?;
+    let token = pairs
+        .next()
+        .assume("has tokens")
+        .map_err(|bug| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
 
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, s.len());
-    p.parse_expression(token).map_err(ParseError::into_report)
+    p.parse_expression(token)
 }
 
 /// Parse a function or finish function declaration for the FFI
-pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ReportCell> {
+pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     let pratt = get_pratt_parser();
     let parser = ChunkParser::new(0, &pratt, data.len());
 
-    let mut def = PolicyParser::parse(Rule::ffi_def, data)
-        .map_err(|err| ParseError::from(err).into_report())?;
+    let mut def = PolicyParser::parse(Rule::ffi_def, data).map_err(|err| ParseError::from(err))?;
     let decl = def.next().ok_or_else(|| {
         ParseError::new(
             ParseErrorKind::Unknown,
             String::from("Not a function declaration"),
             None,
         )
-        .into_report()
     })?;
 
     let rule = decl.as_rule();
@@ -1805,22 +1801,16 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ReportCell> {
     ));
 
     let pc = parser.descend(decl.clone());
-    let identifier = pc.consume_ident(&parser).map_err(ParseError::into_report)?;
+    let identifier = pc.consume_ident(&parser)?;
 
-    let token = pc
-        .consume_of_type(Rule::function_arguments)
-        .map_err(ParseError::into_report)?;
+    let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
     for field in token.into_inner() {
-        arguments.push(
-            parser
-                .parse_field_definition(field)
-                .map_err(ParseError::into_report)?,
-        );
+        arguments.push(parser.parse_field_definition(field)?);
     }
 
     let return_type = if rule == Rule::function_decl {
-        Some(pc.consume_type(&parser).map_err(ParseError::into_report)?)
+        Some(pc.consume_type(&parser)?)
     } else {
         None
     };
@@ -1842,9 +1832,9 @@ pub struct FfiTypes {
 }
 
 /// Parse a series of type definitions for the FFI
-pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ReportCell> {
+pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
     let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)
-        .map_err(|err| ParseError::from(err).into_report())?;
+        .map_err(|err| ParseError::from(err))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, data.len());
     let mut structs = vec![];
@@ -1852,16 +1842,10 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ReportCell> {
     for s in def {
         match s.as_rule() {
             Rule::struct_definition => {
-                structs.push(
-                    p.parse_struct_definition(s)
-                        .map_err(ParseError::into_report)?,
-                );
+                structs.push(p.parse_struct_definition(s)?);
             }
             Rule::enum_definition => {
-                enums.push(
-                    p.parse_enum_definition(s)
-                        .map_err(ParseError::into_report)?,
-                );
+                enums.push(p.parse_enum_definition(s)?);
             }
             Rule::EOI => break,
             _ => break,

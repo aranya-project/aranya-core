@@ -10,7 +10,7 @@ use std::{collections::btree_map::Entry, marker::PhantomData};
 use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
-use aranya_policy_lang::lang::ReportCell;
+use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
     SyncRequester,
@@ -80,16 +80,10 @@ pub enum ModelError {
     Sync(#[from] SyncError),
     #[error(transparent)]
     VmPolicy(#[from] VmPolicyError),
-    #[error("{0}")]
-    Parse(ReportCell),
+    #[error(transparent)]
+    Parse(#[from] ParseError),
     #[error(transparent)]
     Compile(#[from] CompileError),
-}
-
-impl From<ReportCell> for ModelError {
-    fn from(value: ReportCell) -> Self {
-        Self::Parse(value)
-    }
 }
 
 /// Proxy ID for clients
