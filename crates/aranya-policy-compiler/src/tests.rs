@@ -32,7 +32,7 @@ fn compile_fail(text: &str) -> CompileErrorType {
         Err(err) => panic!("{err}"),
     };
     match Compiler::new(&policy).compile() {
-        Ok(_) => panic!("policy compilation should have failed"),
+        Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err.err_type(),
     }
 }
@@ -580,7 +580,16 @@ fn test_struct_field_insertion_errors() {
         ),
         (
             r#"struct Foo { +Foo }"#,
-            CompileErrorType::NotDefined("Foo".to_string()),
+            CompileErrorType::Unknown(
+                "Cyclic struct insertion reference found when compiling `Foo`".to_string(),
+            ),
+        ),
+        (
+            r#"
+            struct Foo { +Bar } // can't do this because `Bar` comes after `Foo`
+            struct Bar { x int }
+            "#,
+            CompileErrorType::NotDefined("Bar".to_string()),
         ),
     ];
     for (text, err_type) in cases {
@@ -2911,6 +2920,53 @@ fn test_function_arguments_with_undefined_types() {
             "#,
             CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
         ),
+        (
+            r#"
+            struct Bar { self_ref struct Bar }
+            "#,
+            CompileErrorType::Unknown("Cyclic reference found when compiling `Bar`".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_structs_with_undefined_types() {
+    let cases = [
+        (
+            r#"
+            fact Foo[]=>{ s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ s option[struct Unknown] }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
     ];
 
     for (text, expected) in cases {
@@ -3282,5 +3338,32 @@ fn test_action_command_persistence() {
     for (text, expected) in invalid_cases {
         let err = compile_fail(text);
         assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_structs_listed_out_of_order() {
+    let valid_cases = [
+        r#"
+            effect Fi { fum struct Fum }
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo {}
+        "#,
+        // TODO(PR #513): Make this invalid.
+        r#"
+            struct Foo { x struct Bar }
+            struct Bar { x struct Foo }
+        "#,
+        // TODO(PR #513): Make this invalid.
+        r#"
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo { fum struct Fum } // cycle
+        "#,
+    ];
+
+    for case in valid_cases {
+        compile_pass(case);
     }
 }
