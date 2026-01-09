@@ -232,19 +232,10 @@ pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyEr
             })
         }
         (TypeKind::Result(left_result), TypeKind::Result(right_result)) => {
-            let ok = unify_pair(
-                left_result.ok.as_ref().clone(),
-                right_result.ok.as_ref().clone(),
-            )?;
-            let err = unify_pair(
-                left_result.err.as_ref().clone(),
-                right_result.err.as_ref().clone(),
-            )?;
+            let ok = unify_pair(left_result.ok.clone(), right_result.ok.clone())?;
+            let err = unify_pair(left_result.err.clone(), right_result.err.clone())?;
             Ok(VType {
-                kind: TypeKind::Result(Box::new(aranya_policy_ast::ResultTypeKind {
-                    ok: Box::new(ok),
-                    err: Box::new(err),
-                })),
+                kind: TypeKind::Result(Box::new(aranya_policy_ast::ResultTypeKind { ok, err })),
                 span: aranya_policy_ast::Span::empty(), // TODO
             })
         }

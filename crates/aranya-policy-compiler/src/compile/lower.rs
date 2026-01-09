@@ -918,11 +918,11 @@ impl CompileState<'_> {
                     kind: thir::ExprKind::ResultOk(Box::new(inner.clone())),
                     vtype: VType {
                         kind: TypeKind::Result(Box::new(ResultTypeKind {
-                            ok: Box::new(inner.vtype),
-                            err: Box::new(VType {
+                            ok: inner.vtype,
+                            err: VType {
                                 kind: TypeKind::Never,
                                 span: Span::empty(),
-                            }),
+                            },
                         })),
                         span: expression.span,
                     },
@@ -935,11 +935,11 @@ impl CompileState<'_> {
                     kind: thir::ExprKind::ResultErr(Box::new(inner.clone())),
                     vtype: VType {
                         kind: TypeKind::Result(Box::new(ResultTypeKind {
-                            ok: Box::new(VType {
+                            ok: VType {
                                 kind: TypeKind::Never,
                                 span: Span::empty(),
-                            }),
-                            err: Box::new(inner.vtype),
+                            },
+                            err: inner.vtype,
                         })),
                         span: expression.span,
                     },
@@ -1176,14 +1176,14 @@ impl CompileState<'_> {
                         let (ident, inner_type) = match result_pattern {
                             thir::ResultPattern::Ok(ident) => {
                                 if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    (ident, (*result_type.ok).clone())
+                                    (ident, result_type.ok.clone())
                                 } else {
                                     bug!("Ok pattern without Result type");
                                 }
                             }
                             thir::ResultPattern::Err(ident) => {
                                 if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    (ident, (*result_type.err).clone())
+                                    (ident, result_type.err.clone())
                                 } else {
                                     bug!("Err pattern without Result type");
                                 }
@@ -1225,17 +1225,17 @@ impl CompileState<'_> {
 
                     // For Result patterns, add the identifier to the scope for type-checking
                     if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
-                        let (inner_type, ident) = match result_pattern {
+                        let (ident, inner_type) = match result_pattern {
                             thir::ResultPattern::Ok(ident) => {
                                 if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    ((*result_type.ok).clone(), ident)
+                                    (ident, result_type.ok.clone())
                                 } else {
                                     bug!("Ok pattern without Result type");
                                 }
                             }
                             thir::ResultPattern::Err(ident) => {
                                 if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    ((*result_type.err).clone(), ident)
+                                    (ident, result_type.err.clone())
                                 } else {
                                     bug!("Err pattern without Result type");
                                 }

@@ -238,9 +238,9 @@ impl Spanned for VType {
 ))]
 pub struct ResultTypeKind {
     /// ok type
-    pub ok: Box<VType>,
+    pub ok: VType,
     /// error type
-    pub err: Box<VType>,
+    pub err: VType,
 }
 
 /// The kind of a [`VType`].

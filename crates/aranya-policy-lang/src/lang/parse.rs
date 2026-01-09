@@ -296,8 +296,8 @@ impl ChunkParser<'_> {
                 let err_type = self.parse_type(err_token)?;
 
                 TypeKind::Result(Box::new(ResultTypeKind {
-                    ok: Box::new(ok_type),
-                    err: Box::new(err_type),
+                    ok: ok_type,
+                    err: err_type,
                 }))
             }
             _ => {
