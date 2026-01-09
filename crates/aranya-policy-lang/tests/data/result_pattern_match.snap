@@ -61,12 +61,12 @@ Policy {
                         ) @ 54..115,
                     },
                 ) @ 46..120,
-                Expr(
-                    Return(
-                        Identifier(
+                Return(
+                    ReturnStatement {
+                        expression: Identifier(
                             "x" @ 127..128,
                         ) @ 127..128,
-                    ) @ 120..129,
+                    },
                 ) @ 120..129,
             ],
             span: 0..130,

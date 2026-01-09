@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ResultPattern, Statement, StmtKind, Text, TypeKind, UpdateStatement,
-    VType, Version, ident,
+    NamedStruct, Persistence, ResultPattern, ReturnStatement, Statement, StmtKind, Text, TypeKind,
+    UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -1328,40 +1328,11 @@ impl ChunkParser<'_> {
                 Rule::debug_assert => {
                     StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
                 }
-                Rule::expr_statement => {
-                    // Statements used as expressions. Currently, only "return" is supported.
+                Rule::return_statement => {
                     let pc = descend(statement);
-                    let expr_token = pc.consume()?;
-
-                    match expr_token.as_rule() {
-                        Rule::return_expression => {
-                            let mut pairs = expr_token.clone().into_inner();
-                            let inner_expr_token = pairs.next().ok_or_else(|| {
-                                ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("empty return expression"),
-                                    Some(expr_token.as_span()),
-                                )
-                            })?;
-                            let inner = self.parse_expression(inner_expr_token)?;
-                            let span = self.to_ast_span(expr_token.as_span())?;
-                            let expr = Expression {
-                                kind: ExprKind::Return(Box::new(inner)),
-                                span,
-                            };
-                            StmtKind::Expr(expr)
-                        }
-                        _ => {
-                            return Err(ParseError::new(
-                                ParseErrorKind::InvalidStatement,
-                                format!(
-                                    "unsupported expression statement: {:?}",
-                                    expr_token.as_rule()
-                                ),
-                                Some(expr_token.as_span()),
-                            ));
-                        }
-                    }
+                    let inner_expr_token = pc.consume()?;
+                    let expression = self.parse_expression(inner_expr_token)?;
+                    StmtKind::Return(ReturnStatement { expression })
                 }
                 s => {
                     return Err(ParseError::new(
