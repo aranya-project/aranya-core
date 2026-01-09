@@ -4,25 +4,23 @@ use std::path::{Path, PathBuf};
 
 use aranya_policy_ast::Policy;
 use aranya_policy_lang::lang::{
-    self, ParseError, Version, parse_policy_document, parse_policy_str,
+    self, ParseError, ParseErrorKind, Version, parse_policy_document, parse_policy_str,
 };
 
 #[test]
 #[allow(clippy::result_large_err)]
 #[allow(deprecated)]
 fn accept_only_latest_lang_version() {
-    let help_msg = Version::help_message();
-    let err_msg = format!(
-        "error: Invalid policy version 1, supported version is 2\n  |\n  = note: {help_msg}"
-    );
-
     // parse string literal
     let src = "function f() int { return 0 }";
     assert_eq!(
-        &parse_policy_str(src, Version::V1)
+        *parse_policy_str(src, Version::V1)
             .expect_err("should not accept V1")
-            .to_string(),
-        &err_msg,
+            .kind,
+        ParseErrorKind::InvalidVersion {
+            found: "1".to_string(),
+            required: Version::V2
+        }
     );
     parse_policy_str(src, Version::V2).expect("should accept V2");
 
@@ -34,12 +32,11 @@ policy-version: 1
 ```policy
 ```
 "#;
-    assert_eq!(
-        &parse_policy_document(policy_v1_md)
-            .expect_err("should not accept V1")
-            .to_string(),
-        &err_msg
-    );
+    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| *r.kind
+        == ParseErrorKind::InvalidVersion {
+            found: "1".to_string(),
+            required: Version::V2
+        }));
 
     // parse markdown (v2)
     let policy_v2_md = r#"---

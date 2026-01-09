@@ -66,7 +66,7 @@ impl<'a, 'b> PairContext<'a, 'b> {
     /// Consumes the next Pair out of this context and returns it.
     /// Errors if the next pair doesn't exist.
     fn consume(&self) -> Result<Pair<'a, Rule>, ParseError> {
-        self.next().ok_or_else(move || self.location_error())
+        self.next().ok_or_else(|| self.location_error())
     }
 
     /// Consumes the next Pair out of this context and returns it if
