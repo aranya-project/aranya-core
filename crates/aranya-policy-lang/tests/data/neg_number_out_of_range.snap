@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid number
+  |
+2 | let small_num = -9223372036854775809
+  |                 ^^^^^^^^^^^^^^^^^^^^ number too small to fit in target type

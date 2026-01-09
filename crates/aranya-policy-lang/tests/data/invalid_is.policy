@@ -1,0 +1,3 @@
+function g(x option[int]) bool {
+    return x is Sum
+}
