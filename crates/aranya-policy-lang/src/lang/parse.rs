@@ -255,9 +255,7 @@ impl<'a, 'b> ChunkParser<'a> {
                                 outer: outer_ast_span,
                                 inner: span,
                             },
-                            String::from(
-                                "Replace `optional T` with the new `option[T]` to use complex types",
-                            ),
+                            String::from("Unable to use `optional T` for nested optional types."),
                             Some(self.to_ast_span(outer_span)?),
                         ));
                     }

@@ -5,7 +5,7 @@ expression: err
 error: Invalid nested option
   |
 1 | function maybe_maybe_int() optional option[int] {
-  |                            ^^^^^^^^^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types
+  |                            ^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
   |
 help: you might have meant to use `option[T]`
   |

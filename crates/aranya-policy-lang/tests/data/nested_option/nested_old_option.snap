@@ -5,7 +5,7 @@ expression: err
 error: Invalid nested option
   |
 3 | function maybe_maybe_foo() optional optional struct Foo {
-  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types
+  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
   |
 help: you might have meant to use `option[T]`
   |
