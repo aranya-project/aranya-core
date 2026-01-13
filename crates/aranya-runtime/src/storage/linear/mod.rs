@@ -592,12 +592,14 @@ impl<F: Write> Storage for LinearStorage<F> {
                 if !skips.contains(&(lca, max_cut)) {
                     skips.push((lca, max_cut));
                 }
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|(_, max_cut)| *max_cut);
                 skips
             }
             Prior::Single(l) => {
                 let mut skips = get_skips(l, 3)?;
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|(_, max_cut)| *max_cut);
                 skips
             }
         };
