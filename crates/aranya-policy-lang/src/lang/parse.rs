@@ -5,7 +5,7 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
+    NamedStruct, Param, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
     UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
@@ -301,6 +301,15 @@ impl ChunkParser<'_> {
         Ok(FieldDefinition {
             identifier,
             field_type,
+        })
+    }
+
+    /// Parse a Rule::field_definition token into a Param.
+    fn parse_parameter(&self, field: Pair<'_, Rule>) -> Result<Param, ParseError> {
+        let field = self.parse_field_definition(field)?;
+        Ok(Param {
+            name: field.identifier,
+            ty: field.field_type,
         })
     }
 
@@ -1280,7 +1289,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            arguments.push(self.parse_parameter(field)?);
         }
 
         // All remaining tokens are statements
@@ -1514,7 +1523,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            arguments.push(self.parse_parameter(field)?);
         }
 
         let return_type = if rule == Rule::function_decl {
@@ -1756,7 +1765,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
     for field in token.into_inner() {
-        arguments.push(parser.parse_field_definition(field)?);
+        arguments.push(parser.parse_parameter(field)?);
     }
 
     let return_type = if rule == Rule::function_decl {
