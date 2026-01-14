@@ -42,7 +42,13 @@ impl CompileState<'_> {
     /// - the fields defined in the struct are present, and have the correct types
     /// - there are no duplicate fields
     fn lower_struct_literal(&mut self, s: &NamedStruct) -> Result<thir::NamedStruct, CompileError> {
-        let Some(struct_def) = self.m.struct_defs.get(&s.identifier.name).cloned() else {
+        let Some(struct_def) = self
+            .m
+            .struct_defs
+            .get(&s.identifier.name)
+            .and_then(Option::as_ref)
+            .cloned()
+        else {
             return Err(self.err(CompileErrorType::NotDefined(format!(
                 "Struct `{}` not defined",
                 s.identifier
@@ -670,11 +676,16 @@ impl CompileState<'_> {
                         "Expression left of `.` is not a struct".into(),
                     ))
                 })?;
-                let struct_def = self.m.struct_defs.get(name.as_str()).ok_or_else(|| {
-                    self.err(CompileErrorType::InvalidType(format!(
-                        "Struct `{name}` not defined"
-                    )))
-                })?;
+                let struct_def = self
+                    .m
+                    .struct_defs
+                    .get(name.as_str())
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "Struct `{name}` not defined"
+                        )))
+                    })?;
                 let field_def = struct_def
                     .iter()
                     .find(|f| f.identifier.name == s.name)
@@ -692,7 +703,13 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name).cloned() else {
+                let Some(sub_field_defns) = self
+                    .m
+                    .struct_defs
+                    .get(&sub.name)
+                    .and_then(Option::as_ref)
+                    .cloned()
+                else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub.name
@@ -705,7 +722,12 @@ impl CompileState<'_> {
                         "Expression to the left of the substruct operator is not a struct".into(),
                     ))
                 })?;
-                let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name.name) else {
+                let Some(lhs_field_defns) = self
+                    .m
+                    .struct_defs
+                    .get(&lhs_struct_name.name)
+                    .and_then(Option::as_ref)
+                else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{lhs_struct_name}` is not defined",
                     ))));
@@ -742,6 +764,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&rhs_ident.name)
+                    .and_then(Option::as_ref)
                     .cloned()
                     .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
@@ -753,15 +776,16 @@ impl CompileState<'_> {
                         "Expression to the left of `as` is not a struct".to_string(),
                     ))
                 })?;
-                let lhs_fields =
-                    self.m
-                        .struct_defs
-                        .get(&lhs_struct_name.name)
-                        .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(format!(
-                                "struct {lhs_struct_name}"
-                            )))
-                        })?;
+                let lhs_fields = self
+                    .m
+                    .struct_defs
+                    .get(&lhs_struct_name.name)
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(format!(
+                            "struct {lhs_struct_name}"
+                        )))
+                    })?;
 
                 // Check that both structs have the same field names and types (though not necessarily in the same order)
                 if lhs_fields.len() != rhs_fields.len()

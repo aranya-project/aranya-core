@@ -24,7 +24,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
 use indexmap::IndexMap;
-use tracing::warn;
+use tracing::{error, warn};
 
 pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
@@ -276,14 +276,20 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Insert a struct definition while preventing duplicates of the struct name and fields
+    /// Insert a struct definition while preventing duplicates of the struct fields.
+    // It is expected that [Self::list_structs] is called before this method.
+    // Duplicate struct names are detected in [Self::list_structs].
     pub fn define_struct(
         &mut self,
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if self.m.struct_defs.contains_key(&identifier.name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
+        if !self.m.struct_defs.contains_key(&identifier.name) {
+            error!("struct `{}` not listed.", identifier.name);
+            let bug = buggy::Bug::new(
+                "`CompileState::list_structs` was not called before `CompileState::define_struct`.",
+            );
+            return Err(self.err(bug.into()));
         }
 
         let has_struct_refs = items
@@ -295,6 +301,15 @@ impl<'a> CompileState<'a> {
         for item in items {
             match item {
                 StructItem::Field(field) => {
+                    if field
+                        .field_type
+                        .as_struct()
+                        .is_some_and(|field_type_ident| field_type_ident.name == identifier.name)
+                    {
+                        let msg = format!("Cyclic reference found when compiling `{identifier}`");
+                        return Err(self.err(CompileErrorType::Unknown(msg)));
+                    }
+
                     if field_definitions
                         .iter()
                         .any(|f: &FieldDefinition| f.identifier.name == field.identifier.name)
@@ -303,6 +318,7 @@ impl<'a> CompileState<'a> {
                             field.identifier.to_string(),
                         )));
                     }
+
                     // TODO(eric): Use `Span::default()`?
                     if has_struct_refs {
                         field_definitions.push(FieldDefinition {
@@ -319,10 +335,20 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(field.clone());
                     }
                 }
-                StructItem::StructRef(ident) => {
-                    let other =
-                        self.m.struct_defs.get(&ident.name).ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ident.to_string()))
+                StructItem::StructRef(field_type_ident) => {
+                    if field_type_ident.name == identifier.name {
+                        let msg = format!(
+                            "Cyclic struct insertion reference found when compiling `{identifier}`"
+                        );
+                        return Err(self.err(CompileErrorType::Unknown(msg)));
+                    }
+                    let other = self
+                        .m
+                        .struct_defs
+                        .get(&field_type_ident.name)
+                        .and_then(Option::as_ref)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
                         })?;
                     for field in other {
                         if field_definitions
@@ -349,9 +375,13 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        field_definitions
+            .iter()
+            .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
+
         self.m
             .struct_defs
-            .insert(identifier.name, field_definitions);
+            .insert(identifier.name, Some(field_definitions));
         Ok(())
     }
 
@@ -675,7 +705,9 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name) else {
+                let Some(sub_field_defns) =
+                    self.m.struct_defs.get(&sub.name).and_then(Option::as_ref)
+                else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub
@@ -1391,9 +1423,14 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
-                    })?;
+                    let struct_def = self
+                        .m
+                        .struct_defs
+                        .get(&ref_name.name)
+                        .and_then(Option::as_ref)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                        })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1563,7 +1600,59 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Adds entries for the Struct, Effect, Fact, Command, and FFI Struct defintions
+    /// to [CompileTarget::struct_defs] before fully compiling.
+    fn list_structs(&mut self) -> Result<(), CompileError> {
+        let effect_idents = self
+            .policy
+            .effects
+            .iter()
+            .map(|def| def.identifier.name.clone());
+        let fact_idents = self
+            .policy
+            .facts
+            .iter()
+            .map(|def| def.identifier.name.clone());
+        let ffi_struct_idents = self
+            .ffi_modules
+            .iter()
+            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone()));
+        let command_idents = self
+            .policy
+            .commands
+            .iter()
+            .map(|def| def.identifier.name.clone());
+
+        let struct_idents = self
+            .policy
+            .structs
+            .iter()
+            .map(|def| def.identifier.name.clone())
+            .chain(effect_idents)
+            .chain(fact_idents)
+            .chain(ffi_struct_idents)
+            .chain(command_idents);
+
+        for ident in struct_idents {
+            // TODO(Steve): Use a type that has span information so a better error message can be created
+            // when duplicate type defintions are found.
+            // Insert `None` for the value to indicate that this type is partially compiled.
+            if self.m.struct_defs.insert(ident.clone(), None).is_some() {
+                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
+            }
+        }
+
+        Ok(())
+    }
+
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
+        self.list_structs()?;
+
+        // map enum names to constants
+        for enum_def in &self.policy.enums {
+            self.compile_enum_definition(enum_def)?;
+        }
+
         for struct_def in &self.policy.structs {
             self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
         }
@@ -1606,11 +1695,6 @@ impl<'a> CompileState<'a> {
                 };
                 self.define_struct(ident, &fields)?;
             }
-        }
-
-        // map enum names to constants
-        for enum_def in &self.policy.enums {
-            self.compile_enum_definition(enum_def)?;
         }
 
         for fact in &self.policy.facts {
@@ -1701,7 +1785,12 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(Value::Bool(*v)),
             ExprKind::String(v) => Ok(Value::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name).cloned()
+                let Some(struct_def) = self
+                    .m
+                    .struct_defs
+                    .get(&struct_ast.identifier.name)
+                    .and_then(Option::as_ref)
+                    .cloned()
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -1787,6 +1876,7 @@ impl<'a> CompileState<'a> {
                 .m
                 .struct_defs
                 .get(&src_struct_type_name.name)
+                .and_then(Option::as_ref)
                 .assume("identifier with a struct type has that struct already defined")
                 .map_err(|err| self.err(err.into()))?;
 

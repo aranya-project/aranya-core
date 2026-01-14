@@ -30,7 +30,9 @@ pub(crate) struct CompileTarget {
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    ///
+    /// A [None] value for an entry indicates that the type exists but is only partially compiled.
+    pub struct_defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Mapping between program instructions and original code
@@ -72,7 +74,7 @@ impl CompileTarget {
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
-                struct_defs: self.struct_defs,
+                struct_defs: Self::filter_defs(self.struct_defs),
                 enum_defs,
                 codemap: self.codemap,
                 globals: self.globals,
@@ -93,7 +95,7 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self.struct_defs.get(&ident.name)?;
+                let defs = self.struct_defs.get(&ident.name).and_then(Option::as_ref)?;
                 defs.iter()
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {
@@ -108,6 +110,19 @@ impl CompileTarget {
             }
             TypeKind::Never => Some(0),
         }
+    }
+
+    // Filter out the definitions that aren't fully compiled
+    fn filter_defs(
+        defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
+    ) -> BTreeMap<Identifier, Vec<ast::FieldDefinition>> {
+        defs.into_iter()
+            .filter_map(|(ident, maybe_field_defs)| {
+                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
+                debug_assert!(maybe_field_defs.is_some());
+                maybe_field_defs.map(|field_defs| (ident, field_defs))
+            })
+            .collect()
     }
 }
 
@@ -151,7 +166,7 @@ impl From<CompileTarget> for PolicyInterface {
         Self {
             action_defs: t.action_defs,
             effects: t.effects,
-            struct_defs: t.struct_defs,
+            struct_defs: CompileTarget::filter_defs(t.struct_defs),
             enum_defs: t.enum_defs,
         }
     }
