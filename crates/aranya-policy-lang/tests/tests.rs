@@ -14,7 +14,7 @@ fn accept_only_latest_lang_version() {
     // parse string literal
     let src = "function f() int { return 0 }";
     assert_eq!(
-        parse_policy_str(src, Version::V1)
+        *parse_policy_str(src, Version::V1)
             .expect_err("should not accept V1")
             .kind,
         ParseErrorKind::InvalidVersion {
@@ -32,7 +32,7 @@ policy-version: 1
 ```policy
 ```
 "#;
-    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| r.kind
+    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| *r.kind
         == ParseErrorKind::InvalidVersion {
             found: "1".to_string(),
             required: Version::V2
