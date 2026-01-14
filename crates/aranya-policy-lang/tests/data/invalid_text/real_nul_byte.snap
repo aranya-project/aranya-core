@@ -1,9 +1,8 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-assertion_line: 99
 expression: err
 ---
 error: Invalid string
   |
 1 | let x = "a␀b"
-  |         ^^^^^ string contained nul byte
+  |         ^^^^^ string contained null byte

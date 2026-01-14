@@ -395,7 +395,7 @@ impl<'a, 'b> ChunkParser<'a> {
                 |span| {
                     ParseError::new(
                         ParseErrorKind::InvalidString,
-                        String::from("string contained nul byte"),
+                        String::from("string contained null byte"),
                         Some(span),
                     )
                 },
@@ -476,9 +476,11 @@ impl<'a, 'b> ChunkParser<'a> {
                 match primary.as_rule() {
                 Rule::int_literal => {
                     let n = primary.as_str().parse::<i64>().map_err(|e| {
+                        let message = e.to_string().replace("target type", "`int`");
+
                         ParseError::new(
                             ParseErrorKind::InvalidNumber,
-                            e.to_string(),
+                            message,
                             Some(span),
                         )
                     })?;
@@ -854,7 +856,8 @@ impl<'a, 'b> ChunkParser<'a> {
             )
         })?;
         let limit = token.as_str().parse::<i64>().map_err(|e| {
-            ParseError::new(ParseErrorKind::InvalidNumber, e.to_string(), Some(span))
+            let message = e.to_string().replace("target type", "`int`");
+            ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
         })?;
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
