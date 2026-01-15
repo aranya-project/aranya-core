@@ -3490,7 +3490,7 @@ fn test_unused_values() {
                 return 0
             }
             "#,
-            "unused variable: x",
+            "unused variable(s): x",
         ),
         (
             r#"
@@ -3502,7 +3502,7 @@ fn test_unused_values() {
                 return 0  // c is unused
             }
             "#,
-            "unused variable: c",
+            "unused variable(s): c",
         ),
         (
             r#"
@@ -3515,7 +3515,19 @@ fn test_unused_values() {
                 return a
             }
             "#,
-            "unused variable: x",
+            "unused variable(s): x",
+        ),
+        (
+            r#"
+            // Multiple unused variables in the same function
+            function baz() int {
+                let x = 1 // unused
+                let y = 2
+                let z = 3 // unused
+                return y
+            }
+            "#,
+            "unused variable(s): x, z",
         ),
         (
             r#"

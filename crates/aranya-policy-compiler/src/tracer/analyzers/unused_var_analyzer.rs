@@ -1,7 +1,6 @@
-use std::collections::HashSet;
-
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{Instruction, ModuleV0};
+use indexmap::IndexSet;
 
 use super::{Analyzer, AnalyzerStatus};
 use crate::tracer::TraceError;
@@ -10,9 +9,9 @@ use crate::tracer::TraceError;
 #[derive(Clone)]
 pub struct UnusedVarAnalyzer {
     /// Stack of scopes, each containing variables that must be used (created by Def)
-    scope_stack: Vec<HashSet<Identifier>>,
+    scope_stack: Vec<IndexSet<Identifier>>,
     /// Predefined variables that are allowed to be unused (like 'this' and 'envelope')
-    predefined_vars: HashSet<Identifier>,
+    predefined_vars: IndexSet<Identifier>,
 }
 
 impl Default for UnusedVarAnalyzer {
@@ -23,18 +22,18 @@ impl Default for UnusedVarAnalyzer {
 
 impl UnusedVarAnalyzer {
     pub fn new() -> Self {
-        let mut predefined_vars = HashSet::new();
+        let mut predefined_vars = IndexSet::new();
         predefined_vars.insert(ident!("this"));
         predefined_vars.insert(ident!("envelope"));
 
         Self {
-            scope_stack: vec![HashSet::new()],
+            scope_stack: vec![IndexSet::new()],
             predefined_vars,
         }
     }
 
     /// Get the current scope (the top of the stack)
-    fn current_scope(&mut self) -> &mut HashSet<Identifier> {
+    fn current_scope(&mut self) -> &mut IndexSet<Identifier> {
         self.scope_stack
             .last_mut()
             .expect("scope stack should never be empty")
@@ -43,7 +42,7 @@ impl UnusedVarAnalyzer {
     /// Remove a variable from all scopes (searching from innermost to outermost)
     fn remove_from_scopes(&mut self, ident: &Identifier) {
         for scope in self.scope_stack.iter_mut().rev() {
-            if scope.remove(ident) {
+            if scope.shift_remove(ident) {
                 return;
             }
         }
@@ -60,7 +59,7 @@ impl Analyzer for UnusedVarAnalyzer {
         match i {
             // Push a new scope
             Instruction::Block => {
-                self.scope_stack.push(HashSet::new());
+                self.scope_stack.push(IndexSet::new());
             }
 
             // Pop scope and check for unused variables in that scope
@@ -68,10 +67,14 @@ impl Analyzer for UnusedVarAnalyzer {
                 let Some(scope) = self.scope_stack.pop() else {
                     return Ok(AnalyzerStatus::Ok);
                 };
-                if let Some(var) = scope.iter().next() {
+                if !scope.is_empty() {
                     return Ok(AnalyzerStatus::Failed(format!(
-                        "unused variable: `{}`",
-                        var
+                        "unused variable(s): `{}`",
+                        scope
+                            .iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join("`, `")
                     )));
                 }
             }
@@ -99,8 +102,6 @@ impl Analyzer for UnusedVarAnalyzer {
                     }
                 }
             }
-
-            // All other instructions don't affect must-use tracking
             _ => {}
         }
 

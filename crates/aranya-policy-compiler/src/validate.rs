@@ -9,7 +9,8 @@ use crate::{
 /// Post-compilation validation. Ensure:
 /// - action branches publish a command
 /// - variables are assigned before use
-/// - function code paths return values
+/// - no unused variables
+/// - all function code paths return values
 /// - commands enter a finish block
 pub fn validate(module: &Module) -> bool {
     let ModuleData::V0(ref m) = module.data;
@@ -21,21 +22,19 @@ pub fn validate(module: &Module) -> bool {
     for l in m.labels.keys() {
         let mut tracer = TraceAnalyzerBuilder::new(m);
         match l.ltype {
-            LabelType::Action => {
-                tracer = tracer.add_analyzer(ActionAnalyzer::new());
-            }
+            LabelType::Action => tracer = tracer.add_analyzer(ActionAnalyzer::new()),
             LabelType::CommandPolicy | LabelType::CommandRecall => {
-                tracer = tracer.add_analyzer(FinishAnalyzer::new());
+                tracer = tracer.add_analyzer(FinishAnalyzer::new())
             }
             LabelType::CommandSeal | LabelType::CommandOpen => {
                 // TODO: Add function analyzer once panics are handled correctly.
             }
-            LabelType::Function => {
-                tracer = tracer.add_analyzer(FunctionAnalyzer::new());
-            }
+            LabelType::Function => tracer = tracer.add_analyzer(FunctionAnalyzer::new()),
             LabelType::Temporary => unreachable!("Shouldn't have gotten this label type"),
         }
-        let tracer = tracer.add_analyzer(ValueAnalyzer::new(global_names.clone()));
+        let tracer = tracer
+            .add_analyzer(ValueAnalyzer::new(global_names.clone()))
+            .add_analyzer(UnusedVarAnalyzer::new());
         let tracer = tracer.build();
 
         match tracer.trace(l) {
