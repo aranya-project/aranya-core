@@ -1,9 +1,10 @@
 #![allow(clippy::panic)]
 
-use aranya_policy_ast::VType;
+use aranya_policy_ast::{ExprKind, Expression, Span, VType, Version, text};
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
+use crate::lang::parse_policy_str;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -341,7 +342,8 @@ fn parse_command() -> Result<(), PestError<Rule>> {
             fields {
                 owner id,
             }
-
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create Foo[]=>{}
@@ -355,6 +357,32 @@ fn parse_command() -> Result<(), PestError<Rule>> {
     assert_eq!(token.as_rule(), Rule::command_definition);
 
     Ok(())
+}
+
+#[test]
+fn parse_command_attributes() {
+    let src = r#"
+        command Foo {
+            attributes {
+                priority: "high",
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {}
+        }
+    "#;
+    let policy = parse_policy_str(src, Version::V2).expect("should parse");
+    let command_def = &policy.commands[0];
+
+    let (id, value) = &command_def.attributes[0];
+    assert_eq!(id, "priority");
+    assert_eq!(
+        value,
+        &Expression {
+            kind: ExprKind::String(text!("high")),
+            span: Span::new(74, 80)
+        }
+    );
 }
 
 #[test]

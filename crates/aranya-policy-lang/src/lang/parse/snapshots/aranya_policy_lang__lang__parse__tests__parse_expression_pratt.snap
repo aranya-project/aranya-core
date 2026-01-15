@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+assertion_line: 167
 expression: expr_parsed
 ---
 Unwrap(

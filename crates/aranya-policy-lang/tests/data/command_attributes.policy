@@ -2,4 +2,7 @@ command Foo {
     attributes {
         priority: "high",
     }
+    seal { return todo() }
+    open { return todo() }
+    policy {}
 }
