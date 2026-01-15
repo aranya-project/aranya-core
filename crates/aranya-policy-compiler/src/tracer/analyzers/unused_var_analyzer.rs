@@ -72,7 +72,7 @@ impl Analyzer for UnusedVarAnalyzer {
                         "unused variable(s): `{}`",
                         scope
                             .iter()
-                            .map(|v| v.to_string())
+                            .map(ToString::to_string)
                             .collect::<Vec<_>>()
                             .join("`, `")
                     )));
