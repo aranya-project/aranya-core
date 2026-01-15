@@ -1,14 +1,14 @@
 mod action_analyzer;
 mod finish_analyzer;
 mod function_analyzer;
-mod unused_result_analyzer;
+mod unused_var_analyzer;
 mod value_analyzer;
 
 pub use action_analyzer::*;
 use aranya_policy_module::{Instruction, ModuleV0};
 pub use finish_analyzer::*;
 pub use function_analyzer::*;
-pub use unused_result_analyzer::*;
+pub use unused_var_analyzer::*;
 pub use value_analyzer::*;
 
 use super::{TraceError, TraceFailure};

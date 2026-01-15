@@ -8,20 +8,20 @@ use crate::tracer::TraceError;
 
 /// Ensures that all defined variables are used.
 #[derive(Clone)]
-pub struct UnusedResultAnalyzer {
+pub struct UnusedVarAnalyzer {
     /// Stack of scopes, each containing variables that must be used (created by Def)
     scope_stack: Vec<HashSet<Identifier>>,
     /// Predefined variables that are allowed to be unused (like 'this' and 'envelope')
     predefined_vars: HashSet<Identifier>,
 }
 
-impl Default for UnusedResultAnalyzer {
+impl Default for UnusedVarAnalyzer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl UnusedResultAnalyzer {
+impl UnusedVarAnalyzer {
     pub fn new() -> Self {
         let mut predefined_vars = HashSet::new();
         predefined_vars.insert(ident!("this"));
@@ -50,7 +50,7 @@ impl UnusedResultAnalyzer {
     }
 }
 
-impl Analyzer for UnusedResultAnalyzer {
+impl Analyzer for UnusedVarAnalyzer {
     fn analyze_instruction(
         &mut self,
         _pc: usize,
