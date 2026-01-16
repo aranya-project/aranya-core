@@ -284,7 +284,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let ok_type = self.parse_type(ok_token)?;
+                let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, true)?;
 
                 let err_token = pairs.next().ok_or_else(|| {
                     ParseError::new(
@@ -293,7 +293,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let err_type = self.parse_type(err_token)?;
+                let err_type = self.parse_type_inner(err_token, TypeStyle::New, true)?;
 
                 TypeKind::Result(Box::new(ResultTypeKind {
                     ok: ok_type,
