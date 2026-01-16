@@ -17,4 +17,4 @@ mod util;
 
 pub use aranya_policy_text::*;
 pub use ast::*;
-pub use span::{Span, Spanned};
+pub use span::{Span, Spanned, SpannedMut};

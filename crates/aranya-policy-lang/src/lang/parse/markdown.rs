@@ -108,6 +108,18 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
 /// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
 pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     let (chunks, version) = extract_policy(data)?;
+
+    if version != Version::V2 {
+        return Err(ParseError::new(
+            ParseErrorKind::InvalidVersion {
+                found: version.to_string(),
+                required: Version::V2,
+            },
+            "please update `policy-version` to 2".to_string(),
+            None,
+        ));
+    }
+
     if chunks.is_empty() {
         return Err(ParseError::new(
             ParseErrorKind::Unknown,
@@ -115,9 +127,11 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
             None,
         ));
     }
+
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {
-        parse_policy_chunk(&c.text, &mut policy, c.start)?;
+        let items = parse_policy_chunk(&c.text, &mut policy, c.start)?;
+        policy.add_items(items);
     }
     Ok(policy)
 }

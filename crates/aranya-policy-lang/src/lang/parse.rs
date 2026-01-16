@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Param, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version, ident,
+    NamedStruct, Param, Persistence, ReturnStatement, SpannedMut, Statement, StmtKind, Text,
+    TopLevelItem, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -158,32 +158,8 @@ impl ChunkParser<'_> {
 
     /// Convert a Pest span to an AST span with offset
     fn to_ast_span(&self, pest_span: Span<'_>) -> Result<ast::Span, ParseError> {
-        let start = pest_span.start().checked_add(self.offset).ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("span start overflow"),
-                Some(pest_span),
-            )
-        })?;
-        let end = pest_span.end().checked_add(self.offset).ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("span end overflow"),
-                Some(pest_span),
-            )
-        })?;
-
-        // Validate that the span doesn't exceed source bounds
-        if end > self.source_len {
-            return Err(ParseError::new(
-                ParseErrorKind::Unknown,
-                format!(
-                    "Span [{}, {}) exceeds source length {}",
-                    start, end, self.source_len
-                ),
-                Some(pest_span),
-            ));
-        }
+        let start = pest_span.start();
+        let end = pest_span.end();
 
         Ok(ast::Span::new(start, end))
     }
@@ -1618,9 +1594,22 @@ impl fmt::Debug for ChunkParser<'_> {
 /// own version. This does not account for any offset for enclosing
 /// text.
 pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
+    if version != Version::V2 {
+        return Err(ParseError::new(
+            ParseErrorKind::InvalidVersion {
+                found: version.to_string(),
+                required: Version::V2,
+            },
+            "please update `policy-version` to 2".to_string(),
+            None,
+        ));
+    }
+
     let mut policy = ast::Policy::new(version, data);
 
-    parse_policy_chunk(data, &mut policy, ChunkOffset::default())?;
+    let items = parse_policy_chunk(data, &policy, ChunkOffset::default())?;
+
+    policy.add_items(items);
 
     Ok(policy)
 }
@@ -1673,46 +1662,79 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 /// Parse more data into an existing [ast::Policy] object.
 fn parse_policy_chunk(
     data: &str,
-    policy: &mut ast::Policy,
-    start: ChunkOffset,
-) -> Result<(), ParseError> {
-    if policy.version != Version::V2 {
-        return Err(ParseError::new(
-            ParseErrorKind::InvalidVersion {
-                found: policy.version.to_string(),
-                required: Version::V2,
-            },
-            "please update `policy-version` to 2".to_string(),
-            None,
-        ));
-    }
+    policy: &ast::Policy,
+    offset: ChunkOffset,
+) -> Result<Vec<TopLevelItem>, ParseError> {
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))?;
+        .map_err(|e| mangle_pest_error(offset.byte, &policy.text, e))?;
     let pratt = get_pratt_parser();
-    let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
-    parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.adjust_line_number(start.line))
+    let p = ChunkParser::new(offset.byte, &pratt, policy.text.len());
+
+    let items =
+        parse_policy_chunk_inner(chunk, &p).map_err(|e| e.adjust_line_number(offset.line))?;
+
+    items
+        .map(|mut item| {
+            for span in item.spans_mut() {
+                let start = span.start().checked_add(offset.byte).ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("span start overflow"),
+                        None,
+                    )
+                })?;
+                let end = span.end().checked_add(offset.byte).ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("span end overflow"),
+                        None,
+                    )
+                })?;
+
+                // Validate that the span doesn't exceed source bounds
+                if end > policy.text.len() {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!(
+                            "Span [{}, {}) exceeds source length {}",
+                            start,
+                            end,
+                            policy.text.len()
+                        ),
+                        None,
+                    ));
+                }
+
+                *span = ast::Span::new(start, end);
+            }
+
+            Ok(item)
+        })
+        .collect()
 }
 
-fn parse_policy_chunk_inner(
+fn parse_policy_chunk_inner<'a>(
     chunk: Pairs<'_, Rule>,
-    p: &ChunkParser<'_>,
-    policy: &mut ast::Policy,
-) -> Result<(), ParseError> {
+    p: &'a ChunkParser<'_>,
+) -> Result<impl Iterator<Item = TopLevelItem> + use<'a>, ParseError> {
+    let mut out = Vec::new();
+
     for item in chunk {
+        use TopLevelItem as T;
         match item.as_rule() {
-            Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?),
-            Rule::fact_definition => policy.facts.push(p.parse_fact_definition(item)?),
-            Rule::action_definition => policy.actions.push(p.parse_action_definition(item)?),
-            Rule::effect_definition => policy.effects.push(p.parse_effect_definition(item)?),
-            Rule::struct_definition => policy.structs.push(p.parse_struct_definition(item)?),
-            Rule::enum_definition => policy.enums.push(p.parse_enum_definition(item)?),
-            Rule::command_definition => policy.commands.push(p.parse_command_definition(item)?),
-            Rule::function_definition => policy.functions.push(p.parse_function_definition(item)?),
-            Rule::finish_function_definition => policy
-                .finish_functions
-                .push(p.parse_finish_function_definition(item)?),
+            Rule::use_definition => out.push(T::FFIImport(p.parse_use_definition(item)?)),
+            Rule::fact_definition => out.push(T::Fact(p.parse_fact_definition(item)?)),
+            Rule::action_definition => out.push(T::Action(p.parse_action_definition(item)?)),
+            Rule::effect_definition => out.push(T::Effect(p.parse_effect_definition(item)?)),
+            Rule::struct_definition => out.push(T::Struct(p.parse_struct_definition(item)?)),
+            Rule::enum_definition => out.push(T::Enum(p.parse_enum_definition(item)?)),
+            Rule::command_definition => out.push(T::Command(p.parse_command_definition(item)?)),
+            Rule::function_definition => out.push(T::Function(p.parse_function_definition(item)?)),
+            Rule::finish_function_definition => {
+                out.push(T::FinishFunction(p.parse_finish_function_definition(item)?))
+            }
             Rule::global_let_statement => {
-                policy.global_lets.push(p.parse_global_let_statement(item)?);
+                out.push(T::GlobalLet(p.parse_global_let_statement(item)?));
             }
             Rule::EOI => (),
             _ => {
@@ -1725,7 +1747,7 @@ fn parse_policy_chunk_inner(
         }
     }
 
-    Ok(())
+    Ok(out.into_iter())
 }
 
 pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {

@@ -1,9 +1,9 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref, str::FromStr};
+use core::{fmt, iter, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Span, Spanned, Text, span::spanned};
+use crate::{Identifier, Span, Spanned, SpannedMut, Text, span::spanned};
 
 /// An identifier.
 #[derive(
@@ -58,6 +58,12 @@ where
 impl Spanned for Ident {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for Ident {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(iter::once(&mut self.span))
     }
 }
 
@@ -149,6 +155,15 @@ impl Persistence {
     }
 }
 
+impl SpannedMut for Persistence {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        match self {
+            Self::Persistent => Box::new(iter::empty()),
+            Self::Ephemeral(span) => Box::new(iter::once(span)),
+        }
+    }
+}
+
 impl fmt::Display for Persistence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -210,6 +225,12 @@ impl fmt::Display for VType {
 impl Spanned for VType {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for VType {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(iter::once(&mut self.span))
     }
 }
 
@@ -379,6 +400,16 @@ impl Spanned for EffectFieldDefinition {
     }
 }
 
+impl SpannedMut for EffectFieldDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.field_type.spans_mut()),
+        )
+    }
+}
+
 /// Value part of a key/value pair for a fact field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FactField {
@@ -393,6 +424,15 @@ impl Spanned for FactField {
         match self {
             Self::Expression(expr) => expr.span(),
             Self::Bind(span) => *span,
+        }
+    }
+}
+
+impl SpannedMut for FactField {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        match self {
+            Self::Expression(expr) => expr.spans_mut(),
+            Self::Bind(span) => Box::new(iter::once(span)),
         }
     }
 }
@@ -452,6 +492,17 @@ pub struct EnumDefinition {
 impl Spanned for EnumDefinition {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for EnumDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.variants.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
     }
 }
 
@@ -571,6 +622,12 @@ impl Spanned for Expression {
     }
 }
 
+impl SpannedMut for Expression {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(self.kind.spans_mut().chain(iter::once(&mut self.span)))
+    }
+}
+
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
@@ -632,6 +689,12 @@ pub enum ExprKind {
     Match(Box<MatchExpression>),
 }
 
+impl SpannedMut for ExprKind {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        todo!()
+    }
+}
+
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
@@ -680,6 +743,15 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+        }
+    }
+}
+
+impl SpannedMut for MatchPattern {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        match self {
+            Self::Default(span) => Box::new(iter::once(span)),
+            Self::Values(values) => values.spans_mut(),
         }
     }
 }
@@ -757,6 +829,16 @@ pub struct MatchExpressionArm {
 impl Spanned for MatchExpressionArm {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for MatchExpressionArm {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            iter::once(&mut self.span)
+                .chain(self.expression.spans_mut())
+                .chain(self.pattern.spans_mut()),
+        )
     }
 }
 
@@ -848,6 +930,12 @@ impl Spanned for Statement {
     }
 }
 
+impl SpannedMut for Statement {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        todo!()
+    }
+}
+
 /// The kind of [`Statement`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StmtKind {
@@ -917,6 +1005,18 @@ impl Spanned for FactDefinition {
     }
 }
 
+impl SpannedMut for FactDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.key.spans_mut())
+                .chain(self.value.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
 /// An action definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionDefinition {
@@ -938,6 +1038,19 @@ impl Spanned for ActionDefinition {
     }
 }
 
+impl SpannedMut for ActionDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.persistence
+                .spans_mut()
+                .chain(self.identifier.spans_mut())
+                .chain(self.arguments.spans_mut())
+                .chain(self.statements.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
 /// An effect definition
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectDefinition {
@@ -955,6 +1068,17 @@ impl Spanned for EffectDefinition {
     }
 }
 
+impl SpannedMut for EffectDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.items.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
 /// A struct definition
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StructDefinition {
@@ -969,6 +1093,17 @@ pub struct StructDefinition {
 impl Spanned for StructDefinition {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for StructDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.items.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
     }
 }
 
@@ -996,6 +1131,15 @@ impl<T: Spanned> Spanned for StructItem<T> {
         match self {
             Self::Field(f) => f.span(),
             Self::StructRef(ident) => ident.span,
+        }
+    }
+}
+
+impl<T: SpannedMut> SpannedMut for StructItem<T> {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        match self {
+            Self::Field(f) => f.spans_mut(),
+            Self::StructRef(ident) => ident.spans_mut(),
         }
     }
 }
@@ -1029,6 +1173,23 @@ impl Spanned for CommandDefinition {
     }
 }
 
+impl SpannedMut for CommandDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.persistence
+                .spans_mut()
+                .chain(self.attributes.spans_mut())
+                .chain(self.identifier.spans_mut())
+                .chain(self.fields.spans_mut())
+                .chain(self.seal.spans_mut())
+                .chain(self.open.spans_mut())
+                .chain(self.policy.spans_mut())
+                .chain(self.recall.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
 /// A function definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionDefinition {
@@ -1047,6 +1208,19 @@ pub struct FunctionDefinition {
 impl Spanned for FunctionDefinition {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for FunctionDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.arguments.spans_mut())
+                .chain(self.return_type.spans_mut())
+                .chain(self.statements.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
     }
 }
 
@@ -1071,6 +1245,18 @@ impl Spanned for FinishFunctionDefinition {
     }
 }
 
+impl SpannedMut for FinishFunctionDefinition {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.arguments.spans_mut())
+                .chain(self.statements.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
 /// A globally scopped let statement
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobalLetStatement {
@@ -1085,6 +1271,48 @@ pub struct GlobalLetStatement {
 impl Spanned for GlobalLetStatement {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for GlobalLetStatement {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.identifier
+                .spans_mut()
+                .chain(self.expression.spans_mut())
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
+pub enum TopLevelItem {
+    FFIImport(Ident),
+    Fact(FactDefinition),
+    Action(ActionDefinition),
+    Effect(EffectDefinition),
+    Struct(StructDefinition),
+    Enum(EnumDefinition),
+    Command(CommandDefinition),
+    Function(FunctionDefinition),
+    FinishFunction(FinishFunctionDefinition),
+    GlobalLet(GlobalLetStatement),
+}
+
+impl SpannedMut for TopLevelItem {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        use TopLevelItem as T;
+        match self {
+            T::FFIImport(ident) => ident.spans_mut(),
+            T::Fact(def) => def.spans_mut(),
+            T::Action(def) => def.spans_mut(),
+            T::Effect(def) => def.spans_mut(),
+            T::Struct(def) => def.spans_mut(),
+            T::Enum(def) => def.spans_mut(),
+            T::Command(def) => def.spans_mut(),
+            T::Function(def) => def.spans_mut(),
+            T::FinishFunction(def) => def.spans_mut(),
+            T::GlobalLet(statement) => statement.spans_mut(),
+        }
     }
 }
 
@@ -1126,6 +1354,24 @@ impl Policy {
             version,
             text: text.to_owned(),
             ..Default::default()
+        }
+    }
+
+    pub fn add_items(&mut self, items: impl IntoIterator<Item = TopLevelItem>) {
+        for item in items {
+            use TopLevelItem as T;
+            match item {
+                T::FFIImport(ident) => self.ffi_imports.push(ident),
+                T::Fact(def) => self.facts.push(def),
+                T::Action(def) => self.actions.push(def),
+                T::Effect(def) => self.effects.push(def),
+                T::Struct(def) => self.structs.push(def),
+                T::Enum(def) => self.enums.push(def),
+                T::Command(def) => self.commands.push(def),
+                T::Function(def) => self.functions.push(def),
+                T::FinishFunction(def) => self.finish_functions.push(def),
+                T::GlobalLet(statement) => self.global_lets.push(statement),
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ use core::{
     fmt,
     ops::{Bound, Range, RangeBounds},
 };
+use std::iter;
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -195,6 +196,12 @@ pub trait Spanned {
     fn span(&self) -> Span;
 }
 
+/// A trait for types that can provide mutable source span(s).
+pub trait SpannedMut {
+    /// Returns the mutable spans.
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_>;
+}
+
 impl<T: Spanned> Spanned for &T {
     fn span(&self) -> Span {
         (**self).span()
@@ -208,6 +215,16 @@ where
 {
     fn span(&self) -> Span {
         self.0.span().merge(self.1.span())
+    }
+}
+
+impl<A, B> SpannedMut for (A, B)
+where
+    A: SpannedMut,
+    B: SpannedMut,
+{
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(self.0.spans_mut().chain(self.1.spans_mut()))
     }
 }
 
@@ -232,9 +249,23 @@ impl<T: Spanned> Spanned for Vec<T> {
     }
 }
 
+impl<T: SpannedMut> SpannedMut for Vec<T> {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(self.iter_mut().flat_map(SpannedMut::spans_mut))
+    }
+}
+
 impl<T: Spanned> Spanned for Option<T> {
     fn span(&self) -> Span {
         self.as_ref().map(Spanned::span).unwrap_or_default()
+    }
+}
+
+impl<T: SpannedMut> SpannedMut for Option<T> {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        self.as_mut()
+            .map(SpannedMut::spans_mut)
+            .unwrap_or_else(|| Box::new(iter::empty()))
     }
 }
 
@@ -263,6 +294,17 @@ macro_rules! spanned {
                     .copied()
                     .reduce(|acc, span| acc.merge(span))
                     .unwrap_or_default()
+            }
+        }
+
+        impl SpannedMut for $name {
+            fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+                let spans = vec![ $(self.$field.spans_mut()),* ];
+                Box::new(
+                    spans
+                        .into_iter()
+                        .flatten()
+                )
             }
         }
     };

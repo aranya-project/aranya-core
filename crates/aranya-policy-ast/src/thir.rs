@@ -1,10 +1,11 @@
 //! Typed High-level Intermediate Representation
 
 use alloc::{boxed::Box, vec::Vec};
+use core::iter;
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{FactCountType, Ident, Span, Spanned, Text, VType, span::spanned};
+use crate::{FactCountType, Ident, Span, Spanned, SpannedMut, Text, VType, span::spanned};
 
 spanned! {
 /// A fact and its key/value field values.
@@ -123,6 +124,17 @@ impl Spanned for Expression {
     }
 }
 
+impl SpannedMut for Expression {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            self.kind
+                .spans_mut()
+                .chain(iter::once(&mut self.vtype.span))
+                .chain(iter::once(&mut self.span)),
+        )
+    }
+}
+
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
@@ -184,6 +196,12 @@ pub enum ExprKind {
     Match(Box<MatchExpression>),
 }
 
+impl SpannedMut for ExprKind {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        todo!()
+    }
+}
+
 spanned! {
 /// Define a variable with an expression
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -218,6 +236,15 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+        }
+    }
+}
+
+impl SpannedMut for MatchPattern {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        match self {
+            Self::Default(span) => Box::new(iter::once(span)),
+            Self::Values(values) => values.spans_mut(),
         }
     }
 }
@@ -273,6 +300,16 @@ pub struct MatchExpressionArm {
 impl Spanned for MatchExpressionArm {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for MatchExpressionArm {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        Box::new(
+            iter::once(&mut self.span)
+                .chain(self.expression.spans_mut())
+                .chain(self.pattern.spans_mut()),
+        )
     }
 }
 
@@ -353,6 +390,12 @@ pub struct Statement {
 impl Spanned for Statement {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl SpannedMut for Statement {
+    fn spans_mut(&mut self) -> Box<dyn Iterator<Item = &mut Span> + '_> {
+        todo!()
     }
 }
 
