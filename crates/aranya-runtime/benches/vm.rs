@@ -5,7 +5,7 @@ fn benchmark_1() {
     use aranya_runtime::{
         ClientState,
         memory::MemStorageProvider,
-        testing::vm::{TEST_POLICY_1, TestEngine, TestSink},
+        testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
         vm_action, vm_effect,
         vm_policy::testing::TestFfiEnvelope,
     };
@@ -15,9 +15,9 @@ fn benchmark_1() {
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
         .expect("should compile");
-    let engine = TestEngine::from_module(module);
+    let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
     let storage_id = cs
@@ -100,7 +100,7 @@ policy-version: 1
     use aranya_runtime::{
         ClientState,
         memory::MemStorageProvider,
-        testing::vm::{TestEngine, TestSink},
+        testing::vm::{TestPolicyStore, TestSink},
         vm_action,
         vm_policy::testing::TestFfiEnvelope,
     };
@@ -110,9 +110,9 @@ policy-version: 1
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
         .expect("should compile");
-    let engine = TestEngine::from_module(module);
+    let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
     let storage_id = cs

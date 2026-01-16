@@ -1,6 +1,6 @@
 //! Interfaces for an application to begin a runtime.
 //!
-//! An [`Engine`] stores policies for an application. A [`Policy`] is required
+//! A [`PolicyStore`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
 use buggy::Bug;
@@ -12,9 +12,9 @@ use crate::{
     storage::{FactPerspective, Perspective},
 };
 
-/// An error returned by the runtime engine.
+/// An error returned by a runtime policy store or policy.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
-pub enum EngineError {
+pub enum PolicyError {
     #[error("read error")]
     Read,
     #[error("write error")]
@@ -29,7 +29,7 @@ pub enum EngineError {
     Bug(#[from] Bug),
 }
 
-impl From<core::convert::Infallible> for EngineError {
+impl From<core::convert::Infallible> for PolicyError {
     fn from(error: core::convert::Infallible) -> Self {
         match error {}
     }
@@ -44,8 +44,8 @@ impl PolicyId {
     }
 }
 
-/// The [`Engine`] manages storing and retrieving [`Policy`].
-pub trait Engine {
+/// The [`PolicyStore`] manages storing and retrieving [`Policy`].
+pub trait PolicyStore {
     type Policy: Policy<Effect = Self::Effect>;
 
     type Effect;
@@ -55,30 +55,30 @@ pub trait Engine {
     /// # Arguments
     ///
     /// * `policy` - Byte slice that holds a policy.
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError>;
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError>;
 
     /// Get a policy from this runtime.
     ///
     /// # Arguments
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
-    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, EngineError>;
+    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
-pub trait Sink<E> {
+pub trait Sink<Eff> {
     fn begin(&mut self);
-    fn consume(&mut self, effect: E);
+    fn consume(&mut self, effect: Eff);
     fn rollback(&mut self);
     fn commit(&mut self);
 }
 
 pub struct NullSink;
 
-impl<E> Sink<E> for NullSink {
+impl<Eff> Sink<Eff> for NullSink {
     fn begin(&mut self) {}
 
-    fn consume(&mut self, _effect: E) {}
+    fn consume(&mut self, _effect: Eff) {}
 
     fn rollback(&mut self) {}
 
@@ -138,7 +138,7 @@ pub trait Policy {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), EngineError>;
+    ) -> Result<(), PolicyError>;
 
     /// Process an action checking each published command against the policy and emitting
     /// effects to the sink. All published commands are handled transactionally where if any
@@ -149,7 +149,7 @@ pub trait Policy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: ActionPlacement,
-    ) -> Result<(), EngineError>;
+    ) -> Result<(), PolicyError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
     /// Command is returned.
@@ -157,7 +157,7 @@ pub trait Policy {
         &self,
         target: &'a mut [u8],
         ids: MergeIds,
-    ) -> Result<Self::Command<'a>, EngineError>;
+    ) -> Result<Self::Command<'a>, PolicyError>;
 }
 
 /// Describes the placement when calling an action.
