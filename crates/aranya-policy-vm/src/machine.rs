@@ -1002,27 +1002,16 @@ where
                 }
                 self.ipush(s)?;
             }
-            Instruction::Some => {
-                let value = self.ipop_value()?;
-                self.ipush(Value::Option(Some(Box::new(value))))?;
-            }
             Instruction::Meta(_m) => {}
             Instruction::Wrap(wrap_type) => {
-                match wrap_type {
-                    WrapType::Some => {
-                        // Optional values are not wrapped at the moment, so do nothing.
-                    }
-                    WrapType::Ok | WrapType::Err => {
-                        // Replace top of stack with wrapped value
-                        let value = self.ipop_value()?;
-                        let wrapped = match wrap_type {
-                            WrapType::Ok => Value::Ok(Box::new(value)),
-                            WrapType::Err => Value::Err(Box::new(value)),
-                            WrapType::Some => unreachable!(),
-                        };
-                        self.ipush(wrapped)?;
-                    }
-                }
+                // Replace top of stack with wrapped value
+                let value = self.ipop_value()?;
+                let wrapped = match wrap_type {
+                    WrapType::Ok => Value::Ok(Box::new(value)),
+                    WrapType::Err => Value::Err(Box::new(value)),
+                    WrapType::Some => Value::Option(Some(Box::new(value))),
+                };
+                self.ipush(wrapped)?;
             }
             Instruction::IsOk => {
                 let value = self.ipeek_value()?;
@@ -1043,9 +1032,9 @@ where
                     Value::Ok(inner) | Value::Err(inner) => *inner,
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
-                            "Result (Ok or Err)",
+                            "Result or Option",
                             value.type_name(),
-                            "Unwrap instruction only works on Result types (for now)",
+                            "Unwrap instruction only works on Result and Option values",
                         )));
                     }
                 };

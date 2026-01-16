@@ -580,7 +580,7 @@ impl<'a> CompileState<'a> {
                     }
                     Some(v) => {
                         self.compile_typed_expression(*v)?;
-                        self.append_instruction(Instruction::Some);
+                        self.append_instruction(Instruction::Wrap(WrapType::Some));
                     }
                 };
             }
