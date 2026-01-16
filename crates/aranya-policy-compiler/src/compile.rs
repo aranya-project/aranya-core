@@ -20,8 +20,8 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
-    Instruction, Label, LabelType, Meta, Module, Target,
-    WrapType, ffi::{self, ModuleSchema},
+    Instruction, Label, LabelType, Meta, Module, Target, WrapType,
+    ffi::{self, ModuleSchema},
     named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
@@ -589,15 +589,17 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Bool(b) => {
                 self.append_instruction(Instruction::Const(ConstValue::Bool(b)));
             }
-            thir::ExprKind::Optional(o) => match o {
-                None => {
-                    self.append_instruction(Instruction::Const(ConstValue::NONE));
-                }
-                Some(v) => {
-                    self.compile_typed_expression(*v)?;
-                    self.append_instruction(Instruction::Some);
-                }
-            },
+            thir::ExprKind::Optional(o) => {
+                match o {
+                    None => {
+                        self.append_instruction(Instruction::Const(ConstValue::NONE));
+                    }
+                    Some(v) => {
+                        self.compile_typed_expression(*v)?;
+                        self.append_instruction(Instruction::Wrap(WrapType::Some));
+                    }
+                };
+            }
             thir::ExprKind::NamedStruct(s) => {
                 self.compile_struct_literal(s)?;
             }
