@@ -240,8 +240,6 @@ pub enum Instruction {
     SaveSP,
     /// Restore the stack depth.
     RestoreSP,
-    /// Wrap value in `Some`
-    Some,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -297,7 +295,6 @@ impl Display for Instruction {
             Self::Deserialize => write!(f, "deserialize"),
             Self::SaveSP => write!(f, "save SP"),
             Self::RestoreSP => write!(f, "restore SP"),
-            Self::Some => write!(f, "some"),
             Self::Meta(m) => write!(f, "meta: {m}"),
         }
     }
