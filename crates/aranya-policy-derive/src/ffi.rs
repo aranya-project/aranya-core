@@ -807,7 +807,7 @@ impl ToTokens for TypeTokens<'_> {
             TypeKind::Result(result_type) => {
                 let ok = TypeTokens::new(&result_type.ok, alloc, crypto, vm);
                 let err = TypeTokens::new(&result_type.err, alloc, crypto, vm);
-                quote!(Result<#ok, #err>)
+                quote!(::core::result::Result<#ok, #err>)
             }
         };
         tokens.extend(item);
