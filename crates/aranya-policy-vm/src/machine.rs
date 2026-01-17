@@ -17,7 +17,7 @@ use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
     Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
-    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
+    UnsupportedVersion, Value, ValueConversionError, WrapType, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -451,6 +451,13 @@ where
         let pc = self.pc;
         self.stack
             .peek()
+            .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
+    }
+
+    fn ipeek_value(&mut self) -> Result<&mut Value, MachineError> {
+        let pc = self.pc;
+        self.stack
+            .peek_value()
             .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
     }
 
@@ -995,27 +1002,44 @@ where
                 }
                 self.ipush(s)?;
             }
-            Instruction::Some => {
+            Instruction::Meta(_m) => {}
+            Instruction::Wrap(wrap_type) => {
+                // Replace top of stack with wrapped value
                 let value = self.ipop_value()?;
-                self.ipush(Value::Option(Some(Box::new(value))))?;
+                let wrapped = match wrap_type {
+                    WrapType::Ok => Value::Ok(Box::new(value)),
+                    WrapType::Err => Value::Err(Box::new(value)),
+                    WrapType::Some => Value::Option(Some(Box::new(value))),
+                };
+                self.ipush(wrapped)?;
+            }
+            Instruction::IsOk => {
+                let value = self.ipeek_value()?;
+                let is_ok = matches!(value, Value::Ok(_));
+                self.ipush(Value::Bool(is_ok))?;
             }
             Instruction::Unwrap => {
                 let value = self.ipop_value()?;
-                if let Value::Option(opt) = value {
-                    if let Some(inner) = opt {
-                        self.ipush(*inner)?;
-                    } else {
-                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
+                let inner = match value {
+                    Value::Option(opt) => match opt {
+                        Some(inner) => *inner,
+                        None => {
+                            return Err(
+                                self.err(MachineErrorType::Unknown("unwrapped None".into()))
+                            );
+                        }
+                    },
+                    Value::Ok(inner) | Value::Err(inner) => *inner,
+                    _ => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Result or Option",
+                            value.type_name(),
+                            "Unwrap instruction only works on Result and Option values",
+                        )));
                     }
-                } else {
-                    return Err(self.err(MachineErrorType::invalid_type(
-                        "Option[_]",
-                        value.type_name(),
-                        "Option[T] -> T",
-                    )));
-                }
+                };
+                self.ipush(inner)?;
             }
-            Instruction::Meta(_m) => {}
             Instruction::Cast(identifier) => {
                 let value = self.ipop_value()?;
                 match value {

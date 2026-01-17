@@ -15,6 +15,9 @@ mod span;
 pub mod thir;
 mod util;
 
+#[cfg(test)]
+mod tests;
+
 pub use aranya_policy_text::*;
 pub use ast::*;
 pub use span::{Span, Spanned};

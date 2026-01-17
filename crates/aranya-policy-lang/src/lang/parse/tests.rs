@@ -272,6 +272,66 @@ fn parse_optional() {
 }
 
 #[test]
+fn parse_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[int, string]", true),
+        ("result[bytes, bool]", true),
+        ("result[struct Foo, string]", true),
+        ("result[optional int, string]", true),
+        ("result[int, optional string]", true),
+        ("result[int, enum Error]", true),
+        ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
+        ("result[int]", false),                      // missing error type
+        ("result[, string]", false),                 // missing ok type
+        ("result[blargh, string]", false),           // invalid ok type
+        ("result[int, blargh]", false),              // invalid error type
+    ];
+    for (case, is_valid) in result_types {
+        let r = PolicyParser::parse(Rule::result_t, case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+#[test]
+fn test_result_literal() -> Result<(), ParseError> {
+    let cases = [
+        "Ok(42)",
+        "Ok(true)",
+        "Ok(get_value())",
+        "Ok(Foo {})",
+        "Err(\"error message\")",
+        "Err(Error::NotFound)",
+    ];
+    for src in cases {
+        let r = PolicyParser::parse(Rule::result_literal, src);
+        assert!(r.is_ok(), "Failed to parse result literal: {}", src);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_result_pattern_match() -> Result<(), ParseError> {
+    let src = r#"
+        function foo(r result[int, string]) int {
+            return match r {
+                Ok(v) => v
+                Err(e) => 0
+            }
+        }
+    "#
+    .trim();
+
+    let pratt = get_pratt_parser();
+    let p = ChunkParser::new(0, &pratt, src.len());
+    let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
+    let pair = pairs.next().unwrap();
+    let parsed = p.parse_function_definition(pair)?;
+    insta::assert_debug_snapshot!(parsed);
+    Ok(())
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;

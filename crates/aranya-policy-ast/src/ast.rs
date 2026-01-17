@@ -213,6 +213,36 @@ impl Spanned for VType {
     }
 }
 
+/// Result type kind
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
+pub struct ResultTypeKind {
+    /// ok type
+    pub ok: VType,
+    /// error type
+    pub err: VType,
+}
+
 /// The kind of a [`VType`].
 #[derive(
     Debug,
@@ -236,6 +266,7 @@ impl Spanned for VType {
         __C::Error: rkyv::rancor::Source,
     )
 ))]
+#[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
 pub enum TypeKind {
     /// A character (UTF-8) string
     String,
@@ -255,6 +286,8 @@ pub enum TypeKind {
     Optional(#[rkyv(omit_bounds)] Box<VType>),
     /// A type which cannot be instantiated.
     Never,
+    /// Result with value, or error
+    Result(#[rkyv(omit_bounds)] Box<ResultTypeKind>),
 }
 
 impl TypeKind {
@@ -270,6 +303,9 @@ impl TypeKind {
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
             (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            (Self::Result(lhs), Self::Result(rhs)) => {
+                lhs.ok.kind.matches(&rhs.ok.kind) && lhs.err.kind.matches(&rhs.err.kind)
+            }
             _ => false,
         }
     }
@@ -286,6 +322,9 @@ impl TypeKind {
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
             (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
+            (Self::Result(lhs), Self::Result(rhs)) => {
+                lhs.ok.fits_type(&rhs.ok) && lhs.err.fits_type(&rhs.err)
+            }
             _ => false,
         }
     }
@@ -303,6 +342,9 @@ impl fmt::Display for TypeKind {
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
+            Self::Result(result_type) => {
+                write!(f, "result[{}, {}]", result_type.ok, result_type.err)
+            }
         }
     }
 }
@@ -582,6 +624,10 @@ pub enum ExprKind {
     Bool(bool),
     /// An optional literal
     Optional(Option<Box<Expression>>),
+    /// A Result Ok literal
+    ResultOk(Box<Expression>),
+    /// A Result Err literal
+    ResultErr(Box<Expression>),
     /// A named struct
     NamedStruct(NamedStruct),
     /// One of the [InternalFunction]s
@@ -666,6 +712,23 @@ pub struct CheckStatement {
 }
 }
 
+/// Result pattern for matching Ok(x) or Err(e)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResultPattern {
+    /// Match Ok(identifier)
+    Ok(Ident),
+    /// Match Err(identifier)
+    Err(Ident),
+}
+
+impl Spanned for ResultPattern {
+    fn span(&self) -> Span {
+        match self {
+            Self::Ok(ident) | Self::Err(ident) => ident.span(),
+        }
+    }
+}
+
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
@@ -673,6 +736,8 @@ pub enum MatchPattern {
     Default(Span),
     /// List of values to match
     Values(Vec<Expression>),
+    /// Result pattern for matching Ok(x) and Err(e)
+    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -680,6 +745,7 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
+            Self::ResultPattern(result_pattern) => result_pattern.span(),
         }
     }
 }

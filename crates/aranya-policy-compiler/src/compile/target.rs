@@ -107,6 +107,11 @@ impl CompileTarget {
                 Some(defs.len() as u64)
             }
             TypeKind::Never => Some(0),
+            TypeKind::Result { .. } => {
+                // Result types always have cardinality 2: Ok and Err
+                // (regardless of the inner types' cardinalities)
+                Some(2)
+            }
         }
     }
 }
