@@ -1,209 +1,57 @@
 ---
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
-expression: policy
+expression: parsed
 ---
-{
-  "version": "V2",
-  "ffi_imports": [],
-  "facts": [],
-  "actions": [],
-  "effects": [],
-  "structs": [],
-  "enums": [],
-  "commands": [],
-  "functions": [
-    {
-      "identifier": {
-        "name": "foo",
-        "span": {
-          "start": 18,
-          "end": 21
-        }
-      },
-      "arguments": [
-        {
-          "identifier": {
-            "name": "r",
-            "span": {
-              "start": 22,
-              "end": 23
-            }
-          },
-          "field_type": {
-            "kind": {
-              "Result": {
-                "ok": {
-                  "kind": "Int",
-                  "span": {
-                    "start": 31,
-                    "end": 34
-                  }
+FunctionDefinition {
+    identifier: "foo" @ 9..12,
+    arguments: [
+        Param {
+            name: "r" @ 13..14,
+            ty: Result(
+                ResultTypeKind {
+                    ok: Int @ 22..25,
+                    err: String @ 27..33,
                 },
-                "err": {
-                  "kind": "String",
-                  "span": {
-                    "start": 36,
-                    "end": 42
-                  }
-                }
-              }
-            },
-            "span": {
-              "start": 24,
-              "end": 43
-            }
-          }
-        }
-      ],
-      "return_type": {
-        "kind": "Int",
-        "span": {
-          "start": 45,
-          "end": 48
-        }
-      },
-      "statements": [
-        {
-          "kind": {
-            "Let": {
-              "identifier": {
-                "name": "x",
-                "span": {
-                  "start": 67,
-                  "end": 68
-                }
-              },
-              "expression": {
-                "kind": {
-                  "Match": {
-                    "scrutinee": {
-                      "kind": {
-                        "Identifier": {
-                          "name": "r",
-                          "span": {
-                            "start": 77,
-                            "end": 78
-                          }
-                        }
-                      },
-                      "span": {
-                        "start": 77,
-                        "end": 78
-                      }
-                    },
-                    "arms": [
-                      {
-                        "pattern": {
-                          "ResultPattern": {
-                            "Ok": {
-                              "name": "val",
-                              "span": {
-                                "start": 100,
-                                "end": 103
-                              }
-                            }
-                          }
-                        },
-                        "expression": {
-                          "kind": {
-                            "Identifier": {
-                              "name": "val",
-                              "span": {
-                                "start": 108,
-                                "end": 111
-                              }
-                            }
-                          },
-                          "span": {
-                            "start": 108,
-                            "end": 111
-                          }
-                        },
-                        "span": {
-                          "start": 97,
-                          "end": 128
-                        }
-                      },
-                      {
-                        "pattern": {
-                          "ResultPattern": {
-                            "Err": {
-                              "name": "err",
-                              "span": {
-                                "start": 132,
-                                "end": 135
-                              }
-                            }
-                          }
-                        },
-                        "expression": {
-                          "kind": {
-                            "Int": -1
-                          },
-                          "span": {
-                            "start": 140,
-                            "end": 142
-                          }
-                        },
-                        "span": {
-                          "start": 128,
-                          "end": 155
-                        }
-                      }
-                    ]
-                  }
-                },
-                "span": {
-                  "start": 71,
-                  "end": 156
-                }
-              }
-            }
-          },
-          "span": {
-            "start": 63,
-            "end": 169
-          }
+            ) @ 15..34,
         },
-        {
-          "kind": {
-            "Expr": {
-              "kind": {
-                "Return": {
-                  "kind": {
-                    "Identifier": {
-                      "name": "x",
-                      "span": {
-                        "start": 176,
-                        "end": 177
-                      }
-                    }
-                  },
-                  "span": {
-                    "start": 176,
-                    "end": 177
-                  }
-                }
-              },
-              "span": {
-                "start": 169,
-                "end": 186
-              }
-            }
-          },
-          "span": {
-            "start": 169,
-            "end": 186
-          }
-        }
-      ],
-      "span": {
-        "start": 9,
-        "end": 187
-      }
-    }
-  ],
-  "finish_functions": [],
-  "global_lets": [],
-  "text": "\n        function foo(r result[int, string]) int {\n            let x = match r {\n                Ok(val) => val\n                Err(err) => -1\n            }\n            return x\n        }\n    "
+    ],
+    return_type: Int @ 36..39,
+    statements: [
+        Return(
+            ReturnStatement {
+                expression: Match(
+                    MatchExpression {
+                        scrutinee: Identifier(
+                            "r" @ 67..68,
+                        ) @ 67..68,
+                        arms: [
+                            MatchExpressionArm {
+                                pattern: ResultPattern(
+                                    Ok(
+                                        "v" @ 90..91,
+                                    ),
+                                ),
+                                expression: Identifier(
+                                    "v" @ 96..97,
+                                ) @ 96..97,
+                                span: 87..114,
+                            },
+                            MatchExpressionArm {
+                                pattern: ResultPattern(
+                                    Err(
+                                        "e" @ 118..119,
+                                    ),
+                                ),
+                                expression: Int(
+                                    0,
+                                ) @ 124..125,
+                                span: 114..138,
+                            },
+                        ],
+                    },
+                ) @ 61..139,
+            },
+        ) @ 54..148,
+    ],
+    span: 0..149,
 }

@@ -311,6 +311,27 @@ fn test_result_literal() -> Result<(), ParseError> {
 }
 
 #[test]
+fn test_result_pattern_match() -> Result<(), ParseError> {
+    let src = r#"
+        function foo(r result[int, string]) int {
+            return match r {
+                Ok(v) => v
+                Err(e) => 0
+            }
+        }
+    "#
+    .trim();
+
+    let pratt = get_pratt_parser();
+    let p = ChunkParser::new(0, &pratt, src.len());
+    let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
+    let pair = pairs.next().unwrap();
+    let parsed = p.parse_function_definition(pair)?;
+    insta::assert_debug_snapshot!(parsed);
+    Ok(())
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
