@@ -44,10 +44,8 @@ pub enum ConstValue {
     Enum(Identifier, i64),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
-    /// Result Ok value
-    Ok(#[rkyv(omit_bounds)] Box<Self>),
-    /// Result Err value
-    Err(#[rkyv(omit_bounds)] Box<Self>),
+    /// Result value
+    Result(#[rkyv(omit_bounds)] Result<Box<Self>, Box<Self>>),
 }
 
 impl ConstValue {
@@ -91,8 +89,8 @@ impl ConstValue {
             Self::Enum(name, _) => format!("Enum {}", name),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
-            Self::Ok(_) => String::from("Ok"),
-            Self::Err(_) => String::from("Err"),
+            Self::Result(Ok(inner)) => format!("Ok[{}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("Err[{}]", inner.type_name()),
         }
     }
 }
