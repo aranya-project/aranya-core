@@ -2667,7 +2667,7 @@ fn test_result() -> anyhow::Result<()> {
                 ident!("Result"),
                 vec![KVPair::new(
                     ident!("r"),
-                    Value::Ok(Box::new(Value::Int(42)))
+                    Value::Result(Ok(Box::new(Value::Int(42))))
                 ),]
             )
         );
@@ -2687,7 +2687,7 @@ fn test_result() -> anyhow::Result<()> {
                 ident!("Result"),
                 vec![KVPair::new(
                     ident!("r"),
-                    Value::Err(Box::new(Value::Enum(ident!("Err"), 0)))
+                    Value::Result(Err(Box::new(Value::Enum(ident!("Err"), 0))))
                 ),]
             )
         );
