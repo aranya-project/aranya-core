@@ -5,7 +5,7 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
+    NamedStruct, Param, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
     UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
@@ -212,15 +212,17 @@ impl ChunkParser<'_> {
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
-        self.parse_type_inner(token, true)
+        self.parse_type_inner(token, TypeStyle::Unknown, true)
     }
 
     fn parse_type_inner(
         &self,
         token: Pair<'_, Rule>,
-        accept_option: bool,
+        mut style: TypeStyle,
+        allow_option: bool,
     ) -> Result<VType, ParseError> {
-        let span = self.to_ast_span(token.as_span())?;
+        let pest_span = token.as_span();
+        let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
             Rule::string_t => TypeKind::String,
             Rule::bytes_t => TypeKind::Bytes,
@@ -238,20 +240,28 @@ impl ChunkParser<'_> {
                 TypeKind::Enum(name)
             }
             Rule::optional_t => {
-                if !accept_option {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidType,
-                        String::from("cannot nest optional"),
-                        Some(token.as_span()),
-                    ));
-                }
-                if token.as_str().starts_with("optional") {
+                let is_old = token.as_str().starts_with("optional");
+                if is_old {
                     use std::sync::atomic::AtomicBool;
                     static WARNED: AtomicBool = AtomicBool::new(false);
                     if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
                         warn!(
                             "`optional T` is being replaced with `option[T]` soon. Consider replacing all uses now to avoid later breakage."
                         );
+                    }
+                }
+                match (style, is_old) {
+                    (TypeStyle::Unknown, true) => style = TypeStyle::Old,
+                    (TypeStyle::Unknown, false) => style = TypeStyle::New,
+                    (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidType,
+                            String::from(
+                                "Replace `optional T` with the new `option[T]` to use complex types",
+                            ),
+                            Some(pest_span),
+                        ));
                     }
                 }
                 let mut pairs = token.clone().into_inner();
@@ -262,7 +272,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let inner_type = self.parse_type_inner(token, false)?;
+                let inner_type = self.parse_type_inner(token, style, !is_old)?;
                 TypeKind::Optional(Box::new(inner_type))
             }
             _ => {
@@ -291,6 +301,15 @@ impl ChunkParser<'_> {
         Ok(FieldDefinition {
             identifier,
             field_type,
+        })
+    }
+
+    /// Parse a Rule::field_definition token into a Param.
+    fn parse_parameter(&self, field: Pair<'_, Rule>) -> Result<Param, ParseError> {
+        let field = self.parse_field_definition(field)?;
+        Ok(Param {
+            name: field.identifier,
+            ty: field.field_type,
         })
     }
 
@@ -534,6 +553,12 @@ impl ChunkParser<'_> {
                     let ffc = self.parse_foreign_function_call(primary)?;
                     Ok(Expression { kind: ExprKind::ForeignFunctionCall(ffc), span })
                 }
+                Rule::return_expression => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let pc = descend(primary);
+                    let expression = pc.consume_expression(self)?;
+                    Ok(Expression{kind:ExprKind::Return(Box::new(expression)),span})
+                }
                 Rule::enum_reference => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let er = self.parse_enum_reference(primary)?;
@@ -678,6 +703,20 @@ impl ChunkParser<'_> {
                 let combined_span = lhs.span.merge(rhs.span);
 
                 let kind = match op.as_rule() {
+                    Rule::add => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidOperator,
+                            String::from("found `+`, addition now uses functions `add` or `saturating_add`"),
+                            Some(op.as_span())
+                        ));
+                    }
+                    Rule::subtract => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidOperator,
+                            String::from("found `-`, subtraction now uses functions `sub` or `saturating_sub`"),
+                            Some(op.as_span())
+                        ));
+                    }
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
                     Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
                     Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
@@ -686,30 +725,6 @@ impl ChunkParser<'_> {
                     Rule::less_than => ExprKind::LessThan(Box::new(lhs), Box::new(rhs)),
                     Rule::greater_than_or_equal => ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
-                    Rule::dot => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
-                            ParseErrorKind::InvalidMember,
-                            format!("Expected identifier after dot, got {:?}", rhs.kind),
-                            Some(op.as_span()),
-                        ))
-                    },
-                    Rule::substruct => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
-                            ParseErrorKind::InvalidSubstruct,
-                            format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
-                            Some(op.as_span()),
-                        ))
-                    },
-                    Rule::cast => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
-                        e => return Err(ParseError::new(
-                            ParseErrorKind::InvalidSubstruct,
-                            format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
-                            Some(op.as_span()),
-                        )),
-                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad infix: {:?}", op.as_rule()),
@@ -745,6 +760,21 @@ impl ChunkParser<'_> {
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
+                    Rule::dot => {
+                        let pc = descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Dot(Box::new(lhs), s)
+                    },
+                    Rule::substruct => {
+                        let pc = descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Substruct(Box::new(lhs), s)
+                    },
+                    Rule::cast => {
+                        let pc = descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Cast(Box::new(lhs), s)
+                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),
@@ -1259,7 +1289,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            arguments.push(self.parse_parameter(field)?);
         }
 
         // All remaining tokens are statements
@@ -1493,7 +1523,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            arguments.push(self.parse_parameter(field)?);
         }
 
         let return_type = if rule == Rule::function_decl {
@@ -1735,7 +1765,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
     for field in token.into_inner() {
-        arguments.push(parser.parse_field_definition(field)?);
+        arguments.push(parser.parse_parameter(field)?);
     }
 
     let return_type = if rule == Rule::function_decl {
@@ -1805,9 +1835,17 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
+        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
         .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
-        .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
-        .op(Op::infix(Rule::dot, Assoc::Left))
+        .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
+        .op(Op::postfix(Rule::dot))
+}
+
+#[derive(Copy, Clone)]
+enum TypeStyle {
+    Unknown,
+    Old,
+    New,
 }
 
 #[cfg(test)]

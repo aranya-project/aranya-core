@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.10.0...aranya-policy-ast-v0.11.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.9.0...aranya-policy-ast-v0.10.0) - 2025-12-11
+
+### Other
+
+- split type checking and instruction generation ([#500](https://github.com/aranya-project/aranya-core/pull/500))
+- add alternative parsing `option[T]` ([#499](https://github.com/aranya-project/aranya-core/pull/499))
+- switch parser snapshots to simplified debug repr ([#492](https://github.com/aranya-project/aranya-core/pull/492))
+- remove `Typeish` and `NullableVType` ([#486](https://github.com/aranya-project/aranya-core/pull/486))
+- define math as builtin functions ([#439](https://github.com/aranya-project/aranya-core/pull/439))
+
 ## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.8.1...aranya-policy-ast-v0.9.0) - 2025-11-05
 
 ### Other

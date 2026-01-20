@@ -23,7 +23,7 @@ use aranya_policy_vm::{
     text,
 };
 use aranya_runtime::{
-    ClientState, Engine, FfiCallable, StorageProvider, VmEffect,
+    ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
     memory::MemStorageProvider,
     storage::linear,
     vm_action, vm_effect,
@@ -33,8 +33,8 @@ use tempfile::tempdir;
 use test_log::test;
 
 use crate::{
-    ClientFactory, Model as _, ModelClient, ModelEngine, ModelError, ProxyClientId, ProxyGraphId,
-    RuntimeModel,
+    ClientFactory, Model as _, ModelClient, ModelError, ModelPolicyStore, ProxyClientId,
+    ProxyGraphId, RuntimeModel,
     tests::keygen::{KeyBundle, MinKeyBundle, PublicKeys},
 };
 
@@ -74,7 +74,7 @@ struct EmptyKeys;
 // necessary to to satisfy the policy_vm. The main part being, the use of the
 // `TestFfiEnvelope` ffi needed to satisfy requirements in the policy envelope.
 impl ClientFactory for BasicClientFactory {
-    type Engine = ModelEngine<DefaultEngine>;
+    type PolicyStore = ModelPolicyStore<DefaultEngine>;
     type StorageProvider = Lsp;
     type PublicKeys = EmptyKeys;
     type Args = ();
@@ -89,11 +89,11 @@ impl ClientFactory for BasicClientFactory {
             })];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
-        let engine = ModelEngine::new(policy);
+        let policy_store = ModelPolicyStore::new(policy);
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(engine, provider)),
+            state: RefCell::new(ClientState::new(policy_store, provider)),
             public_keys: EmptyKeys,
         }
     }
@@ -127,7 +127,7 @@ impl FfiClientFactory {
 // The FfiClientFactory uses signing keys in it's envelope, thus requires
 // supporting FFIs.
 impl ClientFactory for FfiClientFactory {
-    type Engine = ModelEngine<DefaultEngine>;
+    type PolicyStore = ModelPolicyStore<DefaultEngine>;
     type StorageProvider = Lsp;
     type PublicKeys = PublicKeys<DefaultCipherSuite>;
     type Args = ();
@@ -166,25 +166,25 @@ impl ClientFactory for FfiClientFactory {
         ];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
-        let engine = ModelEngine::new(policy);
+        let policy_store = ModelPolicyStore::new(policy);
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(engine, provider)),
+            state: RefCell::new(ClientState::new(policy_store, provider)),
             public_keys,
         }
     }
 }
 
-struct IdentityClientFactory<E, SP, PK>(PhantomData<(E, SP, PK)>);
+struct IdentityClientFactory<PS, SP, PK>(PhantomData<(PS, SP, PK)>);
 
 /// A client factory that just passes through a client.
-impl<E, SP, PK> ClientFactory for IdentityClientFactory<E, SP, PK>
+impl<PS, SP, PK> ClientFactory for IdentityClientFactory<PS, SP, PK>
 where
-    E: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
 {
-    type Engine = E;
+    type PolicyStore = PS;
     type StorageProvider = SP;
     type PublicKeys = PK;
     type Args = ModelClient<Self>;
@@ -1292,11 +1292,11 @@ fn should_create_clients_with_args() {
             ];
 
             let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
-            let engine = ModelEngine::new(policy);
+            let policy_store = ModelPolicyStore::new(policy);
             let provider = MemStorageProvider::new();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(engine, provider)),
+                state: RefCell::new(ClientState::new(policy_store, provider)),
                 public_keys: EmptyKeys,
             }
         })
@@ -1361,11 +1361,11 @@ fn should_create_clients_with_args() {
             ];
 
             let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
-            let engine = ModelEngine::new(policy);
+            let policy_store = ModelPolicyStore::new(policy);
             let provider = MemStorageProvider::new();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(engine, provider)),
+                state: RefCell::new(ClientState::new(policy_store, provider)),
                 public_keys: EmptyKeys,
             }
         })

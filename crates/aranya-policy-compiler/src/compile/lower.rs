@@ -611,6 +611,29 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
+            ExprKind::Return(ret_expr) => {
+                let ctx = self.get_statement_context()?;
+                let StatementContext::PureFunction(fd) = ctx else {
+                    return Err(self.err(CompileErrorType::InvalidExpression(expression.clone())));
+                };
+                // ensure return expression type matches function signature
+                let et = self.lower_expression(ret_expr)?;
+                if !et.vtype.fits_type(&fd.return_type) {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Return value of `{}()` must be {}",
+                        fd.identifier,
+                        DisplayType(&fd.return_type)
+                    ))));
+                }
+                thir::Expression {
+                    kind: thir::ExprKind::Return(Box::new(et)),
+                    vtype: VType {
+                        kind: TypeKind::Never,
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
             ExprKind::Identifier(i) => {
                 let ty = self.identifier_types.get(i).map_err(|_| {
                     self.err(CompileErrorType::NotDefined(format!(
@@ -905,20 +928,19 @@ impl CompileState<'_> {
 
         let mut arguments = Vec::new();
 
-        for (i, ((def_name, def_t), arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate()
-        {
+        for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
             let arg_te = self.lower_expression(arg_e)?;
-            if !arg_te.vtype.fits_type(def_t) {
+            if !arg_te.vtype.fits_type(&param.ty) {
                 let arg_n = i
                     .checked_add(1)
                     .assume("function argument count overflow")?;
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "Argument {} (`{}`) in call to `{}` found `{}`, expected `{}`",
                     arg_n,
-                    def_name,
+                    param.name,
                     fc.identifier,
                     arg_te.vtype,
-                    DisplayType(def_t)
+                    DisplayType(&param.ty)
                 ))));
             }
             arguments.push(arg_te);
@@ -1453,12 +1475,12 @@ impl CompileState<'_> {
                     for (i, arg) in fc.arguments.iter().enumerate() {
                         let arg = self.lower_expression(arg)?;
                         let expected_arg = &action_def.arguments[i];
-                        if !arg.vtype.fits_type(&expected_arg.field_type) {
+                        if !arg.vtype.fits_type(&expected_arg.ty) {
                             return Err(self.err_loc(
                                 CompileErrorType::BadArgument(format!(
                                     "invalid argument type for `{}`: expected `{}`, but got `{}`",
-                                    expected_arg.identifier.name,
-                                    DisplayType(&expected_arg.field_type),
+                                    expected_arg.name.name,
+                                    DisplayType(&expected_arg.ty),
                                     arg.vtype,
                                 )),
                                 statement.span,

@@ -222,14 +222,6 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
             rule: Rule::expression,
         },
-        ErrorInput {
-            description: String::from("Expect Invalid substruct operation"),
-            input: r#"x substruct 4"#.to_string(),
-            error_message: String::from(
-                "Invalid substruct operation: line 1 column 3: Expression to the right of the substruct operator must be an identifier, got Int(4)",
-            ),
-            rule: Rule::expression,
-        },
     ];
     let pratt = get_pratt_parser();
     for case in cases {
@@ -271,7 +263,7 @@ fn parse_optional() {
         ("optional optional bytes", false),
         ("optional option[bytes]", false),
         ("option[optional bytes]", false),
-        ("option[option[bytes]]", false),
+        ("option[option[bytes]]", true),
     ];
     for (case, is_valid) in optional_types {
         let r = parse_vtype(case);

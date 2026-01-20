@@ -27,7 +27,7 @@ impl PeerCache {
 
     pub fn add_command<S>(
         &mut self,
-        storage: &mut S,
+        storage: &S,
         command: Address,
         cmd_loc: Location,
     ) -> Result<(), StorageError>
@@ -35,18 +35,26 @@ impl PeerCache {
         S: Storage,
     {
         let mut add_command = true;
+
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
                 .get_location(*request_head)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
-            if let Some(new_head_command) = new_head_seg.get_command(new_head) {
-                if request_head.id == new_head_command.address()?.id {
-                    add_command = false;
-                }
+            if request_head.id
+                == new_head_seg
+                    .get_command(new_head)
+                    .assume("location must exist")?
+                    .address()?
+                    .id
+            {
+                add_command = false;
             }
-            if storage.is_ancestor(new_head, &req_head_seg)? {
+            // If the new head is an ancestor of the request head, don't add it
+            if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
+                || storage.is_ancestor(new_head, &req_head_seg)?
+            {
                 add_command = false;
             }
             Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg)?)
@@ -59,6 +67,7 @@ impl PeerCache {
                 .ok()
                 .assume("command locations should not be full")?;
         }
+
         Ok(())
     }
 }
@@ -276,6 +285,44 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             .ok()
             .assume("heads not full")?;
 
+        // TODO: Resolve merge
+        // fn find_needed_segments(
+        //     commands: &[Address],
+        //     storage: &impl Storage,
+        // ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
+        //     let mut have_locations = vec::Vec::new(); //BUG: not constant size
+        //     for &addr in commands {
+        //         // Note: We could use things we don't have as a hint to
+        //         // know we should perform a sync request.
+        //         if let Some(location) = storage.get_location(addr)? {
+        //             have_locations.push(location);
+        //         }
+        //     }
+
+        //     // Filter out locations that are ancestors of other locations in the list.
+        //     // If location A is an ancestor of location B, we only need to keep B since
+        //     // having B implies having A and all its ancestors.
+        //     // Iterate backwards so we can safely remove items
+        //     for i in (0..have_locations.len()).rev() {
+        //         let location_a = have_locations[i];
+        //         let mut is_ancestor_of_other = false;
+        //         for &location_b in &have_locations {
+        //             if location_a != location_b {
+        //                 let segment_b = storage.get_segment(location_b)?;
+        //                 if location_a.same_segment(location_b)
+        //                     && location_a.command <= location_b.command
+        //                     || storage.is_ancestor(location_a, &segment_b)?
+        //                 {
+        //                     is_ancestor_of_other = true;
+        //                     break;
+        //                 }
+        //             }
+        //         }
+        //         if is_ancestor_of_other {
+        //             have_locations.remove(i);
+        //         }
+        //     }
+
         let has = {
             let mut set = heapless::LinearMap::<usize, usize, COMMAND_SAMPLE_MAX>::new();
             for &addr in &self.has {
@@ -298,6 +345,69 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 if storage.is_ancestor(head, &segment)? {
                     continue 'heads;
                 }
+
+                // TODO: Resolve merge
+                // let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
+
+                // while !heads.is_empty() {
+                //     let current = mem::take(&mut heads);
+                //     'heads: for head in current {
+                //         let segment = storage.get_segment(head)?;
+                //         // If the segment is already in the result, skip it
+                //         if segment.contains_any(&result) {
+                //             continue 'heads;
+                //         }
+
+                //         // Check if the current segment head is an ancestor of any location in have_locations.
+                //         // If so, stop traversing backward from this point since the requester already has
+                //         // this command and all its ancestors.
+                //         for &have_location in &have_locations {
+                //             let have_segment = storage.get_segment(have_location)?;
+                //             if storage.is_ancestor(head, &have_segment)? {
+                //                 continue 'heads;
+                //             }
+                //         }
+
+                //         // If the requester has any commands in this segment, send from the next command
+                //         if let Some(latest_loc) = have_locations
+                //             .iter()
+                //             .filter(|&&location| segment.contains(location))
+                //             .max_by_key(|&&location| location.command)
+                //         {
+                //             let next_command = latest_loc
+                //                 .command
+                //                 .checked_add(1)
+                //                 .assume("command + 1 mustn't overflow")?;
+                //             let next_location = Location {
+                //                 segment: head.segment,
+                //                 command: next_command,
+                //             };
+
+                //             let head_loc = segment.head_location();
+                //             if next_location.command > head_loc.command {
+                //                 continue 'heads;
+                //             }
+                //             if result.is_full() {
+                //                 result.pop_back();
+                //             }
+                //             result
+                //                 .push_front(next_location)
+                //                 .ok()
+                //                 .assume("too many segments")?;
+                //             continue 'heads;
+                //         }
+
+                //         heads.extend(segment.prior());
+
+                //         if result.is_full() {
+                //             result.pop_back();
+                //         }
+
+                //         let location = segment.first_location();
+                //         result
+                //             .push_front(location)
+                //             .ok()
+                //             .assume("too many segments")?;
             }
 
             let segment = storage.get_segment(head)?;

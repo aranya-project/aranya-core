@@ -14,7 +14,7 @@ use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
     SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
-    engine::{Engine, Sink},
+    policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
 use buggy::{Bug, BugExt as _, bug};
@@ -73,14 +73,14 @@ impl From<core::convert::Infallible> for QuicSyncError {
 }
 
 /// Runs a server listening for sync requests from other peers.
-pub async fn run_syncer<EN, SP, S>(
-    syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
+pub async fn run_syncer<PS, SP, S>(
+    syncer: Arc<TMutex<Syncer<PS, SP, S>>>,
     mut server: Server,
     mut receiver: mpsc::UnboundedReceiver<GraphId>,
 ) where
-    EN: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effect>,
+    S: Sink<<PS as PolicyStore>::Effect>,
 {
     loop {
         select! {
@@ -99,14 +99,14 @@ pub async fn run_syncer<EN, SP, S>(
     }
 }
 
-async fn handle_connection<EN, SP, S>(
+async fn handle_connection<PS, SP, S>(
     mut conn: Connection,
-    dispatcher: Arc<TMutex<Syncer<EN, SP, S>>>,
+    dispatcher: Arc<TMutex<Syncer<PS, SP, S>>>,
 ) -> Result<(), QuicSyncError>
 where
-    EN: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effect>,
+    S: Sink<<PS as PolicyStore>::Effect>,
 {
     let stream = conn.accept_bidirectional_stream().await;
     let stream = match stream {
@@ -125,14 +125,14 @@ where
     Ok(())
 }
 
-async fn handle_request<EN, SP, S>(
+async fn handle_request<PS, SP, S>(
     mut stream: BidirectionalStream,
-    syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
+    syncer: Arc<TMutex<Syncer<PS, SP, S>>>,
 ) -> Result<(), QuicSyncError>
 where
-    EN: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effect>,
+    S: Sink<<PS as PolicyStore>::Effect>,
 {
     if let Ok(Some(req)) = stream.receive().await {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -147,31 +147,31 @@ where
 }
 
 /// A QUIC syncer client
-pub struct Syncer<EN, SP, S>
+pub struct Syncer<PS, SP, S>
 where
-    EN: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effect>,
+    S: Sink<<PS as PolicyStore>::Effect>,
 {
     quic_client: Client,
     remote_heads: BTreeMap<SocketAddr, PeerCache>,
     sender: mpsc::UnboundedSender<GraphId>,
     subscriptions: FnvIndexMap<SocketAddr, Subscription, MAXIMUM_SUBSCRIPTIONS>,
-    client_state: Arc<TMutex<ClientState<EN, SP>>>,
+    client_state: Arc<TMutex<ClientState<PS, SP>>>,
     sink: Arc<TMutex<S>>,
     server_addr: SocketAddr,
 }
 
-impl<EN, SP, S> Syncer<EN, SP, S>
+impl<PS, SP, S> Syncer<PS, SP, S>
 where
-    EN: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effect>,
+    S: Sink<<PS as PolicyStore>::Effect>,
 {
     /// Create a sync client with the given certificate chain.
     pub fn new<T: provider::tls::Provider>(
         cert: T,
-        client_state: Arc<TMutex<ClientState<EN, SP>>>,
+        client_state: Arc<TMutex<ClientState<PS, SP>>>,
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
         server_addr: SocketAddr,
@@ -196,7 +196,7 @@ where
     /// The sync will update your storage, not the peer's.
     pub async fn sync(
         &mut self,
-        client: &mut ClientState<EN, SP>,
+        client: &mut ClientState<PS, SP>,
         mut syncer: SyncRequester<SocketAddr>,
         sink: &mut S,
         storage_id: GraphId,
@@ -232,8 +232,11 @@ where
                 let mut trx = client.transaction(storage_id);
                 client.add_commands(&mut trx, sink, cmds)?;
                 client.commit(&mut trx, sink)?;
-                let addresses = cmds.into_iter().filter_map(|cmd| cmd.address().ok());
-                client.update_heads(storage_id, addresses, heads)?;
+                client.update_heads(
+                    storage_id,
+                    cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                    heads,
+                )?;
                 self.push(storage_id)?;
             }
         }
@@ -246,7 +249,7 @@ where
     /// This will tell the peer to send new commands to us.
     pub async fn subscribe(
         &mut self,
-        client: &mut ClientState<EN, SP>,
+        client: &mut ClientState<PS, SP>,
         mut sync_requester: SyncRequester<SocketAddr>,
         remain_open: u64,
         max_bytes: u64,
@@ -344,7 +347,11 @@ where
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(address).or_default();
                         let mut client = self.client_state.lock().await;
-                        client.update_heads(storage_id, commands, response_cache)?;
+                        client.update_heads(
+                            storage_id,
+                            commands.as_slice().iter().copied(),
+                            response_cache,
+                        )?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
                     Err(_) => {
@@ -376,8 +383,11 @@ where
                             let sink = sink_guard.deref_mut();
                             client.add_commands(&mut trx, sink, cmds)?;
                             client.commit(&mut trx, sink)?;
-                            let addresses = cmds.into_iter().filter_map(|cmd| cmd.address().ok());
-                            client.update_heads(storage_id, addresses, response_cache)?;
+                            client.update_heads(
+                                storage_id,
+                                cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                                response_cache,
+                            )?;
                         }
                         self.push(storage_id)?;
                     }

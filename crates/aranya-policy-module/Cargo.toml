@@ -1,7 +1,7 @@
 [package]
 name = "aranya-policy-module"
 description = "The Aranya Policy module format"
-version = "0.15.0"
+version = "0.17.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,8 +9,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aranya-id = { version = "0.2.0", path = "../aranya-id" }
-aranya-policy-ast = { version = "0.9.0", path = "../aranya-policy-ast" }
+aranya-id = { version = "0.2.1", path = "../aranya-id" }
+aranya-policy-ast = { version = "0.11.0", path = "../aranya-policy-ast" }
 
 fnv = { workspace = true, default-features = false }
 indexmap = { workspace = true, default-features = false, features = ["serde"] }

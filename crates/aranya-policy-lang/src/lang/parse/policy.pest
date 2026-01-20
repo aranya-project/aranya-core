@@ -27,8 +27,7 @@ bytes_t = { "bytes" }
 int_t = { "int" }
 bool_t = { "bool" }
 id_t = { "id" }
-// An optional type is any of the core types preceded by "optional"
-// (so no "optional optional" allowed).
+// An optional type
 optional_t = { ("optional" ~ vtype) | ("option" ~ "[" ~ vtype ~ "]") }
 // All structs have a name
 struct_t = { "struct" ~ identifier }
@@ -36,7 +35,16 @@ struct_t = { "struct" ~ identifier }
 enum_t = { "enum" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
-vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | struct_t | enum_t | optional_t }
+vtype = _{
+    | string_t
+    | bytes_t
+    | int_t
+    | bool_t
+    | id_t
+    | struct_t
+    | enum_t
+    | optional_t
+}
 
 // ## Fields
 // A field definition is an identifier followed by a type. Used in
@@ -178,17 +186,19 @@ todo = { "todo()" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
-    query |
-    exists |
-    count_up_to |
-    at_least |
-    at_most |
-    exactly |
-    if_expr |
-    serialize |
-    deserialize |
-    todo
+    | query
+    | exists
+    | count_up_to
+    | at_least
+    | at_most
+    | exactly
+    | if_expr
+    | serialize
+    | deserialize
+    | todo
 }
+// The return expression returns from a function
+return_expression = { "return" ~ expression }
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing
 block_statement_list = { statements* }
@@ -196,24 +206,27 @@ block_expression = { "{" ~ block_statement_list ~ ":" ~ expression ~ "}" }
 // An atom is any of the literals, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
 atom = _{
-    int_literal |
-    string_literal |
-    bool_literal |
-    optional_literal |
-    named_struct_literal |
-    match_expression |
-    internal_function |
-    function_call |
-    foreign_function_call |
-    enum_reference |
-    this |
-    identifier |
-    block_expression |
-    "(" ~ expression ~ ")"
+    | int_literal
+    | string_literal
+    | bool_literal
+    | optional_literal
+    | named_struct_literal
+    | match_expression
+    | internal_function
+    | return_expression
+    | function_call
+    | foreign_function_call
+    | enum_reference
+    | this
+    | identifier
+    | block_expression
+    | "(" ~ expression ~ ")"
 }
 this = { "this" }
 
 // ## Infix operators
+add = { "+" }
+subtract = { "-" }
 greater_than = { ">" }
 less_than = { "<" }
 greater_than_or_equal = { ">=" }
@@ -222,20 +235,40 @@ equal = { "==" }
 not_equal = { "!=" }
 and = { "&&" }
 or = { "||" }
-dot = { "." }
-substruct = { "substruct" }
-cast = { "as" }
-infix_op = _{ and | or | dot | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than | substruct | cast }
+infix_op = _{
+    | add
+    | subtract
+    | and
+    | or
+    | equal
+    | not_equal
+    | greater_than_or_equal
+    | less_than_or_equal
+    | greater_than
+    | less_than
+}
 
 // ## Prefix operators
 not = { "!" }
 unwrap = { "unwrap" }
 check_unwrap = { "check_unwrap" }
-prefix_op = _{ not | unwrap | check_unwrap }
+prefix_op = _{
+    | not
+    | unwrap
+    | check_unwrap
+}
 
 // ## Postfix operators
+dot = { "." ~ identifier }
+substruct = { "substruct" ~ identifier }
+cast = { "as" ~ identifier }
 is = { "is" ~ (none | some) }
-postfix_op = _{ is }
+postfix_op = _{
+    | dot
+    | substruct
+    | cast
+    | is
+}
 
 // The core expression syntax - atoms joined by infix operators, where
 // each atom can have zero or more prefix or postfix operators. Note
@@ -290,21 +323,22 @@ debug_assert = { "debug_assert(" ~ expression ~ ")" }
 
 // ## All statements
 statements = _{
-    publish_statement |
-    let_statement |
-    check_statement |
-    match_statement |
-    if_statement |
-    finish_statement |
-    map_statement |
-    create_statement |
-    update_statement |
-    delete_statement |
-    emit_statement |
-    return_statement |
-    debug_assert | // Note that debug_assert must take precendence over function_call due to the overlapping syntax
-    function_call |
-    action_call
+    | publish_statement
+    | let_statement
+    | check_statement
+    | match_statement
+    | if_statement
+    | finish_statement
+    | map_statement
+    | create_statement
+    | update_statement
+    | delete_statement
+    | emit_statement
+    | return_statement
+    // Note that debug_assert must take precendence over function_call due to the overlapping syntax
+    | debug_assert
+    | function_call
+    | action_call
 }
 statement_block = _{ "{" ~ statements* ~ "}" }
 
@@ -327,7 +361,14 @@ seal_block = { "seal" ~ statement_block }
 // parameter. It returns a command struct for the command it is part of.
 open_block = { "open" ~ statement_block }
 // Union of all command blocks
-command_blocks = _{ attributes_block | fields_block | seal_block | open_block | policy_block | recall_block }
+command_blocks = _{
+    | attributes_block
+    | fields_block
+    | seal_block
+    | open_block
+    | policy_block
+    | recall_block
+}
 
 // # Top-level Statements
 ephemeral_modifier = { "ephemeral" }
@@ -356,16 +397,17 @@ finish_function_definition = { finish_function_decl ~ statement_block }
 global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
 
 top_level_statement = _{
-    use_definition |
-    fact_definition |
-    action_definition |
-    effect_definition |
-    struct_definition |
-    enum_definition |
-    command_definition |
-    function_definition |
-    finish_function_definition |
-    global_let_statement }
+    | use_definition
+    | fact_definition
+    | action_definition
+    | effect_definition
+    | struct_definition
+    | enum_definition
+    | command_definition
+    | function_definition
+    | finish_function_definition
+    | global_let_statement
+}
 
 // The file is a series of top level statements. SOI and EOI are start/
 // end of input markers. Without the end of input marker, the input

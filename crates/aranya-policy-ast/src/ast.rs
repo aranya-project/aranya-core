@@ -308,6 +308,27 @@ impl fmt::Display for TypeKind {
 }
 
 spanned! {
+/// An action or function parameter.
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct Param {
+    /// The name of the parameter.
+    pub name: Ident,
+    /// The type of the parameter.
+    pub ty: VType,
+}
+}
+
+spanned! {
 /// An identifier and its type
 ///
 /// Field definitions are used in Command fields, fact
@@ -569,6 +590,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// A return expression. Valid only in functions.
+    Return(Box<Expression>),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -617,7 +640,7 @@ pub struct FunctionDecl {
     /// The identifier of the function
     pub identifier: Ident,
     /// A list of the arguments to the function, and their types
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The return type of the function, if any
     pub return_type: Option<VType>,
 }
@@ -902,7 +925,7 @@ pub struct ActionDefinition {
     /// The name of the action
     pub identifier: Ident,
     /// The arguments to the action
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The statements executed when the action is called
     pub statements: Vec<Statement>,
     /// The source location of this definition
@@ -1012,7 +1035,7 @@ pub struct FunctionDefinition {
     /// The name of the function
     pub identifier: Ident,
     /// The argument names and types
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
@@ -1035,7 +1058,7 @@ pub struct FinishFunctionDefinition {
     /// The name of the function
     pub identifier: Ident,
     /// The argument names and types
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The finish block statements
     pub statements: Vec<Statement>,
     /// The source location of this definition

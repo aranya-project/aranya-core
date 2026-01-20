@@ -311,14 +311,13 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                 return Err(SyncError::Storage(err));
             }
             Ok(storage) => {
-                let mut command_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
+                let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
                 for address in peer_cache.heads() {
-                    command_locations
-                        .push(
-                            storage
-                                .get_location(*address)?
-                                .assume("location must exist")?,
-                        )
+                    let loc = storage
+                        .get_location(*address)?
+                        .assume("location must exist")?;
+                    cache_locations
+                        .push(loc)
                         .ok()
                         .assume("command locations should not be full")?;
                     if commands.len() < COMMAND_SAMPLE_MAX {
@@ -327,8 +326,8 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                             .map_err(|_| SyncError::CommandOverflow)?;
                     }
                 }
+                // Start traversal from graph head and work backwards until we hit a PeerCache head
                 let head = storage.get_head()?;
-
                 let mut current = vec![head];
 
                 // Here we just get the first command from the most reaseant
@@ -343,12 +342,24 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
 
                         let head = segment.head()?;
                         let head_address = head.address()?;
-                        for loc in &command_locations {
-                            if loc.segment == location.segment {
+
+                        // Check if we've hit a PeerCache head - if so, stop traversing this path
+                        for &peer_cache_loc in &cache_locations {
+                            // If this is the same location as a PeerCache head, we've hit it
+                            if location == peer_cache_loc {
+                                continue 'current;
+                            }
+                            // If the current location is an ancestor of a PeerCache head,
+                            // we've passed the PeerCache head, so stop traversing this path
+                            let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
+                            if (peer_cache_loc.same_segment(location)
+                                && location.command <= peer_cache_loc.command)
+                                || storage.is_ancestor(location, &peer_cache_segment)?
+                            {
                                 continue 'current;
                             }
                         }
-                        // TODO(chip): check that this is not an ancestor of a head in the PeerCache
+
                         commands
                             .push(head_address)
                             .map_err(|_| SyncError::CommandOverflow)?;
@@ -362,6 +373,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                 }
             }
         }
+
         Ok(commands)
     }
 

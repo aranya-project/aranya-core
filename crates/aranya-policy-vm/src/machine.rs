@@ -1,6 +1,7 @@
 extern crate alloc;
 
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
     string::{String, ToString as _},
     vec,
@@ -319,7 +320,7 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     scope: ScopeManager<'a>,
     /// The stack
     pub stack: MachineStack,
-    /// The call state stack - stores return addresses
+    /// The call state stack - stores return addresses and stack depths
     call_state: Vec<usize>,
     /// The program counter
     pc: usize,
@@ -343,7 +344,7 @@ where
             machine,
             scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(HVec::new()),
-            call_state: vec![],
+            call_state: Vec::new(),
             pc: 0,
             io,
             ctx,
@@ -506,6 +507,33 @@ where
         let instruction = self.machine.progmem[self.pc()].clone();
 
         match instruction {
+            Instruction::SaveSP => {
+                self.call_state.push(self.stack.len());
+            }
+            Instruction::RestoreSP => {
+                let saved_sp = self.call_state.pop().ok_or_else(|| {
+                    self.err(MachineErrorType::BadState("no saved stack pointer"))
+                })?;
+                match self
+                    .stack
+                    .len()
+                    .cmp(&saved_sp.checked_add(1).assume("stack size < isize::MAX")?)
+                {
+                    core::cmp::Ordering::Less => {
+                        return Err(self.err(MachineErrorType::BadState(
+                            "callable has consumed too many stack values",
+                        )));
+                    }
+                    core::cmp::Ordering::Equal => {}
+                    core::cmp::Ordering::Greater => {
+                        let v = self.stack.pop_value()?;
+                        while self.stack.len() > saved_sp {
+                            self.stack.pop_value()?;
+                        }
+                        self.stack.push_value(v)?;
+                    }
+                };
+            }
             Instruction::Const(v) => {
                 self.ipush(v)?;
             }
@@ -595,10 +623,7 @@ where
                     _ => unreachable!(),
                 };
                 // Checked operations return Optional<Int>
-                match r {
-                    Some(value) => self.ipush(value)?,
-                    None => self.ipush(Value::None)?,
-                }
+                self.ipush(r)?;
             }
             Instruction::SaturatingAdd | Instruction::SaturatingSub => {
                 let b: i64 = self.ipop()?;
@@ -844,17 +869,13 @@ where
                         Err(e) => Some(Err(e)),
                     })
                 };
-                match result {
-                    Some(r) => {
-                        let f = r?;
-                        let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
-                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
-                        let s = Struct::new(qf.name, fields);
-                        self.ipush(s)?;
-                    }
-                    None => self.ipush(Value::None)?,
-                }
+                let maybe_fact = result.transpose()?.map(|f| {
+                    let mut fields: Vec<KVPair> = vec![];
+                    fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                    fields.append(&mut f.1.into_iter().map(Into::into).collect());
+                    Struct::new(qf.name, fields)
+                });
+                self.ipush(maybe_fact)?;
             }
             Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
@@ -973,6 +994,26 @@ where
                     ));
                 }
                 self.ipush(s)?;
+            }
+            Instruction::Some => {
+                let value = self.ipop_value()?;
+                self.ipush(Value::Option(Some(Box::new(value))))?;
+            }
+            Instruction::Unwrap => {
+                let value = self.ipop_value()?;
+                if let Value::Option(opt) = value {
+                    if let Some(inner) = opt {
+                        self.ipush(*inner)?;
+                    } else {
+                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
+                    }
+                } else {
+                    return Err(self.err(MachineErrorType::invalid_type(
+                        "Option[_]",
+                        value.type_name(),
+                        "Option[T] -> T",
+                    )));
+                }
             }
             Instruction::Meta(_m) => {}
             Instruction::Cast(identifier) => {
@@ -1118,9 +1159,8 @@ where
                 )));
             }
         }
-        self.scope
-            .set(ident!("this"), Value::Struct(this_data))
-            .map_err(|e| self.err(e))?;
+
+        self.ipush(this_data)?;
 
         #[cfg(feature = "bench")]
         self.stopwatch.stop();

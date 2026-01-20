@@ -598,6 +598,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check count_all == 3
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
                 check count_max == 3
+                finish {}
             }
         }
 
@@ -608,6 +609,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check at_least 1 Foo[i:?]
                 check at_least 3 Foo[i:?]
                 check at_least 4 Foo[i:?] == false
+                finish {}
             }
         }
 
@@ -618,6 +620,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check at_most 1 Foo[i:?] == false
                 check at_most 3 Foo[i:?]
                 check at_most 4 Foo[i:?]
+                finish {}
             }
         }
 
@@ -628,6 +631,7 @@ fn test_counting() -> anyhow::Result<()> {
                 check exactly 1 Foo[i:?] == false
                 check exactly 3 Foo[i:?]
                 check exactly 4 Foo[i:?] == false
+                finish {}
             }
         }
     "#;
@@ -1266,7 +1270,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 
     // Test with a value that is not None
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &mut published, name, [Value::Int(10)])?.success();
+    call_action(&mut rs, &mut published, name, [Some(10)])?.success();
     drop(rs);
 
     assert_eq!(published, [vm_struct!(Result { x: 10 })],);
@@ -1286,7 +1290,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 
     // Test with a None value
     let mut rs = machine.create_run_state(&io, ctx);
-    call_action(&mut rs, &mut published, name, [Value::None])?.success();
+    call_action(&mut rs, &mut published, name, [Value::NONE])?.success();
     drop(rs);
 
     assert_eq!(published, [vm_struct!(Empty {})],);
@@ -1580,10 +1584,12 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 
             policy {
                 check envelope.payload == this.test
+                finish {}
             }
 
             recall {
                 check envelope.payload == this.test
+                finish {}
             }
         }
     "#;
@@ -2123,26 +2129,26 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         (
             Ok(ExitReason::Normal),
             [
-                KVPair::new(ident!("maybe_int"), Value::None),
+                KVPair::new(ident!("maybe_int"), Value::NONE),
                 KVPair::new(ident!("name"), Value::String(text!("foo"))),
             ],
         ),
         (
             Ok(ExitReason::Normal),
             [
-                KVPair::new(ident!("maybe_int"), Value::Int(5)),
+                KVPair::new(ident!("maybe_int"), Value::from(Some(5))),
                 KVPair::new(ident!("name"), Value::String(text!("foo"))),
             ],
         ),
         (
             Err(MachineErrorType::invalid_type(
                 "string",
-                "None",
+                "Option[_]",
                 "invalid function argument",
             )),
             [
-                KVPair::new(ident!("maybe_int"), Value::None),
-                KVPair::new(ident!("name"), Value::None),
+                KVPair::new(ident!("maybe_int"), Value::NONE),
+                KVPair::new(ident!("name"), Value::NONE),
             ],
         ),
     ];
@@ -2523,6 +2529,74 @@ fn test_source_lookup() -> anyhow::Result<()> {
             "            "
         )
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_return_expr() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            check 42 == bar()
+        }
+
+        function bar() int {
+            let x = baz(
+                12,
+                return 42,
+                13,
+            )
+        }
+
+        function baz(x int, y int, z int) int {
+            return x
+        }
+    "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    rs.call_action(name, iter::empty::<Value>())?.success();
+    assert!(rs.stack.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn test_return_statement_in_expr() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            check 42 == bar()
+        }
+
+        function bar() int {
+            let x = baz(
+                12,
+                { return 42 :todo() },
+                13,
+            )
+        }
+
+        function baz(x int, y int, z int) int {
+            return x
+        }
+    "#;
+
+    let name = ident!("foo");
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action(name.clone());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+
+    rs.call_action(name, iter::empty::<Value>())?.success();
+    assert!(rs.stack.is_empty());
 
     Ok(())
 }

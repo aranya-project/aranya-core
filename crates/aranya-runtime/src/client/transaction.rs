@@ -5,9 +5,9 @@ use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, CmdId, Command, Engine, EngineError, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyId, Prior, Revertable as _,
-    Segment as _, Sink, Storage, StorageError, StorageProvider, engine::CommandPlacement,
+    Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
+    Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
+    Segment as _, Sink, Storage, StorageError, StorageProvider, policy::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -16,7 +16,7 @@ use crate::{
 /// need as many merges when adding commands. When the transaction is committed,
 /// we will merge all temporary heads and the storage head, and then commit the
 /// result as the new storage head.
-pub struct Transaction<SP: StorageProvider, E> {
+pub struct Transaction<SP: StorageProvider, PS> {
     /// The ID of the associated storage
     storage_id: GraphId,
     /// Current working perspective
@@ -25,23 +25,23 @@ pub struct Transaction<SP: StorageProvider, E> {
     phead: Option<CmdId>,
     /// Written but not committed heads
     heads: BTreeMap<Address, Location>,
-    /// Tag for associated engine
-    _engine: PhantomData<E>,
+    /// Tag for associated policy store
+    policy_store: PhantomData<PS>,
 }
 
-impl<SP: StorageProvider, E> Transaction<SP, E> {
+impl<SP: StorageProvider, PS> Transaction<SP, PS> {
     pub(super) const fn new(storage_id: GraphId) -> Self {
         Self {
             storage_id,
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
-            _engine: PhantomData,
+            policy_store: PhantomData,
         }
     }
 }
 
-impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
+impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// Returns the transaction's storage id.
     pub fn storage_id(&self) -> GraphId {
         self.storage_id
@@ -72,8 +72,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     pub(super) fn commit(
         &mut self,
         provider: &mut SP,
-        engine: &mut E,
-        sink: &mut impl Sink<E::Effect>,
+        policy_store: &mut PS,
+        sink: &mut impl Sink<PS::Effect>,
     ) -> Result<(), ClientError> {
         let storage = provider.get_storage(self.storage_id)?;
 
@@ -91,7 +91,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let mut merging_head = false;
         while let Some((left_id, mut left_loc)) = heads.pop_front() {
             if let Some((right_id, mut right_loc)) = heads.pop_front() {
-                let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
+                let (policy, policy_id) =
+                    choose_policy(storage, policy_store, left_loc, right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
@@ -101,7 +102,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 let command = policy.merge(&mut buffer, merge_ids)?;
 
                 let (braid, last_common_ancestor) =
-                    make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
+                    make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy)?;
 
                 let mut perspective = storage.new_merge_perspective(
                     left_loc,
@@ -114,7 +115,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
                 let segment = storage.write(perspective)?;
                 let head = segment.head()?;
-
                 heads.push_back((head.address()?, segment.head_location()));
             } else {
                 let segment = storage.get_segment(left_loc)?;
@@ -151,8 +151,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         &mut self,
         commands: impl IntoIterator<Item: Command>,
         provider: &mut SP,
-        engine: &mut E,
-        sink: &mut impl Sink<E::Effect>,
+        policy_store: &mut PS,
+        sink: &mut impl Sink<PS::Effect>,
     ) -> Result<usize, ClientError> {
         let mut commands = commands.into_iter();
         let mut count: usize = 0;
@@ -163,7 +163,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
                 count = count.checked_add(1).assume("must not overflow")?;
-                self.init(&command, engine, provider, sink)?
+                self.init(&command, policy_store, provider, sink)?
             }
             Err(e) => return Err(e.into()),
         };
@@ -178,7 +178,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 // Command in current perspective.
                 continue;
             }
-            if (self.locate(storage, command.address()?)?).is_some() {
+
+            if self.locate(storage, command.address()?)?.is_some() {
                 // Command already added.
                 continue;
             }
@@ -191,11 +192,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     }
                 }
                 Prior::Single(parent) => {
-                    self.add_single(storage, engine, sink, &command, parent)?;
+                    self.add_single(storage, policy_store, sink, &command, parent)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    self.add_merge(storage, engine, sink, &command, left, right)?;
+                    self.add_merge(storage, policy_store, sink, &command, left, right)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             }
@@ -207,15 +208,15 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     fn add_single(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
-        engine: &mut E,
-        sink: &mut impl Sink<E::Effect>,
+        policy_store: &mut PS,
+        sink: &mut impl Sink<PS::Effect>,
         command: &impl Command,
         parent: Address,
     ) -> Result<(), ClientError> {
         let perspective = self.get_perspective(parent, storage)?;
 
         let policy_id = perspective.policy();
-        let policy = engine.get_policy(policy_id)?;
+        let policy = policy_store.get_policy(policy_id)?;
 
         // Try to run command, or revert if failed.
         sink.begin();
@@ -241,8 +242,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     fn add_merge(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
-        engine: &mut E,
-        sink: &mut impl Sink<E::Effect>,
+        policy_store: &mut PS,
+        sink: &mut impl Sink<PS::Effect>,
         command: &impl Command,
         left: Address,
         right: Address,
@@ -261,11 +262,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             .locate(storage, right)?
             .ok_or(ClientError::NoSuchParent(right.id))?;
 
-        let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
+        let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) =
-            make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
+            make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy)?;
 
         let mut perspective = storage.new_merge_perspective(
             left_loc,
@@ -329,9 +330,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     fn init<'sp>(
         &mut self,
         command: &impl Command,
-        engine: &mut E,
+        policy_store: &mut PS,
         provider: &'sp mut SP,
-        sink: &mut impl Sink<E::Effect>,
+        sink: &mut impl Sink<PS::Effect>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         // Storage ID is the id of the init command by definition.
         if self.storage_id.as_base() != command.id().as_base() {
@@ -348,8 +349,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             return Err(ClientError::InitError);
         };
 
-        let policy_id = engine.add_policy(policy_data)?;
-        let policy = engine.get_policy(policy_id)?;
+        let policy_id = policy_store.add_policy(policy_data)?;
+        let policy = policy_store.get_policy(policy_id)?;
 
         // Get an empty perspective and run the init command.
         let mut perspective = provider.new_perspective(policy_id);
@@ -376,12 +377,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 }
 
 /// Run the braid algorithm and evaluate the sequence to create a braided fact index.
-fn make_braid_segment<S: Storage, E: Engine>(
+fn make_braid_segment<S: Storage, PS: PolicyStore>(
     storage: &mut S,
     left: Location,
     right: Location,
-    sink: &mut impl Sink<E::Effect>,
-    policy: &E::Policy,
+    sink: &mut impl Sink<PS::Effect>,
+    policy: &PS::Policy,
 ) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
     let order = braiding::braid(storage, left, right)?;
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
@@ -407,7 +408,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
 
         // If the command failed in an uncontrolled way, rollback
         if let Err(e) = result {
-            if e != EngineError::Check {
+            if e != PolicyError::Check {
                 sink.rollback();
                 return Err(e.into());
             }
@@ -422,27 +423,27 @@ fn make_braid_segment<S: Storage, E: Engine>(
 }
 
 /// Select the policy from two locations with the greatest serial value.
-fn choose_policy<'a, E: Engine>(
+fn choose_policy<'a, PS: PolicyStore>(
     storage: &impl Storage,
-    engine: &'a E,
+    policy_store: &'a PS,
     left: Location,
     right: Location,
-) -> Result<(&'a E::Policy, PolicyId), ClientError> {
+) -> Result<(&'a PS::Policy, PolicyId), ClientError> {
     Ok(core::cmp::max_by_key(
-        get_policy(storage, engine, left)?,
-        get_policy(storage, engine, right)?,
+        get_policy(storage, policy_store, left)?,
+        get_policy(storage, policy_store, right)?,
         |(p, _)| p.serial(),
     ))
 }
 
-fn get_policy<'a, E: Engine>(
+fn get_policy<'a, PS: PolicyStore>(
     storage: &impl Storage,
-    engine: &'a E,
+    policy_store: &'a PS,
     location: Location,
-) -> Result<(&'a E::Policy, PolicyId), ClientError> {
+) -> Result<(&'a PS::Policy, PolicyId), ClientError> {
     let segment = storage.get_segment(location)?;
     let policy_id = segment.policy();
-    let policy = engine.get_policy(policy_id)?;
+    let policy = policy_store.get_policy(policy_id)?;
     Ok((policy, policy_id))
 }
 
@@ -457,12 +458,12 @@ mod test {
     use super::*;
     use crate::{
         ClientState, Keys, MergeIds, Perspective, Policy, Priority,
-        engine::{ActionPlacement, CommandPlacement},
         memory::MemStorageProvider,
+        policy::{ActionPlacement, CommandPlacement},
         testing::{hash_for_testing_only, short_b58},
     };
 
-    struct SeqEngine;
+    struct SeqPolicyStore;
 
     /// [`SeqPolicy`] is a very simple policy which appends the id of each
     /// command to a fact named `b"seq"`. At each point in the graph, the value
@@ -478,15 +479,15 @@ mod test {
         max_cut: usize,
     }
 
-    impl Engine for SeqEngine {
+    impl PolicyStore for SeqPolicyStore {
         type Policy = SeqPolicy;
         type Effect = ();
 
-        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, EngineError> {
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
             Ok(PolicyId::new(0))
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
             Ok(&SeqPolicy)
         }
     }
@@ -506,7 +507,7 @@ mod test {
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: CommandPlacement,
-        ) -> Result<(), EngineError> {
+        ) -> Result<(), PolicyError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
@@ -536,7 +537,7 @@ mod test {
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
-        ) -> Result<(), EngineError> {
+        ) -> Result<(), PolicyError> {
             unimplemented!()
         }
 
@@ -544,7 +545,7 @@ mod test {
             &self,
             _target: &'a mut [u8],
             ids: MergeIds,
-        ) -> Result<Self::Command<'a>, EngineError> {
+        ) -> Result<Self::Command<'a>, PolicyError> {
             let (left, right): (Address, Address) = ids.into();
             let parents = [*left.id.as_array(), *right.id.as_array()];
             let id = hash_for_testing_only(parents.as_flattened());
@@ -629,9 +630,9 @@ mod test {
     }
 
     struct NullSink;
-    impl<E> Sink<E> for NullSink {
+    impl<Eff> Sink<Eff> for NullSink {
         fn begin(&mut self) {}
-        fn consume(&mut self, _: E) {}
+        fn consume(&mut self, _: Eff) {}
         fn rollback(&mut self) {}
         fn commit(&mut self) {}
     }
@@ -639,14 +640,14 @@ mod test {
     /// [`GraphBuilder`] and the associated macro [`graph`] provide an easy way
     /// to create a graph with a specific structure.
     struct GraphBuilder<SP: StorageProvider> {
-        client: ClientState<SeqEngine, SP>,
-        trx: Transaction<SP, SeqEngine>,
+        client: ClientState<SeqPolicyStore, SP>,
+        trx: Transaction<SP, SeqPolicyStore>,
         max_cuts: HashMap<CmdId, usize>,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
         pub fn init(
-            mut client: ClientState<SeqEngine, SP>,
+            mut client: ClientState<SeqPolicyStore, SP>,
             ids: &[CmdId],
         ) -> Result<Self, ClientError> {
             let mut trx = Transaction::new(GraphId::transmute(ids[0]));
@@ -657,7 +658,7 @@ mod test {
                 trx.add_commands(
                     &[cmd],
                     &mut client.provider,
-                    &mut client.engine,
+                    &mut client.policy_store,
                     &mut NullSink,
                 )?;
                 max_cuts.insert(id, max_cut);
@@ -685,7 +686,7 @@ mod test {
                 self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
-                    &mut self.client.engine,
+                    &mut self.client.policy_store,
                     &mut NullSink,
                 )?;
                 self.max_cuts.insert(id, max_cut);
@@ -701,7 +702,7 @@ mod test {
             self.trx.add_commands(
                 &[cmd],
                 &mut self.client.provider,
-                &mut self.client.engine,
+                &mut self.client.policy_store,
                 &mut NullSink,
             )?;
             self.max_cuts.insert(id, max_cut);
@@ -723,7 +724,7 @@ mod test {
             self.trx.add_commands(
                 &[mergecmd],
                 &mut self.client.provider,
-                &mut self.client.engine,
+                &mut self.client.policy_store,
                 &mut NullSink,
             )?;
             for &id in &ids[1..] {
@@ -740,7 +741,7 @@ mod test {
                 self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
-                    &mut self.client.engine,
+                    &mut self.client.policy_store,
                     &mut NullSink,
                 )?;
             }
@@ -768,7 +769,7 @@ mod test {
         pub fn commit(&mut self) -> Result<(), ClientError> {
             self.trx.commit(
                 &mut self.client.provider,
-                &mut self.client.engine,
+                &mut self.client.policy_store,
                 &mut NullSink,
             )
         }
@@ -816,7 +817,7 @@ mod test {
     #[test]
     fn test_simple() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             "a" < "b";
             "a" < "c";
@@ -842,7 +843,7 @@ mod test {
     #[test]
     fn test_complex() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             "a" < "1" "2" "3";
             "3" < "4" "6" "7";
@@ -879,7 +880,7 @@ mod test {
     #[test]
     fn test_duplicates() {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             "a" < "b" "c";
             "a" < "b";
@@ -907,7 +908,7 @@ mod test {
     #[test]
     fn test_mid_braid_1() {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
@@ -930,7 +931,7 @@ mod test {
     #[test]
     fn test_mid_braid_2() {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             commit;
             "a" < "b" "c" "d" "h" "i" "j";
@@ -953,7 +954,7 @@ mod test {
     #[test]
     fn test_sequential_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
@@ -979,7 +980,7 @@ mod test {
     #[test]
     fn test_parallel_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqEngine, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
