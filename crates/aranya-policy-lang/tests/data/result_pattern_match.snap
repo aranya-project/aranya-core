@@ -15,9 +15,9 @@ Policy {
         FunctionDefinition {
             identifier: "foo" @ 9..12,
             arguments: [
-                FieldDefinition {
-                    identifier: "r" @ 13..14,
-                    field_type: Result(
+                Param {
+                    name: "r" @ 13..14,
+                    ty: Result(
                         ResultTypeKind {
                             ok: Int @ 22..25,
                             err: String @ 27..33,
