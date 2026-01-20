@@ -967,15 +967,15 @@ where
                 // Replace top of stack with wrapped value
                 let value = self.ipop_value()?;
                 let wrapped = match wrap_type {
-                    WrapType::Ok => Value::Ok(Box::new(value)),
-                    WrapType::Err => Value::Err(Box::new(value)),
+                    WrapType::Ok => Value::Result(Ok(Box::new(value))),
+                    WrapType::Err => Value::Result(Err(Box::new(value))),
                     WrapType::Some => Value::Option(Some(Box::new(value))),
                 };
                 self.ipush(wrapped)?;
             }
             Instruction::IsOk => {
                 let value = self.ipeek_value()?;
-                let is_ok = matches!(value, Value::Ok(_));
+                let is_ok = matches!(value, Value::Result(Ok(_)));
                 self.ipush(Value::Bool(is_ok))?;
             }
             Instruction::Unwrap => {
@@ -989,7 +989,7 @@ where
                             );
                         }
                     },
-                    Value::Ok(inner) | Value::Err(inner) => *inner,
+                    Value::Result(Ok(inner)) | Value::Result(Err(inner)) => *inner,
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
                             "Result or Option",

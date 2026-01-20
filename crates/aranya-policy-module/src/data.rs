@@ -137,10 +137,8 @@ pub enum Value {
     Identifier(Identifier),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
-    /// Result Ok value
-    Ok(#[rkyv(omit_bounds)] Box<Value>),
-    /// Result Err value
-    Err(#[rkyv(omit_bounds)] Box<Value>),
+    /// Result value
+    Result(#[rkyv(omit_bounds)] Result<Box<Value>, Box<Value>>),
 }
 
 impl Value {
@@ -221,8 +219,8 @@ impl Value {
             Self::Identifier(_) => String::from("Identifier"),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
-            Self::Ok(_) => String::from("Ok"),
-            Self::Err(_) => String::from("Err"),
+            Self::Result(Ok(inner)) => format!("Ok[{}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("Err[{}]", inner.type_name()),
         }
     }
 
@@ -251,8 +249,12 @@ impl Value {
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
-            (Self::Ok(inner), TypeKind::Result(result_type)) => inner.fits_type(&result_type.ok),
-            (Self::Err(inner), TypeKind::Result(result_type)) => inner.fits_type(&result_type.err),
+            (Self::Result(Ok(inner)), TypeKind::Result(result_type)) => {
+                inner.fits_type(&result_type.ok)
+            }
+            (Self::Result(Err(inner)), TypeKind::Result(result_type)) => {
+                inner.fits_type(&result_type.err)
+            }
             _ => false,
         }
     }
@@ -529,8 +531,8 @@ impl Display for Value {
             Self::Identifier(name) => write!(f, "{name}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
-            Self::Ok(v) => write!(f, "Ok({})", v),
-            Self::Err(v) => write!(f, "Err({})", v),
+            Self::Result(Ok(v)) => write!(f, "Ok({})", v),
+            Self::Result(Err(v)) => write!(f, "Err({})", v),
         }
     }
 }
