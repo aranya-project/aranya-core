@@ -282,19 +282,23 @@ impl Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
-            writeln!(f, "  {:4}  {}", addr, instr)?;
+            writeln!(f, "  {addr:4}  {instr}")?;
         }
         writeln!(f, "Labels:")?;
         for (k, v) in &self.labels {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v}")?;
         }
         writeln!(f, "Fact definitions:")?;
         for (k, v) in &self.fact_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
         }
         writeln!(f, "Struct definitions:")?;
         for (k, v) in &self.struct_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v:?}")?;
+        }
+        writeln!(f, "Global name definitions:")?;
+        for (k, v) in &self.globals {
+            writeln!(f, "  {k}: {v}")?;
         }
         Ok(())
     }
@@ -404,6 +408,11 @@ where
     /// Get the program counter.
     pub fn pc(&self) -> usize {
         self.pc
+    }
+
+    /// Access the [`ScopeManager`] to read or change defined variables.
+    pub fn scope(&mut self) -> &ScopeManager<'_> {
+        &mut self.scope
     }
 
     /// Internal wrapper around [Stack::push] that translates
