@@ -4,7 +4,7 @@
 
 set -eu
 
-base=$(realpath "$0/../../")
+base=$(dirname -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")")
 
 cargo_args=()
 while [[ $# -gt 0 ]]; do
@@ -21,4 +21,4 @@ while IFS=' =' read -r key value; do
     rustfmt_args+=(--config "$key=${value//\"/}")
 done < "$base/rustfmt.toml"
 
-exec cargo fmt "${cargo_args[@]}" -- "${rustfmt_args[@]}"
+exec cargo fmt ${cargo_args[@]+"${cargo_args[@]}"} -- ${rustfmt_args[@]+"${rustfmt_args[@]}"}
