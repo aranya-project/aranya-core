@@ -180,13 +180,13 @@ where
         client_state: Arc<TMutex<ClientState<PS, SP>>>,
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
-        server_addr: SocketAddr,
+        return_address: SocketAddr,
     ) -> Result<Self, QuicSyncError> {
         let client = Client::builder()
             .with_tls(cert)?
             .with_io("0.0.0.0:0")?
             .start()?;
-        let return_address = Bytes::from(postcard::to_allocvec(&server_addr)?);
+        let return_address = Bytes::from(postcard::to_allocvec(&return_address)?);
         Ok(Self {
             quic_client: client,
             remote_heads: BTreeMap::new(),
