@@ -162,7 +162,7 @@ where
     quic_client: Client,
     remote_heads: BTreeMap<SocketAddr, PeerCache>,
     sender: mpsc::UnboundedSender<GraphId>,
-    subscriptions: FnvIndexMap<SocketAddr, Subscription, MAXIMUM_SUBSCRIPTIONS>,
+    subscriptions: FnvIndexMap<(SocketAddr, GraphId), Subscription, MAXIMUM_SUBSCRIPTIONS>,
     client_state: Arc<TMutex<ClientState<PS, SP>>>,
     sink: Arc<TMutex<S>>,
     return_address: Bytes,
@@ -349,7 +349,7 @@ where
             } => {
                 self.subscriptions.retain(|_, s| !s.expired());
                 match self.subscriptions.insert(
-                    peer_address,
+                    (peer_address, storage_id),
                     Subscription {
                         close_time: SystemTime::now()
                             .checked_add(Duration::from_secs(remain_open))
@@ -372,8 +372,8 @@ where
                     }
                 }
             }
-            SyncType::Unsubscribe {} => {
-                self.subscriptions.remove(&peer_address);
+            SyncType::Unsubscribe { storage_id } => {
+                self.subscriptions.remove(&(peer_address, storage_id));
                 0
             }
             SyncType::Push {
@@ -415,8 +415,11 @@ where
     async fn send_push(&mut self, storage_id: GraphId) -> Result<(), QuicSyncError> {
         // Remove all expired subscriptions
         self.subscriptions.retain(|_, s| !s.expired());
-        for (addr, subscription) in &mut self.subscriptions {
-            let response_cache = self.remote_heads.entry(*addr).or_default();
+        for (&(addr, graph), subscription) in &mut self.subscriptions {
+            if graph != storage_id {
+                continue;
+            }
+            let response_cache = self.remote_heads.entry(addr).or_default();
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
@@ -443,7 +446,7 @@ where
 
                     let mut conn = self
                         .quic_client
-                        .connect(Connect::new(*addr).with_server_name("localhost"))
+                        .connect(Connect::new(addr).with_server_name("localhost"))
                         .await?;
                     conn.keep_alive(true)?;
                     let mut stream = conn.open_bidirectional_stream().await?;

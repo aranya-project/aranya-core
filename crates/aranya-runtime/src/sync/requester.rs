@@ -435,7 +435,9 @@ impl SyncRequester {
 
     /// Writes an Unsubscribe message to target.
     pub fn unsubscribe(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
-        let message = SyncType::Unsubscribe {};
+        let message = SyncType::Unsubscribe {
+            storage_id: self.storage_id,
+        };
 
         Self::write(target, message)
     }
