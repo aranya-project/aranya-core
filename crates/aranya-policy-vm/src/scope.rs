@@ -109,14 +109,8 @@ impl<'a> ScopeManager<'a> {
     }
 
     /// Returns an iterator of currently reachable local assignments.
-    pub fn locals(&self) -> impl Iterator<Item = (&str, &Value)> {
-        self.locals
-            .last()
-            .into_iter()
-            .flatten()
-            .rev()
-            .flatten()
-            .map(|(k, v)| (k.as_str(), v))
+    pub fn locals(&self) -> impl Iterator<Item = (&Identifier, &Value)> {
+        self.locals.last().into_iter().flatten().rev().flatten()
     }
 }
 
