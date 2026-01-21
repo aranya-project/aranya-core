@@ -345,11 +345,11 @@ where
                 remain_open,
                 max_bytes,
                 commands,
-                storage_id,
+                graph_id,
             } => {
                 self.subscriptions.retain(|_, s| !s.expired());
                 match self.subscriptions.insert(
-                    (peer_address, storage_id),
+                    (peer_address, graph_id),
                     Subscription {
                         close_time: SystemTime::now()
                             .checked_add(Duration::from_secs(remain_open))
@@ -361,7 +361,7 @@ where
                         let response_cache = self.remote_heads.entry(peer_address).or_default();
                         let mut client = self.client_state.lock().await;
                         client.update_heads(
-                            storage_id,
+                            graph_id,
                             commands.as_slice().iter().copied(),
                             response_cache,
                         )?;
@@ -372,33 +372,30 @@ where
                     }
                 }
             }
-            SyncType::Unsubscribe { storage_id } => {
-                self.subscriptions.remove(&(peer_address, storage_id));
+            SyncType::Unsubscribe { graph_id } => {
+                self.subscriptions.remove(&(peer_address, graph_id));
                 0
             }
-            SyncType::Push {
-                message,
-                storage_id,
-            } => {
+            SyncType::Push { message, graph_id } => {
                 let mut sync_requester =
-                    SyncRequester::new_session_id(storage_id, message.session_id());
+                    SyncRequester::new_session_id(graph_id, message.session_id());
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)? {
                     if !cmds.is_empty() {
                         {
                             let response_cache = self.remote_heads.entry(peer_address).or_default();
                             let mut client = self.client_state.lock().await;
-                            let mut trx = client.transaction(storage_id);
+                            let mut trx = client.transaction(graph_id);
                             let mut sink_guard = self.sink.lock().await;
                             let sink = sink_guard.deref_mut();
                             client.add_commands(&mut trx, sink, &cmds)?;
                             client.commit(&mut trx, sink)?;
                             client.update_heads(
-                                storage_id,
+                                graph_id,
                                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
                                 response_cache,
                             )?;
                         }
-                        self.push(storage_id)?;
+                        self.push(graph_id)?;
                     }
                 }
                 0
@@ -412,11 +409,11 @@ where
     }
 
     /// Pushes commands to all subscribed peers.
-    async fn send_push(&mut self, storage_id: GraphId) -> Result<(), QuicSyncError> {
+    async fn send_push(&mut self, graph_id: GraphId) -> Result<(), QuicSyncError> {
         // Remove all expired subscriptions
         self.subscriptions.retain(|_, s| !s.expired());
-        for (&(addr, graph), subscription) in &mut self.subscriptions {
-            if graph != storage_id {
+        for (&(addr, sub_graph_id), subscription) in &mut self.subscriptions {
+            if graph_id != sub_graph_id {
                 continue;
             }
             let response_cache = self.remote_heads.entry(addr).or_default();
@@ -430,7 +427,7 @@ where
                 .expect("infallible error");
             response_syncer.receive(SyncRequestMessage::SyncRequest {
                 session_id,
-                storage_id,
+                graph_id,
                 max_bytes: 0,
                 commands,
             })?;
