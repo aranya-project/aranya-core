@@ -419,3 +419,6 @@ ffi_function_decl = _{ function_decl | finish_function_decl }
 ffi_def = _{ SOI ~ ffi_function_decl ~ EOI }
 
 ffi_struct_or_enum_def = _{ SOI ~ (struct_definition | enum_definition)* ~ EOI }
+
+// Used exclusively when parsing an expression on its own
+complete_expression = _{ SOI ~ expression ~ EOI }
