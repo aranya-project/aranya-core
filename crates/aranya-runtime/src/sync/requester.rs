@@ -3,7 +3,7 @@ use alloc::vec;
 use aranya_crypto::Csprng;
 use buggy::BugExt as _;
 use heapless::Vec;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 
 use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
@@ -99,18 +99,17 @@ enum SyncRequesterState {
     Reset,
 }
 
-pub struct SyncRequester<A> {
+pub struct SyncRequester {
     session_id: u128,
     storage_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
-    server_address: A,
 }
 
-impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
+impl SyncRequester {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R, server_address: A) -> Self {
+    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -122,25 +121,18 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
-            server_address,
         }
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(storage_id: GraphId, session_id: u128, server_address: A) -> Self {
+    pub fn new_session_id(storage_id: GraphId, session_id: u128) -> Self {
         Self {
             session_id,
             storage_id,
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
-            server_address,
         }
-    }
-
-    /// Returns the server address.
-    pub fn server_addr(&self) -> A {
-        self.server_address.clone()
     }
 
     /// Returns true if [`Self::poll`] would produce a message.
@@ -301,7 +293,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         Ok(result)
     }
 
-    fn write(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
+    fn write(target: &mut [u8], msg: SyncType) -> Result<usize, SyncError> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
@@ -313,7 +305,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                     request: SyncRequestMessage::EndSession {
                         session_id: self.session_id,
                     },
-                    address: self.server_address.clone(),
                 },
             )?,
             0,
@@ -338,7 +329,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                     .assume("next_index must be positive")?,
                 max_bytes,
             },
-            address: self.server_address.clone(),
         };
 
         Ok((Self::write(target, message)?, 0))
@@ -437,7 +427,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
             remain_open,
             max_bytes,
             commands,
-            address: self.server_address.clone(),
             storage_id: self.storage_id,
         };
 
@@ -446,9 +435,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
 
     /// Writes an Unsubscribe message to target.
     pub fn unsubscribe(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
-        let message = SyncType::Unsubscribe {
-            address: self.server_address.clone(),
-        };
+        let message = SyncType::Unsubscribe {};
 
         Self::write(target, message)
     }
@@ -481,7 +468,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                 max_bytes,
                 commands: command_sample,
             },
-            address: self.server_address.clone(),
         };
 
         Ok((Self::write(target, message)?, sent))

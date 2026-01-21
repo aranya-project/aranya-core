@@ -151,7 +151,7 @@ enum SyncResponderState {
 }
 
 #[derive(Default)]
-pub struct SyncResponder<A> {
+pub struct SyncResponder {
     session_id: Option<u128>,
     storage_id: Option<GraphId>,
     state: SyncResponderState,
@@ -160,12 +160,11 @@ pub struct SyncResponder<A> {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
-    server_address: A,
 }
 
-impl<A: Serialize + Clone> SyncResponder<A> {
+impl SyncResponder {
     /// Create a new [`SyncResponder`].
-    pub fn new(server_address: A) -> Self {
+    pub fn new() -> Self {
         Self {
             session_id: None,
             storage_id: None,
@@ -175,7 +174,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
-            server_address,
         }
     }
 
@@ -278,7 +276,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         Ok(())
     }
 
-    fn write_sync_type(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
+    fn write_sync_type(target: &mut [u8], msg: SyncType) -> Result<usize, SyncError> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
@@ -473,7 +471,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     commands,
                 },
                 storage_id: self.storage_id.assume("storage id must exist")?,
-                address: self.server_address.clone(),
             };
             self.message_index = self
                 .message_index
