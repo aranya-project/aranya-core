@@ -56,6 +56,11 @@ impl CompileTarget {
         }
     }
 
+    pub fn add_globals(&mut self, globals: impl IntoIterator<Item = (Identifier, Value)>) {
+        let mut added_globals: BTreeMap<Identifier, Value> = globals.into_iter().collect();
+        self.globals.append(&mut added_globals);
+    }
+
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
         // Convert enum defs IndexMap into BTreeMap.

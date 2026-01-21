@@ -186,7 +186,7 @@ impl fmt::Display for StatementContext {
 type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
 
 /// The "compile state" of the machine.
-struct CompileState<'a> {
+pub struct CompileState<'a> {
     /// Policy being compiled
     policy: &'a AstPolicy,
     /// The underlying machine
@@ -2001,8 +2001,8 @@ impl<'a> CompileState<'a> {
 }
 
 /// Flag for controling scope when compiling statement blocks.
-#[derive(Copy, Clone, PartialEq)]
-enum Scope {
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Scope {
     /// Enter a new layered scope.
     Layered,
     /// Remain in the same scope.
@@ -2015,6 +2015,7 @@ pub struct Compiler<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
     stub_ffi: bool,
+    extra_globals: Vec<(Identifier, Value)>,
 }
 
 impl<'a> Compiler<'a> {
@@ -2025,6 +2026,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
+            extra_globals: Vec::new(),
         }
     }
 
@@ -2048,24 +2050,49 @@ impl<'a> Compiler<'a> {
         self
     }
 
+    #[cfg(feature = "internals")]
+    #[must_use]
+    pub fn with_globals(mut self, globals: impl IntoIterator<Item = (Identifier, Value)>) -> Self {
+        self.extra_globals
+            .append(&mut globals.into_iter().collect());
+        self
+    }
+
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
-        let mut cs = self.set_up_compile_state();
+        let mut cs = self.set_up_compile_state()?;
         cs.compile()?;
         Ok(cs.m.into_module())
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
     pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
-        let mut cs = self.set_up_compile_state();
+        let mut cs = self.set_up_compile_state()?;
         cs.define_interfaces()?;
         Ok(cs.m.into())
     }
 
-    fn set_up_compile_state(&self) -> CompileState<'_> {
+    fn set_up_compile_state(self) -> Result<CompileState<'a>, CompileError> {
         let codemap = CodeMap::new(&self.policy.text);
-        let machine = CompileTarget::new(codemap);
-        CompileState {
+        let mut machine = CompileTarget::new(codemap);
+        let mut identifier_types = IdentifierTypeStack::new();
+        for (ident, v) in &self.extra_globals {
+            let kind = v
+                .vtype()
+                .ok_or(CompileError::new(CompileErrorType::Unknown(
+                    "Global value must have a typekind".to_string(),
+                )))?;
+            let vtype = VType {
+                kind,
+                span: Span::empty(),
+            };
+            identifier_types
+                .add_global(ident.clone(), vtype)
+                .expect("global already exists");
+        }
+        machine.add_globals(self.extra_globals);
+
+        Ok(CompileState {
             policy: self.policy,
             m: machine,
             wp: 0,
@@ -2074,11 +2101,11 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(),
+            identifier_types,
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
-        }
+        })
     }
 }
 
