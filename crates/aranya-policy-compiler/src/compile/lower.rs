@@ -285,7 +285,7 @@ impl CompileState<'_> {
                         inner_vtype = inner.vtype.clone();
                         inner_expr = Some(Box::new(inner));
                     }
-                };
+                }
                 if matches!(inner_vtype.kind, TypeKind::Optional(_)) {
                     return Err(self.err(CompileErrorType::InvalidType(
                         "Cannot wrap option in another option".into(),
