@@ -202,10 +202,6 @@
     missing_docs
 )]
 #![cfg_attr(not(any(feature = "std", test)), deny(clippy::std_instead_of_core))]
-#![expect(
-    clippy::arithmetic_side_effects,
-    reason = "https://github.com/aranya-project/aranya-core/issues/253"
-)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

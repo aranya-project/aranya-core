@@ -732,8 +732,14 @@ impl<CS: CipherSuite> ChanList<CS> {
         // straddle multiple pages, align each to the page size.
         let (page_size, page_aligned) = if cfg!(feature = "page-aligned") {
             let page_size = getpagesize()?.assume("`page-aligned` feature requires `libc`")?;
-            let page_aligned =
-                (layout.size() * 2 > page_size) && is_aligned_to(page_size, layout.align());
+            let page_aligned = {
+                #[allow(
+                    clippy::arithmetic_side_effects,
+                    reason = "Layout::size() is in [0, isize::MAX], so * 2 cannot overflow"
+                )]
+                let double_size = layout.size() * 2;
+                (double_size > page_size) && is_aligned_to(page_size, layout.align())
+            };
             (page_size, page_aligned)
         } else {
             (0, false)
@@ -818,7 +824,10 @@ impl<CS: CipherSuite> ChanListData<CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        usize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `usize::MAX`"))
+        isize::try_from(self.len)
+            .map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?
+            .try_into()
+            .map_err(|_| corrupted("`len` conversion to usize failed"))
     }
 
     fn cap(&self) -> Result<usize, Corrupted> {
@@ -836,7 +845,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         let ptr = ptr::addr_of!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY: `ptr` is correctly aligned and non-null. `self.len()` is in [0, isize::MAX].
         Ok(unsafe { slice::from_raw_parts(ptr, self.len()?) })
     }
 
@@ -845,7 +854,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         let ptr = ptr::addr_of_mut!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY: `ptr` is correctly aligned and non-null. `self.len()` is in [0, isize::MAX].
         Ok(unsafe { slice::from_raw_parts_mut(ptr, self.len()?) })
     }
 
@@ -909,7 +918,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let direction = chan.direction()?.into();
             if !f(RemoveIfParams::new(id, label_id, peer_id, direction)) {
                 // Nope, try the next index.
-                idx += 1;
+                // wrapping_add is safe here: if idx overflows, self.get() will return None, ending the loop
+                idx = idx.wrapping_add(1);
                 continue;
             }
             debug!("removing chan {id}");
@@ -918,7 +928,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 // As a precaution, update the generation before
                 // we actually delete anything.
                 let generation = self.generation.fetch_add(1, Ordering::AcqRel);
-                debug!("side generation={}", generation + 1);
+                debug!("side generation={}", generation.wrapping_add(1));
 
                 updated = true;
             }
@@ -1043,10 +1053,11 @@ impl<CS: CipherSuite> ChanListData<CS> {
         } else {
             // No need to perform a swap if there is only one
             // channel.
-            if len > 1 {
-                self.chans_mut()?.swap(idx, len - 1);
+            if let Some(swap_idx @ 1..) = len.checked_sub(1) {
+                self.chans_mut()?.swap(idx, swap_idx);
             }
-            self.len -= 1;
+            // Cannot wrap because we already checked len > 0
+            self.len = self.len.wrapping_sub(1);
             assert!(self.len <= self.cap);
             Ok(())
         }

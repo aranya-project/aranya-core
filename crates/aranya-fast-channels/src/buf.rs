@@ -261,8 +261,9 @@ mod tests {
         const N: usize = 45;
         let mut backing = [0u8; 50];
         let len = backing.len();
-        let mut buf =
-            FixedBuf::from_slice_mut(&mut backing, len - N).expect("len-N should be < len");
+        let initial_len = len.checked_sub(N).expect("len should be >= N");
+        let mut buf = FixedBuf::from_slice_mut(&mut backing, initial_len)
+            .expect("initial_len should be < len");
         buf.try_resize(N, 0).expect("try_resize expect");
         assert_eq!(buf.len(), N);
     }

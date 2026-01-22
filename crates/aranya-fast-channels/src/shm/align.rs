@@ -12,12 +12,18 @@ use super::shared::assert_ffi_safe;
 /// Reports whether `v` is aligned to `align`.
 pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
     assert!(align.is_power_of_two());
-    v % align == 0
+    #[allow(
+        clippy::arithmetic_side_effects,
+        reason = "align is a power of two and therefore non-zero"
+    )]
+    {
+        v % align == 0
+    }
 }
 
 /// Reports whether `ptr` is aligned to `align`.
 fn is_aligned<T>(ptr: *const T) -> bool {
-    (ptr as usize) % align_of::<T>() == 0
+    ptr.is_aligned()
 }
 
 /// A cache-aligned `T`.
