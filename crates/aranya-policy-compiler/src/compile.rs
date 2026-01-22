@@ -1201,8 +1201,14 @@ impl<'a> CompileState<'a> {
             &command.recall,
             Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
         )?;
-        // Recall blocks should exit via a finish block, so panic if it doesn't.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        if command.recall.is_empty() {
+            // TODO(#544): Handle absent/empty recall properly.
+            // Return for now so that absent/empty recall blocks don't panic.
+            self.append_instruction(Instruction::Return);
+        } else {
+            // Recall blocks should exit via a finish block, so panic if it doesn't.
+            self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        }
         self.exit_statement_context();
         Ok(())
     }
