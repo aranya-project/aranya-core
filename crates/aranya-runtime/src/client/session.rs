@@ -29,8 +29,8 @@ type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, PS> {
-    /// The ID of the associated storage.
-    storage_id: GraphId,
+    /// The ID of the associated graph.
+    graph_id: GraphId,
     /// The policy ID for the session.
     policy_id: PolicyId,
 
@@ -53,8 +53,8 @@ struct SessionPerspective<'a, SP: StorageProvider, PS, MS> {
 }
 
 impl<SP: StorageProvider, PS> Session<SP, PS> {
-    pub(super) fn new(provider: &mut SP, storage_id: GraphId) -> Result<Self, ClientError> {
-        let storage = provider.get_storage(storage_id)?;
+    pub(super) fn new(provider: &mut SP, graph_id: GraphId) -> Result<Self, ClientError> {
+        let storage = provider.get_storage(graph_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
         let command = seg.get_command(head_loc).assume("location must exist")?;
@@ -62,7 +62,7 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
         let base_facts = seg.facts()?;
 
         let result = Self {
-            storage_id,
+            graph_id,
             policy_id: seg.policy(),
             base_facts,
             fact_log: Vec::new(),
@@ -134,8 +134,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         let command: SessionCommand<'_> =
             postcard::from_bytes(command_bytes).map_err(ClientError::SessionDeserialize)?;
 
-        if command.storage_id != self.storage_id {
-            warn!(%command.storage_id, %self.storage_id, "ephemeral commands must be run on the same graph");
+        if command.graph_id != self.graph_id {
+            warn!(%command.graph_id, %self.graph_id, "ephemeral commands must be run on the same graph");
             return Err(ClientError::NotAuthorized);
         }
 
@@ -166,7 +166,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
 #[derive(Serialize, Deserialize)]
 /// Used for serializing session commands
 struct SessionCommand<'a> {
-    storage_id: GraphId,
+    graph_id: GraphId,
     priority: u32, // Priority::Basic
     id: CmdId,
     parent: Address, // Prior::Single
@@ -198,12 +198,12 @@ impl Command for SessionCommand<'_> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd(storage_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
+    fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy")
         }
         Ok(SessionCommand {
-            storage_id,
+            graph_id,
             priority: match command.priority() {
                 Priority::Basic(p) => p,
                 _ => bug!("wrong command type"),
@@ -414,7 +414,7 @@ where
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        let command = SessionCommand::from_cmd(self.session.storage_id, command)?;
+        let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
         self.session.head = command.address()?;
         let bytes = postcard::to_allocvec(&command).assume("serialize session command")?;
         self.message_sink.consume(&bytes);

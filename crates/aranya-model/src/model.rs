@@ -291,7 +291,7 @@ pub trait ClientFactory {
     fn create_client(&mut self, args: Self::Args) -> ModelClient<Self>;
 }
 
-type ClientStorageIds = BTreeMap<ProxyGraphId, GraphId>;
+type ClientGraphIds = BTreeMap<ProxyGraphId, GraphId>;
 // A map of peer caches for (GraphID, DestClientID, SourceClientID)
 type ClientGraphPeerCache =
     BTreeMap<(ProxyGraphId, ProxyClientId, ProxyClientId), RefCell<PeerCache>>;
@@ -304,7 +304,7 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     /// Holds a collection of clients.
     pub clients: Clients<ModelClient<CF>>,
     /// Holds a collection of [`ProxyGraphId`]s and [`GraphId`]s
-    pub storage_ids: ClientStorageIds,
+    pub graph_ids: ClientGraphIds,
     /// Each client holds a `PeerCache` for each client and graph combination.
     pub client_graph_peer_cache: ClientGraphPeerCache,
     client_factory: CF,
@@ -319,7 +319,7 @@ where
     pub fn new(client_factory: CF) -> Self {
         Self {
             clients: BTreeMap::default(),
-            storage_ids: BTreeMap::default(),
+            graph_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),
             client_factory,
             _ph: PhantomData,
@@ -364,7 +364,7 @@ where
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
     ) -> Result<(Vec<Self::Effect>, GraphId), ModelError> {
-        let Entry::Vacant(storage_id) = self.storage_ids.entry(proxy_id.into()) else {
+        let Entry::Vacant(graph_id_entry) = self.graph_ids.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateGraph);
         };
 
@@ -378,7 +378,7 @@ where
             .borrow_mut();
 
         let graph_id = state.new_graph(&[0u8], action, &mut sink)?;
-        storage_id.insert(graph_id);
+        graph_id_entry.insert(graph_id);
 
         Ok((sink.effects, graph_id))
     }
@@ -389,7 +389,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
     ) -> Result<CmdId, ModelError> {
-        let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
+        let Some(graph_id) = self.graph_ids.get(&proxy_id.into()) else {
             return Err(ModelError::GraphNotFound);
         };
 
@@ -400,7 +400,7 @@ where
             .state
             .get_mut();
 
-        let id = state.head_address(*storage_id)?.id;
+        let id = state.head_address(*graph_id)?.id;
 
         Ok(id)
     }
@@ -411,7 +411,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
     ) -> Result<(), ModelError> {
-        let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
+        let Some(graph_id) = self.graph_ids.get(&proxy_id.into()) else {
             return Err(ModelError::GraphNotFound);
         };
 
@@ -422,7 +422,7 @@ where
             .state
             .get_mut();
 
-        if let Err(_e) = state.remove_graph(*storage_id) {
+        if let Err(_e) = state.remove_graph(*graph_id) {
             return Err(ModelError::GraphNotFound);
         }
 
@@ -436,8 +436,8 @@ where
         graph_proxy_id: Self::GraphId,
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError> {
-        let storage_id = self
-            .storage_ids
+        let graph_id = self
+            .graph_ids
             .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
@@ -450,7 +450,7 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(*storage_id, &mut sink, action)?;
+        state.action(*graph_id, &mut sink, action)?;
 
         Ok(sink.effects)
     }
@@ -501,15 +501,15 @@ where
             .state
             .borrow_mut();
 
-        let storage_id = self
-            .storage_ids
+        let graph_id = self
+            .graph_ids
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
+        let mut request_syncer = SyncRequester::new(*graph_id, &mut Rng::new());
         assert!(request_syncer.ready());
 
-        let mut request_trx = request_state.transaction(*storage_id);
+        let mut request_trx = request_state.transaction(*graph_id);
 
         while request_syncer.ready() {
             if request_syncer.ready() {
@@ -559,8 +559,8 @@ where
         client_proxy_id: Self::ClientId,
         graph_proxy_id: Self::GraphId,
     ) -> Result<Self::Session<'_>> {
-        let storage_id = *self
-            .storage_ids
+        let graph_id = *self
+            .graph_ids
             .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
@@ -570,7 +570,7 @@ where
             .ok_or(ModelError::ClientNotFound)?
             .state;
 
-        let session = client.borrow_mut().session(storage_id)?;
+        let session = client.borrow_mut().session(graph_id)?;
 
         Ok(Session {
             client,

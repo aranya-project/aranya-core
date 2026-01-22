@@ -470,7 +470,7 @@ impl SyncResponder {
                     response_index: self.message_index as u64,
                     commands,
                 },
-                graph_id: self.graph_id.assume("storage id must exist")?,
+                graph_id: self.graph_id.assume("graph id must exist")?,
             };
             self.message_index = self
                 .message_index

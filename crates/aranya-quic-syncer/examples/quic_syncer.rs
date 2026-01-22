@@ -5,10 +5,10 @@
 //! Peer 1
 //! cargo run --example quic_syncer -- --new --listen 127.0.0.1:5001 --peer 127.0.0.1:5002
 //!
-//! Peer 1 will print the new storage id. You will need this id for peer 2.
+//! Peer 1 will print the new graph id. You will need this id for peer 2.
 //!
 //! Peer 2
-//! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
+//! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --graph $graph_id
 
 use std::{fs, io, net::SocketAddr, ops::DerefMut as _, sync::Arc, thread, time};
 
@@ -38,8 +38,8 @@ struct Opt {
     #[clap(long = "peer")]
     peer: SocketAddr,
     /// whether to create a new graph
-    #[clap(long = "storage")]
-    storage_id: Option<GraphId>,
+    #[clap(long = "graph")]
+    graph_id: Option<GraphId>,
 }
 
 fn main() {
@@ -59,15 +59,15 @@ async fn sync_peer<PS, SP, S>(
     client: &mut ClientState<PS, SP>,
     syncer: &mut Syncer<PS, SP, S>,
     sink: &mut S,
-    storage_id: GraphId,
+    graph_id: GraphId,
     peer_addr: SocketAddr,
 ) where
     PS: PolicyStore,
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
-    let fut = syncer.sync(client, peer_addr, sync_requester, sink, storage_id);
+    let sync_requester = SyncRequester::new(graph_id, &mut Rng::new());
+    let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
@@ -123,10 +123,10 @@ async fn run(options: Opt) -> Result<()> {
         server.local_addr()?,
     )?));
 
-    let storage_id;
+    let graph_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
-        storage_id = client
+        graph_id = client
             .lock()
             .await
             .new_graph(
@@ -135,11 +135,11 @@ async fn run(options: Opt) -> Result<()> {
                 sink.lock().await.deref_mut(),
             )
             .context("sync error")?;
-        println!("Storage id: {}", storage_id);
-    } else if let Some(id) = options.storage_id {
-        storage_id = id;
+        println!("Graph id: {}", graph_id);
+    } else if let Some(id) = options.graph_id {
+        graph_id = id;
     } else {
-        bail!("storage id is missing");
+        bail!("graph id is missing");
     }
 
     let (_, rx1) = mpsc::unbounded_channel();
@@ -150,7 +150,7 @@ async fn run(options: Opt) -> Result<()> {
             client.lock().await.deref_mut(),
             syncer.lock().await.deref_mut(),
             sink.lock().await.deref_mut(),
-            storage_id,
+            graph_id,
             options.peer,
         )
         .await;
@@ -162,14 +162,14 @@ async fn run(options: Opt) -> Result<()> {
             client
                 .lock()
                 .await
-                .action(storage_id, sink.lock().await.deref_mut(), action)
+                .action(graph_id, sink.lock().await.deref_mut(), action)
                 .context("sync error")?;
         } else {
             sync_peer(
                 client.lock().await.deref_mut(),
                 syncer.lock().await.deref_mut(),
                 sink.lock().await.deref_mut(),
-                storage_id,
+                graph_id,
                 options.peer,
             )
             .await;
