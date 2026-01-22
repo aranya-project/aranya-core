@@ -540,6 +540,7 @@ dependencies = [
  "aranya-crypto",
  "aranya-runtime",
  "buggy",
+ "bytes",
  "clap",
  "criterion",
  "directories-next",

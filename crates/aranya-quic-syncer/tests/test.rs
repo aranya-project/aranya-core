@@ -68,7 +68,8 @@ async fn test_sync() -> Result<()> {
     syncer2
         .sync(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr1),
+            addr1,
+            SyncRequester::new(storage_id, &mut Rng),
             sink2.lock().await.deref_mut(),
             storage_id,
         )
@@ -124,7 +125,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client1.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr1),
+            SyncRequester::new(storage_id, &mut Rng),
             5,
             u64::MAX,
             addr2,
@@ -135,7 +136,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(storage_id, &mut Rng),
             5,
             u64::MAX,
             addr1,
@@ -162,7 +163,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(storage_id, &mut Rng),
             1,
             u64::MAX,
             addr1,
@@ -192,7 +193,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(storage_id, &mut Rng),
             5,
             286, // The exact number of bytes to be sent
             addr1,
@@ -235,7 +236,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(storage_id, &mut Rng),
             1,
             u64::MAX,
             addr1,
@@ -244,7 +245,7 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .unsubscribe(SyncRequester::new(storage_id, &mut Rng, addr2), addr1)
+        .unsubscribe(SyncRequester::new(storage_id, &mut Rng), addr1)
         .await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 

@@ -157,12 +157,13 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server2_addr);
+                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
                 if let Err(e) = syncer1
                     .lock()
                     .await
                     .sync(
                         request_client.lock().await.deref_mut(),
+                        server2_addr,
                         sync_requester,
                         request_sink.lock().await.deref_mut(),
                         storage_id,
