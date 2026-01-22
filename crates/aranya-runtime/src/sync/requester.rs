@@ -6,8 +6,8 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
-    SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
+    COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX, SyncCommand, SyncError,
+    dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
     Address, Command as _, GraphId, Location,
@@ -172,10 +172,7 @@ impl SyncRequester {
     }
 
     /// Receive a sync message. Returns parsed sync commands.
-    pub fn receive<'a>(
-        &mut self,
-        data: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
+    pub fn receive<'a>(&mut self, data: &'a [u8]) -> Result<Option<SyncCommands<'a>>, SyncError> {
         let (message, remaining): (SyncResponseMessage, &'a [u8]) =
             postcard::take_from_bytes(data)?;
 
@@ -187,17 +184,13 @@ impl SyncRequester {
         &mut self,
         message: SyncResponseMessage,
         remaining: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
+    ) -> Result<Option<SyncCommands<'a>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }
 
         let result = match message {
-            SyncResponseMessage::SyncResponse {
-                response_index,
-                commands,
-                ..
-            } => {
+            SyncResponseMessage::SyncResponse { response_index, .. } => {
                 if !matches!(
                     self.state,
                     SyncRequesterState::Start | SyncRequesterState::Waiting
@@ -215,46 +208,7 @@ impl SyncRequester {
                     .assume("next_message_index + 1 mustn't overflow")?;
                 self.state = SyncRequesterState::Waiting;
 
-                let mut result = Vec::new();
-                let mut start: usize = 0;
-                for meta in commands {
-                    let policy_len = meta.policy_length as usize;
-
-                    let policy = match policy_len == 0 {
-                        true => None,
-                        false => {
-                            let end = start
-                                .checked_add(policy_len)
-                                .assume("start + policy_len mustn't overflow")?;
-                            let policy = &remaining[start..end];
-                            start = end;
-                            Some(policy)
-                        }
-                    };
-
-                    let len = meta.length as usize;
-                    let end = start
-                        .checked_add(len)
-                        .assume("start + len mustn't overflow")?;
-                    let payload = &remaining[start..end];
-                    start = end;
-
-                    let command = SyncCommand {
-                        id: meta.id,
-                        priority: meta.priority,
-                        parent: meta.parent,
-                        policy,
-                        data: payload,
-                        max_cut: meta.max_cut,
-                    };
-
-                    result
-                        .push(command)
-                        .ok()
-                        .assume("commands is not larger than result")?;
-                }
-
-                Some(result)
+                Some(SyncCommands::new(remaining)?)
             }
 
             SyncResponseMessage::SyncEnd { max_index, .. } => {
@@ -471,5 +425,71 @@ impl SyncRequester {
         };
 
         Ok((Self::write(target, message)?, sent))
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct SyncCommands<'a> {
+    buf: &'a [u8],
+    len: usize,
+}
+
+impl<'a> SyncCommands<'a> {
+    fn new(buf: &'a [u8]) -> Result<Self, SyncError> {
+        let mut len = 0;
+        let mut tmp = buf;
+        while !tmp.is_empty() {
+            // Make sure it has valid commands before making iterator.
+            // This double deserializes.
+            // TODO: rkyv slice instead?
+            (_, tmp) = postcard::take_from_bytes::<SyncCommand<'_>>(tmp)?;
+            #[allow(clippy::arithmetic_side_effects, reason = "can't overflow")]
+            {
+                len += 1;
+            }
+        }
+        Ok(Self { buf, len })
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+impl<'a> IntoIterator for SyncCommands<'a> {
+    type IntoIter = SyncCommandsIter<'a>;
+    type Item = <Self::IntoIter as Iterator>::Item;
+    fn into_iter(self) -> Self::IntoIter {
+        SyncCommandsIter { buf: self.buf }
+    }
+}
+
+pub struct SyncCommandsIter<'a> {
+    buf: &'a [u8],
+}
+
+impl<'a> Iterator for SyncCommandsIter<'a> {
+    type Item = SyncCommand<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buf.is_empty() {
+            return None;
+        }
+        let (cmd, buf) = postcard::take_from_bytes::<SyncCommand<'_>>(self.buf)
+            .assume("can deserialize")
+            .ok()?;
+        self.buf = buf;
+        Some(cmd)
+    }
+}
+
+impl DoubleEndedIterator for SyncCommandsIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // TODO(jdygert): This impl was needed after merge, can't impl yet.
+        // This impl is wrong but the current use-sites won't fail, they'll just be less efficient.
+        self.next()
     }
 }

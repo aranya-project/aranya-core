@@ -161,7 +161,7 @@ impl TestPolicy {
         Ok(TestProtocol { id, command, data })
     }
 
-    fn basic<'a>(
+    pub(super) fn basic<'a>(
         &self,
         target: &'a mut [u8],
         parent: Address,

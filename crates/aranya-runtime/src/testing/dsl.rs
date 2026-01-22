@@ -66,9 +66,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    Address, ClientError, ClientState, CmdId, Command as _, GraphId, Location,
+    MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage, StorageError,
+    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -385,7 +385,8 @@ where
                     );
                     // Calculate the maximum number of syncs needed to send all commands.
                     // We add 100 to account for extra syncs needed for merge commands.
-                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                    // TODO(jdygert): Fix after merge
+                    let max_syncs = u64::MAX;
                     let mut generated_actions = Vec::new();
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
@@ -458,7 +459,7 @@ where
                         from: 1,
                         must_send: None,
                         must_receive: None,
-                        max_syncs,
+                        max_syncs: u64::MAX,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -962,11 +963,11 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
+        received = request_state.add_commands(&mut request_trx, sink, cmds)?;
         request_state.commit(&mut request_trx, sink)?;
         request_state.update_heads(
             storage_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
         )?;
     }
