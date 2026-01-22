@@ -285,132 +285,90 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             .ok()
             .assume("heads not full")?;
 
-        // TODO: Resolve merge
-        // fn find_needed_segments(
-        //     commands: &[Address],
-        //     storage: &impl Storage,
-        // ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        //     let mut have_locations = vec::Vec::new(); //BUG: not constant size
-        //     for &addr in commands {
-        //         // Note: We could use things we don't have as a hint to
-        //         // know we should perform a sync request.
-        //         if let Some(location) = storage.get_location(addr)? {
-        //             have_locations.push(location);
-        //         }
-        //     }
+        let mut have_locations = Vec::<Location, COMMAND_SAMPLE_MAX>::new();
+        for &addr in &self.has {
+            // Note: We could use things we don't have as a hint to
+            // know we should perform a sync request.
+            if let Some(loc) = storage.get_location(addr)? {
+                have_locations.push(loc).ok().assume("not full")?;
+            }
+        }
 
-        //     // Filter out locations that are ancestors of other locations in the list.
-        //     // If location A is an ancestor of location B, we only need to keep B since
-        //     // having B implies having A and all its ancestors.
-        //     // Iterate backwards so we can safely remove items
-        //     for i in (0..have_locations.len()).rev() {
-        //         let location_a = have_locations[i];
-        //         let mut is_ancestor_of_other = false;
-        //         for &location_b in &have_locations {
-        //             if location_a != location_b {
-        //                 let segment_b = storage.get_segment(location_b)?;
-        //                 if location_a.same_segment(location_b)
-        //                     && location_a.command <= location_b.command
-        //                     || storage.is_ancestor(location_a, &segment_b)?
-        //                 {
-        //                     is_ancestor_of_other = true;
-        //                     break;
-        //                 }
-        //             }
-        //         }
-        //         if is_ancestor_of_other {
-        //             have_locations.remove(i);
-        //         }
-        //     }
-
-        let has = {
-            let mut set = heapless::LinearMap::<usize, usize, COMMAND_SAMPLE_MAX>::new();
-            for &addr in &self.has {
-                if let Some(loc) = storage.get_location(addr)? {
-                    set.insert(loc.segment, loc.command)
-                        .ok()
-                        .assume("not full")?;
+        // Filter out locations that are ancestors of other locations in the list.
+        // If location A is an ancestor of location B, we only need to keep B since
+        // having B implies having A and all its ancestors.
+        // Iterate backwards so we can safely remove items
+        for i in (0..have_locations.len()).rev() {
+            let location_a = have_locations[i];
+            let mut is_ancestor_of_other = false;
+            for &location_b in &have_locations {
+                if location_a != location_b {
+                    let segment_b = storage.get_segment(location_b)?;
+                    if location_a.same_segment(location_b)
+                        && location_a.command <= location_b.command
+                        || storage.is_ancestor(location_a, &segment_b)?
+                    {
+                        is_ancestor_of_other = true;
+                        break;
+                    }
                 }
             }
-            set
-        };
+            if is_ancestor_of_other {
+                have_locations.remove(i);
+            }
+        }
 
         'heads: while let Some(head) = heads.pop_front() {
-            if has.contains_key(&head.segment) {
+            // TODO(jdygert): What is this doing?
+            if have_locations.iter().any(|hl| hl.segment == head.segment) {
                 self.to_send.insert(head.segment, head.command);
                 continue 'heads;
             }
-            for (&seg, &cmd) in &has {
-                let segment = storage.get_segment(Location::new(seg, cmd))?;
-                if storage.is_ancestor(head, &segment)? {
-                    continue 'heads;
-                }
-
-                // TODO: Resolve merge
-                // let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
-
-                // while !heads.is_empty() {
-                //     let current = mem::take(&mut heads);
-                //     'heads: for head in current {
-                //         let segment = storage.get_segment(head)?;
-                //         // If the segment is already in the result, skip it
-                //         if segment.contains_any(&result) {
-                //             continue 'heads;
-                //         }
-
-                //         // Check if the current segment head is an ancestor of any location in have_locations.
-                //         // If so, stop traversing backward from this point since the requester already has
-                //         // this command and all its ancestors.
-                //         for &have_location in &have_locations {
-                //             let have_segment = storage.get_segment(have_location)?;
-                //             if storage.is_ancestor(head, &have_segment)? {
-                //                 continue 'heads;
-                //             }
-                //         }
-
-                //         // If the requester has any commands in this segment, send from the next command
-                //         if let Some(latest_loc) = have_locations
-                //             .iter()
-                //             .filter(|&&location| segment.contains(location))
-                //             .max_by_key(|&&location| location.command)
-                //         {
-                //             let next_command = latest_loc
-                //                 .command
-                //                 .checked_add(1)
-                //                 .assume("command + 1 mustn't overflow")?;
-                //             let next_location = Location {
-                //                 segment: head.segment,
-                //                 command: next_command,
-                //             };
-
-                //             let head_loc = segment.head_location();
-                //             if next_location.command > head_loc.command {
-                //                 continue 'heads;
-                //             }
-                //             if result.is_full() {
-                //                 result.pop_back();
-                //             }
-                //             result
-                //                 .push_front(next_location)
-                //                 .ok()
-                //                 .assume("too many segments")?;
-                //             continue 'heads;
-                //         }
-
-                //         heads.extend(segment.prior());
-
-                //         if result.is_full() {
-                //             result.pop_back();
-                //         }
-
-                //         let location = segment.first_location();
-                //         result
-                //             .push_front(location)
-                //             .ok()
-                //             .assume("too many segments")?;
-            }
 
             let segment = storage.get_segment(head)?;
+
+            // If the segment is already in the result, skip it
+            if segment.contains_any(
+                self.to_send
+                    .iter()
+                    .map(|&(seg, cmd)| Location::new(seg, cmd)),
+            ) {
+                continue 'heads;
+            }
+
+            // Check if the current segment head is an ancestor of any location in have_locations.
+            // If so, stop traversing backward from this point since the requester already has
+            // this command and all its ancestors.
+            for &have_location in &have_locations {
+                let have_segment = storage.get_segment(have_location)?;
+                if storage.is_ancestor(head, &have_segment)? {
+                    continue 'heads;
+                }
+            }
+
+            // If the requester has any commands in this segment, send from the next command
+            if let Some(latest_loc) = have_locations
+                .iter()
+                .filter(|&&location| segment.contains(location))
+                .max_by_key(|&&location| location.command)
+            {
+                let next_command = latest_loc
+                    .command
+                    .checked_add(1)
+                    .assume("command + 1 mustn't overflow")?;
+                let next_location = Location {
+                    segment: head.segment,
+                    command: next_command,
+                };
+
+                let head_loc = segment.head_location();
+                if next_location.command > head_loc.command {
+                    continue 'heads;
+                }
+                self.to_send
+                    .insert(next_location.segment, next_location.command);
+                continue 'heads;
+            }
 
             for p in segment.prior() {
                 force_push_front(&mut heads, p)?;
@@ -626,6 +584,10 @@ mod lru {
             self.data
                 .get_mut(start..)
                 .map(|xs| xs.iter_mut().map(|(k, v)| (&*k, v)))
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = &(K, V)> {
+            self.data.iter()
         }
     }
 
