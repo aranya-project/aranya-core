@@ -332,6 +332,33 @@ fn test_result_pattern_match() -> Result<(), ParseError> {
 }
 
 #[test]
+fn test_result_pattern_must_be_identifier() {
+    // TODO: remove after we allow literals in result patterns
+    let src = r#"
+        function f(r result[int, string]) int {
+            return match r {
+                Ok(5) => 5
+                Err(e) => 0
+            }
+        }
+    "#
+    .trim();
+
+    let pratt = get_pratt_parser();
+    let p = ChunkParser::new(0, &pratt, src.len());
+    let mut pairs = PolicyParser::parse(Rule::top_level_statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let result = p.parse_function_definition(pair);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Result pattern Ok() must contain an identifier")
+    );
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
