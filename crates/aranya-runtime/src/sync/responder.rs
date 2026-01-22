@@ -478,6 +478,9 @@ impl SyncResponder {
             self.state = SyncResponderState::Reset;
             bug!("send index OOB");
         };
+
+        let mut ser = target.as_ser_cmd().unwrap();
+
         'outer: for (seg, cmd) in sending {
             let location = Location::new(*seg, *cmd);
             let segment = storage
@@ -487,23 +490,24 @@ impl SyncResponder {
             let found = segment.get_from(location);
 
             for (command, j) in found.iter().zip(*cmd..) {
-                if target
-                    .serialize(&SyncCommand {
-                        priority: command.priority(),
-                        id: command.id(),
-                        parent: command.parent(),
-                        policy: command.policy(),
-                        data: command.bytes(),
-                        max_cut: command.max_cut()?,
-                    })
-                    .is_err()
-                {
+                let command = SyncCommand {
+                    priority: command.priority(),
+                    id: command.id(),
+                    parent: command.parent(),
+                    policy: command.policy(),
+                    data: command.bytes(),
+                    max_cut: command.max_cut()?,
+                };
+                if ser.push(&command).is_err() {
                     *cmd = j;
                     break 'outer;
                 }
             }
             index = index.checked_add(1).assume("won't overflow")?;
         }
+
+        ser.finish();
+
         Ok(index)
     }
 
@@ -525,16 +529,21 @@ fn force_push_front<T>(deque: &mut heapless::deque::DequeView<T>, value: T) -> R
 use buf::Buf;
 mod buf {
     use buggy::BugExt as _;
+    use rkyv::{
+        Place,
+        ser::WriterExt as _,
+        vec::{ArchivedVec, VecResolver},
+    };
 
-    use crate::SyncError;
+    use crate::{ArchivedSyncCommand, SyncCommand, SyncError};
 
     pub struct Buf<'a> {
         slice: &'a mut [u8],
         written: usize,
     }
 
-    impl<'buf> Buf<'buf> {
-        pub fn new(slice: &'buf mut [u8]) -> Self {
+    impl<'data> Buf<'data> {
+        pub fn new(slice: &'data mut [u8]) -> Self {
             Self { slice, written: 0 }
         }
 
@@ -550,6 +559,213 @@ mod buf {
                 .assume("can't overflow if postcard behaves")?;
             Ok(())
         }
+
+        pub fn as_ser_cmd<'buf>(&'buf mut self) -> Result<SerCmd<'buf>, Overflow> {
+            // TODO: align here?
+            let slice = &mut *self.slice;
+            let og_end = unsafe { slice.as_mut_ptr().add(slice.len()) };
+            let slice = slice
+                .get_mut(self.written..slice.len() - VEC_SIZE)
+                .ok_or(Overflow)?;
+            Ok(SerCmd {
+                buf: LentBuf {
+                    slice,
+                    written: &mut self.written,
+                },
+                og_end,
+                count: 0,
+            })
+        }
+    }
+
+    struct LentBuf<'a> {
+        /// Unwritten data.
+        slice: &'a mut [u8],
+        /// Updated with amount written but not an index into slice.
+        written: &'a mut usize,
+    }
+
+    impl rkyv::rancor::Fallible for LentBuf<'_> {
+        type Error = Overflow;
+    }
+
+    impl rkyv::ser::Positional for LentBuf<'_> {
+        fn pos(&self) -> usize {
+            *self.written
+        }
+    }
+
+    impl rkyv::ser::Writer for LentBuf<'_> {
+        fn write(&mut self, bytes: &[u8]) -> Result<(), <Self as rkyv::rancor::Fallible>::Error> {
+            self.slice
+                .split_off_mut(..bytes.len())
+                .ok_or(Overflow)?
+                .copy_from_slice(bytes);
+            *self.written += bytes.len();
+            Ok(())
+        }
+    }
+
+    pub struct SerCmd<'a> {
+        buf: LentBuf<'a>,
+        /// The original end of the slice.
+        og_end: *mut u8,
+        count: usize,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Overflow;
+
+    const VEC_SIZE: usize = size_of::<ArchivedVec<ArchivedSyncCommand<'static>>>();
+    const CMD_SIZE: usize = size_of::<ArchivedSyncCommand<'static>>();
+
+    impl<'data> SerCmd<'data> {
+        pub fn push(&mut self, cmd: &SyncCommand<'_>) -> Result<(), Overflow> {
+            let mut reserve = self.reserve_cmd()?;
+            let resolver = match rkyv::traits::Serialize::serialize(cmd, &mut self.buf) {
+                Ok(r) => r,
+                Err(Overflow) => return Err(Overflow),
+            };
+            unsafe {
+                reserve.resolve_aligned(cmd, resolver)?;
+            }
+            self.count += 1;
+            Ok(())
+        }
+
+        pub fn finish(self) {
+            // [extra] [empty] [cmd meta] [vec meta]
+            //                                     ^ OG end
+            //                            ^--------^ len VEC_SIZE
+            //         ^------^ lent buf slice
+            //         ^ start_pos
+
+            let start_pos = *self.buf.written;
+
+            let empty_start = self.buf.slice.as_mut_ptr();
+            let cmd_meta_start = unsafe { empty_start.add(self.buf.slice.len()) };
+            let vec_meta_start = unsafe { self.og_end.sub(VEC_SIZE) };
+
+            let cmd_meta_len = unsafe { vec_meta_start.offset_from(cmd_meta_start) as usize };
+            // Number of commands written
+            let count = cmd_meta_len / CMD_SIZE;
+            assert_eq!(cmd_meta_len % CMD_SIZE, 0);
+            assert_eq!(count, self.count);
+
+            // Shift and reverse.
+            let (align_offset, new_vec_start) = adjust(
+                unsafe {
+                    core::slice::from_raw_parts_mut(
+                        empty_start,
+                        vec_meta_start.offset_from(empty_start) as usize,
+                    )
+                },
+                self.buf.slice.len(),
+            );
+
+            let out = unsafe {
+                Place::new_unchecked(
+                    start_pos + new_vec_start.offset_from(empty_start) as usize,
+                    new_vec_start,
+                )
+                .cast_unchecked::<ArchivedVec<ArchivedSyncCommand<'static>>>()
+            };
+            assert!(unsafe { out.ptr() }.is_aligned());
+            ArchivedVec::<ArchivedSyncCommand<'static>>::resolve_from_len(
+                count,
+                VecResolver::from_pos(start_pos + align_offset),
+                out,
+            );
+
+            *self.buf.written +=
+                unsafe { new_vec_start.offset_from(empty_start) } as usize + VEC_SIZE;
+        }
+
+        fn reserve_cmd(&mut self) -> Result<Reserve<'data>, Overflow> {
+            let end = self.buf.slice.len().checked_sub(CMD_SIZE).ok_or(Overflow)?;
+            let slice = self.buf.slice.split_off_mut(end..).ok_or(Overflow)?;
+            Ok(Reserve {
+                slice,
+                pos: *self.buf.written + end,
+            })
+        }
+    }
+
+    pub struct Reserve<'a> {
+        slice: &'a mut [u8],
+        pos: usize,
+    }
+
+    impl rkyv::rancor::Fallible for Reserve<'_> {
+        type Error = Overflow;
+    }
+
+    impl rkyv::ser::Positional for Reserve<'_> {
+        fn pos(&self) -> usize {
+            self.pos
+        }
+    }
+
+    impl rkyv::ser::Writer for Reserve<'_> {
+        fn write(&mut self, bytes: &[u8]) -> Result<(), <Self as rkyv::rancor::Fallible>::Error> {
+            assert!(
+                self.slice
+                    .as_ptr()
+                    .cast::<ArchivedSyncCommand<'static>>()
+                    .is_aligned()
+            );
+            self.slice
+                .split_off_mut(..bytes.len())
+                .ok_or(Overflow)?
+                .copy_from_slice(bytes);
+            self.pos += bytes.len();
+            assert_eq!(self.slice.len(), 0);
+            Ok(())
+        }
+    }
+
+    /// Shift, reverse, and update archived sync commands.
+    fn adjust(slice: &mut [u8], start: usize) -> (usize, *mut u8) {
+        let align_offset = slice
+            .as_ptr()
+            .align_offset(align_of::<ArchivedSyncCommand<'static>>());
+        let slice = &mut slice[align_offset..];
+        let start = start - align_offset;
+
+        // Shift
+        slice.copy_within(start.., 0);
+
+        // re-slice to contain just the items
+        let len = slice.len() - start;
+        let slice = &mut slice[..len];
+        let new_end = unsafe { slice.as_mut_ptr().add(len) };
+        let (chunks, _) = slice.as_chunks_mut::<CMD_SIZE>();
+
+        // reverse the items
+        chunks.reverse();
+
+        let cmds = unsafe {
+            core::slice::from_raw_parts_mut(
+                chunks.as_mut_ptr().cast::<ArchivedSyncCommand<'static>>(),
+                chunks.len(),
+            )
+        };
+        let count = cmds.len();
+
+        for (i, cmd) in cmds.iter_mut().enumerate() {
+            let delta_index = count as isize - 1 - i as isize - i as isize;
+            let offset = start as isize + delta_index * CMD_SIZE as isize;
+            unsafe {
+                cmd.data.adjust(offset);
+            }
+            if let Some(policy) = cmd.policy.as_mut() {
+                unsafe {
+                    policy.adjust(offset);
+                }
+            }
+        }
+
+        (align_offset, new_end)
     }
 }
 

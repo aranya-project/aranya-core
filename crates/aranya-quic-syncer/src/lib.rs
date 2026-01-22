@@ -245,7 +245,7 @@ where
             client.commit(&mut trx, sink)?;
             client.update_heads(
                 storage_id,
-                cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
+                cmds.iter().filter_map(|cmd| cmd.address().ok()),
                 heads,
             )?;
             self.push(storage_id)?;
@@ -395,7 +395,7 @@ where
                         client.commit(&mut trx, sink)?;
                         client.update_heads(
                             storage_id,
-                            cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
+                            cmds.iter().filter_map(|cmd| cmd.address().ok()),
                             response_cache,
                         )?;
                     }

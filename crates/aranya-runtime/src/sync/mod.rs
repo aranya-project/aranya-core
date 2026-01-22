@@ -1,5 +1,7 @@
 //! Interface for syncing state between clients.
 
+use core::convert::Infallible;
+
 use buggy::Bug;
 use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
@@ -7,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Address, Prior,
     command::{CmdId, Command, Priority},
+    rkyv_utils::{ArchivedBytes, Bytes},
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
 
@@ -88,12 +91,14 @@ pub enum SyncError {
 }
 
 /// Sync command to be committed to graph.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, rkyv::Archive, rkyv::Serialize)]
 pub struct SyncCommand<'a> {
     priority: Priority,
     id: CmdId,
     parent: Prior<Address>,
+    #[rkyv(with = rkyv::with::MapNiche<Bytes>)]
     policy: Option<&'a [u8]>,
+    #[rkyv(with = Bytes)]
     data: &'a [u8],
     max_cut: usize,
 }
@@ -121,5 +126,31 @@ impl<'a> Command for SyncCommand<'a> {
 
     fn max_cut(&self) -> Result<usize, Bug> {
         Ok(self.max_cut)
+    }
+}
+
+impl<'a> Command for ArchivedSyncCommand<'a> {
+    fn priority(&self) -> Priority {
+        crate::rkyv_utils::deser(&self.priority)
+    }
+
+    fn id(&self) -> CmdId {
+        self.id
+    }
+
+    fn parent(&self) -> Prior<Address> {
+        crate::rkyv_utils::deser(&self.parent)
+    }
+
+    fn policy(&self) -> Option<&'a [u8]> {
+        self.policy.as_ref().map(ArchivedBytes::as_slice)
+    }
+
+    fn bytes(&self) -> &'a [u8] {
+        self.data.as_slice()
+    }
+
+    fn max_cut(&self) -> Result<usize, Bug> {
+        Ok(self.max_cut.to_native() as usize)
     }
 }

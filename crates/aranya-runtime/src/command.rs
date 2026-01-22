@@ -6,7 +6,19 @@ use crate::Prior;
 
 /// Identify how the client will sort the associated [`Command`].
 // Note: Order of variants affects derived Ord: Merge is least and Init is greatest.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Priority {
     /// Indicates two branches in the parent graph have been merged at this
     /// command. A command with this priority must have two parents,
@@ -100,7 +112,21 @@ impl<C: Command> Command for &C {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Ord, PartialEq, PartialOrd, Eq, Default)]
+#[derive(
+    Debug,
+    Serialize,
+    Deserialize,
+    Clone,
+    Copy,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Default,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 /// An address contains all of the information needed to find a command in
 /// another graph.
 ///

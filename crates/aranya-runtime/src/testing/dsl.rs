@@ -967,7 +967,7 @@ fn sync<SP: StorageProvider>(
         request_state.commit(&mut request_trx, sink)?;
         request_state.update_heads(
             storage_id,
-            cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
+            cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
         )?;
     }

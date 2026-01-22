@@ -208,7 +208,7 @@ impl SyncRequester {
                     .assume("next_message_index + 1 mustn't overflow")?;
                 self.state = SyncRequesterState::Waiting;
 
-                Some(SyncCommands::new(remaining)?)
+                Some(access(remaining)?)
             }
 
             SyncResponseMessage::SyncEnd { max_index, .. } => {
@@ -428,68 +428,11 @@ impl SyncRequester {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct SyncCommands<'a> {
-    buf: &'a [u8],
-    len: usize,
-}
+pub type SyncCommands<'a> = &'a [rkyv::Archived<SyncCommand<'a>>];
 
-impl<'a> SyncCommands<'a> {
-    fn new(buf: &'a [u8]) -> Result<Self, SyncError> {
-        let mut len = 0;
-        let mut tmp = buf;
-        while !tmp.is_empty() {
-            // Make sure it has valid commands before making iterator.
-            // This double deserializes.
-            // TODO: rkyv slice instead?
-            (_, tmp) = postcard::take_from_bytes::<SyncCommand<'_>>(tmp)?;
-            #[allow(clippy::arithmetic_side_effects, reason = "can't overflow")]
-            {
-                len += 1;
-            }
-        }
-        Ok(Self { buf, len })
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-}
-
-impl<'a> IntoIterator for SyncCommands<'a> {
-    type IntoIter = SyncCommandsIter<'a>;
-    type Item = <Self::IntoIter as Iterator>::Item;
-    fn into_iter(self) -> Self::IntoIter {
-        SyncCommandsIter { buf: self.buf }
-    }
-}
-
-pub struct SyncCommandsIter<'a> {
-    buf: &'a [u8],
-}
-
-impl<'a> Iterator for SyncCommandsIter<'a> {
-    type Item = SyncCommand<'a>;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.buf.is_empty() {
-            return None;
-        }
-        let (cmd, buf) = postcard::take_from_bytes::<SyncCommand<'_>>(self.buf)
-            .assume("can deserialize")
-            .ok()?;
-        self.buf = buf;
-        Some(cmd)
-    }
-}
-
-impl DoubleEndedIterator for SyncCommandsIter<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        // TODO(jdygert): This impl was needed after merge, can't impl yet.
-        // This impl is wrong but the current use-sites won't fail, they'll just be less efficient.
-        self.next()
-    }
+fn access(bytes: &[u8]) -> Result<&[rkyv::Archived<SyncCommand<'_>>], buggy::Bug> {
+    Ok(rkyv::access::<rkyv::vec::ArchivedVec<rkyv::Archived<SyncCommand<'_>>>, rkyv::rancor::Error>(
+        bytes,
+    )
+    .assume("access failure")?.as_slice())
 }
