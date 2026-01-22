@@ -94,10 +94,14 @@ impl Analyzer for UnusedVarAnalyzer {
             // At function exit points, check that all obligations in all scopes are satisfied
             Instruction::Return | Instruction::Exit(_) => {
                 for scope in &self.scope_stack {
-                    if let Some(var) = scope.iter().next() {
+                    if !scope.is_empty() {
                         return Ok(AnalyzerStatus::Failed(format!(
-                            "unused variable: `{}`",
-                            var
+                            "unused variable(s): `{}`",
+                            scope
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join("`, `")
                         )));
                     }
                 }
