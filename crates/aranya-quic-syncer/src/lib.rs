@@ -18,6 +18,7 @@ use aranya_runtime::{
     storage::{GraphId, StorageProvider},
 };
 use buggy::{Bug, BugExt as _, bug};
+use bytes::Bytes;
 use heapless::{Vec, index_map::FnvIndexMap};
 use s2n_quic::{
     Client, Connection, Server,
@@ -135,8 +136,13 @@ where
     S: Sink<<PS as PolicyStore>::Effect>,
 {
     if let Ok(Some(req)) = stream.receive().await {
+        let (peer_address, req) = postcard::take_from_bytes::<SocketAddr>(&req)?;
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = syncer.lock().await.dispatch(&req, &mut buffer).await?;
+        let len = syncer
+            .lock()
+            .await
+            .dispatch(peer_address, req, &mut buffer)
+            .await?;
         buffer.truncate(len);
 
         if len > 0 {
@@ -159,7 +165,7 @@ where
     subscriptions: FnvIndexMap<SocketAddr, Subscription, MAXIMUM_SUBSCRIPTIONS>,
     client_state: Arc<TMutex<ClientState<PS, SP>>>,
     sink: Arc<TMutex<S>>,
-    server_addr: SocketAddr,
+    return_address: Bytes,
 }
 
 impl<PS, SP, S> Syncer<PS, SP, S>
@@ -174,12 +180,13 @@ where
         client_state: Arc<TMutex<ClientState<PS, SP>>>,
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
-        server_addr: SocketAddr,
+        return_address: SocketAddr,
     ) -> Result<Self, QuicSyncError> {
         let client = Client::builder()
             .with_tls(cert)?
             .with_io("0.0.0.0:0")?
             .start()?;
+        let return_address = Bytes::from(postcard::to_allocvec(&return_address)?);
         Ok(Self {
             quic_client: client,
             remote_heads: BTreeMap::new(),
@@ -187,7 +194,7 @@ where
             subscriptions: FnvIndexMap::new(),
             client_state,
             sink,
-            server_addr,
+            return_address,
         })
     }
 
@@ -197,13 +204,14 @@ where
     pub async fn sync(
         &mut self,
         client: &mut ClientState<PS, SP>,
-        mut syncer: SyncRequester<SocketAddr>,
+        peer_address: SocketAddr,
+        mut syncer: SyncRequester,
         sink: &mut S,
         storage_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
-        let heads = self.remote_heads.entry(syncer.server_addr()).or_default();
+        let heads = self.remote_heads.entry(peer_address).or_default();
         let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
@@ -211,14 +219,16 @@ where
 
         let mut conn = self
             .quic_client
-            .connect(Connect::new(syncer.server_addr()).with_server_name("localhost"))
+            .connect(Connect::new(peer_address).with_server_name("localhost"))
             .await?;
         conn.keep_alive(true)?;
         let mut stream = conn.open_bidirectional_stream().await?;
 
         buffer.truncate(len);
         buffer.shrink_to_fit();
-        stream.send(buffer.into()).await?;
+        stream
+            .send_vectored(&mut [self.return_address.clone(), buffer.into()])
+            .await?;
         let mut received_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         while let Some(chunk) = stream.receive().await? {
             received_data
@@ -234,7 +244,7 @@ where
                 client.commit(&mut trx, sink)?;
                 client.update_heads(
                     storage_id,
-                    cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                    cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
                     heads,
                 )?;
                 self.push(storage_id)?;
@@ -250,7 +260,7 @@ where
     pub async fn subscribe(
         &mut self,
         client: &mut ClientState<PS, SP>,
-        mut sync_requester: SyncRequester<SocketAddr>,
+        mut sync_requester: SyncRequester,
         remain_open: u64,
         max_bytes: u64,
         peer_addr: SocketAddr,
@@ -274,7 +284,9 @@ where
 
         buffer.truncate(len);
         buffer.shrink_to_fit();
-        stream.send(buffer.into()).await?;
+        stream
+            .send_vectored(&mut [self.return_address.clone(), buffer.into()])
+            .await?;
         if let Some(resp) = stream.receive().await? {
             let result: SubscribeResult = postcard::from_bytes(&resp)?;
             match result {
@@ -289,7 +301,7 @@ where
     /// Unsubscribe the specified graph to a peer at the given address.
     pub async fn unsubscribe(
         &mut self,
-        mut sync_requester: SyncRequester<SocketAddr>,
+        mut sync_requester: SyncRequester,
         peer_addr: SocketAddr,
     ) -> Result<(), QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -304,7 +316,9 @@ where
 
         buffer.truncate(len);
         buffer.shrink_to_fit();
-        stream.send(buffer.into()).await?;
+        stream
+            .send_vectored(&mut [self.return_address.clone(), buffer.into()])
+            .await?;
         Ok(())
     }
 
@@ -312,16 +326,16 @@ where
     /// and write the response to target.
     pub async fn dispatch(
         &mut self,
+        peer_address: SocketAddr,
         data: &[u8],
         target: &mut [u8],
     ) -> Result<usize, QuicSyncError> {
-        let (sync_type, remaining): (SyncType<SocketAddr>, &[u8]) =
-            postcard::take_from_bytes(data)?;
+        let (sync_type, remaining) = postcard::take_from_bytes::<SyncType>(data)?;
         let len = match sync_type {
-            SyncType::Poll { request, address } => {
-                let response_cache = self.remote_heads.entry(address).or_default();
+            SyncType::Poll { request } => {
+                let response_cache = self.remote_heads.entry(peer_address).or_default();
                 let mut client = self.client_state.lock().await;
-                let mut response_syncer = SyncResponder::new(self.server_addr);
+                let mut response_syncer = SyncResponder::new();
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
 
@@ -331,12 +345,11 @@ where
                 remain_open,
                 max_bytes,
                 commands,
-                address,
                 storage_id,
             } => {
                 self.subscriptions.retain(|_, s| !s.expired());
                 match self.subscriptions.insert(
-                    address,
+                    peer_address,
                     Subscription {
                         close_time: SystemTime::now()
                             .checked_add(Duration::from_secs(remain_open))
@@ -345,7 +358,7 @@ where
                     },
                 ) {
                     Ok(_) => {
-                        let response_cache = self.remote_heads.entry(address).or_default();
+                        let response_cache = self.remote_heads.entry(peer_address).or_default();
                         let mut client = self.client_state.lock().await;
                         client.update_heads(
                             storage_id,
@@ -359,24 +372,20 @@ where
                     }
                 }
             }
-            SyncType::Unsubscribe { address } => {
-                self.subscriptions.remove(&address);
+            SyncType::Unsubscribe {} => {
+                self.subscriptions.remove(&peer_address);
                 0
             }
             SyncType::Push {
                 message,
                 storage_id,
-                address,
             } => {
-                let mut sync_requester = SyncRequester::new_session_id(
-                    storage_id,
-                    message.session_id(),
-                    self.server_addr.to_string(),
-                );
+                let mut sync_requester =
+                    SyncRequester::new_session_id(storage_id, message.session_id());
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)? {
                     if !cmds.is_empty() {
                         {
-                            let response_cache = self.remote_heads.entry(address).or_default();
+                            let response_cache = self.remote_heads.entry(peer_address).or_default();
                             let mut client = self.client_state.lock().await;
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
@@ -385,7 +394,7 @@ where
                             client.commit(&mut trx, sink)?;
                             client.update_heads(
                                 storage_id,
-                                cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                                cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
                                 response_cache,
                             )?;
                         }
@@ -411,7 +420,7 @@ where
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
-            let mut response_syncer = SyncResponder::new(self.server_addr);
+            let mut response_syncer = SyncResponder::new();
             let mut commands = Vec::new();
             commands
                 .extend_from_slice(response_cache.heads())
@@ -439,7 +448,9 @@ where
                     conn.keep_alive(true)?;
                     let mut stream = conn.open_bidirectional_stream().await?;
 
-                    stream.send(target.into()).await?;
+                    stream
+                        .send_vectored(&mut [self.return_address.clone(), target.into()])
+                        .await?;
                     subscription.remaining_bytes = subscription
                         .remaining_bytes
                         .checked_sub(len as u64)

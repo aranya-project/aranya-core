@@ -10,7 +10,7 @@ use crate::{
     Address, ClientState, Command as _, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
     StorageProvider as _, SyncRequester, SyncResponder, SyncType,
     storage::{Storage as _, memory::MemStorageProvider},
-    testing::protocol::{TestActions, TestEngine, TestPolicy, TestProtocol},
+    testing::protocol::{TestActions, TestPolicy, TestPolicyStore, TestProtocol},
 };
 
 #[test]
@@ -18,13 +18,13 @@ fn test_large_sync() {
     let mut response_cache = PeerCache::new();
     let mut request_cache = PeerCache::new();
 
-    let mut client = ClientState::new(TestEngine::new(), MemStorageProvider::new());
+    let mut client = ClientState::new(TestPolicyStore::new(), MemStorageProvider::new());
 
     let graph_id = client
         .new_graph(&[0], TestActions::Init(0), &mut NullSink)
         .unwrap();
 
-    let mut other = ClientState::new(TestEngine::new(), MemStorageProvider::new());
+    let mut other = ClientState::new(TestPolicyStore::new(), MemStorageProvider::new());
     sync(
         graph_id,
         &mut client,
@@ -106,7 +106,7 @@ fn test_large_sync() {
     }
 }
 
-type Client = ClientState<TestEngine, MemStorageProvider>;
+type Client = ClientState<TestPolicyStore, MemStorageProvider>;
 
 fn sync(
     graph_id: GraphId,
@@ -121,19 +121,15 @@ fn sync(
 
     let mut request_trx = request_state.transaction(graph_id);
 
-    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng::new(), ());
+    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng::new());
     assert!(request_syncer.ready());
 
     let (len, _) = request_syncer
         .poll(&mut buffer, request_state.provider(), request_cache)
         .unwrap();
 
-    let mut response_syncer = SyncResponder::new(());
-    let SyncType::Poll {
-        request,
-        address: (),
-    } = postcard::from_bytes(&buffer[..len]).unwrap()
-    else {
+    let mut response_syncer = SyncResponder::new();
+    let SyncType::Poll { request } = postcard::from_bytes(&buffer[..len]).unwrap() else {
         panic!();
     };
     response_syncer.receive(request).unwrap();

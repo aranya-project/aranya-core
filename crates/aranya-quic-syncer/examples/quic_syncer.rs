@@ -60,14 +60,14 @@ async fn sync_peer<PS, SP, S>(
     syncer: &mut Syncer<PS, SP, S>,
     sink: &mut S,
     storage_id: GraphId,
-    server_addr: SocketAddr,
+    peer_addr: SocketAddr,
 ) where
     PS: PolicyStore,
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server_addr);
-    let fut = syncer.sync(client, sync_requester, sink, storage_id);
+    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
+    let fut = syncer.sync(client, peer_addr, sync_requester, sink, storage_id);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),

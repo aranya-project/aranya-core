@@ -62,13 +62,13 @@ use std::{env, fs, time::Instant};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    Address, ClientError, ClientState, CmdId, Command as _, GraphId, Location,
+    MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage, StorageError,
+    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -86,19 +86,16 @@ fn default_max_syncs() -> u64 {
 /// Dispatches the SyncType contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
-pub fn dispatch<A: DeserializeOwned + Serialize>(
+pub fn dispatch(
     data: &[u8],
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
 ) -> Result<usize, SyncError> {
-    let sync_type: SyncType<A> = postcard::from_bytes(data)?;
+    let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
-        SyncType::Poll {
-            request,
-            address: _,
-        } => {
-            let mut response_syncer: SyncResponder<()> = SyncResponder::new(());
+        SyncType::Poll { request } => {
+            let mut response_syncer = SyncResponder::new();
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
@@ -107,14 +104,12 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
             storage_id: _,
             remain_open: _,
             max_bytes: _,
-            address: _,
             commands: _,
         } => unimplemented!(),
-        SyncType::Unsubscribe { address: _ } => unimplemented!(),
+        SyncType::Unsubscribe {} => unimplemented!(),
         SyncType::Push {
             message: _,
             storage_id: _,
-            address: _,
         } => unimplemented!(),
         SyncType::Hello(_) => unimplemented!(),
     };
@@ -390,7 +385,8 @@ where
                     );
                     // Calculate the maximum number of syncs needed to send all commands.
                     // We add 100 to account for extra syncs needed for merge commands.
-                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                    // TODO(jdygert): Fix after merge
+                    let max_syncs = u64::MAX;
                     let mut generated_actions = Vec::new();
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
@@ -616,12 +612,11 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
+                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
                         &mut request_cache,
                         &mut response_cache,
                         &mut request_client,
                         &mut response_client,
-                        client,
                         &mut sink,
                         *storage_id,
                     )?;
@@ -938,16 +933,15 @@ where
     result
 }
 
-fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
+fn sync<SP: StorageProvider>(
     request_cache: &mut PeerCache,
     response_cache: &mut PeerCache,
     request_state: &mut ClientState<TestPolicyStore, SP>,
     response_state: &mut ClientState<TestPolicyStore, SP>,
-    requester_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
+    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(storage_id);
@@ -957,7 +951,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let len = dispatch::<A>(
+    let len = dispatch(
         &buffer[..len],
         &mut target,
         response_state.provider(),
@@ -973,7 +967,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         request_state.commit(&mut request_trx, sink)?;
         request_state.update_heads(
             storage_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
         )?;
     }

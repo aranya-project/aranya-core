@@ -588,7 +588,7 @@ fn test_sync<PS, P, S>(
     S: Sink<<PS>::Effect>,
 {
     let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
+    let mut sync_requester = SyncRequester::new(storage_id, &mut rng);
 
     let mut req_transaction = cs1.transaction(storage_id);
 
@@ -599,7 +599,7 @@ fn test_sync<PS, P, S>(
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = dispatch::<()>(
+        let len = dispatch(
             &buffer[..len],
             &mut target,
             cs1.provider(),
