@@ -36,7 +36,7 @@ jobs:
         env:
           RUSTDOCFLAGS: "-Dwarnings"
         run: |
-          cargo make gen-docs-nightly
+          cargo make gen-docs
           cargo make zip-docs
 
       - name: Publish docs
