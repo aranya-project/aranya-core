@@ -914,7 +914,8 @@ impl ChunkParser<'_> {
             let pc = descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
+            let pest_span = token.as_span();
+            let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
                 Rule::match_arm_expression => {
@@ -931,14 +932,29 @@ impl ChunkParser<'_> {
                                 if let ExprKind::Identifier(id) = &inner.kind {
                                     MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
                                 } else {
-                                    MatchPattern::Values(values)
+                                    // TODO: Allow literals in addition to identifiers.
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::Unknown,
+                                        String::from(
+                                            "Result pattern Ok() must contain an identifier",
+                                        ),
+                                        Some(pest_span),
+                                    ));
                                 }
                             }
                             ExprKind::ResultErr(inner) => {
                                 if let ExprKind::Identifier(id) = &inner.kind {
                                     MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
                                 } else {
-                                    MatchPattern::Values(values)
+                                    // TODO: Allow literals in addition to identifiers.
+
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::Unknown,
+                                        String::from(
+                                            "Result pattern Err() must contain an identifier",
+                                        ),
+                                        Some(pest_span),
+                                    ));
                                 }
                             }
                             _ => MatchPattern::Values(values),
@@ -1176,7 +1192,8 @@ impl ChunkParser<'_> {
             let pc = descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
+            let pest_span = token.as_span();
+            let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
                 Rule::match_arm_expression => {
@@ -1195,14 +1212,30 @@ impl ChunkParser<'_> {
                                 if let ExprKind::Identifier(id) = &inner.kind {
                                     MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
                                 } else {
-                                    MatchPattern::Values(values)
+                                    // TODO: Allow literals in addition to identifiers.
+
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::Unknown,
+                                        String::from(
+                                            "Result pattern Ok() must contain an identifier",
+                                        ),
+                                        Some(pest_span),
+                                    ));
                                 }
                             }
                             ExprKind::ResultErr(inner) => {
                                 if let ExprKind::Identifier(id) = &inner.kind {
                                     MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
                                 } else {
-                                    MatchPattern::Values(values)
+                                    // TODO: Allow literals in addition to identifiers.
+
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::Unknown,
+                                        String::from(
+                                            "Result pattern Err() must contain an identifier",
+                                        ),
+                                        Some(pest_span),
+                                    ));
                                 }
                             }
                             _ => MatchPattern::Values(values),

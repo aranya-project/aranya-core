@@ -589,17 +589,15 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Bool(b) => {
                 self.append_instruction(Instruction::Const(ConstValue::Bool(b)));
             }
-            thir::ExprKind::Optional(o) => {
-                match o {
-                    None => {
-                        self.append_instruction(Instruction::Const(ConstValue::NONE));
-                    }
-                    Some(v) => {
-                        self.compile_typed_expression(*v)?;
-                        self.append_instruction(Instruction::Wrap(WrapType::Some));
-                    }
-                };
-            }
+            thir::ExprKind::Optional(o) => match o {
+                None => {
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
+                }
+                Some(v) => {
+                    self.compile_typed_expression(*v)?;
+                    self.append_instruction(Instruction::Wrap(WrapType::Some));
+                }
+            },
             thir::ExprKind::NamedStruct(s) => {
                 self.compile_struct_literal(s)?;
             }
@@ -1525,8 +1523,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
         self.append_instruction(Instruction::Def(ident.name.clone()));
         // NOTE: We don't call identifier_types.add() here because the pattern variable
-        // was already added during the lowering phase. Adding it again during compilation
-        // would conflict with any outer variables that were added after lowering the match.
+        // was already added during the lowering phase.
 
         Ok(())
     }
