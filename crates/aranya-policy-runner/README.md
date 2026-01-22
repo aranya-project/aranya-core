@@ -6,7 +6,7 @@ actions on policy files. It prints their effects.
 ## Usage
 
 ```
-Usage: policy-tester [OPTIONS] <POLICY> [RUNS]...
+Usage: policy-runner [OPTIONS] <POLICY> [RUNS]...
 
 Arguments:
   <POLICY>   The policy file to load
