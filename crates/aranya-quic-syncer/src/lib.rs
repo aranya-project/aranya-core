@@ -386,7 +386,7 @@ where
                     && !cmds.is_empty()
                 {
                     {
-                        let response_cache = self.remote_heads.entry(address).or_default();
+                        let response_cache = self.remote_heads.entry(peer_address).or_default();
                         let mut client = self.client_state.lock().await;
                         let mut trx = client.transaction(storage_id);
                         let mut sink_guard = self.sink.lock().await;
