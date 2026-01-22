@@ -236,19 +236,19 @@ where
                 .expect("Failed to extend received data from slice");
         }
         // An empty response means we're up to date and there's nothing to sync.
-        if !received_data.is_empty() {
-            if let Some(cmds) = syncer.receive(&received_data)? {
-                received = cmds.len();
-                let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, cmds)?;
-                client.commit(&mut trx, sink)?;
-                client.update_heads(
-                    storage_id,
-                    cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
-                    heads,
-                )?;
-                self.push(storage_id)?;
-            }
+        if !received_data.is_empty()
+            && let Some(cmds) = syncer.receive(&received_data)?
+        {
+            received = cmds.len();
+            let mut trx = client.transaction(storage_id);
+            client.add_commands(&mut trx, sink, cmds)?;
+            client.commit(&mut trx, sink)?;
+            client.update_heads(
+                storage_id,
+                cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
+                heads,
+            )?;
+            self.push(storage_id)?;
         }
         conn.close(0u32.into());
         Ok(received)
@@ -382,24 +382,24 @@ where
             } => {
                 let mut sync_requester =
                     SyncRequester::new_session_id(storage_id, message.session_id());
-                if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)? {
-                    if !cmds.is_empty() {
-                        {
-                            let response_cache = self.remote_heads.entry(peer_address).or_default();
-                            let mut client = self.client_state.lock().await;
-                            let mut trx = client.transaction(storage_id);
-                            let mut sink_guard = self.sink.lock().await;
-                            let sink = sink_guard.deref_mut();
-                            client.add_commands(&mut trx, sink, cmds)?;
-                            client.commit(&mut trx, sink)?;
-                            client.update_heads(
-                                storage_id,
-                                cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
-                                response_cache,
-                            )?;
-                        }
-                        self.push(storage_id)?;
+                if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)?
+                    && !cmds.is_empty()
+                {
+                    {
+                        let response_cache = self.remote_heads.entry(peer_address).or_default();
+                        let mut client = self.client_state.lock().await;
+                        let mut trx = client.transaction(storage_id);
+                        let mut sink_guard = self.sink.lock().await;
+                        let sink = sink_guard.deref_mut();
+                        client.add_commands(&mut trx, sink, cmds)?;
+                        client.commit(&mut trx, sink)?;
+                        client.update_heads(
+                            storage_id,
+                            cmds.into_iter().filter_map(|cmd| cmd.address().ok()),
+                            response_cache,
+                        )?;
                     }
+                    self.push(storage_id)?;
                 }
                 0
             }

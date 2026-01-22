@@ -532,7 +532,7 @@ where
                         }
                         self.stack.push_value(v)?;
                     }
-                };
+                }
             }
             Instruction::Const(v) => {
                 self.ipush(v)?;
@@ -1079,12 +1079,10 @@ where
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
             #[cfg(feature = "bench")]
+            if let Some(instruction) = self.machine.progmem.get(self.pc())
+                && let Some(name) = instruction.to_string().split_whitespace().next()
             {
-                if let Some(instruction) = self.machine.progmem.get(self.pc()) {
-                    if let Some(name) = instruction.to_string().split_whitespace().next() {
-                        self.stopwatch.start(name);
-                    }
-                }
+                self.stopwatch.start(name);
             }
 
             let result = self

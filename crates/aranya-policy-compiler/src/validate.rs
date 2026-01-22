@@ -34,7 +34,7 @@ pub fn validate(module: &Module) -> bool {
                 tracer = tracer.add_analyzer(FunctionAnalyzer::new());
             }
             LabelType::Temporary => unreachable!("Shouldn't have gotten this label type"),
-        };
+        }
         let tracer = tracer.add_analyzer(ValueAnalyzer::new(global_names.clone()));
         let tracer = tracer.build();
 

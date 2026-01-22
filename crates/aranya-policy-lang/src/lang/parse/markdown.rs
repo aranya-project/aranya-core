@@ -68,30 +68,29 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
         // We are only looking for top level code blocks. If someone
         // sneaks one into a table or something we won't see it.
         for c in child_iter {
-            if let Node::Code(c) = c {
-                if let Some(lang) = &c.lang {
-                    if lang == "policy" {
-                        let point = &c.position.as_ref().expect("no code block position").start;
+            if let Node::Code(c) = c
+                && let Some(lang) = &c.lang
+                && lang == "policy"
+            {
+                let point = &c.position.as_ref().expect("no code block position").start;
 
-                        // The 1-based start line of the code block is
-                        // the 0-based start line of the policy code.
-                        let line = point.line;
+                // The 1-based start line of the code block is
+                // the 0-based start line of the policy code.
+                let line = point.line;
 
-                        // The starting position of the code block is
-                        // the triple-backtick, so add three for the
-                        // backticks, six for the language tag, and
-                        // one newline.
-                        let byte = point
-                            .offset
-                            .checked_add(10)
-                            .assume("start.offset + 10 must not wrap")?;
+                // The starting position of the code block is
+                // the triple-backtick, so add three for the
+                // backticks, six for the language tag, and
+                // one newline.
+                let byte = point
+                    .offset
+                    .checked_add(10)
+                    .assume("start.offset + 10 must not wrap")?;
 
-                        chunks.push(PolicyChunk {
-                            text: c.value.clone(),
-                            start: ChunkOffset { line, byte },
-                        });
-                    }
-                }
+                chunks.push(PolicyChunk {
+                    text: c.value.clone(),
+                    start: ChunkOffset { line, byte },
+                });
             }
         }
         Ok((chunks, version))

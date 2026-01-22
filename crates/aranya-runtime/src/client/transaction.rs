@@ -407,11 +407,11 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
         );
 
         // If the command failed in an uncontrolled way, rollback
-        if let Err(e) = result {
-            if e != PolicyError::Check {
-                sink.rollback();
-                return Err(e.into());
-            }
+        if let Err(e) = result
+            && e != PolicyError::Check
+        {
+            sink.rollback();
+            return Err(e.into());
         }
     }
 

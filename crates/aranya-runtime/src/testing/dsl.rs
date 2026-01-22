@@ -844,11 +844,11 @@ where
     // We look for a Sync with max_syncs > 10 as the start of convergence.
     let mut convergence_idx = end_idx;
     for (i, rule) in rules.iter().enumerate().skip(start_idx) {
-        if let TestRule::Sync { max_syncs, .. } = rule {
-            if *max_syncs > 10 {
-                convergence_idx = i;
-                break;
-            }
+        if let TestRule::Sync { max_syncs, .. } = rule
+            && *max_syncs > 10
+        {
+            convergence_idx = i;
+            break;
         }
     }
 

@@ -28,11 +28,11 @@ impl Derives {
         let paths = input.parse_terminated(Path::parse_mod_style, Token![,])?;
         let mut derives = Vec::new();
         for path in paths {
-            if let Some(ident) = path.get_ident() {
-                if let Some(derive) = Derive::from(ident) {
-                    derives.push(derive);
-                    continue;
-                }
+            if let Some(ident) = path.get_ident()
+                && let Some(derive) = Derive::from(ident)
+            {
+                derives.push(derive);
+                continue;
             }
             ctx.error(path, "unsupported derive trait");
         }
