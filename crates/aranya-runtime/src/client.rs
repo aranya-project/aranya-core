@@ -137,7 +137,7 @@ where
 
     pub fn update_heads<I>(
         &mut self,
-        storage_id: GraphId,
+        graph_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
     ) -> Result<(), ClientError>
@@ -145,7 +145,7 @@ where
         I: IntoIterator<Item = Address>,
         I::IntoIter: DoubleEndedIterator,
     {
-        let storage = self.provider.get_storage(storage_id)?;
+        let storage = self.provider.get_storage(graph_id)?;
 
         // Commands in sync messages are always ancestor-first (lower max_cut to higher max_cut).
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
@@ -165,8 +165,8 @@ where
     }
 
     /// Returns the address of the head of the graph.
-    pub fn head_address(&mut self, storage_id: GraphId) -> Result<Address, ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
+    pub fn head_address(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
+        let storage = self.provider.get_storage(graph_id)?;
         let address = storage.get_head_address()?;
         Ok(address)
     }
@@ -174,11 +174,11 @@ where
     /// Performs an `action`, writing the results to `sink`.
     pub fn action(
         &mut self,
-        storage_id: GraphId,
+        graph_id: GraphId,
         sink: &mut impl Sink<PS::Effect>,
         action: <PS::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
+        let storage = self.provider.get_storage(graph_id)?;
 
         let head = storage.get_head()?;
 
@@ -211,21 +211,21 @@ where
     SP: StorageProvider,
 {
     /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
-    pub fn transaction(&mut self, storage_id: GraphId) -> Transaction<SP, PS> {
-        Transaction::new(storage_id)
+    pub fn transaction(&mut self, graph_id: GraphId) -> Transaction<SP, PS> {
+        Transaction::new(graph_id)
     }
 
     /// Create an ephemeral [`Session`] associated with this client.
-    pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, PS>, ClientError> {
-        Session::new(&mut self.provider, storage_id)
+    pub fn session(&mut self, graph_id: GraphId) -> Result<Session<SP, PS>, ClientError> {
+        Session::new(&mut self.provider, graph_id)
     }
 
     /// Checks if a command with the given address exists in the specified graph.
     ///
     /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
     /// This method is used to determine if we need to sync when a hello message is received.
-    pub fn command_exists(&mut self, storage_id: GraphId, address: Address) -> bool {
-        let Ok(storage) = self.provider.get_storage(storage_id) else {
+    pub fn command_exists(&mut self, graph_id: GraphId, address: Address) -> bool {
+        let Ok(storage) = self.provider.get_storage(graph_id) else {
             // Graph doesn't exist
             return false;
         };

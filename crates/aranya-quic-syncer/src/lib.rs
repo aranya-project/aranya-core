@@ -207,7 +207,7 @@ where
         peer_address: SocketAddr,
         mut syncer: SyncRequester,
         sink: &mut S,
-        storage_id: GraphId,
+        graph_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
@@ -240,15 +240,15 @@ where
             && let Some(cmds) = syncer.receive(&received_data)?
         {
             received = cmds.len();
-            let mut trx = client.transaction(storage_id);
+            let mut trx = client.transaction(graph_id);
             client.add_commands(&mut trx, sink, &cmds)?;
             client.commit(&mut trx, sink)?;
             client.update_heads(
-                storage_id,
+                graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
                 heads,
             )?;
-            self.push(storage_id)?;
+            self.push(graph_id)?;
         }
         conn.close(0u32.into());
         Ok(received)
@@ -462,8 +462,8 @@ where
     }
 
     /// pushes commands to all subscribed peers.
-    pub fn push(&mut self, storage_id: GraphId) -> Result<(), SyncError> {
-        if let Err(e) = self.sender.send(storage_id) {
+    pub fn push(&mut self, graph_id: GraphId) -> Result<(), SyncError> {
+        if let Err(e) = self.sender.send(graph_id) {
             error!(cause = ?e, "push error");
         }
         Ok(())

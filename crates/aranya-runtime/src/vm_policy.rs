@@ -83,12 +83,12 @@
 //! let mut cs = ClientState::new(policy_store, provider);
 //! let mut sink = MySink::new();
 //!
-//! let storage_id = cs
+//! let graph_id = cs
 //!     .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
 //!     .expect("could not create graph");
 //! ```
 //!
-//! Because the ID of this initial command is also the storage ID of the resulting graph,
+//! Because the ID of this initial command is also the ID of the resulting graph,
 //! some data within the command must be present to ensure that multiple initial commands
 //! create distinct IDs for each graph. If no other suitable data exists, it is good
 //! practice to add a nonce field that is distinct for each graph.
@@ -154,7 +154,7 @@ pub use protocol::*;
 /// ```ignore
 /// let x = 42;
 /// let y = text!("asdf");
-/// client.action(storage_id, sink, vm_action!(foobar(x, y)))
+/// client.action(graph_id, sink, vm_action!(foobar(x, y)))
 /// ```
 #[macro_export]
 macro_rules! vm_action {
@@ -177,7 +177,7 @@ macro_rules! vm_action {
 /// let val = 3;
 /// sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: val }));
 ///
-/// client.action(storage_id, sink, vm_action!(create(val)))
+/// client.action(graph_id, sink, vm_action!(create(val)))
 /// ```
 #[macro_export]
 macro_rules! vm_effect {
