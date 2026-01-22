@@ -573,17 +573,15 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Bool(b) => {
                 self.append_instruction(Instruction::Const(Value::Bool(b)));
             }
-            thir::ExprKind::Optional(o) => {
-                match o {
-                    None => {
-                        self.append_instruction(Instruction::Const(Value::NONE));
-                    }
-                    Some(v) => {
-                        self.compile_typed_expression(*v)?;
-                        self.append_instruction(Instruction::Some);
-                    }
-                };
-            }
+            thir::ExprKind::Optional(o) => match o {
+                None => {
+                    self.append_instruction(Instruction::Const(Value::NONE));
+                }
+                Some(v) => {
+                    self.compile_typed_expression(*v)?;
+                    self.append_instruction(Instruction::Some);
+                }
+            },
             thir::ExprKind::NamedStruct(s) => {
                 self.compile_struct_literal(s)?;
             }
@@ -806,7 +804,7 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
-        };
+        }
 
         Ok(())
     }
