@@ -100,17 +100,9 @@ pub fn dispatch(
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
         }
-        SyncType::Subscribe {
-            storage_id: _,
-            remain_open: _,
-            max_bytes: _,
-            commands: _,
-        } => unimplemented!(),
-        SyncType::Unsubscribe {} => unimplemented!(),
-        SyncType::Push {
-            message: _,
-            storage_id: _,
-        } => unimplemented!(),
+        SyncType::Subscribe { .. } => unimplemented!(),
+        SyncType::Unsubscribe { .. } => unimplemented!(),
+        SyncType::Push { .. } => unimplemented!(),
         SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
