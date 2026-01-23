@@ -93,7 +93,7 @@ impl Display for Target {
     }
 }
 
-/// Type of value wrapping
+/// Type of `Value` wrapping
 #[derive(
     Debug,
     Clone,
@@ -111,7 +111,7 @@ pub enum WrapType {
     Ok,
     /// Wrap in Result::Err
     Err,
-    /// Wrap in Option::Some (for future use)
+    /// Wrap in Option::Some
     Some,
 }
 
