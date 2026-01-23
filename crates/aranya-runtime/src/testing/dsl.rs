@@ -62,15 +62,15 @@ use std::{env, fs, time::Instant};
 
 use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
+    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
-        protocol::{TestActions, TestEffect, TestEngine, TestSink},
+        protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
     },
 };
@@ -86,36 +86,23 @@ fn default_max_syncs() -> u64 {
 /// Dispatches the SyncType contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
-pub fn dispatch<A: DeserializeOwned + Serialize>(
+pub fn dispatch(
     data: &[u8],
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
 ) -> Result<usize, SyncError> {
-    let sync_type: SyncType<A> = postcard::from_bytes(data)?;
+    let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
-        SyncType::Poll {
-            request,
-            address: _,
-        } => {
-            let mut response_syncer: SyncResponder<()> = SyncResponder::new(());
+        SyncType::Poll { request } => {
+            let mut response_syncer = SyncResponder::new();
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
         }
-        SyncType::Subscribe {
-            storage_id: _,
-            remain_open: _,
-            max_bytes: _,
-            address: _,
-            commands: _,
-        } => unimplemented!(),
-        SyncType::Unsubscribe { address: _ } => unimplemented!(),
-        SyncType::Push {
-            message: _,
-            storage_id: _,
-            address: _,
-        } => unimplemented!(),
+        SyncType::Subscribe { .. } => unimplemented!(),
+        SyncType::Unsubscribe { .. } => unimplemented!(),
+        SyncType::Push { .. } => unimplemented!(),
         SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
@@ -342,7 +329,7 @@ pub enum TestError {
     #[error(transparent)]
     Client(#[from] ClientError),
     #[error(transparent)]
-    Engine(#[from] EngineError),
+    Policy(#[from] PolicyError),
     #[error(transparent)]
     Sync(#[from] SyncError),
     #[error(transparent)]
@@ -552,10 +539,10 @@ where
 
         match rule {
             TestRule::AddClient { id } => {
-                let engine = TestEngine::new();
+                let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
-                let state = ClientState::new(engine, storage);
+                let state = ClientState::new(policy_store, storage);
                 clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
@@ -564,13 +551,13 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let storage_id = state.new_graph(
+                let graph_id = state.new_graph(
                     policy_data.as_slice(),
                     TestActions::Init(policy),
                     &mut sink,
                 )?;
 
-                graphs.insert(id, storage_id);
+                graphs.insert(id, graph_id);
 
                 assert_eq!(0, sink.count());
             }
@@ -579,8 +566,8 @@ where
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
-                state.remove_graph(*storage_id)?;
+                let graph_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                state.remove_graph(*graph_id)?;
 
                 assert_eq!(0, sink.count());
             }
@@ -592,7 +579,7 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let mut request_client = clients
                     .get(&client)
@@ -616,14 +603,13 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
+                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
                         &mut request_cache,
                         &mut response_cache,
                         &mut request_client,
                         &mut response_client,
-                        client,
                         &mut sink,
-                        *storage_id,
+                        *graph_id,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -669,11 +655,11 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*storage_id, &mut sink, set)?;
+                    state.action(*graph_id, &mut sink, set)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -685,8 +671,8 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(*storage_id)?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
             }
@@ -707,10 +693,10 @@ where
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let storage_a = state_a.provider().get_storage(*storage_id)?;
-                let storage_b = state_b.provider().get_storage(*storage_id)?;
+                let storage_a = state_a.provider().get_storage(*graph_id)?;
+                let storage_b = state_b.provider().get_storage(*graph_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
@@ -745,8 +731,8 @@ where
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(*storage_id)?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
                 let command = seg.get_command(head).assume("command must exist")?;
@@ -849,11 +835,11 @@ where
     // We look for a Sync with max_syncs > 10 as the start of convergence.
     let mut convergence_idx = end_idx;
     for (i, rule) in rules.iter().enumerate().skip(start_idx) {
-        if let TestRule::Sync { max_syncs, .. } = rule {
-            if *max_syncs > 10 {
-                convergence_idx = i;
-                break;
-            }
+        if let TestRule::Sync { max_syncs, .. } = rule
+            && *max_syncs > 10
+        {
+            convergence_idx = i;
+            break;
         }
     }
 
@@ -938,26 +924,25 @@ where
     result
 }
 
-fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
+fn sync<SP: StorageProvider>(
     request_cache: &mut PeerCache,
     response_cache: &mut PeerCache,
-    request_state: &mut ClientState<TestEngine, SP>,
-    response_state: &mut ClientState<TestEngine, SP>,
-    requester_address: u64,
+    request_state: &mut ClientState<TestPolicyStore, SP>,
+    response_state: &mut ClientState<TestPolicyStore, SP>,
     sink: &mut TestSink,
-    storage_id: GraphId,
+    graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
+    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
     assert!(request_syncer.ready());
 
-    let mut request_trx = request_state.transaction(storage_id);
+    let mut request_trx = request_state.transaction(graph_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let len = dispatch::<A>(
+    let len = dispatch(
         &buffer[..len],
         &mut target,
         response_state.provider(),
@@ -972,7 +957,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
         request_state.update_heads(
-            storage_id,
+            graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
         )?;

@@ -1,6 +1,6 @@
 //! [`NamedMap`] and associated traits and types.
 
-use aranya_policy_ast::Identifier;
+use aranya_policy_ast::{Identifier, Param};
 
 macro_rules! named {
     ($ty:ty) => {
@@ -20,6 +20,8 @@ pub trait Named {
     /// This method should be pure and return the same name every time.
     fn name(&self) -> &Identifier;
 }
+
+named!(Param);
 
 /// A mapping of named values which preserves insertion order.
 ///

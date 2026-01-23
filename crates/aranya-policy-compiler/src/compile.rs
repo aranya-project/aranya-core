@@ -14,12 +14,12 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
-    FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Span, Statement, StructItem,
-    TypeKind, VType, ident, thir,
+    FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Param, Span, Statement,
+    StructItem, TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Param, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
+    Meta, Module, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
@@ -44,8 +44,9 @@ enum FunctionColor {
 /// stripped down to only include positional argument names/types and
 /// return type. Covers both regular (pure) functions and finish
 /// functions.
+#[derive(Clone)]
 struct FunctionSignature {
-    args: Vec<(Identifier, VType)>,
+    args: Vec<Param>,
     color: FunctionColor,
 }
 
@@ -60,10 +61,10 @@ macro_rules! sig {
             ident!(stringify!($func)),
             FunctionSignature {
                 args: vec![$(
-                    (
-                        ident!(stringify!($argname)),
-                        vtype!($($argty0 $($argty1)? $([ $($argty_tt)+ ])?)?)
-                    )
+                    Param {
+                        name: Ident { name: ident!(stringify!($argname)), span: Span::empty() },
+                        ty: vtype!($($argty0 $($argty1)? $([ $($argty_tt)+ ])?)?)
+                    }
                 ),*],
                 color: FunctionColor::Pure(vtype!($($ret0 $($ret1)? $([ $($ret_tt)+ ])?)?)),
             }
@@ -111,6 +112,39 @@ macro_rules! typekind {
     (option [ $inner:ident ]) => {
         TypeKind::Optional(Box::new(vtype!($inner)))
     };
+}
+
+mod param {
+    use super::{Ident, Param, Span, TypeKind, VType, ident};
+
+    pub fn envelope() -> Param {
+        Param {
+            name: Ident {
+                name: ident!("envelope"),
+                span: Span::empty(),
+            },
+            ty: VType {
+                kind: TypeKind::Struct(Ident {
+                    name: ident!("Envelope"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            },
+        }
+    }
+
+    pub fn this(name: Ident) -> Param {
+        Param {
+            name: Ident {
+                name: ident!("this"),
+                span: Span::empty(),
+            },
+            ty: VType {
+                kind: TypeKind::Struct(name),
+                span: Span::empty(),
+            },
+        }
+    }
 }
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
@@ -366,11 +400,7 @@ impl<'a> CompileState<'a> {
         match self.function_signatures.entry(def.identifier.name.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: def
-                        .arguments
-                        .iter()
-                        .map(|a| (a.identifier.name.clone(), a.field_type.clone()))
-                        .collect(),
+                    args: def.arguments.clone(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
                 Ok(e.insert(signature))
@@ -399,11 +429,7 @@ impl<'a> CompileState<'a> {
         match self.function_signatures.entry(def.identifier.name.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: def
-                        .arguments
-                        .iter()
-                        .map(|a| (a.identifier.name.clone(), a.field_type.clone()))
-                        .collect(),
+                    args: def.arguments.clone(),
                     color: FunctionColor::Finish,
                 };
                 Ok(e.insert(signature))
@@ -547,17 +573,15 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Bool(b) => {
                 self.append_instruction(Instruction::Const(Value::Bool(b)));
             }
-            thir::ExprKind::Optional(o) => {
-                match o {
-                    None => {
-                        self.append_instruction(Instruction::Const(Value::NONE));
-                    }
-                    Some(v) => {
-                        self.compile_typed_expression(*v)?;
-                        self.append_instruction(Instruction::Some);
-                    }
-                };
-            }
+            thir::ExprKind::Optional(o) => match o {
+                None => {
+                    self.append_instruction(Instruction::Const(Value::NONE));
+                }
+                Some(v) => {
+                    self.compile_typed_expression(*v)?;
+                    self.append_instruction(Instruction::Some);
+                }
+            },
             thir::ExprKind::NamedStruct(s) => {
                 self.compile_struct_literal(s)?;
             }
@@ -610,7 +634,7 @@ impl<'a> CompileState<'a> {
                 }
             },
             thir::ExprKind::FunctionCall(f) => {
-                self.compile_function_call(f, false)?;
+                self.compile_function_call(f)?;
             }
             thir::ExprKind::ForeignFunctionCall(f) => {
                 self.append_instruction(Instruction::Meta(Meta::FFI(
@@ -780,7 +804,7 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
-        };
+        }
 
         Ok(())
     }
@@ -931,7 +955,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Emit);
             }
             thir::StmtKind::FunctionCall(f) => {
-                self.compile_function_call(f, true)?;
+                self.compile_function_call(f)?;
             }
             thir::StmtKind::ActionCall(fc) => {
                 for arg in fc.arguments {
@@ -995,49 +1019,15 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FunctionDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
+        self.enter_statement_context(StatementContext::PureFunction(function_node.clone()));
+        self.compile_function_like(
+            &function_node.arguments,
+            Some(&function_node.return_type),
+            function_node.span,
+            &function_node.statements,
             Label::new(function_node.identifier.name.clone(), LabelType::Function),
-            self.wp,
         )?;
-        self.map_range(function_node.span)?;
-
-        // The signature should have already been added inside
-        // `compile`.
-        if !self
-            .function_signatures
-            .contains_key(&function_node.identifier.name)
-        {
-            return Err(self.err_loc(
-                CompileErrorType::NotDefined(function_node.identifier.to_string()),
-                function_node.span,
-            ));
-        }
-
-        if let Some(identifier) = find_duplicate(&function_node.arguments, |a| &a.identifier.name) {
-            return Err(self.err_loc(
-                CompileErrorType::AlreadyDefined(identifier.to_string()),
-                function_node.span,
-            ));
-        }
-
-        self.identifier_types.enter_function();
-        for arg in function_node.arguments.iter().rev() {
-            self.ensure_type_is_defined(&arg.field_type)?;
-            self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
-        }
-        self.ensure_type_is_defined(&function_node.return_type)?;
-        self.append_instruction(Instruction::SaveSP);
-        let from = self.wp;
-        self.compile_statements(&function_node.statements, Scope::Same)?;
-
-        // Check that there is a return statement somewhere in the compiled instructions.
-        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, function_node.span));
-        }
-        // If execution does not hit a return statement, it will panic here.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        self.identifier_types.exit_function();
+        self.exit_statement_context();
         Ok(())
     }
 
@@ -1046,29 +1036,21 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
-            Label::new_temp(function_node.identifier.name.clone()),
-            self.wp,
+        self.enter_statement_context(StatementContext::Finish);
+        self.compile_function_like(
+            &function_node.arguments,
+            None,
+            function_node.span,
+            &function_node.statements,
+            Label::new(function_node.identifier.name.clone(), LabelType::Function),
         )?;
-        self.map_range(function_node.span)?;
-        self.identifier_types.enter_function();
-        for arg in function_node.arguments.iter().rev() {
-            self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
-        }
-        self.compile_statements(&function_node.statements, Scope::Same)?;
-        // Finish functions cannot have return statements, so we add a return instruction
-        // manually.
+        // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
-
-        self.identifier_types.exit_function();
+        self.exit_statement_context();
         Ok(())
     }
 
-    fn compile_function_call(
-        &mut self,
-        fc: thir::FunctionCall,
-        is_finish: bool,
-    ) -> Result<(), CompileError> {
+    fn compile_function_call(&mut self, fc: thir::FunctionCall) -> Result<(), CompileError> {
         for arg_e in fc.arguments {
             self.compile_typed_expression(arg_e)?;
         }
@@ -1076,14 +1058,7 @@ impl<'a> CompileState<'a> {
         if let Some(handler) = self.builtin_functions.get(fc.identifier.as_str()).copied() {
             handler(self)?;
         } else {
-            let label = Label::new(
-                fc.identifier.name,
-                if is_finish {
-                    LabelType::Temporary
-                } else {
-                    LabelType::Function
-                },
-            );
+            let label = Label::new(fc.identifier.name, LabelType::Function);
             self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         }
 
@@ -1094,17 +1069,12 @@ impl<'a> CompileState<'a> {
     fn define_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         let mut params = NamedMap::new();
         for param in &action_node.arguments {
-            params
-                .insert(Param {
-                    name: param.identifier.clone(),
-                    ty: param.field_type.clone(),
-                })
-                .map_err(|_| {
-                    self.err_loc(
-                        CompileErrorType::AlreadyDefined(param.identifier.to_string()),
-                        action_node.span,
-                    )
-                })?;
+            params.insert(param.clone()).map_err(|_| {
+                self.err_loc(
+                    CompileErrorType::AlreadyDefined(param.name.to_string()),
+                    action_node.span,
+                )
+            })?;
         }
 
         self.m
@@ -1125,21 +1095,17 @@ impl<'a> CompileState<'a> {
 
     /// Compile an action function
     fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
-        self.identifier_types.enter_function();
-        self.define_label(
+        self.enter_statement_context(StatementContext::Action(action_node.clone()));
+        self.compile_function_like(
+            &action_node.arguments,
+            None,
+            action_node.span,
+            &action_node.statements,
             Label::new(action_node.identifier.name.clone(), LabelType::Action),
-            self.wp,
         )?;
-        self.map_range(action_node.span)?;
-
-        for arg in action_node.arguments.iter().rev() {
-            self.append_var(arg.identifier.name.clone(), arg.field_type.clone())?;
-        }
-
-        self.compile_statements(&action_node.statements, Scope::Same)?;
+        // Actions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
-        self.identifier_types.exit_function();
-
+        self.exit_statement_context();
         Ok(())
     }
 
@@ -1207,38 +1173,17 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
-            self.wp,
-        )?;
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("this"),
-                VType {
-                    kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::default(),
-                },
-            )
-            .map_err(|e| self.err(e))?;
-        self.identifier_types
-            .add(
-                ident!("envelope"),
-                VType {
-                    kind: TypeKind::Struct(Ident {
-                        name: ident!("Envelope"),
-                        span: Span::default(),
-                    }),
-                    span: Span::default(),
-                },
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("envelope")));
-        self.compile_statements(&command.policy, Scope::Same)?;
-        self.identifier_types.exit_function();
+        self.compile_function_like(
+            &[param::this(command.identifier.clone()), param::envelope()],
+            None,
+            Span::empty(),
+            &command.policy,
+            Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
+        )?;
+        // Policy blocks should exit via a finish block, so panic if it doesn't.
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
         self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
         Ok(())
     }
 
@@ -1246,38 +1191,23 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
-            self.wp,
-        )?;
         self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("this"),
-                VType {
-                    kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::default(),
-                },
-            )
-            .map_err(|e| self.err(e))?;
-        self.identifier_types
-            .add(
-                ident!("envelope"),
-                VType {
-                    kind: TypeKind::Struct(Ident {
-                        name: ident!("Envelope"),
-                        span: Span::default(),
-                    }),
-                    span: Span::default(),
-                },
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("envelope")));
-        self.compile_statements(&command.recall, Scope::Same)?;
-        self.identifier_types.exit_function();
+        self.compile_function_like(
+            &[param::this(command.identifier.clone()), param::envelope()],
+            None,
+            Span::empty(),
+            &command.recall,
+            Label::new(command.identifier.name.clone(), LabelType::CommandRecall),
+        )?;
+        if command.recall.is_empty() {
+            // TODO(#544): Handle absent/empty recall properly.
+            // Return for now so that absent/empty recall blocks don't panic.
+            self.append_instruction(Instruction::Return);
+        } else {
+            // Recall blocks should exit via a finish block, so panic if it doesn't.
+            self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        }
         self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
         Ok(())
     }
 
@@ -1294,56 +1224,35 @@ impl<'a> CompileState<'a> {
         }
 
         // fake a function def for the seal block
+        let args = &[param::this(command.identifier.clone())];
+        let ret = VType {
+            kind: TypeKind::Struct(Ident {
+                name: ident!("Envelope"),
+                span: Span::default(),
+            }),
+            span: Span::default(),
+        };
         let seal_function_definition = ast::FunctionDefinition {
             identifier: Ident {
                 name: ident!("seal"),
                 span: Span::default(),
             },
-            arguments: vec![],
-            return_type: VType {
-                kind: TypeKind::Struct(Ident {
-                    name: ident!("Envelope"),
-                    span: Span::default(),
-                }),
-                span: Span::default(),
-            },
+            arguments: args.to_vec(),
+            return_type: ret.clone(),
             statements: vec![],
             span: command.span,
         };
 
-        // Create a call stub for seal. Because it is function-like and
-        // uses "return", we need something on the call stack to return
-        // to.
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandSeal),
-            self.wp,
-        )?;
-        let actual_seal = self.anonymous_label();
-        self.append_instruction(Instruction::Call(Target::Unresolved(actual_seal.clone())));
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
-        self.define_label(actual_seal, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("this"),
-                VType {
-                    kind: TypeKind::Struct(command.identifier.clone()),
-                    span: Span::default(),
-                },
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("this")));
-        self.append_instruction(Instruction::SaveSP);
-        let from = self.wp;
-        self.compile_statements(&command.seal, Scope::Same)?;
-        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, span));
-        }
-        self.identifier_types.exit_function();
+        self.compile_function_like(
+            args,
+            Some(&ret),
+            span,
+            &command.seal,
+            Label::new(command.identifier.name.clone(), LabelType::CommandSeal),
+        )?;
         self.exit_statement_context();
-        // If there is no return, this is an error. Panic if we get here.
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+
         Ok(())
     }
 
@@ -1360,53 +1269,76 @@ impl<'a> CompileState<'a> {
         }
 
         // fake a function def for the open block
+        let args = &[param::envelope()];
+        let ret = VType {
+            kind: TypeKind::Struct(command.identifier.clone()),
+            span: Span::default(),
+        };
         let open_function_definition = ast::FunctionDefinition {
             identifier: Ident {
                 name: ident!("open"),
                 span: Span::default(),
             },
-            arguments: vec![],
-            return_type: VType {
-                kind: TypeKind::Struct(command.identifier.clone()),
-                span: Span::default(),
-            },
+            arguments: args.to_vec(),
+            return_type: ret.clone(),
             statements: vec![],
             span: command.span,
         };
 
-        // Same thing for open.
-        self.define_label(
-            Label::new(command.identifier.name.clone(), LabelType::CommandOpen),
-            self.wp,
-        )?;
-        let actual_open = self.anonymous_label();
-        self.append_instruction(Instruction::Call(Target::Unresolved(actual_open.clone())));
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
-        self.define_label(actual_open, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
-        self.identifier_types.enter_function();
-        self.identifier_types
-            .add(
-                ident!("envelope"),
-                VType {
-                    kind: TypeKind::Struct(Ident {
-                        name: ident!("Envelope"),
-                        span: Span::default(),
-                    }),
-                    span: Span::default(),
-                },
-            )
-            .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def(ident!("envelope")));
-        self.append_instruction(Instruction::SaveSP);
-        let from = self.wp;
-        self.compile_statements(&command.open, Scope::Same)?;
-        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(self.err_loc(CompileErrorType::NoReturn, span));
-        }
-        self.identifier_types.exit_function();
+        self.compile_function_like(
+            args,
+            Some(&ret),
+            span,
+            &command.open,
+            Label::new(command.identifier.name.clone(), LabelType::CommandOpen),
+        )?;
         self.exit_statement_context();
-        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+
+        Ok(())
+    }
+
+    fn compile_function_like(
+        &mut self,
+        params: &[Param],
+        ret: Option<&VType>,
+        span: Span,
+        body: &[Statement],
+        label: Label,
+    ) -> Result<(), CompileError> {
+        self.define_label(label, self.wp)?;
+        self.map_range(span)?;
+
+        if let Some(identifier) = find_duplicate(params, |p| &p.name) {
+            return Err(self.err_loc(
+                CompileErrorType::AlreadyDefined(identifier.to_string()),
+                span,
+            ));
+        }
+
+        self.identifier_types.enter_function();
+        for param in params.iter().rev() {
+            self.ensure_type_is_defined(&param.ty)?;
+            self.append_var(param.name.name.clone(), param.ty.clone())?;
+        }
+        if let Some(return_type) = ret {
+            self.ensure_type_is_defined(return_type)?;
+            self.append_instruction(Instruction::SaveSP);
+        }
+        let from = self.wp;
+        self.compile_statements(body, Scope::Same)?;
+
+        if ret.is_some() {
+            // Check that there is a return statement somewhere in the compiled instructions.
+            if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return))
+            {
+                return Err(self.err_loc(CompileErrorType::NoReturn, span));
+            }
+            // If execution does not hit a return statement, it will panic here.
+            self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        }
+
+        self.identifier_types.exit_function();
         Ok(())
     }
 
@@ -1742,12 +1674,10 @@ impl<'a> CompileState<'a> {
         }
 
         for function_def in &self.policy.functions {
-            self.enter_statement_context(StatementContext::PureFunction(function_def.clone()));
             self.compile_function(function_def)?;
             self.exit_statement_context();
         }
 
-        self.enter_statement_context(StatementContext::Finish);
         for function_def in &self.policy.finish_functions {
             self.compile_finish_function(function_def)?;
         }
@@ -1759,7 +1689,6 @@ impl<'a> CompileState<'a> {
         }
 
         for action in &self.policy.actions {
-            self.enter_statement_context(StatementContext::Action(action.clone()));
             self.compile_action(action)?;
             self.exit_statement_context();
         }

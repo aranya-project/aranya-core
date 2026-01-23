@@ -28,9 +28,9 @@ Policy {
         FunctionDefinition {
             identifier: "convert" @ 35..42,
             arguments: [
-                FieldDefinition {
-                    identifier: "foo" @ 43..46,
-                    field_type: Struct(
+                Param {
+                    name: "foo" @ 43..46,
+                    ty: Struct(
                         "Foo" @ 54..57,
                     ) @ 47..57,
                 },

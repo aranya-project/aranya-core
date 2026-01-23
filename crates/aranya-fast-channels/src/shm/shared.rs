@@ -18,7 +18,7 @@ use cfg_if::cfg_if;
 use derive_where::derive_where;
 
 use super::{
-    align::{CacheAligned, is_aligned_to, layout_repeat},
+    align::{CacheAligned, layout_repeat},
     error::{
         Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
         bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
@@ -634,12 +634,11 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let (layout, side_a) = layout.extend(list)?;
         let (mut layout, side_b) = layout.extend(list)?;
 
-        if page_aligned {
-            if let Some(page_size) = getpagesize()? {
-                if layout.size() < page_size {
-                    layout = layout.align_to(page_size)?;
-                }
-            }
+        if page_aligned
+            && let Some(page_size) = getpagesize()?
+            && layout.size() < page_size
+        {
+            layout = layout.align_to(page_size)?;
         }
 
         Ok(ShmLayout {
@@ -733,7 +732,7 @@ impl<CS: CipherSuite> ChanList<CS> {
         let (page_size, page_aligned) = if cfg!(feature = "page-aligned") {
             let page_size = getpagesize()?.assume("`page-aligned` feature requires `libc`")?;
             let page_aligned =
-                (layout.size() * 2 > page_size) && is_aligned_to(page_size, layout.align());
+                (layout.size() * 2 > page_size) && page_size.is_multiple_of(layout.align());
             (page_size, page_aligned)
         } else {
             (0, false)
@@ -957,8 +956,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
         debug!("looking up {ch} with hint {hint:?} for {op}");
 
         // If the caller provided an index, use that.
-        if let Some(hint) = hint {
-            if let Some(chan) = self
+        if let Some(hint) = hint
+            && let Some(chan) = self
                 .get(hint.0)?
                 // Hints are purely additive, so we purposefully
                 // ignore errors (e.g., Corrupted) while finding
@@ -966,10 +965,9 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 .filter(|chan| {
                     chan.id().is_ok_and(|got| got == ch) && chan.matches(op).is_ok_and(|ok| ok)
                 })
-            {
-                debug!("used hint {hint:?} for {ch}");
-                return Ok(Some((chan, hint)));
-            }
+        {
+            debug!("used hint {hint:?} for {ch}");
+            return Ok(Some((chan, hint)));
         }
 
         // The index (if any) wasn't valid, so fall back to
@@ -997,8 +995,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
         debug!("looking up {ch} with hint {hint:?} for {op}");
 
         // If the caller provided an index, use that.
-        if let Some(hint) = hint {
-            if let Some(chan) = self
+        if let Some(hint) = hint
+            && let Some(chan) = self
                 .get_mut(hint.0)?
                 // Hints are purely additive, so we purposefully
                 // ignore errors (e.g., Corrupted) while finding
@@ -1009,13 +1007,12 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 // Use ptr to work around early return borrow
                 // checker limitation
                 .map(|chan| -> *mut ShmChan<CS> { chan })
-            {
-                debug!("used hint {hint:?} for {ch}");
-                // SAFETY: `chan` is borrowed from self then
-                // immediately returned. The lifetime of the
-                // returned value is tied to self.
-                return Ok(Some((unsafe { &mut *chan }, hint)));
-            }
+        {
+            debug!("used hint {hint:?} for {ch}");
+            // SAFETY: `chan` is borrowed from self then
+            // immediately returned. The lifetime of the
+            // returned value is tied to self.
+            return Ok(Some((unsafe { &mut *chan }, hint)));
         }
 
         // The index (if any) wasn't valid, so fall back to
