@@ -1,0 +1,14 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid nested option
+  |
+3 | function maybe_maybe_foo() optional optional struct Foo {
+  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you might have meant to use `option[T]`
+  |
+3 - function maybe_maybe_foo() optional optional struct Foo {
+3 + function maybe_maybe_foo() option[option[struct Foo]] {
+  |

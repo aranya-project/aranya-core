@@ -2,4 +2,7 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Reserved identifier: line 6 column 9: int
+error: Reserved identifier
+  |
+6 |     let int = 0
+  |         ^^^ found reserved identifier: `int`

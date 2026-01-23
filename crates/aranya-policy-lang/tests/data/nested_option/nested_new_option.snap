@@ -1,0 +1,38 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [
+        FunctionDefinition {
+            identifier: "maybe_maybe_int" @ 9..24,
+            arguments: [],
+            return_type: Optional(
+                Optional(
+                    Int @ 41..44,
+                ) @ 34..45,
+            ) @ 27..46,
+            statements: [
+                Return(
+                    ReturnStatement {
+                        expression: Optional(
+                            None,
+                        ) @ 60..64,
+                    },
+                ) @ 53..65,
+            ],
+            span: 0..66,
+        },
+    ],
+    finish_functions: [],
+    global_lets: [],
+    text: "function maybe_maybe_int() option[option[int]] {\n    return None\n}",
+}

@@ -4,5 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-1 | use _
-  |     ^ expected identifier
+2 |     return x is Sum
+  |                 ^ expected None or Some
