@@ -186,7 +186,7 @@ impl fmt::Display for StatementContext {
 type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
 
 /// The "compile state" of the machine.
-pub struct CompileState<'a> {
+struct CompileState<'a> {
     /// Policy being compiled
     policy: &'a AstPolicy,
     /// The underlying machine
@@ -2002,7 +2002,7 @@ impl<'a> CompileState<'a> {
 
 /// Flag for controling scope when compiling statement blocks.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub enum Scope {
+enum Scope {
     /// Enter a new layered scope.
     Layered,
     /// Remain in the same scope.
