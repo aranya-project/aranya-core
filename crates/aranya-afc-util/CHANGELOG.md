@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.19.0...aranya-afc-util-v0.20.0) - 2026-01-23
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-fast-channels
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.18.0...aranya-afc-util-v0.19.0) - 2026-01-06
 
 ### Other
