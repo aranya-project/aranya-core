@@ -38,7 +38,12 @@ command Start {
         ProfileX id,
         ProfileO id,
     }
-
+    seal {
+        return todo()
+    }
+    open {
+        return todo()
+    }
     policy {
         check ProfileX != ProfileO
         // `envelope::command_id` is an FFI-provided helper function that returns
@@ -89,7 +94,12 @@ command Move {
         X int,
         Y int,
     }
-
+    seal {
+        return todo()
+    }
+    open {
+        return todo()
+    }
     policy {
         // phase 1: variable definition/checks
         // These aren't "variables" in the procedural sense, they are
@@ -165,7 +175,12 @@ command Move2 {
         X int,
         Y int,
     }
-
+    seal {
+        return todo()
+    }
+    open {
+        return todo()
+    }
     policy {
         let player = envelope::author_id(envelope)
         let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}

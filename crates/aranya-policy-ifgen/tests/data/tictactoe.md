@@ -19,6 +19,9 @@ command Start {
     }
     seal { return todo() }
     open { return todo() }
+    policy {
+        finish {}
+    }
 }
 
 command Move {
@@ -29,6 +32,9 @@ command Move {
     }
     seal { return todo() }
     open { return todo() }
+    policy {
+        finish {}
+    }
 }
 
 

@@ -1216,13 +1216,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.seal.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the seal block
         let args = &[param::this(command.identifier.clone())];
         let ret = VType {
@@ -1261,13 +1254,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.open.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the open block
         let args = &[param::envelope()];
         let ret = VType {
