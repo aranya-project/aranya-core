@@ -49,13 +49,25 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
     where
         T: for<'a> Serialize<LentBuf<'a>> + Archive<Archived = A>,
     {
+        let before = (self.buf.slice.as_ptr(), self.buf.slice.len());
         let mut reserve = self.reserve_item()?;
         let resolver = match item.serialize(&mut self.buf) {
             Ok(r) => r,
-            Err(BufferOverflow) => return Err(BufferOverflow),
+            Err(BufferOverflow) => {
+                // TODO: hacky
+                unsafe {
+                    self.unreserve_item();
+                }
+                let after = (self.buf.slice.as_ptr(), self.buf.slice.len());
+                debug_assert_eq!(before, after);
+                return Err(BufferOverflow);
+            }
         };
         unsafe {
-            reserve.resolve_aligned(item, resolver)?;
+            reserve.resolve_aligned(item, resolver).inspect_err(|_| {
+                let after = (self.buf.slice.as_ptr(), self.buf.slice.len());
+                debug_assert_eq!(before, after);
+            })?;
         }
         Ok(())
     }
@@ -121,6 +133,15 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
             slice,
             pos: *self.buf.written + end,
         })
+    }
+
+    unsafe fn unreserve_item(&mut self) {
+        unsafe {
+            self.buf.slice = core::slice::from_raw_parts_mut(
+                self.buf.slice.as_mut_ptr(),
+                self.buf.slice.len() + Self::ITEM_SIZE,
+            );
+        }
     }
 
     /// Shift, reverse, and update archived items.
