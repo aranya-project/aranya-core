@@ -1,4 +1,4 @@
-use core::marker::PhantomData;
+use core::{marker::PhantomData, num::NonZeroUsize};
 
 use buggy::{Bug, BugExt as _};
 use rkyv::{
@@ -13,31 +13,36 @@ pub struct BufferOverflow;
 
 /// Serializes items one at a time into a buffer.
 pub struct PerfectSer<'a, A> {
-    buf: LentBuf<'a>,
+    // Updated after finish.
+    written: &'a mut usize,
+    // Working buffer.
+    buf: Buffer<'a>,
     /// The original end of the slice.
     og_end: *mut u8,
     _ph: PhantomData<&'a mut [A]>,
 }
 
 impl<'data, A> PerfectSer<'data, A> {
-    const VEC_SIZE: usize = size_of::<ArchivedVec<A>>();
-    const ITEM_SIZE: usize = size_of::<A>();
+    /// Size of vec metadata
+    const VEC_SIZE: NonZeroUsize = NonZeroUsize::new(size_of::<ArchivedVec<A>>()).unwrap();
+    /// Size of item metadata
+    const ITEM_SIZE: NonZeroUsize = NonZeroUsize::new(size_of::<A>()).unwrap();
 
-    pub fn new(slice: &'data mut [u8], written: &'data mut usize) -> Result<Self, BufferOverflow> {
-        // TODO: align here?
+    pub fn new(
+        mut slice: &'data mut [u8],
+        written: &'data mut usize,
+    ) -> Result<Self, BufferOverflow> {
+        let pos = *written;
+        shrink_align(&mut slice, align_of::<ArchivedVec<A>>())?;
+
         // SAFETY: The end of the slice must be a valid pointer.
         let og_end = unsafe { slice.as_mut_ptr().add(slice.len()) };
-        let slice = slice
-            .get_mut(
-                *written
-                    ..slice
-                        .len()
-                        .checked_sub(Self::VEC_SIZE)
-                        .ok_or(BufferOverflow)?,
-            )
-            .ok_or(BufferOverflow)?;
+
+        shrink(&mut slice, Self::VEC_SIZE.get())?;
+        let slice = &mut slice[pos..];
         Ok(PerfectSer {
-            buf: LentBuf { slice, written },
+            written,
+            buf: Buffer { slice, pos },
             og_end,
             _ph: PhantomData,
         })
@@ -47,7 +52,7 @@ impl<'data, A> PerfectSer<'data, A> {
 impl<'data, A: Adjust> PerfectSer<'data, A> {
     pub fn push<T>(&mut self, item: &T) -> Result<(), BufferOverflow>
     where
-        T: for<'a> Serialize<LentBuf<'a>> + Archive<Archived = A>,
+        T: for<'a> Serialize<Buffer<'a>> + Archive<Archived = A>,
     {
         let before = (self.buf.slice.as_ptr(), self.buf.slice.len());
         let mut reserve = self.reserve_item()?;
@@ -79,13 +84,13 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
         //         ^------^ lent buf slice
         //         ^ start_pos
 
-        let start_pos = *self.buf.written;
+        let start_pos = self.buf.pos;
 
         let empty_start = self.buf.slice.as_mut_ptr();
         let item_meta_start = unsafe { empty_start.add(self.buf.slice.len()) };
-        let vec_meta_start = unsafe { self.og_end.sub(Self::VEC_SIZE) };
+        let vec_meta_start = unsafe { self.og_end.sub(Self::VEC_SIZE.get()) };
 
-        let item_meta_len = unsafe { vec_meta_start.offset_from(item_meta_start) as usize };
+        let item_meta_len = unsafe { vec_meta_start.offset_from_unsigned(item_meta_start) };
         // Number of items written
         let count = item_meta_len / Self::ITEM_SIZE;
         debug_assert_eq!(item_meta_len % Self::ITEM_SIZE, 0);
@@ -95,7 +100,7 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
             unsafe {
                 core::slice::from_raw_parts_mut(
                     empty_start,
-                    vec_meta_start.offset_from(empty_start) as usize,
+                    vec_meta_start.offset_from_unsigned(empty_start),
                 )
             },
             self.buf.slice.len(),
@@ -103,7 +108,7 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
 
         let out = unsafe {
             Place::new_unchecked(
-                start_pos + new_vec_start.offset_from(empty_start) as usize,
+                start_pos + new_vec_start.offset_from_unsigned(empty_start),
                 new_vec_start,
             )
             .cast_unchecked::<ArchivedVec<A>>()
@@ -115,31 +120,22 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
             out,
         );
 
-        *self.buf.written +=
-            unsafe { new_vec_start.offset_from(empty_start) } as usize + Self::VEC_SIZE;
+        *self.written = start_pos
+            + unsafe { new_vec_start.offset_from(empty_start) } as usize
+            + Self::VEC_SIZE.get();
 
         Ok(())
     }
 
-    fn reserve_item(&mut self) -> Result<Reserve<'data>, BufferOverflow> {
-        let end = self
-            .buf
-            .slice
-            .len()
-            .checked_sub(Self::ITEM_SIZE)
-            .ok_or(BufferOverflow)?;
-        let slice = self.buf.slice.split_off_mut(end..).ok_or(BufferOverflow)?;
-        Ok(Reserve {
-            slice,
-            pos: *self.buf.written + end,
-        })
+    fn reserve_item(&mut self) -> Result<Buffer<'data>, BufferOverflow> {
+        self.buf.split(Self::ITEM_SIZE.get())
     }
 
     unsafe fn unreserve_item(&mut self) {
         unsafe {
             self.buf.slice = core::slice::from_raw_parts_mut(
                 self.buf.slice.as_mut_ptr(),
-                self.buf.slice.len() + Self::ITEM_SIZE,
+                self.buf.slice.len() + Self::ITEM_SIZE.get(),
             );
         }
     }
@@ -173,7 +169,7 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
         for (i, item) in items.iter_mut().enumerate() {
             let i = i as isize;
             let delta_index = count - 1 - i - i;
-            let offset = start as isize + delta_index * Self::ITEM_SIZE as isize;
+            let offset = start as isize + delta_index * Self::ITEM_SIZE.get() as isize;
             let offset = offset.try_into().assume("offset is valid i32")?;
             unsafe {
                 item.adjust(offset);
@@ -184,57 +180,52 @@ impl<'data, A: Adjust> PerfectSer<'data, A> {
     }
 }
 
-struct Reserve<'a> {
+pub struct Buffer<'a> {
+    /// Unwritten data.
     slice: &'a mut [u8],
+    /// Position in stream.
     pos: usize,
 }
 
-impl rkyv::rancor::Fallible for Reserve<'_> {
+impl Buffer<'_> {
+    /// Split off another buffer from the end
+    fn split(&mut self, size: usize) -> Result<Self, BufferOverflow> {
+        let slice = shrink(&mut self.slice, size)?;
+        let pos = self.pos + self.slice.len();
+        Ok(Buffer { slice, pos })
+    }
+}
+
+impl rkyv::rancor::Fallible for Buffer<'_> {
     type Error = BufferOverflow;
 }
 
-impl rkyv::ser::Positional for Reserve<'_> {
+impl rkyv::ser::Positional for Buffer<'_> {
     fn pos(&self) -> usize {
         self.pos
     }
 }
 
-impl rkyv::ser::Writer for Reserve<'_> {
+impl rkyv::ser::Writer for Buffer<'_> {
     fn write(&mut self, bytes: &[u8]) -> Result<(), <Self as rkyv::rancor::Fallible>::Error> {
         self.slice
             .split_off_mut(..bytes.len())
             .ok_or(BufferOverflow)?
             .copy_from_slice(bytes);
         self.pos += bytes.len();
-        assert_eq!(self.slice.len(), 0);
         Ok(())
     }
 }
 
-pub struct LentBuf<'a> {
-    /// Unwritten data.
-    slice: &'a mut [u8],
-    /// Updated with amount written but not an index into slice.
-    written: &'a mut usize,
-}
-
-impl rkyv::rancor::Fallible for LentBuf<'_> {
-    type Error = BufferOverflow;
-}
-
-impl rkyv::ser::Positional for LentBuf<'_> {
-    fn pos(&self) -> usize {
-        *self.written
+fn shrink_align(xs: &mut &mut [u8], align: usize) -> Result<(), BufferOverflow> {
+    let offset = unsafe { xs.as_ptr().add(xs.len()) }.align_offset(align);
+    if offset != 0 {
+        shrink(xs, align - offset)?;
     }
+    Ok(())
 }
 
-impl rkyv::ser::Writer for LentBuf<'_> {
-    fn write(&mut self, bytes: &[u8]) -> Result<(), <Self as rkyv::rancor::Fallible>::Error> {
-        self.slice
-            .split_off_mut(..bytes.len())
-            .ok_or(BufferOverflow)?
-            .copy_from_slice(bytes);
-        *self.written += bytes.len();
-        Ok(())
-    }
+fn shrink<'a>(xs: &mut &'a mut [u8], amount: usize) -> Result<&'a mut [u8], BufferOverflow> {
+    let new_end = xs.len().checked_sub(amount).ok_or(BufferOverflow)?;
+    xs.split_off_mut(new_end..).ok_or(BufferOverflow)
 }
