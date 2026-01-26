@@ -8,8 +8,8 @@ use super::{
 use crate::{
     StorageError, SyncCommand, SyncType,
     command::{Address, CmdId, Command as _},
+    rkyv_utils::BufferOverflow,
     storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
-    sync::responder::buf::Overflow,
 };
 
 #[derive(Default, Debug)]
@@ -501,7 +501,7 @@ impl SyncResponder {
                 };
                 match ser.push(&command) {
                     Ok(()) => {}
-                    Err(Overflow) => {
+                    Err(BufferOverflow) => {
                         *cmd = j;
                         break 'outer;
                     }
@@ -532,14 +532,12 @@ fn force_push_front<T>(deque: &mut heapless::deque::DequeView<T>, value: T) -> R
 
 use buf::Buf;
 mod buf {
-    use buggy::{Bug, BugExt as _};
-    use rkyv::{
-        Place,
-        ser::WriterExt as _,
-        vec::{ArchivedVec, VecResolver},
-    };
+    use buggy::BugExt as _;
 
-    use crate::{ArchivedSyncCommand, SyncCommand, SyncError, rkyv_utils::Adjust as _};
+    use crate::{
+        ArchivedSyncCommand, SyncError,
+        rkyv_utils::{BufferOverflow, PerfectSer},
+    };
 
     pub struct Buf<'a> {
         slice: &'a mut [u8],
@@ -564,206 +562,11 @@ mod buf {
             Ok(())
         }
 
-        pub fn as_ser_cmd<'buf>(&'buf mut self) -> Result<SerCmd<'buf>, Overflow> {
-            SerCmd::new(self.slice, &mut self.written)
+        pub fn as_ser_cmd<'buf>(
+            &'buf mut self,
+        ) -> Result<PerfectSer<'buf, ArchivedSyncCommand>, BufferOverflow> {
+            PerfectSer::new(self.slice, &mut self.written)
         }
-    }
-
-    struct LentBuf<'a> {
-        /// Unwritten data.
-        slice: &'a mut [u8],
-        /// Updated with amount written but not an index into slice.
-        written: &'a mut usize,
-    }
-
-    impl rkyv::rancor::Fallible for LentBuf<'_> {
-        type Error = Overflow;
-    }
-
-    impl rkyv::ser::Positional for LentBuf<'_> {
-        fn pos(&self) -> usize {
-            *self.written
-        }
-    }
-
-    impl rkyv::ser::Writer for LentBuf<'_> {
-        fn write(&mut self, bytes: &[u8]) -> Result<(), <Self as rkyv::rancor::Fallible>::Error> {
-            self.slice
-                .split_off_mut(..bytes.len())
-                .ok_or(Overflow)?
-                .copy_from_slice(bytes);
-            *self.written += bytes.len();
-            Ok(())
-        }
-    }
-
-    pub struct SerCmd<'a> {
-        buf: LentBuf<'a>,
-        /// The original end of the slice.
-        og_end: *mut u8,
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct Overflow;
-
-    const VEC_SIZE: usize = size_of::<ArchivedVec<ArchivedSyncCommand<'static>>>();
-    const CMD_SIZE: usize = size_of::<ArchivedSyncCommand<'static>>();
-
-    impl<'data> SerCmd<'data> {
-        fn new(slice: &'data mut [u8], written: &'data mut usize) -> Result<Self, Overflow> {
-            // TODO: align here?
-            // SAFETY: The end of the slice must be a valid pointer.
-            let og_end = unsafe { slice.as_mut_ptr().add(slice.len()) };
-            let slice = slice
-                .get_mut(*written..slice.len().checked_sub(VEC_SIZE).ok_or(Overflow)?)
-                .ok_or(Overflow)?;
-            Ok(SerCmd {
-                buf: LentBuf { slice, written },
-                og_end,
-            })
-        }
-
-        pub fn push(&mut self, cmd: &SyncCommand<'_>) -> Result<(), Overflow> {
-            let mut reserve = self.reserve_cmd()?;
-            let resolver = match rkyv::traits::Serialize::serialize(cmd, &mut self.buf) {
-                Ok(r) => r,
-                Err(Overflow) => return Err(Overflow),
-            };
-            unsafe {
-                reserve.resolve_aligned(cmd, resolver)?;
-            }
-            Ok(())
-        }
-
-        pub fn finish(self) -> Result<(), Bug> {
-            // [extra] [empty] [cmd meta] [vec meta]
-            //                                     ^ OG end
-            //                            ^--------^ len VEC_SIZE
-            //         ^------^ lent buf slice
-            //         ^ start_pos
-
-            let start_pos = *self.buf.written;
-
-            let empty_start = self.buf.slice.as_mut_ptr();
-            let cmd_meta_start = unsafe { empty_start.add(self.buf.slice.len()) };
-            let vec_meta_start = unsafe { self.og_end.sub(VEC_SIZE) };
-
-            let cmd_meta_len = unsafe { vec_meta_start.offset_from(cmd_meta_start) as usize };
-            // Number of commands written
-            let count = cmd_meta_len / CMD_SIZE;
-            debug_assert_eq!(cmd_meta_len % CMD_SIZE, 0);
-
-            // Shift and reverse.
-            let (align_offset, new_vec_start) = adjust(
-                unsafe {
-                    core::slice::from_raw_parts_mut(
-                        empty_start,
-                        vec_meta_start.offset_from(empty_start) as usize,
-                    )
-                },
-                self.buf.slice.len(),
-            )?;
-
-            let out = unsafe {
-                Place::new_unchecked(
-                    start_pos + new_vec_start.offset_from(empty_start) as usize,
-                    new_vec_start,
-                )
-                .cast_unchecked::<ArchivedVec<ArchivedSyncCommand<'static>>>()
-            };
-            debug_assert!(unsafe { out.ptr() }.is_aligned());
-            ArchivedVec::<ArchivedSyncCommand<'static>>::resolve_from_len(
-                count,
-                VecResolver::from_pos(start_pos + align_offset),
-                out,
-            );
-
-            *self.buf.written +=
-                unsafe { new_vec_start.offset_from(empty_start) } as usize + VEC_SIZE;
-
-            Ok(())
-        }
-
-        fn reserve_cmd(&mut self) -> Result<Reserve<'data>, Overflow> {
-            let end = self.buf.slice.len().checked_sub(CMD_SIZE).ok_or(Overflow)?;
-            let slice = self.buf.slice.split_off_mut(end..).ok_or(Overflow)?;
-            Ok(Reserve {
-                slice,
-                pos: *self.buf.written + end,
-            })
-        }
-    }
-
-    pub struct Reserve<'a> {
-        slice: &'a mut [u8],
-        pos: usize,
-    }
-
-    impl rkyv::rancor::Fallible for Reserve<'_> {
-        type Error = Overflow;
-    }
-
-    impl rkyv::ser::Positional for Reserve<'_> {
-        fn pos(&self) -> usize {
-            self.pos
-        }
-    }
-
-    impl rkyv::ser::Writer for Reserve<'_> {
-        fn write(&mut self, bytes: &[u8]) -> Result<(), <Self as rkyv::rancor::Fallible>::Error> {
-            assert!(
-                self.slice
-                    .as_ptr()
-                    .cast::<ArchivedSyncCommand<'static>>()
-                    .is_aligned()
-            );
-            self.slice
-                .split_off_mut(..bytes.len())
-                .ok_or(Overflow)?
-                .copy_from_slice(bytes);
-            self.pos += bytes.len();
-            assert_eq!(self.slice.len(), 0);
-            Ok(())
-        }
-    }
-
-    /// Shift, reverse, and update archived sync commands.
-    fn adjust(slice: &mut [u8], start: usize) -> Result<(usize, *mut u8), Bug> {
-        let align_offset = slice
-            .as_ptr()
-            .align_offset(align_of::<ArchivedSyncCommand<'static>>());
-        let slice = &mut slice[align_offset..];
-        let start = start - align_offset;
-
-        // Shift
-        slice.copy_within(start.., 0);
-
-        // re-slice to contain just the items
-        let len = slice.len() - start;
-        let slice = &mut slice[..len];
-        let new_end = unsafe { slice.as_mut_ptr().add(len) };
-        let (chunks, _) = slice.as_chunks_mut::<CMD_SIZE>();
-
-        // reverse the items
-        chunks.reverse();
-
-        let cmds = unsafe {
-            core::slice::from_raw_parts_mut(
-                chunks.as_mut_ptr().cast::<ArchivedSyncCommand<'static>>(),
-                chunks.len(),
-            )
-        };
-        let count = cmds.len() as isize;
-
-        for (i, cmd) in cmds.iter_mut().enumerate() {
-            let i = i as isize;
-            let delta_index = count - 1 - i - i;
-            let offset = start as isize + delta_index * CMD_SIZE as isize;
-            let offset = offset.try_into().assume("offset is valid i32")?;
-            unsafe { cmd.adjust(offset) }.assume("can adjust command")?;
-        }
-
-        Ok((align_offset, new_end))
     }
 }
 
