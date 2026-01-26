@@ -430,9 +430,9 @@ impl SyncRequester {
 
 pub type SyncCommands<'a> = &'a [rkyv::Archived<SyncCommand<'a>>];
 
-fn access(bytes: &[u8]) -> Result<&[rkyv::Archived<SyncCommand<'_>>], buggy::Bug> {
+fn access(bytes: &[u8]) -> Result<&[rkyv::Archived<SyncCommand<'_>>], SyncError> {
     Ok(rkyv::access::<rkyv::vec::ArchivedVec<rkyv::Archived<SyncCommand<'_>>>, rkyv::rancor::Error>(
         bytes,
     )
-    .assume("access failure")?.as_slice())
+    .map_err(SyncError::RkyvAccess)?.as_slice())
 }

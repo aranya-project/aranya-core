@@ -4,12 +4,13 @@ use core::convert::Infallible;
 
 use buggy::Bug;
 use postcard::Error as PostcardError;
+use rkyv::rancor::ResultExt as _;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
     command::{CmdId, Command, Priority},
-    rkyv_utils::{ArchivedBytes, Bytes},
+    rkyv_utils::{self, ArchivedBytes, Bytes},
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
 
@@ -82,6 +83,10 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
+    #[error("target buffer is too small")]
+    BufferTooSmall,
+    #[error("could not access commands with rkyv")]
+    RkyvAccess(#[from] rkyv::rancor::Error),
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
     #[error("serialize error: {0}")]
@@ -131,7 +136,7 @@ impl<'a> Command for SyncCommand<'a> {
 
 impl<'a> Command for ArchivedSyncCommand<'a> {
     fn priority(&self) -> Priority {
-        crate::rkyv_utils::deser(&self.priority)
+        rkyv::api::low::deserialize::<_, Infallible>(&self.priority).always_ok()
     }
 
     fn id(&self) -> CmdId {
@@ -139,7 +144,7 @@ impl<'a> Command for ArchivedSyncCommand<'a> {
     }
 
     fn parent(&self) -> Prior<Address> {
-        crate::rkyv_utils::deser(&self.parent)
+        rkyv::api::low::deserialize::<_, Infallible>(&self.parent).always_ok()
     }
 
     fn policy(&self) -> Option<&'a [u8]> {
@@ -152,5 +157,18 @@ impl<'a> Command for ArchivedSyncCommand<'a> {
 
     fn max_cut(&self) -> Result<usize, Bug> {
         Ok(self.max_cut.to_native() as usize)
+    }
+}
+
+unsafe impl rkyv_utils::Adjust for ArchivedSyncCommand<'_> {
+    unsafe fn adjust(
+        &mut self,
+        amount: rkyv::primitive::FixedIsize,
+    ) -> Result<(), rkyv_utils::AdjustOverflow> {
+        unsafe {
+            self.policy.adjust(amount)?;
+            self.data.adjust(amount)?;
+        }
+        Ok(())
     }
 }

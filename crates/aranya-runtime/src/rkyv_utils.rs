@@ -1,14 +1,60 @@
-use core::{convert::Infallible, marker::PhantomData};
+use core::marker::PhantomData;
 
 use rkyv::{
     Archive as _, Portable, RelPtr,
     munge::munge,
-    niche::niching::Niching,
-    primitive::{ArchivedIsize, ArchivedUsize, FixedUsize},
+    niche::{niched_option::NichedOption, niching::Niching},
+    primitive::{ArchivedIsize, ArchivedUsize, FixedIsize, FixedUsize},
     rancor::Fallible,
     ser::Writer,
     with::{ArchiveWith, DefaultNiche, SerializeWith},
 };
+
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("overflow during adjustment")]
+pub struct AdjustOverflow;
+
+/// Adjust rkyv's relative pointers by a given amount.
+///
+/// # Safety
+///
+/// `self` must be valid after being moved  `amount` bytes and then calling `adjust(amount)`.
+pub unsafe trait Adjust {
+    unsafe fn adjust(&mut self, amount: FixedIsize) -> Result<(), AdjustOverflow>;
+}
+
+unsafe impl Adjust for RelPtr<u8> {
+    unsafe fn adjust(&mut self, amount: FixedIsize) -> Result<(), AdjustOverflow> {
+        let offset = unsafe {
+            core::ptr::NonNull::from_mut(self)
+                .cast::<ArchivedIsize>()
+                .as_mut()
+        };
+        *offset = ArchivedIsize::from_native(
+            offset
+                .to_native()
+                .checked_add(amount)
+                .ok_or(AdjustOverflow)?,
+        );
+        Ok(())
+    }
+}
+
+unsafe impl Adjust for ArchivedBytes<'_> {
+    unsafe fn adjust(&mut self, amount: FixedIsize) -> Result<(), AdjustOverflow> {
+        unsafe { self.ptr.adjust(amount) }
+    }
+}
+
+unsafe impl Adjust for NichedOption<ArchivedBytes<'_>, DefaultNiche> {
+    unsafe fn adjust(&mut self, amount: FixedIsize) -> Result<(), AdjustOverflow> {
+        if let Some(bytes) = self.as_mut() {
+            unsafe { bytes.adjust(amount) }
+        } else {
+            Ok(())
+        }
+    }
+}
 
 #[derive(Portable)]
 #[repr(C)]
@@ -21,13 +67,6 @@ pub struct ArchivedBytes<'a> {
 impl<'a> ArchivedBytes<'a> {
     pub fn as_slice(&self) -> &'a [u8] {
         unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), self.len.to_native() as usize) }
-    }
-
-    // Adjust the relative pointer
-    pub unsafe fn adjust(&mut self, offset: isize) {
-        unsafe {
-            *(&raw mut self.ptr).cast::<ArchivedIsize>() += ArchivedIsize::from_native(offset as _);
-        }
     }
 }
 
@@ -83,12 +122,4 @@ where
         // TODO?
         Ok(())
     }
-}
-
-/// Infallible deserialize
-pub fn deser<T: rkyv::Archive>(val: &T::Archived) -> T
-where
-    T::Archived: rkyv::Deserialize<T, rkyv::api::low::LowDeserializer<Infallible>>,
-{
-    rkyv::api::low::deserialize(val).unwrap_or_else(|err| match err {})
 }
