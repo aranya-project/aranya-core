@@ -3531,12 +3531,27 @@ fn test_unused_values() {
         ),
         (
             r#"
-            function bar() int {
+            // Unused function argument
+            function f(x int) int {
                 return 42
             }
-
-            function foo() int {
-                return bar() // value used, without being assigned to a variable
+            "#,
+            "unused variable(s): x",
+        ),
+        (
+            r#"
+            // Multiple unused function arguments
+            function g(x int, y int, z int) int {
+                return y
+            }
+            "#,
+            "unused variable(s): x, z",
+        ),
+        (
+            r#"
+            // Used function argument should not error
+            function h(x int) int {
+                return x
             }
             "#,
             "", // Should not produce an error
