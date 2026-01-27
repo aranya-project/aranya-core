@@ -3556,6 +3556,19 @@ fn test_unused_values() {
             "#,
             "", // Should not produce an error
         ),
+        (
+            r#"
+            // Check inside nested blocks
+            function qux() int {
+                let x = 1
+                if true {
+                    let y = 2 // unused
+                }
+                return x
+            }
+            "#,
+            "unused variable(s): y",
+        ),
     ];
 
     for (i, (text, expected_msg)) in cases.iter().enumerate() {
