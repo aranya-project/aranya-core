@@ -1028,7 +1028,6 @@ impl<'a> CompileState<'a> {
             Label::new(function_node.identifier.name.clone(), LabelType::Function),
         )?;
         self.exit_statement_context();
-        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         Ok(())
     }
 
@@ -1107,8 +1106,8 @@ impl<'a> CompileState<'a> {
         )?;
         // Actions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
-        self.exit_statement_context();
         self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
+        self.exit_statement_context();
         Ok(())
     }
 
@@ -1184,6 +1183,7 @@ impl<'a> CompileState<'a> {
             &command.policy,
             Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
         )?;
+        // Policy blocks cannot have return statements, so we mark the end.
         self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         // Policy blocks should exit via a finish block, so panic if it doesn't.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1340,6 +1340,7 @@ impl<'a> CompileState<'a> {
             {
                 return Err(self.err_loc(CompileErrorType::NoReturn, span));
             }
+            self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
             // If execution does not hit a return statement, it will panic here.
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
