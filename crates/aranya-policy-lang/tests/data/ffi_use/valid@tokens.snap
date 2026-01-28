@@ -1,0 +1,30 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: tokens
+---
+[
+    (
+        Identifier(
+            "use",
+        ),
+        0..3,
+    ),
+    (
+        Identifier(
+            "crypto",
+        ),
+        4..10,
+    ),
+    (
+        Identifier(
+            "use",
+        ),
+        11..14,
+    ),
+    (
+        Identifier(
+            "perspective",
+        ),
+        15..26,
+    ),
+]

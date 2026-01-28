@@ -1,0 +1,54 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: tokens
+---
+[
+    (
+        Enum,
+        0..4,
+    ),
+    (
+        Identifier(
+            "Color",
+        ),
+        5..10,
+    ),
+    (
+        OpenBrace,
+        11..12,
+    ),
+    (
+        Identifier(
+            "Red",
+        ),
+        17..20,
+    ),
+    (
+        Comma,
+        20..21,
+    ),
+    (
+        Identifier(
+            "Green",
+        ),
+        26..31,
+    ),
+    (
+        Comma,
+        31..32,
+    ),
+    (
+        Identifier(
+            "Blue",
+        ),
+        37..41,
+    ),
+    (
+        Comma,
+        41..42,
+    ),
+    (
+        CloseBrace,
+        43..44,
+    ),
+]

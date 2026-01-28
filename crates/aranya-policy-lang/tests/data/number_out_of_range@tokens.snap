@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+Too big/small to fit into `int`

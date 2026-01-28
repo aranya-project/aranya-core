@@ -1,0 +1,26 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: tokens
+---
+[
+    (
+        Let,
+        0..3,
+    ),
+    (
+        Identifier(
+            "x",
+        ),
+        4..5,
+    ),
+    (
+        Equal,
+        6..7,
+    ),
+    (
+        StringLit(
+            "\"a\0b\"",
+        ),
+        8..13,
+    ),
+]

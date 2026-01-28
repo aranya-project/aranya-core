@@ -1,0 +1,56 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: tokens
+---
+[
+    (
+        Command,
+        0..7,
+    ),
+    (
+        Identifier(
+            "Foo",
+        ),
+        8..11,
+    ),
+    (
+        OpenBrace,
+        12..13,
+    ),
+    (
+        Attributes,
+        18..28,
+    ),
+    (
+        OpenBrace,
+        29..30,
+    ),
+    (
+        Identifier(
+            "priority",
+        ),
+        39..47,
+    ),
+    (
+        Colon,
+        47..48,
+    ),
+    (
+        StringLit(
+            "\"high\"",
+        ),
+        49..55,
+    ),
+    (
+        Comma,
+        55..56,
+    ),
+    (
+        CloseBrace,
+        61..62,
+    ),
+    (
+        CloseBrace,
+        63..64,
+    ),
+]

@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use aranya_policy_ast::Policy;
 use aranya_policy_lang::lang::{
-    self, ParseError, ParseErrorKind, Version, parse_policy_document, parse_policy_str,
+    self, ParseError, ParseErrorKind, Token, Version, parse_policy_document, parse_policy_str,
 };
+use logos::Logos;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -83,19 +84,49 @@ fn test_markdown(#[files("tests/data/**/*.md")] src: PathBuf) {
     autotest(&src, parse_policy_document);
 }
 
+// Produces snapshots for the lexer and parser.
 fn autotest(src: &Path, parse: impl Fn(&str) -> Result<Policy, ParseError>) {
     let base = src.parent().expect("can't get parent");
+    let is_markdown = src.extension().is_some_and(|ext| ext == "md");
     let name = src
         .file_stem()
         .expect("can't get filename stem")
         .to_str()
         .expect("filename not utf8");
     let text = std::fs::read_to_string(src).expect("could not read source file");
-    let res = parse(&text);
-    insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-        match res {
-            Ok(ast) => insta::assert_debug_snapshot!(name, ast),
-            Err(err) => insta::assert_snapshot!(name, err),
+
+    // lexer snapshot
+    let lexer_succeeded = if !is_markdown {
+        let res: Result<Vec<_>, _> = Token::lexer(&text)
+            .spanned()
+            .map(|(res, span)| res.map(|token| (token, span)))
+            .collect();
+
+        let succeeded = res.is_ok();
+        insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base, snapshot_suffix => "tokens" }, {
+            match res {
+                Ok(tokens) => insta::assert_debug_snapshot!(name, tokens),
+                Err(err) => insta::assert_snapshot!(name, err),
+            }
+        });
+
+        succeeded
+    } else {
+        true
+    };
+
+    // parser snapshot
+    {
+        let res = parse(&text);
+        // check for regressions while migrating to custom lexer
+        if res.is_ok() {
+            assert!(lexer_succeeded)
         }
-    });
+        insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
+            match res {
+                Ok(ast) => insta::assert_debug_snapshot!(name, ast),
+                Err(err) => insta::assert_snapshot!(name, err),
+            }
+        });
+    }
 }

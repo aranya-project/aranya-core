@@ -1,0 +1,36 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: tokens
+---
+[
+    (
+        Fact,
+        0..4,
+    ),
+    (
+        Identifier(
+            "int",
+        ),
+        5..8,
+    ),
+    (
+        OpenBracket,
+        8..9,
+    ),
+    (
+        CloseBracket,
+        9..10,
+    ),
+    (
+        Arrow,
+        10..12,
+    ),
+    (
+        OpenBrace,
+        12..13,
+    ),
+    (
+        CloseBrace,
+        13..14,
+    ),
+]

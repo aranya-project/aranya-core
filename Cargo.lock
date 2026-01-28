@@ -465,6 +465,9 @@ dependencies = [
  "buggy",
  "clap",
  "insta",
+ "lalrpop",
+ "lalrpop-util",
+ "logos",
  "markdown",
  "pest",
  "pest_derive",
@@ -596,6 +599,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ascii-canvas"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef1e3e699d84ab1b0911a1010c5c106aa34ae89aeac103be5ce0c3859db1e891"
+dependencies = [
+ "term",
+]
+
+[[package]]
 name = "atomic-polyfill"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -674,6 +686,12 @@ name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
+
+[[package]]
+name = "beef"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
 name = "bimap"
@@ -1366,6 +1384,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
+name = "ena"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d248bdd43ce613d87415282f69b9bb99d947d290b10962dd6c56233312c2ad5"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1408,6 +1435,12 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "fnv"
@@ -1808,6 +1841,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1839,6 +1881,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "lalrpop"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba4ebbd48ce411c1d10fb35185f5a51a7bfa3d8b24b4e330d30c9e3a34129501"
+dependencies = [
+ "ascii-canvas",
+ "bit-set",
+ "ena",
+ "itertools 0.14.0",
+ "lalrpop-util",
+ "petgraph",
+ "pico-args",
+ "regex",
+ "regex-syntax",
+ "sha3",
+ "string_cache",
+ "term",
+ "unicode-xid",
+ "walkdir",
+]
+
+[[package]]
+name = "lalrpop-util"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5baa5e9ff84f1aefd264e6869907646538a52147a755d494517a8007fb48733"
+dependencies = [
+ "regex-automata",
+ "rustversion",
 ]
 
 [[package]]
@@ -1906,6 +1980,40 @@ name = "log"
 version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+
+[[package]]
+name = "logos"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a790d11254054e5dc83902dba85d253ff06ceb0cfafb12be8773435cb9dfb4f4"
+dependencies = [
+ "logos-derive",
+]
+
+[[package]]
+name = "logos-codegen"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f60337c43a38313b58871f8d5d76872b8e17aa9d51fad494b5e76092c0ce05f5"
+dependencies = [
+ "beef",
+ "fnv",
+ "proc-macro2",
+ "quote",
+ "regex-automata",
+ "regex-syntax",
+ "rustc_version",
+ "syn",
+]
+
+[[package]]
+name = "logos-derive"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d151b2ae667f69e10b8738f5cac0c746faa22b2e15ea7e83b55476afec3767dc"
+dependencies = [
+ "logos-codegen",
+]
 
 [[package]]
 name = "macro-string"
@@ -2014,6 +2122,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "new_debug_unreachable"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nom"
@@ -2205,6 +2319,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "petgraph"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
+dependencies = [
+ "siphasher",
+]
+
+[[package]]
+name = "pico-args"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2293,6 +2432,12 @@ checksum = "77957b295656769bb8ad2b6a6b09d897d94f05c41b069aede1fcdaa675eaea04"
 dependencies = [
  "zerocopy 0.7.35",
 ]
+
+[[package]]
+name = "precomputed-hash"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "prettyplease"
@@ -3008,6 +3153,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha3"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
+dependencies = [
+ "digest",
+ "keccak",
+]
+
+[[package]]
 name = "sha3-utils"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3190,6 +3345,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
+name = "string_cache"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf776ba3fa74f83bf4b63c3dcbbf82173db2632ed8452cb2d891d33f459de70f"
+dependencies = [
+ "new_debug_unreachable",
+ "parking_lot",
+ "phf_shared",
+ "precomputed-hash",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3266,6 +3433,15 @@ dependencies = [
  "fastrand",
  "once_cell",
  "rustix",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "term"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8c27177b12a6399ffc08b98f76f7c9a1f4fe9fc967c784c5a071fa8d93cf7e1"
+dependencies = [
  "windows-sys 0.59.0",
 ]
 
