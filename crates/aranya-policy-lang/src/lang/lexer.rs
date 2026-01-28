@@ -185,6 +185,10 @@ pub enum Token {
     Effect,
     #[token("command")]
     Command,
+    #[token("?")]
+    BindMarker,
+    #[token("_")]
+    UnderScore,
 }
 
 fn lex_num(lex: &mut Lexer<'_, Token>) -> Result<i64, LexicalError> {

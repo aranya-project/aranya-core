@@ -1,5 +1,16 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-expression: err
+expression: tokens
 ---
-Invalid Token
+[
+    (
+        Identifier(
+            "use",
+        ),
+        0..3,
+    ),
+    (
+        UnderScore,
+        4..5,
+    ),
+]
