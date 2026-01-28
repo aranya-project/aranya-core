@@ -46,7 +46,7 @@ pub fn validate(module: &Module) -> bool {
                     ..
                 } in failures
                 {
-                    print!("Trace `{}` policy: {}", l.name, message);
+                    print!("`{}`: {}", l.name, message);
                     if let Some(codemap) = &m.codemap {
                         match codemap.span_from_instruction(responsible_instruction) {
                             Ok(span) => {

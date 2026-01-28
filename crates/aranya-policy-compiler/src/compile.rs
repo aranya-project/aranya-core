@@ -1046,6 +1046,7 @@ impl<'a> CompileState<'a> {
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.exit_statement_context();
         Ok(())
     }
@@ -1105,6 +1106,7 @@ impl<'a> CompileState<'a> {
         )?;
         // Actions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         self.exit_statement_context();
         Ok(())
     }
@@ -1181,6 +1183,8 @@ impl<'a> CompileState<'a> {
             &command.policy,
             Label::new(command.identifier.name.clone(), LabelType::CommandPolicy),
         )?;
+        // Policy blocks cannot have return statements, so we mark the end.
+        self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         // Policy blocks should exit via a finish block, so panic if it doesn't.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
         self.exit_statement_context();
@@ -1203,7 +1207,9 @@ impl<'a> CompileState<'a> {
             // TODO(#544): Handle absent/empty recall properly.
             // Return for now so that absent/empty recall blocks don't panic.
             self.append_instruction(Instruction::Return);
+            self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
         } else {
+            self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
             // Recall blocks should exit via a finish block, so panic if it doesn't.
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
@@ -1334,6 +1340,7 @@ impl<'a> CompileState<'a> {
             {
                 return Err(self.err_loc(CompileErrorType::NoReturn, span));
             }
+            self.append_instruction(Instruction::Meta(Meta::FunctionEnd));
             // If execution does not hit a return statement, it will panic here.
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
