@@ -34,9 +34,7 @@ expression: tokens
         23..24,
     ),
     (
-        Identifier(
-            "function",
-        ),
+        Function,
         26..34,
     ),
     (

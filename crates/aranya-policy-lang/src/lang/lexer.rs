@@ -149,6 +149,8 @@ pub enum Token {
     #[token("false", |_| false)]
     #[token("true", |_| true)]
     Bool(bool),
+    #[token("function")]
+    Function,
     #[token("action")]
     Action,
     #[token("publish")]

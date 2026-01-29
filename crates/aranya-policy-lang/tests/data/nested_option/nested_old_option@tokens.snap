@@ -22,9 +22,7 @@ expression: tokens
         12..13,
     ),
     (
-        Identifier(
-            "function",
-        ),
+        Function,
         15..23,
     ),
     (

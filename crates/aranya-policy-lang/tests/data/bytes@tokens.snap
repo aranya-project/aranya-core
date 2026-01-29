@@ -4,9 +4,7 @@ expression: tokens
 ---
 [
     (
-        Identifier(
-            "function",
-        ),
+        Function,
         0..8,
     ),
     (
