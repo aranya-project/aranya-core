@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     FunctionDefinition, Ident, Identifier, InternalFunction, LanguageContext, MatchExpression,
-    MatchPattern, MatchStatement, NamedStruct, Span, Spanned as _, Statement, StmtKind, TypeKind,
-    VType, ident, thir,
+    MatchPattern, MatchStatement, NamedStruct, ResultPattern, ResultTypeKind, Span, Spanned as _,
+    Statement, StmtKind, TypeKind, VType, ident, thir,
 };
 use buggy::{Bug, BugExt as _, bug};
 use tracing::warn;
@@ -912,6 +912,40 @@ impl CompileState<'_> {
                 LanguageContext::Statement(_) => bug!("expected match expression"),
                 LanguageContext::Expression(m) => m,
             },
+            ExprKind::ResultOk(e) => {
+                let inner = self.lower_expression(e)?;
+                thir::Expression {
+                    kind: thir::ExprKind::ResultOk(Box::new(inner.clone())),
+                    vtype: VType {
+                        kind: TypeKind::Result(Box::new(ResultTypeKind {
+                            ok: inner.vtype,
+                            err: VType {
+                                kind: TypeKind::Never,
+                                span: Span::empty(),
+                            },
+                        })),
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::ResultErr(e) => {
+                let inner = self.lower_expression(e)?;
+                thir::Expression {
+                    kind: thir::ExprKind::ResultErr(Box::new(inner.clone())),
+                    vtype: VType {
+                        kind: TypeKind::Result(Box::new(ResultTypeKind {
+                            ok: VType {
+                                kind: TypeKind::Never,
+                                span: Span::empty(),
+                            },
+                            err: inner.vtype,
+                        })),
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
         })
     }
 
@@ -993,13 +1027,44 @@ impl CompileState<'_> {
 
         // Ensure there are no duplicate arm values.
         // NOTE We don't check for zero arms, because that's enforced by the parser.
+        // Checking for duplicate result patterns is special, because their associated values are
+        // identifiers, which can't be compared, like values can. So we ignore the identifiers, and
+        // just make sure the pattern (Ok/Err) isn't duplicated.
+        let result_ok_marker = Expression {
+            kind: ExprKind::ResultOk(Box::new(Expression {
+                kind: ExprKind::Identifier(Ident {
+                    name: ident!("result_ok_pattern"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            })),
+            span: Span::empty(),
+        };
+        let result_err_marker = Expression {
+            kind: ExprKind::ResultErr(Box::new(Expression {
+                kind: ExprKind::Identifier(Ident {
+                    name: ident!("result_err_pattern"),
+                    span: Span::empty(),
+                }),
+                span: Span::empty(),
+            })),
+            span: Span::empty(),
+        };
+
         let all_values = patterns
             .iter()
             .flat_map(|pattern| match pattern {
                 MatchPattern::Values(values) => values.as_slice(),
                 MatchPattern::Default(_) => &[],
+                MatchPattern::ResultPattern(ResultPattern::Ok(_)) => {
+                    std::slice::from_ref(&result_ok_marker)
+                }
+                MatchPattern::ResultPattern(ResultPattern::Err(_)) => {
+                    std::slice::from_ref(&result_err_marker)
+                }
             })
             .collect::<Vec<&Expression>>();
+
         // Check for duplicates by comparing expression kinds, not including spans
         for (i, v1) in all_values.iter().enumerate() {
             for v2 in &all_values[..i] {
@@ -1065,6 +1130,19 @@ impl CompileState<'_> {
                     }
                     thir::MatchPattern::Default(*span)
                 }
+                MatchPattern::ResultPattern(result_pattern) => {
+                    // Verify that the scrutinee is a Result type
+                    if !matches!(scrutinee_t.kind, TypeKind::Result { .. }) {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Result pattern requires scrutinee to be a Result type".to_string(),
+                        )));
+                    }
+                    let thir_pattern = match result_pattern {
+                        ResultPattern::Ok(ident) => thir::ResultPattern::Ok(ident.clone()),
+                        ResultPattern::Err(ident) => thir::ResultPattern::Err(ident.clone()),
+                    };
+                    thir::MatchPattern::ResultPattern(thir_pattern)
+                }
             };
             patterns_out.push(pattern);
         }
@@ -1087,9 +1165,41 @@ impl CompileState<'_> {
             LanguageContext::Statement(s) => {
                 let mut arms = Vec::new();
                 for arm in &s.arms {
-                    let stmts = self.lower_statements(&arm.statements, Scope::Layered)?;
+                    let pattern = patterns.next().assume("same number of patterns")?;
+
+                    // Enter a scope for each match arm (for variable isolation)
+                    self.identifier_types.enter_block();
+
+                    // For Result patterns, add the identifier to the scope for type-checking
+                    if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
+                        let (ident, inner_type) = match result_pattern {
+                            thir::ResultPattern::Ok(ident) => {
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    (ident, result_type.ok.clone())
+                                } else {
+                                    bug!("Ok pattern without Result type");
+                                }
+                            }
+                            thir::ResultPattern::Err(ident) => {
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    (ident, result_type.err.clone())
+                                } else {
+                                    bug!("Err pattern without Result type");
+                                }
+                            }
+                        };
+                        self.identifier_types
+                            .add(ident.name.clone(), inner_type)
+                            .map_err(|e| self.err(e))?;
+                    }
+
+                    let stmts = self.lower_statements(&arm.statements, Scope::Same)?;
+
+                    // Exit the scope for this arm
+                    self.identifier_types.exit_block();
+
                     arms.push(thir::MatchArm {
-                        pattern: patterns.next().assume("same number of patterns")?,
+                        pattern,
                         statements: stmts,
                     });
                 }
@@ -1107,19 +1217,47 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => {
                 let mut arms = Vec::new();
                 for (i, arm) in e.arms.iter().enumerate() {
+                    let pattern = patterns.next().assume("same number of patterns")?;
+
+                    // Enter a scope for each match arm (for variable isolation)
+                    self.identifier_types.enter_block();
+
+                    // For Result patterns, add the identifier to the scope for type-checking
+                    if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
+                        let (ident, inner_type) = match result_pattern {
+                            thir::ResultPattern::Ok(ident) => {
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    (ident, result_type.ok.clone())
+                                } else {
+                                    bug!("Ok pattern without Result type");
+                                }
+                            }
+                            thir::ResultPattern::Err(ident) => {
+                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
+                                    (ident, result_type.err.clone())
+                                } else {
+                                    bug!("Err pattern without Result type");
+                                }
+                            }
+                        };
+                        self.identifier_types
+                            .add(ident.name.clone(), inner_type)
+                            .map_err(|e| self.err(e))?;
+                    }
+
                     let e = self.lower_expression(&arm.expression)?;
                     let etype = e.vtype.clone();
+
+                    // Exit the scope for this arm
+                    self.identifier_types.exit_block();
+
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {
                             expr_type = Some(
                                 types::unify_pair(t, etype)
                                     .map_err(|err| {
-                                        #[allow(
-                                            clippy::arithmetic_side_effects,
-                                            reason = "can't have usize::MAX arms"
-                                        )]
-                                        let n = i + 1;
+                                        let n = i.saturating_add(1);
                                         CompileErrorType::InvalidType(format!(
                                             "match arm expression {n} has type {}, expected {}",
                                             err.right, err.left
@@ -1130,7 +1268,7 @@ impl CompileState<'_> {
                         }
                     }
                     arms.push(thir::MatchExpressionArm {
-                        pattern: patterns.next().assume("same number of patterns")?,
+                        pattern,
                         expression: e,
                         span: arm.span,
                     });
@@ -1180,6 +1318,13 @@ impl CompileState<'_> {
                     self.identifier_types
                         .add(s.identifier.name.clone(), et.vtype.clone())
                         .map_err(|e| self.err(e))?;
+                    // Check for Never type after adding to identifier types
+                    // This ensures duplicate name errors are caught first (during add())
+                    if matches!(et.vtype.kind, TypeKind::Never) {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Cannot assign a Never value.".to_string(),
+                        )));
+                    }
                     thir::StmtKind::Let(thir::LetStatement {
                         identifier: s.identifier.clone(),
                         expression: et,

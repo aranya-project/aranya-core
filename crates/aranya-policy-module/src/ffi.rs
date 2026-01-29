@@ -2,7 +2,7 @@
 extern crate alloc;
 use alloc::boxed::Box;
 
-use aranya_policy_ast::{Ident, Identifier, Span, TypeKind, VType};
+use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, TypeKind, VType};
 
 /// The type of a value
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -23,6 +23,8 @@ pub enum Type<'a> {
     Enum(Identifier),
     /// An optional type of some other type.
     Optional(&'a Type<'a>),
+    /// Result
+    Result(&'a Type<'a>, &'a Type<'a>),
 }
 
 impl Type<'_> {
@@ -37,6 +39,7 @@ impl Type<'_> {
             (Struct(lhs), Struct(rhs)) => lhs.const_eq(rhs),
             (Enum(lhs), Enum(rhs)) => lhs.const_eq(rhs),
             (Optional(lhs), Optional(rhs)) => lhs.const_eq(rhs),
+            (Result(lhs1, lhs2), Result(rhs1, rhs2)) => lhs1.const_eq(rhs1) && lhs2.const_eq(rhs2),
             _ => false,
         }
     }
@@ -59,6 +62,10 @@ impl From<&Type<'_>> for VType {
                 span: Span::default(),
             }),
             Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
+            Type::Result(ok, err) => TypeKind::Result(Box::new(ResultTypeKind {
+                ok: (*ok).into(),
+                err: (*err).into(),
+            })),
         };
         Self {
             kind,
@@ -174,6 +181,15 @@ pub struct Enum<'a> {
 ///     vtype: Type::Optional(const { &Type::Struct(ident!("bar")) }),
 /// };
 /// assert_eq!(got, want);
+///
+/// let ok = &Type::String;
+/// let err = &Type::Int;
+/// let got = arg!("result", Result(&ok, &err));
+/// let want = Arg {
+///     name: ident!("result"),
+///     vtype: Type::Result(const { &Type::String }, const { &Type::Int }),
+/// };
+/// assert_eq!(got, want);
 /// ```
 #[macro_export]
 macro_rules! arg {
@@ -203,6 +219,9 @@ macro_rules! arg {
     }};
     ($name:literal, Optional($inner:expr)) => {{
         $crate::__arg!($name, Optional($inner))
+    }};
+    ($name:literal, Result($ok:expr, $err:expr)) => {{
+        $crate::__arg!($name, Result($ok, $err))
     }};
     ($name:literal, $type:ident) => {{
         ::core::compile_error!(::core::concat!(
@@ -239,6 +258,12 @@ macro_rules! __arg {
             vtype: $crate::__type!(Optional($inner)),
         }
     }};
+    ($name:literal, Result($ok:expr, $err:expr)) => {{
+        $crate::ffi::Arg {
+            name: $crate::ast::ident!($name),
+            vtype: $crate::__type!(Result($ok, $err)),
+        }
+    }};
 }
 
 #[doc(hidden)]
@@ -255,6 +280,9 @@ macro_rules! __type {
     };
     (@raw Optional($inner:expr)) => {
         $crate::ffi::Type::Optional($inner)
+    };
+    (@raw Result($ok:expr, $err:expr)) => {
+        $crate::ffi::Type::Result($ok, $err)
     };
 
     (String) => {{ $crate::__type!(@raw String) }};
@@ -273,6 +301,9 @@ macro_rules! __type {
     }};
     (Optional($inner:expr)) => {{
         $crate::__type!(@raw Optional($inner))
+    }};
+    (Result($ok:expr, $err:expr)) => {{
+        $crate::__type!(@raw Result($ok, $err))
     }};
     ($type:ident) => {{
         ::core::compile_error!(::core::concat!(
