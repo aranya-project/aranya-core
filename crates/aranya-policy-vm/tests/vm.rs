@@ -2695,28 +2695,3 @@ fn test_result() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-// #[test]
-// fn test_nested_result() -> anyhow::Result<()> {
-//     let text = r#"
-//         enum Err { Fail }
-//         enum Err2 { Fail2 }
-//         function foo() result result int, enum Err, enum Err2 {
-//             return Ok(Ok(42))
-//         }
-//         "#;
-//     let policy = parse_policy_str(text, Version::V2)?;
-//     let module = Compiler::new(&policy).compile()?;
-//     let machine = Machine::from_module(module)?;
-//     let io = RefCell::new(TestIO::new());
-//     let ctx = dummy_ctx_action(ident!("foo"));
-//     let mut rs = machine.create_run_state(&io, ctx);
-//     rs.call_action(ident!("foo"), iter::empty::<Value>())?
-//         .success();
-//     let result = rs.consume_return()?;
-//     assert_eq!(
-//         result,
-//         Value::Ok(Box::new(Value::Ok(Box::new(Value::Int(42)))))
-//     );
-//     Ok(())
-// }

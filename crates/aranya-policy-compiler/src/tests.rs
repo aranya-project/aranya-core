@@ -3453,3 +3453,46 @@ fn test_result_match() {
         assert_eq!(err_type, expected);
     }
 }
+
+#[test]
+fn test_nested_result() {
+    let texts = vec![
+        r#"
+        enum Err { Fail }
+        function foo(n int) result[result[int, enum Err], enum Err] {
+            if n > 0 {
+                return Ok(Ok(42))
+            } else {
+                return Err(Err::Fail)
+            }
+        }
+        "#,
+        r#"
+        enum Err { Fail }
+        function foo(n int) result[option[int], enum Err] {
+            if n > 0 {
+                return Ok(Some(42))
+            } else if n == 0 {
+                return Ok(None)
+            } else {
+                return Err(Err::Fail)
+            }
+        }
+        "#,
+        r#"
+        enum Err { Fail }
+        function bar(n int) option[result[int, enum Err]] {
+            if n > 0 {
+                return Some(Ok(42))
+            } else if n == 0 {
+                return Some(Err(Err::Fail))
+            } else {
+                return None
+            }
+        }
+        "#,
+    ];
+    for text in texts {
+        compile_pass(text);
+    }
+}
