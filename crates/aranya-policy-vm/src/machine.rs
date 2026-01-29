@@ -989,7 +989,7 @@ where
                             );
                         }
                     },
-                    Value::Result(Ok(inner)) | Value::Result(Err(inner)) => *inner,
+                    Value::Result(Ok(inner) | Err(inner)) => *inner,
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
                             "Result or Option",
