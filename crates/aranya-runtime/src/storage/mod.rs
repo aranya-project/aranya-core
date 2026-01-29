@@ -328,17 +328,11 @@ pub trait Segment {
     where
         Self: 'a;
 
-    /// Returns the head of the segment.
-    fn head(&self) -> Result<Self::Command<'_>, StorageError>;
+    /// Returns the segment's index.
+    fn index(&self) -> SegmentIndex;
 
-    /// Returns the first Command in the segment.
-    fn first(&self) -> Self::Command<'_>;
-
-    /// Returns the location of the head of the segment.
-    fn head_location(&self) -> Location;
-
-    /// Returns the location of the first command.
-    fn first_location(&self) -> Location;
+    /// Returns the ID of the head of the segment.
+    fn head_id(&self) -> CmdId;
 
     /// Returns the id for the policy used for this segment.
     fn policy(&self) -> PolicyId;
@@ -348,12 +342,6 @@ pub trait Segment {
 
     /// Returns the command at the given location.
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
-
-    /// Returns the location of the command with the given address from within this segment.
-    fn get_by_address(&self, address: Address) -> Option<Location>;
-
-    /// Returns an iterator of commands starting at the given location.
-    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>>;
 
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
@@ -377,6 +365,48 @@ pub trait Segment {
     /// For merge commands the last location in the skip list is the least
     /// common ancestor.
     fn skip_list(&self) -> &[Location];
+
+    /// Returns an iterator of commands starting at the given location.
+    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
+        let segment = location.segment;
+        core::iter::successors(Some(location.max_cut), |max_cut| max_cut.checked_add(1))
+            .map_while(|max_cut| self.get_command(Location { segment, max_cut }))
+            .collect()
+    }
+
+    /// Returns the location of the command with the given address from within this segment.
+    fn get_by_address(&self, address: Address) -> Option<Location> {
+        let loc = Location::new(self.index(), address.max_cut);
+        let cmd = self.get_command(loc)?;
+        if cmd.id() != address.id {
+            return None;
+        }
+        Some(loc)
+    }
+
+    /// Returns the location of the first command.
+    fn first_location(&self) -> Location {
+        Location {
+            segment: self.index(),
+            max_cut: self.shortest_max_cut(),
+        }
+    }
+
+    /// Returns the location of the head of the segment.
+    fn head_location(&self) -> Result<Location, StorageError> {
+        Ok(Location {
+            segment: self.index(),
+            max_cut: self.longest_max_cut()?,
+        })
+    }
+
+    /// Returns the address of the head of the segment.
+    fn head_address(&self) -> Result<Address, StorageError> {
+        Ok(Address {
+            id: self.head_id(),
+            max_cut: self.longest_max_cut()?,
+        })
+    }
 }
 
 /// An index of facts in storage.

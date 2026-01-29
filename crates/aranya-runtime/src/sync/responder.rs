@@ -364,7 +364,7 @@ impl SyncResponder {
                         max_cut: next_max_cut,
                     };
 
-                    let head_loc = segment.head_location();
+                    let head_loc = segment.head_location()?;
                     if next_location.max_cut > head_loc.max_cut {
                         continue 'heads;
                     }

@@ -24,7 +24,7 @@ pub struct Transaction<SP: StorageProvider, PS> {
     /// Head of the current perspective
     phead: Option<CmdId>,
     /// Written but not committed heads
-    heads: BTreeMap<Address, Location>,
+    heads: BTreeMap<CmdId, Location>,
     /// Tag for associated policy store
     policy_store: PhantomData<PS>,
 }
@@ -81,8 +81,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let segment = storage.write(p)?;
-            let head = segment.head()?;
-            self.heads.insert(head.address()?, segment.head_location());
+            self.heads
+                .insert(segment.head_id(), segment.head_location()?);
         }
 
         // Merge heads pairwise until single head left, then commit.
@@ -95,7 +95,17 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     choose_policy(storage, policy_store, left_loc, right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
-                let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
+                let merge_ids = MergeIds::new(
+                    Address {
+                        id: left_id,
+                        max_cut: left_loc.max_cut,
+                    },
+                    Address {
+                        id: right_id,
+                        max_cut: right_loc.max_cut,
+                    },
+                )
+                .assume("merging different ids")?;
                 if left_id > right_id {
                     mem::swap(&mut left_loc, &mut right_loc);
                 }
@@ -114,8 +124,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 perspective.add_command(&command)?;
 
                 let segment = storage.write(perspective)?;
-                let head = segment.head()?;
-                heads.push_back((head.address()?, segment.head_location()));
+                heads.push_back((segment.head_id(), segment.head_location()?));
             } else {
                 let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
@@ -133,8 +142,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
                         let head_loc = storage.get_head()?;
                         let segment = storage.get_segment(head_loc)?;
-                        let head = segment.head()?;
-                        heads.push_back((head.address()?, segment.head_location()));
+                        heads.push_back((segment.head_id(), segment.head_location()?));
                     }
                     Err(e) => return Err(e.into()),
                 }
@@ -251,8 +259,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
-            let head = seg.head()?;
-            self.heads.insert(head.address()?, seg.head_location());
+            self.heads.insert(seg.head_id(), seg.head_location()?);
         }
 
         let left_loc = self
@@ -278,8 +285,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         perspective.add_command(command)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
-        self.heads.remove(&left);
-        self.heads.remove(&right);
+        self.heads.remove(&left.id);
+        self.heads.remove(&right.id);
 
         self.perspective = Some(perspective);
         self.phead = Some(command.id());
@@ -308,8 +315,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let seg = storage.write(p)?;
-            let head = seg.head()?;
-            self.heads.insert(head.address()?, seg.head_location());
+            self.heads.insert(seg.head_id(), seg.head_location()?);
         }
 
         let loc = self
@@ -322,7 +328,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             .insert(storage.get_linear_perspective(loc)?);
 
         self.phead = Some(parent.id);
-        self.heads.remove(&parent);
+        self.heads.remove(&parent.id);
 
         Ok(p)
     }
@@ -759,11 +765,9 @@ mod test {
                     .unwrap()
                     .write(p)
                     .unwrap();
-                let head = seg.head().unwrap();
-                self.trx.heads.insert(
-                    head.address().expect("address must exist"),
-                    seg.head_location(),
-                );
+                self.trx
+                    .heads
+                    .insert(seg.head_id(), seg.head_location().unwrap());
             }
         }
 

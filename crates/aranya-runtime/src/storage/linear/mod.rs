@@ -408,7 +408,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             .get_command(parent)
             .ok_or(StorageError::CommandOutOfBounds(parent))?;
         let policy = segment.repr.policy;
-        let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location() {
+        let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location()? {
             FactPerspectivePrior::FactIndex {
                 offset: segment.repr.facts,
                 reader: self.writer.readonly(),
@@ -459,7 +459,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
         // If at head of segment, or no facts in segment,
         // we don't need to apply updates.
-        if location == segment.head_location()
+        if location == segment.head_location()?
             || segment
                 .repr
                 .commands
@@ -552,7 +552,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             return Err(StorageError::HeadNotAncestor);
         }
 
-        self.writer.commit(segment.head_location())
+        self.writer.commit(segment.head_location()?)
     }
 
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
@@ -676,61 +676,12 @@ impl<R: Read> Segment for LinearSegment<R> {
     where
         R: 'a;
 
-    fn head(&self) -> Result<Self::Command<'_>, StorageError> {
-        let data = self.repr.commands.last();
-        let parent = if let Some(prev) = usize::checked_sub(self.repr.commands.len(), 2) {
-            Prior::Single(Address {
-                id: self.repr.commands[prev].id,
-                max_cut: self
-                    .repr
-                    .max_cut
-                    .checked_add(prev)
-                    .assume("must not overflow")?,
-            })
-        } else {
-            self.repr.parents
-        };
-        Ok(LinearCommand {
-            id: &data.id,
-            parent,
-            priority: data.priority.clone(),
-            policy: data.policy.as_deref(),
-            data: &data.data,
-            max_cut: self
-                .repr
-                .max_cut
-                .checked_add(
-                    self.repr
-                        .commands
-                        .len()
-                        .checked_sub(1)
-                        .assume("must not overflow")?,
-                )
-                .assume("must not overflow")?,
-        })
+    fn index(&self) -> SegmentIndex {
+        self.repr.offset
     }
 
-    fn first(&self) -> Self::Command<'_> {
-        let data = self.repr.commands.first();
-        LinearCommand {
-            id: &data.id,
-            parent: self.repr.parents,
-            priority: data.priority.clone(),
-            policy: data.policy.as_deref(),
-            data: &data.data,
-            max_cut: self.repr.max_cut,
-        }
-    }
-
-    fn head_location(&self) -> Location {
-        Location::new(
-            self.repr.offset,
-            #[allow(
-                clippy::arithmetic_side_effects,
-                reason = "max cut must be valid and vec1 length >= 1"
-            )]
-            MaxCut(self.repr.max_cut.0 + (self.repr.commands.len() - 1)),
-        )
+    fn head_id(&self) -> CmdId {
+        self.repr.commands.last().id
     }
 
     fn first_location(&self) -> Location {
@@ -771,34 +722,6 @@ impl<R: Read> Segment for LinearSegment<R> {
             data: &data.data,
             max_cut: location.max_cut,
         })
-    }
-
-    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
-        if self.repr.offset != location.segment {
-            // TODO(jdygert): Result?
-            return Vec::new();
-        }
-
-        let start = location.max_cut;
-        let end = self.longest_max_cut().expect("max cut is valid");
-
-        // TODO(jdygert): Optimize?
-        (start.0..=end.0)
-            .map(|max_cut| Location::new(location.segment, MaxCut(max_cut)))
-            .map(|loc| {
-                self.get_command(loc)
-                    .expect("constructed location is valid")
-            })
-            .collect()
-    }
-
-    fn get_by_address(&self, address: Address) -> Option<Location> {
-        let idx = self.repr.cmd_index(address.max_cut).ok()?;
-        let cmd = self.repr.commands.get(idx)?;
-        if cmd.id != address.id {
-            return None;
-        }
-        Some(Location::new(self.repr.offset, address.max_cut))
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
