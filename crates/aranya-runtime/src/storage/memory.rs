@@ -789,7 +789,7 @@ pub mod graphviz {
 
     fn loc(location: impl Into<Location>) -> String {
         let location = location.into();
-        format!("\"{}:{}\"", location.segment, location.command)
+        format!("\"{}:{}\"", location.segment, location.max_cut)
     }
 
     fn get_seq(p: &MemFactIndex) -> &str {
@@ -832,7 +832,7 @@ pub mod graphviz {
             // Draw commands and edges between commands within the segment.
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
-                    let mut node = cluster.node_named(loc((segment.index, i)));
+                    let mut node = cluster.node_named(loc((segment.index, cmd.command.max_cut)));
                     node.set_label(&short_b58(cmd.command.id));
                     match cmd.command.parent {
                         Prior::None => {
@@ -845,8 +845,12 @@ pub mod graphviz {
                     }
                 }
                 if i > 0 {
-                    let previous = i.checked_sub(1).expect("i must be > 0");
-                    cluster.edge(loc((segment.index, i)), loc((segment.index, previous)));
+                    let previous =
+                        MaxCut(cmd.command.max_cut.0.checked_sub(1).expect("i must be > 0"));
+                    cluster.edge(
+                        loc((segment.index, cmd.command.max_cut)),
+                        loc((segment.index, previous)),
+                    );
                 }
             }
 
@@ -865,7 +869,7 @@ pub mod graphviz {
                 .set("color", "black", false)
                 .set("style", "solid", false);
             cluster
-                .edge(loc(segment.head_location()?), &curr)
+                .edge(loc(segment.head_location().unwrap()), &curr)
                 .attributes()
                 .set("color", "red", false);
 
