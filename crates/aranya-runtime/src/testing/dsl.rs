@@ -734,9 +734,7 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                let seg = storage.get_segment(head)?;
-                let command = seg.get_command(head).assume("command must exist")?;
-                assert_eq!(max_cut, command.max_cut()?);
+                assert_eq!(max_cut, head.max_cut);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             TestRule::VerifyGraphIds { client, ref ids } => {

@@ -82,7 +82,7 @@ struct SegmentRepr {
     facts: usize,
     commands: Vec1<CommandData>,
     max_cut: MaxCut,
-    skip_list: Vec<(Location, MaxCut)>,
+    skip_list: Vec<Location>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -138,7 +138,7 @@ pub struct LinearPerspective<R> {
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
     max_cut: MaxCut,
-    last_common_ancestor: Option<(Location, MaxCut)>,
+    last_common_ancestor: Option<Location>,
 }
 
 impl<R> LinearPerspective<R> {
@@ -148,7 +148,7 @@ impl<R> LinearPerspective<R> {
         policy: PolicyId,
         prior_facts: FactPerspectivePrior<R>,
         max_cut: MaxCut,
-        last_common_ancestor: Option<(Location, MaxCut)>,
+        last_common_ancestor: Option<Location>,
     ) -> Self {
         Self {
             prior,
@@ -280,21 +280,21 @@ impl<W: Write> LinearStorage<W> {
         &self,
         segment: <Self as Storage>::Segment,
         max_cut: MaxCut,
-    ) -> Result<Option<(Location, MaxCut)>, StorageError> {
+    ) -> Result<Option<Location>, StorageError> {
         let mut head = segment;
         let mut current = None;
         'outer: loop {
             if max_cut > head.longest_max_cut()? {
                 return Ok(current);
             }
-            current = Some((head.first_location(), head.shortest_max_cut()));
+            current = Some(head.first_location());
             if max_cut >= head.shortest_max_cut() {
                 return Ok(current);
             }
             // Assumes skip list is sorted in ascending order.
             // We always want to skip as close to the root as possible.
-            for (skip, skip_max_cut) in head.skip_list() {
-                if skip_max_cut <= &max_cut {
+            for skip in head.skip_list() {
+                if skip.max_cut <= max_cut {
                     head = self.get_segment(*skip)?;
                     continue 'outer;
                 }
@@ -493,7 +493,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         &self,
         left: Location,
         right: Location,
-        last_common_ancestor: (Location, MaxCut),
+        last_common_ancestor: Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Self::Perspective, StorageError> {
@@ -565,37 +565,32 @@ impl<F: Write> Storage for LinearStorage<F> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let get_skips =
-            |l: Location, count: usize| -> Result<Vec<(Location, MaxCut)>, StorageError> {
-                let mut rng = &mut Rng as &mut dyn Csprng;
-                let mut skips = vec![];
-                for _ in 0..count {
-                    let segment = self.get_segment(l)?;
-                    let l_max_cut = segment
-                        .get_command(l)
-                        .assume("location must exist")?
-                        .max_cut;
-                    if l_max_cut > MaxCut(0) {
-                        let max_cut = MaxCut(rng.gen_range(0..l_max_cut.0));
-                        if let Some(skip) = self.get_skip(segment, max_cut)? {
-                            if !skips.contains(&skip) {
-                                skips.push(skip);
-                            }
-                        } else {
-                            break;
+        let get_skips = |l: Location, count: usize| -> Result<Vec<Location>, StorageError> {
+            let mut rng = &mut Rng as &mut dyn Csprng;
+            let mut skips = vec![];
+            for _ in 0..count {
+                let segment = self.get_segment(l)?;
+                if l.max_cut > MaxCut(0) {
+                    let max_cut = MaxCut(rng.gen_range(0..l.max_cut.0));
+                    if let Some(skip) = self.get_skip(segment, max_cut)? {
+                        if !skips.contains(&skip) {
+                            skips.push(skip);
                         }
+                    } else {
+                        break;
                     }
                 }
-                Ok(skips)
-            };
+            }
+            Ok(skips)
+        };
 
         let skip_list = match perspective.prior {
             Prior::None => vec![],
             Prior::Merge(_, _) => {
-                let (lca, max_cut) = perspective.last_common_ancestor.assume("lca must exist")?;
+                let lca = perspective.last_common_ancestor.assume("lca must exist")?;
                 let mut skips = get_skips(lca, 2)?;
-                if !skips.contains(&(lca, max_cut)) {
-                    skips.push((lca, max_cut));
+                if !skips.contains(&lca) {
+                    skips.push(lca);
                 }
                 skips.sort();
                 skips
@@ -817,7 +812,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         })
     }
 
-    fn skip_list(&self) -> &[(Location, MaxCut)] {
+    fn skip_list(&self) -> &[Location] {
         &self.repr.skip_list
     }
 

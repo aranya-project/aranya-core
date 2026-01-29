@@ -5,7 +5,7 @@ use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MaxCut, MergeIds,
+    Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
     Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
     Segment as _, Sink, Storage, StorageError, StorageProvider, policy::CommandPlacement,
 };
@@ -383,7 +383,7 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
-) -> Result<(S::FactIndex, (Location, MaxCut)), ClientError> {
+) -> Result<(S::FactIndex, Location), ClientError> {
     let order = braiding::braid(storage, left, right)?;
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
@@ -457,7 +457,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MergeIds, Perspective, Policy, Priority, SegmentIndex,
+        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, SegmentIndex,
         memory::MemStorageProvider,
         policy::{ActionPlacement, CommandPlacement},
         testing::{hash_for_testing_only, short_b58},

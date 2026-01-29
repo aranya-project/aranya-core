@@ -247,7 +247,7 @@ impl Storage for MemStorage {
         &self,
         left: Location,
         right: Location,
-        _last_common_ancestor: (Location, MaxCut),
+        _last_common_ancestor: Location,
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Self::Perspective, StorageError> {
@@ -554,7 +554,7 @@ impl Segment for MemSegment {
         self.commands.first().command.max_cut
     }
 
-    fn skip_list(&self) -> &[(Location, MaxCut)] {
+    fn skip_list(&self) -> &[Location] {
         &[]
     }
 

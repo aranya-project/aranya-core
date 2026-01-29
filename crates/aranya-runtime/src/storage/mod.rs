@@ -214,8 +214,8 @@ pub trait Storage {
             }
             // Assumes skip list is sorted in ascending order.
             // We always want to skip as close to the root as possible.
-            for (skip, max_cut) in head.skip_list() {
-                if max_cut >= &address.max_cut {
+            for skip in head.skip_list() {
+                if skip.max_cut >= address.max_cut {
                     queue.push(*skip);
                     continue 'outer;
                 }
@@ -249,7 +249,7 @@ pub trait Storage {
         &self,
         left: Location,
         right: Location,
-        last_common_ancestor: (Location, MaxCut),
+        last_common_ancestor: Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Self::Perspective, StorageError>;
@@ -284,13 +284,13 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
+        // TODO(jdygert): necessary?
+        // Check if location is valid
+        self.get_segment(search_location)?
+            .get_command(search_location)
+            .assume("location must exist")?;
         let mut queue = Vec::new();
         queue.extend(segment.prior());
-        let segment = self.get_segment(search_location)?;
-        let address = segment
-            .get_command(search_location)
-            .assume("location must exist")?
-            .address()?;
         'outer: while let Some(location) = queue.pop() {
             if location.segment == search_location.segment
                 && location.max_cut >= search_location.max_cut
@@ -298,11 +298,11 @@ pub trait Storage {
                 return Ok(true);
             }
             let segment = self.get_segment(location)?;
-            if address.max_cut > segment.longest_max_cut()? {
+            if search_location.max_cut > segment.longest_max_cut()? {
                 continue;
             }
-            for (skip, max_cut) in segment.skip_list() {
-                if max_cut >= &address.max_cut {
+            for skip in segment.skip_list() {
+                if skip.max_cut >= search_location.max_cut {
                     queue.push(*skip);
                     continue 'outer;
                 }
@@ -389,7 +389,7 @@ pub trait Segment {
     ///
     /// For merge commands the last location in the skip list is the least
     /// common ancestor.
-    fn skip_list(&self) -> &[(Location, MaxCut)];
+    fn skip_list(&self) -> &[Location];
 }
 
 /// An index of facts in storage.
