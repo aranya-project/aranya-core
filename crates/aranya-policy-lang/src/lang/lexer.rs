@@ -1,22 +1,30 @@
+use std::num::ParseIntError;
+
 use logos::{Lexer, Logos, Span};
 
 pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub enum LexicalError {
-    ParseIntError(Span),
+    ParseIntError(String, Span),
+    InvalidToken(char, Span),
     #[default]
-    InvalidToken,
+    Other,
+}
+
+impl LexicalError {
+    fn from_lexer(lex: &mut Lexer<'_, Token>) -> Self {
+        LexicalError::InvalidToken(lex.slice().chars().next().unwrap(), lex.span())
+    }
 }
 
 impl std::fmt::Display for LexicalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let out = match *self {
-            Self::ParseIntError(_) => "Too big/small to fit into `int`",
-            Self::InvalidToken => "Invalid Token",
-        };
-
-        write!(f, "{out}")
+        match *self {
+            Self::ParseIntError(ref msg, _) => write!(f, "{msg}"),
+            Self::InvalidToken(ch, _) => write!(f, "Invalid Token: {ch}"),
+            Self::Other => f.write_str("Unknown error"),
+        }
     }
 }
 
@@ -29,7 +37,7 @@ impl std::fmt::Display for LexicalError {
 #[logos(subpattern alpha = r"[a-zA-Z]")]
 #[logos(subpattern digit = r"[0-9]")]
 #[logos(subpattern alphanum = r"(?&alpha)|(?&digit)")]
-#[logos(error = LexicalError)]
+#[logos(error(LexicalError, LexicalError::from_lexer))]
 pub enum Token {
     #[regex("(?&alpha)((?&alphanum)|_)*", |lex| lex.slice().to_owned())]
     Identifier(String),
@@ -192,9 +200,10 @@ pub enum Token {
 }
 
 fn lex_num(lex: &mut Lexer<'_, Token>) -> Result<i64, LexicalError> {
-    lex.slice()
-        .parse()
-        .map_err(|_| LexicalError::ParseIntError(lex.span()))
+    lex.slice().parse().map_err(|e: ParseIntError| {
+        let msg = e.to_string().replace("target_type", "`int`");
+        LexicalError::ParseIntError(msg, lex.span())
+    })
 }
 
 // #[cfg(test)]

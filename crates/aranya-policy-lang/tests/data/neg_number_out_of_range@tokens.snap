@@ -2,4 +2,4 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Too big/small to fit into `int`
+number too small to fit in target type
