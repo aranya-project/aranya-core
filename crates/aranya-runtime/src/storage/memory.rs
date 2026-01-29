@@ -6,7 +6,7 @@ use vec1::Vec1;
 
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
     StorageError, StorageProvider,
 };
 
@@ -17,11 +17,11 @@ pub struct MemCommand {
     parent: Prior<Address>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 impl MemCommand {
-    fn from_cmd<C: Command>(command: &C, max_cut: usize) -> Self {
+    fn from_cmd<C: Command>(command: &C, max_cut: MaxCut) -> Self {
         let policy = command.policy().map(Box::from);
 
         Self {
@@ -56,7 +56,7 @@ impl Command for MemCommand {
         &self.data
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
 }
@@ -149,7 +149,7 @@ impl MemStorage {
         policy: PolicyId,
         mut commands: Vec1<CommandData>,
         facts: MemFactIndex,
-        max_cut: usize,
+        max_cut: MaxCut,
     ) -> Result<MemSegment, StorageError> {
         let index = self.segments.len();
 
@@ -246,7 +246,7 @@ impl Storage for MemStorage {
         &self,
         left: Location,
         right: Location,
-        _last_common_ancestor: (Location, usize),
+        _last_common_ancestor: (Location, MaxCut),
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Self::Perspective, StorageError> {
@@ -536,15 +536,15 @@ impl Segment for MemSegment {
             })
     }
 
-    fn longest_max_cut(&self) -> Result<usize, StorageError> {
+    fn longest_max_cut(&self) -> Result<MaxCut, StorageError> {
         Ok(self.commands.last().command.max_cut)
     }
 
-    fn shortest_max_cut(&self) -> usize {
+    fn shortest_max_cut(&self) -> MaxCut {
         self.commands[0].command.max_cut
     }
 
-    fn skip_list(&self) -> &[(Location, usize)] {
+    fn skip_list(&self) -> &[(Location, MaxCut)] {
         &[]
     }
 
@@ -563,7 +563,7 @@ pub struct MemPerspective {
     facts: MemFactPerspective,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 #[derive(Debug)]
@@ -625,7 +625,7 @@ impl MemPerspective {
         parents: Prior<Address>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior,
-        max_cut: usize,
+        max_cut: MaxCut,
     ) -> Self {
         Self {
             prior,
@@ -646,7 +646,7 @@ impl MemPerspective {
             facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
             current_updates: Vec::new(),
-            max_cut: 0,
+            max_cut: MaxCut(0),
         }
     }
 }

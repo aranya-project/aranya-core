@@ -5,7 +5,7 @@ use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
+    Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MaxCut, MergeIds,
     Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
     Segment as _, Sink, Storage, StorageError, StorageProvider, policy::CommandPlacement,
 };
@@ -383,7 +383,7 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
-) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
+) -> Result<(S::FactIndex, (Location, MaxCut)), ClientError> {
     let order = braiding::braid(storage, left, right)?;
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
@@ -476,7 +476,7 @@ mod test {
         prior: Prior<Address>,
         finalize: bool,
         data: Box<str>,
-        max_cut: usize,
+        max_cut: MaxCut,
     }
 
     impl PolicyStore for SeqPolicyStore {
@@ -562,7 +562,7 @@ mod test {
     }
 
     impl SeqCommand {
-        fn new(id: CmdId, prior: Prior<Address>, max_cut: usize) -> Self {
+        fn new(id: CmdId, prior: Prior<Address>, max_cut: MaxCut) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
@@ -573,7 +573,7 @@ mod test {
             }
         }
 
-        fn finalize(id: CmdId, prev: Address, max_cut: usize) -> Self {
+        fn finalize(id: CmdId, prev: Address, max_cut: MaxCut) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
@@ -624,7 +624,7 @@ mod test {
             self.data.as_bytes()
         }
 
-        fn max_cut(&self) -> Result<usize, Bug> {
+        fn max_cut(&self) -> Result<MaxCut, Bug> {
             Ok(self.max_cut)
         }
     }
@@ -642,7 +642,7 @@ mod test {
     struct GraphBuilder<SP: StorageProvider> {
         client: ClientState<SeqPolicyStore, SP>,
         trx: Transaction<SP, SeqPolicyStore>,
-        max_cuts: HashMap<CmdId, usize>,
+        max_cuts: HashMap<CmdId, MaxCut>,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
@@ -654,6 +654,7 @@ mod test {
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {
+                let max_cut = MaxCut(max_cut);
                 let cmd = SeqCommand::new(id, prior, max_cut);
                 trx.add_commands(
                     &[cmd],

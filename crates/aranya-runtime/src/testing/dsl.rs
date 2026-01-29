@@ -67,7 +67,7 @@ use tracing::{debug, error};
 
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage,
+    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -172,7 +172,7 @@ pub enum TestRule {
     MaxCut {
         client: u64,
         graph: u64,
-        max_cut: usize,
+        max_cut: MaxCut,
     },
     VerifyGraphIds {
         client: u64,

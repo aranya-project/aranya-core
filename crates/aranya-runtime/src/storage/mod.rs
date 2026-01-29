@@ -27,6 +27,22 @@ aranya_crypto::custom_id! {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct MaxCut(pub usize);
+
+impl fmt::Display for MaxCut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl MaxCut {
+    pub fn checked_add(self, other: usize) -> Option<Self> {
+        self.0.checked_add(other).map(Self)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
     pub segment: usize,
     pub command: usize,
@@ -218,7 +234,7 @@ pub trait Storage {
         &self,
         left: Location,
         right: Location,
-        last_common_ancestor: (Location, usize),
+        last_common_ancestor: (Location, MaxCut),
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Self::Perspective, StorageError>;
@@ -281,8 +297,6 @@ pub trait Storage {
         Ok(false)
     }
 }
-
-type MaxCut = usize;
 
 /// A segment is a nonempty sequence of commands persisted to storage.
 ///

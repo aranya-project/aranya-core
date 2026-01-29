@@ -36,7 +36,7 @@ use vec1::Vec1;
 
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
     StorageError, StorageProvider,
 };
 
@@ -81,8 +81,8 @@ struct SegmentRepr {
     /// Offset in file to associated fact index.
     facts: usize,
     commands: Vec1<CommandData>,
-    max_cut: usize,
-    skip_list: Vec<(Location, usize)>,
+    max_cut: MaxCut,
+    skip_list: Vec<(Location, MaxCut)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,7 +100,7 @@ pub struct LinearCommand<'a> {
     priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 type Bytes = Box<[u8]>;
@@ -137,8 +137,8 @@ pub struct LinearPerspective<R> {
     facts: LinearFactPerspective<R>,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
-    max_cut: usize,
-    last_common_ancestor: Option<(Location, usize)>,
+    max_cut: MaxCut,
+    last_common_ancestor: Option<(Location, MaxCut)>,
 }
 
 impl<R> LinearPerspective<R> {
@@ -147,8 +147,8 @@ impl<R> LinearPerspective<R> {
         parents: Prior<Address>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior<R>,
-        max_cut: usize,
-        last_common_ancestor: Option<(Location, usize)>,
+        max_cut: MaxCut,
+        last_common_ancestor: Option<(Location, MaxCut)>,
     ) -> Self {
         Self {
             prior,
@@ -220,7 +220,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             Prior::None,
             policy_id,
             FactPerspectivePrior::None,
-            0,
+            MaxCut(0),
             None,
         )
     }
@@ -279,8 +279,8 @@ impl<W: Write> LinearStorage<W> {
     fn get_skip(
         &self,
         segment: <Self as Storage>::Segment,
-        max_cut: usize,
-    ) -> Result<Option<(Location, usize)>, StorageError> {
+        max_cut: MaxCut,
+    ) -> Result<Option<(Location, MaxCut)>, StorageError> {
         let mut head = segment;
         let mut current = None;
         'outer: loop {
@@ -338,7 +338,7 @@ impl<W: Write> LinearStorage<W> {
             policy: init.policy,
             facts,
             commands,
-            max_cut: 0,
+            max_cut: MaxCut(0),
             skip_list: vec![],
         })?;
 
@@ -488,7 +488,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         &self,
         left: Location,
         right: Location,
-        last_common_ancestor: (Location, usize),
+        last_common_ancestor: (Location, MaxCut),
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Self::Perspective, StorageError> {
@@ -561,7 +561,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             .map_err(|_| StorageError::EmptyPerspective)?;
 
         let get_skips =
-            |l: Location, count: usize| -> Result<Vec<(Location, usize)>, StorageError> {
+            |l: Location, count: usize| -> Result<Vec<(Location, MaxCut)>, StorageError> {
                 let mut rng = &mut Rng as &mut dyn Csprng;
                 let mut skips = vec![];
                 for _ in 0..count {
@@ -570,8 +570,8 @@ impl<F: Write> Storage for LinearStorage<F> {
                         .get_command(l)
                         .assume("location must exist")?
                         .max_cut;
-                    if l_max_cut > 0 {
-                        let max_cut = rng.gen_range(0..l_max_cut);
+                    if l_max_cut > MaxCut(0) {
+                        let max_cut = MaxCut(rng.gen_range(0..l_max_cut.0));
                         if let Some(skip) = self.get_skip(segment, max_cut)? {
                             if !skips.contains(&skip) {
                                 skips.push(skip);
@@ -699,9 +699,13 @@ impl<R: Read> Segment for LinearSegment<R> {
             max_cut: self
                 .repr
                 .max_cut
-                .checked_add(self.repr.commands.len())
-                .assume("must not overflow")?
-                .checked_sub(1)
+                .checked_add(
+                    self.repr
+                        .commands
+                        .len()
+                        .checked_sub(1)
+                        .assume("must not overflow")?,
+                )
                 .assume("must not overflow")?,
         })
     }
@@ -790,7 +794,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         if address.max_cut < self.repr.max_cut {
             return None;
         }
-        let idx = address.max_cut.checked_sub(self.repr.max_cut)?;
+        let idx = address.max_cut.0.checked_sub(self.repr.max_cut.0)?;
         let cmd = self.repr.commands.get(idx)?;
         if cmd.id != address.id {
             return None;
@@ -805,21 +809,25 @@ impl<R: Read> Segment for LinearSegment<R> {
         })
     }
 
-    fn skip_list(&self) -> &[(Location, usize)] {
+    fn skip_list(&self) -> &[(Location, MaxCut)] {
         &self.repr.skip_list
     }
 
-    fn shortest_max_cut(&self) -> usize {
+    fn shortest_max_cut(&self) -> MaxCut {
         self.repr.max_cut
     }
 
-    fn longest_max_cut(&self) -> Result<usize, StorageError> {
+    fn longest_max_cut(&self) -> Result<MaxCut, StorageError> {
         Ok(self
             .repr
             .max_cut
-            .checked_add(self.repr.commands.len())
-            .assume("must not overflow")?
-            .checked_sub(1)
+            .checked_add(
+                self.repr
+                    .commands
+                    .len()
+                    .checked_sub(1)
+                    .assume("must not overflow")?,
+            )
             .assume("must not overflow")?)
     }
 }
@@ -1094,9 +1102,12 @@ impl<R: Read> Perspective for LinearPerspective<R> {
                 id: last.id,
                 max_cut: self
                     .max_cut
-                    .checked_add(self.commands.len())
-                    .assume("must not overflow")?
-                    .checked_sub(1)
+                    .checked_add(
+                        self.commands
+                            .len()
+                            .checked_sub(1)
+                            .assume("must not overflow")?,
+                    )
                     .assume("must not overflow")?,
             })
         } else {
@@ -1136,7 +1147,7 @@ impl Command for LinearCommand<'_> {
         self.data
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
 }
