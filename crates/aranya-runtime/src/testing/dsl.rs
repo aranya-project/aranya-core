@@ -1030,7 +1030,7 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
         let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
         let id = seg.get_command(loc).unwrap().id();
 
-        if let Some(previous) = loc.previous() {
+        if let Some(previous) = loc.previous(seg.first_location().max_cut) {
             // We will visit the segment again.
             stack.push(previous);
         } else {

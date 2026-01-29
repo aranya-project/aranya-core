@@ -389,7 +389,7 @@ impl SyncRequester {
                             // we've passed the PeerCache head, so stop traversing this path
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
-                                && location.command <= peer_cache_loc.command)
+                                && location.max_cut <= peer_cache_loc.max_cut)
                                 || storage.is_ancestor(location, &peer_cache_segment)?
                             {
                                 continue 'current;

@@ -4,7 +4,7 @@ use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{GraphId, Location, SegmentIndex, StorageError};
+use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
 
 #[derive(Default)]
 pub struct Manager {
@@ -104,7 +104,7 @@ impl io::Read for Reader {
             .get(offset)
             .ok_or(StorageError::SegmentOutOfBounds(Location::new(
                 SegmentIndex(offset),
-                0,
+                MaxCut(usize::MAX), // Not right but this is just for testing...
             )))?;
         postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
     }

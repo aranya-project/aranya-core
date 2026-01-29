@@ -832,7 +832,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "simple");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(SegmentIndex(5), 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(5), MaxCut(3))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -866,7 +869,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "complex");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(SegmentIndex(15), 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(15), MaxCut(15))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -899,7 +905,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "duplicates");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(SegmentIndex(2), 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(2), MaxCut(4))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -922,7 +931,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_1");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(SegmentIndex(3), 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(3), MaxCut(7))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -945,7 +957,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_2");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(SegmentIndex(3), 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(3), MaxCut(7))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -971,7 +986,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "finalize_success");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(SegmentIndex(5), 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(5), MaxCut(9))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();

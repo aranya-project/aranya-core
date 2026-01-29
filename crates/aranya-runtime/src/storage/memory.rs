@@ -89,10 +89,11 @@ impl StorageProvider for MemStorageProvider {
     ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
         use alloc::collections::btree_map::Entry;
 
-        if update.commands.is_empty() {
-            return Err(StorageError::EmptyPerspective);
-        }
-        let graph_id = GraphId::transmute(update.commands[0].command.id);
+        let first = update
+            .commands
+            .first()
+            .ok_or(StorageError::EmptyPerspective)?;
+        let graph_id = GraphId::transmute(first.command.id);
         let entry = match self.storage.entry(graph_id) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),
@@ -198,7 +199,7 @@ impl Storage for MemStorage {
             segment.facts.clone().into()
         } else {
             let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
-            for data in &segment.commands[..=parent.command] {
+            for data in &segment.commands[..=segment.cmd_index(parent.max_cut)?] {
                 facts.apply_updates(&data.updates);
             }
             if facts.map.is_empty() {
@@ -235,7 +236,7 @@ impl Storage for MemStorage {
         }
 
         let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
-        for data in &segment.commands[..=location.command] {
+        for data in &segment.commands[..=segment.cmd_index(location.max_cut)?] {
             facts.apply_updates(&data.updates);
         }
 
@@ -306,8 +307,8 @@ impl Storage for MemStorage {
         let segment_index = SegmentIndex(self.segments.len());
 
         // Add the commands to the segment
-        for (command_index, data) in commands.iter().enumerate() {
-            let new_location = Location::new(segment_index, command_index);
+        for data in &commands {
+            let new_location = Location::new(segment_index, data.command.max_cut);
             self.commands.insert(data.command.id(), new_location);
         }
 
@@ -465,6 +466,17 @@ impl From<MemSegmentInner> for MemSegment {
     }
 }
 
+impl MemSegment {
+    fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
+        max_cut
+            .0
+            .checked_sub(self.shortest_max_cut().0)
+            .ok_or(StorageError::CommandOutOfBounds(Location::new(
+                self.index, max_cut,
+            )))
+    }
+}
+
 impl Segment for MemSegment {
     type FactIndex = MemFactIndex;
     type Command<'a> = &'a MemCommand;
@@ -480,18 +492,14 @@ impl Segment for MemSegment {
     fn head_location(&self) -> Location {
         Location {
             segment: self.index,
-            command: self
-                .commands
-                .len()
-                .checked_sub(1)
-                .expect("commands.len() must be > 0"),
+            max_cut: self.commands.last().command.max_cut,
         }
     }
 
     fn first_location(&self) -> Location {
         Location {
             segment: self.index,
-            command: 0,
+            max_cut: self.commands.first().command.max_cut,
         }
     }
 
@@ -512,7 +520,9 @@ impl Segment for MemSegment {
             return None;
         }
 
-        self.commands.get(location.command).map(|d| &d.command)
+        self.commands
+            .get(self.cmd_index(location.max_cut).ok()?)
+            .map(|d| &d.command)
     }
 
     fn get_from(&self, location: Location) -> Vec<&MemCommand> {
@@ -520,20 +530,20 @@ impl Segment for MemSegment {
             return Vec::new();
         }
 
-        self.commands[location.command..]
-            .iter()
-            .map(|d| &d.command)
-            .collect()
+        let Ok(start) = self.cmd_index(location.max_cut) else {
+            return Vec::new();
+        };
+
+        self.commands[start..].iter().map(|d| &d.command).collect()
     }
 
     fn get_by_address(&self, address: Address) -> Option<Location> {
-        self.commands
-            .iter()
-            .position(|cmd| cmd.command.max_cut == address.max_cut && cmd.command.id == address.id)
-            .map(|i| Location {
-                segment: self.index,
-                command: i,
-            })
+        let cmd_idx = self.cmd_index(address.max_cut).ok()?;
+        let cmd = self.commands.get(cmd_idx)?;
+        if cmd.command.id != address.id {
+            return None;
+        }
+        Some(Location::new(self.index, address.max_cut))
     }
 
     fn longest_max_cut(&self) -> Result<MaxCut, StorageError> {
@@ -541,7 +551,7 @@ impl Segment for MemSegment {
     }
 
     fn shortest_max_cut(&self) -> MaxCut {
-        self.commands[0].command.max_cut
+        self.commands.first().command.max_cut
     }
 
     fn skip_list(&self) -> &[(Location, MaxCut)] {

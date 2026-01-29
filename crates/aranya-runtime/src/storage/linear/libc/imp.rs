@@ -11,7 +11,7 @@ use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
-    GraphId, Location, SegmentIndex, StorageError,
+    GraphId, Location, MaxCut, SegmentIndex, StorageError,
     linear::{
         io::{IoManager, Read, Write},
         libc::IdPath,
@@ -280,7 +280,7 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            head: Location::new(SegmentIndex(usize::MAX), usize::MAX),
+            head: Location::new(SegmentIndex(usize::MAX), MaxCut(usize::MAX)),
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -290,7 +290,7 @@ impl Root {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
         hasher.write_u64(self.head.segment.0 as u64);
-        hasher.write_u64(self.head.command as u64);
+        hasher.write_u64(self.head.max_cut.0 as u64);
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }

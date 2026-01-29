@@ -345,10 +345,15 @@ impl<W: Write> LinearStorage<W> {
         let head = Location::new(
             segment.offset,
             segment
-                .commands
-                .len()
-                .checked_sub(1)
-                .assume("vec1 length >= 1")?,
+                .max_cut
+                .checked_add(
+                    segment
+                        .commands
+                        .len()
+                        .checked_sub(1)
+                        .assume("vec1 length >= 1")?,
+                )
+                .assume("valid max cut")?,
         );
 
         writer.commit(head)?;
@@ -417,7 +422,7 @@ impl<F: Write> Storage for LinearStorage<F> {
                 None => FactPerspectivePrior::None,
             };
             let mut facts = LinearFactPerspective::new(prior);
-            for data in &segment.repr.commands[..=parent.command] {
+            for data in &segment.repr.commands[..=segment.repr.cmd_index(parent.max_cut)?] {
                 facts.apply_updates(&data.updates);
             }
             if facts.prior.is_none() {
@@ -477,7 +482,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             None => FactPerspectivePrior::None,
         };
         let mut facts = LinearFactPerspective::new(prior);
-        for data in &segment.repr.commands[..=location.command] {
+        for data in &segment.repr.commands[..=segment.repr.cmd_index(location.max_cut)?] {
             facts.apply_updates(&data.updates);
         }
 
@@ -723,17 +728,22 @@ impl<R: Read> Segment for LinearSegment<R> {
     }
 
     fn head_location(&self) -> Location {
-        // vec1 length >= 1
-        #[allow(clippy::arithmetic_side_effects)]
-        Location::new(self.repr.offset, self.repr.commands.len() - 1)
+        Location::new(
+            self.repr.offset,
+            #[allow(
+                clippy::arithmetic_side_effects,
+                reason = "max cut must be valid and vec1 length >= 1"
+            )]
+            MaxCut(self.repr.max_cut.0 + (self.repr.commands.len() - 1)),
+        )
     }
 
     fn first_location(&self) -> Location {
-        Location::new(self.repr.offset, 0)
+        Location::new(self.repr.offset, self.repr.max_cut)
     }
 
     fn contains(&self, location: Location) -> bool {
-        location.segment == self.repr.offset && location.command < self.repr.commands.len()
+        location.segment == self.repr.offset
     }
 
     fn policy(&self) -> PolicyId {
@@ -748,8 +758,9 @@ impl<R: Read> Segment for LinearSegment<R> {
         if self.repr.offset != location.segment {
             return None;
         }
-        let data = self.repr.commands.get(location.command)?;
-        let parent = if let Some(prev) = usize::checked_sub(location.command, 1) {
+        let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
+        let data = self.repr.commands.get(cmd_idx)?;
+        let parent = if let Some(prev) = usize::checked_sub(cmd_idx, 1) {
             if let Some(max_cut) = self.repr.max_cut.checked_add(prev) {
                 Prior::Single(Address {
                     id: self.repr.commands[prev].id,
@@ -761,17 +772,14 @@ impl<R: Read> Segment for LinearSegment<R> {
         } else {
             self.repr.parents
         };
-        self.repr
-            .max_cut
-            .checked_add(location.command)
-            .map(|max_cut| LinearCommand {
-                id: &data.id,
-                parent,
-                priority: data.priority.clone(),
-                policy: data.policy.as_deref(),
-                data: &data.data,
-                max_cut,
-            })
+        Some(LinearCommand {
+            id: &data.id,
+            parent,
+            priority: data.priority.clone(),
+            policy: data.policy.as_deref(),
+            data: &data.data,
+            max_cut: location.max_cut,
+        })
     }
 
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
@@ -780,9 +788,12 @@ impl<R: Read> Segment for LinearSegment<R> {
             return Vec::new();
         }
 
+        let start = location.max_cut;
+        let end = self.longest_max_cut().expect("max cut is valid");
+
         // TODO(jdygert): Optimize?
-        (location.command..self.repr.commands.len())
-            .map(|c| Location::new(location.segment, c))
+        (start.0..=end.0)
+            .map(|max_cut| Location::new(location.segment, MaxCut(max_cut)))
             .map(|loc| {
                 self.get_command(loc)
                     .expect("constructed location is valid")
@@ -791,15 +802,12 @@ impl<R: Read> Segment for LinearSegment<R> {
     }
 
     fn get_by_address(&self, address: Address) -> Option<Location> {
-        if address.max_cut < self.repr.max_cut {
-            return None;
-        }
-        let idx = address.max_cut.0.checked_sub(self.repr.max_cut.0)?;
+        let idx = self.repr.cmd_index(address.max_cut).ok()?;
         let cmd = self.repr.commands.get(idx)?;
         if cmd.id != address.id {
             return None;
         }
-        Some(Location::new(self.repr.offset, idx))
+        Some(Location::new(self.repr.offset, address.max_cut))
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
@@ -829,6 +837,18 @@ impl<R: Read> Segment for LinearSegment<R> {
                     .assume("must not overflow")?,
             )
             .assume("must not overflow")?)
+    }
+}
+
+impl SegmentRepr {
+    fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
+        max_cut
+            .0
+            .checked_sub(self.max_cut.0)
+            .ok_or(StorageError::CommandOutOfBounds(Location::new(
+                self.offset,
+                max_cut,
+            )))
     }
 }
 

@@ -55,12 +55,12 @@ impl MaxCut {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
     pub segment: SegmentIndex,
-    pub command: usize,
+    pub max_cut: MaxCut,
 }
 
-impl From<(SegmentIndex, usize)> for Location {
-    fn from((segment, command): (SegmentIndex, usize)) -> Self {
-        Self::new(segment, command)
+impl From<(SegmentIndex, MaxCut)> for Location {
+    fn from((segment, max_cut): (SegmentIndex, MaxCut)) -> Self {
+        Self::new(segment, max_cut)
     }
 }
 
@@ -71,20 +71,25 @@ impl AsRef<Self> for Location {
 }
 
 impl Location {
-    pub fn new(segment: SegmentIndex, command: usize) -> Self {
-        Self { segment, command }
+    pub fn new(segment: SegmentIndex, max_cut: MaxCut) -> Self {
+        Self { segment, max_cut }
     }
 
     /// If this is not the first command in a segment, return a location
     /// pointing to the previous command.
     #[must_use]
-    pub fn previous(mut self) -> Option<Self> {
-        if let Some(n) = usize::checked_sub(self.command, 1) {
-            self.command = n;
-            Some(self)
-        } else {
-            None
+    pub fn previous(mut self, first_max_cut: MaxCut) -> Option<Self> {
+        if self.max_cut <= first_max_cut {
+            return None;
         }
+        #[allow(
+            clippy::arithmetic_side_effects,
+            reason = "can't be zero after above check"
+        )]
+        {
+            self.max_cut.0 -= 1;
+        }
+        Some(self)
     }
 
     /// Returns true if other location is in the same segment.
@@ -95,7 +100,7 @@ impl Location {
 
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.segment, self.command)
+        write!(f, "{}:{}", self.segment, self.max_cut)
     }
 }
 
@@ -108,7 +113,7 @@ pub enum StorageError {
     NoSuchStorage,
     #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
-    #[error("command index {} is out of bounds in segment {}", .0.command, .0.segment)]
+    #[error("max cut {} is out of bounds in segment {}", .0.max_cut, .0.segment)]
     CommandOutOfBounds(Location),
     #[error("IO error")]
     IoError,
@@ -288,7 +293,7 @@ pub trait Storage {
             .address()?;
         'outer: while let Some(location) = queue.pop() {
             if location.segment == search_location.segment
-                && location.command >= search_location.command
+                && location.max_cut >= search_location.max_cut
             {
                 return Ok(true);
             }
