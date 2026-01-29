@@ -503,10 +503,6 @@ impl Segment for MemSegment {
         }
     }
 
-    fn contains(&self, location: Location) -> bool {
-        location.segment == self.index
-    }
-
     fn policy(&self) -> PolicyId {
         self.policy
     }

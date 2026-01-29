@@ -737,10 +737,6 @@ impl<R: Read> Segment for LinearSegment<R> {
         Location::new(self.repr.offset, self.repr.max_cut)
     }
 
-    fn contains(&self, location: Location) -> bool {
-        location.segment == self.repr.offset
-    }
-
     fn policy(&self) -> PolicyId {
         self.repr.policy
     }

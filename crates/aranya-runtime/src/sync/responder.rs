@@ -332,9 +332,8 @@ impl SyncResponder {
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
-                let segment = storage.get_segment(head)?;
                 // If the segment is already in the result, skip it
-                if segment.contains_any(&result) {
+                if result.iter().any(|loc| loc.same_segment(head)) {
                     continue 'heads;
                 }
 
@@ -348,10 +347,12 @@ impl SyncResponder {
                     }
                 }
 
+                let segment = storage.get_segment(head)?;
+
                 // If the requester has any commands in this segment, send from the next command
                 if let Some(latest_loc) = have_locations
                     .iter()
-                    .filter(|&&location| segment.contains(location))
+                    .filter(|loc| loc.same_segment(head))
                     .max_by_key(|&&location| location.max_cut)
                 {
                     let next_max_cut = latest_loc

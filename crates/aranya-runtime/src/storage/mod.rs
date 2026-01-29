@@ -340,9 +340,6 @@ pub trait Segment {
     /// Returns the location of the first command.
     fn first_location(&self) -> Location;
 
-    /// Returns true if the segment contains the location.
-    fn contains(&self, location: Location) -> bool;
-
     /// Returns the id for the policy used for this segment.
     fn policy(&self) -> PolicyId;
 
@@ -360,16 +357,6 @@ pub trait Segment {
 
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
-
-    fn contains_any<I>(&self, locations: I) -> bool
-    where
-        I: IntoIterator,
-        I::Item: AsRef<Location>,
-    {
-        locations
-            .into_iter()
-            .any(|loc| self.contains(*loc.as_ref()))
-    }
 
     /// The shortest max cut for this segment.
     ///
