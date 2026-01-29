@@ -36,8 +36,8 @@ use vec1::Vec1;
 
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    SegmentIndex, Storage, StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -74,7 +74,7 @@ pub struct LinearSegment<R> {
 #[derive(Debug, Serialize, Deserialize)]
 struct SegmentRepr {
     /// Self offset in file.
-    offset: usize,
+    offset: SegmentIndex,
     prior: Prior<Location>,
     parents: Prior<Address>,
     policy: PolicyId,
@@ -332,7 +332,7 @@ impl<W: Write> LinearStorage<W> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
         let segment = writer.append(|offset| SegmentRepr {
-            offset,
+            offset: SegmentIndex(offset),
             prior: Prior::None,
             parents: Prior::None,
             policy: init.policy,
@@ -532,7 +532,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
-        let repr = reader.fetch(location.segment)?;
+        let repr = reader.fetch(location.segment.0)?;
         let seg = LinearSegment { repr, reader };
 
         Ok(seg)
@@ -602,7 +602,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             }
         };
         let repr = self.writer.append(|offset| SegmentRepr {
-            offset,
+            offset: SegmentIndex(offset),
             prior: perspective.prior,
             parents: perspective.parents,
             policy: perspective.policy,

@@ -4,7 +4,7 @@ use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{GraphId, Location, StorageError};
+use crate::{GraphId, Location, SegmentIndex, StorageError};
 
 #[derive(Default)]
 pub struct Manager {
@@ -102,7 +102,10 @@ impl io::Read for Reader {
         let items = self.shared.items.lock();
         let bytes = items
             .get(offset)
-            .ok_or(StorageError::SegmentOutOfBounds(Location::new(offset, 0)))?;
+            .ok_or(StorageError::SegmentOutOfBounds(Location::new(
+                SegmentIndex(offset),
+                0,
+            )))?;
         postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
     }
 }

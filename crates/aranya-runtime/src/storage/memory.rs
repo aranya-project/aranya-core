@@ -6,8 +6,8 @@ use vec1::Vec1;
 
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    SegmentIndex, Storage, StorageError, StorageProvider,
 };
 
 #[derive(Debug)]
@@ -151,7 +151,7 @@ impl MemStorage {
         facts: MemFactIndex,
         max_cut: MaxCut,
     ) -> Result<MemSegment, StorageError> {
-        let index = self.segments.len();
+        let index = SegmentIndex(self.segments.len());
 
         for (i, command) in commands.iter_mut().enumerate() {
             command.command.max_cut = max_cut.checked_add(i).assume("must not overflow")?;
@@ -286,7 +286,7 @@ impl Storage for MemStorage {
 
     fn get_segment(&self, location: Location) -> Result<MemSegment, StorageError> {
         self.segments
-            .get(location.segment)
+            .get(location.segment.0)
             .ok_or(StorageError::SegmentOutOfBounds(location))
             .cloned()
     }
@@ -303,7 +303,7 @@ impl Storage for MemStorage {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let segment_index = self.segments.len();
+        let segment_index = SegmentIndex(self.segments.len());
 
         // Add the commands to the segment
         for (command_index, data) in commands.iter().enumerate() {
@@ -441,7 +441,7 @@ struct CommandData {
 
 #[derive(Debug)]
 pub struct MemSegmentInner {
-    index: usize,
+    index: SegmentIndex,
     prior: Prior<Location>,
     policy: PolicyId,
     commands: Vec1<CommandData>,

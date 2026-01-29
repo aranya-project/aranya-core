@@ -28,6 +28,16 @@ aranya_crypto::custom_id! {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(transparent)]
+pub struct SegmentIndex(pub usize);
+
+impl fmt::Display for SegmentIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
 pub struct MaxCut(pub usize);
 
 impl fmt::Display for MaxCut {
@@ -44,12 +54,12 @@ impl MaxCut {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
-    pub segment: usize,
+    pub segment: SegmentIndex,
     pub command: usize,
 }
 
-impl From<(usize, usize)> for Location {
-    fn from((segment, command): (usize, usize)) -> Self {
+impl From<(SegmentIndex, usize)> for Location {
+    fn from((segment, command): (SegmentIndex, usize)) -> Self {
         Self::new(segment, command)
     }
 }
@@ -61,7 +71,7 @@ impl AsRef<Self> for Location {
 }
 
 impl Location {
-    pub fn new(segment: usize, command: usize) -> Self {
+    pub fn new(segment: SegmentIndex, command: usize) -> Self {
         Self { segment, command }
     }
 
