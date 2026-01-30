@@ -119,7 +119,7 @@ fn extract_cycle<T: Display + Eq>(path: &[&T], cycle_start: &T) -> Vec<String> {
         .iter()
         .position(|&n| n == cycle_start)
         .expect("`cycle_start` should be in the path");
-    let mut cycle: Vec<String> = path[start_pos..].iter().map(|n| n.to_string()).collect();
+    let mut cycle: Vec<String> = path[start_pos..].iter().map(ToString::to_string).collect();
     // Add the `cycle_start` to the end so we can show the cycle like: 'Foo -> ... -> Foo'.
     cycle.push(cycle_start.to_string());
     cycle
@@ -151,6 +151,6 @@ mod test {
         assert_eq!(
             topo.sort().unwrap_err().to_string(),
             "Found cyclic dependencies when compiling structs: Fum -> Bar -> Foo -> Fum"
-        )
+        );
     }
 }
