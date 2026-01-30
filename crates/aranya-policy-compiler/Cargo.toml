@@ -23,6 +23,7 @@ buggy = { version = "0.1.0", features = ["std"] }
 ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }
 indexmap = { workspace = true, default-features = false, features = ["serde"] }
+petgraph = { version = "0.8" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

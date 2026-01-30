@@ -581,7 +581,7 @@ fn test_struct_field_insertion_errors() {
         (
             r#"struct Foo { +Foo }"#,
             CompileErrorType::Unknown(
-                "Found cyclic dependencies when compiling structs: Foo -> Foo".to_string(),
+                "Found cyclic dependencies when compiling structs:\n- [Foo]".to_string(),
             ),
         ),
     ];
@@ -2959,7 +2959,7 @@ fn test_structs_with_undefined_types() {
             struct Bar { self_ref struct Bar }
             "#,
             CompileErrorType::Unknown(
-                "Found cyclic dependencies when compiling structs: Bar -> Bar".into(),
+                "Found cyclic dependencies when compiling structs:\n- [Bar]".into(),
             ),
         ),
     ];
@@ -3365,7 +3365,7 @@ fn test_structs_listed_out_of_order() {
         struct Foo { fum struct Fum } // cycle
     "#,
         CompileErrorType::Unknown(String::from(
-            "Found cyclic dependencies when compiling structs: Fum -> Bar -> Foo -> Fum",
+            "Found cyclic dependencies when compiling structs:\n- [Bar, Foo, Fum]",
         )),
     )];
 
