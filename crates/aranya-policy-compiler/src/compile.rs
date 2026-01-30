@@ -31,7 +31,11 @@ pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
     target::PolicyInterface,
 };
-use self::{target::CompileTarget, topo::TopoSort, types::IdentifierTypeStack};
+use self::{
+    target::{CompileTarget, State},
+    topo::TopoSort,
+    types::IdentifierTypeStack,
+};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -332,7 +336,7 @@ impl<'a> CompileState<'a> {
                         .m
                         .struct_defs
                         .get(&field_type_ident.name)
-                        .and_then(Option::as_ref)
+                        .and_then(State::to_option)
                         .ok_or_else(|| {
                             self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
                         })?;
@@ -367,7 +371,7 @@ impl<'a> CompileState<'a> {
 
         self.m
             .struct_defs
-            .insert(identifier.name, Some(field_definitions));
+            .insert(identifier.name, State::Compiled(field_definitions));
         Ok(())
     }
 
@@ -689,8 +693,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) =
-                    self.m.struct_defs.get(&sub.name).and_then(Option::as_ref)
+                let Some(State::Compiled(sub_field_defns)) = self.m.struct_defs.get(&sub.name)
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -1417,7 +1420,7 @@ impl<'a> CompileState<'a> {
                         .m
                         .struct_defs
                         .get(&ref_name.name)
-                        .and_then(Option::as_ref)
+                        .and_then(State::to_option)
                         .ok_or_else(|| {
                             self.err(CompileErrorType::NotDefined(ref_name.to_string()))
                         })?;
@@ -1626,8 +1629,12 @@ impl<'a> CompileState<'a> {
         for ident in struct_idents {
             // TODO(Steve): Use a type that has span information so a better error message can be created
             // when duplicate type defintions are found.
-            // Insert `None` for the value to indicate that this type is partially compiled.
-            if self.m.struct_defs.insert(ident.clone(), None).is_some() {
+            if self
+                .m
+                .struct_defs
+                .insert(ident.clone(), State::Compiling)
+                .is_some()
+            {
                 return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
             }
         }
@@ -1808,12 +1815,8 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(Value::Bool(*v)),
             ExprKind::String(v) => Ok(Value::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self
-                    .m
-                    .struct_defs
-                    .get(&struct_ast.identifier.name)
-                    .and_then(Option::as_ref)
-                    .cloned()
+                let Some(State::Compiled(struct_def)) =
+                    self.m.struct_defs.get(&struct_ast.identifier.name)
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -1821,7 +1824,7 @@ impl<'a> CompileState<'a> {
                     ))));
                 };
 
-                let struct_ast = self.evaluate_sources(struct_ast, &struct_def)?;
+                let struct_ast = self.evaluate_sources(struct_ast, struct_def)?;
 
                 let NamedStruct {
                     identifier, fields, ..
@@ -1899,7 +1902,7 @@ impl<'a> CompileState<'a> {
                 .m
                 .struct_defs
                 .get(&src_struct_type_name.name)
-                .and_then(Option::as_ref)
+                .and_then(State::to_option)
                 .assume("identifier with a struct type has that struct already defined")
                 .map_err(|err| self.err(err.into()))?;
 

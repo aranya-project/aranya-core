@@ -12,6 +12,7 @@ use super::{
     StatementContext, find_duplicate,
     types::{self, DisplayType},
 };
+use crate::compile::State;
 
 impl CompileState<'_> {
     /// Get the statement context
@@ -42,12 +43,7 @@ impl CompileState<'_> {
     /// - the fields defined in the struct are present, and have the correct types
     /// - there are no duplicate fields
     fn lower_struct_literal(&mut self, s: &NamedStruct) -> Result<thir::NamedStruct, CompileError> {
-        let Some(struct_def) = self
-            .m
-            .struct_defs
-            .get(&s.identifier.name)
-            .and_then(Option::as_ref)
-            .cloned()
+        let Some(State::Compiled(struct_def)) = self.m.struct_defs.get(&s.identifier.name).cloned()
         else {
             return Err(self.err(CompileErrorType::NotDefined(format!(
                 "Struct `{}` not defined",
@@ -680,7 +676,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(name.as_str())
-                    .and_then(Option::as_ref)
+                    .and_then(State::to_option)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::InvalidType(format!(
                             "Struct `{name}` not defined"
@@ -703,12 +699,8 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self
-                    .m
-                    .struct_defs
-                    .get(&sub.name)
-                    .and_then(Option::as_ref)
-                    .cloned()
+                let Some(State::Compiled(sub_field_defns)) =
+                    self.m.struct_defs.get(&sub.name).cloned()
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -722,11 +714,8 @@ impl CompileState<'_> {
                         "Expression to the left of the substruct operator is not a struct".into(),
                     ))
                 })?;
-                let Some(lhs_field_defns) = self
-                    .m
-                    .struct_defs
-                    .get(&lhs_struct_name.name)
-                    .and_then(Option::as_ref)
+                let Some(State::Compiled(lhs_field_defns)) =
+                    self.m.struct_defs.get(&lhs_struct_name.name)
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{lhs_struct_name}` is not defined",
@@ -764,7 +753,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&rhs_ident.name)
-                    .and_then(Option::as_ref)
+                    .and_then(State::to_option)
                     .cloned()
                     .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
@@ -780,7 +769,7 @@ impl CompileState<'_> {
                     .m
                     .struct_defs
                     .get(&lhs_struct_name.name)
-                    .and_then(Option::as_ref)
+                    .and_then(State::to_option)
                     .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(format!(
                             "struct {lhs_struct_name}"

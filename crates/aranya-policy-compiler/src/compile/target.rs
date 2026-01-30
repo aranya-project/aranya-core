@@ -11,6 +11,37 @@ use aranya_policy_module::{
 use ast::FactDefinition;
 use indexmap::IndexMap;
 
+/// Compilation State
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum State<T> {
+    #[default]
+    Compiling,
+    Compiled(T),
+}
+
+impl<T> State<T> {
+    pub(in crate::compile) fn to_option(&self) -> Option<&T> {
+        match *self {
+            Self::Compiling => None,
+            Self::Compiled(ref c) => Some(c),
+        }
+    }
+}
+
+impl<T> From<State<T>> for Option<T> {
+    fn from(value: State<T>) -> Self {
+        match value {
+            State::Compiling => None,
+            State::Compiled(c) => Some(c),
+        }
+    }
+}
+
+const _: () = {
+    type StructDef = ast::StructDefinition;
+    assert!(size_of::<Vec<StructDef>>() == size_of::<State<Vec<StructDef>>>());
+};
+
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
 #[derive(Debug)]
@@ -30,9 +61,7 @@ pub(crate) struct CompileTarget {
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    ///
-    /// A [None] value for an entry indicates that the type exists but is only partially compiled.
-    pub struct_defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
+    pub struct_defs: BTreeMap<Identifier, State<Vec<ast::FieldDefinition>>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Mapping between program instructions and original code
@@ -95,7 +124,10 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self.struct_defs.get(&ident.name).and_then(Option::as_ref)?;
+                let defs = self
+                    .struct_defs
+                    .get(&ident.name)
+                    .and_then(State::to_option)?;
                 defs.iter()
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {
@@ -114,13 +146,14 @@ impl CompileTarget {
 
     // Filter out the definitions that aren't fully compiled
     fn filter_defs(
-        defs: BTreeMap<Identifier, Option<Vec<ast::FieldDefinition>>>,
+        defs: BTreeMap<Identifier, State<Vec<ast::FieldDefinition>>>,
     ) -> BTreeMap<Identifier, Vec<ast::FieldDefinition>> {
         defs.into_iter()
-            .filter_map(|(ident, maybe_field_defs)| {
-                // Every entry should be fully compiled by the time this method is called and thus, `maybe_field_defs` should be `Some`.
-                debug_assert!(maybe_field_defs.is_some());
-                maybe_field_defs.map(|field_defs| (ident, field_defs))
+            .filter_map(|(ident, field_defs)| {
+                let field_defs = Option::from(field_defs);
+                // Every entry should be fully compiled by the time this method is called and thus, `field_defs` should be `Some`.
+                debug_assert!(field_defs.is_some());
+                field_defs.map(|field_defs| (ident, field_defs))
             })
             .collect()
     }
