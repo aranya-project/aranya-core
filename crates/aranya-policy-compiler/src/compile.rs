@@ -1,6 +1,7 @@
 mod error;
 mod lower;
 mod target;
+mod topo;
 mod types;
 
 use std::{
@@ -30,7 +31,7 @@ pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
     target::PolicyInterface,
 };
-use self::{target::CompileTarget, types::IdentifierTypeStack};
+use self::{target::CompileTarget, topo::TopoSort, types::IdentifierTypeStack};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -1705,50 +1706,25 @@ impl<'a> CompileState<'a> {
     fn sorted_struct_defintitions(
         &self,
     ) -> Result<impl Iterator<Item = &'a StructDefinition> + use<'a>, CompileError> {
-        use topological_sort::TopologicalSort;
-
-        let mut ts = TopologicalSort::<&Identifier>::new();
+        let mut topo = TopoSort::new();
 
         // Create dependency graph.
         for struct_def in &self.policy.structs {
-            for item in &struct_def.items {
-                match item {
-                    StructItem::StructRef(ident) => {
-                        ts.add_dependency(&ident.name, &struct_def.identifier.name);
-                    }
-                    StructItem::Field(field) => {
-                        if let Some(ident) = &field.field_type.as_struct() {
-                            ts.add_dependency(&ident.name, &struct_def.identifier.name);
-                        }
-                    }
-                }
-            }
+            let deps = struct_def.items.iter().filter_map(|item| match item {
+                // { +Foo }
+                StructItem::StructRef(ident) => Some(&ident.name),
+                // { field_name struct Foo }
+                StructItem::Field(field) => field
+                    .field_type
+                    .as_struct()
+                    .as_ref()
+                    .map(|ident| &ident.name),
+            });
 
-            // Ensure the current struct's identifier is in the collection just in case
-            // this struct has no dependencies or no other struct depends on it.
-            let _ = ts.insert(&struct_def.identifier.name);
+            topo.insert(&struct_def.identifier.name, deps);
         }
 
-        let sorted_idents = {
-            let mut buf = Vec::new();
-
-            loop {
-                let mut next = ts.pop_all();
-                if next.is_empty() {
-                    // Check for cyclic dependencies
-                    // https://docs.rs/topological-sort/0.2.2/topological_sort/struct.TopologicalSort.html#method.pop_all
-                    if !ts.is_empty() {
-                        let msg =
-                            format!("Found cyclic dependencies when compiling structs: {ts:#?}");
-                        return Err(self.err(CompileErrorType::Unknown(msg)));
-                    }
-
-                    break buf;
-                }
-
-                buf.append(&mut next);
-            }
-        };
+        let sorted_idents = topo.sort().map_err(|err| self.err(err.into()))?;
 
         // TODO(Steve): Store hashmap in ` aranya_policy_ast::ast::Policy::structs` to make this more efficient.
         let sorted_defs = sorted_idents.into_iter().filter_map(|ident| {
