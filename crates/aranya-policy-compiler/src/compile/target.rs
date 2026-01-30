@@ -12,20 +12,10 @@ use ast::FactDefinition;
 use indexmap::IndexMap;
 
 /// Compilation State
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum State<T> {
-    #[default]
     Compiling,
     Compiled(T),
-}
-
-impl<T> State<T> {
-    pub(in crate::compile) fn to_option(&self) -> Option<&T> {
-        match *self {
-            Self::Compiling => None,
-            Self::Compiled(ref c) => Some(c),
-        }
-    }
 }
 
 impl<T> From<State<T>> for Option<T> {
@@ -124,10 +114,9 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self
-                    .struct_defs
-                    .get(&ident.name)
-                    .and_then(State::to_option)?;
+                let Some(State::Compiled(defs)) = self.struct_defs.get(&ident.name) else {
+                    return None;
+                };
                 defs.iter()
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {

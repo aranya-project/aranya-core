@@ -331,14 +331,13 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let other = self
-                        .m
-                        .struct_defs
-                        .get(&field_type_ident.name)
-                        .and_then(State::to_option)
-                        .ok_or_else(|| {
+                    let Some(State::Compiled(other)) =
+                        self.m.struct_defs.get(&field_type_ident.name)
+                    else {
+                        return Err(
                             self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
-                        })?;
+                        );
+                    };
                     for field in other {
                         if field_definitions
                             .iter()
@@ -1415,14 +1414,10 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self
-                        .m
-                        .struct_defs
-                        .get(&ref_name.name)
-                        .and_then(State::to_option)
-                        .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
-                        })?;
+                    let Some(State::Compiled(struct_def)) = self.m.struct_defs.get(&ref_name.name)
+                    else {
+                        return Err(self.err(CompileErrorType::NotDefined(ref_name.to_string())));
+                    };
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1897,13 +1892,14 @@ impl<'a> CompileState<'a> {
                     "Expected `{src_var_name}` to be a struct, but it's a(n) {src_type}",
                 )))
             })?;
-            let src_field_defns = self
-                .m
-                .struct_defs
-                .get(&src_struct_type_name.name)
-                .and_then(State::to_option)
-                .assume("identifier with a struct type has that struct already defined")
-                .map_err(|err| self.err(err.into()))?;
+            let Some(State::Compiled(src_field_defns)) =
+                self.m.struct_defs.get(&src_struct_type_name.name)
+            else {
+                let err = buggy::Bug::new(
+                    "identifier with a struct type should have that struct already defined",
+                );
+                return Err(self.err(err.into()));
+            };
 
             for src_field_defn in src_field_defns {
                 // Don't resolve fields already in the base struct.
