@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.11.0...aranya-policy-lang-v0.12.0) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+- move dot/substruct/cast to postfix ops ([#532](https://github.com/aranya-project/aranya-core/pull/532))
+
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.10.0...aranya-policy-lang-v0.11.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
 ## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.9.0...aranya-policy-lang-v0.10.0) - 2025-12-11
 
 ### Other

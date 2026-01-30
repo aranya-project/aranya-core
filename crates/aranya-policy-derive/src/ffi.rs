@@ -1,10 +1,7 @@
 use std::{collections::HashSet, fs::File, io::Write as _};
 
 use aranya_policy_lang::{
-    ast::{
-        EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, TypeKind,
-        VType,
-    },
+    ast::{EnumDefinition, FunctionDecl, Param, StructDefinition, StructItem, TypeKind, VType},
     lang,
 };
 use proc_macro2::{Span, TokenStream};
@@ -290,7 +287,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 .map(|arg| {
                     let name = format_ident!("__arg_{}", arg.ident);
                     let rtype = &arg.ty.ty;
-                    let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
+                    let vtype = VTypeTokens::new(&arg.def.ty, &vm);
                     let msg = format!(
                         "mismatched types: expected `{want}`, found `{got}`",
                         want = quote!(#vtype),
@@ -340,8 +337,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         let funcs = funcs.iter().map(|f| {
             let name = f.ext_name.to_string();
             let args = f.args.iter().map(|arg| {
-                let name = arg.def.identifier.as_str();
-                let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
+                let name = arg.def.name.as_str();
+                let vtype = VTypeTokens::new(&arg.def.ty, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
             let return_type = {
@@ -664,13 +661,13 @@ impl Func {
 
                     // arg name should match definition
                     if !ident.to_string().starts_with("_")
-                        && def.identifier.name != ident.to_string().as_str()
+                        && def.name.name != ident.to_string().as_str()
                     {
                         return Err(Error::new_spanned(
                             ident,
                             format!(
                                 "arg identifier `{ident}` should match definition (`{}`)",
-                                def.identifier.name
+                                def.name.name
                             ),
                         ));
                     }
@@ -713,7 +710,7 @@ impl Func {
 struct Arg {
     ident: Ident,
     ty: PatType,
-    def: FieldDefinition,
+    def: Param,
 }
 
 /// Implements [`ToTokens`] for `VType.`

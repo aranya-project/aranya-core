@@ -5,7 +5,7 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
+    NamedStruct, Param, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
     UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
@@ -301,6 +301,15 @@ impl ChunkParser<'_> {
         Ok(FieldDefinition {
             identifier,
             field_type,
+        })
+    }
+
+    /// Parse a Rule::field_definition token into a Param.
+    fn parse_parameter(&self, field: Pair<'_, Rule>) -> Result<Param, ParseError> {
+        let field = self.parse_field_definition(field)?;
+        Ok(Param {
+            name: field.identifier,
+            ty: field.field_type,
         })
     }
 
@@ -716,30 +725,6 @@ impl ChunkParser<'_> {
                     Rule::less_than => ExprKind::LessThan(Box::new(lhs), Box::new(rhs)),
                     Rule::greater_than_or_equal => ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
-                    Rule::dot => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
-                            ParseErrorKind::InvalidMember,
-                            format!("Expected identifier after dot, got {:?}", rhs.kind),
-                            Some(op.as_span()),
-                        ))
-                    },
-                    Rule::substruct => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
-                            ParseErrorKind::InvalidSubstruct,
-                            format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
-                            Some(op.as_span()),
-                        ))
-                    },
-                    Rule::cast => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
-                        e => return Err(ParseError::new(
-                            ParseErrorKind::InvalidSubstruct,
-                            format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
-                            Some(op.as_span()),
-                        )),
-                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad infix: {:?}", op.as_rule()),
@@ -775,6 +760,21 @@ impl ChunkParser<'_> {
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
+                    Rule::dot => {
+                        let pc = descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Dot(Box::new(lhs), s)
+                    },
+                    Rule::substruct => {
+                        let pc = descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Substruct(Box::new(lhs), s)
+                    },
+                    Rule::cast => {
+                        let pc = descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Cast(Box::new(lhs), s)
+                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),
@@ -1289,7 +1289,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            arguments.push(self.parse_parameter(field)?);
         }
 
         // All remaining tokens are statements
@@ -1523,7 +1523,7 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut arguments = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            arguments.push(self.parse_parameter(field)?);
         }
 
         let return_type = if rule == Rule::function_decl {
@@ -1765,7 +1765,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
     for field in token.into_inner() {
-        arguments.push(parser.parse_field_definition(field)?);
+        arguments.push(parser.parse_parameter(field)?);
     }
 
     let return_type = if rule == Rule::function_decl {
@@ -1837,8 +1837,8 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::postfix(Rule::is))
         .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
         .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
-        .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
-        .op(Op::infix(Rule::dot, Assoc::Left))
+        .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
+        .op(Op::postfix(Rule::dot))
 }
 
 #[derive(Copy, Clone)]

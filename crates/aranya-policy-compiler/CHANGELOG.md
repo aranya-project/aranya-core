@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.18.0...aranya-policy-compiler-v0.19.0) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- allow absent/empty recall blocks ([#545](https://github.com/aranya-project/aranya-core/pull/545))
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.17.0...aranya-policy-compiler-v0.18.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
 ## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.16.0...aranya-policy-compiler-v0.17.0) - 2025-12-11
 
 ### Other

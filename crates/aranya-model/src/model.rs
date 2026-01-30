@@ -14,54 +14,54 @@ use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
     SyncRequester,
-    engine::{Engine, EngineError, Policy, PolicyId, Sink},
+    policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicy, VmPolicyError},
 };
 use derive_where::derive_where;
 
-/// Model engine effect.
+/// Model policy effect.
 ///
 /// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects emitted from processed commands.
 pub type ModelEffect = VmEffect;
 
-/// Model engine.
+/// Model policy store.
 ///
-/// Holds the [`VmPolicy`] model engine methods.
-pub struct ModelEngine<E> {
-    policy: VmPolicy<E>,
+/// Holds the [`VmPolicy`] model policy store methods.
+pub struct ModelPolicyStore<CE> {
+    policy: VmPolicy<CE>,
 }
 
-impl<E> ModelEngine<E>
+impl<CE> ModelPolicyStore<CE>
 where
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
 {
-    /// Creates a new ModelEngine instance with a [`VmPolicy`].
-    pub fn new(policy: VmPolicy<E>) -> Self {
+    /// Creates a new [`ModelPolicyStore`] instance with a [`VmPolicy`].
+    pub fn new(policy: VmPolicy<CE>) -> Self {
         Self { policy }
     }
 }
 
-impl<E> Engine for ModelEngine<E>
+impl<CE> PolicyStore for ModelPolicyStore<CE>
 where
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
 {
-    type Policy = VmPolicy<E>;
+    type Policy = VmPolicy<CE>;
     type Effect = ModelEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
         // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
         // For now return dummy PolicyId
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
     }
 }
 
-/// An error returned by the model engine.
+/// An error returned by the model.
 #[derive(Debug, thiserror::Error)]
 pub enum ModelError {
     #[error(transparent)]
@@ -75,7 +75,7 @@ pub enum ModelError {
     #[error("duplicate graph")]
     DuplicateGraph,
     #[error(transparent)]
-    Engine(#[from] EngineError),
+    Policy(#[from] PolicyError),
     #[error(transparent)]
     Sync(#[from] SyncError),
     #[error(transparent)]
@@ -197,12 +197,12 @@ pub trait Model {
 /// Holds a collection of effect data.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[derive_where(Default)]
-pub struct VecSink<E> {
+pub struct VecSink<Eff> {
     /// Effects from executing a policy action.
-    pub(crate) effects: Vec<E>,
+    pub(crate) effects: Vec<Eff>,
 }
 
-impl<E> VecSink<E> {
+impl<Eff> VecSink<Eff> {
     /// Creates a new `VecSink`.
     pub const fn new() -> Self {
         Self {
@@ -211,18 +211,18 @@ impl<E> VecSink<E> {
     }
 
     /// Returns the collected effects.
-    pub fn collect<T>(self) -> Result<Vec<T>, <T as TryFrom<E>>::Error>
+    pub fn collect<T>(self) -> Result<Vec<T>, <T as TryFrom<Eff>>::Error>
     where
-        T: TryFrom<E>,
+        T: TryFrom<Eff>,
     {
         self.effects.into_iter().map(T::try_from).collect()
     }
 }
 
-impl<E> Sink<E> for VecSink<E> {
+impl<Eff> Sink<Eff> for VecSink<Eff> {
     fn begin(&mut self) {}
 
-    fn consume(&mut self, effect: E) {
+    fn consume(&mut self, effect: Eff) {
         self.effects.push(effect);
     }
 
@@ -232,7 +232,7 @@ impl<E> Sink<E> for VecSink<E> {
 }
 
 type Msg = Box<[u8]>;
-type SessionData<E> = (Vec<Msg>, Vec<E>);
+type SessionData<Eff> = (Vec<Msg>, Vec<Eff>);
 
 /// Sink for graph commands.
 #[derive(Default)]
@@ -274,7 +274,7 @@ impl Sink<&[u8]> for MsgSink {
 /// Holds [`ClientState`] for graphs that belong to the client.
 pub struct ModelClient<CF: ClientFactory + ?Sized> {
     /// Holds the [`ClientState`] for each model client.
-    pub state: RefCell<ClientState<CF::Engine, CF::StorageProvider>>,
+    pub state: RefCell<ClientState<CF::PolicyStore, CF::StorageProvider>>,
     /// Holds the public key information for each model client.
     pub public_keys: CF::PublicKeys,
 }
@@ -283,7 +283,7 @@ pub struct ModelClient<CF: ClientFactory + ?Sized> {
 ///
 /// [`ClientFactory`] creates generic clients.
 pub trait ClientFactory {
-    type Engine: Engine;
+    type PolicyStore: PolicyStore;
     type StorageProvider: StorageProvider;
     type PublicKeys;
     type Args;
@@ -291,7 +291,7 @@ pub trait ClientFactory {
     fn create_client(&mut self, args: Self::Args) -> ModelClient<Self>;
 }
 
-type ClientStorageIds = BTreeMap<ProxyGraphId, GraphId>;
+type ClientGraphIds = BTreeMap<ProxyGraphId, GraphId>;
 // A map of peer caches for (GraphID, DestClientID, SourceClientID)
 type ClientGraphPeerCache =
     BTreeMap<(ProxyGraphId, ProxyClientId, ProxyClientId), RefCell<PeerCache>>;
@@ -304,7 +304,7 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     /// Holds a collection of clients.
     pub clients: Clients<ModelClient<CF>>,
     /// Holds a collection of [`ProxyGraphId`]s and [`GraphId`]s
-    pub storage_ids: ClientStorageIds,
+    pub graph_ids: ClientGraphIds,
     /// Each client holds a `PeerCache` for each client and graph combination.
     pub client_graph_peer_cache: ClientGraphPeerCache,
     client_factory: CF,
@@ -319,7 +319,7 @@ where
     pub fn new(client_factory: CF) -> Self {
         Self {
             clients: BTreeMap::default(),
-            storage_ids: BTreeMap::default(),
+            graph_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),
             client_factory,
             _ph: PhantomData,
@@ -333,12 +333,12 @@ where
     CID: Into<ProxyClientId> + 'static,
     GID: Into<ProxyGraphId> + 'static,
 {
-    type Effect = <CF::Engine as Engine>::Effect;
-    type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
+    type Effect = <CF::PolicyStore as PolicyStore>::Effect;
+    type Action<'a> = <<CF::PolicyStore as PolicyStore>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
     type ClientArgs = CF::Args;
     type Session<'a>
-        = Session<'a, CF::Engine, CF::StorageProvider>
+        = Session<'a, CF::PolicyStore, CF::StorageProvider>
     where
         CF: 'a;
     type ClientId = CID;
@@ -364,7 +364,7 @@ where
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
     ) -> Result<(Vec<Self::Effect>, GraphId), ModelError> {
-        let Entry::Vacant(storage_id) = self.storage_ids.entry(proxy_id.into()) else {
+        let Entry::Vacant(graph_id_entry) = self.graph_ids.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateGraph);
         };
 
@@ -378,7 +378,7 @@ where
             .borrow_mut();
 
         let graph_id = state.new_graph(&[0u8], action, &mut sink)?;
-        storage_id.insert(graph_id);
+        graph_id_entry.insert(graph_id);
 
         Ok((sink.effects, graph_id))
     }
@@ -389,7 +389,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
     ) -> Result<CmdId, ModelError> {
-        let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
+        let Some(graph_id) = self.graph_ids.get(&proxy_id.into()) else {
             return Err(ModelError::GraphNotFound);
         };
 
@@ -400,7 +400,7 @@ where
             .state
             .get_mut();
 
-        let id = state.head_address(*storage_id)?.id;
+        let id = state.head_address(*graph_id)?.id;
 
         Ok(id)
     }
@@ -411,7 +411,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
     ) -> Result<(), ModelError> {
-        let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
+        let Some(graph_id) = self.graph_ids.get(&proxy_id.into()) else {
             return Err(ModelError::GraphNotFound);
         };
 
@@ -422,7 +422,7 @@ where
             .state
             .get_mut();
 
-        if let Err(_e) = state.remove_graph(*storage_id) {
+        if let Err(_e) = state.remove_graph(*graph_id) {
             return Err(ModelError::GraphNotFound);
         }
 
@@ -436,8 +436,8 @@ where
         graph_proxy_id: Self::GraphId,
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError> {
-        let storage_id = self
-            .storage_ids
+        let graph_id = self
+            .graph_ids
             .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
@@ -450,7 +450,7 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(*storage_id, &mut sink, action)?;
+        state.action(*graph_id, &mut sink, action)?;
 
         Ok(sink.effects)
     }
@@ -501,15 +501,15 @@ where
             .state
             .borrow_mut();
 
-        let storage_id = self
-            .storage_ids
+        let graph_id = self
+            .graph_ids
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new(), ());
+        let mut request_syncer = SyncRequester::new(*graph_id, &mut Rng::new());
         assert!(request_syncer.ready());
 
-        let mut request_trx = request_state.transaction(*storage_id);
+        let mut request_trx = request_state.transaction(*graph_id);
 
         while request_syncer.ready() {
             if request_syncer.ready() {
@@ -521,7 +521,7 @@ where
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let len = dispatch::<()>(
+                let len = dispatch(
                     &buffer[..len],
                     &mut target,
                     response_state.provider(),
@@ -559,8 +559,8 @@ where
         client_proxy_id: Self::ClientId,
         graph_proxy_id: Self::GraphId,
     ) -> Result<Self::Session<'_>> {
-        let storage_id = *self
-            .storage_ids
+        let graph_id = *self
+            .graph_ids
             .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
@@ -570,7 +570,7 @@ where
             .ok_or(ModelError::ClientNotFound)?
             .state;
 
-        let session = client.borrow_mut().session(storage_id)?;
+        let session = client.borrow_mut().session(graph_id)?;
 
         Ok(Session {
             client,
@@ -610,16 +610,19 @@ where
 }
 
 /// A wrapper around [`aranya_runtime::Session`] for processing ephemeral actions and commands.
-pub struct Session<'a, E: Engine, SP: StorageProvider> {
-    client: &'a RefCell<ClientState<E, SP>>,
-    session: aranya_runtime::Session<SP, E>,
-    effects: VecSink<<E as Engine>::Effect>,
+pub struct Session<'a, PS: PolicyStore, SP: StorageProvider> {
+    client: &'a RefCell<ClientState<PS, SP>>,
+    session: aranya_runtime::Session<SP, PS>,
+    effects: VecSink<<PS as PolicyStore>::Effect>,
     msgs: MsgSink,
 }
 
-impl<E: Engine, SP: StorageProvider> Session<'_, E, SP> {
+impl<PS: PolicyStore, SP: StorageProvider> Session<'_, PS, SP> {
     /// Process an ephemeral action.
-    pub fn action(&mut self, action: <<E as Engine>::Policy as Policy>::Action<'_>) -> Result<()> {
+    pub fn action(
+        &mut self,
+        action: <<PS as PolicyStore>::Policy as Policy>::Action<'_>,
+    ) -> Result<()> {
         self.session.action(
             &*self.client.borrow(),
             &mut self.effects,
@@ -637,7 +640,7 @@ impl<E: Engine, SP: StorageProvider> Session<'_, E, SP> {
     }
 
     /// Observe and consume the produced effects and commands.
-    pub fn observe(&mut self) -> SessionData<<E as Engine>::Effect> {
+    pub fn observe(&mut self) -> SessionData<<PS as PolicyStore>::Effect> {
         (
             mem::take(&mut self.msgs.cmds),
             mem::take(&mut self.effects.effects),

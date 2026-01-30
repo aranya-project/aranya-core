@@ -20,48 +20,48 @@ use tracing::error;
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
-pub trait FfiCallable<E> {
+pub trait FfiCallable<CE> {
     /// Invokes a function in the module.
     fn call(
         &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &mut CE,
     ) -> Result<(), MachineError>;
 }
 
-impl<FM, E> FfiCallable<E> for FM
+impl<FM, CE> FfiCallable<CE> for FM
 where
     FM: FfiModule,
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
 {
     fn call(
         &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &mut CE,
     ) -> Result<(), MachineError> {
         FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
     }
 }
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
-pub struct VmPolicyIO<'o, P, S, E, FFI> {
+pub struct VmPolicyIO<'o, P, S, CE, FFI> {
     facts: &'o RefCell<&'o mut P>,
     sink: &'o RefCell<&'o mut S>,
-    engine: &'o Mutex<E>,
+    engine: &'o Mutex<CE>,
     ffis: &'o [FFI],
 }
 
-impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
+impl<'o, P, S, CE, FFI> VmPolicyIO<'o, P, S, CE, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
-    /// [`crate::engine::Sink`].
+    /// [`crate::policy::Sink`].
     pub fn new(
         facts: &'o RefCell<&'o mut P>,
         sink: &'o RefCell<&'o mut S>,
-        engine: &'o Mutex<E>,
+        engine: &'o Mutex<CE>,
         ffis: &'o [FFI],
     ) -> Self {
         VmPolicyIO {
@@ -73,13 +73,13 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     }
 }
 
-impl<P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, E, FFI>
+impl<P, S, CE, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, CE, FFI>
 where
     P: FactPerspective,
     S: Sink<VmEffect>,
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
     FFI: DerefMut,
-    <FFI as Deref>::Target: FfiCallable<E>,
+    <FFI as Deref>::Target: FfiCallable<CE>,
 {
     type QueryIterator = VmFactCursor<P>;
 

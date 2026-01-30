@@ -151,31 +151,29 @@ enum SyncResponderState {
 }
 
 #[derive(Default)]
-pub struct SyncResponder<A> {
+pub struct SyncResponder {
     session_id: Option<u128>,
-    storage_id: Option<GraphId>,
+    graph_id: Option<GraphId>,
     state: SyncResponderState,
     bytes_sent: u64,
     next_send: usize,
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
-    server_address: A,
 }
 
-impl<A: Serialize + Clone> SyncResponder<A> {
+impl SyncResponder {
     /// Create a new [`SyncResponder`].
-    pub fn new(server_address: A) -> Self {
+    pub fn new() -> Self {
         Self {
             session_id: None,
-            storage_id: None,
+            graph_id: None,
             state: SyncResponderState::New,
             bytes_sent: 0,
             next_send: 0,
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
-            server_address,
         }
     }
 
@@ -203,12 +201,12 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 return Err(SyncError::NotReady); // TODO(chip): return Ok(NotReady)
             }
             S::Start => {
-                let Some(storage_id) = self.storage_id else {
+                let Some(graph_id) = self.graph_id else {
                     self.state = S::Reset;
-                    bug!("poll called before storage_id was set");
+                    bug!("poll called before graph_id was set");
                 };
 
-                let storage = match provider.get_storage(storage_id) {
+                let storage = match provider.get_storage(graph_id) {
                     Ok(s) => s,
                     Err(e) => {
                         self.state = S::Reset;
@@ -251,13 +249,13 @@ impl<A: Serialize + Clone> SyncResponder<A> {
 
         match message {
             SyncRequestMessage::SyncRequest {
-                storage_id,
+                graph_id,
                 max_bytes,
                 commands,
                 ..
             } => {
                 self.state = SyncResponderState::Start;
-                self.storage_id = Some(storage_id);
+                self.graph_id = Some(graph_id);
                 self.bytes_sent = max_bytes;
                 self.to_send = Vec::new();
                 self.has = commands;
@@ -278,7 +276,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         Ok(())
     }
 
-    fn write_sync_type(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
+    fn write_sync_type(target: &mut [u8], msg: SyncType) -> Result<usize, SyncError> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
@@ -450,12 +448,12 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         provider: &mut impl StorageProvider,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
-        let Some(storage_id) = self.storage_id else {
+        let Some(graph_id) = self.graph_id else {
             self.state = S::Reset;
-            bug!("poll called before storage_id was set");
+            bug!("poll called before graph_id was set");
         };
 
-        let storage = match provider.get_storage(storage_id) {
+        let storage = match provider.get_storage(graph_id) {
             Ok(s) => s,
             Err(e) => {
                 self.state = S::Reset;
@@ -472,8 +470,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     response_index: self.message_index as u64,
                     commands,
                 },
-                storage_id: self.storage_id.assume("storage id must exist")?,
-                address: self.server_address.clone(),
+                graph_id: self.graph_id.assume("graph id must exist")?,
             };
             self.message_index = self
                 .message_index
@@ -505,11 +502,11 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         ),
         SyncError,
     > {
-        let Some(storage_id) = self.storage_id.as_ref() else {
+        let Some(graph_id) = self.graph_id.as_ref() else {
             self.state = SyncResponderState::Reset;
-            bug!("get_next called before storage_id was set");
+            bug!("get_next called before graph_id was set");
         };
-        let storage = match provider.get_storage(*storage_id) {
+        let storage = match provider.get_storage(*graph_id) {
             Ok(s) => s,
             Err(e) => {
                 self.state = SyncResponderState::Reset;

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.18.0...aranya-runtime-v0.19.0) - 2026-01-23
+
+### Other
+
+- rename `storage_id` to `graph_id` ([#546](https://github.com/aranya-project/aranya-core/pull/546))
+- add graph ID to more of protocol ([#543](https://github.com/aranya-project/aranya-core/pull/543))
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- remove server address from protocol ([#541](https://github.com/aranya-project/aranya-core/pull/541))
+- rename policy engine to policy store ([#519](https://github.com/aranya-project/aranya-core/pull/519))
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.17.0...aranya-runtime-v0.18.0) - 2026-01-06
+
+### Other
+
+- Give a trace error when the action is not found ([#516](https://github.com/aranya-project/aranya-core/pull/516))
+
 ## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.16.1...aranya-runtime-v0.17.0) - 2025-12-11
 
 ### Other
