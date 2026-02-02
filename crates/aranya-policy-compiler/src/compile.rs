@@ -198,7 +198,7 @@ struct CompileState<'a> {
     function_signatures: BTreeMap<Identifier, FunctionSignature>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
-    /// The identifiers of all user-defined and auto-genered structs.
+    /// The identifiers of all user-defined and auto-generated structs.
     structs: BTreeSet<&'a Identifier>,
     /// The last span seen, for imprecise source locating.
     last_span: Span,

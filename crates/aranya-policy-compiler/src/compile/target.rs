@@ -10,6 +10,7 @@ use aranya_policy_module::{
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
+
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
 #[derive(Debug)]

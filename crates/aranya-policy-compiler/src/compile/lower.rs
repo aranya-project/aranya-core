@@ -670,11 +670,11 @@ impl CompileState<'_> {
                         "Expression left of `.` is not a struct".into(),
                     ))
                 })?;
-                let Some(struct_def) = self.m.struct_defs.get(name.as_str()) else {
-                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                let struct_def = self.m.struct_defs.get(name.as_str()).ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(format!(
                         "Struct `{name}` not defined"
-                    ))));
-                };
+                    )))
+                })?;
                 let field_def = struct_def
                     .iter()
                     .find(|f| f.identifier.name == s.name)
@@ -738,11 +738,14 @@ impl CompileState<'_> {
                 // NOTE this is implemented only for structs
 
                 // make sure other struct is defined
-                let Some(rhs_fields) = self.m.struct_defs.get(&rhs_ident.name).cloned() else {
-                    return Err(
+                let rhs_fields = self
+                    .m
+                    .struct_defs
+                    .get(&rhs_ident.name)
+                    .cloned()
+                    .ok_or_else(|| {
                         self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
-                    );
-                };
+                    })?;
 
                 let lhs_expression = self.lower_expression(lhs)?;
                 let lhs_struct_name = lhs_expression.vtype.as_struct().ok_or_else(|| {
@@ -750,12 +753,15 @@ impl CompileState<'_> {
                         "Expression to the left of `as` is not a struct".to_string(),
                     ))
                 })?;
-                let Some(lhs_fields) = self.m.struct_defs.get(&lhs_struct_name.name).cloned()
-                else {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "struct {lhs_struct_name}"
-                    ))));
-                };
+                let lhs_fields =
+                    self.m
+                        .struct_defs
+                        .get(&lhs_struct_name.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(format!(
+                                "struct {lhs_struct_name}"
+                            )))
+                        })?;
 
                 // Check that both structs have the same field names and types (though not necessarily in the same order)
                 if lhs_fields.len() != rhs_fields.len()
