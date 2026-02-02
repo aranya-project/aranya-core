@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
+use aranya_policy_ast::{self as ast, FactLiteral, Identifier, NamedStruct, TypeKind, VType};
 
 use crate::{CompileError, CompileErrorType, compile::CompileState};
 
@@ -29,6 +29,13 @@ impl From<TypeUnifyError> for CompileErrorType {
     fn from(err: TypeUnifyError) -> Self {
         Self::InvalidType(err.to_string())
     }
+}
+
+pub(crate) enum UserType<'a> {
+    Struct(&'a ast::StructDefinition),
+    Fact(&'a ast::FactDefinition),
+    Effect(&'a ast::EffectDefinition),
+    Command(&'a ast::CommandDefinition),
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current

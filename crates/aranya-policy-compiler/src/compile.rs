@@ -16,7 +16,7 @@ use std::{
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
     FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Param, Span, Statement,
-    StructDefinition, StructItem, TypeKind, VType, ident, thir,
+    StructItem, TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
@@ -36,6 +36,7 @@ use self::{
     topo::TopoSort,
     types::IdentifierTypeStack,
 };
+use crate::compile::types::UserType;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -1636,35 +1637,82 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn sorted_struct_defintitions(
+    fn sorted_type_definitions(
         &self,
-    ) -> Result<impl Iterator<Item = &'a StructDefinition> + use<'a>, CompileError> {
+    ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
         let mut topo = TopoSort::new();
 
-        // Create dependency graph.
-        for struct_def in &self.policy.structs {
-            let deps = struct_def.items.iter().filter_map(|item| match item {
+        fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
+            match item {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.name),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field
-                    .field_type
-                    .as_struct()
-                    .as_ref()
-                    .map(|ident| &ident.name),
-            });
+                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
+            }
+        }
+
+        // Create dependency graph.
+        for struct_def in &self.policy.structs {
+            let deps = struct_def.items.iter().filter_map(extract_struct_ident);
 
             topo.insert(&struct_def.identifier.name, deps);
         }
 
+        for effect_def in &self.policy.effects {
+            let deps = effect_def.items.iter().filter_map(|item| match item {
+                // { +Foo }
+                StructItem::StructRef(ident) => Some(&ident.name),
+                // { field_name struct Foo }
+                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
+            });
+
+            topo.insert(&effect_def.identifier.name, deps);
+        }
+
+        for fact_def in &self.policy.facts {
+            let deps = fact_def
+                .fields()
+                .filter_map(|def| def.field_type.as_struct().map(|ident| &ident.name));
+
+            topo.insert(&fact_def.identifier.name, deps);
+        }
+
+        for command_def in &self.policy.commands {
+            let deps = command_def.fields.iter().filter_map(extract_struct_ident);
+
+            topo.insert(&command_def.identifier.name, deps);
+        }
+
         let sorted_idents = topo.sort().map_err(|err| self.err(err.into()))?;
 
-        // TODO(Steve): Store hashmap in ` aranya_policy_ast::ast::Policy::structs` to make this more efficient.
+        // TODO(Steve): Store hashmaps in `aranya_policy_ast::ast::Policy`'s fields to make this more efficient.
         let sorted_defs = sorted_idents.into_iter().filter_map(|ident| {
-            self.policy
+            let struct_type = self
+                .policy
                 .structs
                 .iter()
                 .find(|def| def.identifier.name == *ident)
+                .map(UserType::Struct);
+            let effect_type = self
+                .policy
+                .effects
+                .iter()
+                .find(|def| def.identifier.name == *ident)
+                .map(UserType::Effect);
+            let fact_type = self
+                .policy
+                .facts
+                .iter()
+                .find(|def| def.identifier.name == *ident)
+                .map(UserType::Fact);
+            let command_type = self
+                .policy
+                .commands
+                .iter()
+                .find(|def| def.identifier.name == *ident)
+                .map(UserType::Command);
+
+            struct_type.or(effect_type).or(fact_type).or(command_type)
         });
         Ok(sorted_defs)
     }
@@ -1677,27 +1725,8 @@ impl<'a> CompileState<'a> {
             self.compile_enum_definition(enum_def)?;
         }
 
-        for struct_def in self.sorted_struct_defintitions()? {
-            self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
-        }
-
-        for effect in &self.policy.effects {
-            let fields: Vec<StructItem<FieldDefinition>> = effect
-                .items
-                .iter()
-                .map(|i| match i {
-                    StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                        identifier: f.identifier.clone(),
-                        field_type: f.field_type.clone(),
-                    }),
-                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                })
-                .collect();
-            self.define_struct(effect.identifier.clone(), &fields)?;
-            self.m.effects.insert(effect.identifier.name.clone());
-        }
-
         // define the structs provided by FFI schema
+        // FFI structs have no dependencies on types defined in the policy, so compile them first.
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
                 let fields: Vec<StructItem<FieldDefinition>> = s
@@ -1721,23 +1750,38 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        for fact in &self.policy.facts {
-            let FactDefinition { key, value, .. } = fact;
+        // Compile user-defined types in order
+        for utype in self.sorted_type_definitions()? {
+            match utype {
+                UserType::Struct(struct_def) => {
+                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?
+                }
+                UserType::Effect(effect) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = effect
+                        .items
+                        .iter()
+                        .map(|i| match i {
+                            StructItem::Field(f) => StructItem::Field(FieldDefinition {
+                                identifier: f.identifier.clone(),
+                                field_type: f.field_type.clone(),
+                            }),
+                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                        })
+                        .collect();
+                    self.define_struct(effect.identifier.clone(), &fields)?;
+                    self.m.effects.insert(effect.identifier.name.clone());
+                }
+                UserType::Fact(fact) => {
+                    let fields: Vec<StructItem<FieldDefinition>> =
+                        fact.fields().cloned().map(StructItem::Field).collect();
 
-            let fields: Vec<StructItem<FieldDefinition>> = key
-                .iter()
-                .chain(value.iter())
-                .cloned()
-                .map(StructItem::Field)
-                .collect();
-
-            self.define_struct(fact.identifier.clone(), &fields)?;
-            self.define_fact(fact)?;
-        }
-
-        // Define command structs before compiling functions
-        for command in &self.policy.commands {
-            self.define_struct(command.identifier.clone(), &command.fields)?;
+                    self.define_struct(fact.identifier.clone(), &fields)?;
+                    self.define_fact(fact)?;
+                }
+                UserType::Command(command) => {
+                    self.define_struct(command.identifier.clone(), &command.fields)?;
+                }
+            }
         }
 
         for action in &self.policy.actions {

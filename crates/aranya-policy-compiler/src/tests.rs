@@ -3353,12 +3353,11 @@ fn test_structs_listed_out_of_order() {
             struct Bar { f struct Foo }
             struct Foo {}
         "#,
-        // TODO: Topo sort effects, facts, etc.
-        // r#"
-        //     struct Fum { +Fi, +Foo }
-        //     effect Fi { s string }
-        //     fact Foo[x int]=>{ b bool }
-        // "#,
+        r#"
+            struct Fum { +Fi, +Foo }
+            effect Fi { s string }
+            fact Foo[x int]=>{ b bool }
+        "#,
         r#"
             function ret_bar() struct Bar {
                 let fum = Fum { b: true }
@@ -3370,18 +3369,62 @@ fn test_structs_listed_out_of_order() {
             struct Foo { s string }
 
         "#,
+        r#"
+            effect Fi { s struct Foo }
+            command Foo {
+                fields {
+                    i int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+        "#,
     ];
 
-    let invalid_cases = [(
-        r#"
-        struct Fum { b struct Bar, f struct Foo }
-        struct Bar { f struct Foo }
-        struct Foo { fum struct Fum } // cycle
-    "#,
-        CompileErrorType::Unknown(String::from(
-            "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]",
-        )),
-    )];
+    let invalid_cases = [
+        (
+            r#"
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo { fum struct Fum } // cycle
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]",
+            )),
+        ),
+        (
+            r#"
+            struct Fum { +Fi, +Foo }
+            effect Fi { s string }
+            fact Foo[x int]=>{ fum struct Fum } // cycle
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Foo, Fum]",
+            )),
+        ),
+        (
+            r#"
+            effect Bar { s struct Co }
+            command Co {
+                fields {
+                    fi struct Bar, // cycle
+                    i int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Co, Bar]",
+            )),
+        ),
+    ];
 
     for case in valid_cases {
         compile_pass(case);
