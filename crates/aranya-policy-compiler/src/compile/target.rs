@@ -10,28 +10,6 @@ use aranya_policy_module::{
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
-
-/// Compilation State
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum State<T> {
-    Compiling,
-    Compiled(T),
-}
-
-impl<T> From<State<T>> for Option<T> {
-    fn from(value: State<T>) -> Self {
-        match value {
-            State::Compiling => None,
-            State::Compiled(c) => Some(c),
-        }
-    }
-}
-
-const _: () = {
-    type StructDef = ast::StructDefinition;
-    assert!(size_of::<Vec<StructDef>>() == size_of::<State<Vec<StructDef>>>());
-};
-
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
 #[derive(Debug)]
@@ -51,7 +29,7 @@ pub(crate) struct CompileTarget {
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, State<Vec<ast::FieldDefinition>>>,
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Mapping between program instructions and original code
@@ -93,7 +71,7 @@ impl CompileTarget {
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
-                struct_defs: Self::filter_defs(self.struct_defs),
+                struct_defs: self.struct_defs,
                 enum_defs,
                 codemap: self.codemap,
                 globals: self.globals,
@@ -114,7 +92,7 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let Some(State::Compiled(defs)) = self.struct_defs.get(&ident.name) else {
+                let Some(defs) = self.struct_defs.get(&ident.name) else {
                     return None;
                 };
                 defs.iter()
@@ -131,20 +109,6 @@ impl CompileTarget {
             }
             TypeKind::Never => Some(0),
         }
-    }
-
-    // Filter out the definitions that aren't fully compiled
-    fn filter_defs(
-        defs: BTreeMap<Identifier, State<Vec<ast::FieldDefinition>>>,
-    ) -> BTreeMap<Identifier, Vec<ast::FieldDefinition>> {
-        defs.into_iter()
-            .filter_map(|(ident, field_defs)| {
-                let field_defs = Option::from(field_defs);
-                // Every entry should be fully compiled by the time this method is called and thus, `field_defs` should be `Some`.
-                debug_assert!(field_defs.is_some());
-                field_defs.map(|field_defs| (ident, field_defs))
-            })
-            .collect()
     }
 }
 
@@ -188,7 +152,7 @@ impl From<CompileTarget> for PolicyInterface {
         Self {
             action_defs: t.action_defs,
             effects: t.effects,
-            struct_defs: CompileTarget::filter_defs(t.struct_defs),
+            struct_defs: t.struct_defs,
             enum_defs: t.enum_defs,
         }
     }

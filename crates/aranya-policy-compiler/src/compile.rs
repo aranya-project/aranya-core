@@ -31,11 +31,7 @@ pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
     target::PolicyInterface,
 };
-use self::{
-    target::{CompileTarget, State},
-    topo::TopoSort,
-    types::IdentifierTypeStack,
-};
+use self::{target::CompileTarget, topo::TopoSort, types::IdentifierTypeStack};
 use crate::compile::types::UserType;
 
 #[derive(Clone, Debug)]
@@ -199,6 +195,8 @@ struct CompileState<'a> {
     function_signatures: BTreeMap<Identifier, FunctionSignature>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
+    /// The identifiers of all user-defined and auto-genered structs.
+    structs: BTreeSet<&'a Identifier>,
     /// The last span seen, for imprecise source locating.
     last_span: Span,
     /// The current statement context, implemented as a stack so that it can be
@@ -290,7 +288,7 @@ impl<'a> CompileState<'a> {
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if !self.m.struct_defs.contains_key(&identifier.name) {
+        if !self.structs.contains(&identifier.name) {
             let bug = buggy::Bug::new(
                 "`CompileState::list_structs` was not called before `CompileState::define_struct`.",
             );
@@ -332,9 +330,7 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let Some(State::Compiled(other)) =
-                        self.m.struct_defs.get(&field_type_ident.name)
-                    else {
+                    let Some(other) = self.m.struct_defs.get(&field_type_ident.name) else {
                         return Err(
                             self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
                         );
@@ -370,7 +366,7 @@ impl<'a> CompileState<'a> {
 
         self.m
             .struct_defs
-            .insert(identifier.name, State::Compiled(field_definitions));
+            .insert(identifier.name, field_definitions);
         Ok(())
     }
 
@@ -692,8 +688,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(State::Compiled(sub_field_defns)) = self.m.struct_defs.get(&sub.name)
-                else {
+                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub
@@ -1415,8 +1410,7 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let Some(State::Compiled(struct_def)) = self.m.struct_defs.get(&ref_name.name)
-                    else {
+                    let Some(struct_def) = self.m.struct_defs.get(&ref_name.name) else {
                         return Err(self.err(CompileErrorType::NotDefined(ref_name.to_string())));
                     };
                     for fd in struct_def {
@@ -1591,31 +1585,19 @@ impl<'a> CompileState<'a> {
     /// Adds entries for the Struct, Effect, Fact, Command, and FFI Struct defintions
     /// to [CompileTarget::struct_defs] before fully compiling.
     fn list_structs(&mut self) -> Result<(), CompileError> {
-        let effect_idents = self
-            .policy
-            .effects
-            .iter()
-            .map(|def| def.identifier.name.clone());
-        let fact_idents = self
-            .policy
-            .facts
-            .iter()
-            .map(|def| def.identifier.name.clone());
+        let effect_idents = self.policy.effects.iter().map(|def| &def.identifier.name);
+        let fact_idents = self.policy.facts.iter().map(|def| &def.identifier.name);
         let ffi_struct_idents = self
             .ffi_modules
             .iter()
-            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| def.name.clone()));
-        let command_idents = self
-            .policy
-            .commands
-            .iter()
-            .map(|def| def.identifier.name.clone());
+            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| &def.name));
+        let command_idents = self.policy.commands.iter().map(|def| &def.identifier.name);
 
         let struct_idents = self
             .policy
             .structs
             .iter()
-            .map(|def| def.identifier.name.clone())
+            .map(|def| &def.identifier.name)
             .chain(effect_idents)
             .chain(fact_idents)
             .chain(ffi_struct_idents)
@@ -1624,12 +1606,7 @@ impl<'a> CompileState<'a> {
         for ident in struct_idents {
             // TODO(Steve): Use a type that has span information so a better error message can be created
             // when duplicate type defintions are found.
-            if self
-                .m
-                .struct_defs
-                .insert(ident.clone(), State::Compiling)
-                .is_some()
-            {
+            if !self.structs.insert(&ident) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
             }
         }
@@ -1853,9 +1830,7 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(Value::Bool(*v)),
             ExprKind::String(v) => Ok(Value::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(State::Compiled(struct_def)) =
-                    self.m.struct_defs.get(&struct_ast.identifier.name)
-                else {
+                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         struct_ast.identifier.name,
@@ -1936,9 +1911,7 @@ impl<'a> CompileState<'a> {
                     "Expected `{src_var_name}` to be a struct, but it's a(n) {src_type}",
                 )))
             })?;
-            let Some(State::Compiled(src_field_defns)) =
-                self.m.struct_defs.get(&src_struct_type_name.name)
-            else {
+            let Some(src_field_defns) = self.m.struct_defs.get(&src_struct_type_name.name) else {
                 let err = buggy::Bug::new(
                     "identifier with a struct type should have that struct already defined",
                 );
@@ -2144,6 +2117,7 @@ impl<'a> Compiler<'a> {
             c: 0,
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
+            structs: BTreeSet::new(),
             last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
