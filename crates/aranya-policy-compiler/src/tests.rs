@@ -3379,7 +3379,7 @@ fn test_structs_listed_out_of_order() {
         struct Foo { fum struct Fum } // cycle
     "#,
         CompileErrorType::Unknown(String::from(
-            "Found cyclic dependencies when compiling structs:\n- [Bar, Foo, Fum]",
+            "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]",
         )),
     )];
 
