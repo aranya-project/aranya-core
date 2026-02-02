@@ -1165,7 +1165,7 @@ impl CompileState<'_> {
             LanguageContext::Statement(s) => {
                 let mut arms = Vec::new();
                 for arm in &s.arms {
-                    let pattern = patterns.next().assume("same number of patterns")?;
+                    let pattern = patterns.next().assume("expected pattern for match arm")?;
 
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
@@ -1217,7 +1217,7 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => {
                 let mut arms = Vec::new();
                 for (i, arm) in e.arms.iter().enumerate() {
-                    let pattern = patterns.next().assume("same number of patterns")?;
+                    let pattern = patterns.next().assume("expected pattern for match arm")?;
 
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
