@@ -31,8 +31,11 @@ pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
     target::PolicyInterface,
 };
-use self::{target::CompileTarget, topo::TopoSort, types::IdentifierTypeStack};
-use crate::compile::types::UserType;
+use self::{
+    target::CompileTarget,
+    topo::TopoSort,
+    types::{IdentifierTypeStack, UserType},
+};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -330,11 +333,13 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let Some(other) = self.m.struct_defs.get(&field_type_ident.name) else {
-                        return Err(
-                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
-                        );
-                    };
+                    let other =
+                        self.m
+                            .struct_defs
+                            .get(&field_type_ident.name)
+                            .ok_or_else(|| {
+                                self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
+                            })?;
                     for field in other {
                         if field_definitions
                             .iter()
@@ -1410,9 +1415,9 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let Some(struct_def) = self.m.struct_defs.get(&ref_name.name) else {
-                        return Err(self.err(CompileErrorType::NotDefined(ref_name.to_string())));
-                    };
+                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                    })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1583,7 +1588,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Adds entries for the Struct, Effect, Fact, Command, and FFI Struct defintions
-    /// to [CompileTarget::struct_defs] before fully compiling.
+    /// to [CompileState::structs] before fully compiling.
     fn list_structs(&mut self) -> Result<(), CompileError> {
         let effect_idents = self.policy.effects.iter().map(|def| &def.identifier.name);
         let fact_idents = self.policy.facts.iter().map(|def| &def.identifier.name);
@@ -1911,12 +1916,12 @@ impl<'a> CompileState<'a> {
                     "Expected `{src_var_name}` to be a struct, but it's a(n) {src_type}",
                 )))
             })?;
-            let Some(src_field_defns) = self.m.struct_defs.get(&src_struct_type_name.name) else {
-                let err = buggy::Bug::new(
-                    "identifier with a struct type should have that struct already defined",
-                );
-                return Err(self.err(err.into()));
-            };
+            let src_field_defns = self
+                .m
+                .struct_defs
+                .get(&src_struct_type_name.name)
+                .assume("identifier with a struct type has that struct already defined")
+                .map_err(|err| self.err(err.into()))?;
 
             for src_field_defn in src_field_defns {
                 // Don't resolve fields already in the base struct.
