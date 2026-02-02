@@ -21,13 +21,15 @@ use visited::CappedVisited;
 
 /// Default capacity for the visited segment cache used in graph traversal.
 ///
-/// This bounds memory usage (~4 KB at 256 entries) while allowing efficient
-/// traversal of graphs with many concurrent branches. The capacity should
-/// accommodate the expected "active frontier" width during backward traversal,
-/// which is bounded by peer count. Recommended values:
-/// - Embedded (small): 64 entries (~1 KB)
-/// - Standard embedded: 256 entries (~4 KB)
-/// - Server: 512 entries (~8 KB)
+/// This bounds memory usage while allowing efficient traversal of graphs
+/// with many concurrent branches. Each entry requires approximately 24 bytes
+/// (8-byte segment_id + 8-byte min_max_cut + 8-byte highest_command_visited).
+///
+/// The capacity should accommodate the expected "active frontier" width
+/// during backward traversal, which is bounded by peer count. Recommended:
+/// - Embedded (small): 64 entries (~1.5 KB)
+/// - Standard embedded: 256 entries (~6 KB)
+/// - Server: 512 entries (~12 KB)
 ///
 /// If capacity is exceeded, the algorithm remains correct but may revisit
 /// segments (producing redundant work, not incorrect results).
@@ -188,30 +190,46 @@ pub trait Storage {
         start: Location,
         address: Address,
     ) -> Result<Option<Location>, StorageError> {
+        use alloc::collections::VecDeque;
+
         // Track visited segments to avoid revisiting via different paths.
-        // Uses bounded memory with max_cut-based eviction for no-alloc environments.
+        // Uses bounded memory with effective max_cut-based eviction.
         let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
-        let mut queue = Vec::new();
-        queue.push(start);
+        let mut queue = VecDeque::new();
+        queue.push_back(start);
 
-        while let Some(loc) = queue.pop() {
+        while let Some(loc) = queue.pop_front() {
+            // Check visited status and determine search range
+            let search_start = if let Some((_, highest)) = visited.get(loc.segment) {
+                if loc.command <= highest {
+                    continue; // Already searched this entry point or higher
+                }
+                // Only search commands we haven't seen
+                highest.saturating_add(1)
+            } else {
+                0 // First visit - search from beginning
+            };
+
+            // Must load segment
             let segment = self.get_segment(loc)?;
-            let segment_max_cut = segment.longest_max_cut()?;
-
-            // Skip if we've already visited this segment
-            if !visited.insert(loc.segment, segment_max_cut) {
-                continue;
-            }
+            let seg_min_max_cut = segment.shortest_max_cut();
+            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.command);
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
+            let segment_max_cut = segment.longest_max_cut()?;
             if address.max_cut > segment_max_cut {
                 continue;
             }
 
-            // Check if target is in this segment
+            // Search commands from search_start to loc.command (inclusive)
+            // Check if target is in this segment using get_by_address first
+            // (which may be optimized), then fall back to range check
             if let Some(found) = segment.get_by_address(address) {
-                return Ok(Some(found));
+                // Verify the found location is within our search range
+                if found.command >= search_start && found.command <= loc.command {
+                    return Ok(Some(found));
+                }
             }
 
             // Try to use skip list to jump directly backward.
@@ -220,7 +238,7 @@ pub trait Storage {
             let mut used_skip = false;
             for (skip, skip_max_cut) in segment.skip_list() {
                 if skip_max_cut >= &address.max_cut {
-                    queue.push(*skip);
+                    queue.push_back(*skip);
                     used_skip = true;
                     break;
                 }
@@ -228,7 +246,9 @@ pub trait Storage {
 
             if !used_skip {
                 // No valid skip - add prior locations to queue
-                queue.extend(segment.prior());
+                for prior in segment.prior() {
+                    queue.push_back(prior);
+                }
             }
         }
         Ok(None)
@@ -293,6 +313,8 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
+        use alloc::collections::VecDeque;
+
         let search_segment = self.get_segment(search_location)?;
         let address = search_segment
             .get_command(search_location)
@@ -300,28 +322,35 @@ pub trait Storage {
             .address()?;
 
         // Track visited segments to avoid revisiting via different paths.
-        // Uses bounded memory with max_cut-based eviction for no-alloc environments.
+        // Uses bounded memory with effective max_cut-based eviction.
         let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
-        let mut queue = Vec::new();
-        queue.extend(segment.prior());
+        let mut queue = VecDeque::new();
+        for prior in segment.prior() {
+            queue.push_back(prior);
+        }
 
-        while let Some(loc) = queue.pop() {
-            // Check if we've found the target
+        while let Some(loc) = queue.pop_front() {
+            // Check if we've found the target BEFORE visited check
+            // This ensures entering a segment at different commands works correctly
             if loc.segment == search_location.segment && loc.command >= search_location.command {
                 return Ok(true);
             }
 
-            let seg = self.get_segment(loc)?;
-            let seg_max_cut = seg.longest_max_cut()?;
-
-            // Skip if we've already visited this segment
-            if !visited.insert(loc.segment, seg_max_cut) {
-                continue;
+            // Check if we can skip loading this segment entirely
+            if let Some((_, highest)) = visited.get(loc.segment) {
+                if loc.command <= highest {
+                    continue; // Already visited at this entry point or higher
+                }
             }
+
+            // Must load segment
+            let seg = self.get_segment(loc)?;
+            let seg_min_max_cut = seg.shortest_max_cut();
+            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.command);
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
-            if address.max_cut > seg_max_cut {
+            if address.max_cut > seg.longest_max_cut()? {
                 continue;
             }
 
@@ -331,7 +360,7 @@ pub trait Storage {
             let mut used_skip = false;
             for (skip, skip_max_cut) in seg.skip_list() {
                 if skip_max_cut >= &address.max_cut {
-                    queue.push(*skip);
+                    queue.push_back(*skip);
                     used_skip = true;
                     break;
                 }
@@ -339,7 +368,9 @@ pub trait Storage {
 
             if !used_skip {
                 // No valid skip - add prior locations to queue
-                queue.extend(seg.prior());
+                for prior in seg.prior() {
+                    queue.push_back(prior);
+                }
             }
         }
         Ok(false)
