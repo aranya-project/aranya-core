@@ -92,9 +92,7 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let Some(defs) = self.struct_defs.get(&ident.name) else {
-                    return None;
-                };
+                let defs = self.struct_defs.get(&ident.name)?;
                 defs.iter()
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {

@@ -1606,7 +1606,7 @@ impl<'a> CompileState<'a> {
         for ident in struct_idents {
             // TODO(Steve): Use a type that has span information so a better error message can be created
             // when duplicate type defintions are found.
-            if !self.structs.insert(&ident) {
+            if !self.structs.insert(ident) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
             }
         }
@@ -1731,7 +1731,7 @@ impl<'a> CompileState<'a> {
         for utype in self.sorted_type_definitions()? {
             match utype {
                 UserType::Struct(struct_def) => {
-                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?
+                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
                 }
                 UserType::Effect(effect) => {
                     let fields: Vec<StructItem<FieldDefinition>> = effect
