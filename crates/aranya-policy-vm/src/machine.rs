@@ -1013,23 +1013,53 @@ where
                 };
                 self.ipush(wrapped)?;
             }
-            Instruction::IsOk => {
+            Instruction::Is(wrap_type) => {
                 let value = self.ipeek_value()?;
-                let is_ok = matches!(value, Value::Result(Ok(_)));
-                self.ipush(Value::Bool(is_ok))?;
+                let is_type = match wrap_type {
+                    WrapType::Some => matches!(value, Value::Option(Some(_))),
+                    WrapType::Ok => matches!(value, Value::Result(Ok(_))),
+                    WrapType::Err => matches!(value, Value::Result(Err(_))),
+                };
+                self.ipush(Value::Bool(is_type))?;
             }
-            Instruction::Unwrap => {
+            Instruction::Unwrap(wrap_type) => {
+                let pc = self.pc;
+                let assert_wrap_type =
+                    |expected: WrapType, got: WrapType| -> Result<(), MachineError> {
+                        if got != expected {
+                            return Err(MachineError::from_position(
+                                MachineErrorType::invalid_type(
+                                    got.to_string(),
+                                    expected.to_string(),
+                                    "Unwrap",
+                                ),
+                                pc,
+                                None,
+                            ));
+                        }
+                        Ok(())
+                    };
                 let value = self.ipop_value()?;
                 let inner = match value {
                     Value::Option(opt) => match opt {
-                        Some(inner) => *inner,
+                        Some(inner) => {
+                            assert_wrap_type(WrapType::Some, wrap_type)?;
+                            *inner
+                        }
                         None => {
                             return Err(
                                 self.err(MachineErrorType::Unknown("unwrapped None".into()))
                             );
                         }
                     },
-                    Value::Result(Ok(inner) | Err(inner)) => *inner,
+                    Value::Result(Ok(inner)) => {
+                        assert_wrap_type(WrapType::Ok, wrap_type)?;
+                        *inner
+                    }
+                    Value::Result(Err(inner)) => {
+                        assert_wrap_type(WrapType::Err, wrap_type)?;
+                        *inner
+                    }
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
                             "Result or Option",

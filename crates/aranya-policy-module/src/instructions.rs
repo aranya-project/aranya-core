@@ -210,9 +210,9 @@ pub enum Instruction {
     /// Wrap the value on top of the stack (Ok, Err, or Some)
     Wrap(WrapType),
     /// Check if the value on top of the stack is Ok (pushes bool)
-    IsOk,
+    Is(WrapType),
     /// Unwrap the inner value from a Result (Ok or Err). Will eventually support Optional (Some) as well.
-    Unwrap,
+    Unwrap(WrapType),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -280,8 +280,8 @@ impl Display for Instruction {
             Self::MStructSet(n) => write!(f, "mstruct.set {n}"),
             Self::Cast(ident) => write!(f, "cast {ident}"),
             Self::Wrap(wrap_type) => write!(f, "wrap {wrap_type}"),
-            Self::IsOk => write!(f, "is_ok"),
-            Self::Unwrap => write!(f, "unwrap"),
+            Self::Is(wrap_type) => write!(f, "is {wrap_type}"),
+            Self::Unwrap(wrap_type) => write!(f, "unwrap {wrap_type}"),
             Self::Publish => write!(f, "publish"),
             Self::Create => write!(f, "create"),
             Self::Delete => write!(f, "delete"),

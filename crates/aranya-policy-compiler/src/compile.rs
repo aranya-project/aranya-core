@@ -780,8 +780,8 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            thir::ExprKind::Unwrap(e) => self.compile_unwrap(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap(*e, ExitReason::Check)?,
+            thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
+            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap_option(*e, ExitReason::Check)?,
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
@@ -1155,7 +1155,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
-    fn compile_unwrap(
+    fn compile_unwrap_option(
         &mut self,
         e: thir::Expression,
         exit_reason: ExitReason,
@@ -1176,7 +1176,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(exit_reason));
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
-        self.append_instruction(Instruction::Unwrap);
+        self.append_instruction(Instruction::Unwrap(WrapType::Some));
 
         Ok(())
     }
@@ -1489,14 +1489,14 @@ impl<'a> CompileState<'a> {
         scrutinee_type: &VType,
     ) -> Result<(), CompileError> {
         // Make sure the scrutinee is actually a Result, and extract the identifier.
-        let ident = match pattern {
+        let (ident, wrap_type) = match pattern {
             thir::ResultPattern::Ok(ident) => {
                 if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
                     return Err(self.err(CompileErrorType::InvalidType(
                         "Ok pattern requires Result type".to_string(),
                     )));
                 }
-                ident
+                (ident, WrapType::Ok)
             }
             thir::ResultPattern::Err(ident) => {
                 if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
@@ -1504,12 +1504,12 @@ impl<'a> CompileState<'a> {
                         "Err pattern requires Result type".to_string(),
                     )));
                 }
-                ident
+                (ident, WrapType::Err)
             }
         };
 
         // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
-        self.append_instruction(Instruction::Unwrap);
+        self.append_instruction(Instruction::Unwrap(wrap_type));
         self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
         self.append_instruction(Instruction::Def(ident.name.clone()));
         // NOTE: We don't call identifier_types.add() here because the pattern variable
@@ -1585,15 +1585,14 @@ impl<'a> CompileState<'a> {
                 thir::MatchPattern::ResultPattern(pattern) => match pattern {
                     thir::ResultPattern::Ok(_) => {
                         self.append_instruction(Instruction::Dup);
-                        self.append_instruction(Instruction::IsOk);
+                        self.append_instruction(Instruction::Is(WrapType::Ok));
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             arm_label.clone(),
                         )));
                     }
                     thir::ResultPattern::Err(_) => {
                         self.append_instruction(Instruction::Dup);
-                        self.append_instruction(Instruction::IsOk);
-                        self.append_instruction(Instruction::Not);
+                        self.append_instruction(Instruction::Is(WrapType::Err));
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             arm_label.clone(),
                         )));
