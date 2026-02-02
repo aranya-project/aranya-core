@@ -86,6 +86,15 @@ mod test {
     }
 
     #[test]
+    fn test_no_edges() {
+        let mut topo = TopoSort::new();
+
+        topo.insert("Fum", []);
+
+        assert_eq!(topo.sort().unwrap(), vec!["Fum"]);
+    }
+
+    #[test]
     fn test_cycle() {
         let mut topo = TopoSort::new();
 

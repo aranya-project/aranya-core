@@ -2962,6 +2962,14 @@ fn test_structs_with_undefined_types() {
                 "Found cyclic dependencies when compiling structs:\n- [Bar]".into(),
             ),
         ),
+        (
+            r#"
+            struct Bar { f int }
+            fact Foo[]=>{ s struct Unknown, b struct Bar, fi struct Fi }
+            struct Fi { s string }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
     ];
 
     for (text, expected) in cases {
@@ -3345,6 +3353,12 @@ fn test_structs_listed_out_of_order() {
             struct Bar { f struct Foo }
             struct Foo {}
         "#,
+        // TODO: Topo sort effects, facts, etc.
+        // r#"
+        //     struct Fum { +Fi, +Foo }
+        //     effect Fi { s string }
+        //     fact Foo[x int]=>{ b bool }
+        // "#,
         r#"
             function ret_bar() struct Bar {
                 let fum = Fum { b: true }
