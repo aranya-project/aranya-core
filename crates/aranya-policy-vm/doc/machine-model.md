@@ -15,9 +15,10 @@ The stack can hold these types:
 | string   | UTF-8 string                  |
 | struct   | named struct (see lang spec)  |
 | fact     | fact (see lang spec)          |
-| none     | empty optional value          |
-| ok       | result success identifier     |
-| err      | result error identifier       |
+| Some(v)  | optional value                |
+| None     | empty optional value          |
+| Ok(n)    | result success identifier     |
+| Err(n)   | result error identifier       |
 
 In particular, there is no explicit optional type, as they are elided during compilation.
 
@@ -42,22 +43,19 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`f`       |a fact|
 |`i`       |an id|
 |`z`       |an opaque value|
-|`ok`      |success result value|
-|`err`     |error result value|
+|`o`       |an optional value|
+|`r`       |a result value|
 
 ## data/stack
 ||||
 |-|-|-|
-| `const(v)`         | `( -- v )`     | push a value onto the stack
-| `def`              | `( v s -- )`   | define a local value by name
-| `get`              | `( s -- v )`   | get a value by name
-| `dup`              | `( v -- v v )` | duplicate the item at the top of the stack
-| `pop`              | `( v -- )`     | remove a value from the top of the stack
-| `wrap` (ok)        | `( v -- ok )`  | wrap value in Result::Ok variant
-| `wrap` (err)       | `( v -- err )` | wrap value in Result::Err variant
-| `is_ok`            | `( v -- v b )` | check if value is Ok variant (pushes bool, leaves value on stack)
-| `unwrap` (option)  | `( v -- v )`   | get the value from an optional, or none
-| `unwrap` (result)  | `( v -- v )`   | get the success/error value from Ok or Err
+| `const(v)`     | `( -- v )`        | push a value onto the stack
+| `def`          | `( v s -- )`      | define a local value by name
+| `get`          | `( s -- v )`      | get a value by name
+| `dup`          | `( v -- v v )`    | duplicate the item at the top of the stack
+| `pop`          | `( v -- )`        | remove a value from the top of the stack
+| `wrap(o\|r)`   | `( o\|r -- v )`   | wrap value in `Some`/`Ok`/`Err`
+| `unwrap(o\|r)` | `( o\|r -- v )`   | get the value from an optional, or none
 
 ## control flow
 ||||
