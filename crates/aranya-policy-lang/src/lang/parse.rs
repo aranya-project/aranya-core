@@ -212,14 +212,13 @@ impl ChunkParser<'_> {
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
-        self.parse_type_inner(token, TypeStyle::Unknown, true)
+        self.parse_type_inner(token, TypeStyle::Unknown)
     }
 
     fn parse_type_inner(
         &self,
         token: Pair<'_, Rule>,
-        mut style: TypeStyle,
-        allow_option: bool,
+        style: TypeStyle,
     ) -> Result<VType, ParseError> {
         let pest_span = token.as_span();
         let span = self.to_ast_span(pest_span)?;
@@ -249,12 +248,8 @@ impl ChunkParser<'_> {
                             "`optional T` is being replaced with `option[T]` soon. Consider replacing all uses now to avoid later breakage."
                         );
                     }
-                }
-                match (style, is_old) {
-                    (TypeStyle::Unknown, true) => style = TypeStyle::Old,
-                    (TypeStyle::Unknown, false) => style = TypeStyle::New,
-                    (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
-                    _ => {
+
+                    if style == TypeStyle::New {
                         return Err(ParseError::new(
                             ParseErrorKind::InvalidType,
                             String::from(
@@ -264,6 +259,11 @@ impl ChunkParser<'_> {
                         ));
                     }
                 }
+                let style = if is_old {
+                    TypeStyle::Old
+                } else {
+                    TypeStyle::New
+                };
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
                     ParseError::new(
@@ -272,10 +272,20 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let inner_type = self.parse_type_inner(token, style, !is_old)?;
+                let inner_type = self.parse_type_inner(token, style)?;
                 TypeKind::Optional(Box::new(inner_type))
             }
             Rule::result_t => {
+                if style == TypeStyle::Old {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from(
+                            "Replace `optional T` with the new `option[T]` to use complex types",
+                        ),
+                        Some(pest_span),
+                    ));
+                }
+
                 let mut pairs = token.clone().into_inner();
                 let ok_token = pairs.next().ok_or_else(|| {
                     ParseError::new(
@@ -284,7 +294,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, true)?;
+                let ok_type = self.parse_type_inner(ok_token, TypeStyle::New)?;
 
                 let err_token = pairs.next().ok_or_else(|| {
                     ParseError::new(
@@ -293,7 +303,7 @@ impl ChunkParser<'_> {
                         Some(token.as_span()),
                     )
                 })?;
-                let err_type = self.parse_type_inner(err_token, TypeStyle::New, true)?;
+                let err_type = self.parse_type_inner(err_token, TypeStyle::New)?;
 
                 TypeKind::Result(Box::new(ResultTypeKind {
                     ok: ok_type,
@@ -1939,7 +1949,7 @@ fn get_pratt_parser() -> PrattParser<Rule> {
         .op(Op::postfix(Rule::dot))
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 enum TypeStyle {
     Unknown,
     Old,

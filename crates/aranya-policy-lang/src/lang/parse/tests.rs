@@ -236,16 +236,17 @@ fn parse_expression_errors() -> Result<(), ParseError> {
     Ok(())
 }
 
+/// Helper for testing complex type parsing.
+fn parse_vtype(text: &str) -> Result<VType, ParseError> {
+    let pratt = get_pratt_parser();
+    let p = ChunkParser::new(0, &pratt, text.len());
+    let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
+    let pair = pairs.next().unwrap();
+    p.parse_type(pair)
+}
+
 #[test]
 fn parse_optional() {
-    fn parse_vtype(text: &str) -> Result<VType, ParseError> {
-        let pratt = get_pratt_parser();
-        let p = ChunkParser::new(0, &pratt, text.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
-        let pair = pairs.next().unwrap();
-        p.parse_type(pair)
-    }
-
     let optional_types = &[
         // (case, is valid)
         ("optional string", true),
@@ -278,8 +279,6 @@ fn parse_result() {
         ("result[int, string]", true),
         ("result[bytes, bool]", true),
         ("result[struct Foo, string]", true),
-        ("result[optional int, string]", true),
-        ("result[int, optional string]", true),
         ("result[int, enum Error]", true),
         ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
         ("result[int]", false),                      // missing error type
@@ -288,7 +287,26 @@ fn parse_result() {
         ("result[int, blargh]", false),              // invalid error type
     ];
     for (case, is_valid) in result_types {
-        let r = PolicyParser::parse(Rule::result_t, case);
+        let r = parse_vtype(case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+/// Nested option/result should only accept bracket form.
+#[test]
+fn parse_option_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[option[int], string]", true),
+        ("result[int, option[string]]", true),
+        ("result[option[int], option[string]]", true),
+        ("option[result[int, string]]", true),
+        ("result[optional int, string]", false),
+        ("result[int, optional string]", false),
+        ("optional result[int, string]", false),
+    ];
+    for (case, is_valid) in result_types {
+        let r = parse_vtype(case);
         assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
 }
