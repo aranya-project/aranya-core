@@ -654,38 +654,6 @@ impl ChunkParser<'_> {
                         ))
                     }
                 }
-                // pattern match: `Ok(value) => ...`
-                Rule::ok => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let v = primary.clone().into_inner().next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("no value in Ok expression"),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let expr = self.parse_expression(v)?;
-                    Ok(Expression {
-                        kind: ExprKind::ResultOk(Box::new(expr)),
-                        span
-                    })
-                }
-                // pattern match: `Err(err) => ...`
-                Rule::err => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let v = primary.clone().into_inner().next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("no value in Err expression"),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let expr = self.parse_expression(v)?;
-                    Ok(Expression {
-                        kind: ExprKind::ResultErr(Box::new(expr)),
-                        span,
-                    })
-                }
                 Rule::named_struct_literal => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ns = self.parse_named_struct_literal(primary)?;
