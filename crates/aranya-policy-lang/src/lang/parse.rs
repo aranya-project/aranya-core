@@ -421,6 +421,51 @@ impl ChunkParser<'_> {
         })
     }
 
+    /// Parse a match pattern from a match_arm_expression token.
+    /// Determines if the pattern is a Result pattern (Ok/Err) or a Values pattern.
+    fn parse_match_pattern(&self, token: Pair<'_, Rule>) -> Result<MatchPattern, ParseError> {
+        assert_eq!(token.as_rule(), Rule::match_arm_expression);
+
+        let pest_span = token.as_span();
+        let values = token
+            .into_inner()
+            .map(|token| self.parse_expression(token.clone()))
+            .collect::<Result<Vec<Expression>, ParseError>>()?;
+
+        // Check if this is a single-value Result pattern: Ok(identifier) or Err(identifier)
+        if values.len() == 1 {
+            match &values[0].kind {
+                ExprKind::ResultOk(inner) => {
+                    if let ExprKind::Identifier(id) = &inner.kind {
+                        Ok(MatchPattern::ResultPattern(ResultPattern::Ok(id.clone())))
+                    } else {
+                        // TODO (#547): Allow literals in addition to identifiers.
+                        Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("Result pattern Ok() must contain an identifier"),
+                            Some(pest_span),
+                        ))
+                    }
+                }
+                ExprKind::ResultErr(inner) => {
+                    if let ExprKind::Identifier(id) = &inner.kind {
+                        Ok(MatchPattern::ResultPattern(ResultPattern::Err(id.clone())))
+                    } else {
+                        // TODO (#547): Allow literals in addition to identifiers.
+                        Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("Result pattern Err() must contain an identifier"),
+                            Some(pest_span),
+                        ))
+                    }
+                }
+                _ => Ok(MatchPattern::Values(values)),
+            }
+        } else {
+            Ok(MatchPattern::Values(values))
+        }
+    }
+
     fn parse_named_struct_literal(
         &self,
         named_struct: Pair<'_, Rule>,
@@ -918,51 +963,7 @@ impl ChunkParser<'_> {
             let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| self.parse_expression(token.clone()))
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
-
-                    // Figure out what kind of pattern it is. Multiple values definitely means a
-                    // Values pattern; A single value could be a Result pattern, or a Values pattern.
-                    if values.len() == 1 {
-                        match &values[0].kind {
-                            ExprKind::ResultOk(inner) => {
-                                if let ExprKind::Identifier(id) = &inner.kind {
-                                    MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
-                                } else {
-                                    // TODO: Allow literals in addition to identifiers.
-                                    return Err(ParseError::new(
-                                        ParseErrorKind::Unknown,
-                                        String::from(
-                                            "Result pattern Ok() must contain an identifier",
-                                        ),
-                                        Some(pest_span),
-                                    ));
-                                }
-                            }
-                            ExprKind::ResultErr(inner) => {
-                                if let ExprKind::Identifier(id) = &inner.kind {
-                                    MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
-                                } else {
-                                    // TODO: Allow literals in addition to identifiers.
-
-                                    return Err(ParseError::new(
-                                        ParseErrorKind::Unknown,
-                                        String::from(
-                                            "Result pattern Err() must contain an identifier",
-                                        ),
-                                        Some(pest_span),
-                                    ));
-                                }
-                            }
-                            _ => MatchPattern::Values(values),
-                        }
-                    } else {
-                        MatchPattern::Values(values)
-                    }
-                }
+                Rule::match_arm_expression => self.parse_match_pattern(token)?,
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
@@ -1196,54 +1197,7 @@ impl ChunkParser<'_> {
             let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| {
-                            let expr = self.parse_expression(token.clone())?;
-                            Ok(expr)
-                        })
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
-
-                    // Check if this is a Result pattern: Ok(identifier) or Err(identifier)
-                    if values.len() == 1 {
-                        match &values[0].kind {
-                            ExprKind::ResultOk(inner) => {
-                                if let ExprKind::Identifier(id) = &inner.kind {
-                                    MatchPattern::ResultPattern(ResultPattern::Ok(id.clone()))
-                                } else {
-                                    // TODO: Allow literals in addition to identifiers.
-
-                                    return Err(ParseError::new(
-                                        ParseErrorKind::Unknown,
-                                        String::from(
-                                            "Result pattern Ok() must contain an identifier",
-                                        ),
-                                        Some(pest_span),
-                                    ));
-                                }
-                            }
-                            ExprKind::ResultErr(inner) => {
-                                if let ExprKind::Identifier(id) = &inner.kind {
-                                    MatchPattern::ResultPattern(ResultPattern::Err(id.clone()))
-                                } else {
-                                    // TODO: Allow literals in addition to identifiers.
-
-                                    return Err(ParseError::new(
-                                        ParseErrorKind::Unknown,
-                                        String::from(
-                                            "Result pattern Err() must contain an identifier",
-                                        ),
-                                        Some(pest_span),
-                                    ));
-                                }
-                            }
-                            _ => MatchPattern::Values(values),
-                        }
-                    } else {
-                        MatchPattern::Values(values)
-                    }
-                }
+                Rule::match_arm_expression => self.parse_match_pattern(token)?,
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
