@@ -258,6 +258,15 @@ impl ChunkParser<'_> {
                             Some(pest_span),
                         ));
                     }
+                } else {
+                    // New syntax inside old syntax is not allowed
+                    if style == TypeStyle::Old {
+                        return Err(ParseError::new(
+                            ParseErrorKind::InvalidType,
+                            String::from("Cannot mix `optional T` and `option[T]` syntax"),
+                            Some(pest_span),
+                        ));
+                    }
                 }
                 let style = if is_old {
                     TypeStyle::Old
