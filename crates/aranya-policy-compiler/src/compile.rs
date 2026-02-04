@@ -1578,9 +1578,7 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Adds entries for the Struct, Effect, Fact, Command, and FFI Struct defintions
-    /// to [CompileState::structs] before fully compiling.
-    fn list_structs(&mut self) -> Result<(), CompileError> {
+    fn check_duplicate_structs(&mut self) -> Result<(), CompileError> {
         let effect_idents = self.policy.effects.iter().map(|def| &def.identifier.name);
         let fact_idents = self.policy.facts.iter().map(|def| &def.identifier.name);
         let ffi_struct_idents = self
@@ -1693,7 +1691,7 @@ impl<'a> CompileState<'a> {
     }
 
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
-        self.list_structs()?;
+        self.check_duplicate_structs()?;
 
         // map enum names to constants
         for enum_def in &self.policy.enums {
