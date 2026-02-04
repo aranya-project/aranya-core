@@ -23,11 +23,7 @@ impl Display for CycleError {
         let cycles: Vec<_> = self
             .0
             .iter()
-            .map(|cycle| {
-                let mut buf = "[]".to_owned();
-                buf.insert_str(1, &cycle.as_slice().join(", "));
-                buf
-            })
+            .map(|cycle| format!("[{}]", cycle.as_slice().join(", ")))
             .collect();
         write!(
             f,

@@ -198,8 +198,6 @@ struct CompileState<'a> {
     function_signatures: BTreeMap<Identifier, FunctionSignature>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
-    /// The identifiers of all user-defined and auto-generated structs.
-    structs: BTreeSet<&'a Identifier>,
     /// The last span seen, for imprecise source locating.
     last_span: Span,
     /// The current statement context, implemented as a stack so that it can be
@@ -291,13 +289,6 @@ impl<'a> CompileState<'a> {
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if !self.structs.contains(&identifier.name) {
-            let bug = buggy::Bug::new(
-                "`CompileState::list_structs` was not called before `CompileState::define_struct`.",
-            );
-            return Err(self.err(bug.into()));
-        }
-
         let has_struct_refs = items
             .iter()
             .any(|item| matches!(item, StructItem::StructRef(_)));
@@ -1608,10 +1599,12 @@ impl<'a> CompileState<'a> {
             .chain(ffi_struct_idents)
             .chain(command_idents);
 
+        let mut unique_idents = HashSet::new();
+
         for ident in struct_idents {
             // TODO(Steve): Use a type that has span information so a better error message can be created
             // when duplicate type defintions are found.
-            if !self.structs.insert(ident) {
+            if !unique_idents.insert(ident) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
             }
         }
@@ -2122,7 +2115,6 @@ impl<'a> Compiler<'a> {
             c: 0,
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
-            structs: BTreeSet::new(),
             last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
