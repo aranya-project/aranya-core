@@ -193,13 +193,23 @@ impl Value {
             Self::Id(_) => Some(TypeKind::Id),
             Self::Enum(name, _) => Some(TypeKind::Enum(Ident {
                 name: name.to_owned(),
-                span: Span::default(),
+                span: Span::empty(),
             })),
             Self::Struct(s) => Some(TypeKind::Struct(Ident {
                 name: s.name.clone(),
-                span: Span::default(),
+                span: Span::empty(),
             })),
-            _ => None,
+            Self::Option(o) => {
+                let inner_kind = match o {
+                    Some(inner_value) => inner_value.vtype()?,
+                    None => TypeKind::Never,
+                };
+                Some(TypeKind::Optional(Box::new(VType {
+                    kind: inner_kind,
+                    span: Span::empty(),
+                })))
+            }
+            Self::Fact(_) | Self::Identifier(_) => None,
         }
     }
 
