@@ -75,23 +75,6 @@ impl Location {
         Self { segment, max_cut }
     }
 
-    /// If this is not the first command in a segment, return a location
-    /// pointing to the previous command.
-    #[must_use]
-    pub fn previous(mut self, first_max_cut: MaxCut) -> Option<Self> {
-        if self.max_cut <= first_max_cut {
-            return None;
-        }
-        #[allow(
-            clippy::arithmetic_side_effects,
-            reason = "can't be zero after above check"
-        )]
-        {
-            self.max_cut.0 -= 1;
-        }
-        Some(self)
-    }
-
     /// Returns true if other location is in the same segment.
     pub fn same_segment(self, other: Self) -> bool {
         self.segment == other.segment
@@ -406,6 +389,23 @@ pub trait Segment {
             id: self.head_id(),
             max_cut: self.longest_max_cut()?,
         })
+    }
+
+    /// Walks a location toward init if it would still point within this segment.
+    #[must_use]
+    fn previous(&self, mut location: Location) -> Option<Location> {
+        debug_assert_eq!(location.segment, self.index());
+        if location.max_cut <= self.shortest_max_cut() {
+            return None;
+        }
+        #[allow(
+            clippy::arithmetic_side_effects,
+            reason = "can't be zero after above check"
+        )]
+        {
+            location.max_cut.0 -= 1;
+        }
+        Some(location)
     }
 }
 

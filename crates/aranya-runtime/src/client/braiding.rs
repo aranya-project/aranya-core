@@ -27,14 +27,12 @@ pub(super) fn last_common_ancestor<S: Storage>(
     let mut right = right;
     while left != right {
         let left_seg = storage.get_segment(left)?;
-        let left_first_max_cut = left_seg.first_location().max_cut;
         let right_seg = storage.get_segment(right)?;
-        let right_first_max_cut = right_seg.first_location().max_cut;
         // The command with the lower max cut could be our least common ancestor
         // so we keeping following the command with the higher max cut until
         // both sides converge.
         if left.max_cut > right.max_cut {
-            left = if let Some(previous) = left.previous(left_first_max_cut) {
+            left = if let Some(previous) = left_seg.previous(left) {
                 previous
             } else {
                 match left_seg.prior() {
@@ -55,7 +53,7 @@ pub(super) fn last_common_ancestor<S: Storage>(
                 }
             };
         } else {
-            right = if let Some(previous) = right.previous(right_first_max_cut) {
+            right = if let Some(previous) = right_seg.previous(right) {
                 previous
             } else {
                 match right_seg.prior() {
@@ -100,14 +98,12 @@ pub(super) fn braid<S: Storage>(
     // Get latest command
     while let Some(strand) = strands.pop() {
         // Consume another command off the strand
-        let (prior, mut maybe_cached_segment) = if let Some(previous) = strand
-            .next
-            .previous(strand.segment.first_location().max_cut)
-        {
-            (Prior::Single(previous), Some(strand.segment))
-        } else {
-            (strand.segment.prior(), None)
-        };
+        let (prior, mut maybe_cached_segment) =
+            if let Some(previous) = strand.segment.previous(strand.next) {
+                (Prior::Single(previous), Some(strand.segment))
+            } else {
+                (strand.segment.prior(), None)
+            };
         if matches!(prior, Prior::Merge(..)) {
             trace!("skipping merge command");
         } else {
