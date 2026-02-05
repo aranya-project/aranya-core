@@ -207,9 +207,9 @@ pub enum Instruction {
     MStructGet(NonZeroUsize),
     /// Cast previous stack value to given type
     Cast(Identifier),
-    /// Wrap the value on top of the stack (Ok, Err, or Some)
+    /// Wrap the value on top of the stack in Some, Ok, or Err, depending on wrap type.
     Wrap(WrapType),
-    /// Check if the value on top of the stack is Ok (pushes bool)
+    /// Check if the value on top of the stack is the given wrap type (pushes bool).
     Is(WrapType),
     /// Unwrap the inner value from a Result (Ok or Err). Will eventually support Optional (Some) as well.
     Unwrap(WrapType),
