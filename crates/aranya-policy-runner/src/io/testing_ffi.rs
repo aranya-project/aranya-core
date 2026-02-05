@@ -1,24 +1,32 @@
-use std::sync::Mutex;
+use std::{cell::RefCell, ops::DerefMut as _};
 
-use aranya_crypto::{BaseId, Engine, KeyStore, KeyStoreExt as _, SigningKey, buggy::BugExt as _};
+use aranya_crypto::{BaseId, Engine, KeyStore, KeyStoreExt as _, SigningKey};
 use aranya_policy_vm::{
     CommandContext, MachineError, MachineErrorType, MachineIOError, Text, ffi::ffi,
 };
 
-pub struct TestingFfi<KS> {
-    keystore: Mutex<KS>,
+/// TestingFFI contains utility functions for generating bytes and ids
+/// for various testing needs.
+pub struct TestingFfi<'o, KS> {
+    // RefCell is needed here because the FFI traits only allow
+    // functions to be called with `&self` but we need to be able to
+    // mutate the keystore when generating keys. And it takes a `&mut`
+    // because we do not own the keystore but it doesn't need to be
+    // accessed concurrently while the preamble is being executed (which
+    // would necessitate something like Arc<Mutex<KS>>).
+    keystore: RefCell<&'o mut KS>,
 }
 
-impl<KS> TestingFfi<KS> {
-    pub fn new(keystore: KS) -> Self {
+impl<'o, KS> TestingFfi<'o, KS> {
+    pub fn new(keystore: &'o mut KS) -> Self {
         Self {
-            keystore: Mutex::new(keystore),
+            keystore: RefCell::new(keystore),
         }
     }
 }
 
 #[ffi(module = "testing")]
-impl<KS: KeyStore> TestingFfi<KS> {
+impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     #[ffi_export(def = "function random_bytes(n int) bytes")]
     pub fn random_bytes<E: Engine>(
         &self,
@@ -58,14 +66,15 @@ impl<KS: KeyStore> TestingFfi<KS> {
         eng: &mut E,
     ) -> Result<Vec<u8>, MachineError> {
         let sk: SigningKey<E::CS> = SigningKey::new(eng);
-        self.keystore
-            .lock()
-            .assume("lock poisoned")?
-            .insert_key(eng, sk.clone())
-            .map_err(|e| {
-                tracing::error!("{e}");
-                MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
-            })?;
+        let mut refmut = self.keystore.try_borrow_mut().map_err(|e| {
+            tracing::error!("{e}");
+            MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
+        })?;
+        let keystore = refmut.deref_mut();
+        keystore.insert_key(eng, sk.clone()).map_err(|e| {
+            tracing::error!("{e}");
+            MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
+        })?;
         let pk = sk.public().expect("what");
         postcard::to_allocvec(&pk).map_err(|e| {
             tracing::error!("{e}");
@@ -84,7 +93,7 @@ impl<KS: KeyStore> TestingFfi<KS> {
     ) -> Result<Vec<u8>, MachineError> {
         let s = hex_str.as_str();
         let hex_str: String = s.chars().filter(char::is_ascii_hexdigit).collect();
-        if hex_str.len() % 2 != 0 {
+        if !hex_str.len().is_multiple_of(2) {
             return Err(MachineError::new(MachineErrorType::Unknown(
                 "hex string must be an even number of hex digits".to_string(),
             )));

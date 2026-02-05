@@ -1,9 +1,11 @@
 pub mod testing_ffi;
 
-use std::sync::Mutex;
+use std::{cell::RefCell, ops::DerefMut as _};
 
 use aranya_crypto::KeyStore;
-use aranya_policy_vm::{FactKey, FactValue, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack};
+use aranya_policy_vm::{
+    FactKey, FactValue, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack,
+};
 use aranya_runtime::FfiCallable as _;
 use tracing::error;
 
@@ -19,15 +21,21 @@ impl Iterator for NullFactIterator {
     }
 }
 
+/// PreambleIO is a special, limited VM IO implementation for executing
+/// the preamble sections of run files. It cannot do fact operations and
+/// can only call the [`testing` FFI](TestingFfi).
 pub struct PreambleIO<'o, CE, KS> {
-    engine: &'o Mutex<CE>,
-    testing_ffi: TestingFfi<KS>
+    engine: RefCell<&'o mut CE>,
+    testing_ffi: TestingFfi<'o, KS>,
 }
 
 impl<'o, CE, KS> PreambleIO<'o, CE, KS> {
-    pub fn new(engine: &'o Mutex<CE>, keystore: KS) -> Self {
+    pub fn new(engine: &'o mut CE, keystore: &'o mut KS) -> Self {
         let testing_ffi = TestingFfi::new(keystore);
-        Self { engine, testing_ffi }
+        Self {
+            engine: RefCell::new(engine),
+            testing_ffi,
+        }
     }
 }
 
@@ -83,10 +91,13 @@ where
         stack: &mut MachineStack,
         ctx: &aranya_policy_vm::CommandContext,
     ) -> Result<(), MachineError> {
-        let mut guard = self.engine.lock();
-        let eng = guard.as_deref_mut().expect("engine should be unlocked");
+        let mut eng = self.engine.try_borrow_mut().map_err(|e| {
+            tracing::error!("{e}");
+            MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
+        })?;
+        let eng = eng.deref_mut();
         match module {
-            0 => self.testing_ffi.call(procedure, stack, ctx, eng),
+            0 => self.testing_ffi.call(procedure, stack, ctx, *eng),
             i => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(i))),
         }
     }
