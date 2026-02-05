@@ -282,6 +282,16 @@ impl ChunkParser<'_> {
                     )
                 })?;
                 let inner_type = self.parse_type_inner(token, style)?;
+
+                // Disallow nested optionals for old syntax
+                if is_old && matches!(inner_type.kind, TypeKind::Optional(_)) {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from("Cannot nest optional types with `optional T` syntax"),
+                        Some(pest_span),
+                    ));
+                }
+
                 TypeKind::Optional(Box::new(inner_type))
             }
             Rule::result_t => {
