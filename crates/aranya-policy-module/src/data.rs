@@ -89,8 +89,8 @@ impl ConstValue {
             Self::Enum(name, _) => format!("Enum {}", name),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
-            Self::Result(Ok(inner)) => format!("Ok[{}]", inner.type_name()),
-            Self::Result(Err(inner)) => format!("Err[{}]", inner.type_name()),
+            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
         }
     }
 }
