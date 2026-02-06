@@ -16,7 +16,7 @@ use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, Engine, GraphId, StorageProvider, SyncRequester,
+    ClientState, Engine, GraphId, StorageProvider, SyncRequester, TraversalBuffers,
     engine::Sink,
     storage::memory::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestEngine},
@@ -123,6 +123,7 @@ async fn run(options: Opt) -> Result<()> {
         server.local_addr()?,
     )?));
 
+    let mut buffers = TraversalBuffers::new();
     let storage_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
@@ -162,7 +163,7 @@ async fn run(options: Opt) -> Result<()> {
             client
                 .lock()
                 .await
-                .action(storage_id, sink.lock().await.deref_mut(), action)
+                .action(storage_id, sink.lock().await.deref_mut(), action, &mut buffers)
                 .context("sync error")?;
         } else {
             sync_peer(

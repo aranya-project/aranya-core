@@ -5,7 +5,7 @@ use tracing::error;
 
 use crate::{
     Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
-    Sink, Storage as _, StorageError, StorageProvider, engine::ActionPlacement,
+    Sink, Storage as _, StorageError, StorageProvider, TraversalBuffers, engine::ActionPlacement,
 };
 
 mod braiding;
@@ -115,8 +115,9 @@ where
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError> {
-        trx.commit(&mut self.provider, &mut self.engine, sink)?;
+        trx.commit(&mut self.provider, &mut self.engine, sink, buffers)?;
         Ok(())
     }
 
@@ -128,8 +129,9 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, ClientError> {
-        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)
+        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink, buffers)
     }
 
     pub fn update_heads<I>(
@@ -137,6 +139,7 @@ where
         storage_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError>
     where
         I: IntoIterator<Item = Address>,
@@ -148,8 +151,8 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address)? {
-                request_heads.add_command(storage, address, loc)?;
+            if let Some(loc) = storage.get_location(address, buffers)? {
+                request_heads.add_command(storage, address, loc, buffers)?;
             } else {
                 error!(
                     "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
@@ -174,6 +177,7 @@ where
         storage_id: GraphId,
         sink: &mut impl Sink<E::Effect>,
         action: <E::Policy as Policy>::Action<'_>,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
 
@@ -191,7 +195,7 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment)?;
+                storage.commit(segment, buffers)?;
                 sink.commit();
                 Ok(())
             }
@@ -221,11 +225,19 @@ where
     ///
     /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
     /// This method is used to determine if we need to sync when a hello message is received.
-    pub fn command_exists(&mut self, storage_id: GraphId, address: Address) -> bool {
+    pub fn command_exists(
+        &mut self,
+        storage_id: GraphId,
+        address: Address,
+        buffers: &mut TraversalBuffers,
+    ) -> bool {
         let Ok(storage) = self.provider.get_storage(storage_id) else {
             // Graph doesn't exist
             return false;
         };
-        storage.get_location(address).unwrap_or(None).is_some()
+        storage
+            .get_location(address, buffers)
+            .unwrap_or(None)
+            .is_some()
     }
 }

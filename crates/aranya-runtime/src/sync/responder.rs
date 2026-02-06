@@ -12,7 +12,7 @@ use super::{
 use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
-    storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
+    storage::{GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffers},
 };
 
 #[derive(Default, Debug)]
@@ -34,6 +34,7 @@ impl PeerCache {
         storage: &S,
         command: Address,
         cmd_loc: Location,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -43,7 +44,7 @@ impl PeerCache {
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
-                .get_location(*request_head)?
+                .get_location(*request_head, buffers)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
             if request_head.id
@@ -57,11 +58,11 @@ impl PeerCache {
             }
             // If the new head is an ancestor of the request head, don't add it
             if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
-                || storage.is_ancestor(new_head, &req_head_seg)?
+                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
             {
                 add_command = false;
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg)?)
+            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
         };
         self.heads
             .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
@@ -195,6 +196,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
@@ -219,11 +221,11 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 self.state = S::Send;
                 for command in &self.has {
                     // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) = storage.get_location(*command)? {
-                        response_cache.add_command(storage, *command, cmd_loc)?;
+                    if let Some(cmd_loc) = storage.get_location(*command, buffers)? {
+                        response_cache.add_command(storage, *command, cmd_loc, buffers)?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
 
                 self.get_next(target, provider)?
             }
@@ -292,12 +294,13 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     fn find_needed_segments(
         commands: &[Address],
         storage: &impl Storage,
+        buffers: &mut TraversalBuffers,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         let mut have_locations = vec::Vec::new(); //BUG: not constant size
         for &addr in commands {
             // Note: We could use things we don't have as a hint to
             // know we should perform a sync request.
-            if let Some(location) = storage.get_location(addr)? {
+            if let Some(location) = storage.get_location(addr, buffers)? {
                 have_locations.push(location);
             }
         }
@@ -314,7 +317,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     let segment_b = storage.get_segment(location_b)?;
                     if location_a.same_segment(location_b)
                         && location_a.command <= location_b.command
-                        || storage.is_ancestor(location_a, &segment_b)?
+                        || storage.is_ancestor(location_a, &segment_b, buffers)?
                     {
                         is_ancestor_of_other = true;
                         break;
@@ -345,7 +348,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 // this command and all its ancestors.
                 for &have_location in &have_locations {
                     let have_segment = storage.get_segment(have_location)?;
-                    if storage.is_ancestor(head, &have_segment)? {
+                    if storage.is_ancestor(head, &have_segment, buffers)? {
                         continue 'heads;
                     }
                 }
@@ -449,6 +452,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(storage_id) = self.storage_id else {
@@ -463,7 +467,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

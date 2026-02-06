@@ -4,7 +4,7 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, SyncRequester,
+    ClientState, GraphId, SyncRequester, TraversalBuffers,
     engine::{Engine, Sink},
     storage::{StorageProvider, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
@@ -15,6 +15,7 @@ use tokio::sync::{Mutex as TMutex, mpsc};
 
 #[test_log::test(tokio::test)]
 async fn test_sync() -> Result<()> {
+    let mut buffers = TraversalBuffers::new();
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
     let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
@@ -49,7 +50,7 @@ async fn test_sync() -> Result<()> {
         client1
             .lock()
             .await
-            .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+            .action(storage_id, sink1.lock().await.deref_mut(), action, &mut buffers)?;
     }
     assert_eq!(sink1.lock().await.count(), 0);
 
@@ -80,6 +81,7 @@ async fn test_sync() -> Result<()> {
 
 #[test_log::test(tokio::test)]
 async fn test_sync_subscribe() -> Result<()> {
+    let mut buffers = TraversalBuffers::new();
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
     let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
@@ -148,7 +150,7 @@ async fn test_sync_subscribe() -> Result<()> {
         client1
             .lock()
             .await
-            .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+            .action(storage_id, sink1.lock().await.deref_mut(), action, &mut buffers)?;
         syncer1.lock().await.push(storage_id)?;
     }
 
@@ -177,7 +179,7 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+        .action(storage_id, sink1.lock().await.deref_mut(), action, &mut buffers)?;
     syncer1.lock().await.push(storage_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
@@ -205,7 +207,7 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+        .action(storage_id, sink1.lock().await.deref_mut(), action, &mut buffers)?;
     syncer1.lock().await.push(storage_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
@@ -219,7 +221,7 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+        .action(storage_id, sink1.lock().await.deref_mut(), action, &mut buffers)?;
     syncer1.lock().await.push(storage_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
@@ -254,7 +256,7 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+        .action(storage_id, sink1.lock().await.deref_mut(), action, &mut buffers)?;
     syncer1.lock().await.push(storage_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 

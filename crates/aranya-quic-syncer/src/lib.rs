@@ -14,6 +14,7 @@ use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
     SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
+    TraversalBuffers,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -160,6 +161,7 @@ where
     client_state: Arc<TMutex<ClientState<EN, SP>>>,
     sink: Arc<TMutex<S>>,
     server_addr: SocketAddr,
+    buffers: TraversalBuffers,
 }
 
 impl<EN, SP, S> Syncer<EN, SP, S>
@@ -188,6 +190,7 @@ where
             client_state,
             sink,
             server_addr,
+            buffers: TraversalBuffers::new(),
         })
     }
 
@@ -204,7 +207,7 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(syncer.server_addr()).or_default();
-        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads, &mut self.buffers)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -230,12 +233,13 @@ where
             if let Some(cmds) = syncer.receive(&received_data)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, &cmds)?;
-                client.commit(&mut trx, sink)?;
+                client.add_commands(&mut trx, sink, &cmds, &mut self.buffers)?;
+                client.commit(&mut trx, sink, &mut self.buffers)?;
                 client.update_heads(
                     storage_id,
                     cmds.iter().filter_map(|cmd| cmd.address().ok()),
                     heads,
+                    &mut self.buffers,
                 )?;
                 self.push(storage_id)?;
             }
@@ -263,6 +267,7 @@ where
             heads,
             remain_open,
             max_bytes,
+            &mut self.buffers,
         )?;
 
         let mut conn = self
@@ -325,7 +330,7 @@ where
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
 
-                response_syncer.poll(target, client.provider(), response_cache)?
+                response_syncer.poll(target, client.provider(), response_cache, &mut self.buffers)?
             }
             SyncType::Subscribe {
                 remain_open,
@@ -351,6 +356,7 @@ where
                             storage_id,
                             commands.as_slice().iter().copied(),
                             response_cache,
+                            &mut self.buffers,
                         )?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
@@ -381,12 +387,13 @@ where
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
                             let sink = sink_guard.deref_mut();
-                            client.add_commands(&mut trx, sink, &cmds)?;
-                            client.commit(&mut trx, sink)?;
+                            client.add_commands(&mut trx, sink, &cmds, &mut self.buffers)?;
+                            client.commit(&mut trx, sink, &mut self.buffers)?;
                             client.update_heads(
                                 storage_id,
                                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
                                 response_cache,
+                                &mut self.buffers,
                             )?;
                         }
                         self.push(storage_id)?;
@@ -425,7 +432,7 @@ where
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len =
-                response_syncer.push(&mut target, self.client_state.lock().await.provider())?;
+                response_syncer.push(&mut target, self.client_state.lock().await.provider(), &mut self.buffers)?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;

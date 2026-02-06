@@ -43,7 +43,6 @@ impl<const CAP: usize> CappedVisited<CAP> {
 
     /// Resets the visited set for reuse.
     #[inline]
-    #[allow(dead_code)] // Part of spec API, used by find_needed_segments
     pub fn clear(&mut self) {
         self.entries.clear();
     }

@@ -37,7 +37,7 @@ use vec1::Vec1;
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
     Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    StorageError, StorageProvider, TraversalBuffers,
 };
 
 pub mod io;
@@ -542,8 +542,12 @@ impl<F: Write> Storage for LinearStorage<F> {
         self.writer.head()
     }
 
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.get_head()?, &segment)? {
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBuffers,
+    ) -> Result<(), StorageError> {
+        if !self.is_ancestor(self.get_head()?, &segment, buffers)? {
             return Err(StorageError::HeadNotAncestor);
         }
 

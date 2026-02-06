@@ -15,9 +15,9 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
-mod visited;
+pub mod visited;
 
-use visited::CappedVisited;
+pub use visited::CappedVisited;
 
 /// Default capacity for the visited segment cache used in graph traversal.
 ///
@@ -33,7 +33,53 @@ use visited::CappedVisited;
 ///
 /// If capacity is exceeded, the algorithm remains correct but may revisit
 /// segments (producing redundant work, not incorrect results).
-const VISITED_CAPACITY: usize = 256;
+pub const VISITED_CAPACITY: usize = 256;
+
+/// Default capacity for the traversal queue.
+///
+/// This should be large enough to hold the maximum expected "active frontier"
+/// during backward traversal, which is bounded by peer count.
+pub const QUEUE_CAPACITY: usize = 256;
+
+/// Type alias for the visited set used in traversal operations.
+pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
+
+/// Type alias for the queue used in traversal operations.
+pub type TraversalQueue = heapless::Deque<Location, QUEUE_CAPACITY>;
+
+/// Reusable buffers for graph traversal operations.
+///
+/// Create once and pass to traversal methods to avoid repeated allocation.
+/// Access buffers via [`get()`](Self::get), which clears them automatically.
+pub struct TraversalBuffers {
+    visited: TraversalVisited,
+    queue: TraversalQueue,
+}
+
+impl TraversalBuffers {
+    pub const fn new() -> Self {
+        Self {
+            visited: TraversalVisited::new(),
+            queue: TraversalQueue::new(),
+        }
+    }
+
+    /// Returns cleared buffers ready for use.
+    ///
+    /// This is the only way to access the buffers, ensuring they're
+    /// always cleared before each traversal operation.
+    pub fn get(&mut self) -> (&mut TraversalVisited, &mut TraversalQueue) {
+        self.visited.clear();
+        self.queue.clear();
+        (&mut self.visited, &mut self.queue)
+    }
+}
+
+impl Default for TraversalBuffers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(feature = "low-mem-usage")]
 pub const MAX_COMMAND_LENGTH: usize = 400;
@@ -180,8 +226,12 @@ pub trait Storage {
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
-    fn get_location(&self, address: Address) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address)
+    fn get_location(
+        &self,
+        address: Address,
+        buffers: &mut TraversalBuffers,
+    ) -> Result<Option<Location>, StorageError> {
+        self.get_location_from(self.get_head()?, address, buffers)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -189,14 +239,10 @@ pub trait Storage {
         &self,
         start: Location,
         address: Address,
+        buffers: &mut TraversalBuffers,
     ) -> Result<Option<Location>, StorageError> {
-        use alloc::collections::VecDeque;
-
-        // Track visited segments to avoid revisiting via different paths.
-        // Uses bounded memory with effective max_cut-based eviction.
-        let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
-        let mut queue = VecDeque::new();
-        queue.push_back(start);
+        let (visited, queue) = buffers.get();
+        queue.push_back(start).ok();
 
         while let Some(loc) = queue.pop_front() {
             // Check visited status and determine search range
@@ -238,7 +284,7 @@ pub trait Storage {
             let mut used_skip = false;
             for (skip, skip_max_cut) in segment.skip_list() {
                 if skip_max_cut >= &address.max_cut {
-                    queue.push_back(*skip);
+                    queue.push_back(*skip).ok();
                     used_skip = true;
                     break;
                 }
@@ -247,7 +293,7 @@ pub trait Storage {
             if !used_skip {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
-                    queue.push_back(prior);
+                    queue.push_back(prior).ok();
                 }
             }
         }
@@ -296,7 +342,11 @@ pub trait Storage {
 
     /// Sets the given segment as the head of the graph.  Returns an error if
     /// the current head is not an ancestor of the provided segment.
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBuffers,
+    ) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;
@@ -312,21 +362,17 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
+        buffers: &mut TraversalBuffers,
     ) -> Result<bool, StorageError> {
-        use alloc::collections::VecDeque;
-
         let search_segment = self.get_segment(search_location)?;
         let address = search_segment
             .get_command(search_location)
             .assume("location must exist")?
             .address()?;
 
-        // Track visited segments to avoid revisiting via different paths.
-        // Uses bounded memory with effective max_cut-based eviction.
-        let mut visited = CappedVisited::<VISITED_CAPACITY>::new();
-        let mut queue = VecDeque::new();
+        let (visited, queue) = buffers.get();
         for prior in segment.prior() {
-            queue.push_back(prior);
+            queue.push_back(prior).ok();
         }
 
         while let Some(loc) = queue.pop_front() {
@@ -360,7 +406,7 @@ pub trait Storage {
             let mut used_skip = false;
             for (skip, skip_max_cut) in seg.skip_list() {
                 if skip_max_cut >= &address.max_cut {
-                    queue.push_back(*skip);
+                    queue.push_back(*skip).ok();
                     used_skip = true;
                     break;
                 }
@@ -369,7 +415,7 @@ pub trait Storage {
             if !used_skip {
                 // No valid skip - add prior locations to queue
                 for prior in seg.prior() {
-                    queue.push_back(prior);
+                    queue.push_back(prior).ok();
                 }
             }
         }

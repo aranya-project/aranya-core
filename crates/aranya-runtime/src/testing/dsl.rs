@@ -69,6 +69,7 @@ use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
     GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestEngine, TestSink},
         short_b58,
@@ -91,6 +92,7 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
+    buffers: &mut TraversalBuffers,
 ) -> Result<usize, SyncError> {
     let sync_type: SyncType<A> = postcard::from_bytes(data)?;
     let len = match sync_type {
@@ -101,7 +103,7 @@ pub fn dispatch<A: DeserializeOwned + Serialize>(
             let mut response_syncer: SyncResponder<()> = SyncResponder::new(());
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache)?
+            response_syncer.poll(target, provider, response_cache, buffers)?
         }
         SyncType::Subscribe {
             storage_id: _,
@@ -562,6 +564,7 @@ where
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
+    let mut buffers = TraversalBuffers::new();
 
     for rule in actions {
         debug!(?rule);
@@ -634,13 +637,12 @@ where
                         .borrow_mut();
 
                     let (sent, received, _) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
-                        &mut request_cache,
-                        &mut response_cache,
-                        &mut request_client,
-                        &mut response_client,
+                        (&mut request_cache, &mut request_client),
+                        (&mut response_cache, &mut response_client),
                         client,
                         &mut sink,
                         *storage_id,
+                        &mut buffers,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -690,7 +692,7 @@ where
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*storage_id, &mut sink, set)?;
+                    state.action(*storage_id, &mut sink, set, &mut buffers)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -705,7 +707,7 @@ where
                 let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
-                print_graph(storage, head)?;
+                print_graph(storage, head, &mut buffers)?;
             }
 
             TestRule::CompareGraphs {
@@ -734,9 +736,9 @@ where
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a)?;
+                    let cmds_a = print_graph(storage_a, head_a, &mut buffers)?;
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b)?;
+                    let cmds_b = print_graph(storage_b, head_b, &mut buffers)?;
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -949,13 +951,12 @@ where
 }
 
 fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
-    request_cache: &mut PeerCache,
-    response_cache: &mut PeerCache,
-    request_state: &mut ClientState<TestEngine, SP>,
-    response_state: &mut ClientState<TestEngine, SP>,
+    (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestEngine, SP>),
+    (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestEngine, SP>),
     requester_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
+    buffers: &mut TraversalBuffers,
 ) -> Result<(usize, usize, Vec<CmdId>), TestError> {
     let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
@@ -963,7 +964,8 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     let mut request_trx = request_state.transaction(storage_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
+    let (len, sent) =
+        request_syncer.poll(&mut buffer, request_state.provider(), request_cache, buffers)?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -972,6 +974,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         &mut target,
         response_state.provider(),
         response_cache,
+        buffers,
     )?;
 
     if len == 0 {
@@ -979,12 +982,13 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        request_state.commit(&mut request_trx, sink)?;
+        received = request_state.add_commands(&mut request_trx, sink, &cmds, buffers)?;
+        request_state.commit(&mut request_trx, sink, buffers)?;
         request_state.update_heads(
             storage_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
+            buffers,
         )?;
     }
 
@@ -1005,7 +1009,11 @@ impl Display for Parent {
     }
 }
 
-pub fn print_graph<S>(storage: &S, location: Location) -> Result<BTreeSet<CmdId>, StorageError>
+pub fn print_graph<S>(
+    storage: &S,
+    location: Location,
+    buffers: &mut TraversalBuffers,
+) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
 {
@@ -1027,7 +1035,7 @@ where
                 "id: {} location {:?} max_cut: {} parent: {}",
                 short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?)?
+                    .get_location(command.address()?, buffers)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())

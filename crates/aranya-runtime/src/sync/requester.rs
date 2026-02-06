@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     Address, Command as _, GraphId, Location,
-    storage::{Segment as _, Storage as _, StorageError, StorageProvider},
+    storage::{Segment as _, Storage as _, StorageError, StorageProvider, TraversalBuffers},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -159,6 +159,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         heads: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
         let result = match self.state {
@@ -167,7 +168,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
             }
             S::New => {
                 self.state = S::Start;
-                self.start(self.max_bytes, target, provider, heads)?
+                self.start(self.max_bytes, target, provider, heads, buffers)?
             }
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
@@ -348,6 +349,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         &self,
         provider: &mut impl StorageProvider,
         peer_cache: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
@@ -360,7 +362,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                 let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
                 for address in peer_cache.heads() {
                     let loc = storage
-                        .get_location(*address)?
+                        .get_location(*address, buffers)?
                         .assume("location must exist")?;
                     cache_locations
                         .push(loc)
@@ -400,11 +402,11 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
                                 && location.command <= peer_cache_loc.command)
-                                || storage.is_ancestor(location, &peer_cache_segment)?
+                                || storage.is_ancestor(location, &peer_cache_segment, buffers)?
                             {
                                 continue 'current;
                             }
-                            if storage.is_ancestor(location, &peer_cache_segment)? {
+                            if storage.is_ancestor(location, &peer_cache_segment, buffers)? {
                                 continue 'current;
                             }
                         }
@@ -434,8 +436,9 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         heads: &mut PeerCache,
         remain_open: u64,
         max_bytes: u64,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
-        let commands = self.get_commands(provider, heads)?;
+        let commands = self.get_commands(provider, heads, buffers)?;
         let message = SyncType::Subscribe {
             remain_open,
             max_bytes,
@@ -462,6 +465,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         heads: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,
@@ -474,7 +478,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let command_sample = self.get_commands(provider, heads)?;
+        let command_sample = self.get_commands(provider, heads, buffers)?;
 
         let sent = command_sample.len();
         let message = SyncType::Poll {

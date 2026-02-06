@@ -7,7 +7,7 @@ use vec1::Vec1;
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
     Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    StorageError, StorageProvider, TraversalBuffers,
 };
 
 #[derive(Debug)]
@@ -100,7 +100,8 @@ impl StorageProvider for MemStorageProvider {
 
         let mut storage = MemStorage::new();
         let segment = storage.write(update)?;
-        storage.commit(segment)?;
+        let mut buffers = TraversalBuffers::new();
+        storage.commit(segment, &mut buffers)?;
         Ok((graph_id, entry.insert(storage)))
     }
 
@@ -337,11 +338,15 @@ impl Storage for MemStorage {
         })))
     }
 
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBuffers,
+    ) -> Result<(), StorageError> {
         // TODO(jdygert): ensure segment belongs to self?
 
         if let Some(head) = self.head {
-            if !self.is_ancestor(head, &segment)? {
+            if !self.is_ancestor(head, &segment, buffers)? {
                 return Err(StorageError::HeadNotAncestor);
             }
         }
