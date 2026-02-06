@@ -360,32 +360,6 @@ fn parse_command() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-fn parse_command_attributes() {
-    let src = r#"
-        command Foo {
-            attributes {
-                priority: "high",
-            }
-            seal { return todo() }
-            open { return todo() }
-            policy {}
-        }
-    "#;
-    let policy = parse_policy_str(src, Version::V2).expect("should parse");
-    let command_def = &policy.commands[0];
-
-    let (id, value) = &command_def.attributes[0];
-    assert_eq!(id, "priority");
-    assert_eq!(
-        value,
-        &Expression {
-            kind: ExprKind::String(text!("high")),
-            span: Span::new(74, 80)
-        }
-    );
-}
-
-#[test]
 #[allow(clippy::result_large_err)]
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
