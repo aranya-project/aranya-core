@@ -1,10 +1,9 @@
 #![allow(clippy::panic)]
 
-use aranya_policy_ast::{ExprKind, Expression, Span, VType, Version, text};
+use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
 use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
-use crate::lang::parse_policy_str;
 
 #[test]
 #[allow(clippy::result_large_err)]
