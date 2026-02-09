@@ -757,8 +757,7 @@ impl<R: Read> Segment for LinearSegment<R> {
 impl SegmentRepr {
     fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
         max_cut
-            .0
-            .checked_sub(self.max_cut.0)
+            .distance_from(self.max_cut)
             .ok_or(StorageError::CommandOutOfBounds(Location::new(
                 self.offset,
                 max_cut,

@@ -469,8 +469,7 @@ impl From<MemSegmentInner> for MemSegment {
 impl MemSegment {
     fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
         max_cut
-            .0
-            .checked_sub(self.shortest_max_cut().0)
+            .distance_from(self.shortest_max_cut())
             .ok_or(StorageError::CommandOutOfBounds(Location::new(
                 self.index, max_cut,
             )))
@@ -845,8 +844,7 @@ pub mod graphviz {
                     }
                 }
                 if i > 0 {
-                    let previous =
-                        MaxCut(cmd.command.max_cut.0.checked_sub(1).expect("i must be > 0"));
+                    let previous = cmd.command.max_cut.decremented().expect("i must be > 0");
                     cluster.edge(
                         loc((segment.index, cmd.command.max_cut)),
                         loc((segment.index, previous)),

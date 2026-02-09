@@ -47,8 +47,22 @@ impl fmt::Display for MaxCut {
 }
 
 impl MaxCut {
+    /// Adds an amount to the max cut, returning `None` on overflow.
+    #[must_use]
     pub fn checked_add(self, other: usize) -> Option<Self> {
         self.0.checked_add(other).map(Self)
+    }
+
+    /// Gets a max cut one lower than this, returning `None` on overflow.
+    #[must_use]
+    pub fn decremented(self) -> Option<Self> {
+        self.0.checked_sub(1).map(Self)
+    }
+
+    /// Gets the distance between two max cuts, returning `None` on overflow.
+    #[must_use]
+    pub fn distance_from(self, other: Self) -> Option<usize> {
+        self.0.checked_sub(other.0)
     }
 }
 
@@ -398,13 +412,7 @@ pub trait Segment {
         if location.max_cut <= self.shortest_max_cut() {
             return None;
         }
-        #[allow(
-            clippy::arithmetic_side_effects,
-            reason = "can't be zero after above check"
-        )]
-        {
-            location.max_cut.0 -= 1;
-        }
+        location.max_cut = location.max_cut.decremented()?;
         Some(location)
     }
 }
