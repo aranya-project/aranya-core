@@ -1247,7 +1247,7 @@ aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_p
 who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.202 -> 1.0.203"
-notes = 'Grepped for "unsafe", "crypt", "cipher", "fs", "net" - there were no hits'
+notes = "Grepped for \"unsafe\", \"crypt\", \"cipher\", \"fs\", \"net\" - there were no hits"
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.serde_derive]]
