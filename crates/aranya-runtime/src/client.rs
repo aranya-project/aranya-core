@@ -1,4 +1,4 @@
-use core::iter::DoubleEndedIterator;
+use core::{fmt, iter::DoubleEndedIterator};
 
 use buggy::Bug;
 use tracing::error;
@@ -55,16 +55,29 @@ impl From<EngineError> for ClientError {
 ///
 /// - `E` should be an implementation of [`Engine`].
 /// - `SP` should be an implementation of [`StorageProvider`].
-#[derive(Debug)]
 pub struct ClientState<E, SP> {
     engine: E,
     provider: SP,
+    buffers: TraversalBuffers,
+}
+
+impl<E: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<E, SP> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientState")
+            .field("engine", &self.engine)
+            .field("provider", &self.provider)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<E, SP> ClientState<E, SP> {
     /// Creates a `ClientState`.
     pub const fn new(engine: E, provider: SP) -> Self {
-        Self { engine, provider }
+        Self {
+            engine,
+            provider,
+            buffers: TraversalBuffers::new(),
+        }
     }
 
     /// Provide access to the [`StorageProvider`].
@@ -115,9 +128,8 @@ where
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
-        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError> {
-        trx.commit(&mut self.provider, &mut self.engine, sink, buffers)?;
+        trx.commit(&mut self.provider, &mut self.engine, sink, &mut self.buffers)?;
         Ok(())
     }
 
@@ -129,9 +141,8 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
-        buffers: &mut TraversalBuffers,
     ) -> Result<usize, ClientError> {
-        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink, buffers)
+        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink, &mut self.buffers)
     }
 
     pub fn update_heads<I>(
@@ -139,7 +150,6 @@ where
         storage_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
-        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError>
     where
         I: IntoIterator<Item = Address>,
@@ -151,8 +161,8 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address, buffers)? {
-                request_heads.add_command(storage, address, loc, buffers)?;
+            if let Some(loc) = storage.get_location(address, &mut self.buffers)? {
+                request_heads.add_command(storage, address, loc, &mut self.buffers)?;
             } else {
                 error!(
                     "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
@@ -177,7 +187,6 @@ where
         storage_id: GraphId,
         sink: &mut impl Sink<E::Effect>,
         action: <E::Policy as Policy>::Action<'_>,
-        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
 
@@ -195,7 +204,7 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment, buffers)?;
+                storage.commit(segment, &mut self.buffers)?;
                 sink.commit();
                 Ok(())
             }
@@ -229,14 +238,13 @@ where
         &mut self,
         storage_id: GraphId,
         address: Address,
-        buffers: &mut TraversalBuffers,
     ) -> bool {
         let Ok(storage) = self.provider.get_storage(storage_id) else {
             // Graph doesn't exist
             return false;
         };
         storage
-            .get_location(address, buffers)
+            .get_location(address, &mut self.buffers)
             .unwrap_or(None)
             .is_some()
     }

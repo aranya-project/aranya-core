@@ -692,7 +692,7 @@ where
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*storage_id, &mut sink, set, &mut buffers)?;
+                    state.action(*storage_id, &mut sink, set)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -982,13 +982,12 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds, buffers)?;
-        request_state.commit(&mut request_trx, sink, buffers)?;
+        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
+        request_state.commit(&mut request_trx, sink)?;
         request_state.update_heads(
             storage_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
-            buffers,
         )?;
     }
 

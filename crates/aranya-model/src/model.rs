@@ -449,9 +449,8 @@ where
             .borrow_mut();
 
         let mut sink = VecSink::new();
-        let mut buffers = TraversalBuffers::new();
 
-        state.action(*storage_id, &mut sink, action, &mut buffers)?;
+        state.action(*storage_id, &mut sink, action)?;
 
         Ok(sink.effects)
     }
@@ -536,12 +535,12 @@ where
                 }
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
-                    request_state.add_commands(&mut request_trx, &mut sink, &cmds, &mut buffers)?;
+                    request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
                 }
             }
         }
 
-        request_state.commit(&mut request_trx, &mut sink, &mut buffers)?;
+        request_state.commit(&mut request_trx, &mut sink)?;
 
         Ok(())
     }
