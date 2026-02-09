@@ -406,9 +406,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                             {
                                 continue 'current;
                             }
-                            if storage.is_ancestor(location, &peer_cache_segment, buffers)? {
-                                continue 'current;
-                            }
                         }
 
                         commands

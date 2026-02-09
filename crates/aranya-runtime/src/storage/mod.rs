@@ -162,6 +162,8 @@ pub enum StorageError {
     EmptyPerspective,
     #[error("segment must be a descendant of the head for commit")]
     HeadNotAncestor,
+    #[error("traversal queue overflow (capacity {0})")]
+    TraversalQueueOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
@@ -243,7 +245,7 @@ pub trait Storage {
         buffers: &mut TraversalBuffers,
     ) -> Result<Option<Location>, StorageError> {
         let (visited, queue) = buffers.get();
-        queue.push_back(start).ok();
+        push_queue(queue, start)?;
 
         while let Some(loc) = queue.pop_front() {
             // Check visited status and determine search range
@@ -285,7 +287,7 @@ pub trait Storage {
             let mut used_skip = false;
             for (skip, skip_max_cut) in segment.skip_list() {
                 if skip_max_cut >= &address.max_cut {
-                    queue.push_back(*skip).ok();
+                    push_queue(queue, *skip)?;
                     used_skip = true;
                     break;
                 }
@@ -294,7 +296,7 @@ pub trait Storage {
             if !used_skip {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
-                    queue.push_back(prior).ok();
+                    push_queue(queue, prior)?;
                 }
             }
         }
@@ -373,7 +375,7 @@ pub trait Storage {
 
         let (visited, queue) = buffers.get();
         for prior in segment.prior() {
-            queue.push_back(prior).ok();
+            push_queue(queue, prior)?;
         }
 
         while let Some(loc) = queue.pop_front() {
@@ -407,7 +409,7 @@ pub trait Storage {
             let mut used_skip = false;
             for (skip, skip_max_cut) in seg.skip_list() {
                 if skip_max_cut >= &address.max_cut {
-                    queue.push_back(*skip).ok();
+                    push_queue(queue, *skip)?;
                     used_skip = true;
                     break;
                 }
@@ -416,12 +418,19 @@ pub trait Storage {
             if !used_skip {
                 // No valid skip - add prior locations to queue
                 for prior in seg.prior() {
-                    queue.push_back(prior).ok();
+                    push_queue(queue, prior)?;
                 }
             }
         }
         Ok(false)
     }
+}
+
+/// Pushes a location onto the traversal queue, returning an error if the queue is full.
+fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
+    queue
+        .push_back(loc)
+        .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
 type MaxCut = usize;

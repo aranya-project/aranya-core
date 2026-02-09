@@ -636,7 +636,7 @@ where
                         .assume("cache must exist")?
                         .borrow_mut();
 
-                    let (sent, received, _) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
+                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
                         (&mut request_cache, &mut request_client),
                         (&mut response_cache, &mut response_client),
                         client,
@@ -957,7 +957,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     sink: &mut TestSink,
     storage_id: GraphId,
     buffers: &mut TraversalBuffers,
-) -> Result<(usize, usize, Vec<CmdId>), TestError> {
+) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, requester_address);
     assert!(request_syncer.ready());
 
@@ -978,7 +978,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     )?;
 
     if len == 0 {
-        return Ok((sent, received, Vec::new()));
+        return Ok((sent, received));
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
@@ -992,7 +992,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         )?;
     }
 
-    Ok((sent, received, Vec::new()))
+    Ok((sent, received))
 }
 
 struct Parent(Prior<Address>);
@@ -1159,7 +1159,7 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
-    generated_400_commands,
+    exponential_traversal_regression,
     four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
