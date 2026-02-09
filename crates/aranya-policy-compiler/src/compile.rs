@@ -282,8 +282,6 @@ impl<'a> CompileState<'a> {
     }
 
     /// Insert a struct definition while preventing duplicates of the struct fields.
-    // It is expected that [Self::list_structs] is called before this method.
-    // Duplicate struct names are detected in [Self::list_structs].
     pub fn define_struct(
         &mut self,
         identifier: Ident,
