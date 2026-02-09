@@ -58,12 +58,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         buffers: &mut TraversalBuffers,
     ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
-        if let Some(found) = storage.get_location(address, buffers)? {
+        if let Some(found) = storage.get_location(address, &mut buffers.primary)? {
             return Ok(Some(found));
         }
         // Search from our temporary heads.
         for &head in self.heads.values() {
-            if let Some(found) = storage.get_location_from(head, address, buffers)? {
+            if let Some(found) = storage.get_location_from(head, address, &mut buffers.primary)? {
                 return Ok(Some(found));
             }
         }
@@ -122,7 +122,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
                 // need to merge with the graph head.
-                match storage.commit(segment, buffers) {
+                match storage.commit(segment, &mut buffers.primary) {
                     Ok(()) => break,
                     Err(StorageError::HeadNotAncestor) => {
                         if merging_head {

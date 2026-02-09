@@ -1,5 +1,4 @@
 use alloc::vec;
-use core::mem;
 
 use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
@@ -44,7 +43,7 @@ impl PeerCache {
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
-                .get_location(*request_head, buffers)?
+                .get_location(*request_head, &mut buffers.primary)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
             if request_head.id
@@ -58,11 +57,11 @@ impl PeerCache {
             }
             // If the new head is an ancestor of the request head, don't add it
             if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
-                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
+                || storage.is_ancestor(new_head, &req_head_seg, &mut buffers.primary)?
             {
                 add_command = false;
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
+            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, &mut buffers.primary)?)
         };
         self.heads
             .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
@@ -221,7 +220,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 self.state = S::Send;
                 for command in &self.has {
                     // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) = storage.get_location(*command, buffers)? {
+                    if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
                         response_cache.add_command(storage, *command, cmd_loc, buffers)?;
                     }
                 }
@@ -300,7 +299,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         for &addr in commands {
             // Note: We could use things we don't have as a hint to
             // know we should perform a sync request.
-            if let Some(location) = storage.get_location(addr, buffers)? {
+            if let Some(location) = storage.get_location(addr, &mut buffers.secondary)? {
                 have_locations.push(location);
             }
         }
@@ -317,7 +316,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     let segment_b = storage.get_segment(location_b)?;
                     if location_a.same_segment(location_b)
                         && location_a.command <= location_b.command
-                        || storage.is_ancestor(location_a, &segment_b, buffers)?
+                        || storage.is_ancestor(location_a, &segment_b, &mut buffers.secondary)?
                     {
                         is_ancestor_of_other = true;
                         break;
@@ -329,71 +328,80 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             }
         }
 
-        let mut heads = vec::Vec::new();
-        heads.push(storage.get_head()?);
+        let (visited, queue) = buffers.primary.get();
+        queue
+            .push_back(storage.get_head()?)
+            .ok()
+            .assume("queue overflow")?;
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
-        while !heads.is_empty() {
-            let current = mem::take(&mut heads);
-            'heads: for head in current {
-                let segment = storage.get_segment(head)?;
-                // If the segment is already in the result, skip it
-                if segment.contains_any(&result) {
-                    continue 'heads;
+        while let Some(head) = queue.pop_front() {
+            // Skip if already visited this segment
+            if visited.was_segment_visited(head.segment) {
+                continue;
+            }
+
+            let segment = storage.get_segment(head)?;
+            visited.mark_segment_visited(head.segment, segment.shortest_max_cut());
+
+            // Check if the current segment head is an ancestor of any location in have_locations.
+            // If so, stop traversing backward from this point since the requester already has
+            // this command and all its ancestors.
+            let mut is_have_ancestor = false;
+            for &have_location in &have_locations {
+                let have_segment = storage.get_segment(have_location)?;
+                if storage.is_ancestor(head, &have_segment, &mut buffers.secondary)? {
+                    is_have_ancestor = true;
+                    break;
                 }
+            }
+            if is_have_ancestor {
+                continue;
+            }
 
-                // Check if the current segment head is an ancestor of any location in have_locations.
-                // If so, stop traversing backward from this point since the requester already has
-                // this command and all its ancestors.
-                for &have_location in &have_locations {
-                    let have_segment = storage.get_segment(have_location)?;
-                    if storage.is_ancestor(head, &have_segment, buffers)? {
-                        continue 'heads;
-                    }
+            // If the requester has any commands in this segment, send from the next command
+            if let Some(latest_loc) = have_locations
+                .iter()
+                .filter(|&&location| segment.contains(location))
+                .max_by_key(|&&location| location.command)
+            {
+                let next_command = latest_loc
+                    .command
+                    .checked_add(1)
+                    .assume("command + 1 mustn't overflow")?;
+                let next_location = Location {
+                    segment: head.segment,
+                    command: next_command,
+                };
+
+                let head_loc = segment.head_location();
+                if next_location.command > head_loc.command {
+                    continue;
                 }
-
-                // If the requester has any commands in this segment, send from the next command
-                if let Some(latest_loc) = have_locations
-                    .iter()
-                    .filter(|&&location| segment.contains(location))
-                    .max_by_key(|&&location| location.command)
-                {
-                    let next_command = latest_loc
-                        .command
-                        .checked_add(1)
-                        .assume("command + 1 mustn't overflow")?;
-                    let next_location = Location {
-                        segment: head.segment,
-                        command: next_command,
-                    };
-
-                    let head_loc = segment.head_location();
-                    if next_location.command > head_loc.command {
-                        continue 'heads;
-                    }
-                    if result.is_full() {
-                        result.pop_back();
-                    }
-                    result
-                        .push_front(next_location)
-                        .ok()
-                        .assume("too many segments")?;
-                    continue 'heads;
-                }
-
-                heads.extend(segment.prior());
-
                 if result.is_full() {
                     result.pop_back();
                 }
-
-                let location = segment.first_location();
                 result
-                    .push_front(location)
+                    .push_front(next_location)
                     .ok()
                     .assume("too many segments")?;
+                continue;
             }
+
+            for prior in segment.prior() {
+                let _ = queue.push_back(prior);
+            }
+
+            if result.is_full() {
+                result.pop_back();
+            }
+
+            let location = segment.first_location();
+            result
+                .push_front(location)
+                .ok()
+                .assume("too many segments")?;
         }
         let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
         for l in result {

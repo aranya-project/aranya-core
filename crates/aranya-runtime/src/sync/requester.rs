@@ -362,7 +362,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                 let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
                 for address in peer_cache.heads() {
                     let loc = storage
-                        .get_location(*address, buffers)?
+                        .get_location(*address, &mut buffers.primary)?
                         .assume("location must exist")?;
                     cache_locations
                         .push(loc)
@@ -402,7 +402,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
                                 && location.command <= peer_cache_loc.command)
-                                || storage.is_ancestor(location, &peer_cache_segment, buffers)?
+                                || storage.is_ancestor(location, &peer_cache_segment, &mut buffers.primary)?
                             {
                                 continue 'current;
                             }

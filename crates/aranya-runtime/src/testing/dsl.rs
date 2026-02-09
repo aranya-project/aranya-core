@@ -1034,7 +1034,7 @@ where
                 "id: {} location {:?} max_cut: {} parent: {}",
                 short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?, buffers)?
+                    .get_location(command.address()?, &mut buffers.primary)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())

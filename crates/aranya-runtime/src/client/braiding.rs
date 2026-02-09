@@ -129,7 +129,7 @@ pub(super) fn braid<S: Storage>(
                     continue 'location;
                 }
 
-                if storage.is_ancestor(location, &other.segment, buffers)? {
+                if storage.is_ancestor(location, &other.segment, &mut buffers.primary)? {
                     trace!("found ancestor");
                     continue 'location;
                 }

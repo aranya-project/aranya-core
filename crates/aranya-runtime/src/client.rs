@@ -161,7 +161,7 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address, &mut self.buffers)? {
+            if let Some(loc) = storage.get_location(address, &mut self.buffers.primary)? {
                 request_heads.add_command(storage, address, loc, &mut self.buffers)?;
             } else {
                 error!(
@@ -204,7 +204,7 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment, &mut self.buffers)?;
+                storage.commit(segment, &mut self.buffers.primary)?;
                 sink.commit();
                 Ok(())
             }
@@ -244,7 +244,7 @@ where
             return false;
         };
         storage
-            .get_location(address, &mut self.buffers)
+            .get_location(address, &mut self.buffers.primary)
             .unwrap_or(None)
             .is_some()
     }

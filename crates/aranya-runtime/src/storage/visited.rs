@@ -102,14 +102,12 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// This allows a single buffer to be reused across different traversal
     /// operations that need segment-level vs entry-point tracking.
     #[inline]
-    #[allow(dead_code)] // Part of spec API, used by find_needed_segments
     pub fn mark_segment_visited(&mut self, segment: usize, min_max_cut: usize) {
         self.insert_or_update(segment, min_max_cut, CommandIndex::MAX);
     }
 
     /// Checks if a segment was visited at any entry point.
     #[inline]
-    #[allow(dead_code)] // Part of spec API, used by find_needed_segments
     pub fn was_segment_visited(&self, segment: usize) -> bool {
         self.get(segment).is_some()
     }

@@ -48,16 +48,15 @@ pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
 /// Type alias for the queue used in traversal operations.
 pub type TraversalQueue = heapless::Deque<Location, QUEUE_CAPACITY>;
 
-/// Reusable buffers for graph traversal operations.
+/// A visited set and queue pair for a single graph traversal operation.
 ///
-/// Create once and pass to traversal methods to avoid repeated allocation.
-/// Access buffers via [`get()`](Self::get), which clears them automatically.
-pub struct TraversalBuffers {
+/// Access via [`get()`](Self::get), which clears both buffers automatically.
+pub struct TraversalBufferPair {
     visited: TraversalVisited,
     queue: TraversalQueue,
 }
 
-impl TraversalBuffers {
+impl TraversalBufferPair {
     pub const fn new() -> Self {
         Self {
             visited: TraversalVisited::new(),
@@ -66,13 +65,35 @@ impl TraversalBuffers {
     }
 
     /// Returns cleared buffers ready for use.
-    ///
-    /// This is the only way to access the buffers, ensuring they're
-    /// always cleared before each traversal operation.
     pub fn get(&mut self) -> (&mut TraversalVisited, &mut TraversalQueue) {
         self.visited.clear();
         self.queue.clear();
         (&mut self.visited, &mut self.queue)
+    }
+}
+
+impl Default for TraversalBufferPair {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Reusable buffers for graph traversal operations.
+///
+/// Contains two independent buffer pairs so that an outer traversal
+/// (e.g. `find_needed_segments`) can maintain state in one pair while
+/// calling leaf operations (e.g. `is_ancestor`) that use the other.
+pub struct TraversalBuffers {
+    pub primary: TraversalBufferPair,
+    pub secondary: TraversalBufferPair,
+}
+
+impl TraversalBuffers {
+    pub const fn new() -> Self {
+        Self {
+            primary: TraversalBufferPair::new(),
+            secondary: TraversalBufferPair::new(),
+        }
     }
 }
 
@@ -232,7 +253,7 @@ pub trait Storage {
     fn get_location(
         &self,
         address: Address,
-        buffers: &mut TraversalBuffers,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<Option<Location>, StorageError> {
         self.get_location_from(self.get_head()?, address, buffers)
     }
@@ -242,7 +263,7 @@ pub trait Storage {
         &self,
         start: Location,
         address: Address,
-        buffers: &mut TraversalBuffers,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<Option<Location>, StorageError> {
         let (visited, queue) = buffers.get();
         push_queue(queue, start)?;
@@ -348,7 +369,7 @@ pub trait Storage {
     fn commit(
         &mut self,
         segment: Self::Segment,
-        buffers: &mut TraversalBuffers,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
@@ -365,7 +386,7 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
-        buffers: &mut TraversalBuffers,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<bool, StorageError> {
         let search_segment = self.get_segment(search_location)?;
         let address = search_segment
