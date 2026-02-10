@@ -7,6 +7,8 @@
 
 use heapless::Vec;
 
+use super::MaxCut;
+
 /// Index of a command within a segment.
 pub type CommandIndex = usize;
 
@@ -29,7 +31,7 @@ pub type CommandIndex = usize;
 /// - The algorithm converges as long as progress is made toward the root
 pub struct CappedVisited<const CAP: usize> {
     // (segment_id, min_max_cut, highest_command_visited)
-    entries: Vec<(usize, usize, CommandIndex), CAP>,
+    entries: Vec<(usize, MaxCut, CommandIndex), CAP>,
 }
 
 impl<const CAP: usize> CappedVisited<CAP> {
@@ -50,7 +52,7 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// Returns the min_max_cut and highest_command_visited for a segment
     /// if it exists in the set.
     #[inline]
-    pub fn get(&self, segment: usize) -> Option<(usize, CommandIndex)> {
+    pub fn get(&self, segment: usize) -> Option<(MaxCut, CommandIndex)> {
         self.entries
             .iter()
             .find(|(s, _, _)| *s == segment)
@@ -63,7 +65,7 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// When the set is full and a new segment needs to be inserted, evicts
     /// the entry with the highest effective max_cut (min_max_cut + highest_command).
     #[inline]
-    pub fn insert_or_update(&mut self, segment: usize, min_max_cut: usize, command: CommandIndex) {
+    pub fn insert_or_update(&mut self, segment: usize, min_max_cut: MaxCut, command: CommandIndex) {
         // Single pass: check for existing segment and track eviction candidate
         let mut evict_idx = 0;
         let mut evict_effective_max_cut = usize::MIN;
@@ -102,7 +104,7 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// This allows a single buffer to be reused across different traversal
     /// operations that need segment-level vs entry-point tracking.
     #[inline]
-    pub fn mark_segment_visited(&mut self, segment: usize, min_max_cut: usize) {
+    pub fn mark_segment_visited(&mut self, segment: usize, min_max_cut: MaxCut) {
         self.insert_or_update(segment, min_max_cut, CommandIndex::MAX);
     }
 

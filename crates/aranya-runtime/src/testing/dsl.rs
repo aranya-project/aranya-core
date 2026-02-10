@@ -69,7 +69,7 @@ use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
     GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    TraversalBuffers,
+    TraversalBufferPair, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestEngine, TestSink},
         short_b58,
@@ -707,7 +707,7 @@ where
                 let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
-                print_graph(storage, head, &mut buffers)?;
+                print_graph(storage, head, &mut buffers.primary)?;
             }
 
             TestRule::CompareGraphs {
@@ -736,9 +736,9 @@ where
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a, &mut buffers)?;
+                    let cmds_a = print_graph(storage_a, head_a, &mut buffers.primary)?;
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b, &mut buffers)?;
+                    let cmds_b = print_graph(storage_b, head_b, &mut buffers.primary)?;
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -1011,7 +1011,7 @@ impl Display for Parent {
 pub fn print_graph<S>(
     storage: &S,
     location: Location,
-    buffers: &mut TraversalBuffers,
+    buffers: &mut TraversalBufferPair,
 ) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
@@ -1034,7 +1034,7 @@ where
                 "id: {} location {:?} max_cut: {} parent: {}",
                 short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?, &mut buffers.primary)?
+                    .get_location(command.address()?, buffers)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())

@@ -11,7 +11,10 @@ use super::{
 use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
-    storage::{GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffers},
+    storage::{
+        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBufferPair,
+        TraversalBuffers, push_queue,
+    },
 };
 
 #[derive(Default, Debug)]
@@ -33,7 +36,7 @@ impl PeerCache {
         storage: &S,
         command: Address,
         cmd_loc: Location,
-        buffers: &mut TraversalBuffers,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -43,7 +46,7 @@ impl PeerCache {
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
-                .get_location(*request_head, &mut buffers.primary)?
+                .get_location(*request_head, buffers)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
             if request_head.id
@@ -57,11 +60,11 @@ impl PeerCache {
             }
             // If the new head is an ancestor of the request head, don't add it
             if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
-                || storage.is_ancestor(new_head, &req_head_seg, &mut buffers.primary)?
+                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
             {
                 add_command = false;
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, &mut buffers.primary)?)
+            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
         };
         self.heads
             .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
@@ -221,7 +224,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 for command in &self.has {
                     // We only need to check commands that are a part of our graph.
                     if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
-                        response_cache.add_command(storage, *command, cmd_loc, buffers)?;
+                        response_cache.add_command(storage, *command, cmd_loc, &mut buffers.primary)?;
                     }
                 }
                 self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
@@ -329,10 +332,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         }
 
         let (visited, queue) = buffers.primary.get();
-        queue
-            .push_back(storage.get_head()?)
-            .ok()
-            .assume("queue overflow")?;
+        push_queue(queue, storage.get_head()?)?;
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
@@ -390,7 +390,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             }
 
             for prior in segment.prior() {
-                let _ = queue.push_back(prior);
+                push_queue(queue, prior)?;
             }
 
             if result.is_full() {

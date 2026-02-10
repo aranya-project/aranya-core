@@ -7,8 +7,8 @@ use super::braiding;
 use crate::{
     Address, ClientError, CmdId, Command, Engine, EngineError, GraphId, Location,
     MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyId, Prior, Revertable as _,
-    Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBuffers,
-    engine::CommandPlacement,
+    Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBufferPair,
+    TraversalBuffers, engine::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -55,15 +55,15 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         &self,
         storage: &mut SP::Storage,
         address: Address,
-        buffers: &mut TraversalBuffers,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
-        if let Some(found) = storage.get_location(address, &mut buffers.primary)? {
+        if let Some(found) = storage.get_location(address, buffers)? {
             return Ok(Some(found));
         }
         // Search from our temporary heads.
         for &head in self.heads.values() {
-            if let Some(found) = storage.get_location_from(head, address, &mut buffers.primary)? {
+            if let Some(found) = storage.get_location_from(head, address, buffers)? {
                 return Ok(Some(found));
             }
         }
@@ -182,7 +182,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 continue;
             }
 
-            if self.locate(storage, command.address()?, buffers)?.is_some() {
+            if self.locate(storage, command.address()?, &mut buffers.primary)?.is_some() {
                 // Command already added.
                 continue;
             }
@@ -260,10 +260,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         }
 
         let left_loc = self
-            .locate(storage, left, buffers)?
+            .locate(storage, left, &mut buffers.primary)?
             .ok_or(ClientError::NoSuchParent(left.id))?;
         let right_loc = self
-            .locate(storage, right, buffers)?
+            .locate(storage, right, &mut buffers.primary)?
             .ok_or(ClientError::NoSuchParent(right.id))?;
 
         let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
@@ -318,7 +318,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         }
 
         let loc = self
-            .locate(storage, parent, buffers)?
+            .locate(storage, parent, &mut buffers.primary)?
             .ok_or(ClientError::NoSuchParent(parent.id))?;
 
         // Get a new perspective and store it in the transaction.
@@ -390,7 +390,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
     policy: &E::Policy,
     buffers: &mut TraversalBuffers,
 ) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
-    let order = braiding::braid(storage, left, right, buffers)?;
+    let order = braiding::braid(storage, left, right, &mut buffers.primary)?;
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
     let (&first, rest) = order.split_first().assume("braid is non-empty")?;

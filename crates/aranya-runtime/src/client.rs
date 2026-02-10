@@ -162,7 +162,7 @@ where
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
             if let Some(loc) = storage.get_location(address, &mut self.buffers.primary)? {
-                request_heads.add_command(storage, address, loc, &mut self.buffers)?;
+                request_heads.add_command(storage, address, loc, &mut self.buffers.primary)?;
             } else {
                 error!(
                     "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",

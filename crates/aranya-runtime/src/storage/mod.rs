@@ -448,13 +448,13 @@ pub trait Storage {
 }
 
 /// Pushes a location onto the traversal queue, returning an error if the queue is full.
-fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
+pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
     queue
         .push_back(loc)
         .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
-type MaxCut = usize;
+pub(crate) type MaxCut = usize;
 
 /// A segment is a nonempty sequence of commands persisted to storage.
 ///
