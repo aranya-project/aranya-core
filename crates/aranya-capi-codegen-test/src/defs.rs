@@ -1,5 +1,8 @@
 use aranya_capi_core::{InvalidArg, prelude::*};
 
+#[deprecated(note = "func is deprecated")]
+pub fn test_deprecated_func() {}
+
 pub fn test_unit_unit0() {}
 #[allow(clippy::unused_unit)]
 pub fn test_unit_unit1() -> () {}
@@ -220,6 +223,13 @@ impl From<&crate::Error> for Error {
     fn from(_err: &crate::Error) -> Self {
         unimplemented!()
     }
+}
+
+#[deprecated(note = "struct is deprecated")]
+#[repr(C)]
+pub struct TestDeprecatedStruct {
+    #[deprecated(note = "field is deprecated")]
+    bar: u8,
 }
 
 #[cfg(feature = "test_cfg")]
