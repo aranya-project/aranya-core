@@ -407,10 +407,10 @@ pub trait Storage {
             }
 
             // Check if we can skip loading this segment entirely
-            if let Some((_, highest)) = visited.get(loc.segment) {
-                if loc.command <= highest {
-                    continue; // Already visited at this entry point or higher
-                }
+            if let Some((_, highest)) = visited.get(loc.segment)
+                && loc.command <= highest
+            {
+                continue; // Already visited at this entry point or higher
             }
 
             // Must load segment
