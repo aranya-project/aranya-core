@@ -35,14 +35,14 @@ impl KeyBundle {
     /// Generates a key bundle.
     ///
     /// The wrapped keys are stored inside of `store`.
-    pub fn generate<E, S>(eng: &mut E, store: &mut S) -> Result<Self>
+    pub fn generate<CE, S>(eng: &mut CE, store: &mut S) -> Result<Self>
     where
-        E: Engine,
+        CE: Engine,
         S: KeyStore,
     {
         macro_rules! gen_key {
             ($key:ident) => {{
-                let sk = $key::<E::CS>::new(eng);
+                let sk = $key::<CE::CS>::new(eng);
                 store.insert_key(eng, sk).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
@@ -57,19 +57,19 @@ impl KeyBundle {
     }
 
     /// Loads the public keys from `store`.
-    pub fn public_keys<E, S>(&self, eng: &mut E, store: &S) -> Result<PublicKeys<E::CS>>
+    pub fn public_keys<CE, S>(&self, eng: &mut CE, store: &S) -> Result<PublicKeys<CE::CS>>
     where
-        E: Engine,
+        CE: Engine,
         S: KeyStore,
     {
         Ok(PublicKeys {
             ident_pk: store
-                .get_key::<_, IdentityKey<E::CS>>(eng, self.device_id)
+                .get_key::<_, IdentityKey<CE::CS>>(eng, self.device_id)
                 .context("unable to load `IdentityKey`")?
                 .context("unable to find `IdentityKey`")?
                 .public()?,
             sign_pk: store
-                .get_key::<_, SigningKey<E::CS>>(eng, self.sign_id)
+                .get_key::<_, SigningKey<CE::CS>>(eng, self.sign_id)
                 .context("unable to load `SigningKey`")?
                 .context("unable to find `SigningKey`")?
                 .public()?,
@@ -81,14 +81,14 @@ impl MinKeyBundle {
     /// Generates a minimum key bundle.
     ///
     /// The wrapped keys are stored inside of `store`.
-    pub fn generate<E, S>(eng: &mut E, store: &mut S) -> Result<Self>
+    pub fn generate<CE, S>(eng: &mut CE, store: &mut S) -> Result<Self>
     where
-        E: Engine,
+        CE: Engine,
         S: KeyStore,
     {
         macro_rules! gen_key {
             ($key:ident) => {{
-                let sk = $key::<E::CS>::new(eng);
+                let sk = $key::<CE::CS>::new(eng);
                 store.insert_key(eng, sk).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),

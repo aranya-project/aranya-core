@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.17.1...aranya-fast-channels-v0.17.2) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+
 ## [0.17.1](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.17.0...aranya-fast-channels-v0.17.1) - 2026-01-06
 
 ### Other

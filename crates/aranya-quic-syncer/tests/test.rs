@@ -5,9 +5,9 @@ use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, SyncRequester,
-    engine::{Engine, Sink},
+    policy::{PolicyStore, Sink},
     storage::{StorageProvider, memory::MemStorageProvider},
-    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
 };
 use buggy::BugExt as _;
 use s2n_quic::{Server, provider::congestion_controller::Bbr};
@@ -33,7 +33,7 @@ async fn test_sync() -> Result<()> {
     let client2 = make_client();
     let sink2 = Arc::new(TMutex::new(TestSink::new()));
 
-    let storage_id = client1.lock().await.new_graph(
+    let graph_id = client1.lock().await.new_graph(
         &0u64.to_be_bytes(),
         TestActions::Init(0),
         sink1.lock().await.deref_mut(),
@@ -41,7 +41,7 @@ async fn test_sync() -> Result<()> {
 
     let addr1 = spawn_syncer(Arc::clone(&syncer1), rx, server_addr1)?;
     tokio::time::sleep(Duration::from_millis(100)).await;
-    syncer1.lock().await.push(storage_id)?;
+    syncer1.lock().await.push(graph_id)?;
 
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
@@ -49,7 +49,7 @@ async fn test_sync() -> Result<()> {
         client1
             .lock()
             .await
-            .action(storage_id, sink1.lock().await.deref_mut(), action)?;
+            .action(graph_id, sink1.lock().await.deref_mut(), action)?;
     }
     assert_eq!(sink1.lock().await.count(), 0);
 
@@ -68,9 +68,10 @@ async fn test_sync() -> Result<()> {
     syncer2
         .sync(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr1),
+            addr1,
+            SyncRequester::new(graph_id, &mut Rng),
             sink2.lock().await.deref_mut(),
-            storage_id,
+            graph_id,
         )
         .await?;
     assert_eq!(sink2.lock().await.count(), 0);
@@ -107,7 +108,7 @@ async fn test_sync_subscribe() -> Result<()> {
         server_addr2.local_addr()?,
     )?));
 
-    let storage_id = client1.lock().await.new_graph(
+    let graph_id = client1.lock().await.new_graph(
         &0u64.to_be_bytes(),
         TestActions::Init(0),
         sink1.lock().await.deref_mut(),
@@ -124,7 +125,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client1.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr1),
+            SyncRequester::new(graph_id, &mut Rng),
             5,
             u64::MAX,
             addr2,
@@ -135,7 +136,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(graph_id, &mut Rng),
             5,
             u64::MAX,
             addr1,
@@ -148,8 +149,8 @@ async fn test_sync_subscribe() -> Result<()> {
         client1
             .lock()
             .await
-            .action(storage_id, sink1.lock().await.deref_mut(), action)?;
-        syncer1.lock().await.push(storage_id)?;
+            .action(graph_id, sink1.lock().await.deref_mut(), action)?;
+        syncer1.lock().await.push(graph_id)?;
     }
 
     // All of the actions should be pushed to client2.
@@ -162,7 +163,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(graph_id, &mut Rng),
             1,
             u64::MAX,
             addr1,
@@ -177,8 +178,8 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
-    syncer1.lock().await.push(storage_id)?;
+        .action(graph_id, sink1.lock().await.deref_mut(), action)?;
+    syncer1.lock().await.push(graph_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -192,7 +193,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(graph_id, &mut Rng),
             5,
             286, // The exact number of bytes to be sent
             addr1,
@@ -205,8 +206,8 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
-    syncer1.lock().await.push(storage_id)?;
+        .action(graph_id, sink1.lock().await.deref_mut(), action)?;
+    syncer1.lock().await.push(graph_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -219,8 +220,8 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
-    syncer1.lock().await.push(storage_id)?;
+        .action(graph_id, sink1.lock().await.deref_mut(), action)?;
+    syncer1.lock().await.push(graph_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -235,7 +236,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
+            SyncRequester::new(graph_id, &mut Rng),
             1,
             u64::MAX,
             addr1,
@@ -244,7 +245,7 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .unsubscribe(SyncRequester::new(storage_id, &mut Rng, addr2), addr1)
+        .unsubscribe(SyncRequester::new(graph_id, &mut Rng), addr1)
         .await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -254,8 +255,8 @@ async fn test_sync_subscribe() -> Result<()> {
     client1
         .lock()
         .await
-        .action(storage_id, sink1.lock().await.deref_mut(), action)?;
-    syncer1.lock().await.push(storage_id)?;
+        .action(graph_id, sink1.lock().await.deref_mut(), action)?;
+    syncer1.lock().await.push(graph_id)?;
     sink2.lock().await.add_expectation(TestEffect::Got(value));
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -276,15 +277,15 @@ fn get_server(cert: String, key: String) -> Result<Server> {
     Ok(server)
 }
 
-fn spawn_syncer<EN, SP, S>(
-    syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
+fn spawn_syncer<PS, SP, S>(
+    syncer: Arc<TMutex<Syncer<PS, SP, S>>>,
     receiver: mpsc::UnboundedReceiver<GraphId>,
     server: Server,
 ) -> Result<SocketAddr>
 where
-    EN: Engine + Send + 'static,
+    PS: PolicyStore + Send + 'static,
     SP: StorageProvider + Send + 'static,
-    S: Sink<<EN as Engine>::Effect> + Send + 'static,
+    S: Sink<<PS as PolicyStore>::Effect> + Send + 'static,
     <SP as StorageProvider>::Perspective: Send,
 {
     let server_addr = server.local_addr()?;
@@ -292,9 +293,9 @@ where
     Ok(server_addr)
 }
 
-fn make_client() -> Arc<TMutex<ClientState<TestEngine, MemStorageProvider>>> {
-    let engine = TestEngine::new();
+fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>> {
+    let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    Arc::new(TMutex::new(ClientState::new(engine, storage)))
+    Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
 }

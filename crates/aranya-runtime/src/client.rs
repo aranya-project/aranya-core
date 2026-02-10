@@ -4,8 +4,9 @@ use buggy::Bug;
 use tracing::error;
 
 use crate::{
-    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
-    Sink, Storage as _, StorageError, StorageProvider, TraversalBuffers, engine::ActionPlacement,
+    Address, CmdId, Command, GraphId, PeerCache, Perspective as _, Policy, PolicyError,
+    PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffers,
+    policy::ActionPlacement,
 };
 
 mod braiding;
@@ -19,8 +20,8 @@ pub use self::{session::Session, transaction::Transaction};
 pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
-    #[error("engine error: {0}")]
-    EngineError(EngineError),
+    #[error("policy error: {0}")]
+    PolicyError(PolicyError),
     #[error("storage error: {0}")]
     StorageError(#[from] StorageError),
     #[error("init error")]
@@ -42,39 +43,39 @@ pub enum ClientError {
     Bug(#[from] Bug),
 }
 
-impl From<EngineError> for ClientError {
-    fn from(error: EngineError) -> Self {
+impl From<PolicyError> for ClientError {
+    fn from(error: PolicyError) -> Self {
         match error {
-            EngineError::Check => Self::NotAuthorized,
-            _ => Self::EngineError(error),
+            PolicyError::Check => Self::NotAuthorized,
+            _ => Self::PolicyError(error),
         }
     }
 }
 
 /// Keeps track of client graph state.
 ///
-/// - `E` should be an implementation of [`Engine`].
+/// - `PS` should be an implementation of [`PolicyStore`].
 /// - `SP` should be an implementation of [`StorageProvider`].
-pub struct ClientState<E, SP> {
-    engine: E,
+pub struct ClientState<PS, SP> {
+    policy_store: PS,
     provider: SP,
     buffers: TraversalBuffers,
 }
 
-impl<E: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<E, SP> {
+impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClientState")
-            .field("engine", &self.engine)
+            .field("policy_store", &self.policy_store)
             .field("provider", &self.provider)
             .finish_non_exhaustive()
     }
 }
 
-impl<E, SP> ClientState<E, SP> {
+impl<PS, SP> ClientState<PS, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(engine: E, provider: SP) -> Self {
+    pub const fn new(policy_store: PS, provider: SP) -> Self {
         Self {
-            engine,
+            policy_store,
             provider,
             buffers: TraversalBuffers::new(),
         }
@@ -86,23 +87,23 @@ impl<E, SP> ClientState<E, SP> {
     }
 }
 
-impl<E, SP> ClientState<E, SP>
+impl<PS, SP> ClientState<PS, SP>
 where
-    E: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
 {
     /// Create a new graph (AKA Team). This graph will start with the initial policy
-    /// provided which must be compatible with the engine E. The `payload` is the initial
+    /// provided which must be compatible with the policy store PS. The `payload` is the initial
     /// init message that will bootstrap the graph facts. Effects produced when processing
     /// the payload are emitted to the sink.
     pub fn new_graph(
         &mut self,
         policy_data: &[u8],
-        action: <E::Policy as Policy>::Action<'_>,
-        sink: &mut impl Sink<E::Effect>,
+        action: <PS::Policy as Policy>::Action<'_>,
+        sink: &mut impl Sink<PS::Effect>,
     ) -> Result<GraphId, ClientError> {
-        let policy_id = self.engine.add_policy(policy_data)?;
-        let policy = self.engine.get_policy(policy_id)?;
+        let policy_id = self.policy_store.add_policy(policy_data)?;
+        let policy = self.policy_store.get_policy(policy_id)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
@@ -126,10 +127,15 @@ where
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     pub fn commit(
         &mut self,
-        trx: &mut Transaction<SP, E>,
-        sink: &mut impl Sink<E::Effect>,
+        trx: &mut Transaction<SP, PS>,
+        sink: &mut impl Sink<PS::Effect>,
     ) -> Result<(), ClientError> {
-        trx.commit(&mut self.provider, &mut self.engine, sink, &mut self.buffers)?;
+        trx.commit(
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            &mut self.buffers,
+        )?;
         Ok(())
     }
 
@@ -138,16 +144,22 @@ where
     /// Returns the number of commands that were added.
     pub fn add_commands(
         &mut self,
-        trx: &mut Transaction<SP, E>,
-        sink: &mut impl Sink<E::Effect>,
+        trx: &mut Transaction<SP, PS>,
+        sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
     ) -> Result<usize, ClientError> {
-        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink, &mut self.buffers)
+        trx.add_commands(
+            commands,
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            &mut self.buffers,
+        )
     }
 
     pub fn update_heads<I>(
         &mut self,
-        storage_id: GraphId,
+        graph_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
     ) -> Result<(), ClientError>
@@ -155,7 +167,7 @@ where
         I: IntoIterator<Item = Address>,
         I::IntoIter: DoubleEndedIterator,
     {
-        let storage = self.provider.get_storage(storage_id)?;
+        let storage = self.provider.get_storage(graph_id)?;
 
         // Commands in sync messages are always ancestor-first (lower max_cut to higher max_cut).
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
@@ -175,8 +187,8 @@ where
     }
 
     /// Returns the address of the head of the graph.
-    pub fn head_address(&mut self, storage_id: GraphId) -> Result<Address, ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
+    pub fn head_address(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
+        let storage = self.provider.get_storage(graph_id)?;
         let address = storage.get_head_address()?;
         Ok(address)
     }
@@ -184,18 +196,18 @@ where
     /// Performs an `action`, writing the results to `sink`.
     pub fn action(
         &mut self,
-        storage_id: GraphId,
-        sink: &mut impl Sink<E::Effect>,
-        action: <E::Policy as Policy>::Action<'_>,
+        graph_id: GraphId,
+        sink: &mut impl Sink<PS::Effect>,
+        action: <PS::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
+        let storage = self.provider.get_storage(graph_id)?;
 
         let head = storage.get_head()?;
 
         let mut perspective = storage.get_linear_perspective(head)?;
 
         let policy_id = perspective.policy();
-        let policy = self.engine.get_policy(policy_id)?;
+        let policy = self.policy_store.get_policy(policy_id)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.
@@ -216,30 +228,26 @@ where
     }
 }
 
-impl<E, SP> ClientState<E, SP>
+impl<PS, SP> ClientState<PS, SP>
 where
     SP: StorageProvider,
 {
     /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
-    pub fn transaction(&mut self, storage_id: GraphId) -> Transaction<SP, E> {
-        Transaction::new(storage_id)
+    pub fn transaction(&mut self, graph_id: GraphId) -> Transaction<SP, PS> {
+        Transaction::new(graph_id)
     }
 
     /// Create an ephemeral [`Session`] associated with this client.
-    pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, E>, ClientError> {
-        Session::new(&mut self.provider, storage_id)
+    pub fn session(&mut self, graph_id: GraphId) -> Result<Session<SP, PS>, ClientError> {
+        Session::new(&mut self.provider, graph_id)
     }
 
     /// Checks if a command with the given address exists in the specified graph.
     ///
     /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
     /// This method is used to determine if we need to sync when a hello message is received.
-    pub fn command_exists(
-        &mut self,
-        storage_id: GraphId,
-        address: Address,
-    ) -> bool {
-        let Ok(storage) = self.provider.get_storage(storage_id) else {
+    pub fn command_exists(&mut self, graph_id: GraphId, address: Address) -> bool {
+        let Ok(storage) = self.provider.get_storage(graph_id) else {
             // Graph doesn't exist
             return false;
         };

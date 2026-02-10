@@ -1,0 +1,140 @@
+benzimmerman@bens-macbook-pro aranya-runtime % cargo test                                      
+   Compiling aranya-policy-ast v0.10.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-policy-ast)
+   Compiling aranya-policy-derive v0.11.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-policy-derive)
+   Compiling aranya-policy-lang v0.10.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-policy-lang)
+   Compiling aranya-policy-module v0.16.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-policy-module)
+   Compiling aranya-policy-compiler v0.17.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-policy-compiler)
+   Compiling aranya-policy-vm v0.16.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-policy-vm)
+   Compiling aranya-runtime v0.17.0 (/Users/benzimmerman/git/aranya-core/crates/aranya-runtime)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.49s
+     Running unittests src/lib.rs (/Users/benzimmerman/git/aranya-core/target/debug/deps/aranya_runtime-e45f6c00ebbb713a)
+
+running 80 tests
+test command::test::priority_ordering ... ok
+test storage::linear::libc::path::tests::test_idpath ... ok
+test client::session::test::test_query_iterator ... ok
+test client::transaction::test::test_duplicates ... ok
+test client::transaction::test::test_mid_braid_2 ... ok
+test client::transaction::test::test_parallel_finalize ... ok
+test client::transaction::test::test_simple ... ok
+test client::transaction::test::test_mid_braid_1 ... ok
+test client::transaction::test::test_sequential_finalize ... ok
+test client::transaction::test::test_complex ... ok
+test storage::linear::libc::tests::empty_sync ... ok
+test storage::linear::libc::tests::list_multiple_graph_ids ... ok
+test storage::linear::libc::tests::max_cut ... ok
+test storage::linear::libc::tests::remove_graph ... ok
+test storage::linear::libc::tests::missing_parent_after_sync ... ok
+test storage::linear::libc::tests::duplicate_sync_causes_failure ... ok
+test storage::linear::libc::tests::three_client_sync ... ok
+test storage::linear::libc::tests::two_client_branch ... ok
+test storage::linear::libc::tests::three_client_branch ... ok
+test storage::linear::test::duplicate_sync_causes_failure ... ok
+test storage::linear::libc::tests::two_client_sync ... ok
+test storage::linear::test::empty_sync ... ok
+test storage::linear::libc::tests::two_client_merge ... ok
+test storage::linear::libc::tests::three_client_compare_graphs ... ok
+test storage::linear::libc::tests::skip_list ... ok
+test storage::linear::test::list_multiple_graph_ids ... ok
+test storage::linear::test::many_branches ... ok
+test storage::linear::test::four_seventy_three_failure ... ok
+test storage::linear::test::max_cut ... ok
+test storage::linear::test::missing_parent_after_sync ... ok
+test storage::linear::test::remove_graph ... ok
+test storage::linear::test::skip_list ... ok
+test storage::linear::test::many_clients ... ok
+test storage::linear::test::test_query_prefix ... ok
+test storage::linear::test::three_client_branch ... ok
+test storage::linear::test::three_client_compare_graphs ... ok
+test storage::linear::test::three_client_sync ... ok
+test storage::linear::test::two_client_branch ... ok
+test storage::linear::test::two_client_merge ... ok
+test storage::linear::test::two_client_sync ... ok
+test storage::memory::test::duplicate_sync_causes_failure ... ok
+test storage::memory::test::empty_sync ... ok
+test storage::memory::test::four_seventy_three_failure ... ok
+test storage::linear::test::sync_graph_larger_than_command_max ... ok
+test storage::memory::test::generate_graph ... ok
+test storage::linear::test::generate_graph ... ok
+test storage::memory::test::list_multiple_graph_ids ... ok
+test storage::memory::test::large_sync ... ok
+test storage::memory::test::many_branches ... ok
+test storage::memory::test::max_cut ... ok
+test storage::memory::test::missing_parent_after_sync ... ok
+test storage::memory::test::remove_graph ... ok
+test storage::memory::test::skip_list ... ok
+test storage::memory::test::sync_graph_larger_than_command_max ... ok
+test storage::memory::test::test_query_prefix ... ok
+test storage::memory::test::three_client_branch ... ok
+test storage::memory::test::three_client_compare_graphs ... ok
+test storage::memory::test::three_client_sync ... ok
+test storage::memory::test::two_client_branch ... ok
+test storage::memory::test::two_client_merge ... ok
+test storage::memory::test::two_client_sync ... ok
+test storage::linear::libc::tests::sync_graph_larger_than_command_max ... ok
+test storage::memory::test::many_clients ... ok
+test storage::linear::libc::tests::four_seventy_three_failure ... ok
+test storage::memory::test::generated_400_commands ... ok
+test storage::linear::test::large_sync ... ok
+test storage::linear::libc::tests::many_branches ... ok
+test vm_policy::test::test_get_command_priorities ... ok
+test vm_policy::test::test_require_command_priority ... ok
+test storage::linear::libc::tests::large_sync ... ok
+test storage::linear::libc::tests::generate_graph ... ok
+test storage::linear::libc::tests::many_clients ... ok
+test storage::linear::test::generated_400_commands ... ok
+test storage::linear::libc::tests::generated_400_commands ... ok
+test vm_policy::io::test::test_bool_ord ... ok
+test vm_policy::io::test::test_int_ord ... ok
+test vm_policy::io::test::test_id_ord ... ok
+test vm_policy::io::test::test_round_trip ... ok
+test vm_policy::io::test::test_string_ord ... ok
+test vm_policy::io::test::test_enum_ord ... ok
+
+test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.39s
+
+     Running tests/vm.rs (/Users/benzimmerman/git/aranya-core/target/debug/deps/vm-a8db91b6542e40c9)
+
+running 4 tests
+test test_query_fact_value ... ok
+test test_vmpolicy ... ok
+test test_aranya_session ... ok
+test test_effect_metadata ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests aranya_runtime
+
+running 9 tests
+test crates/aranya-runtime/src/lib.rs - (line 20) ... ignored
+test crates/aranya-runtime/src/lib.rs - (line 25) ... ignored
+test crates/aranya-runtime/src/lib.rs - (line 30) ... ignored
+test crates/aranya-runtime/src/lib.rs - (line 36) ... ignored
+test crates/aranya-runtime/src/vm_policy.rs - vm_policy (line 80) ... ignored
+test crates/aranya-runtime/src/vm_policy.rs - vm_policy::vm_action (line 154) ... ignored
+test crates/aranya-runtime/src/vm_policy.rs - vm_policy::vm_effect (line 176) ... ignored
+test crates/aranya-runtime/src/testing/dsl.rs - testing::dsl (line 8) ... ok
+test crates/aranya-runtime/src/testing/dsl.rs - testing::dsl (line 28) ... ok
+
+test result: ok. 2 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+running 1 test
+test crates/aranya-runtime/src/vm_policy.rs - vm_policy (line 19) ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+benzimmerman@bens-macbook-pro aranya-runtime % cargo test storage::linear::test::generated_400_commands
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/lib.rs (/Users/benzimmerman/git/aranya-core/target/debug/deps/aranya_runtime-e45f6c00ebbb713a)
+
+running 1 test
+test storage::linear::test::generated_400_commands ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.65s
+
+     Running tests/vm.rs (/Users/benzimmerman/git/aranya-core/target/debug/deps/vm-a8db91b6542e40c9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s

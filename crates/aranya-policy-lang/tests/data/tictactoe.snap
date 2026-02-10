@@ -87,13 +87,13 @@ Policy {
             persistence: Persistent,
             identifier: "StartGame" @ 609..618,
             arguments: [
-                FieldDefinition {
-                    identifier: "profileX" @ 619..627,
-                    field_type: Id @ 628..630,
+                Param {
+                    name: "profileX" @ 619..627,
+                    ty: Id @ 628..630,
                 },
-                FieldDefinition {
-                    identifier: "profileO" @ 632..640,
-                    field_type: Id @ 641..643,
+                Param {
+                    name: "profileO" @ 632..640,
+                    ty: Id @ 641..643,
                 },
             ],
             statements: [
@@ -134,17 +134,17 @@ Policy {
             persistence: Persistent,
             identifier: "MakeMove" @ 1444..1452,
             arguments: [
-                FieldDefinition {
-                    identifier: "gameID" @ 1453..1459,
-                    field_type: Id @ 1460..1462,
+                Param {
+                    name: "gameID" @ 1453..1459,
+                    ty: Id @ 1460..1462,
                 },
-                FieldDefinition {
-                    identifier: "x" @ 1464..1465,
-                    field_type: Int @ 1466..1469,
+                Param {
+                    name: "x" @ 1464..1465,
+                    ty: Int @ 1466..1469,
                 },
-                FieldDefinition {
-                    identifier: "y" @ 1471..1472,
-                    field_type: Int @ 1473..1476,
+                Param {
+                    name: "y" @ 1471..1472,
+                    ty: Int @ 1473..1476,
                 },
             ],
             statements: [
@@ -1315,9 +1315,9 @@ Policy {
         FunctionDefinition {
             identifier: "bounds" @ 319..325,
             arguments: [
-                FieldDefinition {
-                    identifier: "v" @ 326..327,
-                    field_type: Int @ 328..331,
+                Param {
+                    name: "v" @ 326..327,
+                    ty: Int @ 328..331,
                 },
             ],
             return_type: Bool @ 333..337,
@@ -1350,21 +1350,21 @@ Policy {
         FunctionDefinition {
             identifier: "game_over" @ 4098..4107,
             arguments: [
-                FieldDefinition {
-                    identifier: "gameID" @ 4108..4114,
-                    field_type: Id @ 4115..4117,
+                Param {
+                    name: "gameID" @ 4108..4114,
+                    ty: Id @ 4115..4117,
                 },
-                FieldDefinition {
-                    identifier: "x" @ 4119..4120,
-                    field_type: Int @ 4121..4124,
+                Param {
+                    name: "x" @ 4119..4120,
+                    ty: Int @ 4121..4124,
                 },
-                FieldDefinition {
-                    identifier: "y" @ 4126..4127,
-                    field_type: Int @ 4128..4131,
+                Param {
+                    name: "y" @ 4126..4127,
+                    ty: Int @ 4128..4131,
                 },
-                FieldDefinition {
-                    identifier: "p" @ 4133..4134,
-                    field_type: String @ 4135..4141,
+                Param {
+                    name: "p" @ 4133..4134,
+                    ty: String @ 4135..4141,
                 },
             ],
             return_type: Bool @ 4143..4147,
@@ -2350,13 +2350,13 @@ Policy {
         FinishFunctionDefinition {
             identifier: "set_next_player" @ 498..513,
             arguments: [
-                FieldDefinition {
-                    identifier: "gameID" @ 514..520,
-                    field_type: Id @ 521..523,
+                Param {
+                    name: "gameID" @ 514..520,
+                    ty: Id @ 521..523,
                 },
-                FieldDefinition {
-                    identifier: "to_input" @ 525..533,
-                    field_type: String @ 534..540,
+                Param {
+                    name: "to_input" @ 525..533,
+                    ty: String @ 534..540,
                 },
             ],
             statements: [

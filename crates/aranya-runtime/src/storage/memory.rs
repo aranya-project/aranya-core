@@ -327,10 +327,10 @@ impl Storage for MemStorage {
             FactPerspectivePrior::FactPerspective(prior) => Some(self.write_facts(*prior)?),
             FactPerspectivePrior::FactIndex(prior) => Some(prior),
         };
-        if facts.map.is_empty() {
-            if let Some(prior) = prior {
-                return Ok(prior);
-            }
+        if facts.map.is_empty()
+            && let Some(prior) = prior
+        {
+            return Ok(prior);
         }
         Ok(MemFactIndex(Arc::new(MemFactsInner {
             map: facts.map,
@@ -345,10 +345,10 @@ impl Storage for MemStorage {
     ) -> Result<(), StorageError> {
         // TODO(jdygert): ensure segment belongs to self?
 
-        if let Some(head) = self.head {
-            if !self.is_ancestor(head, &segment, buffers)? {
-                return Err(StorageError::HeadNotAncestor);
-            }
+        if let Some(head) = self.head
+            && !self.is_ancestor(head, &segment, buffers)?
+        {
+            return Err(StorageError::HeadNotAncestor);
         }
 
         self.head = Some(segment.head_location());
