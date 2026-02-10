@@ -26,7 +26,7 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
                     found: v.to_string(),
                     required: Version::V2,
                 },
-                "Update `policy-version`.".to_string(),
+                Version::help_message(),
                 None,
             ));
         }
@@ -42,6 +42,7 @@ pub struct PolicyChunk {
 
 #[derive(Default, Debug)]
 pub struct ChunkOffset {
+    #[allow(unused)] // TODO(Steve): Remove this field?
     /// 0-based line offset of policy code within document.
     pub line: usize,
     /// 0-based byte offset of policy code within document.
