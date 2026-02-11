@@ -92,7 +92,6 @@ pub fn dispatch(
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
-    buffers: &mut TraversalBuffers,
 ) -> Result<usize, SyncError> {
     let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
@@ -100,7 +99,7 @@ pub fn dispatch(
             let mut response_syncer = SyncResponder::new();
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache, buffers)?
+            response_syncer.poll(target, provider, response_cache)?
         }
         SyncType::Subscribe { .. } => unimplemented!(),
         SyncType::Unsubscribe { .. } => unimplemented!(),
@@ -628,7 +627,6 @@ where
                         (&mut response_cache, &mut response_client),
                         &mut sink,
                         *graph_id,
-                        &mut buffers,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -941,7 +939,6 @@ fn sync<SP: StorageProvider>(
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
     graph_id: GraphId,
-    buffers: &mut TraversalBuffers,
 ) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
     assert!(request_syncer.ready());
@@ -953,7 +950,6 @@ fn sync<SP: StorageProvider>(
         &mut buffer,
         request_state.provider(),
         request_cache,
-        buffers,
     )?;
 
     let mut received = 0;
@@ -963,7 +959,6 @@ fn sync<SP: StorageProvider>(
         &mut target,
         response_state.provider(),
         response_cache,
-        buffers,
     )?;
 
     if len == 0 {

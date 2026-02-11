@@ -14,7 +14,6 @@ use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
     SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
-    TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -167,7 +166,6 @@ where
     client_state: Arc<TMutex<ClientState<PS, SP>>>,
     sink: Arc<TMutex<S>>,
     return_address: Bytes,
-    buffers: TraversalBuffers,
 }
 
 impl<PS, SP, S> Syncer<PS, SP, S>
@@ -197,7 +195,6 @@ where
             client_state,
             sink,
             return_address,
-            buffers: TraversalBuffers::new(),
         })
     }
 
@@ -215,7 +212,7 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads, &mut self.buffers)?;
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -276,7 +273,6 @@ where
             heads,
             remain_open,
             max_bytes,
-            &mut self.buffers,
         )?;
 
         let mut conn = self
@@ -347,7 +343,6 @@ where
                     target,
                     client.provider(),
                     response_cache,
-                    &mut self.buffers,
                 )?
             }
             SyncType::Subscribe {
@@ -445,7 +440,6 @@ where
             let len = response_syncer.push(
                 &mut target,
                 self.client_state.lock().await.provider(),
-                &mut self.buffers,
             )?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {

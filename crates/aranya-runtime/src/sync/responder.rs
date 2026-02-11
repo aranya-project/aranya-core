@@ -163,6 +163,7 @@ pub struct SyncResponder {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    buffers: TraversalBuffers,
 }
 
 impl SyncResponder {
@@ -177,6 +178,7 @@ impl SyncResponder {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
+            buffers: TraversalBuffers::new(),
         }
     }
 
@@ -196,7 +198,6 @@ impl SyncResponder {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
-        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
@@ -221,16 +222,19 @@ impl SyncResponder {
                 self.state = S::Send;
                 for command in &self.has {
                     // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
+                    if let Some(cmd_loc) =
+                        storage.get_location(*command, &mut self.buffers.primary)?
+                    {
                         response_cache.add_command(
                             storage,
                             *command,
                             cmd_loc,
-                            &mut buffers.primary,
+                            &mut self.buffers.primary,
                         )?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+                self.to_send =
+                    Self::find_needed_segments(&self.has, storage, &mut self.buffers)?;
 
                 self.get_next(target, provider)?
             }
@@ -463,7 +467,6 @@ impl SyncResponder {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(graph_id) = self.graph_id else {
@@ -478,7 +481,7 @@ impl SyncResponder {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage, &mut self.buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

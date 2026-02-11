@@ -11,10 +11,7 @@ use super::{
 };
 use crate::{
     Address, Command as _, GraphId, Location,
-    storage::{
-        Segment as _, Storage as _, StorageError, StorageProvider, TraversalBufferPair,
-        TraversalBuffers,
-    },
+    storage::{Segment as _, Storage as _, StorageError, StorageProvider, TraversalBuffers},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -108,6 +105,7 @@ pub struct SyncRequester {
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
+    buffers: TraversalBuffers,
 }
 
 impl SyncRequester {
@@ -124,6 +122,7 @@ impl SyncRequester {
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
+            buffers: TraversalBuffers::new(),
         }
     }
 
@@ -135,6 +134,7 @@ impl SyncRequester {
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
+            buffers: TraversalBuffers::new(),
         }
     }
 
@@ -154,7 +154,6 @@ impl SyncRequester {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         heads: &mut PeerCache,
-        buffers: &mut TraversalBuffers,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
         let result = match self.state {
@@ -163,7 +162,7 @@ impl SyncRequester {
             }
             S::New => {
                 self.state = S::Start;
-                self.start(self.max_bytes, target, provider, heads, buffers)?
+                self.start(self.max_bytes, target, provider, heads)?
             }
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
@@ -339,10 +338,9 @@ impl SyncRequester {
     }
 
     fn get_commands(
-        &self,
+        &mut self,
         provider: &mut impl StorageProvider,
         peer_cache: &mut PeerCache,
-        buffers: &mut TraversalBufferPair,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
@@ -355,7 +353,7 @@ impl SyncRequester {
                 let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
                 for address in peer_cache.heads() {
                     let loc = storage
-                        .get_location(*address, buffers)?
+                        .get_location(*address, &mut self.buffers.primary)?
                         .assume("location must exist")?;
                     cache_locations
                         .push(loc)
@@ -395,7 +393,11 @@ impl SyncRequester {
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
                                 && location.command <= peer_cache_loc.command)
-                                || storage.is_ancestor(location, &peer_cache_segment, buffers)?
+                                || storage.is_ancestor(
+                                    location,
+                                    &peer_cache_segment,
+                                    &mut self.buffers.primary,
+                                )?
                             {
                                 continue 'current;
                             }
@@ -426,9 +428,8 @@ impl SyncRequester {
         heads: &mut PeerCache,
         remain_open: u64,
         max_bytes: u64,
-        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
-        let commands = self.get_commands(provider, heads, &mut buffers.primary)?;
+        let commands = self.get_commands(provider, heads)?;
         let message = SyncType::Subscribe {
             remain_open,
             max_bytes,
@@ -454,7 +455,6 @@ impl SyncRequester {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         heads: &mut PeerCache,
-        buffers: &mut TraversalBuffers,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,
@@ -467,7 +467,7 @@ impl SyncRequester {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let command_sample = self.get_commands(provider, heads, &mut buffers.primary)?;
+        let command_sample = self.get_commands(provider, heads)?;
 
         let sent = command_sample.len();
         let message = SyncType::Poll {

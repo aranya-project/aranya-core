@@ -13,7 +13,7 @@ use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
-    SyncRequester, TraversalBuffers,
+    SyncRequester,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -510,7 +510,6 @@ where
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
-        let mut buffers = TraversalBuffers::new();
 
         while request_syncer.ready() {
             if request_syncer.ready() {
@@ -519,7 +518,6 @@ where
                     &mut buffer,
                     request_state.provider(),
                     &mut request_cache,
-                    &mut buffers,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -528,7 +526,6 @@ where
                     &mut target,
                     response_state.provider(),
                     &mut response_cache,
-                    &mut buffers,
                 )?;
                 if len == 0 {
                     break;

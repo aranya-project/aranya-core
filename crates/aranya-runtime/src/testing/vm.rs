@@ -11,7 +11,7 @@ use tracing::trace;
 use super::dsl::dispatch;
 use crate::{
     ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
@@ -580,7 +580,6 @@ fn test_sync<PS, P, S>(
     cs1: &mut ClientState<PS, P>,
     cs2: &mut ClientState<PS, P>,
     sink: &mut S,
-    buffers: &mut TraversalBuffers,
 ) where
     P: StorageProvider,
     PS: PolicyStore,
@@ -594,7 +593,7 @@ fn test_sync<PS, P, S>(
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = sync_requester
-            .poll(&mut buffer, cs2.provider(), &mut PeerCache::new(), buffers)
+            .poll(&mut buffer, cs2.provider(), &mut PeerCache::new())
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -603,7 +602,6 @@ fn test_sync<PS, P, S>(
             &mut target,
             cs1.provider(),
             &mut PeerCache::new(),
-            buffers,
         )
         .expect("dispatch sync response");
 
@@ -628,7 +626,6 @@ pub fn test_effect_metadata(
     let provider = MemStorageProvider::new();
     let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
-    let mut buffers = TraversalBuffers::new();
     let graph_id = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
         .expect("could not create graph");
@@ -644,7 +641,7 @@ pub fn test_effect_metadata(
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::new();
     let mut cs2 = ClientState::new(policy_store_2, provider);
-    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut buffers);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
 
@@ -667,7 +664,7 @@ pub fn test_effect_metadata(
     // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
     // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
     // check will fail, and recall will be executed. This produces an OutOfRange effect.
-    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut buffers);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(
         sink.last(),
         &vm_effect!(OutOfRange {
