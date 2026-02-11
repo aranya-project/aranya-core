@@ -56,7 +56,7 @@ impl PeerCache {
                 add_command = false;
             }
             // If the new head is an ancestor of the request head, don't add it
-            if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
+            if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
                 || storage.is_ancestor(new_head, &req_head_seg)?
             {
                 add_command = false;
@@ -311,7 +311,7 @@ impl SyncResponder {
                 if location_a != location_b {
                     let segment_b = storage.get_segment(location_b)?;
                     if location_a.same_segment(location_b)
-                        && location_a.command <= location_b.command
+                        && location_a.max_cut <= location_b.max_cut
                         || storage.is_ancestor(location_a, &segment_b)?
                     {
                         is_ancestor_of_other = true;
@@ -332,9 +332,8 @@ impl SyncResponder {
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
-                let segment = storage.get_segment(head)?;
                 // If the segment is already in the result, skip it
-                if segment.contains_any(&result) {
+                if result.iter().any(|loc| loc.same_segment(head)) {
                     continue 'heads;
                 }
 
@@ -348,23 +347,25 @@ impl SyncResponder {
                     }
                 }
 
+                let segment = storage.get_segment(head)?;
+
                 // If the requester has any commands in this segment, send from the next command
                 if let Some(latest_loc) = have_locations
                     .iter()
-                    .filter(|&&location| segment.contains(location))
-                    .max_by_key(|&&location| location.command)
+                    .filter(|loc| loc.same_segment(head))
+                    .max_by_key(|&&location| location.max_cut)
                 {
-                    let next_command = latest_loc
-                        .command
+                    let next_max_cut = latest_loc
+                        .max_cut
                         .checked_add(1)
                         .assume("command + 1 mustn't overflow")?;
                     let next_location = Location {
                         segment: head.segment,
-                        command: next_command,
+                        max_cut: next_max_cut,
                     };
 
-                    let head_loc = segment.head_location();
-                    if next_location.command > head_loc.command {
+                    let head_loc = segment.head_location()?;
+                    if next_location.max_cut > head_loc.max_cut {
                         continue 'heads;
                     }
                     if result.is_full() {

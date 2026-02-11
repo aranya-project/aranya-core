@@ -116,8 +116,8 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
-use core::{borrow::Borrow as _, cell::RefCell, fmt};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use core::fmt;
 
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
@@ -347,10 +347,8 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     where
         P: FactPerspective,
     {
-        let facts = RefCell::new(facts);
-        let sink = RefCell::new(sink);
-        let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
-        let mut rs = self.machine.create_run_state(&io, ctx);
+        let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
+        let mut rs = self.machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, fields);
         match rs.call_command_policy(this_data.clone(), envelope.clone().into()) {
             Ok(reason) => match reason {
@@ -426,12 +424,10 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     where
         P: FactPerspective,
     {
-        let facts = RefCell::new(facts);
         let mut sink = NullSink;
-        let sink2 = RefCell::new(&mut sink);
-        let io = RefCell::new(VmPolicyIO::new(&facts, &sink2, &self.engine, &self.ffis));
+        let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
         let ctx = CommandContext::Open(OpenContext { name: name.clone() });
-        let mut rs = self.machine.create_run_state(&io, ctx);
+        let mut rs = self.machine.create_run_state(&mut io, ctx);
         let status = rs.call_open(name, envelope.into());
         match status {
             Ok(reason) => match reason {
@@ -673,20 +669,18 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         };
         // FIXME(chip): This is kind of wrong, but it avoids having to
         // plumb `Option<CmdId>` into the VM and FFI
-        let ctx_parent = parent.unwrap_or_default();
-        let facts = Rc::new(RefCell::new(facts));
-        let sink = Rc::new(RefCell::new(sink));
-        let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
+        let ctx_parent = parent.map(|a| a.id).unwrap_or_default();
+        let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent.id,
+            head_id: ctx_parent,
         });
         let command_placement = match action_placement {
             ActionPlacement::OnGraph => CommandPlacement::OnGraphAtOrigin,
             ActionPlacement::OffGraph => CommandPlacement::OffGraph,
         };
         {
-            let mut rs = self.machine.create_run_state(&io, ctx);
+            let mut rs = self.machine.create_run_state(&mut io, ctx);
             let mut exit_reason = match args {
                 Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
                 Cow::Owned(args) => rs.call_action(name, args),
@@ -710,7 +704,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         let command_name = command_struct.name.clone();
 
                         let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
-                        let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
+                        let mut rs_seal = self.machine.create_run_state(rs.io, seal_ctx);
                         match rs_seal.call_seal(command_struct).map_err(|e| {
                             error!("Cannot seal command: {}", e);
                             PolicyError::Panic
@@ -734,7 +728,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
-                        let parent = RefCell::borrow_mut(Rc::borrow(&facts)).head_address()?;
+                        let parent = rs.io.facts.head_address()?;
                         let priority = self.get_command_priority(&command_name).into();
 
                         let policy;
@@ -779,18 +773,11 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             data: &wrapped,
                         };
 
-                        self.call_rule(
-                            &new_command,
-                            *RefCell::borrow_mut(Rc::borrow(&facts)),
-                            *RefCell::borrow_mut(Rc::borrow(&sink)),
-                            command_placement,
-                        )?;
-                        RefCell::borrow_mut(Rc::borrow(&facts))
-                            .add_command(&new_command)
-                            .map_err(|e| {
-                                error!("{e}");
-                                PolicyError::Write
-                            })?;
+                        self.call_rule(&new_command, rs.io.facts, rs.io.sink, command_placement)?;
+                        rs.io.facts.add_command(&new_command).map_err(|e| {
+                            error!("{e}");
+                            PolicyError::Write
+                        })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
                         rs.update_context_with_new_head(new_command.id())?;

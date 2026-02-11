@@ -5,7 +5,7 @@ use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Address, Prior,
+    Address, MaxCut, Prior,
     command::{CmdId, Command, Priority},
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
@@ -61,7 +61,7 @@ pub struct CommandMeta {
     parent: Prior<Address>,
     policy_length: u32,
     length: u32,
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 impl CommandMeta {
@@ -102,7 +102,7 @@ pub struct SyncCommand<'a> {
     parent: Prior<Address>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 impl<'a> Command for SyncCommand<'a> {
@@ -126,7 +126,7 @@ impl<'a> Command for SyncCommand<'a> {
         self.data
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
 }
