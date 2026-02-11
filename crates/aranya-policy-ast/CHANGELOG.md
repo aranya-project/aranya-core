@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.11.0...aranya-policy-ast-v0.12.0) - 2026-01-23
+
+### Other
+
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+
 ## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.10.0...aranya-policy-ast-v0.11.0) - 2026-01-06
 
 ### Other

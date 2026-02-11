@@ -7,8 +7,8 @@ use rand::{Rng as _, prelude::*};
 use test_log::test;
 
 use crate::{
-    Address, ClientState, Command as _, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
-    StorageProvider as _, SyncRequester, SyncResponder, SyncType,
+    Address, ClientState, Command as _, GraphId, MAX_SYNC_MESSAGE_SIZE, MaxCut, NullSink,
+    PeerCache, StorageProvider as _, SyncRequester, SyncResponder, SyncType,
     storage::{Storage as _, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestPolicy, TestPolicyStore, TestProtocol},
 };
@@ -37,7 +37,7 @@ fn test_large_sync() {
 
     let mut seen = vec![Address {
         id: CmdId::transmute(graph_id),
-        max_cut: 0,
+        max_cut: MaxCut(0),
     }];
     let mut rng = thread_rng();
     let mut fuel = 100_000i32;
@@ -58,7 +58,7 @@ fn test_large_sync() {
             let payload = rng.r#gen();
             let cmd = TestPolicy::new(0).basic(target, prev, payload).unwrap();
             prev.id = cmd.id();
-            prev.max_cut += 1;
+            prev.max_cut = prev.max_cut.checked_add(1).unwrap();
             commands.push(cmd);
             seen.push(prev);
         }

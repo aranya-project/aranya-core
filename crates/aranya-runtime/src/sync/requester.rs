@@ -10,7 +10,7 @@ use super::{
     dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
-    Address, Command as _, GraphId, Location,
+    Address, GraphId, Location,
     storage::{Segment as _, Storage as _, StorageError, StorageProvider},
 };
 
@@ -328,11 +328,6 @@ impl SyncRequester {
                     let mut next = vec::Vec::new(); //BUG not constant memory
 
                     'current: for &location in &current {
-                        let segment = storage.get_segment(location)?;
-
-                        let head = segment.head()?;
-                        let head_address = head.address()?;
-
                         // Check if we've hit a PeerCache head - if so, stop traversing this path
                         for &peer_cache_loc in &cache_locations {
                             // If this is the same location as a PeerCache head, we've hit it
@@ -343,15 +338,16 @@ impl SyncRequester {
                             // we've passed the PeerCache head, so stop traversing this path
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
-                                && location.command <= peer_cache_loc.command)
+                                && location.max_cut <= peer_cache_loc.max_cut)
                                 || storage.is_ancestor(location, &peer_cache_segment)?
                             {
                                 continue 'current;
                             }
                         }
 
+                        let segment = storage.get_segment(location)?;
                         commands
-                            .push(head_address)
+                            .push(segment.head_address()?)
                             .map_err(|_| SyncError::CommandOverflow)?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {

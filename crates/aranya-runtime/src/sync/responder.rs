@@ -6,7 +6,7 @@ use super::{
     COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
 };
 use crate::{
-    StorageError, SyncCommand, SyncType,
+    MaxCut, SegmentIndex, StorageError, SyncCommand, SyncType,
     command::{Address, CmdId, Command as _},
     rkyv_utils::BufferOverflow,
     storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
@@ -53,7 +53,7 @@ impl PeerCache {
                 add_command = false;
             }
             // If the new head is an ancestor of the request head, don't add it
-            if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
+            if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
                 || storage.is_ancestor(new_head, &req_head_seg)?
             {
                 add_command = false;
@@ -154,7 +154,7 @@ pub struct SyncResponder {
     next_send: usize,
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
-    to_send: Lru<usize, usize, SEGMENT_BUFFER_MAX>,
+    to_send: Lru<SegmentIndex, MaxCut, SEGMENT_BUFFER_MAX>,
 }
 
 impl SyncResponder {
@@ -304,7 +304,7 @@ impl SyncResponder {
                 if location_a != location_b {
                     let segment_b = storage.get_segment(location_b)?;
                     if location_a.same_segment(location_b)
-                        && location_a.command <= location_b.command
+                        && location_a.max_cut <= location_b.max_cut
                         || storage.is_ancestor(location_a, &segment_b)?
                     {
                         is_ancestor_of_other = true;
@@ -320,18 +320,12 @@ impl SyncResponder {
         'heads: while let Some(head) = heads.pop_front() {
             // TODO(jdygert): What is this doing?
             if have_locations.iter().any(|hl| hl.segment == head.segment) {
-                self.to_send.insert(head.segment, head.command);
+                self.to_send.insert(head.segment, head.max_cut);
                 continue 'heads;
             }
 
-            let segment = storage.get_segment(head)?;
-
             // If the segment is already in the result, skip it
-            if segment.contains_any(
-                self.to_send
-                    .iter()
-                    .map(|&(seg, cmd)| Location::new(seg, cmd)),
-            ) {
+            if self.to_send.iter().any(|&(seg, _)| seg == head.segment) {
                 continue 'heads;
             }
 
@@ -345,27 +339,29 @@ impl SyncResponder {
                 }
             }
 
+            let segment = storage.get_segment(head)?;
+
             // If the requester has any commands in this segment, send from the next command
             if let Some(latest_loc) = have_locations
                 .iter()
-                .filter(|&&location| segment.contains(location))
-                .max_by_key(|&&location| location.command)
+                .filter(|&&location| head.same_segment(location))
+                .max_by_key(|&&location| location.max_cut)
             {
-                let next_command = latest_loc
-                    .command
+                let next_max_cut = latest_loc
+                    .max_cut
                     .checked_add(1)
                     .assume("command + 1 mustn't overflow")?;
                 let next_location = Location {
                     segment: head.segment,
-                    command: next_command,
+                    max_cut: next_max_cut,
                 };
 
-                let head_loc = segment.head_location();
-                if next_location.command > head_loc.command {
+                let head_loc = segment.head_location()?;
+                if next_location.max_cut > head_loc.max_cut {
                     continue 'heads;
                 }
                 self.to_send
-                    .insert(next_location.segment, next_location.command);
+                    .insert(next_location.segment, next_location.max_cut);
                 continue 'heads;
             }
 
@@ -374,7 +370,7 @@ impl SyncResponder {
             }
 
             let loc = segment.first_location();
-            self.to_send.insert(loc.segment, loc.command);
+            self.to_send.insert(loc.segment, loc.max_cut);
         }
 
         // Order segments to ensure that a segment isn't received before its
@@ -482,15 +478,15 @@ impl SyncResponder {
 
         let mut ser = target.as_ser_cmd().map_err(|_| SyncError::BufferTooSmall)?;
 
-        'outer: for (seg, cmd) in sending {
-            let location = Location::new(*seg, *cmd);
+        'outer: for (seg, max_cut) in sending {
+            let location = Location::new(*seg, *max_cut);
             let segment = storage
                 .get_segment(location)
                 .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
             let found = segment.get_from(location);
 
-            for (command, j) in found.iter().zip(*cmd..) {
+            for command in found {
                 let command = SyncCommand {
                     priority: command.priority(),
                     id: command.id(),
@@ -502,7 +498,7 @@ impl SyncResponder {
                 match ser.push(&command) {
                     Ok(()) => {}
                     Err(BufferOverflow) => {
-                        *cmd = j;
+                        *max_cut = command.max_cut;
                         break 'outer;
                     }
                 }

@@ -13,7 +13,7 @@ use rkyv::{
 };
 
 use crate::{
-    Address, Prior,
+    Address, MaxCut, Prior,
     command::{CmdId, Command, Priority},
     rkyv_utils::{ArchivedBytes, Bytes},
 };
@@ -33,7 +33,7 @@ pub struct SyncCommand<'a> {
     pub(super) policy: Option<&'a [u8]>,
     #[rkyv(with = Bytes)]
     pub(super) data: &'a [u8],
-    pub(super) max_cut: usize,
+    pub(super) max_cut: MaxCut,
 }
 
 /// An archived [`SyncCommand`].
@@ -48,7 +48,7 @@ pub struct ArchivedSyncCommand {
     parent: Archived<Prior<Address>>,
     policy: NichedOption<ArchivedBytes, DefaultNiche>,
     data: ArchivedBytes,
-    max_cut: Archived<usize>,
+    max_cut: Archived<MaxCut>,
 }
 
 impl<'a> Command for &'a ArchivedSyncCommand {
@@ -72,8 +72,8 @@ impl<'a> Command for &'a ArchivedSyncCommand {
         self.data.as_slice()
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
-        Ok(self.max_cut.to_native() as usize)
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
+        Ok(rkyv::api::low::deserialize::<_, Infallible>(&self.max_cut).always_ok())
     }
 }
 

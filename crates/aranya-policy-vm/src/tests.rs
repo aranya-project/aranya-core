@@ -7,7 +7,6 @@ mod ffi;
 mod io;
 
 use alloc::collections::BTreeMap;
-use core::cell::RefCell;
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Span, Text, ident, text};
@@ -40,10 +39,10 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
 
 #[test]
 fn test_pop() {
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Pop]);
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     // Add something to the stack
     rs.stack.push(5).unwrap();
@@ -71,10 +70,10 @@ fn test_add() {
     ];
 
     for t in &tups {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         // adds t.0+t.1
         rs.stack.push(t.0).unwrap();
@@ -96,10 +95,10 @@ fn test_add_overflow() {
     ];
 
     for p in &pairs {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
@@ -115,10 +114,10 @@ fn test_sub() {
     let tups: [(i64, i64, i64); 4] = [(5, 3, 2), (5, 8, -3), (-10, 8, -18), (-10, -5, -5)];
 
     for t in &tups {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         // sub t.0-t.1
         rs.stack.push(t.0).unwrap();
@@ -142,10 +141,10 @@ fn test_sub_overflow() {
     ];
 
     for p in &pairs {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
@@ -243,7 +242,7 @@ fn test_stack() -> anyhow::Result<()> {
 
 #[test]
 fn test_ffi() {
-    let io = RefCell::new(TestIO::new());
+    let io = TestIO::new();
 
     // Push value onto stack, and call FFI function
     let mut stack = TestStack::new();
@@ -251,9 +250,7 @@ fn test_ffi() {
         .push(Value::String(text!("hello")))
         .expect("can't push");
     let ctx = dummy_ctx_action(ident!("test"));
-    io.borrow_mut()
-        .call(0, 0, &mut stack, &ctx)
-        .expect("Should succeed");
+    io.call(0, 0, &mut stack, &ctx).expect("Should succeed");
 
     // Verify function was called
     assert!(stack.pop::<Text>().expect("should have return value") == text!("HELLO"));
@@ -266,9 +263,9 @@ fn test_extcall() {
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.run().expect("Should succeed").success();
 
@@ -287,9 +284,9 @@ fn test_extcall_invalid_module() {
         Instruction::ExtCall(1, 0), // invalid module id
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -304,9 +301,9 @@ fn test_extcall_invalid_proc() {
         Instruction::ExtCall(0, 1), // invalid proc id
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -321,9 +318,9 @@ fn test_extcall_invalid_arg() {
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     // Empty stack - should fail
     assert_eq!(
@@ -387,17 +384,17 @@ fn general_test_harness<F, G>(
 
     machine_closure(&mut m).unwrap();
 
-    let io = RefCell::new(TestIO::new());
-    let mut rs = m.create_run_state(&io, ctx);
+    let mut io = TestIO::new();
+    let mut rs = m.create_run_state(&mut io, ctx);
     rs_closure(&mut rs).unwrap();
 }
 
 fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType) {
     let m = Machine::new(instructions.to_owned());
 
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_policy(ident!("test"));
-    let mut rs = m.create_run_state(&io, ctx);
+    let mut rs = m.create_run_state(&mut io, ctx);
     assert_eq!(rs.run(), Err(MachineError::new(error_type)));
 }
 

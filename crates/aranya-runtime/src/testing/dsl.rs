@@ -67,8 +67,8 @@ use tracing::{debug, error};
 
 use crate::{
     Address, ClientError, ClientState, CmdId, Command as _, GraphId, Location,
-    MAX_SYNC_MESSAGE_SIZE, PeerCache, PolicyError, Prior, Segment as _, Storage, StorageError,
-    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
+    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -172,7 +172,7 @@ pub enum TestRule {
     MaxCut {
         client: u64,
         graph: u64,
-        max_cut: usize,
+        max_cut: MaxCut,
     },
     VerifyGraphIds {
         client: u64,
@@ -735,9 +735,7 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                let seg = storage.get_segment(head)?;
-                let command = seg.get_command(head).assume("command must exist")?;
-                assert_eq!(max_cut, command.max_cut()?);
+                assert_eq!(max_cut, head.max_cut);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             TestRule::VerifyGraphIds { client, ref ids } => {
@@ -1031,7 +1029,7 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
         let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
         let id = seg.get_command(loc).unwrap().id();
 
-        if let Some(previous) = loc.previous() {
+        if let Some(previous) = seg.previous(loc) {
             // We will visit the segment again.
             stack.push(previous);
         } else {
