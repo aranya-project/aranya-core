@@ -68,7 +68,7 @@ impl Analyzer for UnusedVarAnalyzer {
                     return Ok(AnalyzerStatus::Ok);
                 };
                 if !scope.is_empty() {
-                    return Ok(AnalyzerStatus::Failed(format!(
+                    return Ok(AnalyzerStatus::Warning(format!(
                         "unused variable(s): `{}`",
                         scope
                             .iter()
@@ -95,7 +95,7 @@ impl Analyzer for UnusedVarAnalyzer {
             Instruction::Return | Instruction::Exit(_) => {
                 for scope in &self.scope_stack {
                     if !scope.is_empty() {
-                        return Ok(AnalyzerStatus::Failed(format!(
+                        return Ok(AnalyzerStatus::Warning(format!(
                             "unused variable(s): `{}`",
                             scope
                                 .iter()

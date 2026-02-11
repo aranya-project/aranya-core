@@ -11,7 +11,7 @@ pub use function_analyzer::*;
 pub use unused_var_analyzer::*;
 pub use value_analyzer::*;
 
-use super::{TraceError, TraceFailure};
+use super::{TraceError, TraceIssue};
 
 // Workaround for not being able to clone `Box<dyn T>`. See
 // https://stackoverflow.com/questions/30353462/how-to-clone-a-struct-storing-a-boxed-trait-object/30353928#30353928
@@ -49,12 +49,7 @@ pub trait Analyzer: AnalyzerClone {
     ) -> Result<AnalyzerStatus, TraceError>;
 
     /// Optionally post-analyze any produced failures using branch information.
-    fn post_analyze(
-        &mut self,
-        _failures: &mut [TraceFailure],
-        _successful_branches: &[Vec<usize>],
-    ) {
-    }
+    fn post_analyze(&mut self, _failures: &mut [TraceIssue], _successful_branches: &[Vec<usize>]) {}
 }
 
 /// Status returned from analyzers
@@ -62,6 +57,8 @@ pub trait Analyzer: AnalyzerClone {
 pub enum AnalyzerStatus {
     /// Analysis proceeding normally.
     Ok,
+    /// A potential issue, but not fatal.
+    Warning(String),
     /// An error has been detected, but analysis should continue.
     Failed(String),
     /// An error has been detected, and analysis should not continue along this path.
@@ -69,6 +66,11 @@ pub enum AnalyzerStatus {
 }
 
 impl AnalyzerStatus {
+    /// Convenience constructor for [`AnalyzerStatus::Warning`].
+    pub fn warn(s: &str) -> Self {
+        Self::Warning(s.to_string())
+    }
+
     /// Convenience constructor for [`AnalyzerStatus::Failed`].
     pub fn fail(s: &str) -> Self {
         Self::Failed(s.to_string())
