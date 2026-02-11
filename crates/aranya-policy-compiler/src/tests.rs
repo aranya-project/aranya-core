@@ -1917,13 +1917,7 @@ const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
         }],
         return_type: ffi::Type::Bool,
     }],
-    structs: &[ffi::Struct {
-        name: ident!("TestStruct"),
-        fields: &[ffi::Arg {
-            name: ident!("enabled"),
-            vtype: ffi::Type::Bool,
-        }],
-    }],
+    structs: &[],
     enums: &[],
 }];
 
