@@ -100,17 +100,9 @@ pub fn dispatch(
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
         }
-        SyncType::Subscribe {
-            storage_id: _,
-            remain_open: _,
-            max_bytes: _,
-            commands: _,
-        } => unimplemented!(),
-        SyncType::Unsubscribe {} => unimplemented!(),
-        SyncType::Push {
-            message: _,
-            storage_id: _,
-        } => unimplemented!(),
+        SyncType::Subscribe { .. } => unimplemented!(),
+        SyncType::Unsubscribe { .. } => unimplemented!(),
+        SyncType::Push { .. } => unimplemented!(),
         SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
@@ -560,13 +552,13 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let storage_id = state.new_graph(
+                let graph_id = state.new_graph(
                     policy_data.as_slice(),
                     TestActions::Init(policy),
                     &mut sink,
                 )?;
 
-                graphs.insert(id, storage_id);
+                graphs.insert(id, graph_id);
 
                 assert_eq!(0, sink.count());
             }
@@ -575,8 +567,8 @@ where
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
-                state.remove_graph(*storage_id)?;
+                let graph_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                state.remove_graph(*graph_id)?;
 
                 assert_eq!(0, sink.count());
             }
@@ -588,7 +580,7 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let mut request_client = clients
                     .get(&client)
@@ -618,7 +610,7 @@ where
                         &mut request_client,
                         &mut response_client,
                         &mut sink,
-                        *storage_id,
+                        *graph_id,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -664,11 +656,11 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*storage_id, &mut sink, set)?;
+                    state.action(*graph_id, &mut sink, set)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -680,8 +672,8 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(*storage_id)?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
             }
@@ -702,10 +694,10 @@ where
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let storage_a = state_a.provider().get_storage(*storage_id)?;
-                let storage_b = state_b.provider().get_storage(*storage_id)?;
+                let storage_a = state_a.provider().get_storage(*graph_id)?;
+                let storage_b = state_b.provider().get_storage(*graph_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
@@ -740,8 +732,8 @@ where
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(*storage_id)?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
                 let command = seg.get_command(head).assume("command must exist")?;
@@ -939,12 +931,12 @@ fn sync<SP: StorageProvider>(
     request_state: &mut ClientState<TestPolicyStore, SP>,
     response_state: &mut ClientState<TestPolicyStore, SP>,
     sink: &mut TestSink,
-    storage_id: GraphId,
+    graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng);
+    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
     assert!(request_syncer.ready());
 
-    let mut request_trx = request_state.transaction(storage_id);
+    let mut request_trx = request_state.transaction(graph_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
@@ -966,7 +958,7 @@ fn sync<SP: StorageProvider>(
         received = request_state.add_commands(&mut request_trx, sink, cmds)?;
         request_state.commit(&mut request_trx, sink)?;
         request_state.update_heads(
-            storage_id,
+            graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
         )?;

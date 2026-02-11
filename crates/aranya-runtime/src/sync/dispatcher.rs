@@ -11,6 +11,8 @@ use crate::{Address, GraphId};
 pub enum SyncHelloType {
     /// Subscribe to receive hello notifications from this peer
     Subscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
         /// Delay between notifications when graph changes (rate limiting)
         graph_change_delay: Duration,
         /// How long the subscription should last
@@ -20,9 +22,14 @@ pub enum SyncHelloType {
         schedule_delay: Duration,
     },
     /// Unsubscribe from hello notifications
-    Unsubscribe {},
+    Unsubscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+    },
     /// Notification message sent to subscribers
     Hello {
+        /// Specifies the graph.
+        graph_id: GraphId,
         /// The current head of the sender's graph
         head: Address,
     },
@@ -49,11 +56,14 @@ pub enum SyncType {
         /// known heads for the peer.
         commands: Vec<Address, COMMAND_SAMPLE_MAX>,
         /// The graph this request is for.
-        storage_id: GraphId,
+        graph_id: GraphId,
     },
     /// Removes any open subsciptions for the peer. If there is no subscription
     /// this will be a noop.
-    Unsubscribe {},
+    Unsubscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+    },
     /// This will only be sent to peers who have an open subscription.
     /// Contains any new commands that come after the peer's known heads.
     Push {
@@ -61,7 +71,7 @@ pub enum SyncType {
         /// does not have.
         message: SyncResponseMessage,
         /// The graph this push is for.
-        storage_id: GraphId,
+        graph_id: GraphId,
     },
     /// Sync hello message for subscription-based notifications.
     Hello(SyncHelloType),

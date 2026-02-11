@@ -20,18 +20,18 @@ fn benchmark_1() {
     let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
-    let storage_id = cs
+    let graph_id = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
+    cs.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("should call increment");
 
     bench_measurements().print_stats();
@@ -115,16 +115,16 @@ policy-version: 1
     let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
-    let storage_id = cs
+    let graph_id = cs
         .new_graph(&[0u8], vm_action!(init()), &mut sink)
         .expect("could not create graph");
 
     for i in 1..10 {
         let text: Text = i.to_string().parse().expect("valid text");
-        cs.action(storage_id, &mut sink, vm_action!(insert(i, text)))
+        cs.action(graph_id, &mut sink, vm_action!(insert(i, text)))
             .expect("action `insert` failed");
     }
-    cs.action(storage_id, &mut sink, vm_action!(run()))
+    cs.action(graph_id, &mut sink, vm_action!(run()))
         .expect("action `run` failed");
 
     bench_measurements().print_stats();

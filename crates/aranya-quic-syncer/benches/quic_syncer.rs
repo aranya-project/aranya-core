@@ -79,13 +79,13 @@ fn new_graph(
 
 fn add_commands(
     client: &mut ClientState<TestPolicyStore, MemStorageProvider>,
-    storage_id: GraphId,
+    graph_id: GraphId,
     sink: &mut CountSink,
     n: u64,
 ) {
     for x in 0..n {
         client
-            .action(storage_id, sink, TestActions::SetValue(0, x))
+            .action(graph_id, sink, TestActions::SetValue(0, x))
             .expect("unable to add command");
     }
 }
@@ -140,7 +140,7 @@ fn sync_bench(c: &mut Criterion) {
                 .expect("Syncer creation must succeed"),
             ));
 
-            let storage_id = new_graph(
+            let graph_id = new_graph(
                 response_client.lock().await.deref_mut(),
                 response_sink.lock().await.deref_mut(),
             )
@@ -149,7 +149,7 @@ fn sync_bench(c: &mut Criterion) {
             let task = tokio::spawn(run_syncer(Arc::clone(&syncer2), server2, rx2));
             add_commands(
                 response_client.lock().await.deref_mut(),
-                storage_id,
+                graph_id,
                 response_sink.lock().await.deref_mut(),
                 iters,
             );
@@ -157,7 +157,7 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
+                let sync_requester = SyncRequester::new(graph_id, &mut Rng::new());
                 if let Err(e) = syncer1
                     .lock()
                     .await
@@ -166,7 +166,7 @@ fn sync_bench(c: &mut Criterion) {
                         server2_addr,
                         sync_requester,
                         request_sink.lock().await.deref_mut(),
-                        storage_id,
+                        graph_id,
                     )
                     .await
                 {

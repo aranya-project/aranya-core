@@ -28,7 +28,7 @@ pub enum SyncRequestMessage {
         /// A new random value produced by a cryptographically secure RNG.
         session_id: u128,
         /// Specifies the graph to be synced.
-        storage_id: GraphId,
+        graph_id: GraphId,
         /// Specifies the maximum number of bytes worth of commands that
         /// the requester wishes to receive.
         max_bytes: u64,
@@ -101,7 +101,7 @@ enum SyncRequesterState {
 
 pub struct SyncRequester {
     session_id: u128,
-    storage_id: GraphId,
+    graph_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
@@ -109,7 +109,7 @@ pub struct SyncRequester {
 
 impl SyncRequester {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(graph_id: GraphId, rng: &mut R) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -117,7 +117,7 @@ impl SyncRequester {
 
         Self {
             session_id,
-            storage_id,
+            graph_id,
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
@@ -125,10 +125,10 @@ impl SyncRequester {
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(storage_id: GraphId, session_id: u128) -> Self {
+    pub fn new_session_id(graph_id: GraphId, session_id: u128) -> Self {
         Self {
             session_id,
-            storage_id,
+            graph_id,
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
@@ -295,7 +295,7 @@ impl SyncRequester {
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
-        match provider.get_storage(self.storage_id) {
+        match provider.get_storage(self.graph_id) {
             Err(StorageError::NoSuchStorage) => (),
             Err(err) => {
                 return Err(SyncError::Storage(err));
@@ -381,7 +381,7 @@ impl SyncRequester {
             remain_open,
             max_bytes,
             commands,
-            storage_id: self.storage_id,
+            graph_id: self.graph_id,
         };
 
         Self::write(target, message)
@@ -389,7 +389,9 @@ impl SyncRequester {
 
     /// Writes an Unsubscribe message to target.
     pub fn unsubscribe(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
-        let message = SyncType::Unsubscribe {};
+        let message = SyncType::Unsubscribe {
+            graph_id: self.graph_id,
+        };
 
         Self::write(target, message)
     }
@@ -418,7 +420,7 @@ impl SyncRequester {
         let message = SyncType::Poll {
             request: SyncRequestMessage::SyncRequest {
                 session_id: self.session_id,
-                storage_id: self.storage_id,
+                graph_id: self.graph_id,
                 max_bytes,
                 commands: command_sample,
             },

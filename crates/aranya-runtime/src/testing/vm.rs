@@ -359,9 +359,8 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an ID referencing the
-    // storage for the graph.
-    let storage_id = cs
+    // Create a new graph. This builds an Init event and returns an ID referencing the graph.
+    let graph_id = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -374,23 +373,23 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
+    cs.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created
     // correctly. Direct access to the storage provider should not be necessary in normal
     // operation.
 
-    // Get the storage provider and get the storage associated with our storage ID to peek
+    // Get the storage provider and get the storage associated with our graph ID to peek
     // into its graph.
-    let storage = cs.provider().get_storage(storage_id)?;
+    let storage = cs.provider().get_storage(graph_id)?;
     // Find the head Location.
     let head = storage.get_head()?;
 
@@ -465,9 +464,8 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
 
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an ID referencing the
-    // storage for the graph.
-    let storage_id = cs
+    // Create a new graph. This builds an Init event and returns an ID referencing the graph.
+    let graph_id = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -480,19 +478,19 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
+    cs.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     {
         let msgs = {
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             let mut msg_sink = MsgSink::new();
 
             // increment
@@ -527,7 +525,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
 
             // Receive the increment commands
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
                     .receive(&cs, &mut sink, msg)
@@ -539,7 +537,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
         sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
 
         // Call the increment action
-        cs.action(storage_id, &mut sink, vm_action!(increment()))
+        cs.action(graph_id, &mut sink, vm_action!(increment()))
             .expect("could not call action");
 
         {
@@ -547,7 +545,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 10 }));
 
             // Receive the increment commands
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
                     .receive(&cs, &mut sink, msg)
@@ -558,7 +556,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
 
     // Verify that the graph was not affected by the ephemeral commands.
 
-    let storage = cs.provider().get_storage(storage_id)?;
+    let storage = cs.provider().get_storage(graph_id)?;
     let head = storage.get_head()?;
 
     let fact_name = "Stuff";
@@ -576,9 +574,9 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
     Ok(())
 }
 
-/// Syncs the first client at `storage_id` to the second client.
+/// Syncs the first client at `graph_id` to the second client.
 fn test_sync<PS, P, S>(
-    storage_id: GraphId,
+    graph_id: GraphId,
     cs1: &mut ClientState<PS, P>,
     cs2: &mut ClientState<PS, P>,
     sink: &mut S,
@@ -588,9 +586,9 @@ fn test_sync<PS, P, S>(
     S: Sink<<PS>::Effect>,
 {
     let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng);
+    let mut sync_requester = SyncRequester::new(graph_id, &mut rng);
 
-    let mut req_transaction = cs1.transaction(storage_id);
+    let mut req_transaction = cs1.transaction(graph_id);
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -628,12 +626,12 @@ pub fn test_effect_metadata(
     let provider = MemStorageProvider::new();
     let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
-    let storage_id = cs1
+    let graph_id = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
-    cs1.action(storage_id, &mut sink, vm_action!(create_action(1)))
+    cs1.action(graph_id, &mut sink, vm_action!(create_action(1)))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     assert_ne!(sink.last().command, CmdId::default());
@@ -643,13 +641,13 @@ pub fn test_effect_metadata(
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::new();
     let mut cs2 = ClientState::new(policy_store_2, provider);
-    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
 
     // At this point, clients are fully synced. Client 2 adds an Increment command, which
     // brings the counter to 2 from their perspective.
-    cs2.action(storage_id, &mut sink, vm_action!(increment()))
+    cs2.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
     let increment_cmd_id = sink.last().command;
@@ -658,7 +656,7 @@ pub fn test_effect_metadata(
     // MEANWHILE, IN A PARALLEL UNIVERSE - client 1 adds the Invalidate command, which sets
     // the counter value to a negative number. This will cause the check to fail in the
     // Increment command, preventing any further use of this counter.
-    cs1.action(storage_id, &mut sink, vm_action!(invalidate()))
+    cs1.action(graph_id, &mut sink, vm_action!(invalidate()))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));
     sink.clear();
@@ -666,7 +664,7 @@ pub fn test_effect_metadata(
     // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
     // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
     // check will fail, and recall will be executed. This produces an OutOfRange effect.
-    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(
         sink.last(),
         &vm_effect!(OutOfRange {

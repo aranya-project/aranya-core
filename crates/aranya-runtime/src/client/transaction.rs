@@ -14,11 +14,11 @@ use crate::{
 ///
 /// The transaction allows us to have many temporary heads at once, so we don't
 /// need as many merges when adding commands. When the transaction is committed,
-/// we will merge all temporary heads and the storage head, and then commit the
-/// result as the new storage head.
+/// we will merge all temporary heads and the graph head, and then commit the
+/// result as the new graph head.
 pub struct Transaction<SP: StorageProvider, PS> {
-    /// The ID of the associated storage
-    storage_id: GraphId,
+    /// The ID of the associated graph
+    graph_id: GraphId,
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
@@ -30,9 +30,9 @@ pub struct Transaction<SP: StorageProvider, PS> {
 }
 
 impl<SP: StorageProvider, PS> Transaction<SP, PS> {
-    pub(super) const fn new(storage_id: GraphId) -> Self {
+    pub(super) const fn new(graph_id: GraphId) -> Self {
         Self {
-            storage_id,
+            graph_id,
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
@@ -42,9 +42,9 @@ impl<SP: StorageProvider, PS> Transaction<SP, PS> {
 }
 
 impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
-    /// Returns the transaction's storage id.
-    pub fn storage_id(&self) -> GraphId {
-        self.storage_id
+    /// Returns the transaction's graph id.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
     }
 
     /// Find a given id if reachable within this transaction.
@@ -75,7 +75,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
     ) -> Result<(), ClientError> {
-        let storage = provider.get_storage(self.storage_id)?;
+        let storage = provider.get_storage(self.graph_id)?;
 
         // Write out current perspective.
         if let Some(p) = Option::take(&mut self.perspective) {
@@ -144,7 +144,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(())
     }
 
-    /// Attempt to store the `command` in the graph with `storage_id`. Effects will be
+    /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
     pub(super) fn add_commands(
@@ -158,7 +158,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         let mut count: usize = 0;
 
         // Get storage or try to initialize with first command.
-        let storage = match provider.get_storage(self.storage_id) {
+        let storage = match provider.get_storage(self.graph_id) {
             Ok(s) => s,
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
@@ -185,7 +185,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             }
             match command.parent() {
                 Prior::None => {
-                    if command.id().as_base() == self.storage_id.as_base() {
+                    if command.id().as_base() == self.graph_id.as_base() {
                         // Graph already initialized, extra init just spurious
                     } else {
                         bug!("init command does not belong in graph");
@@ -334,8 +334,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         provider: &'sp mut SP,
         sink: &mut impl Sink<PS::Effect>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
-        // Storage ID is the id of the init command by definition.
-        if self.storage_id.as_base() != command.id().as_base() {
+        // Graph ID is the id of the init command by definition.
+        if self.graph_id.as_base() != command.id().as_base() {
             return Err(ClientError::InitError);
         }
 
@@ -754,7 +754,7 @@ mod test {
                 let seg = self
                     .client
                     .provider
-                    .get_storage(self.trx.storage_id)
+                    .get_storage(self.trx.graph_id)
                     .unwrap()
                     .write(p)
                     .unwrap();

@@ -148,7 +148,7 @@ enum SyncResponderState {
 #[derive(Default)]
 pub struct SyncResponder {
     session_id: Option<u128>,
-    storage_id: Option<GraphId>,
+    graph_id: Option<GraphId>,
     state: SyncResponderState,
     bytes_sent: u64,
     next_send: usize,
@@ -162,7 +162,7 @@ impl SyncResponder {
     pub fn new() -> Self {
         Self {
             session_id: None,
-            storage_id: None,
+            graph_id: None,
             state: SyncResponderState::New,
             bytes_sent: 0,
             next_send: 0,
@@ -198,12 +198,12 @@ impl SyncResponder {
                 return Err(SyncError::NotReady); // TODO(chip): return Ok(NotReady)
             }
             S::Start => {
-                let Some(storage_id) = self.storage_id else {
+                let Some(graph_id) = self.graph_id else {
                     self.state = S::Reset;
-                    bug!("poll called before storage_id was set");
+                    bug!("poll called before graph_id was set");
                 };
 
-                let storage = match provider.get_storage(storage_id) {
+                let storage = match provider.get_storage(graph_id) {
                     Ok(s) => s,
                     Err(e) => {
                         self.state = S::Reset;
@@ -244,13 +244,13 @@ impl SyncResponder {
 
         match message {
             SyncRequestMessage::SyncRequest {
-                storage_id,
+                graph_id,
                 max_bytes,
                 commands,
                 ..
             } => {
                 self.state = SyncResponderState::Start;
-                self.storage_id = Some(storage_id);
+                self.graph_id = Some(graph_id);
                 self.bytes_sent = max_bytes;
                 self.to_send.clear();
                 self.has = commands;
@@ -422,12 +422,12 @@ impl SyncResponder {
         provider: &mut impl StorageProvider,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
-        let Some(storage_id) = self.storage_id else {
+        let Some(graph_id) = self.graph_id else {
             self.state = S::Reset;
-            bug!("poll called before storage_id was set");
+            bug!("poll called before graph_id was set");
         };
 
-        let storage = match provider.get_storage(storage_id) {
+        let storage = match provider.get_storage(graph_id) {
             Ok(s) => s,
             Err(e) => {
                 self.state = S::Reset;
@@ -442,7 +442,7 @@ impl SyncResponder {
                 session_id: self.session_id()?,
                 response_index: self.message_index as u64,
             },
-            storage_id: self.storage_id.assume("storage id must exist")?,
+            graph_id: self.graph_id.assume("storage id must exist")?,
         })?;
 
         self.message_index = self
@@ -463,11 +463,11 @@ impl SyncResponder {
         target: &mut Buf<'_>,
         provider: &mut impl StorageProvider,
     ) -> Result<usize, SyncError> {
-        let Some(storage_id) = self.storage_id.as_ref() else {
+        let Some(graph_id) = self.graph_id.as_ref() else {
             self.state = SyncResponderState::Reset;
-            bug!("get_next called before storage_id was set");
+            bug!("get_next called before graph_id was set");
         };
-        let storage = match provider.get_storage(*storage_id) {
+        let storage = match provider.get_storage(*graph_id) {
             Ok(s) => s,
             Err(e) => {
                 self.state = SyncResponderState::Reset;
