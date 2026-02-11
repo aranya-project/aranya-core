@@ -7,10 +7,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{
-    cell::RefCell,
-    fmt::{self, Display},
-};
+use core::fmt::{self, Display};
 
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
@@ -241,11 +238,7 @@ impl Machine {
     }
 
     /// Create a RunState associated with this Machine.
-    pub fn create_run_state<'a, M>(
-        &'a self,
-        io: &'a RefCell<M>,
-        ctx: CommandContext,
-    ) -> RunState<'a, M>
+    pub fn create_run_state<'a, M>(&'a self, io: &'a mut M, ctx: CommandContext) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
     {
@@ -257,7 +250,7 @@ impl Machine {
         &mut self,
         name: Identifier,
         args: Args,
-        io: &'_ RefCell<M>,
+        io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
@@ -274,7 +267,7 @@ impl Machine {
         &mut self,
         this_data: Struct,
         envelope: Struct,
-        io: &'_ RefCell<M>,
+        io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
@@ -325,7 +318,7 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     /// The program counter
     pc: usize,
     /// I/O callbacks
-    io: &'a RefCell<M>,
+    pub io: &'a mut M,
     /// Execution Context (actually used for more than Commands)
     ctx: CommandContext,
     // Cursors for `QueryStart` results
@@ -339,7 +332,7 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> Self {
+    pub fn new(machine: &'a Machine, io: &'a mut M, ctx: CommandContext) -> Self {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
@@ -608,10 +601,7 @@ where
                 self.scope.exit_function().map_err(|e| self.err(e))?;
             }
             Instruction::ExtCall(module, proc) => {
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .call(module, proc, &mut self.stack, &self.ctx)?;
+                self.io.call(module, proc, &mut self.stack, &self.ctx)?;
             }
             Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
             Instruction::Add | Instruction::Sub => {
@@ -778,27 +768,17 @@ where
             }
             Instruction::Create => {
                 let f: Fact = self.ipop()?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_insert(f.name, f.keys, f.values)?;
+                self.io.fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
                 let f: Fact = self.ipop()?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_delete(f.name, f.keys)?;
+                self.io.fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
                 let mut fact_from: Fact = self.ipop()?;
                 let mut replaced_fact = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact_from.name.clone(), fact_from.keys)?;
+                    let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next().ok_or_else(|| {
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
@@ -818,13 +798,8 @@ where
                     }
                 }
 
+                self.io.fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_delete(fact_from.name, replaced_fact.0)?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
             Instruction::Emit => {
@@ -840,10 +815,7 @@ where
                         );
                     }
                 };
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .effect(s.name, fields, command, recall);
+                self.io.effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
@@ -852,11 +824,7 @@ where
                 self.validate_fact_literal(&qf)?;
 
                 let result = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(qf.name.clone(), qf.keys.clone())?;
+                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
                         Ok(f) => {
@@ -883,11 +851,7 @@ where
 
                 let mut count = 0;
                 {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact.name.clone(), fact.keys.clone())?;
+                    let mut iter = self.io.fact_query(fact.name.clone(), fact.keys.clone())?;
 
                     while count < limit {
                         let Some(r) = iter.next() else { break };
@@ -909,11 +873,7 @@ where
             Instruction::QueryStart => {
                 let fact: Fact = self.ipop()?;
                 self.validate_fact_literal(&fact)?;
-                let iter = self
-                    .io
-                    .try_borrow()
-                    .assume("should be able to borrow io")?
-                    .fact_query(fact.name, fact.keys)?;
+                let iter = self.io.fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
             }
             Instruction::QueryNext(ident) => {
