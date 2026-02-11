@@ -107,10 +107,10 @@ impl TraceAnalyzer<'_> {
         TraceError::new(etype, self.instruction_path.clone())
     }
 
-    /// Begin a trace at a [`Label`]. Returns a list of [`TraceFailure`]s or a
+    /// Begin a trace at a [`Label`]. Returns a list of [`TraceIssue`]s or a
     /// [`TraceError`] if tracing failed.
     ///
-    /// A [`TraceFailure`] is a failure in the code being analyzed. A [`TraceError`] is an
+    /// A [`TraceIssue`] is a failure in the code being analyzed. A [`TraceError`] is an
     /// error in the tracing process itself. e.g., if a `Label` was given that didn't exist,
     /// that would be a [`TraceError`].
     pub fn trace(self, start: &Label) -> Result<Vec<TraceIssue>, TraceError> {
