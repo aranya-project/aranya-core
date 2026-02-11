@@ -6,4 +6,6 @@ command Foo {
     open {
         return deserialize(envelope)
     }
+
+    policy {}
 }
