@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
     io::{Read as _, stdin},
@@ -242,7 +241,7 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("Compilation failed: {e}");
         }
     };
-    let io = RefCell::new(MachExpIO::new());
+    let mut io = MachExpIO::new();
 
     let mode = if args.exec {
         Mode::Exec
@@ -266,7 +265,7 @@ fn main() -> anyhow::Result<()> {
                     name: action.clone(),
                     head_id: CmdId::default(),
                 });
-                rs = machine.create_run_state(&io, ctx);
+                rs = machine.create_run_state(&mut io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
                 rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
@@ -276,7 +275,7 @@ fn main() -> anyhow::Result<()> {
                     author: DeviceId::default(),
                     version: BaseId::default(),
                 });
-                rs = machine.create_run_state(&io, ctx);
+                rs = machine.create_run_state(&mut io, ctx);
                 let fields: BTreeMap<Identifier, Value> = args
                     .args
                     .into_iter()
@@ -313,7 +312,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             println!("Facts:");
-            for ((name, k), v) in &io.borrow().facts {
+            for ((name, k), v) in &io.facts {
                 print!("  {}[", name);
                 for e in k {
                     print!("{}", e);
@@ -326,7 +325,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             println!("Effects:");
-            for (name, fields) in &io.borrow().effects {
+            for (name, fields) in &io.effects {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);
