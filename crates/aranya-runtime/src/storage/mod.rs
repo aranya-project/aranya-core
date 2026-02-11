@@ -259,6 +259,8 @@ pub trait Storage {
     }
 
     /// Returns the location of Command with id by searching from the given location.
+    ///
+    /// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm specification.
     fn get_location_from(
         &self,
         start: Location,
