@@ -62,6 +62,7 @@ pub struct ClientState<PS, SP> {
     buffers: TraversalBuffers,
 }
 
+// Manual Debug impl to exclude `buffers` (large, not useful in debug output).
 impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClientState")

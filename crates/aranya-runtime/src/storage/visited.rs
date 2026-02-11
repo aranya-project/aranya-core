@@ -36,7 +36,6 @@ pub struct CappedVisited<const CAP: usize> {
 
 impl<const CAP: usize> CappedVisited<CAP> {
     /// Creates a new empty visited set.
-    #[inline]
     pub const fn new() -> Self {
         Self {
             entries: Vec::new(),
@@ -44,14 +43,12 @@ impl<const CAP: usize> CappedVisited<CAP> {
     }
 
     /// Resets the visited set for reuse.
-    #[inline]
     pub fn clear(&mut self) {
         self.entries.clear();
     }
 
     /// Returns the min_max_cut and highest_command_visited for a segment
     /// if it exists in the set.
-    #[inline]
     pub fn get(&self, segment: usize) -> Option<(MaxCut, CommandIndex)> {
         self.entries
             .iter()
@@ -64,7 +61,6 @@ impl<const CAP: usize> CappedVisited<CAP> {
     ///
     /// When the set is full and a new segment needs to be inserted, evicts
     /// the entry with the highest effective max_cut (min_max_cut + highest_command).
-    #[inline]
     pub fn insert_or_update(&mut self, segment: usize, min_max_cut: MaxCut, command: CommandIndex) {
         // Single pass: check for existing segment and track eviction candidate
         let mut evict_idx = 0;
@@ -103,13 +99,11 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// Uses `CommandIndex::MAX` to indicate the entire segment has been visited.
     /// This allows a single buffer to be reused across different traversal
     /// operations that need segment-level vs entry-point tracking.
-    #[inline]
     pub fn mark_segment_visited(&mut self, segment: usize, min_max_cut: MaxCut) {
         self.insert_or_update(segment, min_max_cut, CommandIndex::MAX);
     }
 
     /// Checks if a segment was visited at any entry point.
-    #[inline]
     pub fn was_segment_visited(&self, segment: usize) -> bool {
         self.get(segment).is_some()
     }
@@ -125,10 +119,13 @@ impl<const CAP: usize> Default for CappedVisited<CAP> {
 mod tests {
     use super::*;
 
+    const TEST_MIN_MAX_CUT: MaxCut = 100;
+    const TEST_COMMAND: CommandIndex = 5;
+
     #[test]
     fn test_clear() {
         let mut visited = CappedVisited::<4>::new();
-        visited.insert_or_update(1, 100, 5);
+        visited.insert_or_update(1, TEST_MIN_MAX_CUT, TEST_COMMAND);
         visited.insert_or_update(2, 200, 3);
         assert!(visited.get(1).is_some());
         visited.clear();
@@ -140,26 +137,17 @@ mod tests {
     fn test_get() {
         let mut visited = CappedVisited::<4>::new();
         assert!(visited.get(1).is_none());
-        visited.insert_or_update(1, 100, 5);
+        visited.insert_or_update(1, TEST_MIN_MAX_CUT, TEST_COMMAND);
         let (min_mc, highest) = visited.get(1).unwrap();
-        assert_eq!(min_mc, 100);
-        assert_eq!(highest, 5);
-    }
-
-    #[test]
-    fn test_insert_or_update_new() {
-        let mut visited = CappedVisited::<4>::new();
-        visited.insert_or_update(1, 100, 5);
-        let (min_mc, highest) = visited.get(1).unwrap();
-        assert_eq!(min_mc, 100);
-        assert_eq!(highest, 5);
+        assert_eq!(min_mc, TEST_MIN_MAX_CUT);
+        assert_eq!(highest, TEST_COMMAND);
     }
 
     #[test]
     fn test_insert_or_update_existing_higher() {
         let mut visited = CappedVisited::<4>::new();
-        visited.insert_or_update(1, 100, 5);
-        visited.insert_or_update(1, 100, 8); // Higher command
+        visited.insert_or_update(1, TEST_MIN_MAX_CUT, TEST_COMMAND);
+        visited.insert_or_update(1, TEST_MIN_MAX_CUT, 8); // Higher command
         let (_, highest) = visited.get(1).unwrap();
         assert_eq!(highest, 8);
     }
@@ -167,8 +155,8 @@ mod tests {
     #[test]
     fn test_insert_or_update_existing_lower() {
         let mut visited = CappedVisited::<4>::new();
-        visited.insert_or_update(1, 100, 8);
-        visited.insert_or_update(1, 100, 5); // Lower command - should not update
+        visited.insert_or_update(1, TEST_MIN_MAX_CUT, 8);
+        visited.insert_or_update(1, TEST_MIN_MAX_CUT, TEST_COMMAND); // Lower command - should not update
         let (_, highest) = visited.get(1).unwrap();
         assert_eq!(highest, 8);
     }
@@ -176,7 +164,7 @@ mod tests {
     #[test]
     fn test_eviction_by_effective_max_cut() {
         let mut visited = CappedVisited::<3>::new();
-        // Fill the set with different effective max_cuts
+        // Fill the set with different effective max_cuts (effective = min_max_cut + command)
         visited.insert_or_update(1, 100, 10); // effective = 110
         visited.insert_or_update(2, 200, 50); // effective = 250 (highest)
         visited.insert_or_update(3, 150, 20); // effective = 170
@@ -194,7 +182,7 @@ mod tests {
     fn test_segment_level_helpers() {
         let mut visited = CappedVisited::<4>::new();
         assert!(!visited.was_segment_visited(1));
-        visited.mark_segment_visited(1, 100);
+        visited.mark_segment_visited(1, TEST_MIN_MAX_CUT);
         assert!(visited.was_segment_visited(1));
         // mark_segment_visited uses CommandIndex::MAX
         let (_, highest) = visited.get(1).unwrap();
@@ -205,7 +193,7 @@ mod tests {
     fn test_empty_set() {
         let mut visited = CappedVisited::<256>::new();
         // First insert to empty set should succeed
-        visited.insert_or_update(42, 100, 5);
+        visited.insert_or_update(42, TEST_MIN_MAX_CUT, TEST_COMMAND);
         assert!(visited.get(42).is_some());
     }
 }

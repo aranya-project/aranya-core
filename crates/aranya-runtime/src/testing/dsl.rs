@@ -521,11 +521,8 @@ where
     if let Ok(dump_path) = env::var("DUMP_GENERATED_RULES") {
         let json = serde_json::to_string_pretty(&actions).unwrap();
         // If path is relative and doesn't start with ./, save to testdata directory
-        let final_path = if dump_path.starts_with('/') {
-            // Absolute path, use as-is
-            dump_path
-        } else if dump_path.starts_with("./") {
-            // Explicit relative path, use as-is
+        let final_path = if dump_path.starts_with('/') || dump_path.starts_with("./") {
+            // Absolute or explicit relative path, use as-is
             dump_path
         } else {
             // Relative path, save to testdata directory

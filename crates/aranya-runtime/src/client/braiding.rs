@@ -127,7 +127,7 @@ pub(super) fn braid<S: Storage>(
                 let same_segment_check =
                     location.same_segment(other.next) && location.command <= other.next.command;
                 if same_segment_check {
-                    trace!("found ancestor");
+                    trace!("same segment");
                     continue 'location;
                 }
 
