@@ -55,7 +55,7 @@ pub fn main() -> ExitCode {
         }
     };
 
-    if !args.no_validate && !validate(&module) {
+    if !args.no_validate && !validate(&module).is_valid(false) {
         return ExitCode::FAILURE;
     }
 
