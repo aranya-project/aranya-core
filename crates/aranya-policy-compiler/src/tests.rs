@@ -26,15 +26,12 @@ fn compile_pass(text: &str) -> Module {
 
 // Helper function which parses and compiles policy expecting compile failure.
 #[track_caller]
-fn compile_fail(text: &str, ffi_modules: Option<&[ModuleSchema<'_>]>) -> CompileErrorType {
+fn compile_fail(text: &str) -> CompileErrorType {
     let policy = match parse_policy_str(text, Version::V2) {
         Ok(p) => p,
         Err(err) => panic!("{err}"),
     };
-    match Compiler::new(&policy)
-        .ffi_modules(ffi_modules.unwrap_or(&[]))
-        .compile()
-    {
+    match Compiler::new(&policy).compile() {
         Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err.err_type(),
     }
@@ -75,7 +72,7 @@ fn test_undefined_struct() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::NotDefined(String::from("Struct `Bar` not defined")),
@@ -91,7 +88,7 @@ fn test_function_no_return() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
 }
 
@@ -103,7 +100,7 @@ fn test_function_not_defined() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined(String::from("g")));
 }
 
@@ -117,7 +114,7 @@ fn test_function_already_defined() {
         function f() int {}
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("f")));
 }
 
@@ -133,7 +130,7 @@ fn test_function_wrong_number_arguments() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument(String::from(
@@ -154,7 +151,7 @@ fn test_function_duplicate_arg_names() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
 }
 
@@ -170,7 +167,7 @@ fn test_function_wrong_color_pure() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidCallColor(InvalidCallColor::Pure)
@@ -189,7 +186,7 @@ fn test_function_wrong_color_finish() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidCallColor(InvalidCallColor::Finish)
@@ -233,7 +230,7 @@ fn test_command_without_seal_block() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown(String::from("Empty/missing seal block in command"))
@@ -250,7 +247,7 @@ fn test_command_without_open_block() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown(String::from("Empty/missing open block in command"))
@@ -268,7 +265,7 @@ fn test_command_with_no_return_in_seal_block() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
 }
 
@@ -283,7 +280,7 @@ fn test_command_with_no_return_in_open_block() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
 }
 
@@ -339,7 +336,7 @@ fn test_command_attributes_should_be_unique() {
         seal { return todo() }
     }
     "#;
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined("a".to_string()));
 }
 
@@ -363,7 +360,7 @@ fn test_command_attributes_must_be_literals() {
     ];
 
     for text in texts {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert!(matches!(err, CompileErrorType::InvalidExpression(_)));
     }
 }
@@ -564,7 +561,7 @@ fn test_duplicate_struct_fact_names() {
     ];
 
     for text in texts {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
     }
 }
@@ -589,7 +586,7 @@ fn test_struct_field_insertion_errors() {
         ),
     ];
     for (text, err_type) in cases {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(err, err_type, "{text}");
     }
 }
@@ -762,7 +759,7 @@ fn test_enum_identifiers_are_unique() {
 
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("Drink")));
 }
 
@@ -774,7 +771,7 @@ fn test_enum_values_are_unique() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::AlreadyDefined(String::from("Drink::Water"))
@@ -789,7 +786,7 @@ fn test_enum_reference_undefined_enum() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined(String::from("Drink")));
 }
 
@@ -802,7 +799,7 @@ fn test_enum_reference_undefined_value() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::NotDefined(String::from("Drink::Tea"))
@@ -836,7 +833,7 @@ fn test_undefined_fact() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined(String::from("Foo")));
 }
 
@@ -849,7 +846,7 @@ fn test_fact_invalid_key_name() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Invalid key: expected i, got k"))
@@ -865,7 +862,7 @@ fn test_fact_incomplete_key() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Fact keys don't match definition"))
@@ -881,7 +878,7 @@ fn test_fact_nonexistent_key() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Fact keys don't match definition"))
@@ -897,7 +894,7 @@ fn test_fact_invalid_key_type() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
 }
 
@@ -910,7 +907,7 @@ fn test_fact_duplicate_key() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Invalid key: expected j, got i"))
@@ -926,7 +923,7 @@ fn test_fact_invalid_value_name() {
     }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Expected value x, got y"))
@@ -942,7 +939,7 @@ fn test_fact_invalid_value_type() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
 }
 
@@ -967,7 +964,7 @@ fn test_fact_query_disallow_leading_binds() {
     }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral("leading bind values not allowed".to_string())
@@ -1002,7 +999,7 @@ fn test_fact_update_invalid_to_type() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
 }
 
@@ -1061,7 +1058,7 @@ fn test_immutable_fact_cannot_be_updated() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown(String::from("fact is immutable"))
@@ -1111,7 +1108,7 @@ fn finish_block_should_exit() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown("`finish` must be the last statement in the block".to_owned())
@@ -1135,7 +1132,7 @@ fn test_should_not_allow_bind_key_in_fact_creation() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("Cannot create fact with bind values".to_owned())
@@ -1159,7 +1156,7 @@ fn test_should_not_allow_bind_value_in_fact_creation() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("Cannot create fact with bind values".to_owned())
@@ -1182,7 +1179,7 @@ fn test_should_not_allow_bind_key_in_fact_delete() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("Cannot delete fact with wildcard keys".to_owned())
@@ -1205,7 +1202,7 @@ fn test_should_not_allow_bind_key_in_fact_update() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("Cannot update fact with wildcard keys".to_owned())
@@ -1229,7 +1226,7 @@ fn test_should_not_allow_bind_value_in_fact_update() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("Cannot update fact to a bind value".to_owned())
@@ -1244,7 +1241,7 @@ fn test_fact_duplicate_field_names() {
         ("i", "fact F[i int] => {i int}"),
     ];
     for (identifier, case) in cases {
-        let err = compile_fail(case, None);
+        let err = compile_fail(case);
         assert_eq!(
             err,
             CompileErrorType::AlreadyDefined(String::from(identifier))
@@ -1263,7 +1260,6 @@ fn test_fact_create_too_few_values() {
             create Device[device_id:1]=>{name: "bob"}
         }
         "#,
-            None,
         );
 
         assert_eq!(
@@ -1281,7 +1277,6 @@ fn test_fact_create_too_few_values() {
             create Device[device_id:1]
         }
         "#,
-            None,
         );
 
         assert_eq!(
@@ -1301,7 +1296,7 @@ fn test_fact_create_too_many_values() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral("incorrect number of values".to_owned())
@@ -1346,7 +1341,7 @@ fn test_match_duplicate() {
     ];
 
     for str in policy_str {
-        let err = compile_fail(str, None);
+        let err = compile_fail(str);
         assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
     }
 }
@@ -1373,7 +1368,7 @@ fn test_match_alternation_duplicates() {
             }
         }
     "#;
-    let err = compile_fail(policy_str, None);
+    let err = compile_fail(policy_str);
     assert_eq!(
         err,
         CompileErrorType::AlreadyDefined(String::from("duplicate match arm value"))
@@ -1405,7 +1400,7 @@ fn test_match_default_not_last() {
             }
         }
     "#;
-    let err = compile_fail(policy_str, None);
+    let err = compile_fail(policy_str);
     assert!(matches!(err, CompileErrorType::Unknown(_)));
 }
 
@@ -1448,7 +1443,7 @@ fn test_match_arm_should_be_limited_to_literals() {
     ];
 
     for text in policies {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(
             err,
             CompileErrorType::InvalidType(String::from(
@@ -1574,7 +1569,7 @@ fn test_match_expression() {
         ),
     ];
     for (src, expected) in invalid_cases {
-        let actual = compile_fail(src, None);
+        let actual = compile_fail(src);
         assert_eq!(actual, expected, "{src}");
     }
 
@@ -1667,7 +1662,7 @@ fn test_bad_statements() {
     ];
 
     for text in texts {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
     }
 }
@@ -1706,7 +1701,7 @@ fn test_global_let_invalid_expressions() {
     ];
 
     for text in texts {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert!(matches!(err, CompileErrorType::InvalidExpression(_)));
     }
 }
@@ -1720,7 +1715,7 @@ fn test_global_let_duplicates() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined("x".into()));
 
     let text = r#"
@@ -1728,7 +1723,7 @@ fn test_global_let_duplicates() {
         let x = 5
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined("x".into()));
 }
 
@@ -1741,7 +1736,7 @@ fn test_field_collision() {
     }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("x")));
 }
 
@@ -1757,7 +1752,7 @@ fn test_invalid_finish_expressions() {
                 }
             }
         "#;
-    let err = compile_fail(invalid_expression, None);
+    let err = compile_fail(invalid_expression);
     assert!(matches!(err, CompileErrorType::InvalidExpression(_)));
 }
 
@@ -1771,7 +1766,7 @@ fn test_count_up_to() {
         }
     "#;
 
-    let err = compile_fail(test, None);
+    let err = compile_fail(test);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("count limit must be greater than zero".to_string())
@@ -1787,7 +1782,7 @@ fn test_map_valid_in_action() {
             return 0
         }
     "#;
-    let err = compile_fail(test, None);
+    let err = compile_fail(test);
     assert!(matches!(err, CompileErrorType::InvalidStatement(..)));
 
     let test = r#"
@@ -1858,7 +1853,7 @@ fn test_map_identifier_scope() {
     ];
 
     for (test, expected) in failures {
-        let actual = compile_fail(test, None);
+        let actual = compile_fail(test);
         assert_eq!(actual, expected);
     }
 }
@@ -1907,7 +1902,7 @@ fn test_if_match_block_scope() {
         ),
     ];
     for (text, expected) in cases {
-        let actual = compile_fail(text, None);
+        let actual = compile_fail(text);
         assert_eq!(actual, expected);
     }
 }
@@ -2356,8 +2351,8 @@ fn test_struct_composition() {
     }
 
     for (i, c) in invalid_cases.iter().enumerate() {
-        let err = compile_fail(c.t, None);
-        match compile_fail(c.t, None) {
+        let err = compile_fail(c.t);
+        match compile_fail(c.t) {
             CompileErrorType::DuplicateSourceFields(_, _) => {}
             CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
             CompileErrorType::NotDefined(_) => {}
@@ -2434,7 +2429,7 @@ fn test_struct_literal_duplicate_field() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("x")));
 }
 
@@ -2578,7 +2573,7 @@ fn test_duplicate_definitions() {
 
     for c in cases {
         if let Some(expected) = c.e {
-            let actual = compile_fail(c.t, None);
+            let actual = compile_fail(c.t);
             assert_eq!(actual, expected);
         } else {
             compile_pass(c.t);
@@ -2594,7 +2589,7 @@ fn test_action_duplicate_name() {
         action foo() {}
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined("foo".to_string()));
 }
 
@@ -2606,7 +2601,7 @@ fn test_action_call_invalid_name() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined("bad".to_string()));
 }
 
@@ -2619,7 +2614,7 @@ fn test_action_call_without_action_keyword() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
 }
 
@@ -2633,7 +2628,7 @@ fn test_action_call_not_in_action_context() {
         }
     "#;
 
-    let err = compile_fail(text, None);
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
 }
 
@@ -2665,7 +2660,7 @@ fn test_action_call_wrong_args() {
     ];
 
     for (text, expected) in texts {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(err, expected);
     }
 }
@@ -2892,7 +2887,7 @@ fn test_return_type_not_defined() {
     ];
 
     for (text, expected) in cases {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(err, expected);
     }
 }
@@ -2927,7 +2922,7 @@ fn test_function_arguments_with_undefined_types() {
     ];
 
     for (text, expected) in cases {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(err, expected);
     }
 }
@@ -2984,7 +2979,7 @@ fn test_structs_with_undefined_types() {
     ];
 
     for (text, expected) in cases {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(err, expected);
     }
 }
@@ -3047,7 +3042,7 @@ fn test_substruct_errors() {
     ];
 
     for (i, c) in cases.iter().enumerate() {
-        let err = compile_fail(c.t, None);
+        let err = compile_fail(c.t);
         match err {
             CompileErrorType::NotDefined(_) | CompileErrorType::InvalidSubstruct(_, _) => {}
             err => {
@@ -3108,7 +3103,7 @@ fn test_struct_conversion_errors() {
     ];
 
     for (i, (msg, text, expected)) in cases.into_iter().enumerate() {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         println!("Test case: {msg}");
         assert_eq!(err, expected, "#{i}");
     }
@@ -3350,7 +3345,7 @@ fn test_action_command_persistence() {
         ),
     ];
     for (text, expected) in invalid_cases {
-        let err = compile_fail(text, None);
+        let err = compile_fail(text);
         assert_eq!(err, expected);
     }
 }
@@ -3452,7 +3447,21 @@ fn test_structs_listed_out_of_order() {
     }
 
     for (src, expected_err, maybe_ffi_modules) in invalid_cases {
-        let err = compile_fail(src, maybe_ffi_modules);
+        // TODO: Use `compile_fail` here when FFI types are compiled conditionally.
+        // Types in FFI modules are compiled all the time so we can't add modules that contain compilation errors
+        // like `FFI_WITH_CYCLE` to every case.
+        let policy = match parse_policy_str(src, Version::V2) {
+            Ok(p) => p,
+            Err(err) => panic!("{err}"),
+        };
+        let err = match Compiler::new(&policy)
+            .ffi_modules(maybe_ffi_modules.unwrap_or(&[]))
+            .compile()
+        {
+            Ok(_) => panic!("policy compilation should have failed - src: {src}"),
+            Err(err) => err.err_type(),
+        };
+
         assert_eq!(err, expected_err,);
     }
 }
