@@ -9,16 +9,24 @@ use aranya_policy_module::{
     ffi::{self, ModuleSchema},
 };
 
-use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+use crate::{CompileError, CompileErrorType, Compiler, InvalidCallColor, validate::validate};
 
-// Helper function which parses and compiles policy expecting success.
 #[track_caller]
-fn compile_pass(text: &str) -> Module {
+fn compile(text: &str) -> Result<Module, CompileError> {
     let policy = match parse_policy_str(text, Version::V2) {
         Ok(p) => p,
         Err(err) => panic!("{err}"),
     };
-    match Compiler::new(&policy).compile() {
+    Compiler::new(&policy)
+        .ffi_modules(FAKE_SCHEMA)
+        .debug(true)
+        .compile()
+}
+
+// Helper function which parses and compiles policy expecting success.
+#[track_caller]
+fn compile_pass(text: &str) -> Module {
+    match compile(text) {
         Ok(m) => m,
         Err(err) => panic!("{err}"),
     }
@@ -27,11 +35,7 @@ fn compile_pass(text: &str) -> Module {
 // Helper function which parses and compiles policy expecting compile failure.
 #[track_caller]
 fn compile_fail(text: &str) -> CompileErrorType {
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
-    match Compiler::new(&policy).compile() {
+    match compile(text) {
         Ok(_) => panic!("policy compilation should have failed"),
         Err(err) => err.err_type(),
     }
@@ -381,8 +385,7 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
+    let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
     let want = [
@@ -454,8 +457,7 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
     ];
 
     for (text, expected_error) in cases {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        let err = compile_fail(text);
         assert_eq!(err, expected_error);
     }
 
@@ -497,8 +499,7 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
     ];
 
     for (text, e) in cases {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        let err = compile_fail(text);
         assert_eq!(err, e);
     }
 
@@ -662,8 +663,7 @@ fn test_struct_field_insertion() {
     ];
 
     for (text, want) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().expect("should compile");
+        let result = compile_pass(text);
         let ModuleData::V0(module) = result.data;
 
         let got = module.struct_defs.get("Foo").unwrap();
@@ -679,8 +679,7 @@ fn test_effect_with_field_insertion() {
         effect Baz { i int, +Foo }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let m = Compiler::new(&policy).compile().expect("should compile");
+    let m = compile_pass(text);
     let ModuleData::V0(module) = m.data;
 
     let foo_want = vec![
@@ -2234,16 +2233,7 @@ fn test_type_errors() {
     ];
 
     for (i, c) in cases.iter().enumerate() {
-        let policy =
-            parse_policy_str(c.t, Version::V2).unwrap_or_else(|err| panic!("parse error: {err}"));
-        let err = Compiler::new(&policy)
-            .ffi_modules(FAKE_SCHEMA)
-            .debug(true) // forced on to enable debug_assert()
-            .compile()
-            .err()
-            .unwrap_or_else(|| panic!("policy compilation should have failed"))
-            .err_type();
-
+        let err = compile_fail(c.t);
         let CompileErrorType::InvalidType(s) = err else {
             panic!("Did not get InvalidType for case {i}: {err:?} ({err})");
         };
@@ -3125,14 +3115,7 @@ fn test_ffi_fail_without_use() {
         }
     "#;
 
-    let policy =
-        parse_policy_str(text, Version::V2).unwrap_or_else(|err| panic!("parse error: {err}"));
-    let err = Compiler::new(&policy)
-        .ffi_modules(FAKE_SCHEMA)
-        .compile()
-        .err()
-        .unwrap_or_else(|| panic!("policy compilation should have failed"))
-        .err_type();
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined(String::from("test")));
 }
 

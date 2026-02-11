@@ -1590,6 +1590,15 @@ impl<'a> CompileState<'a> {
 
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
+            // Only define structs if they were imported.
+            if !self
+                .policy
+                .ffi_imports
+                .iter()
+                .any(|import| import.name == ffi_mod.name)
+            {
+                continue;
+            }
             for s in ffi_mod.structs {
                 let fields: Vec<StructItem<FieldDefinition>> = s
                     .fields

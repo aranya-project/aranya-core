@@ -17,6 +17,28 @@ use aranya_policy_vm::{
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
 
+// Helper function which parses and compiles policy expecting success.
+#[track_caller]
+fn compile(text: &str) -> Machine {
+    let text = text.trim_start_matches('\n');
+    let policy = match parse_policy_str(text, Version::V2) {
+        Ok(p) => p,
+        Err(err) => panic!("{err}"),
+    };
+    let module = match Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .debug(true)
+        .compile()
+    {
+        Ok(m) => m,
+        Err(err) => panic!("{err}"),
+    };
+    match Machine::from_module(module) {
+        Ok(m) => m,
+        Err(err) => panic!("{err}"),
+    }
+}
+
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
     CommandContext::Action(ActionContext {
         name,
@@ -90,13 +112,9 @@ fn test_bytes() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     {
         let name = ident!("foo");
         let ctx = dummy_ctx_action(name.clone());
@@ -148,24 +166,20 @@ fn test_structs() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
             identifier: ast::Ident {
                 name: ident!("x"),
-                span: ast::Span::new(34, 35)
+                span: ast::Span::new(33, 34)
             },
             field_type: ast::VType {
                 kind: ast::TypeKind::Int,
-                span: ast::Span::new(36, 39)
+                span: ast::Span::new(35, 38)
             }
         }])
     );
@@ -198,13 +212,8 @@ fn test_structs() -> anyhow::Result<()> {
 
 #[test]
 fn test_action() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
     let name = ident!("foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(TEST_POLICY_1);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -219,11 +228,8 @@ fn test_action() -> anyhow::Result<()> {
 
 #[test]
 fn test_action_wrong_args() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
     let name = ident!("foo");
-    let module = Compiler::new(&policy).compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_1);
     let ctx = dummy_ctx_action(name.clone());
 
     // wrong number of args
@@ -290,13 +296,8 @@ fn test_action_call_action() -> anyhow::Result<()> {
 
 #[test]
 fn test_command_policy() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
     let name = ident!("Foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_1);
     let ctx = dummy_ctx_policy(name.clone());
     let mut io = TestIO::new();
 
@@ -318,7 +319,7 @@ fn test_command_policy() -> anyhow::Result<()> {
 
 #[test]
 fn test_command_invalid_this() {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2).expect("should parse");
+    let policy = parse_policy_str(TEST_POLICY_1, Version::V2).expect("should parse");
 
     let name = ident!("Foo");
     let module = Compiler::new(&policy)
@@ -390,12 +391,7 @@ fn test_command_invalid_this() {
 
 #[test]
 fn test_fact_create_delete() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V2)?;
-
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_2);
     let mut io = TestIO::new();
 
     // We have to scope the RunState so that it and its mutable
@@ -429,12 +425,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 
 #[test]
 fn test_fact_query() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V2)?;
-
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_2);
     let mut io = TestIO::new();
 
     {
@@ -463,12 +454,7 @@ fn test_fact_query() -> anyhow::Result<()> {
 #[test]
 fn test_invalid_update() -> anyhow::Result<()> {
     fn run(initial_value: i64) -> anyhow::Result<ExitReason> {
-        let policy = parse_policy_str(POLICY_TEST_UPDATE.trim(), Version::V2)?;
-
-        let module = Compiler::new(&policy)
-            .ffi_modules(TestIO::FFI_SCHEMAS)
-            .compile()?;
-        let mut machine = Machine::from_module(module)?;
+        let mut machine = compile(POLICY_TEST_UPDATE);
         let mut io = TestIO::new();
 
         let exit = {
@@ -542,14 +528,9 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text.trim(), Version::V2)?;
-
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     {
         let name = ident!("setup");
         let ctx = dummy_ctx_policy(name.clone());
@@ -636,13 +617,8 @@ fn test_counting() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text.trim(), Version::V2)?;
-
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let name = ident!("Setup");
@@ -747,12 +723,8 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let a = Value::Int(1);
 
@@ -848,10 +820,8 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let cmd_name = ident!("Setup");
@@ -909,10 +879,8 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let cmd_name = ident!("Setup");
@@ -942,20 +910,16 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
 #[test]
 fn test_not_operator() -> anyhow::Result<()> {
-    let policy = parse_policy_str(
-        r#"
+    let text = r#"
         action test() {
             check !false
         }
-    "#,
-        Version::V2,
-    )?;
+    "#;
 
     let name = ident!("test");
     let ctx = dummy_ctx_action(name.clone());
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
     rs.call_action(name, iter::empty::<Value>())?.success();
 
@@ -973,13 +937,9 @@ fn test_if_true() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, [true])?;
@@ -999,13 +959,9 @@ fn test_if_false() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, [false])?.success();
@@ -1042,12 +998,8 @@ fn test_if_branches() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     for i in 0i64..4 {
         let mut io = TestIO::new();
@@ -1066,12 +1018,10 @@ fn test_if_branches() -> anyhow::Result<()> {
 #[test]
 fn test_match_first() -> anyhow::Result<()> {
     let name = ident!("foo");
-    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_MATCH);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     call_action(&mut rs, &mut published, name, [5])?.success();
@@ -1085,9 +1035,7 @@ fn test_match_first() -> anyhow::Result<()> {
 #[test]
 fn test_match_second() -> anyhow::Result<()> {
     let name = ident!("foo");
-    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_MATCH);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1104,9 +1052,7 @@ fn test_match_second() -> anyhow::Result<()> {
 #[test]
 fn test_match_default_2() -> anyhow::Result<()> {
     let name = ident!("foo");
-    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_MATCH);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
 
@@ -1143,9 +1089,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
             }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let action_name = ident!("foo");
@@ -1181,9 +1125,7 @@ fn test_match_default() -> anyhow::Result<()> {
         }
     "#;
     let name = ident!("foo");
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1211,10 +1153,8 @@ fn test_match_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let name = ident!("foo");
     let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&mut io, ctx);
@@ -1239,11 +1179,7 @@ fn test_match_expression() -> anyhow::Result<()> {
             publish F { x: y }
         }
     "#;
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let name = ident!("foo");
@@ -1261,9 +1197,7 @@ fn test_match_expression() -> anyhow::Result<()> {
 #[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = ident!("check_none");
-    let policy = parse_policy_str(POLICY_IS, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_IS);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1281,9 +1215,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 #[test]
 fn test_is_none_statement() -> anyhow::Result<()> {
     let name = ident!("check_none");
-    let policy = parse_policy_str(POLICY_IS, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_IS);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1311,13 +1243,9 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     }
     "#;
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let mut rs = machine.create_run_state(&mut io, ctx);
     rs.call_action(name, [true, false])?.success();
@@ -1345,13 +1273,9 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let name = ident!("foo");
@@ -1392,12 +1316,8 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(text);
 
     {
         let name = ident!("Foo");
@@ -1456,12 +1376,8 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
         ],
     );
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let name = ident!("Foo");
     let this_bytes: Vec<u8> = {
@@ -1529,12 +1445,8 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let cmd_name = ident!("Setup");
@@ -1594,10 +1506,8 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let test_data = "thing".as_bytes().to_vec();
 
     {
@@ -1756,13 +1666,9 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     // Check if the global variables are defined correctly in the machine
     assert_eq!(machine.globals, {
@@ -1843,9 +1749,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
 
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let name = ident!("test");
@@ -1891,9 +1795,7 @@ where
 
 #[test]
 fn test_enum_parse() -> anyhow::Result<()> {
-    let policy = parse_policy_str("enum Drink { Water, Coffee }", Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile("enum Drink { Water, Coffee }");
 
     assert_eq!(
         machine.parse_enum("Drink").unwrap_err().err_type,
@@ -1975,8 +1877,7 @@ policy {
     }
 }
 }
-"#
-        .trim(),
+"#,
         Version::V2,
     )
     .unwrap();
@@ -2036,11 +1937,7 @@ fn test_map() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
     let mut published = Vec::new();
 
@@ -2109,13 +2006,9 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let cases = [
         (
@@ -2206,16 +2099,11 @@ fn test_block_expression() -> anyhow::Result<()> {
                 x: x
             }
         }
-    "#
-    .trim();
+    "#;
 
-    let policy = parse_policy_str(policy_text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_text);
     let name = ident!("test");
     let args: [Value; 0] = [];
     let ctx = dummy_ctx_action(name.clone());
@@ -2248,9 +2136,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
             publish source substruct Foo
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let action_name = ident!("baz");
@@ -2297,9 +2183,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
             publish Foo { x: x, ...source }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let action_name = ident!("baz");
@@ -2444,9 +2328,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
         }
         "#;
 
-    let policy = parse_policy_str(policy, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2501,11 +2383,9 @@ fn test_source_lookup() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
@@ -2515,7 +2395,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     assert_eq!(
         source,
         concat!(
-            "at row 5 col 13:\n",
+            "at row 4 col 13:\n",
             "\tcheck false\n",
             "            // after\n",
             "            "
@@ -2546,11 +2426,9 @@ fn test_return_expr() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
@@ -2580,11 +2458,9 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
