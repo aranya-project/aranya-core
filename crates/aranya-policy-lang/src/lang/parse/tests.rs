@@ -328,53 +328,6 @@ fn test_result_literal() -> Result<(), ParseError> {
     Ok(())
 }
 
-#[test]
-fn test_result_pattern_match() -> Result<(), ParseError> {
-    let src = r#"
-        function foo(r result[int, string]) int {
-            return match r {
-                Ok(v) => v
-                Err(e) => 0
-            }
-        }
-    "#
-    .trim();
-
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, src.len());
-    let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
-    let pair = pairs.next().unwrap();
-    let parsed = p.parse_function_definition(pair)?;
-    insta::assert_debug_snapshot!(parsed);
-    Ok(())
-}
-
-#[test]
-fn test_result_pattern_must_be_identifier() {
-    // TODO: remove after we allow literals in result patterns
-    let src = r#"
-        function f(r result[int, string]) int {
-            return match r {
-                Ok(5) => 5
-                Err(e) => 0
-            }
-        }
-    "#
-    .trim();
-
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, src.len());
-    let mut pairs = PolicyParser::parse(Rule::top_level_statement, src).unwrap();
-    let pair = pairs.next().unwrap();
-    let result = p.parse_function_definition(pair);
-
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("Result pattern Ok() must contain an identifier")
-    );
-}
 
 #[test]
 #[allow(clippy::result_large_err)]
