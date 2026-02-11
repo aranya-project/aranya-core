@@ -2651,7 +2651,7 @@ fn test_result() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V2)?;
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -2661,12 +2661,12 @@ fn test_result() -> anyhow::Result<()> {
     {
         let name = ident!("DoWork");
         let ctx = dummy_ctx_policy(name.clone());
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(true))]);
         rs.call_command_policy(this_data, dummy_envelope())?
             .success();
         assert_eq!(
-            io.borrow().effect_stack[0],
+            io.effect_stack[0],
             (
                 ident!("Result"),
                 vec![KVPair::new(
@@ -2681,12 +2681,12 @@ fn test_result() -> anyhow::Result<()> {
     {
         let name = ident!("DoWork");
         let ctx = dummy_ctx_policy(name.clone());
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(false))]);
         rs.call_command_policy(this_data, dummy_envelope())?
             .success();
         assert_eq!(
-            io.borrow().effect_stack[1],
+            io.effect_stack[1],
             (
                 ident!("Result"),
                 vec![KVPair::new(

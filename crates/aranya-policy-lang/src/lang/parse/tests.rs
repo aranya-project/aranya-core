@@ -328,7 +328,6 @@ fn test_result_literal() -> Result<(), ParseError> {
     Ok(())
 }
 
-
 #[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
