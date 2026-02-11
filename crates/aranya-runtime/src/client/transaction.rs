@@ -24,7 +24,7 @@ pub struct Transaction<SP: StorageProvider, PS> {
     /// Head of the current perspective
     phead: Option<CmdId>,
     /// Written but not committed heads
-    heads: BTreeMap<Address, Location>,
+    heads: BTreeMap<CmdId, Location>,
     /// Tag for associated policy store
     policy_store: PhantomData<PS>,
 }
@@ -81,8 +81,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let segment = storage.write(p)?;
-            let head = segment.head()?;
-            self.heads.insert(head.address()?, segment.head_location());
+            self.heads
+                .insert(segment.head_id(), segment.head_location()?);
         }
 
         // Merge heads pairwise until single head left, then commit.
@@ -95,7 +95,17 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     choose_policy(storage, policy_store, left_loc, right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
-                let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
+                let merge_ids = MergeIds::new(
+                    Address {
+                        id: left_id,
+                        max_cut: left_loc.max_cut,
+                    },
+                    Address {
+                        id: right_id,
+                        max_cut: right_loc.max_cut,
+                    },
+                )
+                .assume("merging different ids")?;
                 if left_id > right_id {
                     mem::swap(&mut left_loc, &mut right_loc);
                 }
@@ -114,8 +124,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 perspective.add_command(&command)?;
 
                 let segment = storage.write(perspective)?;
-                let head = segment.head()?;
-                heads.push_back((head.address()?, segment.head_location()));
+                heads.push_back((segment.head_id(), segment.head_location()?));
             } else {
                 let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
@@ -133,8 +142,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
                         let head_loc = storage.get_head()?;
                         let segment = storage.get_segment(head_loc)?;
-                        let head = segment.head()?;
-                        heads.push_back((head.address()?, segment.head_location()));
+                        heads.push_back((segment.head_id(), segment.head_location()?));
                     }
                     Err(e) => return Err(e.into()),
                 }
@@ -251,8 +259,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
-            let head = seg.head()?;
-            self.heads.insert(head.address()?, seg.head_location());
+            self.heads.insert(seg.head_id(), seg.head_location()?);
         }
 
         let left_loc = self
@@ -278,8 +285,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         perspective.add_command(command)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
-        self.heads.remove(&left);
-        self.heads.remove(&right);
+        self.heads.remove(&left.id);
+        self.heads.remove(&right.id);
 
         self.perspective = Some(perspective);
         self.phead = Some(command.id());
@@ -308,8 +315,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let seg = storage.write(p)?;
-            let head = seg.head()?;
-            self.heads.insert(head.address()?, seg.head_location());
+            self.heads.insert(seg.head_id(), seg.head_location()?);
         }
 
         let loc = self
@@ -322,7 +328,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             .insert(storage.get_linear_perspective(loc)?);
 
         self.phead = Some(parent.id);
-        self.heads.remove(&parent);
+        self.heads.remove(&parent.id);
 
         Ok(p)
     }
@@ -383,7 +389,7 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
-) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
+) -> Result<(S::FactIndex, Location), ClientError> {
     let order = braiding::braid(storage, left, right)?;
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
@@ -457,7 +463,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MergeIds, Perspective, Policy, Priority,
+        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, SegmentIndex,
         memory::MemStorageProvider,
         policy::{ActionPlacement, CommandPlacement},
         testing::{hash_for_testing_only, short_b58},
@@ -476,7 +482,7 @@ mod test {
         prior: Prior<Address>,
         finalize: bool,
         data: Box<str>,
-        max_cut: usize,
+        max_cut: MaxCut,
     }
 
     impl PolicyStore for SeqPolicyStore {
@@ -562,7 +568,7 @@ mod test {
     }
 
     impl SeqCommand {
-        fn new(id: CmdId, prior: Prior<Address>, max_cut: usize) -> Self {
+        fn new(id: CmdId, prior: Prior<Address>, max_cut: MaxCut) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
@@ -573,7 +579,7 @@ mod test {
             }
         }
 
-        fn finalize(id: CmdId, prev: Address, max_cut: usize) -> Self {
+        fn finalize(id: CmdId, prev: Address, max_cut: MaxCut) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
@@ -624,7 +630,7 @@ mod test {
             self.data.as_bytes()
         }
 
-        fn max_cut(&self) -> Result<usize, Bug> {
+        fn max_cut(&self) -> Result<MaxCut, Bug> {
             Ok(self.max_cut)
         }
     }
@@ -642,7 +648,7 @@ mod test {
     struct GraphBuilder<SP: StorageProvider> {
         client: ClientState<SeqPolicyStore, SP>,
         trx: Transaction<SP, SeqPolicyStore>,
-        max_cuts: HashMap<CmdId, usize>,
+        max_cuts: HashMap<CmdId, MaxCut>,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
@@ -654,6 +660,7 @@ mod test {
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {
+                let max_cut = MaxCut(max_cut);
                 let cmd = SeqCommand::new(id, prior, max_cut);
                 trx.add_commands(
                     &[cmd],
@@ -758,11 +765,9 @@ mod test {
                     .unwrap()
                     .write(p)
                     .unwrap();
-                let head = seg.head().unwrap();
-                self.trx.heads.insert(
-                    head.address().expect("address must exist"),
-                    seg.head_location(),
-                );
+                self.trx
+                    .heads
+                    .insert(seg.head_id(), seg.head_location().unwrap());
             }
         }
 
@@ -831,7 +836,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "simple");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(5, 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(5), MaxCut(3))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -865,7 +873,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "complex");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(15, 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(15), MaxCut(15))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -898,7 +909,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "duplicates");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(2, 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(2), MaxCut(4))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -921,7 +935,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_1");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(3, 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(3), MaxCut(7))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -944,7 +961,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_2");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(3, 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(3), MaxCut(7))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -970,7 +990,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "finalize_success");
 
-        assert_eq!(g.get_head().unwrap(), Location::new(5, 0));
+        assert_eq!(
+            g.get_head().unwrap(),
+            Location::new(SegmentIndex(5), MaxCut(9))
+        );
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
