@@ -6,9 +6,19 @@ use aranya_policy_module::{Instruction, Label, ModuleV0, Target};
 pub use error::TraceError;
 use error::TraceErrorType;
 
-/// Failed results from one analyzer on one code path
+/// Failure level of a trace issue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FailureLevel {
+    /// A potential issue, but not fatal.
+    Warning,
+    /// An error that indicates a failure.
+    Error,
+}
+/// Issue found from one analyzer on one code path
 #[derive(Debug, Clone)]
-pub struct TraceFailure {
+pub struct TraceIssue {
+    /// The level of this failure.
+    pub level: FailureLevel,
     /// The sequence of instructions that produced this failure. The last instruction is not
     /// necessarily the instruction responsible for the failure.
     pub instruction_path: Vec<usize>,
@@ -29,7 +39,7 @@ pub struct TraceFailure {
 ///     .add_analyzer(FinishAnalyzer::new())
 ///     .add_analyzer(ValueAnalyzer::new(["this", "envelope"]))
 ///     .build()
-/// let failures = tracer.trace(Label::new("Init", LabelType::CommandPolicy))?;
+/// let issues = tracer.trace(Label::new("Init", LabelType::CommandPolicy))?;
 /// ```
 pub struct TraceAnalyzerBuilder<'a> {
     m: &'a ModuleV0,
@@ -88,7 +98,7 @@ pub struct TraceAnalyzer<'a> {
 
 /// Organizes intermediate results as the tracer recurses along code paths.
 struct TraceIntermediate {
-    failures: Vec<Vec<TraceFailure>>,
+    issues: Vec<Vec<TraceIssue>>,
     successful_branch_paths: Vec<Vec<usize>>,
 }
 
@@ -103,7 +113,7 @@ impl TraceAnalyzer<'_> {
     /// A [`TraceFailure`] is a failure in the code being analyzed. A [`TraceError`] is an
     /// error in the tracing process itself. e.g., if a `Label` was given that didn't exist,
     /// that would be a [`TraceError`].
-    pub fn trace(self, start: &Label) -> Result<Vec<TraceFailure>, TraceError> {
+    pub fn trace(self, start: &Label) -> Result<Vec<TraceIssue>, TraceError> {
         match self.ct.labels.get(start) {
             Some(pc) => self.trace_pc(*pc),
             None => Err(self.trace_err(TraceErrorType::BadLabel(start.clone()))),
@@ -111,35 +121,35 @@ impl TraceAnalyzer<'_> {
     }
 
     /// Same as [`trace`](Self::trace), but starting at an address instead of a `Label`.
-    pub fn trace_pc(mut self, start: usize) -> Result<Vec<TraceFailure>, TraceError> {
+    pub fn trace_pc(mut self, start: usize) -> Result<Vec<TraceIssue>, TraceError> {
         self.tracer_enable = vec![true; self.analyzers.len()];
         let TraceIntermediate {
-            mut failures,
+            mut issues,
             mut successful_branch_paths,
         } = self.trace_inner(start)?;
         successful_branch_paths.sort();
         successful_branch_paths.dedup();
 
-        self.post_analyze(&mut failures, &successful_branch_paths);
+        self.post_analyze(&mut issues, &successful_branch_paths);
 
-        // Flatten failures into a single list
-        let mut failures: Vec<TraceFailure> = failures.into_iter().flatten().collect();
+        // Flatten issues into a single list
+        let mut issues: Vec<TraceIssue> = issues.into_iter().flatten().collect();
 
-        // Multiple paths may give us the same failures. Sort them by responsible
+        // Multiple paths may give us the same issues. Sort them by responsible
         // instruction and consider them identical if they have the same message.
-        failures.sort_by(|a, b| a.responsible_instruction.cmp(&b.responsible_instruction));
-        failures.dedup_by(|a, b| {
+        issues.sort_by(|a, b| a.responsible_instruction.cmp(&b.responsible_instruction));
+        issues.dedup_by(|a, b| {
             a.message == b.message && a.responsible_instruction == b.responsible_instruction
         });
 
-        Ok(failures)
+        Ok(issues)
     }
 
     fn trace_inner(&mut self, entry: usize) -> Result<TraceIntermediate, TraceError> {
         let mut pc = entry;
-        // Failures are organized by which analyzer produced them, so we can hand them back
+        // Issues are organized by which analyzer produced them, so we can hand them back
         // for post-analysis.
-        let mut failures = vec![vec![]; self.analyzers.len()];
+        let mut issues = vec![vec![]; self.analyzers.len()];
         // Keep track of all the branches from paths that didn't fail, for use by
         // post-analysis.
         let mut successful_branch_paths = vec![];
@@ -159,8 +169,17 @@ impl TraceAnalyzer<'_> {
                     self.tracer_enable[index] = false;
                 }
                 match astatus {
+                    AnalyzerStatus::Warning(s) => {
+                        issues[index].push(TraceIssue {
+                            level: FailureLevel::Warning,
+                            instruction_path: self.instruction_path.clone(),
+                            responsible_instruction: pc,
+                            message: s,
+                        });
+                    }
                     AnalyzerStatus::Failed(s) | AnalyzerStatus::Halted(s) => {
-                        failures[index].push(TraceFailure {
+                        issues[index].push(TraceIssue {
+                            level: FailureLevel::Error,
                             instruction_path: self.instruction_path.clone(),
                             responsible_instruction: pc,
                             message: s,
@@ -185,11 +204,11 @@ impl TraceAnalyzer<'_> {
                         .ok_or_else(|| self.trace_err(TraceErrorType::Bug))?;
                     let mut jump_tracer = self.clone();
                     let TraceIntermediate {
-                        failures: jump_failures,
+                        issues: jump_failures,
                         successful_branch_paths: mut success_branches,
                     } = jump_tracer.trace_inner(jump_pc)?;
                     for (idx, mut jf) in jump_failures.into_iter().enumerate() {
-                        failures[idx].append(&mut jf);
+                        issues[idx].append(&mut jf);
                         successful_branch_paths.append(&mut success_branches);
                     }
                 }
@@ -211,7 +230,7 @@ impl TraceAnalyzer<'_> {
                         // Exit on empty return
                         successful_branch_paths.push(self.branches.clone());
                         return Ok(TraceIntermediate {
-                            failures,
+                            issues,
                             successful_branch_paths,
                         });
                     }
@@ -220,7 +239,7 @@ impl TraceAnalyzer<'_> {
                 Instruction::Exit(_) => {
                     successful_branch_paths.push(self.branches.clone());
                     return Ok(TraceIntermediate {
-                        failures,
+                        issues,
                         successful_branch_paths,
                     });
                 }
@@ -254,11 +273,11 @@ impl TraceAnalyzer<'_> {
 
     fn post_analyze(
         &mut self,
-        failures: &mut [Vec<TraceFailure>],
+        issues: &mut [Vec<TraceIssue>],
         successful_branch_paths: &[Vec<usize>],
     ) {
-        for (analyzer, failures) in self.analyzers.iter_mut().zip(failures.iter_mut()) {
-            analyzer.post_analyze(failures, successful_branch_paths);
+        for (analyzer, issues) in self.analyzers.iter_mut().zip(issues.iter_mut()) {
+            analyzer.post_analyze(issues, successful_branch_paths);
         }
     }
 }

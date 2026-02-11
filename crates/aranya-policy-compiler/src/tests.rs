@@ -2758,12 +2758,20 @@ fn test_validate_return() {
 
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(
+            validate(&m).is_valid(true),
+            "Expected case to be valid: {}",
+            p
+        );
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(
+            !validate(&m).is_valid(true),
+            "Expected case to be invalid: {}",
+            p
+        );
     }
 }
 
@@ -2868,12 +2876,20 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(
+            validate(&m).is_valid(true),
+            "Expected case to be valid: {}",
+            p
+        );
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(
+            !validate(&m).is_valid(true),
+            "Expected case to be invalid: {}",
+            p
+        );
     }
 }
 
@@ -3490,7 +3506,7 @@ fn test_unused_values() {
                 return 0
             }
             "#,
-            "unused variable(s): x",
+            "f: unused variable(s): `x`",
         ),
         (
             r#"
@@ -3502,7 +3518,7 @@ fn test_unused_values() {
                 return 0  // c is unused
             }
             "#,
-            "unused variable(s): c",
+            "g: unused variable(s): `c`",
         ),
         (
             r#"
@@ -3515,7 +3531,7 @@ fn test_unused_values() {
                 return a
             }
             "#,
-            "unused variable(s): x",
+            "bar: unused variable(s): `x`",
         ),
         (
             r#"
@@ -3527,7 +3543,7 @@ fn test_unused_values() {
                 return y
             }
             "#,
-            "unused variable(s): x, z",
+            "baz: unused variable(s): `x`, `z`",
         ),
         (
             r#"
@@ -3536,7 +3552,7 @@ fn test_unused_values() {
                 return 42
             }
             "#,
-            "unused variable(s): x",
+            "f: unused variable(s): `x`",
         ),
         (
             r#"
@@ -3545,7 +3561,7 @@ fn test_unused_values() {
                 return y
             }
             "#,
-            "unused variable(s): x, z",
+            "g: unused variable(s): `z`, `x`", // NOTE arg values are popped in reverse order
         ),
         (
             r#"
@@ -3567,7 +3583,22 @@ fn test_unused_values() {
                 return x
             }
             "#,
-            "unused variable(s): y",
+            "qux: unused variable(s): `y`",
+        ),
+        (
+            r#"
+            function f(n int) int {
+                let a = n
+                let b = saturating_add(n, 1)
+                if n > 0 {
+                    return a // b unused here
+                }
+                else {
+                    return b // a unused here
+                }
+            }
+            "#,
+            "f: unused variable(s): `a`, `b`",
         ),
     ];
 
@@ -3576,17 +3607,26 @@ fn test_unused_values() {
         let module = Compiler::new(&policy).compile().expect("should compile");
 
         if expected_msg.is_empty() {
-            // This case should NOT fail validation
+            let result = validate(&module);
             assert!(
-                !validate(&module),
-                "case #{i} should not have validation errors"
+                result.is_valid(true),
+                "case #{i} should have no validation errors, but got: {:?}",
+                result.num_errors
             );
         } else {
             // This case SHOULD fail validation
+            let result = validate(&module);
             assert!(
-                validate(&module),
-                "expected validation error for unused variable in case #{i}"
+                result.num_errors == 0 && result.num_warnings > 0,
+                "case #{i} should have passed, but got {} error(s) and {} warning(s)",
+                result.num_errors,
+                result.num_warnings,
             );
+            // assert_eq!(
+            //     &result.warnings[0].as_str(),
+            //     expected_msg,
+            //     "case #{i} should have expected unused variable warning"
+            // );
         }
     }
 }
