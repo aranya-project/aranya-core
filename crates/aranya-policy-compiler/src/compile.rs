@@ -20,7 +20,9 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
+    Meta, Module, Struct, Target, Value,
+    ffi::{self, ModuleSchema},
+    named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
@@ -1576,41 +1578,22 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn check_duplicate_structs(&mut self) -> Result<(), CompileError> {
-        let effect_idents = self.policy.effects.iter().map(|def| &def.identifier.name);
-        let fact_idents = self.policy.facts.iter().map(|def| &def.identifier.name);
-        let ffi_struct_idents = self
-            .ffi_modules
-            .iter()
-            .flat_map(|ffi_mod| ffi_mod.structs.iter().map(|def| &def.name));
-        let command_idents = self.policy.commands.iter().map(|def| &def.identifier.name);
-
-        let struct_idents = self
-            .policy
-            .structs
-            .iter()
-            .map(|def| &def.identifier.name)
-            .chain(effect_idents)
-            .chain(fact_idents)
-            .chain(ffi_struct_idents)
-            .chain(command_idents);
-
-        let mut unique_idents = HashSet::new();
-
-        for ident in struct_idents {
-            // TODO(Steve): Use a type that has span information so a better error message can be created
-            // when duplicate type defintions are found.
-            if !unique_idents.insert(ident) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
-            }
-        }
-
-        Ok(())
-    }
-
     fn sorted_type_definitions(
         &self,
     ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
+        // TODO(Steve): Use span information so a better error message can be created
+        let mut type_defs: HashMap<&Identifier, _> = HashMap::new();
+        let mut insert_type_def = |ident, def| {
+            // Check for duplicate type names.
+            // struct Foo { .. }
+            // effect Foo { .. }
+            if type_defs.insert(ident, def).is_some() {
+                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
+            }
+
+            Ok(())
+        };
+
         let mut topo = TopoSort::new();
 
         fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
@@ -1625,8 +1608,10 @@ impl<'a> CompileState<'a> {
         // Create dependency graph.
         for struct_def in &self.policy.structs {
             let deps = struct_def.items.iter().filter_map(extract_struct_ident);
+            let ident = &struct_def.identifier.name;
 
-            topo.insert(&struct_def.identifier.name, deps);
+            insert_type_def(ident, UserType::Struct(struct_def))?;
+            topo.insert(ident, deps);
         }
 
         for effect_def in &self.policy.effects {
@@ -1636,89 +1621,59 @@ impl<'a> CompileState<'a> {
                 // { field_name struct Foo }
                 StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
             });
+            let ident = &effect_def.identifier.name;
 
-            topo.insert(&effect_def.identifier.name, deps);
+            insert_type_def(ident, UserType::Effect(effect_def))?;
+            topo.insert(ident, deps);
         }
 
         for fact_def in &self.policy.facts {
             let deps = fact_def
                 .fields()
                 .filter_map(|def| def.field_type.as_struct().map(|ident| &ident.name));
+            let ident = &fact_def.identifier.name;
 
-            topo.insert(&fact_def.identifier.name, deps);
+            insert_type_def(ident, UserType::Fact(fact_def))?;
+            topo.insert(ident, deps);
         }
 
         for command_def in &self.policy.commands {
             let deps = command_def.fields.iter().filter_map(extract_struct_ident);
+            let ident = &command_def.identifier.name;
 
-            topo.insert(&command_def.identifier.name, deps);
+            insert_type_def(ident, UserType::Command(command_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for ffi_mod in self.ffi_modules {
+            for ffi_struct_def in ffi_mod.structs {
+                let deps = ffi_struct_def
+                    .fields
+                    .iter()
+                    // struct field insertion is not implemented for FFI structs so we can't check for it
+                    .filter_map(|field| match field.vtype {
+                        ffi::Type::Struct(ref ident) => Some(ident),
+                        _ => None,
+                    });
+                let ident = &ffi_struct_def.name;
+
+                insert_type_def(ident, UserType::FFIStruct(ffi_struct_def))?;
+                topo.insert(ident, deps);
+            }
         }
 
         let sorted_idents = topo.sort().map_err(|err| self.err(err.into()))?;
 
-        // TODO(Steve): Store hashmaps in `aranya_policy_ast::ast::Policy`'s fields to make this more efficient.
-        let sorted_defs = sorted_idents.into_iter().filter_map(|ident| {
-            let struct_type = self
-                .policy
-                .structs
-                .iter()
-                .find(|def| def.identifier.name == *ident)
-                .map(UserType::Struct);
-            let effect_type = self
-                .policy
-                .effects
-                .iter()
-                .find(|def| def.identifier.name == *ident)
-                .map(UserType::Effect);
-            let fact_type = self
-                .policy
-                .facts
-                .iter()
-                .find(|def| def.identifier.name == *ident)
-                .map(UserType::Fact);
-            let command_type = self
-                .policy
-                .commands
-                .iter()
-                .find(|def| def.identifier.name == *ident)
-                .map(UserType::Command);
-
-            struct_type.or(effect_type).or(fact_type).or(command_type)
-        });
+        let sorted_defs = sorted_idents
+            .into_iter()
+            .filter_map(move |ident| type_defs.remove(ident));
         Ok(sorted_defs)
     }
 
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
-        self.check_duplicate_structs()?;
-
         // map enum names to constants
         for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
-        }
-
-        // define the structs provided by FFI schema
-        // FFI structs have no dependencies on types defined in the policy, so compile them first.
-        for ffi_mod in self.ffi_modules {
-            for s in ffi_mod.structs {
-                let fields: Vec<StructItem<FieldDefinition>> = s
-                    .fields
-                    .iter()
-                    .map(|a| {
-                        StructItem::Field(FieldDefinition {
-                            identifier: Ident {
-                                name: a.name.clone(),
-                                span: Span::default(),
-                            },
-                            field_type: VType::from(&a.vtype),
-                        })
-                    })
-                    .collect();
-                let ident = Ident {
-                    name: s.name.clone(),
-                    span: Span::default(),
-                };
-                self.define_struct(ident, &fields)?;
-            }
         }
 
         // Compile user-defined types in order
@@ -1751,6 +1706,26 @@ impl<'a> CompileState<'a> {
                 }
                 UserType::Command(command) => {
                     self.define_struct(command.identifier.clone(), &command.fields)?;
+                }
+                UserType::FFIStruct(s) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = s
+                        .fields
+                        .iter()
+                        .map(|a| {
+                            StructItem::Field(FieldDefinition {
+                                identifier: Ident {
+                                    name: a.name.clone(),
+                                    span: Span::default(),
+                                },
+                                field_type: VType::from(&a.vtype),
+                            })
+                        })
+                        .collect();
+                    let ident = Ident {
+                        name: s.name.clone(),
+                        span: Span::default(),
+                    };
+                    self.define_struct(ident, &fields)?;
                 }
             }
         }

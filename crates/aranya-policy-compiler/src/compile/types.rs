@@ -4,6 +4,7 @@ use std::{
 };
 
 use aranya_policy_ast::{self as ast, FactLiteral, Identifier, NamedStruct, TypeKind, VType};
+use aranya_policy_module::ffi;
 
 use crate::{CompileError, CompileErrorType, compile::CompileState};
 
@@ -36,6 +37,7 @@ pub(crate) enum UserType<'a> {
     Fact(&'a ast::FactDefinition),
     Effect(&'a ast::EffectDefinition),
     Command(&'a ast::CommandDefinition),
+    FFIStruct(&'a ffi::Struct<'a>),
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
