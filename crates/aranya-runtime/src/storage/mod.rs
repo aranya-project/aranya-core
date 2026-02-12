@@ -23,7 +23,7 @@ pub use visited::CappedVisited;
 ///
 /// This bounds memory usage while allowing efficient traversal of graphs
 /// with many concurrent branches. Each entry stores three `usize` fields
-/// (segment_id, min_max_cut, highest_command_visited), so entry size is
+/// (segment_id, min_max_cut, highest_max_cut_visited), so entry size is
 /// `3 * size_of::<usize>()`: 24 bytes on 64-bit targets, 12 bytes on 32-bit.
 ///
 /// The capacity should accommodate the expected "active frontier" width
@@ -301,19 +301,19 @@ pub trait Storage {
         while let Some(loc) = queue.pop_front() {
             // Check visited status and determine search range
             let search_start = if let Some((_, highest)) = visited.get(loc.segment) {
-                if loc.max_cut.0 <= highest {
+                if loc.max_cut <= highest {
                     continue; // Already searched this entry point or higher
                 }
                 // Only search commands we haven't seen
-                highest.saturating_add(1)
+                highest.checked_add(1).unwrap_or(highest)
             } else {
-                0 // First visit - search from beginning
+                MaxCut(0) // First visit - search from beginning
             };
 
             // Must load segment
             let segment = self.get_segment(loc)?;
             let seg_min_max_cut = segment.shortest_max_cut();
-            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.max_cut.0);
+            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.max_cut);
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
@@ -327,7 +327,7 @@ pub trait Storage {
             // (which may be optimized), then fall back to range check
             if let Some(found) = segment.get_by_address(address) {
                 // Verify the found location is within our search range
-                if found.max_cut.0 >= search_start && found.max_cut <= loc.max_cut {
+                if found.max_cut >= search_start && found.max_cut <= loc.max_cut {
                     return Ok(Some(found));
                 }
             }
@@ -438,7 +438,7 @@ pub trait Storage {
 
             // Check if we can skip loading this segment entirely
             if let Some((_, highest)) = visited.get(loc.segment)
-                && loc.max_cut.0 <= highest
+                && loc.max_cut <= highest
             {
                 continue; // Already visited at this entry point or higher
             }
@@ -446,7 +446,7 @@ pub trait Storage {
             // Must load segment
             let seg = self.get_segment(loc)?;
             let seg_min_max_cut = seg.shortest_max_cut();
-            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.max_cut.0);
+            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.max_cut);
 
             // Prune: if target's max_cut is higher than this segment's highest,
             // the target cannot be in this segment or any of its ancestors.
