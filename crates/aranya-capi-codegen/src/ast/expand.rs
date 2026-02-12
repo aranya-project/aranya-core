@@ -457,8 +457,9 @@ impl Ast {
             .attrs
             .iter()
             .filter(|attr| {
+                let path = attr.path();
                 // TODO(eric): other attrs?
-                attr.path().is_ident("cfg")
+                path.is_ident("cfg") || path.is_ident("deprecated")
             })
             .chain(std::iter::once(&ctype_attr))
             .collect::<Vec<_>>();
@@ -698,6 +699,7 @@ impl Ast {
                     #[allow(clippy::match_single_binding)]
                     #[allow(clippy::semicolon_if_nothing_returned)]
                     #[allow(unused_braces)]
+                    #[allow(deprecated)]
                     match #unsafety { #orig(#(#args),*) } {
                         #[allow(clippy::useless_conversion)]
                         #[allow(clippy::unit_arg)]
