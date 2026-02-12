@@ -1,22 +1,19 @@
 //! Interface for syncing state between clients.
 
-use buggy::Bug;
-use postcard::Error as PostcardError;
-use serde::{Deserialize, Serialize};
-
-use crate::{
-    Address, MaxCut, Prior,
-    command::{CmdId, Command, Priority},
-    storage::{MAX_COMMAND_LENGTH, StorageError},
-};
-
+mod command;
 mod dispatcher;
 mod requester;
 mod responder;
 
-pub use dispatcher::{SubscribeResult, SyncHelloType, SyncType};
-pub use requester::{SyncRequestMessage, SyncRequester};
-pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
+use buggy::Bug;
+
+pub use self::{
+    command::{ArchivedSyncCommand, SyncCommand},
+    dispatcher::{SubscribeResult, SyncHelloType, SyncType},
+    requester::{SyncRequestMessage, SyncRequester},
+    responder::{PeerCache, SyncResponder, SyncResponseMessage},
+};
+use crate::{MAX_COMMAND_LENGTH, StorageError};
 
 // TODO: These should all be compile time parameters
 
@@ -36,12 +33,6 @@ const REQUEST_MISSING_MAX: usize = 1;
 #[cfg(not(feature = "low-mem-usage"))]
 const REQUEST_MISSING_MAX: usize = 100;
 
-/// The maximum number of commands in a response
-#[cfg(feature = "low-mem-usage")]
-pub const COMMAND_RESPONSE_MAX: usize = 5;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const COMMAND_RESPONSE_MAX: usize = 100;
-
 /// The maximum number of segments which can be stored to send
 #[cfg(feature = "low-mem-usage")]
 const SEGMENT_BUFFER_MAX: usize = 10;
@@ -49,29 +40,8 @@ const SEGMENT_BUFFER_MAX: usize = 10;
 const SEGMENT_BUFFER_MAX: usize = 100;
 
 /// The maximum size of a sync message
-// TODO: Use postcard to calculate max size (which accounts for overhead)
-// https://docs.rs/postcard/latest/postcard/experimental/max_size/index.html
-pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RESPONSE_MAX;
-
-/// Represents high-level data of a command.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CommandMeta {
-    id: CmdId,
-    priority: Priority,
-    parent: Prior<Address>,
-    policy_length: u32,
-    length: u32,
-    max_cut: MaxCut,
-}
-
-impl CommandMeta {
-    pub fn address(&self) -> Address {
-        Address {
-            id: self.id,
-            max_cut: self.max_cut,
-        }
-    }
-}
+// TODO(jdygert): Configurable and sent in request.
+pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * 100;
 
 /// An error returned by the syncer.
 #[derive(Debug, thiserror::Error)]
@@ -86,47 +56,14 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
+    #[error("target buffer is too small")]
+    BufferTooSmall,
+    #[error("could not access commands with rkyv")]
+    RkyvAccess(#[from] rkyv::rancor::Error),
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
     #[error("serialize error: {0}")]
-    Serialize(#[from] PostcardError),
+    Serialize(#[from] postcard::Error),
     #[error(transparent)]
     Bug(#[from] Bug),
-}
-
-/// Sync command to be committed to graph.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SyncCommand<'a> {
-    priority: Priority,
-    id: CmdId,
-    parent: Prior<Address>,
-    policy: Option<&'a [u8]>,
-    data: &'a [u8],
-    max_cut: MaxCut,
-}
-
-impl<'a> Command for SyncCommand<'a> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
-    fn id(&self) -> CmdId {
-        self.id
-    }
-
-    fn parent(&self) -> Prior<Address> {
-        self.parent
-    }
-
-    fn policy(&self) -> Option<&'a [u8]> {
-        self.policy
-    }
-
-    fn bytes(&self) -> &'a [u8] {
-        self.data
-    }
-
-    fn max_cut(&self) -> Result<MaxCut, Bug> {
-        Ok(self.max_cut)
-    }
 }
