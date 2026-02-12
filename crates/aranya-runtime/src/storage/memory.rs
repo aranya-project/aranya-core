@@ -6,8 +6,8 @@ use vec1::Vec1;
 
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider, TraversalBufferPair, TraversalBuffers,
+    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBufferPair, TraversalBuffers,
 };
 
 #[derive(Debug)]
@@ -17,11 +17,11 @@ pub struct MemCommand {
     parent: Prior<Address>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 impl MemCommand {
-    fn from_cmd<C: Command>(command: &C, max_cut: usize) -> Self {
+    fn from_cmd<C: Command>(command: &C, max_cut: MaxCut) -> Self {
         let policy = command.policy().map(Box::from);
 
         Self {
@@ -56,7 +56,7 @@ impl Command for MemCommand {
         &self.data
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
 }
@@ -89,10 +89,11 @@ impl StorageProvider for MemStorageProvider {
     ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
         use alloc::collections::btree_map::Entry;
 
-        if update.commands.is_empty() {
-            return Err(StorageError::EmptyPerspective);
-        }
-        let graph_id = GraphId::transmute(update.commands[0].command.id);
+        let first = update
+            .commands
+            .first()
+            .ok_or(StorageError::EmptyPerspective)?;
+        let graph_id = GraphId::transmute(first.command.id);
         let entry = match self.storage.entry(graph_id) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),
@@ -150,9 +151,9 @@ impl MemStorage {
         policy: PolicyId,
         mut commands: Vec1<CommandData>,
         facts: MemFactIndex,
-        max_cut: usize,
+        max_cut: MaxCut,
     ) -> Result<MemSegment, StorageError> {
-        let index = self.segments.len();
+        let index = SegmentIndex(self.segments.len());
 
         for (i, command) in commands.iter_mut().enumerate() {
             command.command.max_cut = max_cut.checked_add(i).assume("must not overflow")?;
@@ -195,11 +196,11 @@ impl Storage for MemStorage {
         let parent_addr = command.address()?;
 
         let policy = segment.policy;
-        let prior_facts: FactPerspectivePrior = if parent == segment.head_location() {
+        let prior_facts: FactPerspectivePrior = if parent == segment.head_location()? {
             segment.facts.clone().into()
         } else {
             let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
-            for data in &segment.commands[..=parent.command] {
+            for data in &segment.commands[..=segment.cmd_index(parent.max_cut)?] {
                 facts.apply_updates(&data.updates);
             }
             if facts.map.is_empty() {
@@ -229,14 +230,14 @@ impl Storage for MemStorage {
     ) -> Result<Self::FactPerspective, StorageError> {
         let segment = self.get_segment(location)?;
 
-        if location == segment.head_location()
+        if location == segment.head_location()?
             || segment.commands.iter().all(|cmd| cmd.updates.is_empty())
         {
             return Ok(MemFactPerspective::new(segment.facts.clone().into()));
         }
 
         let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
-        for data in &segment.commands[..=location.command] {
+        for data in &segment.commands[..=segment.cmd_index(location.max_cut)?] {
             facts.apply_updates(&data.updates);
         }
 
@@ -247,7 +248,7 @@ impl Storage for MemStorage {
         &self,
         left: Location,
         right: Location,
-        _last_common_ancestor: (Location, usize),
+        _last_common_ancestor: Location,
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Self::Perspective, StorageError> {
@@ -287,7 +288,7 @@ impl Storage for MemStorage {
 
     fn get_segment(&self, location: Location) -> Result<MemSegment, StorageError> {
         self.segments
-            .get(location.segment)
+            .get(location.segment.0)
             .ok_or(StorageError::SegmentOutOfBounds(location))
             .cloned()
     }
@@ -304,11 +305,11 @@ impl Storage for MemStorage {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let segment_index = self.segments.len();
+        let segment_index = SegmentIndex(self.segments.len());
 
         // Add the commands to the segment
-        for (command_index, data) in commands.iter().enumerate() {
-            let new_location = Location::new(segment_index, command_index);
+        for data in &commands {
+            let new_location = Location::new(segment_index, data.command.max_cut);
             self.commands.insert(data.command.id(), new_location);
         }
 
@@ -351,7 +352,7 @@ impl Storage for MemStorage {
             return Err(StorageError::HeadNotAncestor);
         }
 
-        self.head = Some(segment.head_location());
+        self.head = Some(segment.head_location()?);
         Ok(())
     }
 }
@@ -446,7 +447,7 @@ struct CommandData {
 
 #[derive(Debug)]
 pub struct MemSegmentInner {
-    index: usize,
+    index: SegmentIndex,
     prior: Prior<Location>,
     policy: PolicyId,
     commands: Vec1<CommandData>,
@@ -470,38 +471,33 @@ impl From<MemSegmentInner> for MemSegment {
     }
 }
 
+impl MemSegment {
+    fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
+        max_cut
+            .distance_from(self.shortest_max_cut())
+            .ok_or(StorageError::CommandOutOfBounds(Location::new(
+                self.index, max_cut,
+            )))
+    }
+}
+
 impl Segment for MemSegment {
     type FactIndex = MemFactIndex;
     type Command<'a> = &'a MemCommand;
 
-    fn head(&self) -> Result<&MemCommand, StorageError> {
-        Ok(&self.commands.last().command)
+    fn index(&self) -> SegmentIndex {
+        self.index
     }
 
-    fn first(&self) -> &MemCommand {
-        &self.commands.first().command
-    }
-
-    fn head_location(&self) -> Location {
-        Location {
-            segment: self.index,
-            command: self
-                .commands
-                .len()
-                .checked_sub(1)
-                .expect("commands.len() must be > 0"),
-        }
+    fn head_id(&self) -> CmdId {
+        self.commands.last().command.id
     }
 
     fn first_location(&self) -> Location {
         Location {
             segment: self.index,
-            command: 0,
+            max_cut: self.commands.first().command.max_cut,
         }
-    }
-
-    fn contains(&self, location: Location) -> bool {
-        location.segment == self.index
     }
 
     fn policy(&self) -> PolicyId {
@@ -517,39 +513,20 @@ impl Segment for MemSegment {
             return None;
         }
 
-        self.commands.get(location.command).map(|d| &d.command)
-    }
-
-    fn get_from(&self, location: Location) -> Vec<&MemCommand> {
-        if location.segment != self.index {
-            return Vec::new();
-        }
-
-        self.commands[location.command..]
-            .iter()
-            .map(|d| &d.command)
-            .collect()
-    }
-
-    fn get_by_address(&self, address: Address) -> Option<Location> {
         self.commands
-            .iter()
-            .position(|cmd| cmd.command.max_cut == address.max_cut && cmd.command.id == address.id)
-            .map(|i| Location {
-                segment: self.index,
-                command: i,
-            })
+            .get(self.cmd_index(location.max_cut).ok()?)
+            .map(|d| &d.command)
     }
 
-    fn longest_max_cut(&self) -> Result<usize, StorageError> {
+    fn longest_max_cut(&self) -> Result<MaxCut, StorageError> {
         Ok(self.commands.last().command.max_cut)
     }
 
-    fn shortest_max_cut(&self) -> usize {
-        self.commands[0].command.max_cut
+    fn shortest_max_cut(&self) -> MaxCut {
+        self.commands.first().command.max_cut
     }
 
-    fn skip_list(&self) -> &[(Location, usize)] {
+    fn skip_list(&self) -> &[Location] {
         &[]
     }
 
@@ -568,7 +545,7 @@ pub struct MemPerspective {
     facts: MemFactPerspective,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 #[derive(Debug)]
@@ -630,7 +607,7 @@ impl MemPerspective {
         parents: Prior<Address>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior,
-        max_cut: usize,
+        max_cut: MaxCut,
     ) -> Self {
         Self {
             prior,
@@ -651,7 +628,7 @@ impl MemPerspective {
             facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
             current_updates: Vec::new(),
-            max_cut: 0,
+            max_cut: MaxCut(0),
         }
     }
 }
@@ -816,7 +793,7 @@ pub mod graphviz {
 
     fn loc(location: impl Into<Location>) -> String {
         let location = location.into();
-        format!("\"{}:{}\"", location.segment, location.command)
+        format!("\"{}:{}\"", location.segment, location.max_cut)
     }
 
     fn get_seq(p: &MemFactIndex) -> &str {
@@ -859,7 +836,7 @@ pub mod graphviz {
             // Draw commands and edges between commands within the segment.
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
-                    let mut node = cluster.node_named(loc((segment.index, i)));
+                    let mut node = cluster.node_named(loc((segment.index, cmd.command.max_cut)));
                     node.set_label(&short_b58(cmd.command.id));
                     match cmd.command.parent {
                         Prior::None => {
@@ -872,8 +849,11 @@ pub mod graphviz {
                     }
                 }
                 if i > 0 {
-                    let previous = i.checked_sub(1).expect("i must be > 0");
-                    cluster.edge(loc((segment.index, i)), loc((segment.index, previous)));
+                    let previous = cmd.command.max_cut.decremented().expect("i must be > 0");
+                    cluster.edge(
+                        loc((segment.index, cmd.command.max_cut)),
+                        loc((segment.index, previous)),
+                    );
                 }
             }
 
@@ -892,7 +872,7 @@ pub mod graphviz {
                 .set("color", "black", false)
                 .set("style", "solid", false);
             cluster
-                .edge(loc(segment.head_location()), &curr)
+                .edge(loc(segment.head_location().unwrap()), &curr)
                 .attributes()
                 .set("color", "red", false);
 

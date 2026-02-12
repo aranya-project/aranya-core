@@ -57,7 +57,6 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
         let storage = provider.get_storage(graph_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
-        let command = seg.get_command(head_loc).assume("location must exist")?;
 
         let base_facts = seg.facts()?;
 
@@ -68,7 +67,7 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
             fact_log: Vec::new(),
             current_facts: Arc::default(),
             _policy_store: PhantomData,
-            head: command.address()?,
+            head: storage.get_head_address()?,
         };
 
         Ok(result)

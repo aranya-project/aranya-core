@@ -341,7 +341,8 @@ fn parse_command() -> Result<(), PestError<Rule>> {
             fields {
                 owner id,
             }
-
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create Foo[]=>{}

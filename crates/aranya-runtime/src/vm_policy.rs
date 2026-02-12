@@ -669,11 +669,11 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         };
         // FIXME(chip): This is kind of wrong, but it avoids having to
         // plumb `Option<CmdId>` into the VM and FFI
-        let ctx_parent = parent.unwrap_or_default();
+        let ctx_parent = parent.map(|a| a.id).unwrap_or_default();
         let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent.id,
+            head_id: ctx_parent,
         });
         let command_placement = match action_placement {
             ActionPlacement::OnGraph => CommandPlacement::OnGraphAtOrigin,

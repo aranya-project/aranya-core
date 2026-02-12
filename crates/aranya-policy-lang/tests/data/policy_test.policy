@@ -19,7 +19,8 @@ command Add {
     fields {
         count int
     }
-
+    seal { return todo() }
+    open { return todo() }
     policy {
         let envelope_id = envelope::command_id(envelope)
         let author = envelope::author_id(envelope)
@@ -85,6 +86,9 @@ ephemeral command C {
     fields {
         x int
     }
+    seal { return todo() }
+    open { return todo() }
+    policy {}
 }
 
 ephemeral action a() {}

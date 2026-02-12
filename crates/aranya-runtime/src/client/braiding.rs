@@ -1,10 +1,9 @@
 use alloc::vec::Vec;
 
-use buggy::BugExt as _;
 use tracing::trace;
 
 use crate::{
-    ClientError, Command as _, Location, Prior, Segment as _, Storage, storage::TraversalBufferPair,
+    ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBufferPair,
 };
 
 // Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
@@ -24,28 +23,25 @@ pub(super) fn last_common_ancestor<S: Storage>(
     storage: &mut S,
     left: Location,
     right: Location,
-) -> Result<(Location, usize), ClientError> {
+) -> Result<Location, ClientError> {
     trace!(%left, %right, "finding least common ancestor");
     let mut left = left;
     let mut right = right;
     while left != right {
         let left_seg = storage.get_segment(left)?;
-        let left_cmd = left_seg.get_command(left).assume("location must exist")?;
         let right_seg = storage.get_segment(right)?;
-        let right_cmd = right_seg.get_command(right).assume("location must exist")?;
         // The command with the lower max cut could be our least common ancestor
         // so we keeping following the command with the higher max cut until
         // both sides converge.
-        if left_cmd.max_cut()? > right_cmd.max_cut()? {
-            left = if let Some(previous) = left.previous() {
+        if left.max_cut > right.max_cut {
+            left = if let Some(previous) = left_seg.previous(left) {
                 previous
             } else {
                 match left_seg.prior() {
                     Prior::None => left,
                     Prior::Single(s) => s,
                     Prior::Merge(_, _) => {
-                        assert!(left.command == 0);
-                        if let Some((l, _)) = left_seg.skip_list().last() {
+                        if let Some(l) = left_seg.skip_list().last() {
                             // If the storage supports skip lists we return the
                             // last common ancestor of this command.
                             *l
@@ -53,21 +49,20 @@ pub(super) fn last_common_ancestor<S: Storage>(
                             // This case will only be hit if the storage doesn't
                             // support skip lists so we can return anything
                             // because it won't be used.
-                            return Ok((left, left_cmd.max_cut()?));
+                            return Ok(left);
                         }
                     }
                 }
             };
         } else {
-            right = if let Some(previous) = right.previous() {
+            right = if let Some(previous) = right_seg.previous(right) {
                 previous
             } else {
                 match right_seg.prior() {
                     Prior::None => right,
                     Prior::Single(s) => s,
                     Prior::Merge(_, _) => {
-                        assert!(right.command == 0);
-                        if let Some((r, _)) = right_seg.skip_list().last() {
+                        if let Some(r) = right_seg.skip_list().last() {
                             // If the storage supports skip lists we return the
                             // last common ancestor of this command.
                             *r
@@ -75,16 +70,14 @@ pub(super) fn last_common_ancestor<S: Storage>(
                             // This case will only be hit if the storage doesn't
                             // support skip lists so we can return anything
                             // because it won't be used.
-                            return Ok((right, right_cmd.max_cut()?));
+                            return Ok(right);
                         }
                     }
                 }
             };
         }
     }
-    let left_seg = storage.get_segment(left)?;
-    let left_cmd = left_seg.get_command(left).assume("location must exist")?;
-    Ok((left, left_cmd.max_cut()?))
+    Ok(left)
 }
 
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
@@ -108,11 +101,12 @@ pub(super) fn braid<S: Storage>(
     // Get latest command
     while let Some(strand) = strands.pop() {
         // Consume another command off the strand
-        let (prior, mut maybe_cached_segment) = if let Some(previous) = strand.next.previous() {
-            (Prior::Single(previous), Some(strand.segment))
-        } else {
-            (strand.segment.prior(), None)
-        };
+        let (prior, mut maybe_cached_segment) =
+            if let Some(previous) = strand.segment.previous(strand.next) {
+                (Prior::Single(previous), Some(strand.segment))
+            } else {
+                (strand.segment.prior(), None)
+            };
         if matches!(prior, Prior::Merge(..)) {
             trace!("skipping merge command");
         } else {
@@ -125,7 +119,7 @@ pub(super) fn braid<S: Storage>(
             for other in strands.iter() {
                 trace!("checking {}", other.next);
                 let same_segment_check =
-                    location.same_segment(other.next) && location.command <= other.next.command;
+                    location.same_segment(other.next) && location.max_cut <= other.next.max_cut;
                 if same_segment_check {
                     trace!("same segment");
                     continue 'location;
