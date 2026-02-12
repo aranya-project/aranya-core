@@ -339,11 +339,7 @@ where
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
 
-                response_syncer.poll(
-                    target,
-                    client.provider(),
-                    response_cache,
-                )?
+                response_syncer.poll(target, client.provider(), response_cache)?
             }
             SyncType::Subscribe {
                 remain_open,
@@ -437,10 +433,8 @@ where
             })?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = response_syncer.push(
-                &mut target,
-                self.client_state.lock().await.provider(),
-            )?;
+            let len =
+                response_syncer.push(&mut target, self.client_state.lock().await.provider())?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;

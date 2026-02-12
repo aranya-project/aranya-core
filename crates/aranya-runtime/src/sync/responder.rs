@@ -233,8 +233,7 @@ impl SyncResponder {
                         )?;
                     }
                 }
-                self.to_send =
-                    Self::find_needed_segments(&self.has, storage, &mut self.buffers)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage, &mut self.buffers)?;
 
                 self.get_next(target, provider)?
             }

@@ -941,11 +941,7 @@ fn sync<SP: StorageProvider>(
     let mut request_trx = request_state.transaction(graph_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, sent) = request_syncer.poll(
-        &mut buffer,
-        request_state.provider(),
-        request_cache,
-    )?;
+    let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];

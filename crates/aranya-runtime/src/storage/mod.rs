@@ -484,7 +484,6 @@ pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), Stora
         .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
-
 /// A segment is a nonempty sequence of commands persisted to storage.
 ///
 /// A segment can be one of three types. This might be encoded in a future version of the API.

@@ -2,9 +2,7 @@ use alloc::vec::Vec;
 
 use tracing::trace;
 
-use crate::{
-    ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBufferPair,
-};
+use crate::{ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBufferPair};
 
 // Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
 impl From<strand_heap::ParallelFinalize> for ClientError {
