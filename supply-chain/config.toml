@@ -317,6 +317,10 @@ criteria = "safe-to-run"
 version = "0.13.0"
 criteria = "safe-to-deploy"
 
+[[exemptions.fixedbitset]]
+version = "0.5.7"
+criteria = "safe-to-deploy"
+
 [[exemptions.fs_extra]]
 version = "1.3.0"
 criteria = "safe-to-deploy"
@@ -523,6 +527,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.pest_meta]]
 version = "2.7.15"
+criteria = "safe-to-deploy"
+
+[[exemptions.petgraph]]
+version = "0.8.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.pin-project-lite]]

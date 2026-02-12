@@ -32,7 +32,7 @@ fn compile_fail(text: &str) -> CompileErrorType {
         Err(err) => panic!("{err}"),
     };
     match Compiler::new(&policy).compile() {
-        Ok(_) => panic!("policy compilation should have failed"),
+        Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err.err_type(),
     }
 }
@@ -575,12 +575,14 @@ fn test_struct_field_insertion_errors() {
         ),
         (
             r#"struct Foo { +Foo }"#,
-            CompileErrorType::NotDefined("Foo".to_string()),
+            CompileErrorType::Unknown(
+                "Found cyclic dependencies when compiling structs:\n- [Foo]".to_string(),
+            ),
         ),
     ];
     for (text, err_type) in cases {
         let err = compile_fail(text);
-        assert_eq!(err, err_type);
+        assert_eq!(err, err_type, "{text}");
     }
 }
 
@@ -2934,6 +2936,63 @@ fn test_function_arguments_with_undefined_types() {
 }
 
 #[test]
+fn test_structs_with_undefined_types() {
+    let cases = [
+        (
+            r#"
+            fact Foo[]=>{ s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ s option[struct Unknown] }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { self_ref struct Bar }
+            "#,
+            CompileErrorType::Unknown(
+                "Found cyclic dependencies when compiling structs:\n- [Bar]".into(),
+            ),
+        ),
+        (
+            r#"
+            struct Bar { f int }
+            fact Foo[]=>{ s struct Unknown, b struct Bar, fi struct Fi }
+            struct Fi { s string }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
 fn test_substruct_errors() {
     struct Case {
         t: &'static str,
@@ -3316,3 +3375,141 @@ fn test_action_command_persistence() {
         assert_eq!(err, expected);
     }
 }
+
+#[test]
+fn test_structs_listed_out_of_order() {
+    let valid_cases = [
+        r#"
+            effect Fi { fum struct Fum }
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo {}
+        "#,
+        r#"
+            struct Fum { +Fi, +Foo }
+            effect Fi { s string }
+            fact Foo[x int]=>{ b bool }
+        "#,
+        r#"
+            function ret_bar() struct Bar {
+                let fum = Fum { b: true }
+                return Bar { s: "s", num: 1, f: fum }
+            }
+
+            struct Fum { b bool }
+            struct Bar { +Foo, num int, f struct Fum }
+            struct Foo { s string }
+
+        "#,
+        r#"
+            effect Fi { s struct Foo }
+            command Foo {
+                fields {
+                    i int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+        "#,
+    ];
+
+    let invalid_cases = [
+        (
+            r#"
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo { fum struct Fum } // cycle
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]",
+            )),
+            None,
+        ),
+        (
+            r#"
+            struct Fum { +Fi, +Foo }
+            effect Fi { s string }
+            fact Foo[x int]=>{ fum struct Fum } // cycle
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Foo, Fum]",
+            )),
+            None,
+        ),
+        (
+            r#"
+            effect Bar { s struct Co }
+            command Co {
+                fields {
+                    fi struct Bar, // cycle
+                    i int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Co, Bar]",
+            )),
+            None,
+        ),
+        (
+            r#" "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [FFIBar, FFIFoo]",
+            )),
+            Some(FFI_WITH_CYCLE),
+        ),
+    ];
+
+    for case in valid_cases {
+        compile_pass(case);
+    }
+
+    for (src, expected_err, maybe_ffi_modules) in invalid_cases {
+        // TODO: Use `compile_fail` here when FFI types are compiled conditionally.
+        // Types in FFI modules are compiled all the time so we can't add modules that contain compilation errors
+        // like `FFI_WITH_CYCLE` to every case.
+        let policy = match parse_policy_str(src, Version::V2) {
+            Ok(p) => p,
+            Err(err) => panic!("{err}"),
+        };
+        let err = match Compiler::new(&policy)
+            .ffi_modules(maybe_ffi_modules.unwrap_or(&[]))
+            .compile()
+        {
+            Ok(_) => panic!("policy compilation should have failed - src: {src}"),
+            Err(err) => err.err_type(),
+        };
+
+        assert_eq!(err, expected_err,);
+    }
+}
+
+const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
+    name: ident!("cyclic_types"),
+    functions: &[],
+    structs: &[
+        ffi::Struct {
+            name: ident!("FFIFoo"),
+            fields: &[ffi::Arg {
+                name: ident!("bar"),
+                vtype: ffi::Type::Struct(ident!("FFIBar")),
+            }],
+        },
+        ffi::Struct {
+            name: ident!("FFIBar"),
+            fields: &[ffi::Arg {
+                name: ident!("foo"),
+                vtype: ffi::Type::Struct(ident!("FFIFoo")),
+            }],
+        },
+    ],
+    enums: &[],
+}];
