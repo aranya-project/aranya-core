@@ -8,10 +8,10 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt as _};
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
-use crate::{Address, CmdId, Command, PolicyId, Prior};
+use crate::{Address, CmdId, Command, PolicyId, Prior, visited::Visitation};
 
 pub mod linear;
 pub mod memory;
@@ -295,59 +295,52 @@ pub trait Storage {
         address: Address,
         buffers: &mut TraversalBufferPair,
     ) -> Result<Option<Location>, StorageError> {
+        if start.max_cut < address.max_cut {
+            return Ok(None);
+        }
+
         let (visited, queue) = buffers.get();
         push_queue(queue, start)?;
 
         while let Some(loc) = queue.pop_front() {
-            // Check visited status and determine search range
-            let search_start = if let Some((_, highest)) = visited.get(loc.segment) {
-                if loc.max_cut <= highest {
-                    continue; // Already searched this entry point or higher
-                }
-                // Only search commands we haven't seen
-                highest.checked_add(1).unwrap_or(highest)
-            } else {
-                MaxCut(0) // First visit - search from beginning
+            debug_assert!(
+                loc.max_cut >= address.max_cut,
+                "Invariant: we only enqueue locations with at least the target max cut"
+            );
+
+            let is_new_segment = match visited.visit(loc) {
+                Visitation::Covered => continue,
+                Visitation::Partial => false,
+                Visitation::New => true,
             };
 
             // Must load segment
             let segment = self.get_segment(loc)?;
-            let seg_min_max_cut = segment.shortest_max_cut();
-            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.max_cut);
 
-            // Prune: if target's max_cut is higher than this segment's highest,
-            // the target cannot be in this segment or any of its ancestors.
-            let segment_max_cut = segment.longest_max_cut()?;
-            if address.max_cut > segment_max_cut {
-                continue;
+            // Search commands in this segment.
+            if let Some(found) = segment.get_by_address(address) {
+                return Ok(Some(found));
             }
 
-            // Search commands from search_start to loc.max_cut (inclusive)
-            // Check if target is in this segment using get_by_address first
-            // (which may be optimized), then fall back to range check
-            if let Some(found) = segment.get_by_address(address) {
-                // Verify the found location is within our search range
-                if found.max_cut >= search_start && found.max_cut <= loc.max_cut {
-                    return Ok(Some(found));
-                }
+            if !is_new_segment {
+                continue;
             }
 
             // Try to use skip list to jump directly backward.
             // Skip list is sorted by max_cut ascending, so first valid skip
             // jumps as far back as possible.
-            let mut used_skip = false;
-            for skip in segment.skip_list() {
-                if skip.max_cut >= address.max_cut {
-                    push_queue(queue, *skip)?;
-                    used_skip = true;
-                    break;
-                }
-            }
-
-            if !used_skip {
+            if let Some(&skip) = segment
+                .skip_list()
+                .iter()
+                .find(|skip| skip.max_cut >= address.max_cut)
+            {
+                push_queue(queue, skip)?;
+            } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
-                    push_queue(queue, prior)?;
+                    if prior.max_cut >= address.max_cut {
+                        push_queue(queue, prior)?;
+                    }
                 }
             }
         }
@@ -418,58 +411,52 @@ pub trait Storage {
         segment: &Self::Segment,
         buffers: &mut TraversalBufferPair,
     ) -> Result<bool, StorageError> {
-        let search_segment = self.get_segment(search_location)?;
-        let address = search_segment
-            .get_command(search_location)
-            .assume("location must exist")?
-            .address()?;
-
         let (visited, queue) = buffers.get();
         for prior in segment.prior() {
-            push_queue(queue, prior)?;
+            if prior.max_cut >= search_location.max_cut {
+                push_queue(queue, prior)?;
+            }
         }
 
         while let Some(loc) = queue.pop_front() {
-            // Check if we've found the target BEFORE visited check
-            // This ensures entering a segment at different commands works correctly
-            if loc.segment == search_location.segment && loc.max_cut >= search_location.max_cut {
+            debug_assert!(
+                loc.max_cut >= search_location.max_cut,
+                "Invariant: we only enqueue locations with at least the target max cut"
+            );
+
+            let is_new_segment = match visited.visit(loc) {
+                Visitation::Covered => continue,
+                Visitation::Partial => false,
+                Visitation::New => true,
+            };
+
+            // Must load segment
+            let segment = self.get_segment(loc)?;
+
+            // Search commands in this segment.
+            if segment.get_command(search_location).is_some() {
                 return Ok(true);
             }
 
-            // Check if we can skip loading this segment entirely
-            if let Some((_, highest)) = visited.get(loc.segment)
-                && loc.max_cut <= highest
-            {
-                continue; // Already visited at this entry point or higher
-            }
-
-            // Must load segment
-            let seg = self.get_segment(loc)?;
-            let seg_min_max_cut = seg.shortest_max_cut();
-            visited.insert_or_update(loc.segment, seg_min_max_cut, loc.max_cut);
-
-            // Prune: if target's max_cut is higher than this segment's highest,
-            // the target cannot be in this segment or any of its ancestors.
-            if address.max_cut > seg.longest_max_cut()? {
+            if !is_new_segment {
                 continue;
             }
 
             // Try to use skip list to jump directly backward.
             // Skip list is sorted by max_cut ascending, so first valid skip
             // jumps as far back as possible.
-            let mut used_skip = false;
-            for skip in seg.skip_list() {
-                if skip.max_cut >= address.max_cut {
-                    push_queue(queue, *skip)?;
-                    used_skip = true;
-                    break;
-                }
-            }
-
-            if !used_skip {
+            if let Some(&skip) = segment
+                .skip_list()
+                .iter()
+                .find(|skip| skip.max_cut >= search_location.max_cut)
+            {
+                push_queue(queue, skip)?;
+            } else {
                 // No valid skip - add prior locations to queue
-                for prior in seg.prior() {
-                    push_queue(queue, prior)?;
+                for prior in segment.prior() {
+                    if prior.max_cut >= search_location.max_cut {
+                        push_queue(queue, prior)?;
+                    }
                 }
             }
         }

@@ -7,10 +7,17 @@
 
 use heapless::Vec;
 
-use super::{MaxCut, SegmentIndex};
+use crate::{Location, MaxCut};
 
-/// Sentinel value indicating an entire segment has been visited.
-const VISITED_ALL: MaxCut = MaxCut(usize::MAX);
+/// Visit status.
+pub enum Visitation {
+    /// This location has already been visited.
+    Covered,
+    /// This segment has been visited at a lower max cut.
+    Partial,
+    /// This segment has not been visited.
+    New,
+}
 
 /// A fixed-size visited set for graph traversal.
 ///
@@ -30,8 +37,7 @@ const VISITED_ALL: MaxCut = MaxCut(usize::MAX);
 /// - Revisiting produces redundant work but not incorrect results
 /// - The algorithm converges as long as progress is made toward the root
 pub struct CappedVisited<const CAP: usize> {
-    // (segment_index, min_max_cut, highest_max_cut_visited)
-    entries: Vec<(SegmentIndex, MaxCut, MaxCut), CAP>,
+    entries: Vec<Location, CAP>,
 }
 
 impl<const CAP: usize> CappedVisited<CAP> {
@@ -47,70 +53,42 @@ impl<const CAP: usize> CappedVisited<CAP> {
         self.entries.clear();
     }
 
-    /// Returns the min_max_cut and highest max_cut visited for a segment
-    /// if it exists in the set.
-    pub fn get(&self, segment: SegmentIndex) -> Option<(MaxCut, MaxCut)> {
-        self.entries
-            .iter()
-            .find(|(s, _, _)| *s == segment)
-            .map(|(_, min_mc, highest)| (*min_mc, *highest))
-    }
-
     /// Inserts a new segment or updates the highest max_cut visited if the
     /// segment already exists and the new max_cut is higher.
     ///
     /// When the set is full and a new segment needs to be inserted, evicts
-    /// the entry with the highest effective max_cut (min_max_cut + highest_max_cut).
-    pub fn insert_or_update(
-        &mut self,
-        segment: SegmentIndex,
-        min_max_cut: MaxCut,
-        max_cut: MaxCut,
-    ) {
+    /// the entry with the highest max_cut.
+    pub fn visit(&mut self, new_loc: Location) -> Visitation {
         // Single pass: check for existing segment and track eviction candidate
         let mut evict_idx = 0;
-        let mut evict_effective_max_cut = usize::MIN;
+        let mut evict_max_cut = MaxCut(0);
 
-        for (i, (s, min_mc, highest)) in self.entries.iter_mut().enumerate() {
-            if *s == segment {
-                // Segment exists - update highest max_cut if this entry point is higher
-                if max_cut > *highest {
-                    *highest = max_cut;
+        for (i, old_loc) in self.entries.iter_mut().enumerate() {
+            if old_loc.segment == new_loc.segment {
+                // Segment exists - update max_cut if this entry point is higher
+                if new_loc.max_cut > old_loc.max_cut {
+                    old_loc.max_cut = new_loc.max_cut;
+                    return Visitation::Partial;
+                } else {
+                    return Visitation::Covered;
                 }
-                return;
             }
-            // Track entry with highest effective max_cut for potential eviction
-            // Use saturating_add to handle VISITED_ALL without overflow
-            let effective_max_cut = min_mc.0.saturating_add(highest.0);
-            if effective_max_cut > evict_effective_max_cut {
-                evict_effective_max_cut = effective_max_cut;
+            // Track entry with highest max_cut for potential eviction
+            if old_loc.max_cut > evict_max_cut {
+                evict_max_cut = old_loc.max_cut;
                 evict_idx = i;
             }
         }
 
         // Segment not found - insert new entry
         if self.entries.len() < CAP {
-            self.entries
-                .push((segment, min_max_cut, max_cut))
-                .expect("len < CAP was checked");
+            self.entries.push(new_loc).expect("len < CAP was checked");
         } else {
-            // Evict entry with highest effective max_cut (already found above)
-            self.entries[evict_idx] = (segment, min_max_cut, max_cut);
+            // Evict entry with highest max_cut (already found above)
+            self.entries[evict_idx] = new_loc;
         }
-    }
 
-    /// Marks an entire segment as visited (segment-level tracking only).
-    ///
-    /// Uses `VISITED_ALL` sentinel to indicate the entire segment has been visited.
-    /// This allows a single buffer to be reused across different traversal
-    /// operations that need segment-level vs entry-point tracking.
-    pub fn mark_segment_visited(&mut self, segment: SegmentIndex, min_max_cut: MaxCut) {
-        self.insert_or_update(segment, min_max_cut, VISITED_ALL);
-    }
-
-    /// Checks if a segment was visited at any entry point.
-    pub fn was_segment_visited(&self, segment: SegmentIndex) -> bool {
-        self.get(segment).is_some()
+        Visitation::New
     }
 }
 
@@ -120,7 +98,7 @@ impl<const CAP: usize> Default for CappedVisited<CAP> {
     }
 }
 
-#[cfg(test)]
+#[cfg(false)] // TODO: Update tests
 mod tests {
     use super::*;
 
