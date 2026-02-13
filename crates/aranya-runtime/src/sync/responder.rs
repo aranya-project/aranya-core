@@ -394,12 +394,15 @@ impl SyncResponder {
                 continue;
             }
 
-            for prior in segment.prior() {
-                push_queue(queue, prior)?;
-            }
-
             if result.is_full() {
                 result.pop_back();
+            }
+
+            for prior in segment.prior() {
+                if queue.is_full() {
+                    queue.pop_front();
+                }
+                push_queue(queue, prior)?;
             }
 
             let location = segment.first_location();
