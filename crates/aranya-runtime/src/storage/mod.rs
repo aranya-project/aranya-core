@@ -22,15 +22,15 @@ pub use visited::CappedVisited;
 /// Default capacity for the visited segment cache used in graph traversal.
 ///
 /// This bounds memory usage while allowing efficient traversal of graphs
-/// with many concurrent branches. Each entry stores three `usize` fields
-/// (segment_id, min_max_cut, highest_max_cut_visited), so entry size is
-/// `3 * size_of::<usize>()`: 24 bytes on 64-bit targets, 12 bytes on 32-bit.
+/// with many concurrent branches. Each entry stores one `usize` field
+/// (segment_id), so entry size is `size_of::<usize>()`:
+/// 24 bytes on 64-bit targets, 12 bytes on 32-bit.
 ///
 /// The capacity should accommodate the expected "active frontier" width
 /// during backward traversal, which is bounded by peer count. Recommended:
-/// - Embedded (small): 64 entries (~0.75 KB on 32-bit, ~1.5 KB on 64-bit)
-/// - Standard embedded: 256 entries (~3 KB on 32-bit, ~6 KB on 64-bit)
-/// - Server: 512 entries (~6 KB on 32-bit, ~12 KB on 64-bit)
+/// - Embedded (small): 64 entries (~0.25 KB on 32-bit, ~0.5 KB on 64-bit)
+/// - Standard embedded: 256 entries (~1 KB on 32-bit, ~2 KB on 64-bit)
+/// - Server: 512 entries (~2 KB on 32-bit, ~4 KB on 64-bit)
 ///
 /// If capacity is exceeded, the algorithm remains correct but may revisit
 /// segments (producing redundant work, not incorrect results).
