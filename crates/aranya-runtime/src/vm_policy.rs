@@ -27,7 +27,7 @@
 //! let (eng, _) = DefaultEngine::from_entropy(Rng);
 //! // Create a list of FFI module implementations
 //! let ffi_modules = vec![Box::from(TestFfiEnvelope {
-//!     device: DeviceId::random(&mut Rng),
+//!     device: DeviceId::random(Rng),
 //! })];
 //! // And finally, create the VmPolicy
 //! let policy = VmPolicy::new(machine, eng, ffi_modules).unwrap();
@@ -126,7 +126,6 @@ use aranya_policy_vm::{
     ast::{Identifier, Persistence},
 };
 use buggy::{BugExt as _, bug};
-use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
@@ -194,7 +193,7 @@ macro_rules! vm_effect {
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<CE> {
     machine: Machine,
-    engine: Mutex<CE>,
+    engine: CE,
     ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
@@ -209,7 +208,7 @@ impl<CE> VmPolicy<CE> {
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
-            engine: Mutex::new(engine),
+            engine,
             ffis,
             priority_map,
         })

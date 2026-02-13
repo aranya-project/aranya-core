@@ -324,7 +324,7 @@ macro_rules! keypair {
         impl<CS: $crate::CipherSuite> $sk<CS> {
             /// Creates a random
             #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
-            pub fn new<R: $crate::Csprng>(rng: &mut R) -> Self {
+            pub fn new<R: $crate::Csprng>(rng: R) -> Self {
                 Self::from_inner($crate::Random::random(rng))
             }
 

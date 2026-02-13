@@ -29,7 +29,7 @@ pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
@@ -566,7 +566,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             .map_err(|_| StorageError::EmptyPerspective)?;
 
         let get_skips = |l: Location, count: usize| -> Result<Vec<Location>, StorageError> {
-            let mut rng = &mut Rng as &mut dyn Csprng;
+            let mut rng = Rng;
             let mut skips = vec![];
             for _ in 0..count {
                 let segment = self.get_segment(l)?;

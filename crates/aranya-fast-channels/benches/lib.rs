@@ -121,11 +121,11 @@ macro_rules! bench_impl {
 				.expect("should not fail");
 
 			let mut chans: [(SealCtx<CS<$aead, $kdf>>, OpenCtx<CS<$aead, $kdf>>); USED_CHANS] = array::from_fn(|_| {
-				let label = LabelId::random(&mut Rng);
+				let label = LabelId::random(Rng);
 
 				// Use the same key to simplify the decryption
 				// benchmarks.
-				let seal = RawSealKey::random(&mut Rng);
+				let seal = RawSealKey::random(Rng);
 				let open = RawOpenKey {
 					key: seal.key.clone(),
 					base_nonce: seal.base_nonce,
@@ -139,8 +139,8 @@ macro_rules! bench_impl {
 					open
 				};
 
-                let seal_local_id = aranya.add(seal_key, label, DeviceId::random(&mut Rng)).unwrap();
-                let open_local_id = aranya.add(open_key, label, DeviceId::random(&mut Rng)).unwrap();
+                let seal_local_id = aranya.add(seal_key, label, DeviceId::random(Rng)).unwrap();
+                let open_local_id = aranya.add(open_key, label, DeviceId::random(Rng)).unwrap();
                 let seal_ctx = afc.setup_seal_ctx(seal_local_id).unwrap();
 				let open_ctx = afc.setup_open_ctx(open_local_id).unwrap();
 				(seal_ctx, open_ctx)

@@ -22,7 +22,6 @@ heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spideroak-base58 = { workspace = true }
-spin = { workspace = true, features = ["spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
@@ -31,6 +30,7 @@ yoke = { version = "0.8", features = ["derive"] }
 # Used by `testing`.
 aranya-policy-module = { version = "0.18.0", path = "../aranya-policy-module", optional = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"], optional = true }
+spin = { workspace = true, features = ["spin_mutex"], optional = true }
 
 # graphviz
 dot-writer = { version = "0.1.3", optional = true }
@@ -86,6 +86,7 @@ testing = [
 
 	"dep:aranya-policy-module",
 	"dep:serde_json",
+	"dep:spin",
 ]
 
 graphviz = ["dep:dot-writer"]
@@ -98,6 +99,6 @@ always_include_features = [
 	"testing",
 ]
 
-# low-mem-usage breaks brittle dsl tests and is only 
+# low-mem-usage breaks brittle dsl tests and is only
 # needed for the embedded build so we exclude it here.
 denylist = ["low-mem-usage"]

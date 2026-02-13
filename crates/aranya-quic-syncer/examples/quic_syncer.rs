@@ -66,7 +66,7 @@ async fn sync_peer<PS, SP, S>(
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(graph_id, &mut Rng::new());
+    let sync_requester = SyncRequester::new(graph_id, Rng::new());
     let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}

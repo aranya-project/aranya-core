@@ -60,7 +60,7 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs, time::Instant};
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -357,7 +357,7 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = &mut Rng as &mut dyn Csprng;
+    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -930,7 +930,7 @@ fn sync<SP: StorageProvider>(
     sink: &mut TestSink,
     graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
+    let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(graph_id);
