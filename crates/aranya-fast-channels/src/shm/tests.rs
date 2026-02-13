@@ -71,7 +71,7 @@ test_impl!(#[serial], shm, SharedMemImpl);
 fn test_many_nodes() {
     const MAX_CHANS: usize = 101;
 
-    let labels = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
+    let labels = [LabelId::random(Rng), LabelId::random(Rng)];
 
     type E = TestEngine<DummyAead>;
 
@@ -96,13 +96,13 @@ fn test_many_nodes() {
     // All the channels we've stored in the shared memory.
     let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
 
-    let rng = &mut Rng;
+    let rng = Rng;
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
     for label_id in labels {
         for idx in 0..MAX_CHANS {
-            let keys = match util::rand_intn(&mut Rng, 2) {
+            let keys = match util::rand_intn(Rng, 2) {
                 0 => Directed::SealOnly {
                     seal: RawSealKey::random(rng),
                 },
@@ -112,7 +112,7 @@ fn test_many_nodes() {
                 v => unreachable!("{v}"),
             };
             let id = aranya
-                .add(keys.clone(), label_id, DeviceId::random(&mut Rng))
+                .add(keys.clone(), label_id, DeviceId::random(Rng))
                 .unwrap_or_else(|err| panic!("unable to add channel {idx}: {err}"));
             let chan = Channel { id, keys, label_id };
             chans.push(chan);

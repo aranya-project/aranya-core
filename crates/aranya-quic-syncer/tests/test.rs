@@ -69,7 +69,7 @@ async fn test_sync() -> Result<()> {
         .sync(
             client2.lock().await.deref_mut(),
             addr1,
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, Rng),
             sink2.lock().await.deref_mut(),
             graph_id,
         )
@@ -125,7 +125,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client1.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, Rng),
             5,
             u64::MAX,
             addr2,
@@ -136,7 +136,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, Rng),
             5,
             u64::MAX,
             addr1,
@@ -163,7 +163,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, Rng),
             1,
             u64::MAX,
             addr1,
@@ -193,7 +193,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, Rng),
             5,
             286, // The exact number of bytes to be sent
             addr1,
@@ -236,7 +236,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, Rng),
             1,
             u64::MAX,
             addr1,
@@ -245,7 +245,7 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .unsubscribe(SyncRequester::new(graph_id, &mut Rng), addr1)
+        .unsubscribe(SyncRequester::new(graph_id, Rng), addr1)
         .await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 

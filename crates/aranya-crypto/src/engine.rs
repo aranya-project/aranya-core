@@ -37,7 +37,7 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
     type WrappedKey: WrappedKey;
 
     /// Encrypts and authenticates an unwrapped key.
-    fn wrap<T>(&mut self, key: T) -> Result<Self::WrappedKey, WrapError>
+    fn wrap<T>(&self, key: T) -> Result<Self::WrappedKey, WrapError>
     where
         T: UnwrappedKey<Self::CS>,
     {
@@ -119,7 +119,7 @@ pub trait RawSecretWrap<E: Engine> {
     /// This method is used by [`Engine::wrap`] and should not be
     /// called manually.
     fn wrap_secret<T>(
-        &mut self,
+        &self,
         id: &<T as Identified>::Id,
         secret: RawSecret<E::CS>,
     ) -> Result<E::WrappedKey, WrapError>

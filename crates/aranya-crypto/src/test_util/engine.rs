@@ -181,7 +181,7 @@ macro_rules! test_engine {
 pub use test_engine;
 
 /// Simple test for [`DeviceSigningKey`].
-pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &E) {
     const MSG: &[u8] = b"hello, world!";
     const CONTEXT: &[u8] = b"test_simple_device_signing_key_sign";
 
@@ -216,7 +216,7 @@ pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for encrypting/decrypting
 /// [`GroupKey`]s.
-pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_seal_group_key<E: Engine>(eng: &E) {
     let enc_key = EncryptionKey::<E::CS>::new(eng);
 
     let group = GroupId::default();
@@ -233,7 +233,7 @@ pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`GroupKey`]s.
-pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_group_key<E: Engine>(eng: &E) {
     let want = GroupKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -249,7 +249,7 @@ pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`IdentityKey`]s.
-pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &E) {
     let want = IdentityKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -266,7 +266,7 @@ pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`IdentityKey`]s.
-pub fn test_simple_export_device_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_identity_key<E: Engine>(eng: &E) {
     let want = IdentityKey::<E::CS>::new(eng)
         .public()
         .expect("identity key should be valid");
@@ -279,7 +279,7 @@ pub fn test_simple_export_device_identity_key<E: Engine>(eng: &mut E) {
 /// Simple test for [`IdentityKey`].
 /// Creates a signature over `msg` bound to some `context`.
 /// `msg` must NOT be pre-hashed.
-pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_identity_key_sign<E: Engine>(eng: &E) {
     let sign_key = IdentityKey::<E::CS>::new(eng);
 
     const MESSAGE: &[u8] = b"hello, world!";
@@ -313,7 +313,7 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`DeviceSigningKey`]s.
-pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &E) {
     let want = DeviceSigningKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -330,7 +330,7 @@ pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`DeviceSigningKey`]s.
-pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_signing_key<E: Engine>(eng: &E) {
     let want = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("device signing key should be valid");
@@ -340,7 +340,7 @@ pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`EncryptionKey`]s.
-pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &E) {
     let want = EncryptionKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -357,7 +357,7 @@ pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`EncryptionKey`]s.
-pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &E) {
     let want = EncryptionKey::<E::CS>::new(eng)
         .public()
         .expect("encryption public key should be valid");
@@ -368,7 +368,7 @@ pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for encryption using a [`GroupKey`].
-pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
+pub fn test_group_key_seal<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
@@ -409,7 +409,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`GroupKey`].
-pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_wrong_key<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
@@ -450,7 +450,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`Context`].
-pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_wrong_context<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_pk1 = DeviceSigningKey::<E::CS>::new(eng)
@@ -513,7 +513,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for a modified ciphertext.
-pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
@@ -555,7 +555,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 }
 
 /// Test encoding/decoding [`EncryptedGroupKey`].
-pub fn test_encrypted_group_key_encode<E: Engine>(eng: &mut E)
+pub fn test_encrypted_group_key_encode<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -582,7 +582,7 @@ where
 
 /// Simple test for [`SenderSigningKey`].
 /// Creates a signature over an encoded record.
-pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &mut E)
+pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -638,7 +638,7 @@ where
 
 /// Simple positive test for encrypting/decrypting
 /// [`TopicKey`]s.
-pub fn test_simple_seal_topic_key<E: Engine>(eng: &mut E)
+pub fn test_simple_seal_topic_key<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -667,7 +667,7 @@ where
 }
 
 /// Simple positive test for wrapping [`SenderSecretKey`]s.
-pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &E) {
     let want = SenderSecretKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -683,7 +683,7 @@ pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`SenderSigningKey`]s.
-pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &E) {
     let want = SenderSigningKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -699,7 +699,7 @@ pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
-pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &E) {
     let want = ReceiverSecretKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -715,7 +715,7 @@ pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for encryption using a [`TopicKey`].
-pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_seal<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -747,7 +747,7 @@ pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`TopicKey`].
-pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -779,7 +779,7 @@ pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`Context`].
-pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -830,7 +830,7 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for a modified ciphertext.
-pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -867,7 +867,7 @@ fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
 
     let (ciphertext, seq) = {
@@ -894,14 +894,14 @@ fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc
 ///
 /// If `seal` is `None` then a random key will be used.
 fn assert_different_afc_keys<E: Engine>(
-    eng: &mut E,
+    eng: &E,
     seal: Option<afc::SealKey<E::CS>>,
     open: &afc::OpenKey<E::CS>,
 ) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
 
     let (ciphertext, seq) = {
@@ -928,7 +928,7 @@ fn assert_different_afc_keys<E: Engine>(
 }
 
 /// A simple positive test for [`afc::SealKey`] and [`afc::OpenKey`].
-pub fn test_afc_same_seal_key_open_key<E: Engine>(eng: &mut E) {
+pub fn test_afc_same_seal_key_open_key<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -938,7 +938,7 @@ pub fn test_afc_same_seal_key_open_key<E: Engine>(eng: &mut E) {
 }
 
 /// A simple negative test for [`afc::SealKey`] and [`afc::OpenKey`].
-pub fn test_afc_different_seal_key_open_key<E: Engine>(eng: &mut E) {
+pub fn test_afc_different_seal_key_open_key<E: Engine>(eng: &E) {
     let seal = afc::SealKey::from_raw(&Random::random(eng), afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
     let open = afc::OpenKey::from_raw(&Random::random(eng))
@@ -949,14 +949,14 @@ pub fn test_afc_different_seal_key_open_key<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::SealKey`]'s sequence number monotonically
 /// advances by one each time.
-pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
+pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &E) {
     let mut seal = afc::SealKey::<E::CS>::from_raw(&Random::random(eng), afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     // The upper bound is arbitrary. We obviously cannot test
@@ -971,7 +971,7 @@ pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::SealKey`] refuses to encrypt when its
 /// sequence number has been exhausted.
-pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
+pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &E) {
     let max = afc::Seq::max::<<<E::CS as CipherSuite>::Aead as Aead>::NonceSize>();
     // Start at one before the max.
     let start = afc::Seq::new(max - 1);
@@ -981,7 +981,7 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
 
@@ -1001,7 +1001,7 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::OpenKey`] refuses to decrypt when the
 /// sequence number has been exhausted.
-pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
+pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -1012,7 +1012,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
@@ -1039,7 +1039,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::OpenKey`]'s fails when the incorrect
 /// sequence number is provided.
-pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
+pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -1050,7 +1050,7 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
@@ -1073,7 +1073,7 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::OpenKey`]'s fails when the incorrect
 /// [`afc::AuthData`] is provided.
-pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
+pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -1084,11 +1084,11 @@ pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let good_ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let bad_ad: afc::AuthData = afc::AuthData {
         version: 3,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
 
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
@@ -1125,7 +1125,7 @@ fn assert_same_afc_uni_key<CS: CipherSuite>(seal: afc::UniSealKey<CS>, open: afc
 
 /// Checks that `seal` and `open` are different keys.
 fn assert_different_afc_uni_key<E: Engine>(
-    eng: &mut E,
+    eng: &E,
     seal: afc::UniSealKey<E::CS>,
     open: afc::UniOpenKey<E::CS>,
 ) {
@@ -1151,7 +1151,7 @@ fn assert_different_afc_uni_key<E: Engine>(
 
 /// A simple positive test for deriving [`afc::UniSealKey`] and
 /// [`afc::UniOpenKey`].
-pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let label_id = LabelId::random(eng);
@@ -1193,7 +1193,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
 
 /// Different labels should create different [`afc::UniSealKey`]
 /// and [`afc::UniOpenKey`]s.
-pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::UniChannel {
@@ -1236,7 +1236,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 /// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1280,7 +1280,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
 /// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1324,7 +1324,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
 /// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1365,7 +1365,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::UniSealKey`]s.
-pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1417,7 +1417,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::UniOpenKey`]s.
-pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1468,7 +1468,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`afc::UniAuthorSecret`]s.
-pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
+pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::new(eng);
     let sk2 = EncryptionKey::new(eng);
     let ch = afc::UniChannel {
@@ -1503,7 +1503,7 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different cipher suites.
-pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_suites<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let mut ids = BTreeSet::new();
@@ -1536,7 +1536,7 @@ pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different contexts.
-pub fn test_tls_psk_different_contexts<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_contexts<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let psks1 = seed
@@ -1567,7 +1567,7 @@ pub fn test_tls_psk_different_contexts<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different groups.
-pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_groups<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let psks1 = seed
@@ -1598,7 +1598,7 @@ pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different policy IDs.
-pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let psks1 = seed
@@ -1628,7 +1628,7 @@ pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`tls::PskSeed`]s.
-pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &E) {
     let want = tls::PskSeed::new(eng, &GroupId::default());
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -1645,7 +1645,7 @@ pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for encrypting/decrypting
 /// [`tls::PskSeed`]s.
-pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`sk1` public half should be valid");
 
@@ -1678,7 +1678,7 @@ pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with the
 /// wrong peer public key.
-pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
 
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1704,7 +1704,7 @@ pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &mut E) {
 /// Negative test for decrypting a [`tls::PskSeed`] with the
 /// wrong secret key (i.e., trying to open a PSK seed that was
 /// encrypted for somebody else).
-pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 
@@ -1729,7 +1729,7 @@ pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with the
 /// wrong group ID.
-pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 
@@ -1752,7 +1752,7 @@ pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with
 /// malformed ciphertext.
-pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 
@@ -1776,7 +1776,7 @@ pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with
 /// malformed auth tag.
-pub fn test_tls_psk_seed_open_wrong_tag<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_tag<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 

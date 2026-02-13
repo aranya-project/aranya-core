@@ -217,12 +217,12 @@ pub struct Device<T: TestImpl> {
 
 impl<T: TestImpl> Device<T> {
     /// Creates a new [`Device`].
-    pub fn new(mut eng: T::Engine, afc: T::Afc, aranya: T::Aranya, mut store: T::Store) -> Self {
-        let device_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&mut eng)
+    pub fn new(eng: T::Engine, afc: T::Afc, aranya: T::Aranya, mut store: T::Store) -> Self {
+        let device_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&eng)
             .id()
             .expect("device ID should be valid");
 
-        let enc_sk = EncryptionKey::new(&mut eng);
+        let enc_sk = EncryptionKey::new(&eng);
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
@@ -230,7 +230,7 @@ impl<T: TestImpl> Device<T> {
         );
 
         let enc_key_id = store
-            .insert_key(&mut eng, enc_sk)
+            .insert_key(&eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -374,8 +374,8 @@ where
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
         head_id: parent_cmd_id,
@@ -386,7 +386,7 @@ where
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -402,7 +402,7 @@ where
         let keys = author
             .handler
             .uni_channel_created(
-                &mut author.eng,
+                &author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
                     open_id: peer.device_id,
@@ -427,7 +427,7 @@ where
         let keys = peer
             .handler
             .uni_channel_received(
-                &mut peer.eng,
+                &peer.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
                     seal_id: author.device_id,
@@ -473,8 +473,8 @@ where
     let mut author = T::new();
     let peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateOpenOnlyChannel"),
         head_id: parent_cmd_id,
@@ -488,7 +488,7 @@ where
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -503,7 +503,7 @@ where
     match author
             .handler
             .uni_channel_created::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
-                &mut author.eng,
+                &author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
                     open_id: author.device_id, // this causes an error
@@ -539,11 +539,11 @@ where
         UniPeerEncap<<T::Engine as Engine>::CS>,
     )>,
 {
-    let mut author = T::new();
+    let author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateOpenOnlyChannel"),
         head_id: parent_cmd_id,
@@ -557,7 +557,7 @@ where
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -572,7 +572,7 @@ where
     match peer
             .handler
             .uni_channel_received::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
-                &mut author.eng,
+                &author.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
                     seal_id: peer.device_id,

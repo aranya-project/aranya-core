@@ -14,8 +14,8 @@ use crate::FfiDevice;
 
 #[test]
 fn test_current_device_id() {
-    let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-    let device_id = DeviceId::random(&mut Rng);
+    let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+    let device_id = DeviceId::random(Rng);
     let device = FfiDevice { id: device_id };
 
     let contexts = vec![
@@ -46,7 +46,7 @@ fn test_current_device_id() {
 
     for context in contexts {
         let id = device
-            .current_device_id(&context, &mut eng)
+            .current_device_id(&context, &eng)
             .expect("Should have succeeded");
         assert_eq!(id, device_id);
     }

@@ -389,7 +389,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
         label_id: LabelId,
         peer_id: DeviceId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
-        rng: &mut R,
+        rng: R,
     ) {
         // As a safety precaution, randomize keys that we don't
         // use. Leaving them unset (usually all zeros) is
@@ -406,8 +406,8 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // decrypts and authenticates for the key. Randomizing
         // the key prevents an attacker from crafting such
         // a ciphertext.
-        let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(rng));
-        let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
+        let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(&rng));
+        let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(&rng));
         let key_id = KeyId::new(&seal_key, &open_key);
         let chan = Self {
             magic: Self::MAGIC,

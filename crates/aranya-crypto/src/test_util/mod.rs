@@ -260,7 +260,7 @@ impl<T: Signer + ?Sized> SecretKey for SigningKeyWithDefaults<T> {
 }
 
 impl<T: Signer + ?Sized> Random for SigningKeyWithDefaults<T> {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: R) -> Self {
         Self(T::SigningKey::random(rng))
     }
 }
