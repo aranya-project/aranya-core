@@ -24,7 +24,7 @@ pub use visited::CappedVisited;
 /// This bounds memory usage while allowing efficient traversal of graphs
 /// with many concurrent branches. Each entry stores one `usize` field
 /// (segment_id), so entry size is `size_of::<usize>()`:
-/// 24 bytes on 64-bit targets, 12 bytes on 32-bit.
+/// 8 bytes on 64-bit targets, 4 bytes on 32-bit.
 ///
 /// The capacity should accommodate the expected "active frontier" width
 /// during backward traversal, which is bounded by peer count. Recommended:
