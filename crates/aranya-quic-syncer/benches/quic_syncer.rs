@@ -15,7 +15,7 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, Sink, SyncRequester,
+    ClientState, GraphId, Sink, SyncRequester, TraversalBuffers,
     memory::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
@@ -64,7 +64,7 @@ impl Sink<TestEffect> for CountSink {
 fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
-    ClientState::new(policy_store, storage)
+    ClientState::new(policy_store, storage, TraversalBuffers::new())
 }
 
 fn new_graph(
@@ -157,7 +157,8 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(graph_id, &mut Rng::new());
+                let sync_requester =
+                    SyncRequester::new(graph_id, &mut Rng::new(), TraversalBuffers::new());
                 if let Err(e) = syncer1
                     .lock()
                     .await

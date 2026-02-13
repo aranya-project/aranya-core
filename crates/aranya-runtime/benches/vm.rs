@@ -3,7 +3,7 @@ fn benchmark_1() {
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{bench_measurements, ffi::FfiModule as _};
     use aranya_runtime::{
-        ClientState,
+        ClientState, TraversalBuffers,
         memory::MemStorageProvider,
         testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
         vm_action, vm_effect,
@@ -17,7 +17,7 @@ fn benchmark_1() {
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
 
     let mut sink = TestSink::new();
     let graph_id = cs
@@ -98,7 +98,7 @@ policy-version: 1
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
     use aranya_runtime::{
-        ClientState,
+        ClientState, TraversalBuffers,
         memory::MemStorageProvider,
         testing::vm::{TestPolicyStore, TestSink},
         vm_action,
@@ -112,7 +112,7 @@ policy-version: 1
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
 
     let mut sink = TestSink::new();
     let graph_id = cs

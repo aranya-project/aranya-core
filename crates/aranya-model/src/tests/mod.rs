@@ -23,7 +23,7 @@ use aranya_policy_vm::{
     text,
 };
 use aranya_runtime::{
-    ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
+    ClientState, FfiCallable, PolicyStore, StorageProvider, TraversalBuffers, VmEffect,
     memory::MemStorageProvider,
     storage::linear,
     vm_action, vm_effect,
@@ -93,7 +93,11 @@ impl ClientFactory for BasicClientFactory {
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(policy_store, provider)),
+            state: RefCell::new(ClientState::new(
+                policy_store,
+                provider,
+                TraversalBuffers::new(),
+            )),
             public_keys: EmptyKeys,
         }
     }
@@ -170,7 +174,11 @@ impl ClientFactory for FfiClientFactory {
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(policy_store, provider)),
+            state: RefCell::new(ClientState::new(
+                policy_store,
+                provider,
+                TraversalBuffers::new(),
+            )),
             public_keys,
         }
     }
@@ -1296,7 +1304,11 @@ fn should_create_clients_with_args() {
             let provider = MemStorageProvider::new();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(policy_store, provider)),
+                state: RefCell::new(ClientState::new(
+                    policy_store,
+                    provider,
+                    TraversalBuffers::new(),
+                )),
                 public_keys: EmptyKeys,
             }
         })
@@ -1365,7 +1377,11 @@ fn should_create_clients_with_args() {
             let provider = MemStorageProvider::new();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(policy_store, provider)),
+                state: RefCell::new(ClientState::new(
+                    policy_store,
+                    provider,
+                    TraversalBuffers::new(),
+                )),
                 public_keys: EmptyKeys,
             }
         })

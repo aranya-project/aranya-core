@@ -8,13 +8,100 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt as _};
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
+pub mod visited;
+
+pub use visited::CappedVisited;
+
+/// Default capacity for the visited segment cache used in graph traversal.
+///
+/// This bounds memory usage while allowing efficient traversal of graphs
+/// with many concurrent branches. Each entry stores one `usize` field
+/// (segment_id), so entry size is `size_of::<usize>()`:
+/// 8 bytes on 64-bit targets, 4 bytes on 32-bit.
+///
+/// The capacity should accommodate the expected "active frontier" width
+/// during backward traversal, which is bounded by peer count. Recommended:
+/// - Embedded (small): 64 entries (~0.25 KB on 32-bit, ~0.5 KB on 64-bit)
+/// - Standard embedded: 256 entries (~1 KB on 32-bit, ~2 KB on 64-bit)
+/// - Server: 512 entries (~2 KB on 32-bit, ~4 KB on 64-bit)
+///
+/// If capacity is exceeded, the algorithm remains correct but may revisit
+/// segments (producing redundant work, not incorrect results).
+pub const VISITED_CAPACITY: usize = 256;
+
+/// Default capacity for the traversal queue.
+///
+/// This should be large enough to hold the maximum expected "active frontier"
+/// during backward traversal, which is bounded by peer count.
+pub const QUEUE_CAPACITY: usize = 256;
+
+/// Type alias for the visited set used in traversal operations.
+pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
+
+/// Type alias for the queue used in traversal operations.
+pub type TraversalQueue = heapless::Deque<Location, QUEUE_CAPACITY>;
+
+/// A visited set and queue pair for a single graph traversal operation.
+///
+/// Access via [`get()`](Self::get), which clears both buffers automatically.
+pub struct TraversalBufferPair {
+    visited: TraversalVisited,
+    queue: TraversalQueue,
+}
+
+impl TraversalBufferPair {
+    pub const fn new() -> Self {
+        Self {
+            visited: TraversalVisited::new(),
+            queue: TraversalQueue::new(),
+        }
+    }
+
+    /// Returns cleared buffers ready for use.
+    pub fn get(&mut self) -> (&mut TraversalVisited, &mut TraversalQueue) {
+        self.visited.clear();
+        self.queue.clear();
+        (&mut self.visited, &mut self.queue)
+    }
+}
+
+impl Default for TraversalBufferPair {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Reusable buffers for graph traversal operations.
+///
+/// Contains two independent buffer pairs so that an outer traversal
+/// (e.g. `find_needed_segments`) can maintain state in one pair while
+/// calling leaf operations (e.g. `is_ancestor`) that use the other.
+pub struct TraversalBuffers {
+    pub primary: TraversalBufferPair,
+    pub secondary: TraversalBufferPair,
+}
+
+impl TraversalBuffers {
+    pub const fn new() -> Self {
+        Self {
+            primary: TraversalBufferPair::new(),
+            secondary: TraversalBufferPair::new(),
+        }
+    }
+}
+
+impl Default for TraversalBuffers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(feature = "low-mem-usage")]
 pub const MAX_COMMAND_LENGTH: usize = 400;
@@ -124,6 +211,8 @@ pub enum StorageError {
     EmptyPerspective,
     #[error("segment must be a descendant of the head for commit")]
     HeadNotAncestor,
+    #[error("traversal queue overflow (capacity {0})")]
+    TraversalQueueOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
@@ -189,35 +278,65 @@ pub trait Storage {
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
-    fn get_location(&self, address: Address) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address)
+    fn get_location(
+        &self,
+        address: Address,
+        buffers: &mut TraversalBufferPair,
+    ) -> Result<Option<Location>, StorageError> {
+        self.get_location_from(self.get_head()?, address, buffers)
     }
 
     /// Returns the location of Command with id by searching from the given location.
+    ///
+    /// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm specification.
     fn get_location_from(
         &self,
         start: Location,
         address: Address,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<Option<Location>, StorageError> {
-        let mut queue = Vec::new();
-        queue.push(start);
-        'outer: while let Some(loc) = queue.pop() {
-            let head = self.get_segment(loc)?;
-            if address.max_cut > head.longest_max_cut()? {
+        if start.max_cut < address.max_cut {
+            return Ok(None);
+        }
+
+        let (visited, queue) = buffers.get();
+        push_queue(queue, start)?;
+
+        while let Some(loc) = queue.pop_front() {
+            debug_assert!(
+                loc.max_cut >= address.max_cut,
+                "Invariant: we only enqueue locations with at least the target max cut"
+            );
+
+            if !visited.visit(loc.segment) {
                 continue;
             }
-            if let Some(loc) = head.get_by_address(address) {
-                return Ok(Some(loc));
+
+            // Must load segment
+            let segment = self.get_segment(loc)?;
+
+            // Search commands in this segment.
+            if let Some(found) = segment.get_by_address(address) {
+                return Ok(Some(found));
             }
-            // Assumes skip list is sorted in ascending order.
-            // We always want to skip as close to the root as possible.
-            for skip in head.skip_list() {
-                if skip.max_cut >= address.max_cut {
-                    queue.push(*skip);
-                    continue 'outer;
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so first valid skip
+            // jumps as far back as possible.
+            if let Some(&skip) = segment
+                .skip_list()
+                .iter()
+                .find(|skip| skip.max_cut >= address.max_cut)
+            {
+                push_queue(queue, skip)?;
+            } else {
+                // No valid skip - add prior locations to queue
+                for prior in segment.prior() {
+                    if prior.max_cut >= address.max_cut {
+                        push_queue(queue, prior)?;
+                    }
                 }
             }
-            queue.extend(head.prior());
         }
         Ok(None)
     }
@@ -264,7 +383,11 @@ pub trait Storage {
 
     /// Sets the given segment as the head of the graph.  Returns an error if
     /// the current head is not an ancestor of the provided segment.
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBufferPair,
+    ) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;
@@ -280,34 +403,60 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
+        buffers: &mut TraversalBufferPair,
     ) -> Result<bool, StorageError> {
-        // TODO(jdygert): necessary?
-        // Check if location is valid
-        self.get_segment(search_location)?
-            .get_command(search_location)
-            .assume("location must exist")?;
-        let mut queue = Vec::new();
-        queue.extend(segment.prior());
-        'outer: while let Some(location) = queue.pop() {
-            if location.segment == search_location.segment
-                && location.max_cut >= search_location.max_cut
-            {
-                return Ok(true);
+        let (visited, queue) = buffers.get();
+        for prior in segment.prior() {
+            if prior.max_cut >= search_location.max_cut {
+                push_queue(queue, prior)?;
             }
-            let segment = self.get_segment(location)?;
-            if search_location.max_cut > segment.longest_max_cut()? {
+        }
+
+        while let Some(loc) = queue.pop_front() {
+            debug_assert!(
+                loc.max_cut >= search_location.max_cut,
+                "Invariant: we only enqueue locations with at least the target max cut"
+            );
+
+            if !visited.visit(loc.segment) {
                 continue;
             }
-            for skip in segment.skip_list() {
-                if skip.max_cut >= search_location.max_cut {
-                    queue.push(*skip);
-                    continue 'outer;
+
+            // Must load segment
+            let segment = self.get_segment(loc)?;
+
+            // Search commands in this segment.
+            if segment.get_command(search_location).is_some() {
+                return Ok(true);
+            }
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so first valid skip
+            // jumps as far back as possible.
+            if let Some(&skip) = segment
+                .skip_list()
+                .iter()
+                .find(|skip| skip.max_cut >= search_location.max_cut)
+            {
+                push_queue(queue, skip)?;
+            } else {
+                // No valid skip - add prior locations to queue
+                for prior in segment.prior() {
+                    if prior.max_cut >= search_location.max_cut {
+                        push_queue(queue, prior)?;
+                    }
                 }
             }
-            queue.extend(segment.prior());
         }
         Ok(false)
     }
+}
+
+/// Pushes a location onto the traversal queue, returning an error if the queue is full.
+pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
+    queue
+        .push_back(loc)
+        .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
 /// A segment is a nonempty sequence of commands persisted to storage.
@@ -546,3 +695,27 @@ impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
 // TODO: Fix and enable
 // #[cfg(test)]
 // mod tests;
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    fn loc(seg: usize, mc: usize) -> Location {
+        Location::new(SegmentIndex(seg), MaxCut(mc))
+    }
+
+    #[test]
+    fn test_queue_overflow_returns_error() {
+        let mut queue = TraversalQueue::new();
+        // Fill to capacity
+        for i in 0..QUEUE_CAPACITY {
+            push_queue(&mut queue, loc(i, i)).unwrap();
+        }
+        // Next push should fail with TraversalQueueOverflow
+        let result = push_queue(&mut queue, loc(999, 999));
+        assert_eq!(
+            result,
+            Err(StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+        );
+    }
+}
