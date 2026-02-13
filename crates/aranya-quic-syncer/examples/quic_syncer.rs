@@ -111,7 +111,11 @@ async fn run(options: Opt) -> Result<()> {
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage, TraversalBuffers::new())));
+    let client = Arc::new(TMutex::new(ClientState::new(
+        policy_store,
+        storage,
+        TraversalBuffers::new(),
+    )));
     let sink = Arc::new(TMutex::new(PrintSink {}));
     let server = get_server(cert.clone(), key, options.listen)?;
     let (tx1, _) = mpsc::unbounded_channel();
