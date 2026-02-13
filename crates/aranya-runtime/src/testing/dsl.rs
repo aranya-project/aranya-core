@@ -557,7 +557,7 @@ where
                 let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
-                let state = ClientState::new(policy_store, storage);
+                let state = ClientState::new(policy_store, storage, TraversalBuffers::new());
                 clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {

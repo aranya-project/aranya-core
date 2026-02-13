@@ -11,7 +11,7 @@ use tracing::trace;
 use super::dsl::dispatch;
 use crate::{
     ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
@@ -354,7 +354,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     let provider = MemStorageProvider::new();
     // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
@@ -421,7 +421,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
 /// [`TEST_POLICY_1`].
 pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
 
     let graph = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
@@ -460,7 +460,7 @@ pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPoli
 /// [`TEST_POLICY_1`].
 pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
 
     let mut sink = TestSink::new();
 
@@ -624,7 +624,7 @@ pub fn test_effect_metadata(
 ) -> Result<(), VmPolicyError> {
     // create client 1 and initialize it with a nonce of 1
     let provider = MemStorageProvider::new();
-    let mut cs1 = ClientState::new(policy_store_1, provider);
+    let mut cs1 = ClientState::new(policy_store_1, provider, TraversalBuffers::new());
     let mut sink = VecSink::new();
     let graph_id = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
@@ -640,7 +640,7 @@ pub fn test_effect_metadata(
 
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::new();
-    let mut cs2 = ClientState::new(policy_store_2, provider);
+    let mut cs2 = ClientState::new(policy_store_2, provider, TraversalBuffers::new());
     test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();

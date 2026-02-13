@@ -4,7 +4,7 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, SyncRequester,
+    ClientState, GraphId, SyncRequester, TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{StorageProvider, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -297,5 +297,5 @@ fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
+    Arc::new(TMutex::new(ClientState::new(policy_store, storage, TraversalBuffers::new())))
 }

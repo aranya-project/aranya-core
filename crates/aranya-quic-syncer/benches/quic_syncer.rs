@@ -15,7 +15,7 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, Sink, SyncRequester,
+    ClientState, GraphId, Sink, SyncRequester, TraversalBuffers,
     memory::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
@@ -64,7 +64,7 @@ impl Sink<TestEffect> for CountSink {
 fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
-    ClientState::new(policy_store, storage)
+    ClientState::new(policy_store, storage, TraversalBuffers::new())
 }
 
 fn new_graph(

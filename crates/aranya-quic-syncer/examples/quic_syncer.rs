@@ -16,7 +16,7 @@ use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
+    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester, TraversalBuffers,
     policy::Sink,
     storage::memory::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
@@ -111,7 +111,7 @@ async fn run(options: Opt) -> Result<()> {
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage)));
+    let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage, TraversalBuffers::new())));
     let sink = Arc::new(TMutex::new(PrintSink {}));
     let server = get_server(cert.clone(), key, options.listen)?;
     let (tx1, _) = mpsc::unbounded_channel();
