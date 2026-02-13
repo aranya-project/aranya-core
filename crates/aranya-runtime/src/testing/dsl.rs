@@ -96,7 +96,7 @@ pub fn dispatch(
     let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
         SyncType::Poll { request } => {
-            let mut response_syncer = SyncResponder::new();
+            let mut response_syncer = SyncResponder::new(TraversalBuffers::new());
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?

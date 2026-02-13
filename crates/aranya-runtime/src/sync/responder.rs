@@ -153,7 +153,6 @@ enum SyncResponderState {
     Stopped,
 }
 
-#[derive(Default)]
 pub struct SyncResponder {
     session_id: Option<u128>,
     graph_id: Option<GraphId>,
@@ -168,7 +167,7 @@ pub struct SyncResponder {
 
 impl SyncResponder {
     /// Create a new [`SyncResponder`].
-    pub fn new() -> Self {
+    pub fn new(buffers: TraversalBuffers) -> Self {
         Self {
             session_id: None,
             graph_id: None,
@@ -178,7 +177,7 @@ impl SyncResponder {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
-            buffers: TraversalBuffers::new(),
+            buffers,
         }
     }
 

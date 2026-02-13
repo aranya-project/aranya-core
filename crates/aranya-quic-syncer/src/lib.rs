@@ -336,7 +336,7 @@ where
             SyncType::Poll { request } => {
                 let response_cache = self.remote_heads.entry(peer_address).or_default();
                 let mut client = self.client_state.lock().await;
-                let mut response_syncer = SyncResponder::new();
+                let mut response_syncer = SyncResponder::new(TraversalBuffers::new());
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
 
@@ -421,7 +421,7 @@ where
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
-            let mut response_syncer = SyncResponder::new();
+            let mut response_syncer = SyncResponder::new(TraversalBuffers::new());
             let mut commands = Vec::new();
             commands
                 .extend_from_slice(response_cache.heads())
