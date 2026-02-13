@@ -14,6 +14,7 @@ use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
     SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
+    TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -378,7 +379,7 @@ where
             }
             SyncType::Push { message, graph_id } => {
                 let mut sync_requester =
-                    SyncRequester::new_session_id(graph_id, message.session_id());
+                    SyncRequester::new_session_id(graph_id, message.session_id(), TraversalBuffers::new());
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)?
                     && !cmds.is_empty()
                 {

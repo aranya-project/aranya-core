@@ -586,7 +586,7 @@ fn test_sync<PS, P, S>(
     S: Sink<<PS>::Effect>,
 {
     let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(graph_id, &mut rng);
+    let mut sync_requester = SyncRequester::new(graph_id, &mut rng, TraversalBuffers::new());
 
     let mut req_transaction = cs1.transaction(graph_id);
 

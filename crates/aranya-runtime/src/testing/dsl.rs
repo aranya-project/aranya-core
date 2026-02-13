@@ -935,7 +935,7 @@ fn sync<SP: StorageProvider>(
     sink: &mut TestSink,
     graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
+    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new());
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(graph_id);
