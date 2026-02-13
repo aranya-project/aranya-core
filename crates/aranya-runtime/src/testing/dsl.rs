@@ -96,7 +96,7 @@ pub fn dispatch(
     let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
         SyncType::Poll { request } => {
-            let mut response_syncer = SyncResponder::new();
+            let mut response_syncer = SyncResponder::new(TraversalBuffers::new());
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
@@ -557,7 +557,7 @@ where
                 let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
-                let state = ClientState::new(policy_store, storage);
+                let state = ClientState::new(policy_store, storage, TraversalBuffers::new());
                 clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
@@ -935,7 +935,7 @@ fn sync<SP: StorageProvider>(
     sink: &mut TestSink,
     graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
+    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new());
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(graph_id);

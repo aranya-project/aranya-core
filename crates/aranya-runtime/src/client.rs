@@ -74,11 +74,11 @@ impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
 
 impl<PS, SP> ClientState<PS, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(policy_store: PS, provider: SP) -> Self {
+    pub const fn new(policy_store: PS, provider: SP, buffers: TraversalBuffers) -> Self {
         Self {
             policy_store,
             provider,
-            buffers: TraversalBuffers::new(),
+            buffers,
         }
     }
 

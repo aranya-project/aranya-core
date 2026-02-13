@@ -707,3 +707,27 @@ impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
 // TODO: Fix and enable
 // #[cfg(test)]
 // mod tests;
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    fn loc(seg: usize, mc: usize) -> Location {
+        Location::new(SegmentIndex(seg), MaxCut(mc))
+    }
+
+    #[test]
+    fn test_queue_overflow_returns_error() {
+        let mut queue = TraversalQueue::new();
+        // Fill to capacity
+        for i in 0..QUEUE_CAPACITY {
+            push_queue(&mut queue, loc(i, i)).unwrap();
+        }
+        // Next push should fail with TraversalQueueOverflow
+        let result = push_queue(&mut queue, loc(999, 999));
+        assert_eq!(
+            result,
+            Err(StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+        );
+    }
+}

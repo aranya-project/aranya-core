@@ -110,7 +110,7 @@ pub struct SyncRequester {
 
 impl SyncRequester {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(graph_id: GraphId, rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(graph_id: GraphId, rng: &mut R, buffers: TraversalBuffers) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -122,19 +122,19 @@ impl SyncRequester {
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
-            buffers: TraversalBuffers::new(),
+            buffers,
         }
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(graph_id: GraphId, session_id: u128) -> Self {
+    pub fn new_session_id(graph_id: GraphId, session_id: u128, buffers: TraversalBuffers) -> Self {
         Self {
             session_id,
             graph_id,
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
-            buffers: TraversalBuffers::new(),
+            buffers,
         }
     }
 

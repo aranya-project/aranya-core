@@ -4,7 +4,7 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, SyncRequester,
+    ClientState, GraphId, SyncRequester, TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{StorageProvider, memory::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -69,7 +69,7 @@ async fn test_sync() -> Result<()> {
         .sync(
             client2.lock().await.deref_mut(),
             addr1,
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
             sink2.lock().await.deref_mut(),
             graph_id,
         )
@@ -125,7 +125,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client1.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
             5,
             u64::MAX,
             addr2,
@@ -136,7 +136,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
             5,
             u64::MAX,
             addr1,
@@ -163,7 +163,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
             1,
             u64::MAX,
             addr1,
@@ -193,7 +193,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
             5,
             286, // The exact number of bytes to be sent
             addr1,
@@ -236,7 +236,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, &mut Rng),
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
             1,
             u64::MAX,
             addr1,
@@ -245,7 +245,10 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .unsubscribe(SyncRequester::new(graph_id, &mut Rng), addr1)
+        .unsubscribe(
+            SyncRequester::new(graph_id, &mut Rng, TraversalBuffers::new()),
+            addr1,
+        )
         .await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -297,5 +300,9 @@ fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::new();
 
-    Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
+    Arc::new(TMutex::new(ClientState::new(
+        policy_store,
+        storage,
+        TraversalBuffers::new(),
+    )))
 }
