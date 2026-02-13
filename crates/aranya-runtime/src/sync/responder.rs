@@ -15,7 +15,6 @@ use crate::{
         GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBufferPair,
         TraversalBuffers, push_queue,
     },
-    visited::Visitation,
 };
 
 #[derive(Default, Debug)]
@@ -344,9 +343,8 @@ impl SyncResponder {
 
         while let Some(head) = queue.pop_front() {
             // Skip if already visited this segment
-            match visited.visit(head) {
-                Visitation::Covered | Visitation::Partial => continue,
-                Visitation::New => {}
+            if !visited.visit(head.segment) {
+                continue;
             }
 
             // Check if the current segment head is an ancestor of any location in have_locations.

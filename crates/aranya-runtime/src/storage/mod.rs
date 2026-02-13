@@ -11,7 +11,7 @@ use core::{fmt, ops::Deref};
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
-use crate::{Address, CmdId, Command, PolicyId, Prior, visited::Visitation};
+use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
@@ -308,11 +308,9 @@ pub trait Storage {
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
 
-            let is_new_segment = match visited.visit(loc) {
-                Visitation::Covered => continue,
-                Visitation::Partial => false,
-                Visitation::New => true,
-            };
+            if !visited.visit(loc.segment) {
+                continue;
+            }
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -320,10 +318,6 @@ pub trait Storage {
             // Search commands in this segment.
             if let Some(found) = segment.get_by_address(address) {
                 return Ok(Some(found));
-            }
-
-            if !is_new_segment {
-                continue;
             }
 
             // Try to use skip list to jump directly backward.
@@ -424,11 +418,9 @@ pub trait Storage {
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
 
-            let is_new_segment = match visited.visit(loc) {
-                Visitation::Covered => continue,
-                Visitation::Partial => false,
-                Visitation::New => true,
-            };
+            if !visited.visit(loc.segment) {
+                continue;
+            }
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -436,10 +428,6 @@ pub trait Storage {
             // Search commands in this segment.
             if segment.get_command(search_location).is_some() {
                 return Ok(true);
-            }
-
-            if !is_new_segment {
-                continue;
             }
 
             // Try to use skip list to jump directly backward.

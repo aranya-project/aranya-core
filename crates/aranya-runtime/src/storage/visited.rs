@@ -1,34 +1,20 @@
 //! Capped visited set for graph traversal.
 //!
 //! Provides bounded-memory tracking of visited segments during DAG traversal,
-//! suitable for no-alloc embedded environments. Tracks entry points (highest
-//! max_cut visited) per segment to enable skipping segment loads and
-//! incremental searching.
+//! suitable for no-alloc embedded environments. Enable skipping segment loads
+//! and incremental searching.
 
 use heapless::Vec;
 
-use crate::{Location, MaxCut};
-
-/// Visit status.
-pub enum Visitation {
-    /// This location has already been visited.
-    Covered,
-    /// This segment has been visited at a lower max cut.
-    Partial,
-    /// This segment has not been visited.
-    New,
-}
+use crate::SegmentIndex;
 
 /// A fixed-size visited set for graph traversal.
 ///
 /// Tracks visited segments during backward traversal through the DAG.
-/// Each entry records the segment index, its minimum max_cut (for calculating
-/// effective max_cut), and the highest max_cut we've entered at.
 ///
-/// When the set is full, evicts the entry with the highest effective max_cut
-/// (min_max_cut + highest_max_cut), as this represents the newest point
-/// visited and is least likely to be encountered again during backward
-/// traversal.
+/// When the set is full, evicts the entry with the highest segment index,
+/// as this represents the newest point visited and is least likely to be
+/// encountered again during backward traversal.
 ///
 /// # Correctness
 ///
@@ -37,7 +23,7 @@ pub enum Visitation {
 /// - Revisiting produces redundant work but not incorrect results
 /// - The algorithm converges as long as progress is made toward the root
 pub struct CappedVisited<const CAP: usize> {
-    entries: Vec<Location, CAP>,
+    entries: Vec<SegmentIndex, CAP>,
 }
 
 impl<const CAP: usize> CappedVisited<CAP> {
@@ -53,42 +39,37 @@ impl<const CAP: usize> CappedVisited<CAP> {
         self.entries.clear();
     }
 
-    /// Inserts a new segment or updates the highest max_cut visited if the
-    /// segment already exists and the new max_cut is higher.
+    /// Marks a segment as visited.
     ///
     /// When the set is full and a new segment needs to be inserted, evicts
     /// the entry with the highest max_cut.
-    pub fn visit(&mut self, new_loc: Location) -> Visitation {
+    ///
+    /// Returns `true` if this segment was not already visited.
+    pub fn visit(&mut self, new_seg: SegmentIndex) -> bool {
         // Single pass: check for existing segment and track eviction candidate
         let mut evict_idx = 0;
-        let mut evict_max_cut = MaxCut(0);
+        let mut evict_segment = SegmentIndex(0);
 
-        for (i, old_loc) in self.entries.iter_mut().enumerate() {
-            if old_loc.segment == new_loc.segment {
-                // Segment exists - update max_cut if this entry point is higher
-                if new_loc.max_cut > old_loc.max_cut {
-                    old_loc.max_cut = new_loc.max_cut;
-                    return Visitation::Partial;
-                } else {
-                    return Visitation::Covered;
-                }
+        for (i, &old_seg) in self.entries.iter().enumerate() {
+            if old_seg == new_seg {
+                return false;
             }
             // Track entry with highest max_cut for potential eviction
-            if old_loc.max_cut > evict_max_cut {
-                evict_max_cut = old_loc.max_cut;
+            if old_seg > evict_segment {
+                evict_segment = old_seg;
                 evict_idx = i;
             }
         }
 
         // Segment not found - insert new entry
         if self.entries.len() < CAP {
-            self.entries.push(new_loc).expect("len < CAP was checked");
+            self.entries.push(new_seg).expect("len < CAP was checked");
         } else {
             // Evict entry with highest max_cut (already found above)
-            self.entries[evict_idx] = new_loc;
+            self.entries[evict_idx] = new_seg;
         }
 
-        Visitation::New
+        true
     }
 }
 
