@@ -20,8 +20,8 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Struct, Target, Value,
-    WrapType, ffi::{self, ModuleSchema},
+    Meta, Module, Struct, Target, Value, WrapType,
+    ffi::{self, ModuleSchema},
     named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
