@@ -93,6 +93,38 @@ impl Display for Target {
     }
 }
 
+/// Type of `Value` wrapping
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub enum WrapType {
+    /// Wrap in Result::Ok
+    Ok,
+    /// Wrap in Result::Err
+    Err,
+    /// Wrap in Option::Some
+    Some,
+}
+
+impl Display for WrapType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ok => f.write_str("ok"),
+            Self::Err => f.write_str("err"),
+            Self::Some => f.write_str("some"),
+        }
+    }
+}
+
 /// The machine instruction types
 #[derive(
     Debug,
@@ -175,6 +207,12 @@ pub enum Instruction {
     MStructGet(NonZeroUsize),
     /// Cast previous stack value to given type
     Cast(Identifier),
+    /// Wrap the value on top of the stack in Some, Ok, or Err, depending on wrap type.
+    Wrap(WrapType),
+    /// Check if the value on top of the stack is the given wrap type (pushes bool).
+    Is(WrapType),
+    /// Unwrap the inner value from a Result (Ok or Err). Will eventually support Optional (Some) as well.
+    Unwrap(WrapType),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -202,10 +240,6 @@ pub enum Instruction {
     SaveSP,
     /// Restore the stack depth.
     RestoreSP,
-    /// Wrap value in `Some`
-    Some,
-    /// Unwrap `Some` value
-    Unwrap,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -244,6 +278,10 @@ impl Display for Instruction {
             Self::StructGet(ident) => write!(f, "struct.get {ident}"),
             Self::MStructGet(n) => write!(f, "mstruct.get {n}"),
             Self::MStructSet(n) => write!(f, "mstruct.set {n}"),
+            Self::Cast(ident) => write!(f, "cast {ident}"),
+            Self::Wrap(wrap_type) => write!(f, "wrap {wrap_type}"),
+            Self::Is(wrap_type) => write!(f, "is {wrap_type}"),
+            Self::Unwrap(wrap_type) => write!(f, "unwrap {wrap_type}"),
             Self::Publish => write!(f, "publish"),
             Self::Create => write!(f, "create"),
             Self::Delete => write!(f, "delete"),
@@ -257,10 +295,7 @@ impl Display for Instruction {
             Self::Deserialize => write!(f, "deserialize"),
             Self::SaveSP => write!(f, "save SP"),
             Self::RestoreSP => write!(f, "restore SP"),
-            Self::Some => write!(f, "some"),
-            Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),
-            Self::Cast(identifier) => write!(f, "cast {identifier}"),
         }
     }
 }
