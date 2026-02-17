@@ -248,26 +248,19 @@ impl ChunkParser<'_> {
                             "`optional T` is being replaced with `option[T]` soon. Consider replacing all uses now to avoid later breakage."
                         );
                     }
-
-                    if style == TypeStyle::New {
-                        return Err(ParseError::new(
-                            ParseErrorKind::InvalidType,
-                            String::from(
-                                "Replace `optional T` with the new `option[T]` to use complex types",
-                            ),
-                            Some(pest_span),
-                        ));
-                    }
-                } else {
-                    // New syntax inside old syntax is not allowed
-                    if style == TypeStyle::Old {
-                        return Err(ParseError::new(
-                            ParseErrorKind::InvalidType,
-                            String::from("Cannot mix `optional T` and `option[T]` syntax"),
-                            Some(pest_span),
-                        ));
-                    }
                 }
+
+                // Disallow mixing old and new optional syntax.
+                if style == TypeStyle::Old || (is_old && style == TypeStyle::New) {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from(
+                            "Replace `optional T` with the new `option[T]` to use complex types",
+                        ),
+                        Some(pest_span),
+                    ));
+                }
+
                 let style = if is_old {
                     TypeStyle::Old
                 } else {
