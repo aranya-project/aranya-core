@@ -257,7 +257,7 @@ fn inner_logic(
     let runfile_globals = run_files
         .iter()
         .map(|rf| rf.get_preamble_values(&mut crypto_engine, &mut keystore))
-        .collect::<anyhow::Result<Vec<_>>>()?
+        .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();

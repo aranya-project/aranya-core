@@ -13,7 +13,7 @@ rust-version.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 aranya-afc-util = { version = "0.20.0", path = "../aranya-afc-util" }
-aranya-crypto = { version = "0.12.0", path = "../aranya-crypto", features = ["fs-keystore"] }
+aranya-crypto = { version = "0.12.0", path = "../aranya-crypto", features = ["fs-keystore", "memstore"] }
 aranya-crypto-ffi = { version = "0.18.0", path = "../aranya-crypto-ffi" }
 aranya-device-ffi = { version = "0.18.0", path = "../aranya-device-ffi" }
 aranya-envelope-ffi = { version = "0.18.0", path = "../aranya-envelope-ffi" }

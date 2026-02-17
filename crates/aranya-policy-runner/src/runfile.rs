@@ -6,20 +6,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use aranya_crypto::id::Id;
-use aranya_policy_compiler::Compiler;
+use aranya_crypto::{KeyStore, id::Id};
+use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::{ParseError, ParseErrorKind, parse_expression, parse_policy_str};
 use aranya_policy_vm::{
-    CommandContext, ExitReason, Identifier, Label, LabelType, Machine, PolicyContext, Value,
-    ast::ExprKind, ffi::FfiModule as _, ident,
+    CommandContext, ExitReason, Identifier, Label, LabelType, Machine, MachineError, PolicyContext,
+    UnsupportedVersion, Value, ast::ExprKind, ffi::FfiModule as _, ident,
 };
 
 use crate::{
     io::{PreambleIO, testing_ffi::TestingFfi},
-    policy::{CE, KS},
+    policy::CE,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SyntaxError {
     line: usize,
     message: String,
@@ -50,6 +50,22 @@ pub enum RunFileError {
     Syntax(#[from] SyntaxError),
     #[error("Policy Parse Error")]
     PolicyParse(#[from] ParseError),
+    #[error("Policy Compile Error")]
+    PolicyCompile(#[from] CompileError),
+    #[error("Policy VM Error")]
+    PolicyVm(#[from] MachineError),
+    #[error("Policy VM Check")]
+    PolicyVmCheck,
+    #[error("Policy VM Panic")]
+    PolicyVmPanic,
+    #[error("Policy Version")]
+    PolicyVersion,
+}
+
+impl From<UnsupportedVersion> for RunFileError {
+    fn from(_value: UnsupportedVersion) -> Self {
+        Self::PolicyVersion
+    }
 }
 
 /// A thing that can be run. Either an action or a raw command struct.
@@ -73,20 +89,28 @@ pub struct RunFile {
 impl RunFile {
     /// Construct a `RunFile` by loading and parsing it from a file path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, RunFileError> {
+        let f = OpenOptions::new().read(true).open(path.as_ref())?;
+        Self::from_reader(f, path)
+    }
+
+    pub fn from_reader<R: io::Read>(
+        reader: R,
+        file_path: impl AsRef<Path>,
+    ) -> Result<Self, RunFileError> {
         enum Mode {
             None,
             Preamble,
             Do,
         }
 
-        let f = BufReader::new(OpenOptions::new().read(true).open(path.as_ref())?);
+        let reader = BufReader::new(reader);
         let mut preamble = String::new();
         let mut do_things = Vec::new();
         let mut mode = Mode::None;
         let mut partial_expression = String::new();
         let mut parse_begin = 0;
 
-        for (i, line) in f.lines().enumerate() {
+        for (i, line) in reader.lines().enumerate() {
             let line = line?;
             let line = line.trim_end();
             let line_no = i
@@ -154,8 +178,15 @@ impl RunFile {
             .into());
         }
 
+        if do_things.is_empty() {
+            eprintln!(
+                "WARNING: 'do' block is absent or empty in {}",
+                file_path.as_ref().display()
+            );
+        }
+
         Ok(Self {
-            file_path: path.as_ref().to_owned(),
+            file_path: file_path.as_ref().to_owned(),
             preamble,
             do_things,
         })
@@ -167,11 +198,11 @@ impl RunFile {
     /// can use the `testing` FFI calls. The function is called and
     /// values are extracted from the machine after the function
     /// returns.
-    pub fn get_preamble_values(
+    pub fn get_preamble_values<KS: KeyStore>(
         &self,
         crypto_engine: &mut CE,
         keystore: &mut KS,
-    ) -> anyhow::Result<Vec<(Identifier, Value)>> {
+    ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
             "use testing\nfunction preamble() bool {{\n{}\n  return false\n}}",
             self.preamble
@@ -196,13 +227,14 @@ impl RunFile {
         );
         rs.set_pc_by_label(&Label::new(ident!("preamble"), LabelType::Function))?;
         match rs.run() {
-            Ok(exit_reason) => {
-                // This assert is much like `unreachable!()` in that the VM should never be able to
-                // exit for any other reason. But if it does, this will panic.
-                assert_eq!(exit_reason, ExitReason::Normal);
+            Ok(ExitReason::Normal) => {}
+            Ok(ExitReason::Check) => {
+                return Err(RunFileError::PolicyVmCheck);
             }
+            Ok(ExitReason::Panic) => return Err(RunFileError::PolicyVmPanic),
+            Ok(ExitReason::Yield) => unreachable!("Cannot yield in functions"),
             Err(err) => {
-                return Err(anyhow::anyhow!("Preamble error: {err}"));
+                return Err(err.into());
             }
         }
         Ok(rs
@@ -210,5 +242,141 @@ impl RunFile {
             .locals()
             .map(|(n, v)| (n.clone(), v.clone()))
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aranya_crypto::{
+        Random as _, dangerous::spideroak_crypto::aead::AeadKey, default::DefaultEngine,
+        keystore::memstore::MemStore,
+    };
+
+    use crate::SwitchableRng;
+
+    use super::{RunFile, RunFileError};
+
+    #[test]
+    fn parse_correct() {
+        let text = r#"
+preamble:
+    let x = 0
+do:
+    doit(x)
+        "#
+        .trim();
+
+        assert!(RunFile::from_reader(text.as_bytes(), "test.run").is_ok());
+    }
+
+    #[test]
+    fn parse_without_preamble() {
+        let text = r#"
+do:
+    doit(x)
+        "#
+        .trim();
+
+        assert!(RunFile::from_reader(text.as_bytes(), "test.run").is_ok());
+    }
+
+    #[test]
+    fn parse_without_do() {
+        let text = r#"
+preamble:
+    let x = 0
+        "#
+        .trim();
+
+        assert!(RunFile::from_reader(text.as_bytes(), "test.run").is_ok());
+    }
+
+    #[test]
+    fn parse_without_sections() {
+        let text = r#"
+    doit(x)
+        "#
+        .trim();
+
+        assert!(matches!(
+            RunFile::from_reader(text.as_bytes(), "test.run"),
+            Err(RunFileError::Syntax(se)) if se.to_string() == "line 1: Expected 'preamble' or 'do'"
+        ));
+    }
+
+    #[test]
+    fn parse_empty() {
+        let text = "";
+
+        assert!(RunFile::from_reader(text.as_bytes(), "test.run").is_ok());
+    }
+
+    fn test_prereqs() -> (DefaultEngine<SwitchableRng>, MemStore) {
+        let secret_key = AeadKey::random(&mut SwitchableRng::new_default());
+        let engine = DefaultEngine::new(&secret_key, SwitchableRng::new_default());
+        let keystore = MemStore::new();
+        (engine, keystore)
+    }
+
+    #[test]
+    fn preamble_policy_lang_parse_error() {
+        let text = r#"
+preamble:
+    let x = 0 / "horse"
+        "#
+        .trim();
+
+        let (mut ce, mut ks) = test_prereqs();
+
+        let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
+        let r = rf.get_preamble_values(&mut ce, &mut ks);
+        assert!(matches!(r, Err(RunFileError::PolicyParse(_))));
+    }
+
+    #[test]
+    fn preamble_policy_lang_compile_error() {
+        let text = r#"
+preamble:
+    let x = foo("horse")
+        "#
+        .trim();
+
+        let (mut ce, mut ks) = test_prereqs();
+
+        let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
+        let r = rf.get_preamble_values(&mut ce, &mut ks);
+        assert!(matches!(r, Err(RunFileError::PolicyCompile(_))));
+    }
+
+    #[test]
+    fn preamble_policy_lang_vm_error() {
+        let text = r#"
+preamble:
+    let x = if false {: todo() } else {: "foo" }
+    let y = x > 3
+        "#
+        .trim();
+
+        let (mut ce, mut ks) = test_prereqs();
+
+        let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
+        let r = rf.get_preamble_values(&mut ce, &mut ks);
+        println!("{r:?}");
+        assert!(matches!(r, Err(RunFileError::PolicyVm(_))));
+    }
+
+    #[test]
+    fn preamble_policy_lang_vm_check() {
+        let text = r#"
+preamble:
+    check false
+        "#
+        .trim();
+
+        let (mut ce, mut ks) = test_prereqs();
+
+        let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
+        let r = rf.get_preamble_values(&mut ce, &mut ks);
+        assert!(matches!(r, Err(RunFileError::PolicyVmCheck)));
     }
 }
