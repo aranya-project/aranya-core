@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.19.0...aranya-policy-ifgen-v0.20.0) - 2026-02-17
+
+### Other
+
+- Fix #447: Require policy block in command. ([#449](https://github.com/aranya-project/aranya-core/pull/449))
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.18.0...aranya-policy-ifgen-v0.19.0) - 2026-01-23
 
 ### Other
