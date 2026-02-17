@@ -46,7 +46,12 @@ pub const QUEUE_CAPACITY: usize = 256;
 pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
 
 /// Type alias for the queue used in traversal operations.
-pub type TraversalQueue = heapless::Deque<Location, QUEUE_CAPACITY>;
+///
+/// Uses a max-heap so that locations with the highest `max_cut` are processed
+/// first. This bounds the queue size to the graph width at any given `max_cut`
+/// level, rather than accumulating entries across many levels as a FIFO would.
+pub type TraversalQueue =
+    heapless::binary_heap::BinaryHeap<Location, heapless::binary_heap::Max, QUEUE_CAPACITY>;
 
 /// A visited set and queue pair for a single graph traversal operation.
 ///
@@ -155,8 +160,8 @@ impl MaxCut {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
-    pub segment: SegmentIndex,
     pub max_cut: MaxCut,
+    pub segment: SegmentIndex,
 }
 
 impl From<(SegmentIndex, MaxCut)> for Location {
@@ -173,7 +178,7 @@ impl AsRef<Self> for Location {
 
 impl Location {
     pub fn new(segment: SegmentIndex, max_cut: MaxCut) -> Self {
-        Self { segment, max_cut }
+        Self { max_cut, segment }
     }
 
     /// Returns true if other location is in the same segment.
@@ -302,7 +307,7 @@ pub trait Storage {
         let (visited, queue) = buffers.get();
         push_queue(queue, start)?;
 
-        while let Some(loc) = queue.pop_front() {
+        while let Some(loc) = queue.pop() {
             debug_assert!(
                 loc.max_cut >= address.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
@@ -412,7 +417,7 @@ pub trait Storage {
             }
         }
 
-        while let Some(loc) = queue.pop_front() {
+        while let Some(loc) = queue.pop() {
             debug_assert!(
                 loc.max_cut >= search_location.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
@@ -455,7 +460,7 @@ pub trait Storage {
 /// Pushes a location onto the traversal queue, returning an error if the queue is full.
 pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
     queue
-        .push_back(loc)
+        .push(loc)
         .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
@@ -516,7 +521,7 @@ pub trait Segment {
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
         let segment = location.segment;
         core::iter::successors(Some(location.max_cut), |max_cut| max_cut.checked_add(1))
-            .map_while(|max_cut| self.get_command(Location { segment, max_cut }))
+            .map_while(|max_cut| self.get_command(Location { max_cut, segment }))
             .collect()
     }
 
@@ -533,16 +538,16 @@ pub trait Segment {
     /// Returns the location of the first command.
     fn first_location(&self) -> Location {
         Location {
-            segment: self.index(),
             max_cut: self.shortest_max_cut(),
+            segment: self.index(),
         }
     }
 
     /// Returns the location of the head of the segment.
     fn head_location(&self) -> Result<Location, StorageError> {
         Ok(Location {
-            segment: self.index(),
             max_cut: self.longest_max_cut()?,
+            segment: self.index(),
         })
     }
 

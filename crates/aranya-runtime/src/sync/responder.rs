@@ -341,7 +341,7 @@ impl SyncResponder {
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
-        while let Some(head) = queue.pop_front() {
+        while let Some(head) = queue.pop() {
             // Skip if already visited this segment
             if !visited.visit(head.segment) {
                 continue;
@@ -375,8 +375,8 @@ impl SyncResponder {
                     .checked_add(1)
                     .assume("command + 1 mustn't overflow")?;
                 let next_location = Location {
-                    segment: head.segment,
                     max_cut: next_max_cut,
+                    segment: head.segment,
                 };
 
                 let head_loc = segment.head_location()?;
@@ -398,9 +398,6 @@ impl SyncResponder {
             }
 
             for prior in segment.prior() {
-                if queue.is_full() {
-                    queue.pop_front();
-                }
                 push_queue(queue, prior)?;
             }
 

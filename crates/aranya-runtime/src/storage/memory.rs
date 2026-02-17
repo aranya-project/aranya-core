@@ -495,8 +495,8 @@ impl Segment for MemSegment {
 
     fn first_location(&self) -> Location {
         Location {
-            segment: self.index,
             max_cut: self.commands.first().command.max_cut,
+            segment: self.index,
         }
     }
 
