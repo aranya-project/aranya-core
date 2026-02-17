@@ -1,4 +1,4 @@
-use core::{cell::Cell, marker::PhantomData, ops::DerefMut as _, sync::atomic::Ordering};
+use core::{cell::Cell, marker::PhantomData, sync::atomic::Ordering};
 
 use aranya_crypto::{
     CipherSuite, Csprng, DeviceId,
@@ -16,7 +16,6 @@ use super::{
 use crate::features::*;
 use crate::{
     RemoveIfParams,
-    mutex::StdMutex,
     shm::shared::Op,
     state::{AranyaState, Directed, LocalChannelId},
     util::debug,
@@ -26,7 +25,7 @@ use crate::{
 #[derive(Debug)]
 pub struct WriteState<CS, R> {
     inner: State<CS>,
-    rng: StdMutex<R>,
+    rng: R,
 
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
@@ -44,7 +43,7 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
-            rng: StdMutex::new(rng),
+            rng,
             _no_sync: PhantomData,
         })
     }
@@ -66,8 +65,6 @@ where
         label_id: LabelId,
         peer_id: DeviceId,
     ) -> Result<LocalChannelId, Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
-
         let id = {
             // NB: This cannot reasonably overflow.
             let next = self.inner.shm().next_chan_id.fetch_add(1, Ordering::SeqCst);
@@ -90,7 +87,7 @@ where
             let chan = side.raw_at(idx)?;
             debug!("adding chan {id} at {idx}");
 
-            ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, &self.rng);
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("write side generation={}", generation + 1);
@@ -110,14 +107,7 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(
-                side.raw_at(idx)?,
-                id,
-                label_id,
-                peer_id,
-                &keys,
-                rng.deref_mut(),
-            );
+            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, peer_id, &keys, &self.rng);
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("read side generation={}", generation + 1);

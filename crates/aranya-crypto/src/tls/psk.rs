@@ -57,7 +57,7 @@ pub struct PskSeed<CS: CipherSuite> {
 
 impl<CS: CipherSuite> PskSeed<CS> {
     /// Generates a random `PskSeed`.
-    pub fn new<R>(rng: &mut R, group: &GroupId) -> Self
+    pub fn new<R>(rng: R, group: &GroupId) -> Self
     where
         R: Csprng,
     {
@@ -234,7 +234,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
     /// It is an error if `pk` is the public key for `self`.
     pub fn seal_psk_seed<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: R,
         seed: &PskSeed<CS>,
         peer_pk: &EncryptionPublicKey<CS>,
         group: &GroupId,

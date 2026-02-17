@@ -315,7 +315,7 @@ impl TestPolicyStore {
             machine,
             eng,
             vec![Box::from(TestFfiEnvelope {
-                device: DeviceId::random(&mut Rng),
+                device: DeviceId::random(Rng),
             })],
         )
         .expect("Could not load policy");

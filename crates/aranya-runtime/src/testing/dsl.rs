@@ -60,7 +60,7 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -358,7 +358,7 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = &mut Rng as &mut dyn Csprng;
+    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()

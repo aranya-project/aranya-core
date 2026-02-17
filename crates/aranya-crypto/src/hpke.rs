@@ -45,7 +45,7 @@ where
 /// `info` with [`CipherSuite::OIDS`].
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup_send<'a, CS, R>(
-    rng: &mut R,
+    rng: R,
     mode: Mode<'_, &DecapKey<CS>>,
     pkR: &EncapKey<CS>,
     info: impl IntoIterator<Item = &'a [u8]>,

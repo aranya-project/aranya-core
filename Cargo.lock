@@ -3126,9 +3126,9 @@ dependencies = [
 
 [[package]]
 name = "spideroak-crypto"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0391e11840a14f462baa45fdb3bb19433e613a1468951f2b248a0ff40648f384"
+checksum = "c901b44b1697abe85dc4797e0689fe0ae0c24a2318d4996ae0421df9df71665a"
 dependencies = [
  "aes",
  "aes-gcm",
