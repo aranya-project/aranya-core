@@ -1318,13 +1318,7 @@ impl CompileState<'_> {
                     self.identifier_types
                         .add(s.identifier.name.clone(), et.vtype.clone())
                         .map_err(|e| self.err(e))?;
-                    // Check for Never type after adding to identifier types
-                    // This ensures duplicate name errors are caught first (during add())
-                    if matches!(et.vtype.kind, TypeKind::Never) {
-                        return Err(self.err(CompileErrorType::InvalidType(
-                            "Cannot assign a Never value.".to_string(),
-                        )));
-                    }
+                    // NOTE: We allow assigning Never, which is useful for stubbing out code during development.
                     thir::StmtKind::Let(thir::LetStatement {
                         identifier: s.identifier.clone(),
                         expression: et,

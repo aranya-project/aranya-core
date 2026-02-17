@@ -1715,15 +1715,6 @@ fn test_match_expression_with_return() {
             }"#,
             "Return value of `f()` must be int",
         ),
-        (
-            // All arms return - return has Never type and can't be assigned
-            r#"function f(n int) int {
-                let x = match n {
-                    _ => return 3
-                }
-            }"#,
-            "Cannot assign a Never value.",
-        ),
     ];
 
     for (i, (src, expected_msg)) in invalid_cases.iter().enumerate() {
