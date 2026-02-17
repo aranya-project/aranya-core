@@ -344,7 +344,8 @@ impl SyncResponder {
         let mut visited = alloc::collections::BTreeSet::<crate::SegmentIndex>::new();
 
         while let Some(head) = queue.pop() {
-            debug_assert!(visited.insert(head.segment), "revisiting {head}");
+            #[cfg(debug_assertions)]
+            assert!(visited.insert(head.segment), "revisiting {head}");
 
             // Check if the current segment head is an ancestor of any location in have_locations.
             // If so, stop traversing backward from this point since the requester already has

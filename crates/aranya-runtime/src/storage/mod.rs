@@ -290,7 +290,8 @@ pub trait Storage {
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
 
-            debug_assert!(visited.insert(loc.segment), "revisiting {loc}");
+            #[cfg(debug_assertions)]
+            assert!(visited.insert(loc.segment), "revisiting {loc}");
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -414,7 +415,8 @@ pub trait Storage {
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
 
-            debug_assert!(visited.insert(loc.segment), "revisiting {loc}");
+            #[cfg(debug_assertions)]
+            assert!(visited.insert(loc.segment), "revisiting {loc}");
 
             // Must load segment
             let segment = self.get_segment(loc)?;
