@@ -336,16 +336,15 @@ impl SyncResponder {
             }
         }
 
-        let (visited, queue) = buffers.primary.get();
+        let queue = buffers.primary.get();
         push_queue(queue, storage.get_head()?)?;
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
+        #[cfg(debug_assertions)]
+        let mut visited = alloc::collections::BTreeSet::<crate::SegmentIndex>::new();
 
         while let Some(head) = queue.pop() {
-            // Skip if already visited this segment
-            if !visited.visit(head.segment) {
-                continue;
-            }
+            debug_assert!(visited.insert(head.segment), "revisiting {head}");
 
             // Check if the current segment head is an ancestor of any location in have_locations.
             // If so, stop traversing backward from this point since the requester already has

@@ -15,35 +15,12 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
-pub mod visited;
-
-pub use visited::CappedVisited;
-
-/// Default capacity for the visited segment cache used in graph traversal.
-///
-/// This bounds memory usage while allowing efficient traversal of graphs
-/// with many concurrent branches. Each entry stores one `usize` field
-/// (segment_id), so entry size is `size_of::<usize>()`:
-/// 8 bytes on 64-bit targets, 4 bytes on 32-bit.
-///
-/// The capacity should accommodate the expected "active frontier" width
-/// during backward traversal, which is bounded by peer count. Recommended:
-/// - Embedded (small): 64 entries (~0.25 KB on 32-bit, ~0.5 KB on 64-bit)
-/// - Standard embedded: 256 entries (~1 KB on 32-bit, ~2 KB on 64-bit)
-/// - Server: 512 entries (~2 KB on 32-bit, ~4 KB on 64-bit)
-///
-/// If capacity is exceeded, the algorithm remains correct but may revisit
-/// segments (producing redundant work, not incorrect results).
-pub const VISITED_CAPACITY: usize = 512;
 
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"
 /// during backward traversal, which is bounded by peer count.
 pub const QUEUE_CAPACITY: usize = 512;
-
-/// Type alias for the visited set used in traversal operations.
-pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
 
 /// Type alias for the queue used in traversal operations.
 ///
@@ -57,23 +34,20 @@ pub type TraversalQueue =
 ///
 /// Access via [`get()`](Self::get), which clears both buffers automatically.
 pub struct TraversalBufferPair {
-    visited: TraversalVisited,
     queue: TraversalQueue,
 }
 
 impl TraversalBufferPair {
     pub const fn new() -> Self {
         Self {
-            visited: TraversalVisited::new(),
             queue: TraversalQueue::new(),
         }
     }
 
     /// Returns cleared buffers ready for use.
-    pub fn get(&mut self) -> (&mut TraversalVisited, &mut TraversalQueue) {
-        self.visited.clear();
+    pub fn get(&mut self) -> &mut TraversalQueue {
         self.queue.clear();
-        (&mut self.visited, &mut self.queue)
+        &mut self.queue
     }
 }
 
@@ -304,8 +278,11 @@ pub trait Storage {
             return Ok(None);
         }
 
-        let (visited, queue) = buffers.get();
+        let queue = buffers.get();
         push_queue(queue, start)?;
+
+        #[cfg(debug_assertions)]
+        let mut visited = alloc::collections::BTreeSet::<SegmentIndex>::new();
 
         while let Some(loc) = queue.pop() {
             debug_assert!(
@@ -313,9 +290,7 @@ pub trait Storage {
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
 
-            if !visited.visit(loc.segment) {
-                continue;
-            }
+            debug_assert!(visited.insert(loc.segment), "revisiting {loc}");
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -410,12 +385,28 @@ pub trait Storage {
         segment: &Self::Segment,
         buffers: &mut TraversalBufferPair,
     ) -> Result<bool, StorageError> {
-        let (visited, queue) = buffers.get();
-        for prior in segment.prior() {
-            if prior.max_cut >= search_location.max_cut {
-                push_queue(queue, prior)?;
+        let queue = buffers.get();
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so first valid skip
+        // jumps as far back as possible.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= search_location.max_cut)
+        {
+            push_queue(queue, skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= search_location.max_cut {
+                    push_queue(queue, prior)?;
+                }
             }
         }
+
+        #[cfg(debug_assertions)]
+        let mut visited = alloc::collections::BTreeSet::<SegmentIndex>::new();
 
         while let Some(loc) = queue.pop() {
             debug_assert!(
@@ -423,9 +414,7 @@ pub trait Storage {
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
 
-            if !visited.visit(loc.segment) {
-                continue;
-            }
+            debug_assert!(visited.insert(loc.segment), "revisiting {loc}");
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -459,6 +448,11 @@ pub trait Storage {
 
 /// Pushes a location onto the traversal queue, returning an error if the queue is full.
 pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
+    if let Some(found) = queue.iter_mut().find(|l| l.segment == loc.segment) {
+        // TODO: use max for find_needed_segments?
+        found.max_cut = found.max_cut.min(loc.max_cut);
+        return Ok(());
+    }
     queue
         .push(loc)
         .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
