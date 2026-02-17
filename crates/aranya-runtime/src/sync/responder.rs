@@ -343,12 +343,9 @@ impl SyncResponder {
 
         while let Some(head) = queue.pop_front() {
             // Skip if already visited this segment
-            if visited.was_segment_visited(head.segment) {
+            if !visited.visit(head.segment) {
                 continue;
             }
-
-            let segment = storage.get_segment(head)?;
-            visited.mark_segment_visited(head.segment, segment.shortest_max_cut());
 
             // Check if the current segment head is an ancestor of any location in have_locations.
             // If so, stop traversing backward from this point since the requester already has
@@ -364,6 +361,8 @@ impl SyncResponder {
             if is_have_ancestor {
                 continue;
             }
+
+            let segment = storage.get_segment(head)?;
 
             // If the requester has any commands in this segment, send from the next command
             if let Some(latest_loc) = have_locations
