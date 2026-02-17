@@ -306,44 +306,9 @@ pub trait Storage {
 
         let (visited, queue) = buffers.get();
         push_queue(queue, start)?;
-
-        while let Some(loc) = queue.pop() {
-            debug_assert!(
-                loc.max_cut >= address.max_cut,
-                "Invariant: we only enqueue locations with at least the target max cut"
-            );
-
-            if !visited.visit(loc.segment) {
-                continue;
-            }
-
-            // Must load segment
-            let segment = self.get_segment(loc)?;
-
-            // Search commands in this segment.
-            if let Some(found) = segment.get_by_address(address) {
-                return Ok(Some(found));
-            }
-
-            // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so first valid skip
-            // jumps as far back as possible.
-            if let Some(&skip) = segment
-                .skip_list()
-                .iter()
-                .find(|skip| skip.max_cut >= address.max_cut)
-            {
-                push_queue(queue, skip)?;
-            } else {
-                // No valid skip - add prior locations to queue
-                for prior in segment.prior() {
-                    if prior.max_cut >= address.max_cut {
-                        push_queue(queue, prior)?;
-                    }
-                }
-            }
-        }
-        Ok(None)
+        traverse(self, address.max_cut, visited, queue, |segment| {
+            Ok(segment.get_by_address(address))
+        })
     }
 
     /// Returns the address of the command at the given location.
@@ -416,45 +381,76 @@ pub trait Storage {
                 push_queue(queue, prior)?;
             }
         }
+        let found = traverse(self, search_location.max_cut, visited, queue, |segment| {
+            Ok(segment.get_command(search_location).map(|_| true))
+        })?;
+        Ok(found.is_some())
+    }
+}
 
-        while let Some(loc) = queue.pop() {
-            debug_assert!(
-                loc.max_cut >= search_location.max_cut,
-                "Invariant: we only enqueue locations with at least the target max cut"
-            );
+/// Walks the graph backward from the queue, calling `check` on each unvisited
+/// segment. Returns `Ok(Some(v))` on the first `Some` returned by `check`, or
+/// `Ok(None)` if the queue is exhausted.
+///
+/// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm specification.
+fn traverse<S, T>(
+    storage: &S,
+    target_max_cut: MaxCut,
+    visited: &mut TraversalVisited,
+    queue: &mut TraversalQueue,
+    mut check: impl FnMut(&S::Segment) -> Result<Option<T>, StorageError>,
+) -> Result<Option<T>, StorageError>
+where
+    S: Storage + ?Sized,
+{
+    while let Some(loc) = queue.pop() {
+        debug_assert!(
+            loc.max_cut >= target_max_cut,
+            "Invariant: we only enqueue locations with at least the target max cut"
+        );
 
-            if !visited.visit(loc.segment) {
-                continue;
-            }
+        if !visited.visit(loc.segment) {
+            continue;
+        }
 
-            // Must load segment
-            let segment = self.get_segment(loc)?;
+        let segment = storage.get_segment(loc)?;
 
-            // Search commands in this segment.
-            if segment.get_command(search_location).is_some() {
-                return Ok(true);
-            }
+        if let Some(found) = check(&segment)? {
+            return Ok(Some(found));
+        }
 
-            // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so first valid skip
-            // jumps as far back as possible.
-            if let Some(&skip) = segment
-                .skip_list()
-                .iter()
-                .find(|skip| skip.max_cut >= search_location.max_cut)
-            {
-                push_queue(queue, skip)?;
-            } else {
-                // No valid skip - add prior locations to queue
-                for prior in segment.prior() {
-                    if prior.max_cut >= search_location.max_cut {
-                        push_queue(queue, prior)?;
-                    }
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so first valid skip
+        // jumps as far back as possible.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= target_max_cut)
+        {
+            enqueue(visited, queue, skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= target_max_cut {
+                    enqueue(visited, queue, prior)?;
                 }
             }
         }
-        Ok(false)
     }
+    Ok(None)
+}
+
+/// Pushes a location onto the traversal queue if the segment has not already
+/// been visited. Returns an error if the queue is full.
+fn enqueue(
+    visited: &TraversalVisited,
+    queue: &mut TraversalQueue,
+    loc: Location,
+) -> Result<(), StorageError> {
+    if !visited.contains(loc.segment) {
+        push_queue(queue, loc)?;
+    }
+    Ok(())
 }
 
 /// Pushes a location onto the traversal queue, returning an error if the queue is full.
@@ -470,7 +466,7 @@ pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), Stora
 /// * init   - This segment is the first segment of the graph and begins with an init command.
 /// * linear - This segment has a single prior command and is simply a sequence of linear commands.
 /// * merge  - This segment merges two other segments and thus begins with a merge command. A merge
-///   segment has a braid as it's prior facts.
+///   segment has a braid as its prior facts.
 ///
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {

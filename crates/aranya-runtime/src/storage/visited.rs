@@ -39,10 +39,15 @@ impl<const CAP: usize> CappedVisited<CAP> {
         self.entries.clear();
     }
 
+    /// Returns `true` if this segment has already been visited.
+    pub fn contains(&self, seg: SegmentIndex) -> bool {
+        self.entries.contains(&seg)
+    }
+
     /// Marks a segment as visited.
     ///
     /// When the set is full and a new segment needs to be inserted, evicts
-    /// the entry with the highest max_cut.
+    /// the entry with the highest segment index.
     ///
     /// Returns `true` if this segment was not already visited.
     pub fn visit(&mut self, new_seg: SegmentIndex) -> bool {
@@ -58,7 +63,7 @@ impl<const CAP: usize> CappedVisited<CAP> {
             if old_seg == new_seg {
                 return false;
             }
-            // Track entry with highest max_cut for potential eviction
+            // Track entry with highest segment index for potential eviction
             if old_seg > evict_segment {
                 evict_segment = old_seg;
                 evict_idx = i;
@@ -69,7 +74,7 @@ impl<const CAP: usize> CappedVisited<CAP> {
         if self.entries.len() < CAP {
             self.entries.push(new_seg).expect("len < CAP was checked");
         } else {
-            // Evict entry with highest max_cut (already found above)
+            // Evict entry with highest segment index (already found above)
             self.entries[evict_idx] = new_seg;
         }
 
@@ -116,5 +121,22 @@ mod tests {
         assert!(visited.visit(seg(3)));
         assert!(!visited.visit(seg(4)));
         assert!(visited.visit(seg(5)));
+    }
+
+    #[test]
+    fn test_contains() {
+        let mut visited = CappedVisited::<2>::new();
+        assert!(!visited.contains(seg(1)));
+        assert!(visited.visit(seg(1)));
+        assert!(visited.contains(seg(1)));
+        assert!(!visited.contains(seg(2)));
+        assert!(visited.visit(seg(2)));
+        assert!(visited.contains(seg(1)));
+        assert!(visited.contains(seg(2)));
+        // After eviction of highest (seg(2)), seg(2) is gone
+        assert!(visited.visit(seg(0)));
+        assert!(visited.contains(seg(0)));
+        assert!(visited.contains(seg(1)));
+        assert!(!visited.contains(seg(2)));
     }
 }

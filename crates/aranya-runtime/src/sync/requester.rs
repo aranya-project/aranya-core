@@ -370,7 +370,7 @@ impl SyncRequester {
                 let mut current = vec![head];
 
                 // Here we just get the first command from the most recent
-                // COMMAND_SAMPLE_MAX segments in the graph. This is probbly
+                // COMMAND_SAMPLE_MAX segments in the graph. This is probably
                 // not the best strategy as if you are far enough ahead of
                 // the other client they will just send you everything they have.
                 while commands.len() < COMMAND_SAMPLE_MAX && !current.is_empty() {

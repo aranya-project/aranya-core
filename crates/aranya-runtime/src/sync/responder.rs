@@ -398,7 +398,9 @@ impl SyncResponder {
             }
 
             for prior in segment.prior() {
-                push_queue(queue, prior)?;
+                if !visited.contains(prior.segment) {
+                    push_queue(queue, prior)?;
+                }
             }
 
             let location = segment.first_location();
