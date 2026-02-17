@@ -34,13 +34,13 @@ pub use visited::CappedVisited;
 ///
 /// If capacity is exceeded, the algorithm remains correct but may revisit
 /// segments (producing redundant work, not incorrect results).
-pub const VISITED_CAPACITY: usize = 256;
+pub const VISITED_CAPACITY: usize = 512;
 
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"
 /// during backward traversal, which is bounded by peer count.
-pub const QUEUE_CAPACITY: usize = 256;
+pub const QUEUE_CAPACITY: usize = 512;
 
 /// Type alias for the visited set used in traversal operations.
 pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
