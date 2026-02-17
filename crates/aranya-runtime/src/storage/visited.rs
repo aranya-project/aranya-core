@@ -1,7 +1,7 @@
 //! Capped visited set for graph traversal.
 //!
 //! Provides bounded-memory tracking of visited segments during DAG traversal,
-//! suitable for no-alloc embedded environments. Enable skipping segment loads
+//! suitable for no-alloc embedded environments. Enables skipping segment loads
 //! and incremental searching.
 
 use heapless::Vec;
