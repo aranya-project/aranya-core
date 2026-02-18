@@ -25,7 +25,7 @@ aranya_crypto::custom_id! {
     pub struct GraphId;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct SegmentIndex(pub usize);
 
@@ -35,7 +35,7 @@ impl fmt::Display for SegmentIndex {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct MaxCut(pub usize);
 
@@ -65,7 +65,7 @@ impl MaxCut {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
     pub segment: SegmentIndex,
     pub max_cut: MaxCut,
@@ -499,6 +499,15 @@ pub trait QueryMut: Query {
 
     /// Delete any fact associated to the compound key, under the given name.
     fn delete(&mut self, name: String, keys: Keys);
+}
+
+// TODO(jdygert): Expose this?
+#[cfg(all(test, feature = "graphviz"))]
+pub(crate) trait FactIndexExtra {
+    fn name(&self) -> String;
+    fn prior(&self) -> Result<Option<Self>, StorageError>
+    where
+        Self: Sized;
 }
 
 /// A sequence of byte-based keys, used for facts.

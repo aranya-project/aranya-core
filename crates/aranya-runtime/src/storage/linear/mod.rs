@@ -768,6 +768,27 @@ impl SegmentRepr {
 
 impl<R: Read> FactIndex for LinearFactIndex<R> {}
 
+#[cfg(all(test, feature = "graphviz"))]
+impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
+    fn name(&self) -> String {
+        use alloc::string::ToString as _;
+        self.repr.offset.to_string()
+    }
+
+    fn prior(&self) -> Result<Option<Self>, StorageError> {
+        self.repr
+            .prior
+            .map(|p| {
+                let repr = self.reader.fetch(p)?;
+                Ok(Self {
+                    repr,
+                    reader: self.reader.clone(),
+                })
+            })
+            .transpose()
+    }
+}
+
 type MapIter = alloc::collections::btree_map::IntoIter<Keys, Option<Bytes>>;
 pub struct QueryIterator {
     it: MapIter,
