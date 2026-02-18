@@ -109,7 +109,7 @@ async fn run(options: Opt) -> Result<()> {
     };
 
     let policy_store = TestPolicyStore::new();
-    let storage = MemStorageProvider::new();
+    let storage = MemStorageProvider::default();
 
     let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage)));
     let sink = Arc::new(TMutex::new(PrintSink {}));

@@ -295,7 +295,7 @@ where
 
 fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>> {
     let policy_store = TestPolicyStore::new();
-    let storage = MemStorageProvider::new();
+    let storage = MemStorageProvider::default();
 
     Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
 }

@@ -16,7 +16,7 @@
 //!     type StorageProvider = MemStorageProvider;
 //!
 //!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-//!         MemStorageProvider::new()
+//!         MemStorageProvider::default()
 //!     }
 //! }
 //! test_suite!(|| MemBackend);
@@ -36,7 +36,7 @@
 //!     type StorageProvider = MemStorageProvider;
 //!
 //!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-//!         MemStorageProvider::new()
+//!         MemStorageProvider::default()
 //!     }
 //! }
 //! vectors::run_all(|| MemBackend).unwrap();

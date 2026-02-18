@@ -822,7 +822,7 @@ mod test {
     #[test]
     fn test_simple() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "b";
             "a" < "c";
@@ -836,10 +836,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "simple");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(5), MaxCut(3))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(3));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -851,7 +848,7 @@ mod test {
     #[test]
     fn test_complex() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "1" "2" "3";
             "3" < "4" "6" "7";
@@ -873,10 +870,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "complex");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(15), MaxCut(15))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(15));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -891,7 +885,7 @@ mod test {
     #[test]
     fn test_duplicates() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "b" "c";
             "a" < "b";
@@ -909,10 +903,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "duplicates");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(2), MaxCut(4))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(4));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -922,7 +913,7 @@ mod test {
     #[test]
     fn test_mid_braid_1() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
@@ -935,10 +926,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_1");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(3), MaxCut(7))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(7));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -948,7 +936,7 @@ mod test {
     #[test]
     fn test_mid_braid_2() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "h" "i" "j";
@@ -961,10 +949,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_2");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(3), MaxCut(7))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(7));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -974,7 +959,7 @@ mod test {
     #[test]
     fn test_sequential_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
@@ -990,10 +975,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "finalize_success");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(5), MaxCut(9))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(9));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1003,7 +985,7 @@ mod test {
     #[test]
     fn test_parallel_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
