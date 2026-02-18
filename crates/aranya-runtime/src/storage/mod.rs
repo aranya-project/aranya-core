@@ -542,7 +542,3 @@ impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
         Self(iter.into_iter().map(Into::into).collect())
     }
 }
-
-// TODO: Fix and enable
-// #[cfg(test)]
-// mod tests;
