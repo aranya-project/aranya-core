@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.18.0...aranya-crypto-ffi-v0.19.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+
 ## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.17.0...aranya-crypto-ffi-v0.18.0) - 2026-01-23
 
 ### Other
