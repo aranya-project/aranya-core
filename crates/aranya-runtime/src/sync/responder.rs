@@ -13,7 +13,7 @@ use crate::{
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
-        TraversalBuffers, push_queue, push_queue_unique,
+        TraversalBuffers, push_queue,
     },
 };
 
@@ -393,7 +393,7 @@ impl SyncResponder {
             }
 
             for prior in segment.prior() {
-                push_queue_unique(queue, prior)?;
+                push_queue(queue, prior)?;
             }
 
             let location = segment.first_location();

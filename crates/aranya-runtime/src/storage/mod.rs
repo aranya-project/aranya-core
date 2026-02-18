@@ -303,12 +303,12 @@ pub trait Storage {
                 .iter()
                 .find(|skip| skip.max_cut >= address.max_cut)
             {
-                push_queue_unique(queue, skip)?;
+                push_queue(queue, skip)?;
             } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
                     if prior.max_cut >= address.max_cut {
-                        push_queue_unique(queue, prior)?;
+                        push_queue(queue, prior)?;
                     }
                 }
             }
@@ -410,12 +410,12 @@ pub trait Storage {
                 .iter()
                 .find(|skip| skip.max_cut >= search_location.max_cut)
             {
-                push_queue_unique(queue, skip)?;
+                push_queue(queue, skip)?;
             } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
                     if prior.max_cut >= search_location.max_cut {
-                        push_queue_unique(queue, prior)?;
+                        push_queue(queue, prior)?;
                     }
                 }
             }
@@ -424,20 +424,15 @@ pub trait Storage {
     }
 }
 
-/// Pushes a location onto the traversal queue, returning an error if the queue is full.
-pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
-    queue
-        .push(loc)
-        .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
-}
-
 /// Pushes a location onto the traversal queue only if no location with the same
-/// segment index is already queued.
-pub fn push_queue_unique(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
+/// segment index is already queued, returning an error if the queue is full.
+pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
     if queue.iter().any(|q| q.segment == loc.segment) {
         return Ok(());
     }
-    push_queue(queue, loc)
+    queue
+        .push(loc)
+        .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
 /// A segment is a nonempty sequence of commands persisted to storage.
