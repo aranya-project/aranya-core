@@ -12,7 +12,7 @@ use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{
-        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBufferPair,
+        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers, push_queue,
     },
 };
@@ -36,7 +36,7 @@ impl PeerCache {
         storage: &S,
         command: Address,
         cmd_loc: Location,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,

@@ -69,7 +69,7 @@ use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
     Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    TraversalBufferPair, TraversalBuffers,
+    TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -986,7 +986,7 @@ impl Display for Parent {
 pub fn print_graph<S>(
     storage: &S,
     location: Location,
-    buffers: &mut TraversalBufferPair,
+    buffers: &mut TraversalBuffer,
 ) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,

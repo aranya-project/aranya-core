@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use tracing::trace;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBufferPair};
+use crate::{ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBuffer};
 
 // Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
 impl From<strand_heap::ParallelFinalize> for ClientError {
@@ -83,7 +83,7 @@ pub(super) fn braid<S: Storage>(
     storage: &mut S,
     left: Location,
     right: Location,
-    buffers: &mut TraversalBufferPair,
+    buffers: &mut TraversalBuffer,
 ) -> Result<Vec<Location>, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 

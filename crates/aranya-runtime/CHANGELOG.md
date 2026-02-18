@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.19.0...aranya-runtime-v0.20.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+- switch command index to max cut in `Location` ([#552](https://github.com/aranya-project/aranya-core/pull/552))
+- remove refcell usage for MachineIO ([#558](https://github.com/aranya-project/aranya-core/pull/558))
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.18.0...aranya-runtime-v0.19.0) - 2026-01-23
 
 ### Other

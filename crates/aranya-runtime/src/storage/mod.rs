@@ -30,28 +30,28 @@ pub const QUEUE_CAPACITY: usize = 512;
 pub type TraversalQueue =
     heapless::binary_heap::BinaryHeap<Location, heapless::binary_heap::Max, QUEUE_CAPACITY>;
 
-/// A visited set and queue pair for a single graph traversal operation.
+/// A queue buffer for a single graph traversal operation.
 ///
-/// Access via [`get()`](Self::get), which clears both buffers automatically.
-pub struct TraversalBufferPair {
+/// Access via [`get()`](Self::get), which clears the buffer automatically.
+pub struct TraversalBuffer {
     queue: TraversalQueue,
 }
 
-impl TraversalBufferPair {
+impl TraversalBuffer {
     pub const fn new() -> Self {
         Self {
             queue: TraversalQueue::new(),
         }
     }
 
-    /// Returns cleared buffers ready for use.
+    /// Returns a cleared queue ready for use.
     pub fn get(&mut self) -> &mut TraversalQueue {
         self.queue.clear();
         &mut self.queue
     }
 }
 
-impl Default for TraversalBufferPair {
+impl Default for TraversalBuffer {
     fn default() -> Self {
         Self::new()
     }
@@ -59,19 +59,19 @@ impl Default for TraversalBufferPair {
 
 /// Reusable buffers for graph traversal operations.
 ///
-/// Contains two independent buffer pairs so that an outer traversal
-/// (e.g. `find_needed_segments`) can maintain state in one pair while
+/// Contains two independent queue buffers so that an outer traversal
+/// (e.g. `find_needed_segments`) can maintain state in one buffer while
 /// calling leaf operations (e.g. `is_ancestor`) that use the other.
 pub struct TraversalBuffers {
-    pub primary: TraversalBufferPair,
-    pub secondary: TraversalBufferPair,
+    pub primary: TraversalBuffer,
+    pub secondary: TraversalBuffer,
 }
 
 impl TraversalBuffers {
     pub const fn new() -> Self {
         Self {
-            primary: TraversalBufferPair::new(),
-            secondary: TraversalBufferPair::new(),
+            primary: TraversalBuffer::new(),
+            secondary: TraversalBuffer::new(),
         }
     }
 }
@@ -260,7 +260,7 @@ pub trait Storage {
     fn get_location(
         &self,
         address: Address,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
         self.get_location_from(self.get_head()?, address, buffers)
     }
@@ -272,7 +272,7 @@ pub trait Storage {
         &self,
         start: Location,
         address: Address,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
         if start.max_cut < address.max_cut {
             return Ok(None);
@@ -302,8 +302,9 @@ pub trait Storage {
             }
 
             // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so first valid skip
-            // jumps as far back as possible.
+            // Skip list is sorted by max_cut ascending, so the first entry
+            // with max_cut >= target has the lowest valid max_cut, jumping
+            // furthest back in the graph.
             if let Some(&skip) = segment
                 .skip_list()
                 .iter()
@@ -367,7 +368,7 @@ pub trait Storage {
     fn commit(
         &mut self,
         segment: Self::Segment,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
@@ -384,7 +385,7 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
         let queue = buffers.get();
 
@@ -427,8 +428,9 @@ pub trait Storage {
             }
 
             // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so first valid skip
-            // jumps as far back as possible.
+            // Skip list is sorted by max_cut ascending, so the first entry
+            // with max_cut >= target has the lowest valid max_cut, jumping
+            // furthest back in the graph.
             if let Some(&skip) = segment
                 .skip_list()
                 .iter()
@@ -448,7 +450,8 @@ pub trait Storage {
     }
 }
 
-/// Pushes a location onto the traversal queue, returning an error if the queue is full.
+/// Pushes a location onto the traversal queue only if no location with the same
+/// segment index is already queued, returning an error if the queue is full.
 pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
     if let Some(found) = queue.iter_mut().find(|l| l.segment == loc.segment) {
         // TODO: use max for find_needed_segments?
@@ -713,10 +716,7 @@ mod queue_tests {
             push_queue(&mut queue, loc(i, i)).unwrap();
         }
         // Next push should fail with TraversalQueueOverflow
-        let result = push_queue(&mut queue, loc(999, 999));
-        assert_eq!(
-            result,
-            Err(StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
-        );
+        let err = push_queue(&mut queue, loc(999, 999)).expect_err("expected push_queue to fail");
+        assert_eq!(err, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
     }
 }

@@ -7,8 +7,8 @@ use super::braiding;
 use crate::{
     Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
     Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
-    Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBufferPair,
-    TraversalBuffers, policy::CommandPlacement,
+    Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBuffer, TraversalBuffers,
+    policy::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -55,7 +55,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         &self,
         storage: &mut SP::Storage,
         address: Address,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
         if let Some(found) = storage.get_location(address, buffers)? {
