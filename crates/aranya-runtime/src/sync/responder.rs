@@ -12,8 +12,8 @@ use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{
-        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBufferPair,
-        TraversalBuffers, push_queue,
+        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
+        TraversalBuffers, push_queue, push_queue_unique,
     },
 };
 
@@ -36,7 +36,7 @@ impl PeerCache {
         storage: &S,
         command: Address,
         cmd_loc: Location,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -336,17 +336,12 @@ impl SyncResponder {
             }
         }
 
-        let (visited, queue) = buffers.primary.get();
+        let queue = buffers.primary.get();
         push_queue(queue, storage.get_head()?)?;
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
         while let Some(head) = queue.pop() {
-            // Skip if already visited this segment
-            if !visited.visit(head.segment) {
-                continue;
-            }
-
             // Check if the current segment head is an ancestor of any location in have_locations.
             // If so, stop traversing backward from this point since the requester already has
             // this command and all its ancestors.
@@ -398,7 +393,7 @@ impl SyncResponder {
             }
 
             for prior in segment.prior() {
-                push_queue(queue, prior)?;
+                push_queue_unique(queue, prior)?;
             }
 
             let location = segment.first_location();

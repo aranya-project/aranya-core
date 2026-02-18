@@ -15,35 +15,11 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
-pub mod visited;
-
-pub use visited::CappedVisited;
-
-/// Default capacity for the visited segment cache used in graph traversal.
-///
-/// This bounds memory usage while allowing efficient traversal of graphs
-/// with many concurrent branches. Each entry stores one `usize` field
-/// (segment_id), so entry size is `size_of::<usize>()`:
-/// 8 bytes on 64-bit targets, 4 bytes on 32-bit.
-///
-/// The capacity should accommodate the expected "active frontier" width
-/// during backward traversal, which is bounded by peer count. Recommended:
-/// - Embedded (small): 64 entries (~0.25 KB on 32-bit, ~0.5 KB on 64-bit)
-/// - Standard embedded: 256 entries (~1 KB on 32-bit, ~2 KB on 64-bit)
-/// - Server: 512 entries (~2 KB on 32-bit, ~4 KB on 64-bit)
-///
-/// If capacity is exceeded, the algorithm remains correct but may revisit
-/// segments (producing redundant work, not incorrect results).
-pub const VISITED_CAPACITY: usize = 512;
-
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"
 /// during backward traversal, which is bounded by peer count.
 pub const QUEUE_CAPACITY: usize = 512;
-
-/// Type alias for the visited set used in traversal operations.
-pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
 
 /// Type alias for the queue used in traversal operations.
 ///
@@ -53,31 +29,28 @@ pub type TraversalVisited = CappedVisited<VISITED_CAPACITY>;
 pub type TraversalQueue =
     heapless::binary_heap::BinaryHeap<Location, heapless::binary_heap::Max, QUEUE_CAPACITY>;
 
-/// A visited set and queue pair for a single graph traversal operation.
+/// A queue buffer for a single graph traversal operation.
 ///
-/// Access via [`get()`](Self::get), which clears both buffers automatically.
-pub struct TraversalBufferPair {
-    visited: TraversalVisited,
+/// Access via [`get()`](Self::get), which clears the buffer automatically.
+pub struct TraversalBuffer {
     queue: TraversalQueue,
 }
 
-impl TraversalBufferPair {
+impl TraversalBuffer {
     pub const fn new() -> Self {
         Self {
-            visited: TraversalVisited::new(),
             queue: TraversalQueue::new(),
         }
     }
 
-    /// Returns cleared buffers ready for use.
-    pub fn get(&mut self) -> (&mut TraversalVisited, &mut TraversalQueue) {
-        self.visited.clear();
+    /// Returns a cleared queue ready for use.
+    pub fn get(&mut self) -> &mut TraversalQueue {
         self.queue.clear();
-        (&mut self.visited, &mut self.queue)
+        &mut self.queue
     }
 }
 
-impl Default for TraversalBufferPair {
+impl Default for TraversalBuffer {
     fn default() -> Self {
         Self::new()
     }
@@ -85,19 +58,19 @@ impl Default for TraversalBufferPair {
 
 /// Reusable buffers for graph traversal operations.
 ///
-/// Contains two independent buffer pairs so that an outer traversal
-/// (e.g. `find_needed_segments`) can maintain state in one pair while
+/// Contains two independent queue buffers so that an outer traversal
+/// (e.g. `find_needed_segments`) can maintain state in one buffer while
 /// calling leaf operations (e.g. `is_ancestor`) that use the other.
 pub struct TraversalBuffers {
-    pub primary: TraversalBufferPair,
-    pub secondary: TraversalBufferPair,
+    pub primary: TraversalBuffer,
+    pub secondary: TraversalBuffer,
 }
 
 impl TraversalBuffers {
     pub const fn new() -> Self {
         Self {
-            primary: TraversalBufferPair::new(),
-            secondary: TraversalBufferPair::new(),
+            primary: TraversalBuffer::new(),
+            secondary: TraversalBuffer::new(),
         }
     }
 }
@@ -286,7 +259,7 @@ pub trait Storage {
     fn get_location(
         &self,
         address: Address,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
         self.get_location_from(self.get_head()?, address, buffers)
     }
@@ -298,13 +271,13 @@ pub trait Storage {
         &self,
         start: Location,
         address: Address,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
         if start.max_cut < address.max_cut {
             return Ok(None);
         }
 
-        let (visited, queue) = buffers.get();
+        let queue = buffers.get();
         push_queue(queue, start)?;
 
         while let Some(loc) = queue.pop() {
@@ -312,10 +285,6 @@ pub trait Storage {
                 loc.max_cut >= address.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
-
-            if !visited.visit(loc.segment) {
-                continue;
-            }
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -334,12 +303,12 @@ pub trait Storage {
                 .iter()
                 .find(|skip| skip.max_cut >= address.max_cut)
             {
-                push_queue(queue, skip)?;
+                push_queue_unique(queue, skip)?;
             } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
                     if prior.max_cut >= address.max_cut {
-                        push_queue(queue, prior)?;
+                        push_queue_unique(queue, prior)?;
                     }
                 }
             }
@@ -392,7 +361,7 @@ pub trait Storage {
     fn commit(
         &mut self,
         segment: Self::Segment,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
@@ -409,9 +378,9 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let (visited, queue) = buffers.get();
+        let queue = buffers.get();
         for prior in segment.prior() {
             if prior.max_cut >= search_location.max_cut {
                 push_queue(queue, prior)?;
@@ -423,10 +392,6 @@ pub trait Storage {
                 loc.max_cut >= search_location.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
             );
-
-            if !visited.visit(loc.segment) {
-                continue;
-            }
 
             // Must load segment
             let segment = self.get_segment(loc)?;
@@ -445,12 +410,12 @@ pub trait Storage {
                 .iter()
                 .find(|skip| skip.max_cut >= search_location.max_cut)
             {
-                push_queue(queue, skip)?;
+                push_queue_unique(queue, skip)?;
             } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
                     if prior.max_cut >= search_location.max_cut {
-                        push_queue(queue, prior)?;
+                        push_queue_unique(queue, prior)?;
                     }
                 }
             }
@@ -464,6 +429,15 @@ pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), Stora
     queue
         .push(loc)
         .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+}
+
+/// Pushes a location onto the traversal queue only if no location with the same
+/// segment index is already queued.
+pub fn push_queue_unique(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
+    if queue.iter().any(|q| q.segment == loc.segment) {
+        return Ok(());
+    }
+    push_queue(queue, loc)
 }
 
 /// A segment is a nonempty sequence of commands persisted to storage.
@@ -720,9 +694,6 @@ mod queue_tests {
         }
         // Next push should fail with TraversalQueueOverflow
         let err = push_queue(&mut queue, loc(999, 999)).expect_err("expected push_queue to fail");
-        assert_eq!(
-            err,
-            StorageError::TraversalQueueOverflow(QUEUE_CAPACITY)
-        );
+        assert_eq!(err, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
     }
 }

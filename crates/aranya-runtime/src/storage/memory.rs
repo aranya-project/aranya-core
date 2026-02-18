@@ -7,7 +7,7 @@ use vec1::Vec1;
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
     MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBufferPair, TraversalBuffers,
+    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer, TraversalBuffers,
 };
 
 #[derive(Debug)]
@@ -342,7 +342,7 @@ impl Storage for MemStorage {
     fn commit(
         &mut self,
         segment: Self::Segment,
-        buffers: &mut TraversalBufferPair,
+        buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError> {
         // TODO(jdygert): ensure segment belongs to self?
 
