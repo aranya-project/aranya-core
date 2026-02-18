@@ -48,6 +48,7 @@ pub mod command;
 pub mod metrics;
 pub mod policy;
 mod prior;
+pub(crate) mod rkyv_utils;
 pub mod storage;
 pub mod sync;
 pub mod testing;

@@ -19,7 +19,7 @@ use aranya_runtime::{
 };
 use buggy::{Bug, BugExt as _, bug};
 use bytes::Bytes;
-use heapless::{FnvIndexMap, Vec};
+use heapless::{Vec, index_map::FnvIndexMap};
 use s2n_quic::{
     Client, Connection, Server,
     client::Connect,
@@ -241,7 +241,7 @@ where
         {
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
-            client.add_commands(&mut trx, sink, &cmds)?;
+            client.add_commands(&mut trx, sink, cmds)?;
             client.commit(&mut trx, sink)?;
             client.update_heads(
                 graph_id,
@@ -388,7 +388,7 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().await;
                         let sink = sink_guard.deref_mut();
-                        client.add_commands(&mut trx, sink, &cmds)?;
+                        client.add_commands(&mut trx, sink, cmds)?;
                         client.commit(&mut trx, sink)?;
                         client.update_heads(
                             graph_id,
