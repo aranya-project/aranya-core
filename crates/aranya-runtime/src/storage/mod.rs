@@ -326,8 +326,9 @@ pub trait Storage {
             }
 
             // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so first valid skip
-            // jumps as far back as possible.
+            // Skip list is sorted by max_cut ascending, so the first entry
+            // with max_cut >= target has the lowest valid max_cut, jumping
+            // furthest back in the graph.
             if let Some(&skip) = segment
                 .skip_list()
                 .iter()
@@ -436,8 +437,9 @@ pub trait Storage {
             }
 
             // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so first valid skip
-            // jumps as far back as possible.
+            // Skip list is sorted by max_cut ascending, so the first entry
+            // with max_cut >= target has the lowest valid max_cut, jumping
+            // furthest back in the graph.
             if let Some(&skip) = segment
                 .skip_list()
                 .iter()
@@ -717,10 +719,10 @@ mod queue_tests {
             push_queue(&mut queue, loc(i, i)).unwrap();
         }
         // Next push should fail with TraversalQueueOverflow
-        let result = push_queue(&mut queue, loc(999, 999));
+        let err = push_queue(&mut queue, loc(999, 999)).expect_err("expected push_queue to fail");
         assert_eq!(
-            result,
-            Err(StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+            err,
+            StorageError::TraversalQueueOverflow(QUEUE_CAPACITY)
         );
     }
 }

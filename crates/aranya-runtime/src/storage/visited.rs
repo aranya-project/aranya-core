@@ -42,9 +42,10 @@ impl<const CAP: usize> CappedVisited<CAP> {
     /// Marks a segment as visited.
     ///
     /// When the set is full and a new segment needs to be inserted, evicts
-    /// the entry with the highest max_cut.
+    /// the entry with the highest segment index.
     ///
     /// Returns `true` if this segment was not already visited.
+    /// When `CAP` is 0, always returns `true` (no tracking is possible).
     pub fn visit(&mut self, new_seg: SegmentIndex) -> bool {
         if CAP == 0 {
             return true;
