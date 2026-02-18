@@ -6,7 +6,7 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, SyncRequester,
     policy::{PolicyStore, Sink},
-    storage::{StorageProvider, memory::MemStorageProvider},
+    storage::{StorageProvider, linear::testing::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
 };
 use buggy::BugExt as _;

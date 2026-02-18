@@ -18,7 +18,7 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
     policy::Sink,
-    storage::memory::MemStorageProvider,
+    storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use clap::Parser;

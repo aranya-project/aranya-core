@@ -15,11 +15,6 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 
-pub mod memory {
-    pub type MemStorageProvider =
-        super::linear::LinearStorageProvider<super::linear::testing::Manager>;
-}
-
 #[cfg(feature = "low-mem-usage")]
 pub const MAX_COMMAND_LENGTH: usize = 400;
 #[cfg(not(feature = "low-mem-usage"))]

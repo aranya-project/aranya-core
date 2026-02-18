@@ -7,7 +7,7 @@
 //!
 //! ```
 //! use aranya_runtime::{
-//!     storage::memory::MemStorageProvider,
+//!     storage::linear::testing::MemStorageProvider,
 //!     testing::dsl::{StorageBackend, test_suite},
 //! };
 //!
@@ -27,7 +27,7 @@
 //!
 //! ```
 //! use aranya_runtime::{
-//!     storage::memory::MemStorageProvider,
+//!     storage::linear::testing::MemStorageProvider,
 //!     testing::dsl::{StorageBackend, vectors},
 //! };
 //!

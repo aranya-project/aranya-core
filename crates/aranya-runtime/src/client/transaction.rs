@@ -464,8 +464,8 @@ mod test {
     use super::*;
     use crate::{
         ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, SegmentIndex,
-        memory::MemStorageProvider,
         policy::{ActionPlacement, CommandPlacement},
+        storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
 

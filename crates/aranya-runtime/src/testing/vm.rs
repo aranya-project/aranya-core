@@ -14,7 +14,7 @@ use crate::{
     VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
-    storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
+    storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
 };

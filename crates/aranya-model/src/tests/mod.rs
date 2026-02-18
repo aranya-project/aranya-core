@@ -24,8 +24,7 @@ use aranya_policy_vm::{
 };
 use aranya_runtime::{
     ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
-    memory::MemStorageProvider,
-    storage::linear,
+    storage::{linear, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::{VmPolicy, testing::TestFfiEnvelope},
 };
