@@ -1,0 +1,6 @@
+preamble:
+  let t_owner_key = testing::random_key()
+  let t_user_key = testing::random_key()
+do:
+  init(t_owner_key)
+  add_user(t_user_key)

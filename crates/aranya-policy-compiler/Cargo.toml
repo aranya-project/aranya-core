@@ -13,6 +13,7 @@ workspace = true
 
 [features]
 default = []
+internals = []
 
 [dependencies]
 aranya-policy-ast = { version = "0.12.1", path = "../aranya-policy-ast" }
