@@ -1134,6 +1134,7 @@ test_vectors! {
     empty_sync,
     generate_graph,
     exponential_traversal_regression,
+    find_needed_segments_queue_max,
     four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
