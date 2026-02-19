@@ -668,10 +668,6 @@ impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
     }
 }
 
-// TODO: Fix and enable
-// #[cfg(test)]
-// mod tests;
-
 #[cfg(test)]
 mod queue_tests {
     use super::*;
