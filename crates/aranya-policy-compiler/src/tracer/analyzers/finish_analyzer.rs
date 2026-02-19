@@ -1,7 +1,7 @@
 use aranya_policy_module::{ExitReason, Instruction, Meta, ModuleV0};
 
 use super::{Analyzer, AnalyzerStatus};
-use crate::tracer::{TraceError, TraceFailure};
+use crate::tracer::{TraceError, TraceIssue};
 
 /// Ensures that all branches enter a finish block before exiting.
 #[derive(Clone, Default)]
@@ -40,7 +40,7 @@ impl Analyzer for FinishAnalyzer {
     /// compares each failure's execution trace with the list of successful branches to find
     /// the last common address. This last common ancestor should be the point at which the
     /// decision was made to go down a path that did not have a finish block.
-    fn post_analyze(&mut self, failures: &mut [TraceFailure], successful_branches: &[Vec<usize>]) {
+    fn post_analyze(&mut self, failures: &mut [TraceIssue], successful_branches: &[Vec<usize>]) {
         for f in failures {
             let mut longest_common_path = 0;
             let mut last_addr = None;
