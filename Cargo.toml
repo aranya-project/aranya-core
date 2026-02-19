@@ -93,7 +93,6 @@ wildcard_imports = "warn"
 [workspace.dependencies]
 anyhow = { version = "1.0" }
 byteorder = { version = "1", default-features = false }
-bytes = { version = "1.11.1" }
 cfg-if = { version = "1", default-features = false }
 const_format = { version = "0.2", default-features = false }
 criterion = { version = "0.6" }
@@ -111,7 +110,6 @@ rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 rkyv = { version = "0.8.13", default-features = false, features = ["bytecheck"] }
 rustix = { version = "0.38", default-features = false }
-s2n-quic = { version = "1.51.0", default-features = false, features = ["provider-address-token-default", "provider-tls-s2n"] }
 serde = { version = "1.0.210", default-features = false }
 serde_derive = { version = "1" }
 spideroak-base58 = { version = "0.2.0", default-features = false }
@@ -119,7 +117,6 @@ spin = { version = "0.10", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 thiserror = { version = "2", default-features = false }
 tokio = { version = "1.41.1", default-features = false, features = ["macros"] }
-tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }
 zerocopy = { version = "0.8", default-features = false }
@@ -131,7 +128,6 @@ syn = "2.0.59"
 quote = "1.0"
 
 [profile.dev.package]
-aranya-quic-syncer.opt-level = 1
 aranya-runtime.opt-level = 1
 aranya-model.opt-level = 1
 
