@@ -13,7 +13,7 @@ use crate::{
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
-        TraversalBuffers, push_queue,
+        TraversalBuffers,
     },
 };
 
@@ -337,7 +337,7 @@ impl SyncResponder {
         }
 
         let queue = buffers.primary.get();
-        push_queue(queue, storage.get_head()?)?;
+        queue.push(storage.get_head()?)?;
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
@@ -393,7 +393,7 @@ impl SyncResponder {
             }
 
             for prior in segment.prior() {
-                push_queue(queue, prior)?;
+                queue.push(prior)?;
             }
 
             let location = segment.first_location();

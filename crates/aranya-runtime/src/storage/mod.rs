@@ -15,19 +15,60 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
+
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"
 /// during backward traversal, which is bounded by peer count.
 pub const QUEUE_CAPACITY: usize = 512;
 
-/// Type alias for the queue used in traversal operations.
+/// Type for the queue used in traversal operations.
 ///
-/// Uses a max-heap so that locations with the highest `max_cut` are processed
-/// first. This bounds the queue size to the graph width at any given `max_cut`
-/// level, rather than accumulating entries across many levels as a FIFO would.
-pub type TraversalQueue =
-    heapless::binary_heap::BinaryHeap<Location, heapless::binary_heap::Max, QUEUE_CAPACITY>;
+/// Locations with the highest `max_cut` are processed first. This bounds the
+/// queue size to the graph width at any given `max_cut` level, rather than
+/// accumulating entries across many levels as a FIFO would.
+#[derive(Debug, Default)]
+pub struct TraversalQueue {
+    entries: heapless::Vec<Location, QUEUE_CAPACITY>,
+}
+
+impl TraversalQueue {
+    /// Create an empty traversal queue.
+    pub const fn new() -> Self {
+        Self {
+            entries: heapless::Vec::new(),
+        }
+    }
+
+    /// Clear the traversal queue.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Enqueues a location.
+    ///
+    /// If an entry with the same segment exists, its max cut will be updated
+    /// if the supplied max cut is higher.
+    pub fn push(&mut self, loc: Location) -> Result<(), StorageError> {
+        if let Some(prev) = self.entries.iter_mut().find(|x| x.same_segment(loc)) {
+            prev.max_cut = prev.max_cut.max(loc.max_cut);
+            return Ok(());
+        }
+        self.entries
+            .push(loc)
+            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+    }
+
+    /// Pop a location with the highest max cut.
+    pub fn pop(&mut self) -> Option<Location> {
+        let (i, _) = self
+            .entries
+            .iter()
+            .enumerate()
+            .max_by_key(|&(_, &loc)| loc)?;
+        Some(self.entries.swap_remove(i))
+    }
+}
 
 /// A queue buffer for a single graph traversal operation.
 ///
@@ -278,7 +319,7 @@ pub trait Storage {
         }
 
         let queue = buffers.get();
-        push_queue(queue, start)?;
+        queue.push(start)?;
 
         while let Some(loc) = queue.pop() {
             debug_assert!(
@@ -303,12 +344,12 @@ pub trait Storage {
                 .iter()
                 .find(|skip| skip.max_cut >= address.max_cut)
             {
-                push_queue(queue, skip)?;
+                queue.push(skip)?;
             } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
                     if prior.max_cut >= address.max_cut {
-                        push_queue(queue, prior)?;
+                        queue.push(prior)?;
                     }
                 }
             }
@@ -381,9 +422,22 @@ pub trait Storage {
         buffers: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
         let queue = buffers.get();
-        for prior in segment.prior() {
-            if prior.max_cut >= search_location.max_cut {
-                push_queue(queue, prior)?;
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so first valid skip
+        // jumps as far back as possible.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= search_location.max_cut)
+        {
+            queue.push(skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= search_location.max_cut {
+                    queue.push(prior)?;
+                }
             }
         }
 
@@ -410,29 +464,18 @@ pub trait Storage {
                 .iter()
                 .find(|skip| skip.max_cut >= search_location.max_cut)
             {
-                push_queue(queue, skip)?;
+                queue.push(skip)?;
             } else {
                 // No valid skip - add prior locations to queue
                 for prior in segment.prior() {
                     if prior.max_cut >= search_location.max_cut {
-                        push_queue(queue, prior)?;
+                        queue.push(prior)?;
                     }
                 }
             }
         }
         Ok(false)
     }
-}
-
-/// Pushes a location onto the traversal queue only if no location with the same
-/// segment index is already queued, returning an error if the queue is full.
-pub fn push_queue(queue: &mut TraversalQueue, loc: Location) -> Result<(), StorageError> {
-    if queue.iter().any(|q| q.segment == loc.segment) {
-        return Ok(());
-    }
-    queue
-        .push(loc)
-        .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
 }
 
 /// A segment is a nonempty sequence of commands persisted to storage.
@@ -681,10 +724,12 @@ mod queue_tests {
         let mut queue = TraversalQueue::new();
         // Fill to capacity
         for i in 0..QUEUE_CAPACITY {
-            push_queue(&mut queue, loc(i, i)).unwrap();
+            queue.push(loc(i, i)).unwrap();
         }
         // Next push should fail with TraversalQueueOverflow
-        let err = push_queue(&mut queue, loc(999, 999)).expect_err("expected push_queue to fail");
-        assert_eq!(err, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
+        let result = queue
+            .push(loc(999, 999))
+            .expect_err("expected push_queue to fail");
+        assert_eq!(result, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
     }
 }
