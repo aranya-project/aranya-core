@@ -16,7 +16,7 @@ use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, Sink, SyncRequester,
-    memory::MemStorageProvider,
+    storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -63,7 +63,7 @@ impl Sink<TestEffect> for CountSink {
 
 fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
     let policy_store = TestPolicyStore::new();
-    let storage = MemStorageProvider::new();
+    let storage = MemStorageProvider::default();
     ClientState::new(policy_store, storage)
 }
 

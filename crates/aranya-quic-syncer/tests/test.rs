@@ -6,7 +6,7 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, SyncRequester,
     policy::{PolicyStore, Sink},
-    storage::{StorageProvider, memory::MemStorageProvider},
+    storage::{StorageProvider, linear::testing::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
 };
 use buggy::BugExt as _;
@@ -295,7 +295,7 @@ where
 
 fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>> {
     let policy_store = TestPolicyStore::new();
-    let storage = MemStorageProvider::new();
+    let storage = MemStorageProvider::default();
 
     Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
 }

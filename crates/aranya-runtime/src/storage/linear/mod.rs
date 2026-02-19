@@ -28,6 +28,7 @@ pub mod libc;
 pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
+use core::ops::Bound;
 
 use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
@@ -767,6 +768,27 @@ impl SegmentRepr {
 
 impl<R: Read> FactIndex for LinearFactIndex<R> {}
 
+#[cfg(all(test, feature = "graphviz"))]
+impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
+    fn name(&self) -> String {
+        use alloc::string::ToString as _;
+        self.repr.offset.to_string()
+    }
+
+    fn prior(&self) -> Result<Option<Self>, StorageError> {
+        self.repr
+            .prior
+            .map(|p| {
+                let repr = self.reader.fetch(p)?;
+                Ok(Self {
+                    repr,
+                    reader: self.reader.clone(),
+                })
+            })
+            .transpose()
+    }
+}
+
 type MapIter = alloc::collections::btree_map::IntoIter<Keys, Option<Bytes>>;
 pub struct QueryIterator {
     it: MapIter,
@@ -827,7 +849,7 @@ impl<R: Read> LinearFactIndex<R> {
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(map) = facts.facts.get(name) {
-                for (k, v) in super::memory::find_prefixes(map, prefix) {
+                for (k, v) in find_prefixes(map, prefix) {
                     // don't override, if we've already found the fact (including deletions)
                     if !matches.contains_key(k) {
                         matches.insert(k.clone(), v.map(Into::into));
@@ -921,7 +943,7 @@ impl<R: Read> LinearFactPerspective<R> {
             }
         };
         if let Some(map) = self.map.get(name) {
-            for (k, v) in super::memory::find_prefixes(map, prefix) {
+            for (k, v) in find_prefixes(map, prefix) {
                 // overwrite "earlier" facts
                 matches.insert(k.clone(), v.map(Into::into));
             }
@@ -1083,6 +1105,15 @@ impl Command for LinearCommand<'_> {
     fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
+}
+
+fn find_prefixes<'m, 'p: 'm>(
+    map: &'m FactMap,
+    prefix: &'p [Box<[u8]>],
+) -> impl Iterator<Item = (&'m Keys, Option<&'m [u8]>)> + 'm {
+    map.range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
+        .take_while(|(k, _)| k.starts_with(prefix))
+        .map(|(k, v)| (k, v.as_deref()))
 }
 
 #[cfg(test)]

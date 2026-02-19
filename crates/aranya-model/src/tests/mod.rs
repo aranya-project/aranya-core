@@ -24,8 +24,7 @@ use aranya_policy_vm::{
 };
 use aranya_runtime::{
     ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
-    memory::MemStorageProvider,
-    storage::linear,
+    storage::{linear, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::{VmPolicy, testing::TestFfiEnvelope},
 };
@@ -1292,7 +1291,7 @@ fn should_create_clients_with_args() {
 
             let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
             let policy_store = ModelPolicyStore::new(policy);
-            let provider = MemStorageProvider::new();
+            let provider = MemStorageProvider::default();
 
             ModelClient {
                 state: RefCell::new(ClientState::new(policy_store, provider)),
@@ -1361,7 +1360,7 @@ fn should_create_clients_with_args() {
 
             let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
             let policy_store = ModelPolicyStore::new(policy);
-            let provider = MemStorageProvider::new();
+            let provider = MemStorageProvider::default();
 
             ModelClient {
                 state: RefCell::new(ClientState::new(policy_store, provider)),

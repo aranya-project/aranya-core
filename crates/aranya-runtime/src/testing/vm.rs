@@ -14,7 +14,7 @@ use crate::{
     VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
-    storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
+    storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
 };
@@ -351,7 +351,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     // parser/compiler to work in constrained environments.
 
     // We're using MemStorageProvider as our storage interface.
-    let provider = MemStorageProvider::new();
+    let provider = MemStorageProvider::default();
     // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
     let mut cs = ClientState::new(policy_store, provider);
@@ -420,7 +420,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
 /// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
 pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
-    let provider = MemStorageProvider::new();
+    let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
 
     let graph = cs
@@ -459,7 +459,7 @@ pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPoli
 /// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
 pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
-    let provider = MemStorageProvider::new();
+    let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
@@ -622,7 +622,7 @@ pub fn test_effect_metadata(
     policy_store_2: TestPolicyStore,
 ) -> Result<(), VmPolicyError> {
     // create client 1 and initialize it with a nonce of 1
-    let provider = MemStorageProvider::new();
+    let provider = MemStorageProvider::default();
     let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
     let graph_id = cs1
@@ -638,7 +638,7 @@ pub fn test_effect_metadata(
     sink.clear();
 
     // create client 2 and sync it with client 1
-    let provider = MemStorageProvider::new();
+    let provider = MemStorageProvider::default();
     let mut cs2 = ClientState::new(policy_store_2, provider);
     test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));

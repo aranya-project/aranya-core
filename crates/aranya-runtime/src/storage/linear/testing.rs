@@ -6,6 +6,9 @@ use spin::mutex::Mutex;
 use super::io;
 use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
 
+/// Alias for memory-backed storage provider commonly used in tests.
+pub type MemStorageProvider = super::LinearStorageProvider<Manager>;
+
 #[derive(Default)]
 pub struct Manager {
     graph_ids: Vec<GraphId>,

@@ -18,7 +18,7 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
     policy::Sink,
-    storage::memory::MemStorageProvider,
+    storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use clap::Parser;
@@ -109,7 +109,7 @@ async fn run(options: Opt) -> Result<()> {
     };
 
     let policy_store = TestPolicyStore::new();
-    let storage = MemStorageProvider::new();
+    let storage = MemStorageProvider::default();
 
     let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage)));
     let sink = Arc::new(TMutex::new(PrintSink {}));
