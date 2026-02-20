@@ -46,6 +46,7 @@ fn test_pop() {
 
     // Add something to the stack
     rs.stack.push(5).unwrap();
+    assert!(!rs.stack.is_empty(), "Stack is not empty");
 
     // Pop value
     assert!(
