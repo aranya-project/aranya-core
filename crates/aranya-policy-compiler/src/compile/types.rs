@@ -152,19 +152,14 @@ pub fn check_type(
     target_type: VType,
     errmsg: &'static str,
 ) -> Result<VType, TypeUnifyError> {
-    match ty.kind {
-        TypeKind::Never => Ok(target_type),
-        _ => {
-            if ty.fits_type(&target_type) {
-                Ok(ty)
-            } else {
-                Err(TypeUnifyError {
-                    left: ty,
-                    right: target_type,
-                    ctx: errmsg,
-                })
-            }
-        }
+    if ty.fits_type(&target_type) {
+        Ok(ty)
+    } else {
+        Err(TypeUnifyError {
+            left: ty,
+            right: target_type,
+            ctx: errmsg,
+        })
     }
 }
 
