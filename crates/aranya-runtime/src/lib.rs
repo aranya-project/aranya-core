@@ -18,7 +18,7 @@
 //!
 //! Start by initializing a client with desired [`PolicyStore`] and [`StorageProvider`]
 //! ```ignore
-//! let client = ClientState::new(policy_store, storage, TraversalBuffers::new())
+//! let client = ClientState::new(policy_store, storage)
 //! ```
 //!
 //! Initialize graph for the client with:

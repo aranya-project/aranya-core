@@ -99,18 +99,18 @@ enum SyncRequesterState {
     Reset,
 }
 
-pub struct SyncRequester {
+pub struct SyncRequester<'a> {
     session_id: u128,
     graph_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
-    buffers: TraversalBuffers,
+    buffers: &'a mut TraversalBuffers,
 }
 
-impl SyncRequester {
+impl<'a> SyncRequester<'a> {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(graph_id: GraphId, rng: &mut R, buffers: TraversalBuffers) -> Self {
+    pub fn new<R: Csprng>(graph_id: GraphId, rng: &mut R, buffers: &'a mut TraversalBuffers) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -127,7 +127,7 @@ impl SyncRequester {
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(graph_id: GraphId, session_id: u128, buffers: TraversalBuffers) -> Self {
+    pub fn new_session_id(graph_id: GraphId, session_id: u128, buffers: &'a mut TraversalBuffers) -> Self {
         Self {
             session_id,
             graph_id,
@@ -175,22 +175,22 @@ impl SyncRequester {
     }
 
     /// Receive a sync message. Returns parsed sync commands.
-    pub fn receive<'a>(
+    pub fn receive<'b>(
         &mut self,
-        data: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
-        let (message, remaining): (SyncResponseMessage, &'a [u8]) =
+        data: &'b [u8],
+    ) -> Result<Option<Vec<SyncCommand<'b>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        let (message, remaining): (SyncResponseMessage, &'b [u8]) =
             postcard::take_from_bytes(data)?;
 
         self.get_sync_commands(message, remaining)
     }
 
     /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
-    pub fn get_sync_commands<'a>(
+    pub fn get_sync_commands<'b>(
         &mut self,
         message: SyncResponseMessage,
-        remaining: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        remaining: &'b [u8],
+    ) -> Result<Option<Vec<SyncCommand<'b>, COMMAND_RESPONSE_MAX>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }

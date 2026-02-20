@@ -153,7 +153,7 @@ enum SyncResponderState {
     Stopped,
 }
 
-pub struct SyncResponder {
+pub struct SyncResponder<'a> {
     session_id: Option<u128>,
     graph_id: Option<GraphId>,
     state: SyncResponderState,
@@ -162,12 +162,12 @@ pub struct SyncResponder {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
-    buffers: TraversalBuffers,
+    buffers: &'a mut TraversalBuffers,
 }
 
-impl SyncResponder {
+impl<'a> SyncResponder<'a> {
     /// Create a new [`SyncResponder`].
-    pub fn new(buffers: TraversalBuffers) -> Self {
+    pub fn new(buffers: &'a mut TraversalBuffers) -> Self {
         Self {
             session_id: None,
             graph_id: None,
@@ -232,7 +232,7 @@ impl SyncResponder {
                         )?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage, &mut self.buffers)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
 
                 self.get_next(target, provider)?
             }
@@ -473,7 +473,7 @@ impl SyncResponder {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage, &mut self.buffers)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

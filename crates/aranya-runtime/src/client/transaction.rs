@@ -842,7 +842,7 @@ mod test {
     #[test]
     fn test_simple() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "b";
             "a" < "c";
@@ -868,7 +868,7 @@ mod test {
     #[test]
     fn test_complex() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "1" "2" "3";
             "3" < "4" "6" "7";
@@ -905,7 +905,7 @@ mod test {
     #[test]
     fn test_duplicates() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "b" "c";
             "a" < "b";
@@ -933,7 +933,7 @@ mod test {
     #[test]
     fn test_mid_braid_1() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
@@ -956,7 +956,7 @@ mod test {
     #[test]
     fn test_mid_braid_2() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "h" "i" "j";
@@ -979,7 +979,7 @@ mod test {
     #[test]
     fn test_sequential_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";
@@ -1005,7 +1005,7 @@ mod test {
     #[test]
     fn test_parallel_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), TraversalBuffers::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             commit;
             "a" < "b" "c" "d" "e" "f" "g";

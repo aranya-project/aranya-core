@@ -80,7 +80,7 @@
 //! ```ignore
 //! let policy_store = MyPolicyStore::new();
 //! let provider = MyStorageProvider::new();
-//! let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
+//! let mut cs = ClientState::new(policy_store, provider);
 //! let mut sink = MySink::new();
 //!
 //! let graph_id = cs

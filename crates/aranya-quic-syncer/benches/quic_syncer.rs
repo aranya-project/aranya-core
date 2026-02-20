@@ -64,7 +64,7 @@ impl Sink<TestEffect> for CountSink {
 fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
-    ClientState::new(policy_store, storage, TraversalBuffers::new())
+    ClientState::new(policy_store, storage)
 }
 
 fn new_graph(
@@ -157,8 +157,9 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
+                let mut buffers = TraversalBuffers::new();
                 let sync_requester =
-                    SyncRequester::new(graph_id, &mut Rng::new(), TraversalBuffers::new());
+                    SyncRequester::new(graph_id, &mut Rng::new(), &mut buffers);
                 if let Err(e) = syncer1
                     .lock()
                     .await

@@ -23,7 +23,7 @@ use aranya_policy_vm::{
     text,
 };
 use aranya_runtime::{
-    ClientState, FfiCallable, PolicyStore, StorageProvider, TraversalBuffers, VmEffect,
+    ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
     storage::{linear, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::{VmPolicy, testing::TestFfiEnvelope},
@@ -95,7 +95,6 @@ impl ClientFactory for BasicClientFactory {
             state: RefCell::new(ClientState::new(
                 policy_store,
                 provider,
-                TraversalBuffers::new(),
             )),
             public_keys: EmptyKeys,
         }
@@ -175,7 +174,6 @@ impl ClientFactory for FfiClientFactory {
             state: RefCell::new(ClientState::new(
                 policy_store,
                 provider,
-                TraversalBuffers::new(),
             )),
             public_keys,
         }
@@ -1305,7 +1303,6 @@ fn should_create_clients_with_args() {
                 state: RefCell::new(ClientState::new(
                     policy_store,
                     provider,
-                    TraversalBuffers::new(),
                 )),
                 public_keys: EmptyKeys,
             }
@@ -1378,7 +1375,6 @@ fn should_create_clients_with_args() {
                 state: RefCell::new(ClientState::new(
                     policy_store,
                     provider,
-                    TraversalBuffers::new(),
                 )),
                 public_keys: EmptyKeys,
             }

@@ -17,7 +17,7 @@ fn benchmark_1() {
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
+    let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
     let graph_id = cs
@@ -112,7 +112,7 @@ policy-version: 1
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider, TraversalBuffers::new());
+    let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
     let graph_id = cs

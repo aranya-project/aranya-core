@@ -66,7 +66,8 @@ async fn sync_peer<PS, SP, S>(
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(graph_id, &mut Rng::new(), TraversalBuffers::new());
+    let mut buffers = TraversalBuffers::new();
+    let sync_requester = SyncRequester::new(graph_id, &mut Rng::new(), &mut buffers);
     let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}
@@ -114,7 +115,6 @@ async fn run(options: Opt) -> Result<()> {
     let client = Arc::new(TMutex::new(ClientState::new(
         policy_store,
         storage,
-        TraversalBuffers::new(),
     )));
     let sink = Arc::new(TMutex::new(PrintSink {}));
     let server = get_server(cert.clone(), key, options.listen)?;
