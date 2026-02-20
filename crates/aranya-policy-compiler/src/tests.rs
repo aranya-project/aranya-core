@@ -1114,7 +1114,7 @@ fn test_serialize_deserialize() {
         assert!(
             matches!(err_type, CompileErrorType::InvalidExpression(_)),
             "{err_type}"
-        )
+        );
     }
 }
 
