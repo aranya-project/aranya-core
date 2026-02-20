@@ -1084,7 +1084,8 @@ fn test_serialize_deserialize() {
 
     compile_pass(text);
 
-    let invalid_cases = [r#"
+    let invalid_cases = [
+        r#"
             struct Foo {
                 f string
             }
@@ -1096,10 +1097,24 @@ fn test_serialize_deserialize() {
             function err() struct Foo {
                 return deserialize(get_bytes())
             }
-        "#];
+        "#,
+        r#"
+            struct Foo {
+                f string
+            }
+
+            function err(f struct Foo) bytes {
+                return serialize(f)
+            }
+        "#,
+    ];
 
     for case in invalid_cases {
-        compile_fail(case);
+        let err_type = compile_fail(case);
+        assert!(
+            matches!(err_type, CompileErrorType::InvalidExpression(_)),
+            "{err_type}"
+        )
     }
 }
 
