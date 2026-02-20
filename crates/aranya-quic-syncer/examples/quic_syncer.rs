@@ -67,7 +67,7 @@ async fn sync_peer<PS, SP, S>(
     S: Sink<<PS as PolicyStore>::Effect>,
 {
     let mut buffers = TraversalBuffers::new();
-    let sync_requester = SyncRequester::new(graph_id, &mut Rng::new(), &mut buffers);
+    let sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
     let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}

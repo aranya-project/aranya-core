@@ -158,7 +158,7 @@ fn sync_bench(c: &mut Criterion) {
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
                 let mut buffers = TraversalBuffers::new();
-                let sync_requester = SyncRequester::new(graph_id, &mut Rng::new(), &mut buffers);
+                let sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
                 if let Err(e) = syncer1
                     .lock()
                     .await

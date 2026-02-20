@@ -507,7 +507,7 @@ where
             .ok_or(ModelError::GraphNotFound)?;
 
         let mut buffers = TraversalBuffers::new();
-        let mut request_syncer = SyncRequester::new(*graph_id, &mut Rng::new(), &mut buffers);
+        let mut request_syncer = SyncRequester::new(*graph_id, Rng, &mut buffers);
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
