@@ -1083,6 +1083,24 @@ fn test_serialize_deserialize() {
     "#;
 
     compile_pass(text);
+
+    let invalid_cases = [r#"
+            struct Foo {
+                f string
+            }
+
+            function get_bytes() bytes {
+                return todo()
+            }
+
+            function err() struct Foo {
+                return deserialize(get_bytes())
+            }
+        "#];
+
+    for case in invalid_cases {
+        compile_fail(case);
+    }
 }
 
 #[test]
