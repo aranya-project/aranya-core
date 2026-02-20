@@ -380,11 +380,8 @@ where
             }
             SyncType::Push { message, graph_id } => {
                 let mut buffers = TraversalBuffers::new();
-                let mut sync_requester = SyncRequester::new_session_id(
-                    graph_id,
-                    message.session_id(),
-                    &mut buffers,
-                );
+                let mut sync_requester =
+                    SyncRequester::new_session_id(graph_id, message.session_id(), &mut buffers);
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)?
                     && !cmds.is_empty()
                 {

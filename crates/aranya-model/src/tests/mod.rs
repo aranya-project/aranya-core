@@ -92,10 +92,7 @@ impl ClientFactory for BasicClientFactory {
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(
-                policy_store,
-                provider,
-            )),
+            state: RefCell::new(ClientState::new(policy_store, provider)),
             public_keys: EmptyKeys,
         }
     }
@@ -171,10 +168,7 @@ impl ClientFactory for FfiClientFactory {
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(
-                policy_store,
-                provider,
-            )),
+            state: RefCell::new(ClientState::new(policy_store, provider)),
             public_keys,
         }
     }
@@ -1300,10 +1294,7 @@ fn should_create_clients_with_args() {
             let provider = MemStorageProvider::default();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(
-                    policy_store,
-                    provider,
-                )),
+                state: RefCell::new(ClientState::new(policy_store, provider)),
                 public_keys: EmptyKeys,
             }
         })
@@ -1372,10 +1363,7 @@ fn should_create_clients_with_args() {
             let provider = MemStorageProvider::default();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(
-                    policy_store,
-                    provider,
-                )),
+                state: RefCell::new(ClientState::new(policy_store, provider)),
                 public_keys: EmptyKeys,
             }
         })

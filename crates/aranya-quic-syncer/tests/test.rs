@@ -252,10 +252,7 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .unsubscribe(
-            SyncRequester::new(graph_id, &mut Rng, &mut buffers),
-            addr1,
-        )
+        .unsubscribe(SyncRequester::new(graph_id, &mut Rng, &mut buffers), addr1)
         .await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -307,8 +304,5 @@ fn make_client() -> Arc<TMutex<ClientState<TestPolicyStore, MemStorageProvider>>
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
 
-    Arc::new(TMutex::new(ClientState::new(
-        policy_store,
-        storage,
-    )))
+    Arc::new(TMutex::new(ClientState::new(policy_store, storage)))
 }

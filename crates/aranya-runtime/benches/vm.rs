@@ -3,7 +3,7 @@ fn benchmark_1() {
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{bench_measurements, ffi::FfiModule as _};
     use aranya_runtime::{
-        ClientState, TraversalBuffers,
+        ClientState,
         storage::linear::testing::MemStorageProvider,
         testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
         vm_action, vm_effect,
@@ -98,7 +98,7 @@ policy-version: 1
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
     use aranya_runtime::{
-        ClientState, TraversalBuffers,
+        ClientState,
         storage::linear::testing::MemStorageProvider,
         testing::vm::{TestPolicyStore, TestSink},
         vm_action,
