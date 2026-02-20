@@ -3050,6 +3050,24 @@ fn test_substruct_errors() {
             "#,
             e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
         },
+        Case {
+            t: r#"
+                struct Foo {
+                    x int,
+                    y bool,
+                }
+                struct Bar {
+                    x int,
+                    y string,
+                    z string,
+                }
+                function baz(source struct Bar) struct Foo {
+                    return source substruct Foo
+                }
+            "#,
+            // TODO: Improve error message when field names match but types differ.
+            e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
