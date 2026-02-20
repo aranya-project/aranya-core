@@ -19,11 +19,21 @@ fn test_head_id() {
     let head_id = CmdId::default();
 
     {
-        let context = CommandContext::Action(ActionContext {
+        let mut context = CommandContext::Action(ActionContext {
             name: ident!("action"),
             head_id,
         });
         assert_eq!(perspective.head_id(&context, &eng).unwrap(), head_id);
+
+        let new_head_id = [1; 32].into();
+        context = context
+            .with_new_head(new_head_id)
+            .expect("should work for `Action` variants.");
+        assert_eq!(
+            perspective.head_id(&context, &eng).unwrap(),
+            new_head_id,
+            "updated head"
+        );
     }
 
     {
