@@ -16,15 +16,11 @@ use super::{
 impl CompileState<'_> {
     /// Get the statement context
     fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
-        let cs = self
-            .statement_context
-            .last()
-            .ok_or_else(|| {
-                self.err(CompileErrorType::Bug(Bug::new(
-                    "compiling statement without statement context",
-                )))
-            })?
-            .clone();
+        let cs = self.statement_context.clone().ok_or_else(|| {
+            self.err(CompileErrorType::Bug(Bug::new(
+                "compiling statement without statement context",
+            )))
+        })?;
         Ok(cs)
     }
 
@@ -1291,9 +1287,8 @@ impl CompileState<'_> {
                     StmtKind::Finish(s),
                     StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
                 ) => {
-                    self.enter_statement_context(StatementContext::Finish);
+                    self.set_statement_context(StatementContext::Finish);
                     let s = self.lower_statements(s, Scope::Layered)?;
-                    self.exit_statement_context();
 
                     // Ensure `finish` is the last statement in the block. This also guarantees we can't have more than one finish block.
                     if statement != statements.last().expect("expected statement") {

@@ -202,9 +202,8 @@ struct CompileState<'a> {
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last span seen, for imprecise source locating.
     last_span: Span,
-    /// The current statement context, implemented as a stack so that it can be
-    /// hierarchical.
-    statement_context: Vec<StatementContext>,
+    /// The current statement context.
+    statement_context: Option<StatementContext>,
     /// Keeps track of identifier types in a stack of scopes
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
@@ -217,13 +216,8 @@ struct CompileState<'a> {
 
 impl<'a> CompileState<'a> {
     /// Begin parsing statements in this context
-    fn enter_statement_context(&mut self, c: StatementContext) {
-        self.statement_context.push(c);
-    }
-
-    /// End parsing statements in this context and return to the previous context
-    fn exit_statement_context(&mut self) {
-        self.statement_context.pop();
+    fn set_statement_context(&mut self, c: StatementContext) {
+        self.statement_context.replace(c);
     }
 
     /// Append an instruction to the program memory, and increment the
@@ -914,10 +908,9 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Return);
             }
             thir::StmtKind::Finish(s) => {
-                self.enter_statement_context(StatementContext::Finish);
+                self.set_statement_context(StatementContext::Finish);
                 self.append_instruction(Instruction::Meta(Meta::Finish(true)));
                 self.compile_typed_statements(s, Scope::Layered)?;
-                self.exit_statement_context();
                 // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
                 self.append_instruction(Instruction::Exit(ExitReason::Normal));
             }
@@ -1030,7 +1023,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FunctionDefinition,
     ) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::PureFunction(function_node.clone()));
+        self.set_statement_context(StatementContext::PureFunction(function_node.clone()));
         self.compile_function_like(
             &function_node.arguments,
             Some(&function_node.return_type),
@@ -1038,7 +1031,6 @@ impl<'a> CompileState<'a> {
             &function_node.statements,
             Label::new(function_node.identifier.name.clone(), LabelType::Function),
         )?;
-        self.exit_statement_context();
         Ok(())
     }
 
@@ -1047,7 +1039,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::Finish);
+        self.set_statement_context(StatementContext::Finish);
         self.compile_function_like(
             &function_node.arguments,
             None,
@@ -1057,7 +1049,6 @@ impl<'a> CompileState<'a> {
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
-        self.exit_statement_context();
         Ok(())
     }
 
@@ -1106,7 +1097,7 @@ impl<'a> CompileState<'a> {
 
     /// Compile an action function
     fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::Action(action_node.clone()));
+        self.set_statement_context(StatementContext::Action(action_node.clone()));
         self.compile_function_like(
             &action_node.arguments,
             None,
@@ -1116,7 +1107,6 @@ impl<'a> CompileState<'a> {
         )?;
         // Actions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
-        self.exit_statement_context();
         Ok(())
     }
 
@@ -1184,7 +1174,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
+        self.set_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
             &[param::this(command.identifier.clone()), param::envelope()],
             None,
@@ -1194,7 +1184,6 @@ impl<'a> CompileState<'a> {
         )?;
         // Policy blocks should exit via a finish block, so panic if it doesn't.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-        self.exit_statement_context();
         Ok(())
     }
 
@@ -1202,7 +1191,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+        self.set_statement_context(StatementContext::CommandRecall(command.clone()));
         self.compile_function_like(
             &[param::this(command.identifier.clone()), param::envelope()],
             None,
@@ -1218,7 +1207,6 @@ impl<'a> CompileState<'a> {
             // Recall blocks should exit via a finish block, so panic if it doesn't.
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
-        self.exit_statement_context();
         Ok(())
     }
 
@@ -1247,7 +1235,7 @@ impl<'a> CompileState<'a> {
             span: command.span,
         };
 
-        self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
+        self.set_statement_context(StatementContext::PureFunction(seal_function_definition));
         self.compile_function_like(
             args,
             Some(&ret),
@@ -1255,7 +1243,6 @@ impl<'a> CompileState<'a> {
             &command.seal,
             Label::new(command.identifier.name.clone(), LabelType::CommandSeal),
         )?;
-        self.exit_statement_context();
 
         Ok(())
     }
@@ -1282,7 +1269,7 @@ impl<'a> CompileState<'a> {
             span: command.span,
         };
 
-        self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
+        self.set_statement_context(StatementContext::PureFunction(open_function_definition));
         self.compile_function_like(
             args,
             Some(&ret),
@@ -1290,7 +1277,6 @@ impl<'a> CompileState<'a> {
             &command.open,
             Label::new(command.identifier.name.clone(), LabelType::CommandOpen),
         )?;
-        self.exit_statement_context();
 
         Ok(())
     }
@@ -1754,13 +1740,11 @@ impl<'a> CompileState<'a> {
 
         for function_def in &self.policy.functions {
             self.compile_function(function_def)?;
-            self.exit_statement_context();
         }
 
         for function_def in &self.policy.finish_functions {
             self.compile_finish_function(function_def)?;
         }
-        self.exit_statement_context();
 
         // Commands have several sub-contexts, so `compile_command` handles those.
         for command in &self.policy.commands {
@@ -1769,7 +1753,6 @@ impl<'a> CompileState<'a> {
 
         for action in &self.policy.actions {
             self.compile_action(action)?;
-            self.exit_statement_context();
         }
 
         self.resolve_targets()?;
@@ -2072,7 +2055,7 @@ impl<'a> Compiler<'a> {
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
-            statement_context: vec![],
+            statement_context: None,
             identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
