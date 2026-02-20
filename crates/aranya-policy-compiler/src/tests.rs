@@ -3564,3 +3564,23 @@ const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
     ],
     enums: &[],
 }];
+
+#[test]
+fn test_exit_statement_context() {
+    let data = r#"
+        command C {
+        fields { }
+        seal { return todo() }
+        open { return todo() }
+        policy {
+            if false {
+                finish {}
+            }
+            // still in finish context instead of policy
+            let y = !true // invalid finish expression
+            finish {}
+        }
+    }"#;
+
+    compile_pass(data);
+}
