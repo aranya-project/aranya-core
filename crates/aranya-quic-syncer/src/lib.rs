@@ -14,6 +14,7 @@ use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
     SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
+    TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -205,7 +206,7 @@ where
         &mut self,
         client: &mut ClientState<PS, SP>,
         peer_address: SocketAddr,
-        mut syncer: SyncRequester,
+        mut syncer: SyncRequester<'_>,
         sink: &mut S,
         graph_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
@@ -260,7 +261,7 @@ where
     pub async fn subscribe(
         &mut self,
         client: &mut ClientState<PS, SP>,
-        mut sync_requester: SyncRequester,
+        mut sync_requester: SyncRequester<'_>,
         remain_open: u64,
         max_bytes: u64,
         peer_addr: SocketAddr,
@@ -301,7 +302,7 @@ where
     /// Unsubscribe the specified graph to a peer at the given address.
     pub async fn unsubscribe(
         &mut self,
-        mut sync_requester: SyncRequester,
+        mut sync_requester: SyncRequester<'_>,
         peer_addr: SocketAddr,
     ) -> Result<(), QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -335,7 +336,8 @@ where
             SyncType::Poll { request } => {
                 let response_cache = self.remote_heads.entry(peer_address).or_default();
                 let mut client = self.client_state.lock().await;
-                let mut response_syncer = SyncResponder::new();
+                let mut buffers = TraversalBuffers::new();
+                let mut response_syncer = SyncResponder::new(&mut buffers);
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
 
@@ -377,8 +379,9 @@ where
                 0
             }
             SyncType::Push { message, graph_id } => {
+                let mut buffers = TraversalBuffers::new();
                 let mut sync_requester =
-                    SyncRequester::new_session_id(graph_id, message.session_id());
+                    SyncRequester::new_session_id(graph_id, message.session_id(), &mut buffers);
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)?
                     && !cmds.is_empty()
                 {
@@ -420,7 +423,8 @@ where
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
-            let mut response_syncer = SyncResponder::new();
+            let mut buffers = TraversalBuffers::new();
+            let mut response_syncer = SyncResponder::new(&mut buffers);
             let mut commands = Vec::new();
             commands
                 .extend_from_slice(response_cache.heads())

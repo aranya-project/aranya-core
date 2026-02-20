@@ -11,7 +11,7 @@ use tracing::trace;
 use super::dsl::dispatch;
 use crate::{
     ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
@@ -585,7 +585,8 @@ fn test_sync<PS, P, S>(
     PS: PolicyStore,
     S: Sink<<PS>::Effect>,
 {
-    let mut sync_requester = SyncRequester::new(graph_id, Rng);
+    let mut buffers = TraversalBuffers::new();
+    let mut sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
 
     let mut req_transaction = cs1.transaction(graph_id);
 

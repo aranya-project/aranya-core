@@ -16,7 +16,7 @@ use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
+    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester, TraversalBuffers,
     policy::Sink,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
@@ -66,7 +66,8 @@ async fn sync_peer<PS, SP, S>(
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(graph_id, Rng::new());
+    let mut buffers = TraversalBuffers::new();
+    let sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
     let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}

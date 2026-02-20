@@ -16,3 +16,4 @@ tarpaulin-report.html
 
 rustc-ice*
 .aider*
+docs/plans/

@@ -13,7 +13,7 @@ use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
-    SyncRequester,
+    SyncRequester, TraversalBuffers,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -506,7 +506,8 @@ where
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut request_syncer = SyncRequester::new(*graph_id, Rng::new());
+        let mut buffers = TraversalBuffers::new();
+        let mut request_syncer = SyncRequester::new(*graph_id, Rng, &mut buffers);
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
