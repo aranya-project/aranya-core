@@ -3675,6 +3675,37 @@ fn test_result_match() {
 }
 
 #[test]
+fn test_match_struct_with_result_field_needs_default() {
+    let err = compile_fail(
+        r#"
+        struct Bar { r result[int, string] }
+
+        function foo(b struct Bar) int {
+            return match b {
+                Bar { r: Ok(42) } => 1
+                Bar { r: Ok(16) } => 2
+            }
+        }
+    "#,
+    );
+    assert_eq!(err, CompileErrorType::MissingDefaultPattern);
+
+    compile_pass(
+        r#"
+        struct Bar { r result[int, string] }
+
+        function foo(b struct Bar) int {
+            return match b {
+                Bar { r: Ok(42) } => 1
+                Bar { r: Ok(16) } => 2
+                _ => 0
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_nested_result() {
     let texts = vec![
         r#"

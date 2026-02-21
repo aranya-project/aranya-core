@@ -1097,6 +1097,7 @@ impl CompileState<'_> {
 
         let mut n: usize = 0;
         let mut patterns_out = Vec::new();
+        let mut has_result_pattern = false;
         for pattern in &patterns {
             let pattern = match pattern {
                 MatchPattern::Values(values) => {
@@ -1131,6 +1132,7 @@ impl CompileState<'_> {
                     thir::MatchPattern::Default(*span)
                 }
                 MatchPattern::ResultPattern(result_pattern) => {
+                    has_result_pattern = true;
                     // Verify that the scrutinee is a Result type
                     if !matches!(scrutinee_t.kind, TypeKind::Result { .. }) {
                         return Err(self.err(CompileErrorType::InvalidType(
@@ -1147,11 +1149,18 @@ impl CompileState<'_> {
             patterns_out.push(pattern);
         }
 
-        let need_default = default_count == 0
-            && self
-                .m
-                .cardinality(&scrutinee_t.kind)
-                .is_none_or(|c| c > all_values.len() as u64);
+        // HACK: We skip cardinality checking for results for now, because computing it correctly requires significant
+        // changes, e.g. allowing actual expressions in result patterns (rather than limiting them to identifiers). It
+        // will be implemented in #574.
+        let need_default = if has_result_pattern {
+            default_count == 0 && patterns.len() < 2
+        } else {
+            default_count == 0
+                && self
+                    .m
+                    .cardinality(&scrutinee_t.kind)
+                    .is_none_or(|c| c > all_values.len() as u64)
+        };
 
         if need_default {
             return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
