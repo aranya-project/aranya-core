@@ -845,21 +845,17 @@ impl CompileState<'_> {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
 
-                let ty = types::check_type(
-                    e.vtype.clone(),
-                    VType {
-                        kind: TypeKind::Bool,
-                        span: expression.span,
-                    },
-                    "",
-                )
-                .map_err(|err| {
-                    CompileErrorType::InvalidType(format!(
+                // The expected type of `Not` expressions.
+                let ty = VType {
+                    kind: TypeKind::Bool,
+                    span: expression.span,
+                };
+                if !e.vtype.fits_type(&ty) {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
                         "cannot invert non-boolean expression of type {}",
-                        err.left
-                    ))
-                })
-                .map_err(|e| self.err(e))?;
+                        e.vtype
+                    ))));
+                }
 
                 thir::Expression {
                     kind: thir::ExprKind::Not(Box::new(e)),

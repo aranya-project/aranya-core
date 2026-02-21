@@ -2280,6 +2280,15 @@ fn test_type_errors() {
             "#,
             e: "match pattern 2 has type string, expected type int",
         },
+        Case {
+            t: r#"
+                function f() bool {
+                    if !todo() == 42 { return false }
+                    return true
+                }
+            "#,
+            e: "type mismatch: bool != int",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
