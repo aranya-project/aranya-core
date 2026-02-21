@@ -747,6 +747,14 @@ impl ToTokens for VTypeTokens<'_> {
                 quote!(Optional(&#vm::ffi::Type::#vtype))
             }
             TypeKind::Never => unreachable!("cannot use never type in definitions"),
+            TypeKind::Result(result_type) => {
+                let ok = VTypeTokens::new(&result_type.ok, vm);
+                let err = VTypeTokens::new(&result_type.err, vm);
+                quote!(Result {
+                    ok: &#vm::ffi::Type::#ok,
+                    err: &#vm::ffi::Type::#err,
+                })
+            }
         };
         tokens.extend(item);
     }
@@ -796,6 +804,11 @@ impl ToTokens for TypeTokens<'_> {
                 quote!(::core::option::Option<#vtype>)
             }
             TypeKind::Never => unreachable!("cannot use never type in definitions"),
+            TypeKind::Result(result_type) => {
+                let ok = TypeTokens::new(&result_type.ok, alloc, crypto, vm);
+                let err = TypeTokens::new(&result_type.err, alloc, crypto, vm);
+                quote!(::core::result::Result<#ok, #err>)
+            }
         };
         tokens.extend(item);
     }
