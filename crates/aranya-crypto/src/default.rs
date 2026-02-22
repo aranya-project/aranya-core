@@ -16,6 +16,7 @@ use spideroak_crypto::{
     rust,
     signer::Signer,
     typenum::U64,
+    zeroize::{Zeroize, ZeroizeOnDrop},
 };
 
 use crate::{
@@ -210,6 +211,13 @@ enum Ciphertext<CS: CipherSuite> {
     // to 32 elements without additional gymnastics.
     Seed(GenericArray<u8, U64>),
     Signing(GenericArray<u8, <<CS::Signer as Signer>::SigningKey as SecretKey>::Size>),
+}
+
+impl<CS: CipherSuite> ZeroizeOnDrop for Ciphertext<CS> {}
+impl<CS: CipherSuite> Drop for Ciphertext<CS> {
+    fn drop(&mut self) {
+        self.as_bytes_mut().zeroize();
+    }
 }
 
 impl<CS: CipherSuite> Ciphertext<CS> {
