@@ -1,19 +1,21 @@
 use core::{mem::MaybeUninit, ptr};
 
-use aranya_crypto::{default::DefaultCipherSuite, engine::RawSecret};
+use aranya_crypto::{
+    default::DefaultCipherSuite,
+    engine::{RawSecret, RawSeed},
+};
 
 #[test]
-#[ignore = "disabled pending seed zeroization behavior change"]
 fn raw_secret_seed_should_zeroize_on_drop() {
     const SECRET: [u8; 64] = [0xA5; 64];
 
-    let mut slot = MaybeUninit::new(RawSecret::<DefaultCipherSuite>::Seed(SECRET));
+    let mut slot = MaybeUninit::new(RawSecret::<DefaultCipherSuite>::Seed(SECRET.into()));
     let secret = slot.as_mut_ptr();
 
     // Capture a pointer directly to the seed field bytes.
     let seed = unsafe {
         match &mut *secret {
-            RawSecret::Seed(seed) => seed as *mut [u8; 64],
+            RawSecret::Seed(seed) => (seed as *mut RawSeed).cast::<[u8; 64]>(),
             _ => unreachable!("constructed as `RawSecret::Seed`"),
         }
     };
@@ -29,7 +31,6 @@ fn raw_secret_seed_should_zeroize_on_drop() {
         seed.read()
     };
 
-    // This assertion currently FAILS on main, demonstrating that
-    // `RawSecret::Seed([u8; 64])` is not scrubbed on drop.
+    // Ensure `RawSecret::Seed` is scrubbed on drop.
     assert_eq!(after_drop, [0u8; 64]);
 }

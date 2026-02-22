@@ -101,7 +101,7 @@ impl RawSecretWrap<Self> for HsmEngine {
             RawSecret::Decap(sk) => RawSecretBytes::Decap(sk.try_export_secret()?),
             RawSecret::Mac(sk) => RawSecretBytes::Mac(sk.try_export_secret()?),
             RawSecret::Prk(sk) => RawSecretBytes::Prk(sk),
-            RawSecret::Seed(sk) => RawSecretBytes::Seed(sk),
+            RawSecret::Seed(sk) => RawSecretBytes::Seed(sk.into()),
             // Signing keys are stored inside the HSM.
             RawSecret::Signing(sk) => return Ok(WrappedKey::internal(sk.0)),
         };
@@ -133,7 +133,10 @@ impl RawSecretWrap<Self> for HsmEngine {
                     AlgId::Prk(_) => RawSecret::Prk(Prk::new(SecretKeyBytes::new(
                         Import::<_>::import(plaintext.as_slice())?,
                     ))),
-                    AlgId::Seed(()) => RawSecret::Seed(Import::<_>::import(plaintext.as_slice())?),
+                    AlgId::Seed(()) => {
+                        let seed: [u8; 64] = Import::<_>::import(plaintext.as_slice())?;
+                        RawSecret::Seed(seed.into())
+                    }
                     AlgId::Signing(_) => {
                         bug!("`AlgId::Signing(_)` is already covered one case up");
                     }

@@ -17,7 +17,7 @@ use spideroak_crypto::{
 use crate::{
     aranya::VerifyingKey,
     ciphersuite::{CipherSuite, CipherSuiteExt as _},
-    engine::unwrapped,
+    engine::{RawSeed, unwrapped},
     error::Error,
     generic_array::GenericArray,
     id::{IdError, Identified, custom_id},
@@ -250,8 +250,8 @@ impl<CS: CipherSuite> GroupKey<CS> {
 unwrapped! {
     name: GroupKey;
     type: Seed;
-    into: |key: Self| { key.seed };
-    from: |seed: [u8;64] | { Self::from_seed(seed) };
+    into: |key: Self| { key.seed.into() };
+    from: |seed: RawSeed| { Self::from_seed(seed.into()) };
 }
 
 impl<CS: CipherSuite> Identified for GroupKey<CS> {
