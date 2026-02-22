@@ -63,7 +63,7 @@ use std::{env, fs, time::Instant};
 use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
@@ -350,6 +350,12 @@ pub trait StorageBackend {
     type StorageProvider: StorageProvider;
     /// Returns the provider for `client_id`.
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
+
+    /// Allows a backend to cap `SetupClientsAndGraph` fanout for
+    /// resource-constrained environments (e.g. low RLIMIT_NOFILE).
+    fn setup_clients_and_graph_clients(&mut self, requested: u64) -> u64 {
+        requested
+    }
 }
 
 /// Runs a particular test.
@@ -481,6 +487,15 @@ where
                     graph,
                     policy,
                 } => {
+                    let requested_clients = clients;
+                    let clients = backend.setup_clients_and_graph_clients(requested_clients);
+                    if clients < requested_clients {
+                        warn!(
+                            requested_clients,
+                            clients,
+                            "clamped `SetupClientsAndGraph` client count for backend capacity"
+                        );
+                    }
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
                         generated_actions.push(TestRule::AddClient { id: i });
