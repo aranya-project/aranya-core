@@ -29,7 +29,7 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
         impl #ident {
             /// Gives the name of the effect.
             pub fn name(&self) -> &'static ::core::primitive::str {
-                match self {
+                match *self {
                     #(
                         Self::#idents{..} => #names,
                     )*

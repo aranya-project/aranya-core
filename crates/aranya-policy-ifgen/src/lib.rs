@@ -16,6 +16,7 @@ pub use alloc::format;
 
 pub use aranya_policy_vm::{
     BaseId, Identifier, KVPair, Struct, Text, TryFromValue, Value, ValueConversionError, ident,
+    text,
 };
 pub use aranya_runtime::{ClientError, VmAction, VmEffect, vm_action, vm_effect};
 #[cfg(feature = "serde")]

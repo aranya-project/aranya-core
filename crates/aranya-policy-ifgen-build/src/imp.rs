@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, Persistence, TypeKind, VType};
+use aranya_policy_ast::{FieldDefinition, Identifier, Persistence, TypeKind, VType};
 use aranya_policy_compiler::PolicyInterface;
+use aranya_policy_module::ConstValue;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
@@ -9,6 +10,16 @@ use quote::quote;
 #[allow(clippy::panic)]
 pub fn generate_code(target: &PolicyInterface) -> String {
     let reachable = collect_reachable_types(target);
+
+    let constants = target.globals.iter().map(|(id, value)| {
+        let (ty, lit) = constant_value_to_type_and_literal(value);
+        let doc = format!(" {id} constant.");
+        let name = mk_ident(id);
+        quote! {
+            #[doc = #doc]
+            pub const #name: #ty = #lit;
+        }
+    });
 
     let structs = target
         .struct_defs
@@ -131,6 +142,7 @@ pub fn generate_code(target: &PolicyInterface) -> String {
         #![allow(missing_docs)]
         #![allow(non_camel_case_types)]
         #![allow(non_snake_case)]
+        #![allow(non_upper_case_globals)]
         #![allow(unused_imports)]
 
         extern crate alloc;
@@ -139,8 +151,10 @@ pub fn generate_code(target: &PolicyInterface) -> String {
 
         use aranya_policy_ifgen::{
             macros::{action, actions, effect, effects, value},
-            BaseId, ClientError, Value, Text,
+            text, BaseId, ClientError, Value, Text,
         };
+
+        #(#constants)*
 
         #[derive(Debug)]
         pub enum #persistent {}
@@ -184,26 +198,61 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
     }
 }
 
-/// Returns the name of all custom types reachable from actions or effects.
+fn constant_value_to_type_and_literal(value: &ConstValue) -> (TokenStream, TokenStream) {
+    match value {
+        ConstValue::Int(n) => (quote!(i64), quote!(#n)),
+        ConstValue::Bool(b) => (quote!(bool), quote!(#b)),
+        ConstValue::String(text) => {
+            let text = text.as_str();
+            (quote!(Text), quote!(text!(#text)))
+        }
+        ConstValue::Struct(st) => {
+            let ident = mk_ident(&st.name);
+            let ty = quote!(#ident);
+            let fields = st.fields.iter().map(|(k, v)| {
+                let ident = mk_ident(k);
+                let lit = constant_value_to_type_and_literal(v).1;
+                quote! {
+                    #ident: #lit
+                }
+            });
+            let lit = quote!(#ident { #(#fields),* });
+            (ty, lit)
+        }
+        ConstValue::Enum(ident, variant) => {
+            let ident = mk_ident(ident);
+            let ty = quote!(#ident);
+            let lit = quote!(#ident::new(#variant).unwrap());
+            (ty, lit)
+        }
+        ConstValue::Option(None) => (quote!(Option<()>), quote!(None)),
+        ConstValue::Option(Some(value)) => {
+            let (ty, lit) = constant_value_to_type_and_literal(value);
+            (quote!(Option<#ty>), quote!(Some(#lit)))
+        }
+    }
+}
+
+/// Returns the name of all custom types reachable from actions, effects, and globals.
 #[allow(clippy::panic)]
-fn collect_reachable_types(target: &PolicyInterface) -> HashSet<&str> {
-    fn visit<'a>(
-        struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
-        found: &mut HashSet<&'a str>,
-        ty: &'a VType,
+fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
+    fn visit(
+        struct_defs: &HashMap<&str, &[FieldDefinition]>,
+        found: &mut HashSet<Identifier>,
+        ty: &TypeKind,
     ) {
-        match &ty.kind {
+        match ty {
             TypeKind::Struct(s) => {
-                if found.insert(s.as_str()) {
+                if found.insert(s.name.clone()) {
                     for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type);
+                        visit(struct_defs, found, &field.field_type.kind);
                     }
                 }
             }
             TypeKind::Enum(s) => {
-                found.insert(s.as_str());
+                found.insert(s.name.clone());
             }
-            TypeKind::Optional(inner) => visit(struct_defs, found, inner),
+            TypeKind::Optional(inner) => visit(struct_defs, found, &inner.kind),
             _ => {}
         }
     }
@@ -218,7 +267,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<&str> {
 
     for def in target.action_defs.iter() {
         for param in def.params.iter() {
-            visit(&struct_defs, &mut found, &param.ty);
+            visit(&struct_defs, &mut found, &param.ty.kind);
         }
     }
 
@@ -228,7 +277,13 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<&str> {
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
-            visit(&struct_defs, &mut found, &field.field_type);
+            visit(&struct_defs, &mut found, &field.field_type.kind);
+        }
+    }
+
+    for value in target.globals.values() {
+        if let Some(ty) = value.vtype() {
+            visit(&struct_defs, &mut found, &ty);
         }
     }
 

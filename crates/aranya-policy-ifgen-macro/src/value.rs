@@ -113,6 +113,17 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
         #derive
         #enumeration
 
+        impl #ident {
+            const fn new(val: i64) -> ::core::option::Option<Self> {
+                #( const #var_const_names: i64 = #ident::#var_idents as i64; )*
+
+                match val {
+                    #( #var_const_names => ::core::option::Option::Some(Self::#var_idents), )*
+                    _ => ::core::option::Option::None,
+                }
+            }
+        }
+
         impl ::core::convert::TryFrom<::aranya_policy_ifgen::Value> for #ident {
             type Error = ::aranya_policy_ifgen::ValueConversionError;
             fn try_from(value: ::aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
@@ -129,14 +140,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
                     ));
                 }
 
-                #( const #var_const_names: i64 = #ident::#var_idents as i64; )*
-
-                match val {
-                    #(
-                        #var_const_names => ::core::result::Result::Ok(Self::#var_idents),
-                    )*
-                    _ => ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::OutOfRange),
-                }
+                Self::new(val).ok_or(::aranya_policy_ifgen::ValueConversionError::OutOfRange)
             }
         }
 
