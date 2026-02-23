@@ -3657,9 +3657,8 @@ fn test_result_match() {
 
     compile_pass(policy_str);
 
-    let invalid = [
-        (
-            r#"
+    let invalid = [(
+        r#"
         function match_duplicate_arms(r result[int, string]) int {
             return match r {
                 Ok(v) => v
@@ -3667,20 +3666,8 @@ fn test_result_match() {
                 _ => 0
             }
         }"#,
-            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
-        ),
-        (
-            r#"
-        function f(r result[bool, bool]) int {
-            return match r {
-                Ok(true) | Ok(false) => 0
-                Ok(x) => 1
-            }
-        }
-        "#,
-            CompileErrorType::Unknown("Result patterns cannot be used in alternation.".to_string()),
-        ),
-    ];
+        CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+    )];
     for (src, expected) in invalid {
         let err_type = compile_fail(src);
         assert_eq!(err_type, expected);
@@ -3688,34 +3675,51 @@ fn test_result_match() {
 }
 
 #[test]
-fn test_match_struct_with_result_field_needs_default() {
-    let err = compile_fail(
-        r#"
-        struct Bar { r result[int, string] }
-
-        function foo(b struct Bar) int {
-            return match b {
-                Bar { r: Ok(42) } => 1
-                Bar { r: Ok(16) } => 2
-            }
-        }
-    "#,
-    );
-    assert_eq!(err, CompileErrorType::MissingDefaultPattern);
-
+fn test_result_exact_value_match() {
+    // Ok(true) and Ok(false) are not duplicates: they match different exact values.
+    // result[bool, bool] has cardinality 4 (2 ok + 2 err), so all four arms are exhaustive.
     compile_pass(
         r#"
-        struct Bar { r result[int, string] }
-
-        function foo(b struct Bar) int {
-            return match b {
-                Bar { r: Ok(42) } => 1
-                Bar { r: Ok(16) } => 2
-                _ => 0
+        function f(r result[bool, bool]) int {
+            match r {
+                Ok(true) => { return 1 }
+                Ok(false) => { return 0 }
+                Err(true) => { return -1 }
+                Err(false) => { return -2 }
             }
         }
     "#,
     );
+
+    let invalid = [
+        (
+            r#"
+            function dup(r result[bool, bool]) int {
+                match r {
+                    Ok(true) => { return 1 }
+                    Ok(true) => { return 2 } // duplicate
+                    Ok(false) => { return 0 }
+                    Err(e) => { return -1 }
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+            function missing_default(r result[bool, string]) int {
+                return match r {
+                    Ok(true) => 1
+                    Ok(false) => 0
+                    // missing Err(_) arm, so not exhaustive
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+    ];
+    for (src, expected) in invalid {
+        let err_type = compile_fail(src);
+        assert_eq!(err_type, expected);
+    }
 }
 
 #[test]
