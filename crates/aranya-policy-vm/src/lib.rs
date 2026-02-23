@@ -8,6 +8,8 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
+extern crate alloc;
+
 #[cfg(feature = "bench")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bench")))]
 mod bench;

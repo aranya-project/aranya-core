@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{borrow::ToOwned as _, string::String};
 use core::{convert::Infallible, fmt};
 

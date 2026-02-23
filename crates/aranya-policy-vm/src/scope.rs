@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{collections::BTreeMap, string::ToString as _, vec, vec::Vec};
 
 use aranya_policy_ast::Identifier;
