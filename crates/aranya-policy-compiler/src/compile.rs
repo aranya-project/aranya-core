@@ -1483,26 +1483,10 @@ impl<'a> CompileState<'a> {
     fn compile_result_pattern_binding(
         &mut self,
         pattern: &thir::ResultPattern,
-        scrutinee_type: &VType,
     ) -> Result<(), CompileError> {
-        // Make sure the scrutinee is actually a Result, and extract the identifier.
         let (ident, wrap_type) = match pattern {
-            thir::ResultPattern::Ok(ident) => {
-                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
-                    return Err(self.err(CompileErrorType::InvalidType(
-                        "Ok pattern requires Result type".to_string(),
-                    )));
-                }
-                (ident, WrapType::Ok)
-            }
-            thir::ResultPattern::Err(ident) => {
-                if !matches!(&scrutinee_type.kind, TypeKind::Result { .. }) {
-                    return Err(self.err(CompileErrorType::InvalidType(
-                        "Err pattern requires Result type".to_string(),
-                    )));
-                }
-                (ident, WrapType::Err)
-            }
+            thir::ResultPattern::Ok(ident) => (ident, WrapType::Ok),
+            thir::ResultPattern::Err(ident) => (ident, WrapType::Err),
         };
 
         // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
@@ -1549,7 +1533,6 @@ impl<'a> CompileState<'a> {
             }
         };
 
-        let expr_pat_t = scrutinee.vtype.clone();
         self.compile_typed_expression(scrutinee)?;
 
         let end_label = self.anonymous_label();
@@ -1612,7 +1595,7 @@ impl<'a> CompileState<'a> {
 
                     match pattern {
                         thir::MatchPattern::ResultPattern(pattern) => {
-                            self.compile_result_pattern_binding(pattern, &expr_pat_t)?;
+                            self.compile_result_pattern_binding(pattern)?;
                         }
                         _ => {
                             // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
@@ -1637,7 +1620,7 @@ impl<'a> CompileState<'a> {
 
                     match pattern {
                         thir::MatchPattern::ResultPattern(pattern) => {
-                            self.compile_result_pattern_binding(pattern, &expr_pat_t)?;
+                            self.compile_result_pattern_binding(pattern)?;
                         }
                         _ => {
                             // Pop the scrutinee value
