@@ -5,7 +5,7 @@ use std::{
 
 use aranya_policy_ast::{self as ast, Identifier, TypeKind};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, Instruction, Label, Module, ModuleData, ModuleV0, Value,
+    ActionDef, CodeMap, CommandDef, ConstValue, Instruction, Label, Module, ModuleData, ModuleV0,
     named::NamedMap,
 };
 use ast::FactDefinition;
@@ -36,7 +36,7 @@ pub(crate) struct CompileTarget {
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 impl CompileTarget {

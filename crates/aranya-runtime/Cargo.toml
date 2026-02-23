@@ -42,7 +42,7 @@ aranya-crypto = { path = "../aranya-crypto", features = ["getrandom"] }
 aranya-libc = { path = "../aranya-libc", features = ["std"] }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
-aranya-policy-module = { path = "../aranya-policy-module", features = ["proptest"] }
+aranya-policy-vm = { path = "../aranya-policy-vm", features = ["proptest"] }
 
 proptest = { workspace = true, default-features = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"] }

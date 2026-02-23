@@ -12,9 +12,8 @@ use core::fmt::{self, Display};
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
-    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
-    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
+    ModuleData, ModuleV0, Target, UnsupportedVersion, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -22,7 +21,8 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
+    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, OpenContext,
+    PolicyContext, SealContext, Struct, TryAsMut, Value, ValueConversionError,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -142,7 +142,7 @@ pub struct Machine {
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 impl Machine {
@@ -525,6 +525,9 @@ where
                 }
             }
             Instruction::Const(v) => {
+                self.ipush(v)?;
+            }
+            Instruction::Identifier(v) => {
                 self.ipush(v)?;
             }
             Instruction::Def(key) => {

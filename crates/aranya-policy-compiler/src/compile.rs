@@ -19,8 +19,8 @@ use aranya_policy_ast::{
     StructItem, TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
-    ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Struct, Target, Value,
+    ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
+    Instruction, Label, LabelType, Meta, Module, Target,
     ffi::{self, ModuleSchema},
     named::NamedMap,
 };
@@ -576,17 +576,17 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         match expression.kind {
             thir::ExprKind::Int(n) => {
-                self.append_instruction(Instruction::Const(Value::Int(n)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(n)));
             }
             thir::ExprKind::String(s) => {
-                self.append_instruction(Instruction::Const(Value::String(s)));
+                self.append_instruction(Instruction::Const(ConstValue::String(s)));
             }
             thir::ExprKind::Bool(b) => {
-                self.append_instruction(Instruction::Const(Value::Bool(b)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(b)));
             }
             thir::ExprKind::Optional(o) => match o {
                 None => {
-                    self.append_instruction(Instruction::Const(Value::NONE));
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
                 }
                 Some(v) => {
                     self.compile_typed_expression(*v)?;
@@ -604,7 +604,7 @@ impl<'a> CompileState<'a> {
                 thir::InternalFunction::Exists(f) => {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
-                    self.append_instruction(Instruction::Const(Value::NONE));
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
@@ -674,7 +674,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Get(i.name));
             }
             thir::ExprKind::EnumReference(e) => {
-                self.append_instruction(Instruction::Const(Value::Enum(
+                self.append_instruction(Instruction::Const(ConstValue::Enum(
                     e.identifier.name,
                     e.value,
                 )));
@@ -701,7 +701,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*lhs)?;
 
                 for field_name in field_names {
-                    self.append_instruction(Instruction::Const(Value::Identifier(field_name)));
+                    self.append_instruction(Instruction::Identifier(field_name));
                 }
 
                 if let Some(field_count) = NonZeroUsize::new(field_count) {
@@ -724,7 +724,7 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::Branch(Target::Unresolved(mid.clone())));
 
-                self.append_instruction(Instruction::Const(Value::Bool(false)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(false)));
                 self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
 
                 self.define_label(mid, self.wp)?;
@@ -745,7 +745,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
 
                 self.define_label(mid, self.wp)?;
-                self.append_instruction(Instruction::Const(Value::Bool(true)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(true)));
 
                 self.define_label(end, self.wp)?;
             }
@@ -798,7 +798,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*e)?;
 
                 // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::NONE));
+                self.append_instruction(Instruction::Const(ConstValue::NONE));
                 // Check if the value is equal to None
                 self.append_instruction(Instruction::Eq);
                 if expr_is_some {
@@ -1165,7 +1165,7 @@ impl<'a> CompileState<'a> {
         // Duplicate value for testing
         self.append_instruction(Instruction::Dup);
         // Push a None to compare against
-        self.append_instruction(Instruction::Const(Value::NONE));
+        self.append_instruction(Instruction::Const(ConstValue::NONE));
         // Is the value not equal to None?
         self.append_instruction(Instruction::Eq);
         self.append_instruction(Instruction::Not);
@@ -1445,7 +1445,7 @@ impl<'a> CompileState<'a> {
             FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(limit)),
             FactCountType::AtLeast(_) => {
                 self.append_instruction(Instruction::FactCount(limit));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Lt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1453,7 +1453,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Gt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1461,7 +1461,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Eq);
             }
         }
@@ -1778,12 +1778,12 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Get expression value, e.g. ExprKind::Int => Value::Int
-    fn expression_value(&self, e: &Expression) -> Result<Value, CompileError> {
+    /// Get expression value, e.g. ExprKind::Int => ConstValue::Int
+    fn expression_value(&self, e: &Expression) -> Result<ConstValue, CompileError> {
         match &e.kind {
-            ExprKind::Int(v) => Ok(Value::Int(*v)),
-            ExprKind::Bool(v) => Ok(Value::Bool(*v)),
-            ExprKind::String(v) => Ok(Value::String(v.clone())),
+            ExprKind::Int(v) => Ok(ConstValue::Int(*v)),
+            ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
+            ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
                 let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
@@ -1798,7 +1798,7 @@ impl<'a> CompileState<'a> {
                     identifier, fields, ..
                 } = struct_ast.as_ref();
 
-                Ok(Value::Struct(Struct {
+                Ok(ConstValue::Struct(ConstStruct {
                     name: identifier.name.clone(),
                     fields: {
                         let mut value_fields = BTreeMap::new();
@@ -1811,7 +1811,7 @@ impl<'a> CompileState<'a> {
             }
             ExprKind::EnumReference(e) => {
                 let value = self.enum_value(e)?;
-                Ok(Value::Enum(e.identifier.name.clone(), value))
+                Ok(ConstValue::Enum(e.identifier.name.clone(), value))
             }
             ExprKind::Dot(expr, field_ident) => match &expr.kind {
                 ExprKind::Identifier(struct_ident) => self
@@ -1819,7 +1819,7 @@ impl<'a> CompileState<'a> {
                     .globals
                     .get(&struct_ident.name)
                     .and_then(|val| match val {
-                        Value::Struct(Struct { fields, .. }) => {
+                        ConstValue::Struct(ConstStruct { fields, .. }) => {
                             fields.get(&field_ident.name).cloned()
                         }
                         _ => None,

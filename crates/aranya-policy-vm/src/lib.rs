@@ -12,6 +12,7 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "bench")))]
 mod bench;
 mod context;
+mod data;
 mod derive;
 mod error;
 pub mod ffi;
@@ -28,6 +29,7 @@ pub use aranya_policy_module::*;
 #[cfg_attr(docsrs, doc(cfg(feature = "bench")))]
 pub use bench::*;
 pub use context::*;
+pub use data::*;
 pub use error::*;
 pub use io::*;
 pub use machine::*;
