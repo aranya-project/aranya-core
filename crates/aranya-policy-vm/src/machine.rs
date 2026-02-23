@@ -546,7 +546,7 @@ where
                 self.ipush(value)?;
             }
             Instruction::Dup => {
-                let v = self.stack.peek_value()?.clone();
+                let v = self.ipeek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -974,7 +974,7 @@ where
                 self.ipush(wrapped)?;
             }
             Instruction::Is(wrap_type) => {
-                let value = self.ipeek_value()?;
+                let value = self.ipop_value()?;
                 let is_type = match wrap_type {
                     WrapType::Some => matches!(value, Value::Option(Some(_))),
                     WrapType::Ok => matches!(value, Value::Result(Ok(_))),
