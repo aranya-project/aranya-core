@@ -1,6 +1,0 @@
-function f(r result[int, string]) int {
-    return match r {
-        Ok(5) => 5
-        Err(e) => 0
-    }
-}
