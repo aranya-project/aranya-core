@@ -38,7 +38,7 @@ use vec1::Vec1;
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
     MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    SegmentIndex, Storage, StorageError, StorageProvider,
+    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
 };
 
 pub mod io;
@@ -548,8 +548,12 @@ impl<F: Write> Storage for LinearStorage<F> {
         self.writer.head()
     }
 
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.get_head()?, &segment)? {
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBuffer,
+    ) -> Result<(), StorageError> {
+        if !self.is_ancestor(self.get_head()?, &segment, buffers)? {
             return Err(StorageError::HeadNotAncestor);
         }
 
@@ -593,12 +597,14 @@ impl<F: Write> Storage for LinearStorage<F> {
                 if !skips.contains(&lca) {
                     skips.push(lca);
                 }
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|loc| loc.max_cut);
                 skips
             }
             Prior::Single(l) => {
                 let mut skips = get_skips(l, 3)?;
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|loc| loc.max_cut);
                 skips
             }
         };
