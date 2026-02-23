@@ -566,19 +566,16 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Get the [`TypeKind`]. Unlike the Value version, this cannot
-    /// fail.
-    pub fn vtype(&self) -> TypeKind {
+    /// Checks to see if a [`HashableValue`] matches some [`VType`]
+    pub fn fits_type(&self, expected_type: &VType) -> bool {
         use aranya_policy_ast::TypeKind;
-        match self {
-            Self::Int(_) => TypeKind::Int,
-            Self::Bool(_) => TypeKind::Bool,
-            Self::String(_) => TypeKind::String,
-            Self::Id(_) => TypeKind::Id,
-            Self::Enum(id, _) => TypeKind::Enum(Ident {
-                name: id.clone(),
-                span: Span::default(),
-            }),
+        match (self, &expected_type.kind) {
+            (Self::Int(_), TypeKind::Int) => true,
+            (Self::Bool(_), TypeKind::Bool) => true,
+            (Self::String(_), TypeKind::String) => true,
+            (Self::Id(_), TypeKind::Id) => true,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            _ => false,
         }
     }
 }

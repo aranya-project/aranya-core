@@ -47,7 +47,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
             return false;
         };
 
-        if !key.value.vtype().matches(&key_value.field_type.kind) {
+        if !key.value.fits_type(&key_value.field_type) {
             return false;
         }
     }
@@ -63,10 +63,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         };
 
         // Ensure fact value type matches schema
-        let Some(value_type) = value.value.vtype() else {
-            return false;
-        };
-        if !value_type.matches(&schema_value.field_type.kind) {
+        if !value.value.fits_type(&schema_value.field_type) {
             return false;
         }
     }
