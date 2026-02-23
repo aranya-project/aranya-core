@@ -45,7 +45,8 @@ vtype = _{
     | struct_t
     | enum_t
     | optional_t
-    | result_t }
+    | result_t
+}
 
 // ## Fields
 // A field definition is an identifier followed by a type. Used in
