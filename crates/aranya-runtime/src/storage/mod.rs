@@ -398,11 +398,7 @@ pub trait Storage {
 
     /// Sets the given segment as the head of the graph.  Returns an error if
     /// the current head is not an ancestor of the provided segment.
-    fn commit(
-        &mut self,
-        segment: Self::Segment,
-        buffers: &mut TraversalBuffer,
-    ) -> Result<(), StorageError>;
+    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;

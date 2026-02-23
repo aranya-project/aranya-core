@@ -20,6 +20,8 @@ use crate::{
 pub struct Transaction<SP: StorageProvider, PS> {
     /// The ID of the associated graph
     graph_id: GraphId,
+    /// The head of the graph when this transaction is first used.
+    original_head: Option<Location>,
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
@@ -34,6 +36,7 @@ impl<SP: StorageProvider, PS> Transaction<SP, PS> {
     pub(super) const fn new(graph_id: GraphId) -> Self {
         Self {
             graph_id,
+            original_head: None,
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
@@ -79,6 +82,11 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError> {
         let storage = provider.get_storage(self.graph_id)?;
+
+        let original_head = self.original_head.ok_or(StorageError::EmptyPerspective)?;
+        if original_head != storage.get_head()? {
+            return Err(ClientError::ConcurrentTransaction);
+        }
 
         // Write out current perspective.
         if let Some(p) = Option::take(&mut self.perspective) {
@@ -131,27 +139,26 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 heads.push_back((segment.head_id(), segment.head_location()?));
             } else {
                 let segment = storage.get_segment(left_loc)?;
-                // Try to commit. If it fails with `HeadNotAncestor`, we know we
-                // need to merge with the graph head.
-                match storage.commit(segment, &mut buffers.primary) {
-                    Ok(()) => break,
-                    Err(StorageError::HeadNotAncestor) => {
-                        if merging_head {
-                            bug!("merging with graph head again, would loop");
-                        }
 
-                        merging_head = true;
-
-                        heads.push_back((left_id, left_loc));
-
-                        let head_loc = storage.get_head()?;
-                        let segment = storage.get_segment(head_loc)?;
-                        heads.push_back((segment.head_id(), segment.head_location()?));
+                if storage.is_ancestor(storage.get_head()?, &segment, &mut buffers.primary)? {
+                    storage.commit(segment)?;
+                    debug_assert!(heads.is_empty());
+                } else {
+                    if merging_head {
+                        bug!("merging with graph head again, would loop");
                     }
-                    Err(e) => return Err(e.into()),
+                    merging_head = true;
+
+                    heads.push_back((left_id, left_loc));
+
+                    let head_loc = storage.get_head()?;
+                    let segment = storage.get_segment(head_loc)?;
+                    heads.push_back((segment.head_id(), segment.head_location()?));
                 }
             }
         }
+
+        self.original_head = None;
 
         Ok(())
     }
@@ -180,6 +187,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             }
             Err(e) => return Err(e.into()),
         };
+
+        if self.original_head.is_none() {
+            self.original_head = Some(storage.get_head()?);
+        }
 
         // Handle remaining commands.
         for command in commands {

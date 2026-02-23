@@ -39,6 +39,8 @@ pub enum ClientError {
     /// split into two separate graph states which can never successfully sync.
     #[error("found parallel finalize commands during braid")]
     ParallelFinalize,
+    #[error("concurrent transaction usage")]
+    ConcurrentTransaction,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -217,7 +219,7 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment, &mut self.buffers.primary)?;
+                storage.commit(segment)?;
                 sink.commit();
                 Ok(())
             }
