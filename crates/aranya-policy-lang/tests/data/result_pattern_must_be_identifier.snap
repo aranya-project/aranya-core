@@ -1,5 +1,0 @@
----
-source: crates/aranya-policy-lang/tests/tests.rs
-expression: err
----
-Unknown error: line 3 column 9: Result pattern Ok() must contain an identifier

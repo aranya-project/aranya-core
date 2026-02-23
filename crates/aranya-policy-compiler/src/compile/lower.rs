@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     FunctionDefinition, Ident, Identifier, InternalFunction, LanguageContext, MatchExpression,
-    MatchPattern, MatchStatement, NamedStruct, ResultPattern, ResultTypeKind, Span, Spanned as _,
-    Statement, StmtKind, TypeKind, VType, ident, thir,
+    MatchPattern, MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement,
+    StmtKind, TypeKind, VType, ident, thir,
 };
 use buggy::{Bug, BugExt as _, bug};
 use tracing::warn;
@@ -12,6 +12,28 @@ use super::{
     StatementContext, find_duplicate,
     types::{self, DisplayType},
 };
+
+/// Recursively strip all spans from an expression, producing a canonical form suitable
+/// for span-agnostic equality comparison (e.g., duplicate match arm detection).
+fn strip_spans(e: &Expression) -> Expression {
+    let kind = match &e.kind {
+        ExprKind::ResultOk(inner) => ExprKind::ResultOk(Box::new(strip_spans(inner))),
+        ExprKind::ResultErr(inner) => ExprKind::ResultErr(Box::new(strip_spans(inner))),
+        ExprKind::Optional(Some(inner)) => ExprKind::Optional(Some(Box::new(strip_spans(inner)))),
+        other => other.clone(),
+    };
+    Expression {
+        kind,
+        span: Span::empty(),
+    }
+}
+
+#[derive(Clone, PartialEq)]
+enum MatchPatternKey {
+    ResultOkBinding,
+    ResultErrBinding,
+    Expr(Expression),
+}
 
 impl CompileState<'_> {
     /// Get the statement context
@@ -1025,53 +1047,36 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
         };
 
-        // Ensure there are no duplicate arm values.
-        // NOTE We don't check for zero arms, because that's enforced by the parser.
-        // Checking for duplicate result patterns is special, because their associated values are
-        // identifiers, which can't be compared, like values can. So we ignore the identifiers, and
-        // just make sure the pattern (Ok/Err) isn't duplicated.
-        let result_ok_marker = Expression {
-            kind: ExprKind::ResultOk(Box::new(Expression {
-                kind: ExprKind::Identifier(Ident {
-                    name: ident!("result_ok_pattern"),
-                    span: Span::empty(),
-                }),
-                span: Span::empty(),
-            })),
-            span: Span::empty(),
-        };
-        let result_err_marker = Expression {
-            kind: ExprKind::ResultErr(Box::new(Expression {
-                kind: ExprKind::Identifier(Ident {
-                    name: ident!("result_err_pattern"),
-                    span: Span::empty(),
-                }),
-                span: Span::empty(),
-            })),
-            span: Span::empty(),
-        };
+        // Check for duplicate arms.
+        // - Identifier patterns like Ok(n)/Err(e) patterns (where n/e are identifiers) are replaced with canonical
+        //   markers so we can compare them and find duplicates like Ok(x)/Ok(y).
+        // - Literal patterns like Ok(true) are not replaced, so that Ok(true) and Ok(false) are not treated as
+        //   duplicates.
 
         let all_values = patterns
             .iter()
             .flat_map(|pattern| match pattern {
                 MatchPattern::Values(values) => values.as_slice(),
                 MatchPattern::Default(_) => &[],
-                MatchPattern::ResultPattern(ResultPattern::Ok(_)) => {
-                    std::slice::from_ref(&result_ok_marker)
-                }
-                MatchPattern::ResultPattern(ResultPattern::Err(_)) => {
-                    std::slice::from_ref(&result_err_marker)
-                }
             })
-            .collect::<Vec<&Expression>>();
+            .map(|v| {
+                let key = match &v.kind {
+                    ExprKind::ResultOk(_) if !v.is_literal() => MatchPatternKey::ResultOkBinding,
+                    ExprKind::ResultErr(_) if !v.is_literal() => MatchPatternKey::ResultErrBinding,
+                    _ => MatchPatternKey::Expr(strip_spans(v)),
+                };
+                (key, v.span())
+            })
+            .collect::<Vec<(MatchPatternKey, Span)>>();
 
         // Check for duplicates by comparing expression kinds, not including spans
-        for (i, v1) in all_values.iter().enumerate() {
-            for v2 in &all_values[..i] {
-                if v1.kind == v2.kind {
+        // NOTE We don't check for zero arms, because that's enforced by the parser.
+        for (i, (v1, v1_span)) in all_values.iter().enumerate() {
+            for (v2, _) in &all_values[..i] {
+                if v1 == v2 {
                     return Err(self.err_loc(
                         CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-                        span,
+                        *v1_span,
                     ));
                 }
             }
@@ -1097,28 +1102,73 @@ impl CompileState<'_> {
 
         let mut n: usize = 0;
         let mut patterns_out = Vec::new();
-        let mut has_result_pattern = false;
         for pattern in &patterns {
             let pattern = match pattern {
                 MatchPattern::Values(values) => {
                     let mut values_out = Vec::new();
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
-                        if !value.is_literal() {
-                            return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "match pattern {n} is not a literal expression",
-                            ))));
+                        match &value.kind {
+                            ExprKind::ResultOk(inner) | ExprKind::ResultErr(inner)
+                                if !value.is_literal() =>
+                            {
+                                // Binding pattern: Ok(x) or Err(e) where x/e are unbound
+                                // identifiers that will be bound in the arm body.
+                                let is_ok = matches!(&value.kind, ExprKind::ResultOk(_));
+                                if !matches!(scrutinee_t.kind, TypeKind::Result { .. }) {
+                                    return Err(self.err(CompileErrorType::InvalidType(
+                                        "Result pattern requires scrutinee to be a Result type"
+                                            .to_string(),
+                                    )));
+                                }
+                                let TypeKind::Result(result_type) = &scrutinee_t.kind else {
+                                    bug!("checked above")
+                                };
+                                let inner_type = if is_ok {
+                                    result_type.ok.clone()
+                                } else {
+                                    result_type.err.clone()
+                                };
+                                let ExprKind::Identifier(ident) = &inner.kind else {
+                                    return Err(self.err(CompileErrorType::InvalidType(
+                                        "Result pattern binding must be an identifier".to_string(),
+                                    )));
+                                };
+                                let inner_lowered = thir::Expression {
+                                    kind: thir::ExprKind::Identifier(ident.clone()),
+                                    vtype: inner_type,
+                                    span: inner.span(),
+                                };
+                                let outer = thir::Expression {
+                                    kind: if is_ok {
+                                        thir::ExprKind::ResultOk(Box::new(inner_lowered))
+                                    } else {
+                                        thir::ExprKind::ResultErr(Box::new(inner_lowered))
+                                    },
+                                    vtype: scrutinee_t.clone(),
+                                    span: value.span(),
+                                };
+                                values_out.push(outer);
+                            }
+                            _ => {
+                                // Literal pattern: Ok(5), Ok(true), 0, true, etc.
+                                if !value.is_literal() {
+                                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                                        "match pattern {n} is not a literal expression",
+                                    ))));
+                                }
+                                let arm_t = self.lower_expression(value)?;
+                                scrutinee_t = types::unify_pair(scrutinee_t, arm_t.vtype.clone())
+                                    .map_err(|err| {
+                                        CompileErrorType::InvalidType(format!(
+                                            "match pattern {n} has type {}, expected type {}",
+                                            err.right, err.left
+                                        ))
+                                    })
+                                    .map_err(|err| self.err(err))?;
+                                values_out.push(arm_t);
+                            }
                         }
-                        let arm_t = self.lower_expression(value)?;
-                        scrutinee_t = types::unify_pair(scrutinee_t, arm_t.vtype.clone())
-                            .map_err(|err| {
-                                CompileErrorType::InvalidType(format!(
-                                    "match pattern {n} has type {}, expected type {}",
-                                    err.right, err.left
-                                ))
-                            })
-                            .map_err(|err| self.err(err))?;
-                        values_out.push(arm_t);
                     }
                     thir::MatchPattern::Values(values_out)
                 }
@@ -1131,36 +1181,30 @@ impl CompileState<'_> {
                     }
                     thir::MatchPattern::Default(*span)
                 }
-                MatchPattern::ResultPattern(result_pattern) => {
-                    has_result_pattern = true;
-                    // Verify that the scrutinee is a Result type
-                    if !matches!(scrutinee_t.kind, TypeKind::Result { .. }) {
-                        return Err(self.err(CompileErrorType::InvalidType(
-                            "Result pattern requires scrutinee to be a Result type".to_string(),
-                        )));
-                    }
-                    let thir_pattern = match result_pattern {
-                        ResultPattern::Ok(ident) => thir::ResultPattern::Ok(ident.clone()),
-                        ResultPattern::Err(ident) => thir::ResultPattern::Err(ident.clone()),
-                    };
-                    thir::MatchPattern::ResultPattern(thir_pattern)
-                }
             };
             patterns_out.push(pattern);
         }
 
-        // HACK: We skip cardinality checking for results for now, because computing it correctly requires significant
-        // changes, e.g. allowing actual expressions in result patterns (rather than limiting them to identifiers). It
-        // will be implemented in #574.
-        let need_default = if has_result_pattern {
-            default_count == 0 && patterns.len() < 2
-        } else {
-            default_count == 0
-                && self
-                    .m
-                    .cardinality(&scrutinee_t.kind)
-                    .is_none_or(|c| c > all_values.len() as u64)
-        };
+        // A Result match is exhaustive without a default arm if there are binding-style
+        // patterns that cover all Ok values (Ok(x)) and all Err values (Err(e)).
+        // Exact-value patterns like Ok(true) only cover specific values, so they
+        // contribute to cardinality-based exhaustiveness but not this shortcut.
+        let has_ok_binding = all_values
+            .iter()
+            .any(|(v, _)| matches!(v, MatchPatternKey::ResultOkBinding));
+        let has_err_binding = all_values
+            .iter()
+            .any(|(v, _)| matches!(v, MatchPatternKey::ResultErrBinding));
+        let result_exhaustive = matches!(scrutinee_t.kind, TypeKind::Result { .. })
+            && has_ok_binding
+            && has_err_binding;
+
+        let need_default = default_count == 0
+            && !result_exhaustive
+            && self
+                .m
+                .cardinality(&scrutinee_t.kind)
+                .is_none_or(|c| c > all_values.len() as u64);
 
         if need_default {
             return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
@@ -1179,27 +1223,21 @@ impl CompileState<'_> {
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
 
-                    // For Result patterns, add the identifier to the scope for type-checking
-                    if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
-                        let (ident, inner_type) = match result_pattern {
-                            thir::ResultPattern::Ok(ident) => {
-                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    (ident, result_type.ok.clone())
-                                } else {
-                                    bug!("Ok pattern without Result type");
+                    // For Result patterns (Ok(x)/Err(e) in Values), add the binding to scope
+                    if let thir::MatchPattern::Values(values) = &pattern {
+                        for value in values {
+                            match &value.kind {
+                                thir::ExprKind::ResultOk(inner)
+                                | thir::ExprKind::ResultErr(inner) => {
+                                    if let thir::ExprKind::Identifier(ident) = &inner.kind {
+                                        self.identifier_types
+                                            .add(ident.name.clone(), inner.vtype.clone())
+                                            .map_err(|e| self.err(e))?;
+                                    }
                                 }
+                                _ => {}
                             }
-                            thir::ResultPattern::Err(ident) => {
-                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    (ident, result_type.err.clone())
-                                } else {
-                                    bug!("Err pattern without Result type");
-                                }
-                            }
-                        };
-                        self.identifier_types
-                            .add(ident.name.clone(), inner_type)
-                            .map_err(|e| self.err(e))?;
+                        }
                     }
 
                     let stmts = self.lower_statements(&arm.statements, Scope::Same)?;
@@ -1231,27 +1269,21 @@ impl CompileState<'_> {
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
 
-                    // For Result patterns, add the identifier to the scope for type-checking
-                    if let thir::MatchPattern::ResultPattern(result_pattern) = &pattern {
-                        let (ident, inner_type) = match result_pattern {
-                            thir::ResultPattern::Ok(ident) => {
-                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    (ident, result_type.ok.clone())
-                                } else {
-                                    bug!("Ok pattern without Result type");
+                    // For Result patterns (Ok(x)/Err(e) in Values), add the binding to scope
+                    if let thir::MatchPattern::Values(values) = &pattern {
+                        for value in values {
+                            match &value.kind {
+                                thir::ExprKind::ResultOk(inner)
+                                | thir::ExprKind::ResultErr(inner) => {
+                                    if let thir::ExprKind::Identifier(ident) = &inner.kind {
+                                        self.identifier_types
+                                            .add(ident.name.clone(), inner.vtype.clone())
+                                            .map_err(|e| self.err(e))?;
+                                    }
                                 }
+                                _ => {}
                             }
-                            thir::ResultPattern::Err(ident) => {
-                                if let TypeKind::Result(result_type) = &scrutinee_t.kind {
-                                    (ident, result_type.err.clone())
-                                } else {
-                                    bug!("Err pattern without Result type");
-                                }
-                            }
-                        };
-                        self.identifier_types
-                            .add(ident.name.clone(), inner_type)
-                            .map_err(|e| self.err(e))?;
+                        }
                     }
 
                     let e = self.lower_expression(&arm.expression)?;

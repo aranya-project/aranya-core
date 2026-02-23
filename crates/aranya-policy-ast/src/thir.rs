@@ -208,32 +208,14 @@ pub struct CheckStatement {
 }
 }
 
-/// Result pattern for matching Ok/Err in Result types
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResultPattern {
-    /// Match Ok(identifier)
-    Ok(Ident),
-    /// Match Err(identifier)
-    Err(Ident),
-}
-
-impl Spanned for ResultPattern {
-    fn span(&self) -> Span {
-        match self {
-            Self::Ok(ident) | Self::Err(ident) => ident.span(),
-        }
-    }
-}
-
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
     /// List of values to match
+    /// Can include Ok(x) and Err(e) for Result matching.
     Values(Vec<Expression>),
-    /// Result pattern (Ok or Err)
-    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -241,7 +223,6 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
-            Self::ResultPattern(pattern) => pattern.span(),
         }
     }
 }

@@ -3657,8 +3657,9 @@ fn test_result_match() {
 
     compile_pass(policy_str);
 
-    let invalid = [(
-        r#"
+    let invalid = [
+        (
+            r#"
         function match_duplicate_arms(r result[int, string]) int {
             return match r {
                 Ok(v) => v
@@ -3666,8 +3667,79 @@ fn test_result_match() {
                 _ => 0
             }
         }"#,
-        CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
-    )];
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+        function match_duplicate_bindings(r result[int, string]) int {
+            return match r {
+                Ok(n) => n
+                Ok(y) => y
+                _ => 0
+            }
+        }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+    ];
+    for (src, expected) in invalid {
+        let err_type = compile_fail(src);
+        assert_eq!(err_type, expected);
+    }
+}
+
+#[test]
+fn test_result_exact_value_match() {
+    // Ok(true) and Ok(false) are not duplicates: they match different exact values.
+    // result[bool, bool] has cardinality 4 (2 ok + 2 err), so all four arms are exhaustive.
+    compile_pass(
+        r#"
+        function f(r result[bool, bool]) int {
+            match r {
+                Ok(true) => { return 1 }
+                Ok(false) => { return 0 }
+                Err(true) => { return -1 }
+                Err(false) => { return -2 }
+            }
+        }
+    "#,
+    );
+
+    let invalid = [
+        (
+            r#"
+            function dup(r result[bool, bool]) int {
+                match r {
+                    Ok(true) => { return 1 }
+                    Ok(true) => { return 2 } // duplicate arm
+                    Ok(false) => { return 0 }
+                    Err(e) => { return -1 }
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+            function missing_default(r result[bool, string]) int {
+                return match r {
+                    Ok(true) => 1
+                    Ok(false) => 0
+                    // missing Err(_) arm
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"
+            function missing_default(r result[bool, string]) int {
+                return match r {
+                    Ok(true) => 1
+                    // missing Ok(false) arm
+                    Err(msg) => 0
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+    ];
     for (src, expected) in invalid {
         let err_type = compile_fail(src);
         assert_eq!(err_type, expected);

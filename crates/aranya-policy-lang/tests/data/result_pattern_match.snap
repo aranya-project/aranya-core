@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
+assertion_line: 97
 expression: ast
 ---
 Policy {
@@ -37,10 +38,14 @@ Policy {
                                 ) @ 60..61,
                                 arms: [
                                     MatchExpressionArm {
-                                        pattern: ResultPattern(
-                                            Ok(
-                                                "val" @ 75..78,
-                                            ),
+                                        pattern: Values(
+                                            [
+                                                ResultOk(
+                                                    Identifier(
+                                                        "val" @ 75..78,
+                                                    ) @ 75..78,
+                                                ) @ 72..79,
+                                            ],
                                         ),
                                         expression: Identifier(
                                             "val" @ 83..86,
@@ -48,10 +53,14 @@ Policy {
                                         span: 72..95,
                                     },
                                     MatchExpressionArm {
-                                        pattern: ResultPattern(
-                                            Err(
-                                                "err" @ 99..102,
-                                            ),
+                                        pattern: Values(
+                                            [
+                                                ResultErr(
+                                                    Identifier(
+                                                        "err" @ 99..102,
+                                                    ) @ 99..102,
+                                                ) @ 95..103,
+                                            ],
                                         ),
                                         expression: Int(
                                             -1,
