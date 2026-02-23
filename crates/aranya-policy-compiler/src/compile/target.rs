@@ -27,8 +27,6 @@ pub(crate) struct CompileTarget {
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
-    /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
     /// Public interface
     pub interface: PolicyInterface,
 }
@@ -42,7 +40,6 @@ impl CompileTarget {
             command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             codemap: Some(codemap),
-            globals: BTreeMap::new(),
             interface: PolicyInterface::new(),
         }
     }
@@ -67,7 +64,7 @@ impl CompileTarget {
                 struct_defs: self.interface.struct_defs,
                 enum_defs,
                 codemap: self.codemap,
-                globals: self.globals,
+                globals: self.interface.globals,
             }),
         }
     }
@@ -137,6 +134,8 @@ pub struct PolicyInterface {
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
+    /// Globally scoped variables
+    pub globals: BTreeMap<Identifier, Value>,
 }
 
 impl PolicyInterface {
@@ -146,6 +145,7 @@ impl PolicyInterface {
             effects: BTreeSet::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
+            globals: BTreeMap::new(),
         }
     }
 }

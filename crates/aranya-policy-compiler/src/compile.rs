@@ -1139,7 +1139,7 @@ impl<'a> CompileState<'a> {
         let value = self.expression_value(expression)?;
         let vt = value.vtype().expect("global let expression has weird type");
 
-        match self.m.globals.entry(identifier.name.clone()) {
+        match self.m.interface.globals.entry(identifier.name.clone()) {
             Entry::Vacant(e) => {
                 e.insert(value);
             }
@@ -1736,6 +1736,10 @@ impl<'a> CompileState<'a> {
             self.define_action(action)?;
         }
 
+        for global_let in &self.policy.global_lets {
+            self.compile_global_let(global_let)?;
+        }
+
         debug_assert!(self.m.progmem.is_empty(), "{:?}", self.m.progmem);
 
         Ok(())
@@ -1747,11 +1751,6 @@ impl<'a> CompileState<'a> {
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        // Compile global let statements
-        for global_let in &self.policy.global_lets {
-            self.compile_global_let(global_let)?;
-        }
 
         self.define_builtins()?;
 
@@ -1837,6 +1836,7 @@ impl<'a> CompileState<'a> {
             ExprKind::Dot(expr, field_ident) => match &expr.kind {
                 ExprKind::Identifier(struct_ident) => self
                     .m
+                    .interface
                     .globals
                     .get(&struct_ident.name)
                     .and_then(|val| match val {
