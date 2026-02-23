@@ -324,13 +324,14 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let other =
-                        self.m
-                            .struct_defs
-                            .get(&field_type_ident.name)
-                            .ok_or_else(|| {
-                                self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
-                            })?;
+                    let other = self
+                        .m
+                        .interface
+                        .struct_defs
+                        .get(&field_type_ident.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
+                        })?;
                     for field in other {
                         if field_definitions
                             .iter()
@@ -361,6 +362,7 @@ impl<'a> CompileState<'a> {
             .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
 
         self.m
+            .interface
             .struct_defs
             .insert(identifier.name, field_definitions);
         Ok(())
@@ -372,7 +374,7 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let enum_name = &enum_def.identifier;
         // ensure enum name is unique
-        if self.m.enum_defs.contains_key(&enum_name.name) {
+        if self.m.interface.enum_defs.contains_key(&enum_name.name) {
             return Err(self.err(CompileErrorType::AlreadyDefined(enum_name.name.to_string())));
         }
 
@@ -396,7 +398,10 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m.enum_defs.insert(enum_name.name.clone(), values);
+        self.m
+            .interface
+            .enum_defs
+            .insert(enum_name.name.clone(), values);
 
         Ok(())
     }
@@ -684,7 +689,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name) else {
+                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub
@@ -822,10 +827,12 @@ impl<'a> CompileState<'a> {
 
     // Get an enum value from an enum reference expression
     fn enum_value(&self, e: &aranya_policy_ast::EnumReference) -> Result<i64, CompileError> {
-        let enum_def =
-            self.m.enum_defs.get(&e.identifier.name).ok_or_else(|| {
-                self.err(CompileErrorType::NotDefined(e.identifier.name.to_string()))
-            })?;
+        let enum_def = self
+            .m
+            .interface
+            .enum_defs
+            .get(&e.identifier.name)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.name.to_string())))?;
         let value = enum_def.get(&e.value.name).ok_or_else(|| {
             self.err(CompileErrorType::NotDefined(format!(
                 "{}::{}",
@@ -1004,7 +1011,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Struct(name),
                 ..
             } => {
-                if name != "Envelope" && !self.m.struct_defs.contains_key(&name.name) {
+                if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
@@ -1012,7 +1019,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Enum(name),
                 ..
             } => {
-                if !self.m.enum_defs.contains_key(&name.name) {
+                if !self.m.interface.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
@@ -1089,6 +1096,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.m
+            .interface
             .action_defs
             .insert(ActionDef {
                 name: action_node.identifier.clone(),
@@ -1392,9 +1400,14 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
-                    })?;
+                    let struct_def = self
+                        .m
+                        .interface
+                        .struct_defs
+                        .get(&ref_name.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                        })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1681,7 +1694,10 @@ impl<'a> CompileState<'a> {
                         })
                         .collect();
                     self.define_struct(effect.identifier.clone(), &fields)?;
-                    self.m.effects.insert(effect.identifier.name.clone());
+                    self.m
+                        .interface
+                        .effects
+                        .insert(effect.identifier.name.clone());
                 }
                 UserType::Fact(fact) => {
                     let fields: Vec<StructItem<FieldDefinition>> =
@@ -1785,7 +1801,12 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(Value::Bool(*v)),
             ExprKind::String(v) => Ok(Value::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name) else {
+                let Some(struct_def) = self
+                    .m
+                    .interface
+                    .struct_defs
+                    .get(&struct_ast.identifier.name)
+                else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         struct_ast.identifier.name,
@@ -1868,6 +1889,7 @@ impl<'a> CompileState<'a> {
             })?;
             let src_field_defns = self
                 .m
+                .interface
                 .struct_defs
                 .get(&src_struct_type_name.name)
                 .assume("identifier with a struct type has that struct already defined")
@@ -2059,7 +2081,7 @@ impl<'a> Compiler<'a> {
     pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
-        Ok(cs.m.into())
+        Ok(cs.m.interface)
     }
 
     fn set_up_compile_state(&self) -> CompileState<'_> {
