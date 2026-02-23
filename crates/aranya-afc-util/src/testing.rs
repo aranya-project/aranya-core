@@ -16,24 +16,22 @@ use core::{
 };
 
 use aranya_crypto::{
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
     IdentityKey, KeyStore, KeyStoreExt as _, Rng,
-    afc::{
-        BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
-    },
+    afc::{UniAuthorSecret, UniChannel, UniPeerEncap},
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{Entry, Occupied, Vacant, memstore},
     policy::{CmdId, LabelId},
 };
-use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client};
+use aranya_fast_channels::{self, AfcState, AranyaState, Client, LocalChannelId};
 use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
 use crate::{
-    ffi::{AfcBidiChannel, AfcUniChannel, Ffi},
+    ffi::{AfcUniChannel, Ffi},
     handler::{
-        BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
-        UniKey,
+        Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived, UniKey,
     },
     transform::Transform,
 };
@@ -60,7 +58,7 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         let entry = match self.0.entry(id)? {
             GuardedEntry::Vacant(v) => Entry::Vacant(VacantEntry(v)),
             GuardedEntry::Occupied(v) => Entry::Occupied(OccupiedEntry(v)),
@@ -68,7 +66,7 @@ impl KeyStore for MemStore {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.0.entry(id)? {
             GuardedEntry::Vacant(_) => Ok(None),
             GuardedEntry::Occupied(v) => Ok(Some(v.get()?)),
@@ -110,7 +108,7 @@ struct MemStoreInner {
 }
 
 impl MemStoreInner {
-    fn entry<T: WrappedKey>(&self, id: Id) -> Result<GuardedEntry<'_, T>, memstore::Error> {
+    fn entry<T: WrappedKey>(&self, id: BaseId) -> Result<GuardedEntry<'_, T>, memstore::Error> {
         mem::forget(self.mutex.lock());
 
         // SAFETY: we've locked `self.mutex`, so access to
@@ -219,12 +217,12 @@ pub struct Device<T: TestImpl> {
 
 impl<T: TestImpl> Device<T> {
     /// Creates a new [`Device`].
-    pub fn new(mut eng: T::Engine, afc: T::Afc, aranya: T::Aranya, mut store: T::Store) -> Self {
-        let device_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&mut eng)
+    pub fn new(eng: T::Engine, afc: T::Afc, aranya: T::Aranya, mut store: T::Store) -> Self {
+        let device_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&eng)
             .id()
             .expect("device ID should be valid");
 
-        let enc_sk = EncryptionKey::new(&mut eng);
+        let enc_sk = EncryptionKey::new(&eng);
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
@@ -232,7 +230,7 @@ impl<T: TestImpl> Device<T> {
         );
 
         let enc_key_id = store
-            .insert_key(&mut eng, enc_sk)
+            .insert_key(&eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -248,23 +246,31 @@ impl<T: TestImpl> Device<T> {
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
-    fn test_roundtrip(sealer: (&mut Self, ChannelId), opener: (&mut Self, ChannelId)) {
+    fn test_roundtrip(sealer: (&mut Self, LocalChannelId), opener: (&mut Self, LocalChannelId)) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
             let (sealer, chan_id) = sealer;
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
+            let mut ctx = sealer
+                .afc_client
+                .setup_seal_ctx(chan_id)
+                .expect("can set up ctx");
             sealer
                 .afc_client
-                .seal(chan_id, &mut dst[..], GOLDEN.as_bytes())
+                .seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({chan_id}, ...): {err}"));
             dst
         };
         let (plaintext, got_seq) = {
             let (opener, chan_id) = opener;
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
+            let mut open_ctx = opener
+                .afc_client
+                .setup_open_ctx(chan_id)
+                .expect("can set up ctx");
             let (_, seq) = opener
                 .afc_client
-                .open(chan_id, &mut dst[..], &ciphertext[..])
+                .open(&mut open_ctx, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({chan_id}, ...): {err}"));
             (dst, seq)
         };
@@ -274,12 +280,16 @@ impl<T: TestImpl> Device<T> {
 
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
-    fn test_wrong_direction(sealer: &mut Self, channel_id: ChannelId) {
+    fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId) {
         const GOLDEN: &str = "hello, world!";
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
+        let mut ctx = sealer
+            .afc_client
+            .setup_seal_ctx(channel_id)
+            .expect("can set up ctx");
         let err = sealer
             .afc_client
-            .seal(channel_id, &mut dst[..], GOLDEN.as_bytes())
+            .seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
             .expect_err("should have failed");
         assert_eq!(err, aranya_fast_channels::Error::NotFound(channel_id));
     }
@@ -332,109 +342,13 @@ macro_rules! test_all {
                 };
             }
 
-            test!(test_create_bidi_channel);
             test!(test_create_seal_only_uni_channel);
             test!(test_create_open_only_uni_channel);
+            test!(test_receive_seal_only_uni_channel);
         }
     };
 }
 pub use test_all;
-
-/// A basic positive test for creating a bidirectional channel.
-pub fn test_create_bidi_channel<T: TestImpl>()
-where
-    (
-        <<T as TestImpl>::Aranya as AranyaState>::SealKey,
-        <<T as TestImpl>::Aranya as AranyaState>::OpenKey,
-    ): for<'a> Transform<(
-        &'a BidiChannel<'a, <T::Engine as Engine>::CS>,
-        BidiAuthorSecret<<T::Engine as Engine>::CS>,
-    )>,
-    (
-        <<T as TestImpl>::Aranya as AranyaState>::SealKey,
-        <<T as TestImpl>::Aranya as AranyaState>::OpenKey,
-    ): for<'a> Transform<(
-        &'a BidiChannel<'a, <T::Engine as Engine>::CS>,
-        BidiPeerEncap<<T::Engine as Engine>::CS>,
-    )>,
-{
-    let mut author = T::new();
-    let mut peer = T::new();
-
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
-    let ctx = CommandContext::Action(ActionContext {
-        name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
-    });
-
-    // This is called via FFI.
-    let AfcBidiChannel { peer_encap, key_id } = author
-        .ffi
-        .create_bidi_channel(
-            &ctx,
-            &mut author.eng,
-            parent_cmd_id,
-            author.enc_key_id,
-            author.device_id,
-            peer.enc_pk.clone(),
-            peer.device_id,
-            label_id,
-        )
-        .expect("author should be able to create a bidi channel");
-
-    // This is called by the author of the channel after
-    // receiving the effect.
-    let author_chan_id = {
-        let keys = author
-            .handler
-            .bidi_channel_created(
-                &mut author.eng,
-                &BidiChannelCreated {
-                    parent_cmd_id,
-                    author_id: author.device_id,
-                    author_enc_key_id: author.enc_key_id,
-                    peer_id: peer.device_id,
-                    peer_enc_pk: &peer.enc_pk,
-                    label_id,
-                    key_id: key_id.into(),
-                },
-            )
-            .expect("author should be able to load bidi keys");
-
-        author
-            .afc_state
-            .add(keys.into(), label_id)
-            .expect("author should be able to add channel")
-    };
-
-    // This is called by the channel peer after receiving the
-    // effect.
-    let peer_chan_id = {
-        let keys = peer
-            .handler
-            .bidi_channel_received(
-                &mut peer.eng,
-                &BidiChannelReceived {
-                    parent_cmd_id,
-                    author_id: author.device_id,
-                    author_enc_pk: &author.enc_pk,
-                    peer_id: peer.device_id,
-                    peer_enc_key_id: peer.enc_key_id,
-                    label_id,
-                    encap: &peer_encap,
-                },
-            )
-            .expect("peer should be able to load bidi keys");
-
-        peer.afc_state
-            .add(keys.into(), label_id)
-            .expect("peer should be able to add channel")
-    };
-
-    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
-    Device::test_roundtrip((&mut peer, peer_chan_id), (&mut author, author_chan_id));
-}
 
 /// A basic positive test for creating a unidirectional channel
 /// where the author is seal-only.
@@ -460,8 +374,8 @@ where
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
         head_id: parent_cmd_id,
@@ -472,7 +386,7 @@ where
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -488,11 +402,9 @@ where
         let keys = author
             .handler
             .uni_channel_created(
-                &mut author.eng,
+                &author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: author.device_id,
                     open_id: peer.device_id,
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
@@ -505,7 +417,7 @@ where
 
         author
             .afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, peer.device_id)
             .expect("author should be able to add channel")
     };
 
@@ -515,12 +427,10 @@ where
         let keys = peer
             .handler
             .uni_channel_received(
-                &mut peer.eng,
+                &peer.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
-                    author_id: author.device_id,
                     seal_id: author.device_id,
-                    open_id: peer.device_id,
                     author_enc_pk: &author.enc_pk,
                     peer_enc_key_id: peer.enc_key_id,
                     label_id,
@@ -531,7 +441,7 @@ where
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
         peer.afc_state
-            .add(keys.into(), label_id)
+            .add(keys.into(), label_id, author.device_id)
             .expect("peer should be able to add channel")
     };
 
@@ -539,8 +449,8 @@ where
     Device::test_wrong_direction(&mut peer, peer_chan_id);
 }
 
-/// A basic positive test for creating a unidirectional channel
-/// where the author is open only.
+/// A negative test for creating a unidirectional channel
+/// where the author is the opener.
 pub fn test_create_open_only_uni_channel<T: TestImpl>()
 where
     <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
@@ -560,22 +470,25 @@ where
         UniPeerEncap<<T::Engine as Engine>::CS>,
     )>,
 {
-    let mut author = T::new(); // open only
-    let mut peer = T::new(); // seal only
+    let mut author = T::new();
+    let peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = CmdId::random(&mut Rng);
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: ident!("CreateUniOnlyChannel"),
+        name: ident!("CreateOpenOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
     // This is called via FFI.
-    let AfcUniChannel { peer_encap, key_id } = author
+    let AfcUniChannel {
+        peer_encap: _,
+        key_id,
+    } = author
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -587,57 +500,89 @@ where
 
     // This is called by the author of the channel after
     // receiving the effect.
-    let author_chan_id = {
-        let keys = author
+    match author
             .handler
-            .uni_channel_created(
-                &mut author.eng,
+            .uni_channel_created::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
+                &author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
-                    author_id: author.device_id,
-                    seal_id: peer.device_id,
-                    open_id: author.device_id,
+                    open_id: author.device_id, // this causes an error
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
                     label_id,
                     key_id: key_id.into(),
                 },
-            )
-            .expect("author should be able to load decryption key");
-        assert!(matches!(keys, UniKey::OpenOnly(_)));
+            ) {
+                Ok(_) => panic!("author should not be the opener"),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
+            }
+}
 
-        author
-            .afc_state
-            .add(keys.into(), label_id)
-            .expect("author should be able to add channel")
-    };
+/// A negative test for creating a unidirectional channel
+/// where the recipient is the sealer.
+pub fn test_receive_seal_only_uni_channel<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let author = T::new();
+    let mut peer = T::new();
 
-    // This is called by the channel peer after receiving the
-    // effect.
-    let peer_chan_id = {
-        let keys = peer
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
+    let ctx = CommandContext::Action(ActionContext {
+        name: ident!("CreateOpenOnlyChannel"),
+        head_id: parent_cmd_id,
+    });
+
+    // This is called via FFI.
+    let AfcUniChannel {
+        peer_encap: encap,
+        key_id: _,
+    } = author
+        .ffi
+        .create_uni_channel(
+            &ctx,
+            &author.eng,
+            parent_cmd_id,
+            author.enc_key_id,
+            peer.enc_pk.clone(),
+            author.device_id,
+            peer.device_id,
+            label_id,
+        )
+        .expect("author should be able to create a uni channel");
+
+    // This is called by the peer of the channel after
+    // receiving the effect.
+    match peer
             .handler
-            .uni_channel_received(
-                &mut peer.eng,
+            .uni_channel_received::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
+                &author.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
-                    author_id: author.device_id,
                     seal_id: peer.device_id,
-                    open_id: author.device_id,
                     author_enc_pk: &author.enc_pk,
-                    peer_enc_key_id: peer.enc_key_id,
                     label_id,
-                    encap: &peer_encap,
+                    encap: &encap,
+                    peer_enc_key_id: peer.enc_key_id,
                 },
-            )
-            .expect("peer should be able to load encryption key");
-        assert!(matches!(keys, UniKey::SealOnly(_)));
-
-        peer.afc_state
-            .add(keys.into(), label_id)
-            .expect("peer should be able to add channel")
-    };
-
-    Device::test_roundtrip((&mut peer, peer_chan_id), (&mut author, author_chan_id));
-    Device::test_wrong_direction(&mut author, author_chan_id);
+            ) {
+                Ok(_) => panic!("author should not be the opener"),
+                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
+            }
 }

@@ -1,8 +1,9 @@
 #![cfg(test)]
 
 use aranya_crypto::{
-    DeviceId, Id,
+    BaseId, DeviceId,
     default::{DefaultEngine, Rng},
+    id::IdExt as _,
     policy::CmdId,
 };
 use aranya_policy_vm::{
@@ -13,8 +14,8 @@ use crate::FfiDevice;
 
 #[test]
 fn test_current_device_id() {
-    let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-    let device_id = DeviceId::random(&mut Rng);
+    let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+    let device_id = DeviceId::random(Rng);
     let device = FfiDevice { id: device_id };
 
     let contexts = vec![
@@ -33,19 +34,19 @@ fn test_current_device_id() {
             name: ident!("policy"),
             id: CmdId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         }),
         CommandContext::Recall(PolicyContext {
             name: ident!("recall"),
             id: CmdId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         }),
     ];
 
     for context in contexts {
         let id = device
-            .current_device_id(&context, &mut eng)
+            .current_device_id(&context, &eng)
             .expect("Should have succeeded");
         assert_eq!(id, device_id);
     }

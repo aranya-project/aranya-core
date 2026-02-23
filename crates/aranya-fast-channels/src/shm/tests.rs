@@ -2,9 +2,10 @@
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
 use aranya_crypto::{
-    CipherSuite, Engine, Random as _, Rng,
-    afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
+    CipherSuite, DeviceId, Engine, Random as _, Rng,
+    afc::{RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256},
+    id::IdExt as _,
     policy::LabelId,
 };
 use serial_test::serial;
@@ -50,15 +51,6 @@ impl TestImpl for SharedMemImpl {
         States { afc, aranya }
     }
 
-    fn convert_bidi_keys<CS: CipherSuite>(
-        keys: BidiKeys<CS>,
-    ) -> (
-        <Self::Aranya<CS> as AranyaState>::SealKey,
-        <Self::Aranya<CS> as AranyaState>::OpenKey,
-    ) {
-        keys.into_raw_keys()
-    }
-
     fn convert_uni_seal_key<CS: CipherSuite>(
         key: UniSealKey<CS>,
     ) -> <Self::Aranya<CS> as AranyaState>::SealKey {
@@ -79,7 +71,7 @@ test_impl!(#[serial], shm, SharedMemImpl);
 fn test_many_nodes() {
     const MAX_CHANS: usize = 101;
 
-    let labels = [LabelId::random(&mut Rng), LabelId::random(&mut Rng)];
+    let labels = [LabelId::random(Rng), LabelId::random(Rng)];
 
     type E = TestEngine<DummyAead>;
 
@@ -104,27 +96,23 @@ fn test_many_nodes() {
     // All the channels we've stored in the shared memory.
     let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
 
-    let rng = &mut Rng;
+    let rng = Rng;
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
     for label_id in labels {
         for idx in 0..MAX_CHANS {
-            let keys = match util::rand_intn(&mut Rng, 3) {
+            let keys = match util::rand_intn(Rng, 2) {
                 0 => Directed::SealOnly {
                     seal: RawSealKey::random(rng),
                 },
                 1 => Directed::OpenOnly {
                     open: RawOpenKey::random(rng),
                 },
-                2 => Directed::Bidirectional {
-                    seal: RawSealKey::random(rng),
-                    open: RawOpenKey::random(rng),
-                },
                 v => unreachable!("{v}"),
             };
             let id = aranya
-                .add(keys.clone(), label_id)
+                .add(keys.clone(), label_id, DeviceId::random(Rng))
                 .unwrap_or_else(|err| panic!("unable to add channel {idx}: {err}"));
             let chan = Channel { id, keys, label_id };
             chans.push(chan);
@@ -161,4 +149,12 @@ fn test_many_nodes() {
             }
         }
     }
+}
+
+#[test]
+fn read_state_is_send_sync() {
+    use aranya_crypto::default::DefaultCipherSuite;
+    fn is_send_sync<T: Send + Sync>() {}
+
+    is_send_sync::<ReadState<DefaultCipherSuite>>();
 }

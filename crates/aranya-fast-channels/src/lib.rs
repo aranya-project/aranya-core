@@ -24,6 +24,13 @@
 //! [`AranyaState`]. By default, AFC provides a state
 //! implementation backed by shared memory.
 //!
+//! # Notes
+//!
+//! AFC encrypts/seals each message with a deterministic nonce derived from a
+//! base nonce and sequence number. Sequence numbers should not be re-used in a given channel
+//! but it is possible to do so by passing a "new" [`AfcState::SealCtx`] to the seal methods
+//! on [`Client`].
+//!
 //! # Example
 //!
 //! The following example demonstrates two [`Client`]s encrypting
@@ -38,13 +45,14 @@
 //! # {
 //! use aranya_crypto::{
 //!     Csprng, EncryptionKey, Engine, IdentityKey, Random, Rng,
-//!     afc::{BidiChannel, BidiKeys, BidiSecrets, RawOpenKey, RawSealKey},
+//!     afc::{RawOpenKey, RawSealKey, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
+//!     id::IdExt as _,
 //!     policy::{CmdId, LabelId},
 //! };
 //! use aranya_fast_channels::{
-//!     AfcState, AranyaState, Channel, ChannelId, Client, Directed, Error,
+//!     AfcState, AranyaState, Channel, Client, Directed, Error, LocalChannelId,
 //!     crypto::Aes256Gcm,
 //!     shm::{Flag, Mode, Path, ReadState, WriteState},
 //! };
@@ -74,45 +82,45 @@
 //!         .map_err(Error::SharedMem)?
 //! };
 //!
-//! let (mut eng, _) = E::from_entropy(Rng);
+//! let (eng, _) = E::from_entropy(Rng);
 //!
-//! let device1_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let device1_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device1_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let device1_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
-//! let device2_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let device2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device2_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let device2_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
 //! // The label ID used for encryption and decryption.
-//! let label_id = LabelId::random(&mut Rng);
+//! let label_id = LabelId::random(Rng);
 //!
-//! let ch1 = BidiChannel {
-//!     parent_cmd_id: CmdId::random(&mut eng),
+//! let ch1 = UniChannel {
+//!     parent_cmd_id: CmdId::random(&eng),
 //!     our_sk: &device1_enc_sk,
-//!     our_id: device1_id,
+//!     seal_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,
-//!     their_id: device2_id,
+//!     open_id: device2_id,
 //!     label_id,
 //! };
-//! let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &ch1)?;
+//! let UniSecrets { author, peer } = UniSecrets::new(&eng, &ch1)?;
 //!
 //! // Inform device1 about device2.
-//! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?.into_raw_keys();
+//! let seal = UniSealKey::from_author_secret(&ch1, author)?.into_raw_key();
 //! let client_a_channel_id =
-//!     aranya_client_a.add(Directed::Bidirectional { seal, open }, label_id)?;
+//!     aranya_client_a.add(Directed::SealOnly { seal }, label_id, device2_id)?;
 //!
-//! let ch2 = BidiChannel {
+//! let ch2 = UniChannel {
 //!     parent_cmd_id: ch1.parent_cmd_id,
 //!     our_sk: &device2_enc_sk,
-//!     our_id: device2_id,
+//!     open_id: device2_id,
 //!     their_pk: &device1_enc_sk.public()?,
-//!     their_id: device1_id,
+//!     seal_id: device1_id,
 //!     label_id,
 //! };
 //!
 //! // Inform device2 about device1.
-//! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?.into_raw_keys();
+//! let open = UniOpenKey::from_peer_encap(&ch2, peer)?.into_raw_key();
 //! let client_b_channel_id =
-//!     aranya_client_b.add(Directed::Bidirectional { seal, open }, label_id)?;
+//!     aranya_client_b.add(Directed::OpenOnly { open }, label_id, device1_id)?;
 //!
 //! let mut afc_client_a = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_a\x00")
@@ -136,7 +144,10 @@
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
+//!
+//!     // Create the ctx to pass in.
+//!     let mut ctx = afc_client_a.setup_seal_ctx(client_a_channel_id)?;
+//!     afc_client_a.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())?;
 //!     dst
 //! };
 //!
@@ -146,8 +157,9 @@
 //! // Have device2 decrypt the data from device1.
 //! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let (label_id, seq) =
-//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
+//!     // Create the ctx to pass in.
+//!     let mut ctx = afc_client_b.setup_open_ctx(client_b_channel_id)?;
+//!     let (label_id, seq) = afc_client_b.open(&mut ctx, &mut dst[..], &ciphertext[..])?;
 //!     (label_id, seq, dst)
 //! };
 //!

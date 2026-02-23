@@ -11,7 +11,7 @@ use core::result::Result;
 use aranya_crypto::{
     self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt as _, UnwrapError, WrapError,
-    afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
+    afc::{UniChannel, UniSecrets},
     policy::{CmdId, LabelId},
 };
 use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, MachineIOError, ffi::ffi};
@@ -50,10 +50,6 @@ impl<S: KeyStore> Ffi<S> {
 #[ffi(
     module = "afc",
     def = r#"
-struct AfcBidiChannel {
-    peer_encap bytes,
-    key_id id,
-}
 struct AfcUniChannel {
     peer_encap bytes,
     key_id id,
@@ -62,56 +58,6 @@ struct AfcUniChannel {
 )]
 #[allow(clippy::too_many_arguments)]
 impl<S: KeyStore> Ffi<S> {
-    /// Creates a bidirectional AFC channel.
-    #[ffi_export(def = r#"
-function create_bidi_channel(
-    parent_cmd_id id,
-    our_enc_key_id id,
-    our_id id,
-    their_enc_pk bytes,
-    their_id id,
-    label_id id,
-) struct AfcBidiChannel
-"#)]
-    pub(crate) fn create_bidi_channel<E: Engine>(
-        &self,
-        _ctx: &CommandContext,
-        eng: &mut E,
-        parent_cmd_id: CmdId,
-        our_enc_key_id: EncryptionKeyId,
-        our_id: DeviceId,
-        their_enc_pk: Vec<u8>,
-        their_id: DeviceId,
-        label_id: LabelId,
-    ) -> Result<AfcBidiChannel, FfiError> {
-        let our_sk = &self
-            .store
-            .lock()
-            .get_key(eng, our_enc_key_id)
-            .map_err(|_| FfiError::KeyStore)?
-            .ok_or(FfiError::KeyNotFound)?;
-        let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
-        let ch = BidiChannel {
-            parent_cmd_id,
-            our_sk,
-            our_id,
-            their_pk,
-            their_id,
-            label_id,
-        };
-        let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
-
-        let key_id = self.store.lock().insert_key(eng, author).map_err(|err| {
-            error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
-            FfiError::KeyStore
-        })?;
-
-        Ok(AfcBidiChannel {
-            peer_encap: peer.as_bytes().to_vec(),
-            key_id: key_id.into(),
-        })
-    }
-
     /// Creates a unidirectional channel.
     #[ffi_export(def = r#"
 function create_uni_channel(
@@ -126,7 +72,7 @@ function create_uni_channel(
     pub(crate) fn create_uni_channel<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
@@ -158,7 +104,7 @@ function create_uni_channel(
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id: key_id.into(),
+            key_id: key_id.as_base(),
         })
     }
 }

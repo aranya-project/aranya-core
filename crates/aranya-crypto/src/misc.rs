@@ -324,7 +324,7 @@ macro_rules! keypair {
         impl<CS: $crate::CipherSuite> $sk<CS> {
             /// Creates a random
             #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
-            pub fn new<R: $crate::Csprng>(rng: &mut R) -> Self {
+            pub fn new<R: $crate::Csprng>(rng: R) -> Self {
                 Self::from_inner($crate::Random::random(rng))
             }
 
@@ -375,12 +375,6 @@ macro_rules! sk_misc {
     ($name:ident, $id:ident, $context:expr) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
-            #[derive(
-                ::zerocopy::Immutable,
-                ::zerocopy::IntoBytes,
-                ::zerocopy::KnownLayout,
-                ::zerocopy::Unaligned,
-            )]
             pub struct $id;
         }
 
@@ -392,11 +386,11 @@ macro_rules! sk_misc {
                 self.id
                     .get_or_init(|| {
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
-                        let id = $crate::id::Id::new::<CS>(
-                            ::core::borrow::Borrow::borrow(&pk),
+                        let id = $crate::id::IdExt::new::<CS>(
                             $context.as_bytes(),
+                            ::core::iter::once(::core::borrow::Borrow::borrow(&pk)),
                         );
-                        Ok($id(id))
+                        Ok(id)
                     })
                     .clone()
             }
@@ -409,12 +403,6 @@ macro_rules! sk_misc {
     (@keypair $name:ident, $pk:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
-            #[derive(
-                ::zerocopy::Immutable,
-                ::zerocopy::IntoBytes,
-                ::zerocopy::KnownLayout,
-                ::zerocopy::Unaligned,
-            )]
             pub struct $id;
         }
 
@@ -498,10 +486,10 @@ macro_rules! pk_misc {
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
                 const CONTEXT: &'static str = $context;
-                ::core::result::Result::Ok($id($crate::id::Id::new::<CS>(
-                    ::core::borrow::Borrow::borrow(&self.pk.export()),
+                ::core::result::Result::Ok($crate::id::IdExt::new::<CS>(
                     CONTEXT.as_bytes(),
-                )))
+                    ::core::iter::once(::core::borrow::Borrow::borrow(&self.pk.export())),
+                ))
             }
         }
 

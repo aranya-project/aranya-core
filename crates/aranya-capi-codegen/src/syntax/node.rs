@@ -14,7 +14,7 @@ use syn::{
 use tracing::{debug, instrument, trace};
 
 use super::{
-    attrs::{self, AttrsExt, ExtError, Generated, NoExtError, NoMangle, Parser, Repr},
+    attrs::{self, AttrsExt, Generated, NoExtError, NoMangle, Parser, Repr},
     builds::Builds,
     derive::Derives,
     doc::Doc,
@@ -200,7 +200,7 @@ attrs_impl! {
 pub(crate) struct Alias {
     pub doc: Doc,
     pub derives: Derives,
-    pub ext_error: Option<ExtError>,
+    pub no_ext_error: Option<NoExtError>,
     pub opaque: Option<Opaque>,
     pub builds: Option<Builds>,
     /// Other attrs.
@@ -221,7 +221,7 @@ impl Alias {
 
         let mut doc = Doc::new();
         let mut derives = Derives::new();
-        let mut ext_error = None;
+        let mut no_ext_error = None;
         let mut opaque = None;
         let mut builds = None;
         let attrs = attrs::parse(
@@ -230,7 +230,7 @@ impl Alias {
             Parser {
                 doc: Some(&mut doc),
                 derives: Some(&mut derives),
-                capi_ext_error: Some(&mut ext_error),
+                capi_no_ext_error: Some(&mut no_ext_error),
                 capi_opaque: Some(&mut opaque),
                 capi_builds: Some(&mut builds),
                 ..Default::default()
@@ -240,7 +240,7 @@ impl Alias {
         Ok(Self {
             doc,
             derives,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,
@@ -259,9 +259,43 @@ impl ToTokens for Alias {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // NB: We do not emit `capi::` attributes.
 
+        // Manually expand opaque so we don't need expansion in cbindgen.
+        if let Some(Opaque { size, align, .. }) = &self.opaque {
+            // Generate fake struct for cbindgen
+            tokens.append_all({
+                let vis = &self.vis;
+
+                let doc = &self.doc;
+                let attrs: Vec<Attribute> = self
+                    .attrs
+                    .iter()
+                    .filter(|attr| attr.path().is_ident("cfg"))
+                    .cloned()
+                    .collect();
+
+                let name = &self.ident;
+
+                quote! {
+                    #[cfg(cbindgen)]
+                    #doc
+                    #[repr(C, align(#align))]
+                    #(#attrs)*
+                    #vis struct #name {
+                        /// This field only exists for size purposes. It is
+                        /// UNDEFINED BEHAVIOR to read from or write to it.
+                        /// @private
+                        __for_size_only: [u8; #size],
+                    }
+                }
+            });
+
+            // `cfg` for regular generated alias below
+            tokens.append_all(quote! {#[cfg(not(cbindgen))]});
+        }
+
         self.doc.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
-        self.opaque.to_tokens(tokens);
+        // `opaque` intentionally omitted, see above.
         self.vis.to_tokens(tokens);
         self.type_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
@@ -278,7 +312,7 @@ pub(crate) struct Struct {
     pub doc: Doc,
     pub derives: Derives,
     pub repr: Repr,
-    pub ext_error: Option<ExtError>,
+    pub no_ext_error: Option<NoExtError>,
     pub opaque: Option<Opaque>,
     pub builds: Option<Builds>,
     /// Other attrs.
@@ -299,7 +333,7 @@ impl Struct {
         let mut doc = Doc::new();
         let mut derives = Derives::new();
         let mut repr = None;
-        let mut ext_error = None;
+        let mut no_ext_error = None;
         let mut opaque = None;
         let mut builds = None;
         let attrs = attrs::parse(
@@ -309,7 +343,7 @@ impl Struct {
                 doc: Some(&mut doc),
                 repr: Some(&mut repr),
                 derives: Some(&mut derives),
-                capi_ext_error: Some(&mut ext_error),
+                capi_no_ext_error: Some(&mut no_ext_error),
                 capi_opaque: Some(&mut opaque),
                 capi_builds: Some(&mut builds),
                 ..Default::default()
@@ -331,7 +365,7 @@ impl Struct {
             doc,
             repr,
             derives,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,
@@ -348,11 +382,17 @@ impl ToTokens for Struct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // NB: We do not emit `capi::` attributes.
 
+        // Opaque is not currently supported on structs. When supported, we will need to add
+        // similar handling as in `Alias`. We can't seem to remove the field, I think because it is
+        // used to pass an `Opaque` between `Struct` and `Alias`. This panic doesn't seem to be
+        // reachable though, so we correctly never generate a struct with an opaque attribute.
+        assert!(self.opaque.is_none(), "opaque struct: {:?}", self.opaque);
+
         self.doc.to_tokens(tokens);
         self.derives.to_tokens(tokens);
         self.repr.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
-        self.opaque.to_tokens(tokens);
+        // `opaque` intentionally omitted, see above.
         self.vis.to_tokens(tokens);
         self.struct_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);

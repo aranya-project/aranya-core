@@ -61,8 +61,8 @@ impl Ast {
         let Alias {
             doc,
             derives,
-            ext_error,
-            mut opaque,
+            no_ext_error,
+            opaque,
             builds,
             attrs,
             vis,
@@ -71,14 +71,11 @@ impl Ast {
             semi_token,
             ..
         } = alias;
-        if let Some(o) = &mut opaque {
-            o.generated = true;
-        }
         let strukt = Struct {
             doc,
             derives,
             repr: Repr::Transparent,
-            ext_error,
+            no_ext_error,
             opaque,
             builds,
             attrs,
@@ -329,18 +326,7 @@ impl Ast {
 
         // Generate a constructor.
         if strukt.derives.contains(DeriveTrait::Init) {
-            self.add_init_constructor(
-                ctx,
-                &strukt.ident,
-                &old,
-                &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
-                &cfg,
-            )?;
+            self.add_init_constructor(ctx, &strukt.ident, &old, &Lifetimes::default(), &cfg)?;
         }
 
         if let Some(Builds { ty }) = &mut strukt.builds {
@@ -351,29 +337,14 @@ impl Ast {
                 &old,
                 ty,
                 &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
+                strukt.no_ext_error.clone(),
                 &cfg,
             )?;
         }
 
         // Generate a destructor.
         if strukt.derives.contains(DeriveTrait::Cleanup) {
-            self.add_destructor(
-                ctx,
-                &strukt.ident,
-                &old,
-                &Lifetimes::default(),
-                if strukt.ext_error.is_some() {
-                    Some(NoExtError::with_span(span))
-                } else {
-                    None
-                },
-                &cfg,
-            )?;
+            self.add_destructor(ctx, &strukt.ident, &old, &Lifetimes::default(), &cfg)?;
         }
 
         // TODO
@@ -425,7 +396,7 @@ impl Ast {
             let Struct {
                 doc,
                 derives,
-                ext_error,
+                no_ext_error,
                 opaque,
                 builds,
                 attrs,
@@ -438,7 +409,7 @@ impl Ast {
             Alias {
                 doc,
                 derives,
-                ext_error,
+                no_ext_error,
                 opaque,
                 builds,
                 attrs,
@@ -486,8 +457,9 @@ impl Ast {
             .attrs
             .iter()
             .filter(|attr| {
+                let path = attr.path();
                 // TODO(eric): other attrs?
-                attr.path().is_ident("cfg")
+                path.is_ident("cfg") || path.is_ident("deprecated")
             })
             .chain(std::iter::once(&ctype_attr))
             .collect::<Vec<_>>();
@@ -727,6 +699,7 @@ impl Ast {
                     #[allow(clippy::match_single_binding)]
                     #[allow(clippy::semicolon_if_nothing_returned)]
                     #[allow(unused_braces)]
+                    #[allow(deprecated)]
                     match #unsafety { #orig(#(#args),*) } {
                         #[allow(clippy::useless_conversion)]
                         #[allow(clippy::unit_arg)]
@@ -923,14 +896,13 @@ impl Ast {
     }
 
     /// Generates an `init` constructor for `ty`.
-    #[instrument(skip_all, fields(%ty, ?no_ext_error))]
+    #[instrument(skip_all, fields(%ty))]
     fn add_init_constructor(
         &mut self,
         ctx: &Ctx,
         ty: &Ident,
         old: &Ident,
         lifetimes: &Lifetimes,
-        no_ext_error: Option<NoExtError>,
         cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating `init` constructor");
@@ -940,6 +912,7 @@ impl Ast {
         let capi = &ctx.capi;
         let util = &ctx.util;
         let name = old.to_snake_case().with_suffix("_init");
+        let no_ext_error = Some(NoExtError::with_span(span));
 
         let doc = parse_doc! {r#"
 /// Initializes `{ty}`.
@@ -1023,14 +996,13 @@ impl Ast {
     }
 
     /// Generates a destructor for `ty`.
-    #[instrument(skip_all, fields(%ty, ?no_ext_error))]
+    #[instrument(skip_all, fields(%ty))]
     fn add_destructor(
         &mut self,
         ctx: &Ctx,
         ty: &Ident,
         old: &Ident,
         lifetimes: &Lifetimes,
-        no_ext_error: Option<NoExtError>,
         cfg: &[&Attribute],
     ) -> Result<()> {
         trace!("generating destructor");
@@ -1044,6 +1016,7 @@ impl Ast {
             .to_snake_case()
             .with_suffix("_init")
             .with_prefix(&ctx.fn_prefix);
+        let no_ext_error = Some(NoExtError::with_span(span));
 
         let doc = parse_doc! {r#"
 /// Releases any resources associated with `ptr`.

@@ -96,7 +96,7 @@ signing_key! {
     sk = IdentityKey,
     pk = IdentityVerifyingKey,
     id = DeviceId,
-    context = "Device Identity Key",
+    context = "Device Identity Key V1",
 }
 
 impl<CS: CipherSuite> IdentityKey<CS> {
@@ -114,7 +114,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
-    /// let sk = IdentityKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = IdentityKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -176,7 +176,7 @@ signing_key! {
     sk = SigningKey,
     pk = VerifyingKey,
     id = SigningKeyId,
-    context = "Device Signing Key",
+    context = "Device Signing Key V1",
 }
 
 impl<CS: CipherSuite> SigningKey<CS> {
@@ -194,7 +194,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
-    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -240,16 +240,17 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     Cmd, Rng, SigningKey,
+    ///     BaseId, Cmd, Rng, SigningKey,
     ///     default::{DefaultCipherSuite, DefaultEngine},
+    ///     id::IdExt as _,
     ///     policy::CmdId,
     /// };
     ///
-    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// let data = b"... some command data ...";
     /// let name = "AddDevice";
-    /// let parent_id = &CmdId::random(&mut Rng);
+    /// let parent_id = &CmdId::random(Rng);
     ///
     /// let good_cmd = Cmd {
     ///     data,
@@ -275,7 +276,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_id_cmd = Cmd {
     ///     data,
     ///     name,
-    ///     parent_id: &CmdId::random(&mut Rng),
+    ///     parent_id: &CmdId::random(Rng),
     /// };
     /// sk.public()
     ///     .expect("signing key should be valid")
@@ -285,7 +286,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_sig_cmd = Cmd {
     ///     data: b"different",
     ///     name: "signature",
-    ///     parent_id: &CmdId::random(&mut Rng),
+    ///     parent_id: &CmdId::random(Rng),
     /// };
     /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd).expect("should not fail");
     /// sk.public()
@@ -334,7 +335,7 @@ kem_key! {
     sk = EncryptionKey,
     pk = EncryptionPublicKey,
     id = EncryptionKeyId,
-    context = "Device Encryption Key",
+    context = "Device Encryption Key V1",
 }
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
@@ -379,7 +380,7 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
     /// of the [`EncryptionPublicKey`].
     pub fn seal_group_key<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: R,
         key: &GroupKey<CS>,
         group: GroupId,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
@@ -416,7 +417,7 @@ impl<CS: CipherSuite> Encap<CS> {
         Ok(Self(enc))
     }
 
-    #[cfg(any(feature = "afc", feature = "aqc"))]
+    #[cfg(feature = "afc")]
     pub(crate) fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         &self.0
     }
@@ -505,7 +506,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "59UGNZdGcshSmuw3vM5AhbhNAZZNEyQDb9TKNug2cnGn",
+            "FzsznndyXSmwS8LjWbg2g7CGp1jAD8RMArG1BCdWYkRE",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -533,7 +534,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "3iA8wJfibGhEGKbhzjiANKEQdRhv7TV7hRb4FWhTzwU5",
+            "4NQYLfhYhMWDR7Rmu3ubH24NP3e4HUP4f6mcpBKdygWF",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -561,7 +562,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "HaE6SCVCRnY4vasF8fimaTbuT1FE6jkTjJfvGc5SrXJj",
+            "GDi3zb242AU8zW6QQKUypadFffRaDWA5PhX2eQ1ANphz",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {

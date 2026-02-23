@@ -1,0 +1,54 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [
+        CommandDefinition {
+            persistence: Persistent,
+            attributes: [],
+            identifier: "Foo" @ 8..11,
+            fields: [],
+            seal: [
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
+                            Serialize(
+                                Identifier(
+                                    "this" @ 50..54,
+                                ) @ 50..54,
+                            ),
+                        ) @ 40..55,
+                    },
+                ) @ 33..60,
+            ],
+            open: [
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
+                            Deserialize(
+                                Identifier(
+                                    "envelope" @ 101..109,
+                                ) @ 101..109,
+                            ),
+                        ) @ 89..110,
+                    },
+                ) @ 82..115,
+            ],
+            policy: [],
+            recall: [],
+            span: 0..133,
+        },
+    ],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "command Foo {\n    seal {\n        return serialize(this)\n    }\n\n    open {\n        return deserialize(envelope)\n    }\n\n    policy {}\n}\n",
+}

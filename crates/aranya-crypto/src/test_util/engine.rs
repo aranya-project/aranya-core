@@ -21,13 +21,12 @@ use crate::{
         EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
         TopicKey, Version,
     },
-    aqc,
     aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
     ciphersuite::CipherSuite,
     engine::Engine,
     error::Error,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
-    id::Identified as _,
+    id::{IdExt as _, Identified as _},
     policy::{CmdId, GroupId, LabelId, PolicyId},
     tls,
     util::cbor,
@@ -106,14 +105,6 @@ macro_rules! for_each_engine_test {
             test_afc_open_key_wrong_seq_number,
             test_afc_open_key_wrong_auth_data,
 
-            test_afc_derive_bidi_keys,
-            test_afc_derive_bidi_keys_different_labels,
-            test_afc_derive_bidi_keys_different_device_ids,
-            test_afc_derive_bidi_keys_different_cmd_ids,
-            test_afc_derive_bidi_keys_different_keys,
-            test_afc_derive_bidi_keys_same_device_id,
-            test_afc_wrap_bidi_author_secret,
-
             test_afc_derive_uni_key,
             test_afc_derive_uni_key_different_labels,
             test_afc_derive_uni_key_different_device_ids,
@@ -122,32 +113,6 @@ macro_rules! for_each_engine_test {
             test_afc_derive_uni_seal_key_same_device_id,
             test_afc_derive_uni_open_key_same_device_id,
             test_afc_wrap_uni_author_secret,
-
-            // AQC
-
-            test_aqc_derive_bidi_psk,
-            test_aqc_derive_bidi_psk_different_labels,
-            test_aqc_derive_bidi_psk_different_device_ids,
-            test_aqc_derive_bidi_psk_different_cmd_ids,
-            test_aqc_derive_bidi_psk_different_keys,
-            test_aqc_derive_bidi_psk_different_cipher_suites,
-            test_aqc_derive_bidi_psk_same_device_id,
-            test_aqc_derive_bidi_psk_psk_too_short,
-            test_aqc_derive_bidi_psk_psk_too_long,
-            test_aqc_wrap_bidi_author_secret,
-
-            test_aqc_derive_uni_psk,
-            test_aqc_derive_uni_psk_different_labels,
-            test_aqc_derive_uni_psk_different_device_ids,
-            test_aqc_derive_uni_psk_different_cmd_ids,
-            test_aqc_derive_uni_psk_different_keys,
-            test_aqc_derive_uni_send_psk_same_device_id,
-            test_aqc_derive_uni_recv_psk_same_device_id,
-            test_aqc_derive_uni_send_psk_psk_too_short,
-            test_aqc_derive_uni_recv_psk_psk_too_short,
-            test_aqc_derive_uni_send_psk_psk_too_long,
-            test_aqc_derive_uni_recv_psk_psk_too_long,
-            test_aqc_wrap_uni_author_secret,
 
             // TLS
 
@@ -216,7 +181,7 @@ macro_rules! test_engine {
 pub use test_engine;
 
 /// Simple test for [`DeviceSigningKey`].
-pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &E) {
     const MSG: &[u8] = b"hello, world!";
     const CONTEXT: &[u8] = b"test_simple_device_signing_key_sign";
 
@@ -251,7 +216,7 @@ pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for encrypting/decrypting
 /// [`GroupKey`]s.
-pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_seal_group_key<E: Engine>(eng: &E) {
     let enc_key = EncryptionKey::<E::CS>::new(eng);
 
     let group = GroupId::default();
@@ -268,7 +233,7 @@ pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`GroupKey`]s.
-pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_group_key<E: Engine>(eng: &E) {
     let want = GroupKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -284,7 +249,7 @@ pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`IdentityKey`]s.
-pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &E) {
     let want = IdentityKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -301,7 +266,7 @@ pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`IdentityKey`]s.
-pub fn test_simple_export_device_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_identity_key<E: Engine>(eng: &E) {
     let want = IdentityKey::<E::CS>::new(eng)
         .public()
         .expect("identity key should be valid");
@@ -314,7 +279,7 @@ pub fn test_simple_export_device_identity_key<E: Engine>(eng: &mut E) {
 /// Simple test for [`IdentityKey`].
 /// Creates a signature over `msg` bound to some `context`.
 /// `msg` must NOT be pre-hashed.
-pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_identity_key_sign<E: Engine>(eng: &E) {
     let sign_key = IdentityKey::<E::CS>::new(eng);
 
     const MESSAGE: &[u8] = b"hello, world!";
@@ -348,7 +313,7 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`DeviceSigningKey`]s.
-pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &E) {
     let want = DeviceSigningKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -365,7 +330,7 @@ pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`DeviceSigningKey`]s.
-pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_signing_key<E: Engine>(eng: &E) {
     let want = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("device signing key should be valid");
@@ -375,7 +340,7 @@ pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`EncryptionKey`]s.
-pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &E) {
     let want = EncryptionKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -392,7 +357,7 @@ pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`EncryptionKey`]s.
-pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &E) {
     let want = EncryptionKey::<E::CS>::new(eng)
         .public()
         .expect("encryption public key should be valid");
@@ -403,7 +368,7 @@ pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for encryption using a [`GroupKey`].
-pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
+pub fn test_group_key_seal<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
@@ -444,7 +409,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`GroupKey`].
-pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_wrong_key<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
@@ -485,7 +450,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`Context`].
-pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_wrong_context<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_pk1 = DeviceSigningKey::<E::CS>::new(eng)
@@ -548,7 +513,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for a modified ciphertext.
-pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
@@ -590,7 +555,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 }
 
 /// Test encoding/decoding [`EncryptedGroupKey`].
-pub fn test_encrypted_group_key_encode<E: Engine>(eng: &mut E)
+pub fn test_encrypted_group_key_encode<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -617,7 +582,7 @@ where
 
 /// Simple test for [`SenderSigningKey`].
 /// Creates a signature over an encoded record.
-pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &mut E)
+pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -673,7 +638,7 @@ where
 
 /// Simple positive test for encrypting/decrypting
 /// [`TopicKey`]s.
-pub fn test_simple_seal_topic_key<E: Engine>(eng: &mut E)
+pub fn test_simple_seal_topic_key<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -702,7 +667,7 @@ where
 }
 
 /// Simple positive test for wrapping [`SenderSecretKey`]s.
-pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &E) {
     let want = SenderSecretKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -718,7 +683,7 @@ pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`SenderSigningKey`]s.
-pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &E) {
     let want = SenderSigningKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -734,7 +699,7 @@ pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
-pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &E) {
     let want = ReceiverSecretKey::new(eng);
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -750,7 +715,7 @@ pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for encryption using a [`TopicKey`].
-pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_seal<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -782,7 +747,7 @@ pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`TopicKey`].
-pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -814,7 +779,7 @@ pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`Context`].
-pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -865,7 +830,7 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for a modified ciphertext.
-pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -902,7 +867,7 @@ fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
 
     let (ciphertext, seq) = {
@@ -929,14 +894,14 @@ fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut afc::SealKey<CS>, open: &afc
 ///
 /// If `seal` is `None` then a random key will be used.
 fn assert_different_afc_keys<E: Engine>(
-    eng: &mut E,
+    eng: &E,
     seal: Option<afc::SealKey<E::CS>>,
     open: &afc::OpenKey<E::CS>,
 ) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
 
     let (ciphertext, seq) = {
@@ -963,7 +928,7 @@ fn assert_different_afc_keys<E: Engine>(
 }
 
 /// A simple positive test for [`afc::SealKey`] and [`afc::OpenKey`].
-pub fn test_afc_same_seal_key_open_key<E: Engine>(eng: &mut E) {
+pub fn test_afc_same_seal_key_open_key<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -973,7 +938,7 @@ pub fn test_afc_same_seal_key_open_key<E: Engine>(eng: &mut E) {
 }
 
 /// A simple negative test for [`afc::SealKey`] and [`afc::OpenKey`].
-pub fn test_afc_different_seal_key_open_key<E: Engine>(eng: &mut E) {
+pub fn test_afc_different_seal_key_open_key<E: Engine>(eng: &E) {
     let seal = afc::SealKey::from_raw(&Random::random(eng), afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
     let open = afc::OpenKey::from_raw(&Random::random(eng))
@@ -984,14 +949,14 @@ pub fn test_afc_different_seal_key_open_key<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::SealKey`]'s sequence number monotonically
 /// advances by one each time.
-pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
+pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &E) {
     let mut seal = afc::SealKey::<E::CS>::from_raw(&Random::random(eng), afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
 
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     // The upper bound is arbitrary. We obviously cannot test
@@ -1006,7 +971,7 @@ pub fn test_afc_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::SealKey`] refuses to encrypt when its
 /// sequence number has been exhausted.
-pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
+pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &E) {
     let max = afc::Seq::max::<<<E::CS as CipherSuite>::Aead as Aead>::NonceSize>();
     // Start at one before the max.
     let start = afc::Seq::new(max - 1);
@@ -1016,7 +981,7 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut dst = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
 
@@ -1036,7 +1001,7 @@ pub fn test_afc_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::OpenKey`] refuses to decrypt when the
 /// sequence number has been exhausted.
-pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
+pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -1047,7 +1012,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
@@ -1074,7 +1039,7 @@ pub fn test_afc_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::OpenKey`]'s fails when the incorrect
 /// sequence number is provided.
-pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
+pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -1085,7 +1050,7 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
     let mut plaintext = vec![0u8; ciphertext.len() - afc::OpenKey::<E::CS>::OVERHEAD];
@@ -1108,7 +1073,7 @@ pub fn test_afc_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
 
 /// Tests that [`afc::OpenKey`]'s fails when the incorrect
 /// [`afc::AuthData`] is provided.
-pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
+pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &E) {
     let raw: afc::RawSealKey<E::CS> = Random::random(eng);
     let mut seal = afc::SealKey::<E::CS>::from_raw(&raw, afc::Seq::ZERO)
         .expect("should be able to create `afc::SealKey`");
@@ -1119,11 +1084,11 @@ pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
     const GOLDEN: &str = "hello, world!";
     let good_ad: afc::AuthData = afc::AuthData {
         version: 1,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
     let bad_ad: afc::AuthData = afc::AuthData {
         version: 3,
-        label_id: LabelId::random(&mut Rng),
+        label_id: LabelId::random(Rng),
     };
 
     let mut ciphertext = vec![0u8; GOLDEN.len() + afc::SealKey::<E::CS>::OVERHEAD];
@@ -1140,362 +1105,6 @@ pub fn test_afc_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
         afc::OpenError::Authentication,
         "should have received `Authentication` error"
     );
-}
-
-/// Checks that `lhs` and `rhs` match; that is, `lhs`'s
-/// encryption key should match `rhs`'s decryption key and
-/// vice versa.
-fn assert_afc_bidi_keys_match<CS: CipherSuite>(lhs: afc::BidiKeys<CS>, rhs: afc::BidiKeys<CS>) {
-    // We should never generate duplicate keys.
-    assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `afc::SealKey`");
-    assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `afc::OpenKey`");
-
-    // Simple test: they should not have the same bytes.
-    {
-        let (lhs_seal, lhs_open) = lhs.as_raw_keys();
-        let (rhs_seal, rhs_open) = rhs.as_raw_keys();
-        assert_ct_eq!(lhs_seal.to_testing_key(), rhs_open.to_testing_key());
-        assert_ct_eq!(lhs_open.to_testing_key(), rhs_seal.to_testing_key());
-    }
-
-    // Double check that the `to_testing_key` impls are
-    // correct: actually perform encryption, which should
-    // fail.
-    let (mut lhs_seal, lhs_open) = lhs
-        .into_keys()
-        .expect("should be able to create bidi keys tuple");
-    let (mut rhs_seal, rhs_open) = rhs
-        .into_keys()
-        .expect("should be able to create bidi keys tuple");
-    assert_same_afc_keys(&mut lhs_seal, &rhs_open);
-    assert_same_afc_keys(&mut rhs_seal, &lhs_open);
-}
-
-/// Checks that `lhs` and `rhs` do _not_ match.
-fn assert_afc_bidi_keys_mismatch<E: Engine>(
-    eng: &mut E,
-    lhs: afc::BidiKeys<E::CS>,
-    rhs: afc::BidiKeys<E::CS>,
-) {
-    // We should never generate duplicate keys.
-    assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `afc::SealKey`");
-    assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `afc::OpenKey`");
-
-    let (lhs_seal, lhs_open) = lhs
-        .into_keys()
-        .expect("should be able to create bidi keys tuple");
-    let (rhs_seal, rhs_open) = rhs
-        .into_keys()
-        .expect("should be able to create bidi keys tuple");
-    assert_different_afc_keys(eng, Some(lhs_seal), &rhs_open);
-    assert_different_afc_keys(eng, Some(rhs_seal), &lhs_open);
-}
-
-/// A simple positive test for deriving [`afc::BidiKeys`].
-pub fn test_afc_derive_bidi_keys<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label_id = LabelId::random(eng);
-    let ch1 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id,
-    };
-    let ch2 = afc::BidiChannel {
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label_id,
-    };
-    assert_eq!(ch1.author_info(), ch2.peer_info());
-    assert_eq!(ch1.peer_info(), ch2.author_info());
-
-    let afc::BidiSecrets { author, peer } =
-        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`");
-    let ck1 = afc::BidiKeys::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `afc::BidiKeys`");
-    let ck2 =
-        afc::BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `afc::BidiKeys`");
-
-    // `ck1` and `ck2` should be the reverse of each other.
-    assert_afc_bidi_keys_match(ck1, ck2);
-}
-
-/// Different labels should create different [`afc::BidiKeys`].
-pub fn test_afc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2.public().expect("encryption public key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id: LabelId::random(eng),
-    };
-    let ch2 = afc::BidiChannel {
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label_id: LabelId::random(eng),
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let afc::BidiSecrets { author, peer } =
-        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`");
-    let ck1 =
-        afc::BidiKeys::from_author_secret(&ch1, author).expect("unable to decrypt `afc::BidiKeys`");
-    let ck2 =
-        afc::BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt `afc::BidiKeys`");
-
-    // The labels are different, so the keys should also be
-    // different.
-    assert_afc_bidi_keys_mismatch(eng, ck1, ck2);
-}
-
-/// Different DeviceIDs should create different
-/// [`afc::BidiKeys`].
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
-    let label_id = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id,
-    };
-    let ch2 = afc::BidiChannel {
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: DeviceId::random(eng),
-        label_id,
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let afc::BidiSecrets { author, peer } =
-        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`");
-    let ck1 = afc::BidiKeys::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `afc::BidiKeys`");
-    let ck2 =
-        afc::BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `afc::BidiKeys`");
-
-    assert_afc_bidi_keys_mismatch(eng, ck1, ck2);
-}
-
-/// Different command IDs should create different
-/// [`afc::BidiKeys`].
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label_id = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id,
-    };
-    let ch2 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label_id,
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let afc::BidiSecrets { author, peer } =
-        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`");
-    let ck1 = afc::BidiKeys::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `afc::BidiKeys`");
-    let ck2 =
-        afc::BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `afc::BidiKeys`");
-
-    assert_afc_bidi_keys_mismatch(eng, ck1, ck2);
-}
-
-/// Different encryption keys should create different
-/// [`afc::BidiKeys`].
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
-    let label_id = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id,
-    };
-    let ch2 = afc::BidiChannel {
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver id should be valid"),
-        their_id: ch1.our_id,
-        label_id,
-    };
-    // The info params are equal here because they do not
-    // include the encryption key IDs. Those are mixed in
-    // using HPKE's auth mode.
-    assert_eq!(ch1.author_info(), ch2.peer_info());
-    assert_eq!(ch1.peer_info(), ch2.author_info());
-
-    let afc::BidiSecrets { author, peer } =
-        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`");
-    let ck1 = afc::BidiKeys::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `afc::BidiKeys`");
-    let ck2 =
-        afc::BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `afc::BidiKeys`");
-
-    assert_afc_bidi_keys_mismatch(eng, ck1, ck2);
-}
-
-/// It is an error to use the same `DeviceId` when deriving
-/// [`afc::BidiKeys`].
-pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
-    let label_id = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id,
-    };
-    let mut ch2 = afc::BidiChannel {
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label_id,
-    };
-
-    let afc::BidiSecrets { peer, .. } = {
-        let prev = ch1.our_id;
-        ch1.our_id = ch1.their_id;
-
-        let err = afc::BidiSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `afc::BidiSecrets`");
-        assert_eq!(err, Error::same_device_id());
-
-        ch1.our_id = prev;
-        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`")
-    };
-
-    ch2.their_id = ch2.our_id;
-    let err = afc::BidiKeys::from_peer_encap(&ch2, peer)
-        .err()
-        .expect("should not be able to decrypt `afc::BidiKeys`");
-    assert_eq!(err, Error::same_device_id());
-}
-
-/// Simple positive test for wrapping [`afc::BidiAuthorSecret`]s.
-pub fn test_afc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::new(eng);
-    let sk2 = EncryptionKey::new(eng);
-    let ch = afc::BidiChannel {
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label_id: LabelId::random(eng),
-    };
-
-    let afc::BidiSecrets { author: want, .. } =
-        afc::BidiSecrets::new(eng, &ch).expect("unable to create `afc::BidiSecrets`");
-    let bytes = cbor::to_allocvec(
-        &eng.wrap(want.clone())
-            .expect("should be able to wrap `afc::BidiAuthorSecret`"),
-    )
-    .expect("should be able to encode wrapped `afc::BidiAuthorSecret`");
-    let wrapped = cbor::from_bytes(&bytes)
-        .expect("should be able to decode encoded wrapped `afc::BidiAuthorSecret`");
-    let got: afc::BidiAuthorSecret<E::CS> = eng
-        .unwrap(&wrapped)
-        .expect("should be able to unwrap `afc::BidiAuthorSecret`");
-    assert_ct_eq!(want, got);
 }
 
 /// Checks that `seal` and `open` are the same key.
@@ -1516,7 +1125,7 @@ fn assert_same_afc_uni_key<CS: CipherSuite>(seal: afc::UniSealKey<CS>, open: afc
 
 /// Checks that `seal` and `open` are different keys.
 fn assert_different_afc_uni_key<E: Engine>(
-    eng: &mut E,
+    eng: &E,
     seal: afc::UniSealKey<E::CS>,
     open: afc::UniOpenKey<E::CS>,
 ) {
@@ -1542,7 +1151,7 @@ fn assert_different_afc_uni_key<E: Engine>(
 
 /// A simple positive test for deriving [`afc::UniSealKey`] and
 /// [`afc::UniOpenKey`].
-pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let label_id = LabelId::random(eng);
@@ -1584,7 +1193,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
 
 /// Different labels should create different [`afc::UniSealKey`]
 /// and [`afc::UniOpenKey`]s.
-pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = afc::UniChannel {
@@ -1627,7 +1236,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 /// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1671,7 +1280,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
 /// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1715,7 +1324,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
 /// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1756,7 +1365,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::UniSealKey`]s.
-pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1808,7 +1417,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::UniOpenKey`]s.
-pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &E) {
     let label_id = LabelId::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1859,7 +1468,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`afc::UniAuthorSecret`]s.
-pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
+pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::new(eng);
     let sk2 = EncryptionKey::new(eng);
     let ch = afc::UniChannel {
@@ -1892,1157 +1501,9 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
     assert_ct_eq!(want, got);
 }
 
-/// A simple positive test for deriving [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_psk<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = LabelId::random(eng);
-    let ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-    assert_eq!(ch1.author_info(), ch2.peer_info());
-    assert_eq!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { author, peer } =
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to generate author PSK");
-    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::BidiPsk`");
-
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_eq!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different labels should create different [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_psk_different_labels<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2.public().expect("encryption public key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label: LabelId::random(eng),
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label: LabelId::random(eng),
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { author, peer } =
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt `aqc::BidiPsk`");
-    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt `aqc::BidiPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    // The labels are different, so the keys should also be
-    // different.
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different DeviceIDs should create different
-/// [`aqc::BidiPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: DeviceId::random(eng),
-        label,
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { author, peer } =
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to generate author PSK");
-    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::BidiPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different command IDs should create different
-/// [`aqc::BidiPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_bidi_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { author, peer } =
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to generate author PSK");
-    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::BidiPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different encryption keys should create different
-/// [`aqc::BidiPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_bidi_psk_different_keys<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver id should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-    // The info params are equal here because they do not
-    // include the encryption key IDs. Those are mixed in
-    // using HPKE's auth mode.
-    assert_eq!(ch1.author_info(), ch2.peer_info());
-    assert_eq!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { author, peer } =
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to generate author PSK");
-    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::BidiPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different cipher suites should create different
-/// [`aqc::BidiPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_bidi_psk_different_cipher_suites<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = LabelId::random(eng);
-    let ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-    assert_eq!(ch1.author_info(), ch2.peer_info());
-    assert_eq!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { author, peer } =
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to generate author PSK");
-    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::BidiSecret`")
-        .generate_psk(aqc::CipherSuiteId::TlsAes256GcmSha384)
-        .expect("unable to decrypt peer `aqc::BidiPsk`");
-
-    assert_ne!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// It is an error to use the same `DeviceId` when deriving
-/// [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let mut ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-
-    let aqc::BidiSecrets { peer, .. } = {
-        let prev = ch1.our_id;
-        ch1.our_id = ch1.their_id;
-
-        let err = aqc::BidiSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::BidiSecrets`");
-        assert_eq!(err, Error::same_device_id());
-
-        ch1.our_id = prev;
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
-    };
-
-    ch2.their_id = ch2.our_id;
-    let err = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::BidiSecret`");
-    assert_eq!(err, Error::same_device_id());
-}
-
-/// It is an error to specify a PSK length less than than 32 when
-/// deriving [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: 16,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 31,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { peer, .. } = {
-        let err = aqc::BidiSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::BidiSecrets`");
-        assert_eq!(err, Error::invalid_psk_length());
-
-        ch1.psk_length_in_bytes = 32;
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
-    };
-
-    let err = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::BidiSecret`");
-    assert_eq!(err, Error::invalid_psk_length());
-}
-
-/// It is an error to specify a PSK length other than than 32
-/// when deriving [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_psk_psk_too_long<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::BidiChannel {
-        psk_length_in_bytes: u16::MAX,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::BidiChannel {
-        psk_length_in_bytes: 33,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        our_id: ch1.their_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: ch1.our_id,
-        label,
-    };
-    assert_ne!(ch1.author_info(), ch2.peer_info());
-    assert_ne!(ch1.peer_info(), ch2.author_info());
-
-    let aqc::BidiSecrets { peer, .. } = {
-        let err = aqc::BidiSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::BidiSecrets`");
-        assert_eq!(err, Error::invalid_psk_length());
-
-        ch1.psk_length_in_bytes = 32;
-        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
-    };
-
-    let err = aqc::BidiSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::BidiSecret`");
-    assert_eq!(err, Error::invalid_psk_length());
-}
-
-/// Simple positive test for wrapping [`aqc::BidiAuthorSecret`]s.
-pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::new(eng);
-    let sk2 = EncryptionKey::new(eng);
-    let ch = aqc::BidiChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        their_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label: LabelId::random(eng),
-    };
-
-    let aqc::BidiSecrets { author: want, .. } =
-        aqc::BidiSecrets::new(eng, &ch).expect("unable to create `aqc::BidiSecrets`");
-    let bytes = cbor::to_allocvec(
-        &eng.wrap(want.clone())
-            .expect("should be able to wrap `aqc::BidiAuthorSecret`"),
-    )
-    .expect("should be able to encode wrapped `aqc::BidiAuthorSecret`");
-    let wrapped = cbor::from_bytes(&bytes)
-        .expect("should be able to decode encoded wrapped `aqc::BidiAuthorSecret`");
-    let got: aqc::BidiAuthorSecret<E::CS> = eng
-        .unwrap(&wrapped)
-        .expect("should be able to unwrap `aqc::BidiAuthorSecret`");
-    assert_ct_eq!(want, got);
-}
-
-/// A simple positive test for deriving [`aqc::UniSendPsk`] and
-/// [`aqc::UniRecvPsk`].
-pub fn test_aqc_derive_uni_psk<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = LabelId::random(eng);
-    let ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_eq!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { author, peer } =
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::UniSecret`")
-        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::UniSecret`")
-        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
-
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_eq!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different labels should create different [`aqc::UniSendPsk`]
-/// and [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_psk_different_labels<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label: LabelId::random(eng),
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label: LabelId::random(eng),
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { author, peer } =
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::UniSecret`")
-        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::UniSecret`")
-        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different DeviceIDs should create different
-/// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: DeviceId::random(eng),
-        label,
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { author, peer } =
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::UniSecret`")
-        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::UniSecret`")
-        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different command IDs should create different
-/// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_uni_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk2,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { author, peer } =
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::UniSecret`")
-        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::UniSecret`")
-        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Different encryption keys should create different
-/// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label,
-    };
-
-    let aqc::UniSecrets { author, peer } =
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::UniSecret`")
-        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::UniSecret`")
-        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
-
-    // The identities are the same because identities are derived
-    // from the peer's encapsulation, not the raw secret bytes.
-    assert_eq!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// It is an error to use the same `DeviceId` when deriving
-/// [`aqc::UniSendPsk`]s.
-pub fn test_aqc_derive_uni_send_psk_same_device_id<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let mut ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_eq!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { peer, .. } = {
-        let prev = ch1.seal_id;
-        ch1.seal_id = ch1.open_id;
-
-        let err = aqc::UniSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::UniSecrets`");
-        assert_eq!(err, Error::same_device_id());
-
-        ch1.seal_id = prev;
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
-    };
-
-    ch2.seal_id = ch2.open_id;
-    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSecret`");
-    assert_eq!(err, Error::same_device_id());
-}
-
-/// It is an error to use the same `DeviceId` when deriving
-/// [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_recv_psk_same_device_id<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let mut ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &EncryptionKey::<E::CS>::new(eng)
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_eq!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { peer, .. } = {
-        let prev = ch1.seal_id;
-        ch1.seal_id = ch1.open_id;
-
-        let err = aqc::UniSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::UniSecrets`");
-        assert_eq!(err, Error::same_device_id());
-
-        ch1.seal_id = prev;
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
-    };
-
-    ch2.seal_id = ch2.open_id;
-    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSecret`");
-    assert_eq!(err, Error::same_device_id());
-}
-
-/// It is an error to specify a PSK length less than than 32 when
-/// deriving [`aqc::UniSendPsk`]s.
-pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 16,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 31,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        seal_id: ch1.seal_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { peer, .. } = {
-        let err = aqc::UniSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::UniSecrets`");
-        assert_eq!(err, Error::invalid_psk_length());
-
-        ch1.psk_length_in_bytes = 32;
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
-    };
-
-    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSecret`");
-    assert_eq!(err, Error::invalid_psk_length());
-}
-
-/// It is an error to specify a PSK length less than than 32 when
-/// deriving [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 16,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 31,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        seal_id: ch1.seal_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { peer, .. } = {
-        let err = aqc::UniSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::UniSecrets`");
-        assert_eq!(err, Error::invalid_psk_length());
-
-        ch1.psk_length_in_bytes = 32;
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
-    };
-
-    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSecret`");
-    assert_eq!(err, Error::invalid_psk_length());
-}
-
-/// It is an error to specify a PSK length longer than than 32
-/// when deriving [`aqc::UniSendPsk`]s.
-pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::UniChannel {
-        psk_length_in_bytes: u16::MAX,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 33,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        seal_id: ch1.seal_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { peer, .. } = {
-        let err = aqc::UniSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::UniSecrets`");
-        assert_eq!(err, Error::invalid_psk_length());
-
-        ch1.psk_length_in_bytes = 32;
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
-    };
-
-    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSecret`");
-    assert_eq!(err, Error::invalid_psk_length());
-}
-
-/// It is an error to specify a PSK length longer than than 32
-/// when deriving [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_recv_psk_psk_too_long<E: Engine>(eng: &mut E) {
-    let label = LabelId::random(eng);
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let mut ch1 = aqc::UniChannel {
-        psk_length_in_bytes: u16::MAX,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("sender id should be valid"),
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("receiver id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 33,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        seal_id: ch1.seal_id,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_ne!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { peer, .. } = {
-        let err = aqc::UniSecrets::new(eng, &ch1)
-            .err()
-            .expect("should not be able to create `aqc::UniSecrets`");
-        assert_eq!(err, Error::invalid_psk_length());
-
-        ch1.psk_length_in_bytes = 32;
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
-    };
-
-    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSecret`");
-    assert_eq!(err, Error::invalid_psk_length());
-}
-
-/// Different cipher suites should create different
-/// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
-///
-/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_uni_psk_different_cipher_suites<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::<E::CS>::new(eng);
-    let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = LabelId::random(eng);
-    let ch1 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label,
-    };
-    let ch2 = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: ch1.parent_cmd_id,
-        our_sk: &sk2,
-        their_pk: &sk1
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: ch1.seal_id,
-        open_id: ch1.open_id,
-        label,
-    };
-    assert_eq!(ch1.info(), ch2.info());
-
-    let aqc::UniSecrets { author, peer } =
-        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::UniSecret`")
-        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
-        .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
-        .expect("unable to decrypt peer `aqc::UniSecret`")
-        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes256GcmSha384)
-        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
-
-    assert_ne!(psk1.identity(), psk2.identity());
-    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
-}
-
-/// Simple positive test for wrapping [`aqc::UniAuthorSecret`]s.
-pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
-    let sk1 = EncryptionKey::new(eng);
-    let sk2 = EncryptionKey::new(eng);
-    let ch = aqc::UniChannel {
-        psk_length_in_bytes: 32,
-        parent_cmd_id: CmdId::random(eng),
-        our_sk: &sk1,
-        their_pk: &sk2
-            .public()
-            .expect("receiver public encryption key should be valid"),
-        seal_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("seal id should be valid"),
-        open_id: IdentityKey::<E::CS>::new(eng)
-            .id()
-            .expect("open id should be valid"),
-        label: LabelId::random(eng),
-    };
-
-    let aqc::UniSecrets { author: want, .. } =
-        aqc::UniSecrets::new(eng, &ch).expect("unable to create `aqc::UniSecrets`");
-    let bytes = cbor::to_allocvec(
-        &eng.wrap(want.clone())
-            .expect("should be able to wrap `aqc::UniAuthorSecret`"),
-    )
-    .expect("should be able to encode wrapped `aqc::UniAuthorSecret`");
-    let wrapped = cbor::from_bytes(&bytes)
-        .expect("should be able to decode encoded wrapped `aqc::UniAuthorSecret`");
-    let got: aqc::UniAuthorSecret<E::CS> = eng
-        .unwrap(&wrapped)
-        .expect("should be able to unwrap `aqc::UniAuthorSecret`");
-    assert_ct_eq!(want, got);
-}
-
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different cipher suites.
-pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_suites<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let mut ids = BTreeSet::new();
@@ -3075,7 +1536,7 @@ pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different contexts.
-pub fn test_tls_psk_different_contexts<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_contexts<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let psks1 = seed
@@ -3106,7 +1567,7 @@ pub fn test_tls_psk_different_contexts<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different groups.
-pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_groups<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let psks1 = seed
@@ -3137,7 +1598,7 @@ pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different policy IDs.
-pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let psks1 = seed
@@ -3167,7 +1628,7 @@ pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`tls::PskSeed`]s.
-pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &E) {
     let want = tls::PskSeed::new(eng, &GroupId::default());
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
@@ -3184,7 +1645,7 @@ pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for encrypting/decrypting
 /// [`tls::PskSeed`]s.
-pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`sk1` public half should be valid");
 
@@ -3217,7 +1678,7 @@ pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with the
 /// wrong peer public key.
-pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
 
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -3243,7 +1704,7 @@ pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &mut E) {
 /// Negative test for decrypting a [`tls::PskSeed`] with the
 /// wrong secret key (i.e., trying to open a PSK seed that was
 /// encrypted for somebody else).
-pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 
@@ -3268,7 +1729,7 @@ pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with the
 /// wrong group ID.
-pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 
@@ -3291,7 +1752,7 @@ pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with
 /// malformed ciphertext.
-pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 
@@ -3315,7 +1776,7 @@ pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &mut E) {
 
 /// Negative test for decrypting a [`tls::PskSeed`] with
 /// malformed auth tag.
-pub fn test_tls_psk_seed_open_wrong_tag<E: Engine>(eng: &mut E) {
+pub fn test_tls_psk_seed_open_wrong_tag<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let pk1 = sk1.public().expect("`pk1` public half should be valid");
 

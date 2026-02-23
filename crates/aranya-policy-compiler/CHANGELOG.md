@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.19.0...aranya-policy-compiler-v0.20.0) - 2026-02-17
+
+### Other
+
+- Validate fields in user defined types ([#513](https://github.com/aranya-project/aranya-core/pull/513))
+- Fix #447: Require policy block in command. ([#449](https://github.com/aranya-project/aranya-core/pull/449))
+
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.18.0...aranya-policy-compiler-v0.19.0) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- allow absent/empty recall blocks ([#545](https://github.com/aranya-project/aranya-core/pull/545))
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.17.0...aranya-policy-compiler-v0.18.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.16.0...aranya-policy-compiler-v0.17.0) - 2025-12-11
+
+### Other
+
+- allow nested option ([#502](https://github.com/aranya-project/aranya-core/pull/502))
+- split type checking and instruction generation ([#500](https://github.com/aranya-project/aranya-core/pull/500))
+- add alternative parsing `option[T]` ([#499](https://github.com/aranya-project/aranya-core/pull/499))
+- add `compile_interface` ([#496](https://github.com/aranya-project/aranya-core/pull/496))
+- compile ffi function args when stub_ffi is enabled ([#495](https://github.com/aranya-project/aranya-core/pull/495))
+- remove `Typeish` and `NullableVType` ([#486](https://github.com/aranya-project/aranya-core/pull/486))
+- define math as builtin functions ([#439](https://github.com/aranya-project/aranya-core/pull/439))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.15.0...aranya-policy-compiler-v0.16.0) - 2025-11-12
+
+### Other
+
+- return 'None' for int cardinality ([#483](https://github.com/aranya-project/aranya-core/pull/483))
+- Exhaustive pattern matching ([#443](https://github.com/aranya-project/aranya-core/pull/443))
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.14.0...aranya-policy-compiler-v0.15.0) - 2025-11-05
+
+### Other
+
+- fix code map ([#472](https://github.com/aranya-project/aranya-core/pull/472))
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.13.0...aranya-policy-compiler-v0.14.0) - 2025-10-16
+
+### Other
+
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
 ## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.12.0...aranya-policy-compiler-v0.13.0) - 2025-09-17
 
 ### Other

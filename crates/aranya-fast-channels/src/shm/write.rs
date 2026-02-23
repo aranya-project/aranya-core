@@ -1,7 +1,7 @@
-use core::{cell::Cell, marker::PhantomData, ops::DerefMut as _, sync::atomic::Ordering};
+use core::{cell::Cell, marker::PhantomData, sync::atomic::Ordering};
 
 use aranya_crypto::{
-    CipherSuite, Csprng,
+    CipherSuite, Csprng, DeviceId,
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
@@ -15,9 +15,9 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    mutex::StdMutex,
+    RemoveIfParams,
     shm::shared::Op,
-    state::{AranyaState, ChannelId, Directed},
+    state::{AranyaState, Directed, LocalChannelId},
     util::debug,
 };
 
@@ -25,7 +25,7 @@ use crate::{
 #[derive(Debug)]
 pub struct WriteState<CS, R> {
     inner: State<CS>,
-    rng: StdMutex<R>,
+    rng: R,
 
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
@@ -43,7 +43,7 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
-            rng: StdMutex::new(rng),
+            rng,
             _no_sync: PhantomData,
         })
     }
@@ -63,13 +63,12 @@ where
         &self,
         keys: Directed<Self::SealKey, Self::OpenKey>,
         label_id: LabelId,
-    ) -> Result<ChannelId, Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
-
+        peer_id: DeviceId,
+    ) -> Result<LocalChannelId, Error> {
         let id = {
             // NB: This cannot reasonably overflow.
             let next = self.inner.shm().next_chan_id.fetch_add(1, Ordering::SeqCst);
-            ChannelId::new(next)
+            LocalChannelId::new(next)
         };
 
         let (write_off, idx) = {
@@ -88,7 +87,7 @@ where
             let chan = side.raw_at(idx)?;
             debug!("adding chan {id} at {idx}");
 
-            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, &self.rng);
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("write side generation={}", generation + 1);
@@ -108,7 +107,7 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, peer_id, &keys, &self.rng);
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
             debug!("read side generation={}", generation + 1);
@@ -130,61 +129,7 @@ where
         Ok(id)
     }
 
-    fn update(
-        &self,
-        id: ChannelId,
-        keys: Directed<Self::SealKey, Self::OpenKey>,
-        label_id: LabelId,
-    ) -> Result<(), Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
-
-        let (write_off, idx) = {
-            let off = self.inner.write_off(self.inner.shm())?;
-            // Load state after loading the write offset because
-            // of borrowing rules.
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
-
-            let (idx, chan) = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, chan)) => (i, chan.as_uninit_mut()),
-                None => return Err(Error::NotFound(id)),
-            };
-            debug!("adding chan {id} at {idx}");
-
-            ShmChan::<CS>::init(chan, id, label_id, &keys, rng.deref_mut());
-
-            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("write side generation={}", generation + 1);
-
-            (off, idx)
-        };
-
-        let read_off = {
-            // Swap the pointers: the reader will now see the
-            // updated list.
-            let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
-
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, &keys, rng.deref_mut());
-
-            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("read side generation={}", generation + 1);
-
-            off
-        };
-
-        self.inner
-            .shm()
-            .write_off
-            .store(read_off.into(), Ordering::SeqCst);
-
-        Ok(())
-    }
-
-    fn remove(&self, id: ChannelId) -> Result<(), Error> {
+    fn remove(&self, id: LocalChannelId) -> Result<(), Error> {
         let (write_off, idx) = {
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
@@ -265,7 +210,7 @@ where
         Ok(())
     }
 
-    fn remove_if(&self, mut f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error> {
+    fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
         let shm = self.inner.shm();
 
         let write_off = {
@@ -299,7 +244,7 @@ where
         Ok(())
     }
 
-    fn exists(&self, id: ChannelId) -> Result<bool, Self::Error> {
+    fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
         let mutex = self.inner.load_write_list()?;
         let list = mutex.lock().assume("poisoned")?;
         list.exists(id, None, Op::Any)

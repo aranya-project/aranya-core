@@ -5,7 +5,7 @@ use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Address, Prior,
+    Address, MaxCut, Prior,
     command::{CmdId, Command, Priority},
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
@@ -24,16 +24,28 @@ pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
 pub const PEER_HEAD_MAX: usize = 10;
 
 /// The maximum number of samples in a request
+#[cfg(feature = "low-mem-usage")]
+const COMMAND_SAMPLE_MAX: usize = 20;
+#[cfg(not(feature = "low-mem-usage"))]
 const COMMAND_SAMPLE_MAX: usize = 100;
 
 /// The maximum number of missing segments that can be requested
 /// in a single message
+#[cfg(feature = "low-mem-usage")]
+const REQUEST_MISSING_MAX: usize = 1;
+#[cfg(not(feature = "low-mem-usage"))]
 const REQUEST_MISSING_MAX: usize = 100;
 
 /// The maximum number of commands in a response
+#[cfg(feature = "low-mem-usage")]
+pub const COMMAND_RESPONSE_MAX: usize = 5;
+#[cfg(not(feature = "low-mem-usage"))]
 pub const COMMAND_RESPONSE_MAX: usize = 100;
 
 /// The maximum number of segments which can be stored to send
+#[cfg(feature = "low-mem-usage")]
+const SEGMENT_BUFFER_MAX: usize = 10;
+#[cfg(not(feature = "low-mem-usage"))]
 const SEGMENT_BUFFER_MAX: usize = 100;
 
 /// The maximum size of a sync message
@@ -49,7 +61,7 @@ pub struct CommandMeta {
     parent: Prior<Address>,
     policy_length: u32,
     length: u32,
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 impl CommandMeta {
@@ -90,7 +102,7 @@ pub struct SyncCommand<'a> {
     parent: Prior<Address>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 impl<'a> Command for SyncCommand<'a> {
@@ -114,7 +126,7 @@ impl<'a> Command for SyncCommand<'a> {
         self.data
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
 }

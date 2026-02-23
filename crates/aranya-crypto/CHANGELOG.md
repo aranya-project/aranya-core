@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.12.1...aranya-crypto-v0.13.0) - 2026-02-17
+
+### Other
+
+- remove `Engine::destroy` and add blanket trait impls ([#564](https://github.com/aranya-project/aranya-core/pull/564))
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+
+## [0.12.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.12.0...aranya-crypto-v0.12.1) - 2026-01-06
+
+### Other
+
+- updated the following local packages: aranya-id
+
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.11.0...aranya-crypto-v0.12.0) - 2025-11-05
+
+### Other
+
+- remove ([#451](https://github.com/aranya-project/aranya-core/pull/451))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.10.0...aranya-crypto-v0.11.0) - 2025-10-16
+
+### Other
+
+- Remove AFC Bidi channel related items ([#428](https://github.com/aranya-project/aranya-core/pull/428))
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Separate out crate for IDs ([#318](https://github.com/aranya-project/aranya-core/pull/318))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+- Implement `rkyv` traits for policy modules ([#344](https://github.com/aranya-project/aranya-core/pull/344))
+
 ## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.9.0...aranya-crypto-v0.10.0) - 2025-09-17
 
 ### Other

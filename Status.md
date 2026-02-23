@@ -1,7 +1,6 @@
 | crate | crates.io | docs.rs |
 | --- | --- | --- |
 | aranya-afc-util | [![Crates.io Version](https://img.shields.io/crates/v/aranya-afc-util)](https://crates.io/crates/aranya-afc-util) | [![docs.rs](https://img.shields.io/docsrs/aranya-afc-util)](https://docs.rs/aranya-afc-util) |
-| aranya-aqc-util | [![Crates.io Version](https://img.shields.io/crates/v/aranya-aqc-util)](https://crates.io/crates/aranya-aqc-util) | [![docs.rs](https://img.shields.io/docsrs/aranya-aqc-util)](https://docs.rs/aranya-aqc-util) |
 | aranya-capi-codegen | [![Crates.io Version](https://img.shields.io/crates/v/aranya-capi-codegen)](https://crates.io/crates/aranya-capi-codegen) | [![docs.rs](https://img.shields.io/docsrs/aranya-capi-codegen)](https://docs.rs/aranya-capi-codegen) |
 | aranya-capi-core | [![Crates.io Version](https://img.shields.io/crates/v/aranya-capi-core)](https://crates.io/crates/aranya-capi-core) | [![docs.rs](https://img.shields.io/docsrs/aranya-capi-core)](https://docs.rs/aranya-capi-core) |
 | aranya-capi-macro | [![Crates.io Version](https://img.shields.io/crates/v/aranya-capi-macro)](https://crates.io/crates/aranya-capi-macro) | [![docs.rs](https://img.shields.io/docsrs/aranya-capi-macro)](https://docs.rs/aranya-capi-macro) |
@@ -10,6 +9,7 @@
 | aranya-device-ffi | [![Crates.io Version](https://img.shields.io/crates/v/aranya-device-ffi)](https://crates.io/crates/aranya-device-ffi) | [![docs.rs](https://img.shields.io/docsrs/aranya-device-ffi)](https://docs.rs/aranya-device-ffi) |
 | aranya-envelope-ffi | [![Crates.io Version](https://img.shields.io/crates/v/aranya-envelope-ffi)](https://crates.io/crates/aranya-envelope-ffi) | [![docs.rs](https://img.shields.io/docsrs/aranya-envelope-ffi)](https://docs.rs/aranya-envelope-ffi) |
 | aranya-fast-channels | [![Crates.io Version](https://img.shields.io/crates/v/aranya-fast-channels)](https://crates.io/crates/aranya-fast-channels) | [![docs.rs](https://img.shields.io/docsrs/aranya-fast-channels)](https://docs.rs/aranya-fast-channels) |
+| aranya-id | [![Crates.io Version](https://img.shields.io/crates/v/aranya-id)](https://crates.io/crates/aranya-id) | [![docs.rs](https://img.shields.io/docsrs/aranya-id)](https://docs.rs/aranya-id) |
 | aranya-idam-ffi | [![Crates.io Version](https://img.shields.io/crates/v/aranya-idam-ffi)](https://crates.io/crates/aranya-idam-ffi) | [![docs.rs](https://img.shields.io/docsrs/aranya-idam-ffi)](https://docs.rs/aranya-idam-ffi) |
 | aranya-libc | [![Crates.io Version](https://img.shields.io/crates/v/aranya-libc)](https://crates.io/crates/aranya-libc) | [![docs.rs](https://img.shields.io/docsrs/aranya-libc)](https://docs.rs/aranya-libc) |
 | aranya-perspective-ffi | [![Crates.io Version](https://img.shields.io/crates/v/aranya-perspective-ffi)](https://crates.io/crates/aranya-perspective-ffi) | [![docs.rs](https://img.shields.io/docsrs/aranya-perspective-ffi)](https://docs.rs/aranya-perspective-ffi) |

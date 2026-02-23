@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+Reserved identifier: line 1 column 6: this

@@ -1,0 +1,73 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [
+        StructDefinition {
+            identifier: "Foo" @ 7..10,
+            items: [
+                Field(
+                    FieldDefinition {
+                        identifier: "x" @ 17..18,
+                        field_type: Int @ 19..22,
+                    },
+                ),
+            ],
+            span: 0..24,
+        },
+    ],
+    enums: [],
+    commands: [],
+    functions: [
+        FunctionDefinition {
+            identifier: "convert" @ 35..42,
+            arguments: [
+                Param {
+                    name: "foo" @ 43..46,
+                    ty: Struct(
+                        "Foo" @ 54..57,
+                    ) @ 47..57,
+                },
+            ],
+            return_type: Struct(
+                "Bar" @ 66..69,
+            ) @ 59..69,
+            statements: [
+                Return(
+                    ReturnStatement {
+                        expression: NamedStruct(
+                            NamedStruct {
+                                identifier: "Bar" @ 83..86,
+                                fields: [
+                                    (
+                                        "y" @ 89..90,
+                                        Dot(
+                                            Identifier(
+                                                "foo" @ 92..95,
+                                            ) @ 92..95,
+                                            "x" @ 96..97,
+                                        ) @ 92..97,
+                                    ),
+                                ],
+                                sources: [
+                                    "baz" @ 102..105,
+                                    "thud" @ 110..114,
+                                ],
+                            },
+                        ) @ 83..116,
+                    },
+                ) @ 76..117,
+            ],
+            span: 26..118,
+        },
+    ],
+    finish_functions: [],
+    global_lets: [],
+    text: "struct Foo {\n    x int\n}\n\nfunction convert(foo struct Foo) struct Bar {\n    return Bar { y: foo.x, ...baz, ...thud }\n}\n",
+}

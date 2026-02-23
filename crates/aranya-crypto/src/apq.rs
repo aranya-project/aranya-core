@@ -157,7 +157,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
 
 impl<CS: CipherSuite> TopicKey<CS> {
     /// Creates a new, random `TopicKey`.
-    pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
+    pub fn new<R: Csprng>(rng: R, version: Version, topic: &Topic) -> Result<Self, Error> {
         Self::from_seed(Random::random(rng), version, topic)
     }
 
@@ -184,7 +184,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
                 let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(TopicKeyId)
+                    .map(TopicKeyId::from_bytes)
             })
             .clone()
     }
@@ -213,7 +213,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     DeviceId, Id, Rng,
+    ///     BaseId, DeviceId, Rng,
     ///     apq::{Sender, SenderSecretKey, SenderSigningKey, Topic, TopicKey, Version},
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
@@ -223,19 +223,19 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     ///
     /// let ident = Sender {
-    ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng)
+    ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(Rng)
     ///         .public()
     ///         .expect("sender encryption key should be valid"),
-    ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng)
+    ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(Rng)
     ///         .public()
     ///         .expect("sender signing key should be valid"),
     /// };
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic).expect("should not fail");
+    /// let key = TopicKey::new(Rng, VERSION, &topic).expect("should not fail");
     ///
     /// let ciphertext = {
     ///     let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
-    ///     key.seal_message(&mut Rng, &mut dst, MESSAGE, VERSION, &topic, &ident)
+    ///     key.seal_message(Rng, &mut dst, MESSAGE, VERSION, &topic, &ident)
     ///         .expect("should not fail");
     ///     dst
     /// };
@@ -250,7 +250,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// ```
     pub fn seal_message<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: R,
         dst: &mut [u8],
         plaintext: &[u8],
         version: Version,
@@ -372,7 +372,7 @@ signing_key! {
     sk = SenderSigningKey,
     pk = SenderVerifyingKey,
     id = SenderSigningKeyId,
-    context = "APQ Sender Signing Key",
+    context = "APQ Sender Signing Key V1",
 }
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
@@ -393,7 +393,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// let topic = Topic::new("SomeTopic");
     /// const RECORD: &[u8] = b"an encoded record";
     ///
-    /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// let sig = sk.sign(VERSION, &topic, RECORD).expect("should not fail");
     ///
@@ -497,7 +497,7 @@ kem_key! {
     sk = SenderSecretKey,
     pk = SenderPublicKey,
     id = SenderKeyId,
-    context = "APQ Sender Secret Key",
+    context = "APQ Sender Secret Key V1",
 }
 
 kem_key! {
@@ -507,7 +507,7 @@ kem_key! {
     sk = ReceiverSecretKey,
     pk = ReceiverPublicKey,
     id = ReceiverKeyId,
-    context = "APQ Receiver Secret Key",
+    context = "APQ Receiver Secret Key V1",
 }
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
@@ -573,7 +573,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     DeviceId, Id, Rng,
+    ///     BaseId, DeviceId, Rng,
     ///     apq::{ReceiverSecretKey, SenderSecretKey, Topic, TopicKey, Version},
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
@@ -581,18 +581,18 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// const VERSION: Version = Version::new(1);
     /// let topic = Topic::new("SomeTopic");
     ///
-    /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(Rng);
     /// let send_pk = send_sk.public().expect("sender public key should be valid");
-    /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(Rng);
     /// let recv_pk = recv_sk
     ///     .public()
     ///     .expect("receiver public key should be valid");
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic).expect("should not fail");
+    /// let key = TopicKey::new(Rng, VERSION, &topic).expect("should not fail");
     ///
     /// // The sender encrypts...
     /// let (enc, mut ciphertext) = recv_pk
-    ///     .seal_topic_key(&mut Rng, VERSION, &topic, &send_sk, &key)
+    ///     .seal_topic_key(Rng, VERSION, &topic, &send_sk, &key)
     ///     .expect("should not fail");
     /// // ...and the receiver decrypts.
     /// let got = recv_sk
@@ -621,7 +621,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// ```
     pub fn seal_topic_key<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: R,
         version: Version,
         topic: &Topic,
         sk: &SenderSecretKey<CS>,
@@ -682,7 +682,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "G4Pkv96MYr9yAfVgzCpU4kFkHSxZmSjaPsSBe7Fvt9Tk",
+            "CRHzbYEDN4KoXQvJwXT71ywN2PWd1ddemKussnvjQkR5",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -707,7 +707,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "FVZQtS6DA1exxJgBHdrsMHX58m5dXgtxtJJqpeUTXxPp",
+            "9omQm4BTYpdZF5GpAz5oqyDGQsRG9q58348AbFudyAoA",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -731,7 +731,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "BLHC25sfZNYzq6G9oHvBkmR22hyj7tCGbUwi7QCDDv8n",
+            "CqiuLwPbbDQWKZQP1eLmDdc5mELZrj1h4hAyBHofCMtc",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {

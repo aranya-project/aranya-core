@@ -4,10 +4,11 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
+    BaseId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
+    id::IdExt as _,
     policy::{self, CmdId, GroupId, RoleId},
     zeroize::Zeroizing,
 };
@@ -63,7 +64,7 @@ function derive_enc_key_id(
     pub(crate) fn derive_enc_key_id<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         enc_pk: Vec<u8>,
     ) -> Result<EncryptionKeyId, Error> {
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
@@ -80,7 +81,7 @@ function derive_sign_key_id(
     pub(crate) fn derive_sign_key_id<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         sign_pk: Vec<u8>,
     ) -> Result<SigningKeyId, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
@@ -97,7 +98,7 @@ function derive_device_id(
     pub(crate) fn derive_device_id<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         ident_pk: Vec<u8>,
     ) -> Result<DeviceId, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
@@ -111,10 +112,10 @@ function generate_group_key() struct StoredGroupKey
     pub(crate) fn generate_group_key<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.as_base();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -133,7 +134,7 @@ function seal_group_key(
     pub(crate) fn seal_group_key<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         wrapped_group_key: Vec<u8>,
         peer_enc_pk: Vec<u8>,
         group_id: GroupId,
@@ -161,7 +162,7 @@ function open_group_key(
     pub(crate) fn open_group_key<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         sealed_group_key: SealedGroupKey,
         our_enc_sk_id: EncryptionKeyId,
         group_id: GroupId,
@@ -170,7 +171,9 @@ function open_group_key(
             .store
             .get_key(eng, our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.into())))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.as_base()))
+            })?;
         debug_assert_eq!(sk.id().map_err(aranya_crypto::Error::from)?, our_enc_sk_id);
 
         let group_key = {
@@ -180,7 +183,7 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.as_base();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -202,7 +205,7 @@ function encrypt_message(
     pub(crate) fn encrypt_message<E: Engine>(
         &self,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         our_sign_sk_id: SigningKeyId,
@@ -224,7 +227,10 @@ function encrypt_message(
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| {
-                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id.into()))
+                Error::new(
+                    ErrorKind::KeyNotFound,
+                    KeyNotFound(our_sign_sk_id.as_base()),
+                )
             })?;
         let our_sign_pk = sk.public().expect("signing key should be valid");
 
@@ -256,7 +262,7 @@ function decrypt_message(
     pub(crate) fn decrypt_message<E: Engine>(
         &self,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         parent_id: CmdId,
         ciphertext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
@@ -296,14 +302,14 @@ function compute_change_id(
     pub(crate) fn compute_change_id<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         new_cmd_id: CmdId,
-        current_change_id: Id,
-    ) -> Result<Id, Error> {
+        current_change_id: BaseId,
+    ) -> Result<BaseId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
-        Ok(Id::new::<E::CS>(
-            current_change_id.as_bytes(),
-            new_cmd_id.as_bytes(),
+        Ok(BaseId::new::<E::CS>(
+            b"ChangeId-v1",
+            [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }
 
@@ -317,7 +323,7 @@ function label_id(
     pub(crate) fn label_id<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         cmd_id: CmdId,
         name: Text,
     ) -> Result<RoleId, Infallible> {

@@ -16,6 +16,8 @@ use crate::lang::parse::Rule;
 /// affected or a general error message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
+    /// An invalid operator was used.
+    InvalidOperator,
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
     /// A statement is invalid for its scope.
@@ -51,6 +53,7 @@ pub enum ParseErrorKind {
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidOperator => write!(f, "Invalid operator"),
             Self::InvalidType => write!(f, "Invalid type"),
             Self::InvalidStatement => write!(f, "Invalid statement"),
             Self::InvalidNumber => write!(f, "Invalid number"),

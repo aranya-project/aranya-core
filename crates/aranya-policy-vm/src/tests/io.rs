@@ -1,6 +1,6 @@
 extern crate alloc;
 use alloc::collections::{BTreeMap, btree_map};
-use core::{cell::RefCell, fmt, ops::DerefMut as _};
+use core::fmt;
 
 use aranya_crypto::{
     Rng,
@@ -18,7 +18,7 @@ use crate::{
 pub struct TestIO {
     pub facts: BTreeMap<(Identifier, FactKeyList), FactValueList>,
     pub effect_stack: Vec<(Identifier, Vec<KVPair>)>,
-    pub engine: RefCell<DefaultEngine<Rng, DefaultCipherSuite>>,
+    pub engine: DefaultEngine<Rng, DefaultCipherSuite>,
     pub print_ffi: PrintFfi,
 }
 
@@ -39,7 +39,7 @@ impl TestIO {
         Self {
             facts: BTreeMap::new(),
             effect_stack: vec![],
-            engine: RefCell::new(engine),
+            engine,
             print_ffi: PrintFfi {},
         }
     }
@@ -129,11 +129,7 @@ where
         ctx: &CommandContext,
     ) -> Result<(), MachineError> {
         match module {
-            0 => {
-                let mut engine = self.engine.borrow_mut();
-                self.print_ffi
-                    .call(procedure, stack, ctx, engine.deref_mut())
-            }
+            0 => self.print_ffi.call(procedure, stack, ctx, &self.engine),
             _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),

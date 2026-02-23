@@ -113,7 +113,7 @@ function sign(
     pub(crate) fn sign<E: Engine>(
         &self,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         our_sign_sk_id: SigningKeyId,
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
@@ -125,7 +125,7 @@ function sign(
             .store
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or(KeyNotFound(our_sign_sk_id.into()))?;
+            .ok_or(KeyNotFound(our_sign_sk_id.as_base()))?;
         debug_assert_eq!(sk.id()?, our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {
@@ -135,7 +135,7 @@ function sign(
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
-            command_id: id.into(),
+            command_id: id.as_base(),
         })
     }
 
@@ -153,7 +153,7 @@ function verify(
     pub(crate) fn verify<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         author_sign_pk: Vec<u8>,
         parent_id: CmdId,
         command_bytes: Vec<u8>,

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.12.1...aranya-policy-ifgen-build-v0.13.0) - 2026-02-17
+
+### Other
+
+- updated the following local packages: aranya-policy-ast, aranya-policy-lang, aranya-policy-compiler
+
+## [0.12.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.12.0...aranya-policy-ifgen-build-v0.12.1) - 2026-01-23
+
+### Other
+
+- updated the following local packages: aranya-policy-ast, aranya-policy-lang, aranya-policy-compiler
+
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.11.0...aranya-policy-ifgen-build-v0.12.0) - 2026-01-06
+
+### Other
+
+- updated the following local packages: aranya-policy-ast, aranya-policy-lang, aranya-policy-compiler
+
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.10.0...aranya-policy-ifgen-build-v0.11.0) - 2025-12-11
+
+### Other
+
+- add `compile_interface` ([#496](https://github.com/aranya-project/aranya-core/pull/496))
+- remove `Typeish` and `NullableVType` ([#486](https://github.com/aranya-project/aranya-core/pull/486))
+
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.9.0...aranya-policy-ifgen-build-v0.10.0) - 2025-11-12
+
+### Other
+
+- generate interior `rustfmt::skip` ([#457](https://github.com/aranya-project/aranya-core/pull/457))
+
+## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.8.0...aranya-policy-ifgen-build-v0.9.0) - 2025-11-05
+
+### Other
+
+- actions as structs ([#350](https://github.com/aranya-project/aranya-core/pull/350))
+
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.7.0...aranya-policy-ifgen-build-v0.8.0) - 2025-10-16
+
+### Other
+
+- rename `Id` to `BaseId` ([#329](https://github.com/aranya-project/aranya-core/pull/329))
+- Enforce More Clippy Lints ([#385](https://github.com/aranya-project/aranya-core/pull/385))
+
 ## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.6.0...aranya-policy-ifgen-build-v0.7.0) - 2025-09-17
 
 ### Other

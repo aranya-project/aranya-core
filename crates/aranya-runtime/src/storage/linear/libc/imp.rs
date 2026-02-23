@@ -11,8 +11,11 @@ use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
-    GraphId, Location, StorageError,
-    linear::io::{IoManager, Read, Write},
+    GraphId, Location, MaxCut, SegmentIndex, StorageError,
+    linear::{
+        io::{IoManager, Read, Write},
+        libc::IdPath,
+    },
 };
 
 struct GraphIdIterator {
@@ -104,7 +107,7 @@ impl IoManager for FileManager {
     type Writer = Writer;
 
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         let fd = libc::openat(
             self.root(),
             name,
@@ -117,7 +120,7 @@ impl IoManager for FileManager {
     }
 
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
             Ok(fd) => fd,
             Err(Errno::ENOENT) => return Ok(None),
@@ -128,7 +131,7 @@ impl IoManager for FileManager {
     }
 
     fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
-        let name = id.to_path();
+        let name = IdPath::new(id);
         libc::unlinkat(self.root(), name, 0)?;
 
         Ok(())
@@ -277,7 +280,7 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            head: Location::new(usize::MAX, usize::MAX),
+            head: Location::new(SegmentIndex(usize::MAX), MaxCut(usize::MAX)),
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -286,8 +289,8 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_u64(self.head.segment as u64);
-        hasher.write_u64(self.head.command as u64);
+        hasher.write_u64(self.head.segment.0 as u64);
+        hasher.write_u64(self.head.max_cut.0 as u64);
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }

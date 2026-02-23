@@ -7,21 +7,21 @@ use crate::{Identifier, Span, Spanned, Text, span::spanned};
 
 /// An identifier.
 #[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 pub struct Ident {
     /// The identifier name
     pub name: Identifier,
     /// The source location of this identifier
     pub span: Span,
+}
+
+impl fmt::Debug for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Ident {
@@ -161,16 +161,9 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
+#[must_use]
 #[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 pub struct VType {
     /// The type kind
@@ -179,10 +172,32 @@ pub struct VType {
     pub span: Span,
 }
 
+impl fmt::Debug for VType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
+}
+
 impl VType {
     /// Reports whether the types are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         self.kind.matches(&other.kind)
+    }
+
+    /// Checks if two types fit, where `Never` matches with any type.
+    pub fn fits_type(&self, other: &Self) -> bool {
+        self.kind.fits_type(&other.kind)
+    }
+
+    /// Gets the struct name if this type is a struct.
+    pub fn as_struct(&self) -> Option<&Ident> {
+        if let TypeKind::Struct(name) = &self.kind {
+            Some(name)
+        } else {
+            None
+        }
     }
 }
 
@@ -238,6 +253,8 @@ pub enum TypeKind {
     Enum(Ident),
     /// An optional type of some other type
     Optional(#[rkyv(omit_bounds)] Box<VType>),
+    /// A type which cannot be instantiated.
+    Never,
 }
 
 impl TypeKind {
@@ -248,10 +265,27 @@ impl TypeKind {
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
+            | (Self::Id, Self::Id)
+            | (Self::Never, Self::Never) => true,
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            _ => false,
+        }
+    }
+
+    fn fits_type(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Never, _) => true,
+            (_, Self::Never) => true,
+            (Self::String, Self::String)
+            | (Self::Bytes, Self::Bytes)
+            | (Self::Int, Self::Int)
+            | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id) => true,
             (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
             (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.matches(rhs),
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
             _ => false,
         }
     }
@@ -267,9 +301,31 @@ impl fmt::Display for TypeKind {
             Self::Id => write!(f, "id"),
             Self::Struct(name) => write!(f, "struct {name}"),
             Self::Enum(name) => write!(f, "enum {name}"),
-            Self::Optional(vtype) => write!(f, "optional {vtype}"),
+            Self::Optional(vtype) => write!(f, "option[{vtype}]"),
+            Self::Never => write!(f, "never"),
         }
     }
+}
+
+spanned! {
+/// An action or function parameter.
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct Param {
+    /// The name of the parameter.
+    pub name: Ident,
+    /// The type of the parameter.
+    pub ty: VType,
+}
 }
 
 spanned! {
@@ -493,12 +549,20 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Expression {
     /// The expression kind
     pub kind: ExprKind,
     /// The source location of this expression
     pub span: Span,
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Spanned for Expression {
@@ -526,14 +590,12 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// A return expression. Valid only in functions.
+    Return(Box<Expression>),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
-    /// `expr + expr`
-    Add(Box<Expression>, Box<Expression>),
-    /// `expr - expr`
-    Subtract(Box<Expression>, Box<Expression>),
     /// expr && expr`
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
@@ -552,8 +614,6 @@ pub enum ExprKind {
     GreaterThanOrEqual(Box<Expression>, Box<Expression>),
     /// `expr` <= `expr`
     LessThanOrEqual(Box<Expression>, Box<Expression>),
-    /// `-expr`
-    Negative(Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
     /// `unwrap expr`
@@ -580,7 +640,7 @@ pub struct FunctionDecl {
     /// The identifier of the function
     pub identifier: Ident,
     /// A list of the arguments to the function, and their types
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The return type of the function, if any
     pub return_type: Option<VType>,
 }
@@ -766,12 +826,20 @@ pub struct ReturnStatement {
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Statement {
     /// The statement kind
     pub kind: StmtKind,
     /// The source location of this statement
     pub span: Span,
+}
+
+impl fmt::Debug for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
 }
 
 impl Spanned for Statement {
@@ -829,6 +897,7 @@ pub enum StmtKind {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
@@ -840,6 +909,13 @@ pub struct FactDefinition {
     pub value: Vec<FieldDefinition>,
     /// The source location of this definition
     pub span: Span,
+}
+
+impl FactDefinition {
+    /// Returns an iterator of the [`Self::key`] and [`Self::value`] fields combined.
+    pub fn fields(&self) -> impl Iterator<Item = &FieldDefinition> {
+        self.key.iter().chain(self.value.iter())
+    }
 }
 
 impl Spanned for FactDefinition {
@@ -856,7 +932,7 @@ pub struct ActionDefinition {
     /// The name of the action
     pub identifier: Ident,
     /// The arguments to the action
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The statements executed when the action is called
     pub statements: Vec<Statement>,
     /// The source location of this definition
@@ -908,7 +984,7 @@ impl Spanned for StructDefinition {
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
-    /// Named struct from whose fields to add to the current struct
+    /// Named struct whose fields to add to the current struct
     StructRef(Ident),
 }
 
@@ -966,7 +1042,7 @@ pub struct FunctionDefinition {
     /// The name of the function
     pub identifier: Ident,
     /// The argument names and types
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
@@ -989,7 +1065,7 @@ pub struct FinishFunctionDefinition {
     /// The name of the function
     pub identifier: Ident,
     /// The argument names and types
-    pub arguments: Vec<FieldDefinition>,
+    pub arguments: Vec<Param>,
     /// The finish block statements
     pub statements: Vec<Statement>,
     /// The source location of this definition

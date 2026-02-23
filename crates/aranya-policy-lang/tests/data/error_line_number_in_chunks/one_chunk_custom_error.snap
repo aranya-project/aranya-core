@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+Reserved identifier: line 6 column 9: int

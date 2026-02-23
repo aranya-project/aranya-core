@@ -1,0 +1,67 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            identifier: "foo" @ 7..10,
+            arguments: [],
+            statements: [
+                Let(
+                    LetStatement {
+                        identifier: "x" @ 23..24,
+                        expression: Block(
+                            [
+                                Let(
+                                    LetStatement {
+                                        identifier: "a" @ 41..42,
+                                        expression: Int(
+                                            3,
+                                        ) @ 45..46,
+                                    },
+                                ) @ 37..55,
+                                Let(
+                                    LetStatement {
+                                        identifier: "b" @ 59..60,
+                                        expression: Int(
+                                            4,
+                                        ) @ 63..64,
+                                    },
+                                ) @ 55..73,
+                            ],
+                            Unwrap(
+                                FunctionCall(
+                                    FunctionCall {
+                                        identifier: "saturating_add" @ 82..96,
+                                        arguments: [
+                                            Identifier(
+                                                "a" @ 97..98,
+                                            ) @ 97..98,
+                                            Identifier(
+                                                "b" @ 100..101,
+                                            ) @ 100..101,
+                                        ],
+                                    },
+                                ) @ 82..102,
+                            ) @ 75..102,
+                        ) @ 27..108,
+                    },
+                ) @ 19..109,
+            ],
+            span: 0..110,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "action foo() {\n    let x = {\n        let a = 3\n        let b = 4\n        : unwrap saturating_add(a, b)\n    }\n}\n",
+}

@@ -2,7 +2,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use aranya_crypto::{DeviceId, Id, engine::Engine, policy::CmdId};
+use aranya_crypto::{BaseId, DeviceId, engine::Engine, policy::CmdId};
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
 use crate::error::{Error, WrongContext};
@@ -100,9 +100,9 @@ function parent_id(envelope_input struct Envelope) id
     pub(crate) fn parent_id<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.parent_id)
@@ -120,9 +120,9 @@ function author_id(envelope_input struct Envelope) id
     pub(crate) fn author_id<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.author_id)
@@ -141,9 +141,9 @@ function command_id(envelope_input struct Envelope) id
     pub(crate) fn command_id<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.command_id)
@@ -162,7 +162,7 @@ function signature(envelope_input struct Envelope) bytes
     pub(crate) fn signature<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
@@ -183,7 +183,7 @@ function payload(envelope_input struct Envelope) bytes
     pub(crate) fn payload<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
@@ -211,7 +211,7 @@ function new(
     pub(crate) fn new_envelope<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         parent_id: CmdId,
         author_id: DeviceId,
         command_id: CmdId,
@@ -220,9 +220,9 @@ function new(
     ) -> Result<Envelope, Error> {
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
-                parent_id: parent_id.into(),
-                command_id: command_id.into(),
-                author_id: author_id.into(),
+                parent_id: parent_id.as_base(),
+                command_id: command_id.as_base(),
+                author_id: author_id.as_base(),
                 signature,
                 payload,
             })

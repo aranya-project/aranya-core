@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, TypeKind};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, Instruction, Label, Module, ModuleData, ModuleV0, Value,
     named::NamedMap,
@@ -15,7 +15,7 @@ use indexmap::IndexMap;
 /// for compilation
 #[derive(Debug)]
 #[cfg_attr(test, derive(Clone, Eq, PartialEq))]
-pub struct CompileTarget {
+pub(crate) struct CompileTarget {
     // static state (things which do not change after compilation)
     /// The program memory
     pub progmem: Vec<Instruction>,
@@ -79,6 +79,36 @@ impl CompileTarget {
             }),
         }
     }
+
+    pub(in crate::compile) fn cardinality(&self, kind: &TypeKind) -> Option<u64> {
+        match kind {
+            TypeKind::String | TypeKind::Bytes => None,
+            // With 2^(32 * 8) choices, it's unlikely for someone to want to match against IDs exhaustively.
+            TypeKind::Id => None,
+            // With 2^64 choices, it's unlikely for someone to want to match against ints exhaustively.
+            TypeKind::Int => None,
+            TypeKind::Bool => Some(2),
+            TypeKind::Optional(vtype) => {
+                // Add 1 for the None case.
+                self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
+            }
+            TypeKind::Struct(ident) => {
+                let defs = self.struct_defs.get(&ident.name)?;
+                defs.iter()
+                    .map(|def| self.cardinality(&def.field_type.kind))
+                    .reduce(|acc, e| match e {
+                        None => None,
+                        Some(v) => acc.and_then(|w| v.checked_mul(w)),
+                    })
+                    .flatten()
+            }
+            TypeKind::Enum(ident) => {
+                let defs = self.enum_defs.get(&ident.name)?;
+                Some(defs.len() as u64)
+            }
+            TypeKind::Never => Some(0),
+        }
+    }
 }
 
 impl Display for CompileTarget {
@@ -100,5 +130,29 @@ impl Display for CompileTarget {
             writeln!(f, "  {}: {:?}", k, v)?;
         }
         Ok(())
+    }
+}
+
+/// The public interface of a policy.
+#[derive(Debug)]
+pub struct PolicyInterface {
+    /// Action definitions
+    pub action_defs: NamedMap<ActionDef>,
+    /// Effect identifiers. The effect definitions can be found in `struct_defs`.
+    pub effects: BTreeSet<Identifier>,
+    /// Struct schemas
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    /// Enum definitions
+    pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
+}
+
+impl From<CompileTarget> for PolicyInterface {
+    fn from(t: CompileTarget) -> Self {
+        Self {
+            action_defs: t.action_defs,
+            effects: t.effects,
+            struct_defs: t.struct_defs,
+            enum_defs: t.enum_defs,
+        }
     }
 }

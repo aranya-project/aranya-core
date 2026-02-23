@@ -41,8 +41,6 @@ pub(crate) struct Parser<'a> {
     pub capi_opaque: Option<&'a mut Option<Opaque>>,
     /// `#[capi::error]`
     pub capi_error: Option<&'a mut Option<Error>>,
-    /// `#[capi::ext_error]`
-    pub capi_ext_error: Option<&'a mut Option<ExtError>>,
     /// `#[capi::no_ext_error]`
     pub capi_no_ext_error: Option<&'a mut Option<NoExtError>>,
     /// `#[capi::generated]`
@@ -145,11 +143,11 @@ pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) ->
             };
 
             // `#[unsafe(no_mangle)]`
-            if attr == "no_mangle" {
-                if let Some(v) = &mut parser.no_mangle {
-                    **v = Some(NoMangle(attr.span()));
-                    continue;
-                }
+            if attr == "no_mangle"
+                && let Some(v) = &mut parser.no_mangle
+            {
+                **v = Some(NoMangle(attr.span()));
+                continue;
             }
         }
 
@@ -219,11 +217,6 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
             **v = Some(Error(span));
             return true;
         }
-    } else if ident == "ext_error" {
-        if let Some(v) = &mut parser.capi_ext_error {
-            **v = Some(ExtError(span));
-            return true;
-        }
     } else if ident == "generated" {
         if let Some(v) = &mut parser.capi_generated {
             **v = Some(Generated(span));
@@ -270,10 +263,10 @@ enum DocAttr {
 fn parse_doc_attr(meta: &Meta) -> Result<DocAttr> {
     match meta {
         Meta::NameValue(meta) => {
-            if let Expr::Lit(expr) = &meta.value {
-                if let Lit::Str(lit) = &expr.lit {
-                    return Ok(DocAttr::Doc(lit.clone()));
-                }
+            if let Expr::Lit(expr) = &meta.value
+                && let Lit::Str(lit) = &expr.lit
+            {
+                return Ok(DocAttr::Doc(lit.clone()));
             }
         }
         Meta::List(meta) => {
@@ -455,7 +448,6 @@ macro_rules! simple_outer_attr {
     };
 }
 simple_outer_attr!(Error, "capi::error");
-simple_outer_attr!(ExtError, "capi::ext_error");
 simple_outer_attr!(Generated, "capi::generated");
 simple_outer_attr!(NoExtError, "capi::no_ext_error");
 simple_outer_attr!(NoMangle, "unsafe(no_mangle)");

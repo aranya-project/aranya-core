@@ -1,6 +1,27 @@
 
 # cargo-vet audits file
 
+[[audits.bytes]]
+who = "gknopf <gknopf@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.9.0 -> 1.10.0"
+
+[[audits.bytes]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.10.1 -> 1.11.1"
+notes = "Code updates align with release notes. Replaced instances of unchecked arithmetic. New tests added to verify fixes."
+
+[[audits.deranged]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.4.0 -> 0.5.5"
+notes = """
+Updates to existing 'unsafe' blocks still align with the corresponding 'SAFETY' comments.
+
+New 'unsafe' blocks always have a 'SAFETY' comment and usually a static assertion to validate invariants.
+"""
+
 [[audits.derive-where]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -11,10 +32,26 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 version = "0.3.1"
 
+[[audits.futures-timer]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+version = "3.0.3"
+
+[[audits.hashbrown]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.16.0 -> 0.16.1"
+
 [[audits.itertools]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.11.0 -> 0.13.0"
+
+[[audits.keccak]]
+who = "Ben Zimmerman <bzimmerman@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.5 -> 0.1.6"
+notes = "Minor bugfix: ARMv8 asm operand types changed from in to inout => _ for clobbered registers. Version bump and Cargo.toml formatting only."
 
 [[audits.macro-string]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -31,10 +68,44 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.46.0 -> 0.50.1"
 
+[[audits.num-conv]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.0 -> 0.2.0"
+notes = """
+This update is mainly for the removal of items (traits and macros).
+Cargo.toml changes.
+"""
+
+[[audits.proc-macro-crate]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "2.0.1 -> 3.3.0"
+
 [[audits.rcgen]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 delta = "0.11.3 -> 0.13.2"
+
+[[audits.rkyv]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.11 -> 0.8.13"
+
+[[audits.rkyv_derive]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.11 -> 0.8.13"
+
+[[audits.rstest]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "0.22.0 -> 0.26.1"
+
+[[audits.rstest_macros]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "0.22.0 -> 0.26.1"
 
 [[audits.scc]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -66,6 +137,56 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "2.0.90 -> 2.0.101"
 
+[[audits.time]]
+who = "gknopf <gknopf@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.3.44"
+notes = "Date & time library compatible with the standard libarary. No networking code. Documented use of unsafe. No file I/O except for reading timezone from libc."
+
+[[audits.time]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.44 -> 0.3.46"
+notes = """
+New 'unsafe' blocks were not added.
+Updates to existing 'unsafe' blocks seem to align with the corresponding comments.
+"""
+
+[[audits.time]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.46 -> 0.3.47"
+notes = """
+Resolves RUSTSEC-2026-0009.
+
+New 'unsafe' blocks are reasonable with 'SAFETY' comments describing invariants that must be upheld or why the code is
+safe to execute.
+"""
+
+[[audits.time-core]]
+who = "gknopf <gknopf@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.4 -> 0.1.6"
+notes = "Improvements to API ergonomics. Adds a DefaultOutput trait. No networking, unsafe, or file I/O code."
+
+[[audits.time-core]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.6 -> 0.1.8"
+notes = "Minor changes for performance improvements. No 'unsafe' blocks"
+
+[[audits.time-macros]]
+who = "gknopf <gknopf@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.2.22 -> 0.2.24"
+notes = "Updates time macros. Renames TokenTree to TokenStream. Appears to rename some things and clean up some tech debt. No unsafe, networking, or file I/O code."
+
+[[audits.time-macros]]
+who = "Steve Sweetney <ssweetney@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.2.24 -> 0.2.27"
+notes = "No 'unsafe' blocks added."
+
 [[audits.tokio]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -90,6 +211,36 @@ delta = "0.7.35 -> 0.8.25"
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.7.35 -> 0.8.25"
+
+[[trusted.anstream]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-16"
+end = "2026-11-19"
+
+[[trusted.anstyle]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-05-18"
+end = "2026-11-19"
+
+[[trusted.anstyle-parse]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-08"
+end = "2026-11-19"
+
+[[trusted.anstyle-query]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-04-13"
+end = "2026-11-19"
+
+[[trusted.anstyle-wincon]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-08"
+end = "2026-11-19"
 
 [[trusted.aranya-afc-util]]
 criteria = "safe-to-deploy"
@@ -235,6 +386,30 @@ user-id = 293722 # aranya-project-bot
 start = "2025-01-24"
 end = "2026-01-24"
 
+[[trusted.clap_builder]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-03-28"
+end = "2026-11-19"
+
+[[trusted.clap_lex]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-04-15"
+end = "2026-11-19"
+
+[[trusted.colorchoice]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-04-13"
+end = "2026-11-19"
+
+[[trusted.is_terminal_polyfill]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2024-05-02"
+end = "2026-11-19"
+
 [[trusted.spideroak-base58]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
@@ -245,10 +420,34 @@ end = "2025-12-19"
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2025-01-23"
-end = "2026-01-23"
+end = "2027-02-13"
 
 [[trusted.spideroak-crypto-derive]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2025-01-23"
 end = "2026-01-23"
+
+[[trusted.toml_datetime]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-10-21"
+end = "2026-11-19"
+
+[[trusted.toml_edit]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2021-09-13"
+end = "2026-11-19"
+
+[[trusted.toml_parser]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2025-07-08"
+end = "2026-11-19"
+
+[[trusted.winnow]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2023-02-22"
+end = "2026-11-19"

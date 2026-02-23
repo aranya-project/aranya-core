@@ -1,0 +1,22 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: decl
+---
+FunctionDecl {
+    identifier: "foo" @ 9..12,
+    arguments: [
+        Param {
+            name: "x" @ 13..14,
+            ty: Int @ 15..18,
+        },
+        Param {
+            name: "y" @ 20..21,
+            ty: Struct(
+                "bar" @ 29..32,
+            ) @ 22..32,
+        },
+    ],
+    return_type: Some(
+        Bool @ 34..38,
+    ),
+}

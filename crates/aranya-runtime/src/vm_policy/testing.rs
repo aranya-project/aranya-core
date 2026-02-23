@@ -33,10 +33,10 @@ struct Envelope {
 )]
 impl TestFfiEnvelope {
     #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
-    fn seal<E>(
+    fn seal<CE>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &CE,
         payload: Vec<u8>,
     ) -> Result<Envelope, MachineError> {
         #[derive(serde::Serialize)]
@@ -63,9 +63,9 @@ impl TestFfiEnvelope {
         let command_id = hash_for_testing_only(&data);
 
         Ok(Envelope {
-            parent_id: parent_id.into(),
-            author_id: author_id.into(),
-            command_id: command_id.into(),
+            parent_id: parent_id.as_base(),
+            author_id: author_id.as_base(),
+            command_id: command_id.as_base(),
             payload,
             // TODO(chip): use an actual signature
             signature: b"LOL".to_vec(),
@@ -73,10 +73,10 @@ impl TestFfiEnvelope {
     }
 
     #[ffi_export(def = "function do_open(envelope_input struct Envelope) bytes")]
-    fn open<E>(
+    fn open<CE>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &CE,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Infallible> {
         Ok(envelope_input.payload)
