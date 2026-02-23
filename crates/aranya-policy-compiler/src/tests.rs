@@ -3593,3 +3593,19 @@ fn test_exit_statement_context() {
 
     compile_pass(data);
 }
+
+#[test]
+fn test_exit_function() {
+    let data = r#"
+        function foo() int {
+            let a = 0
+            return a
+        }
+
+        function bar() int {
+            return a
+        }
+    "#;
+
+    compile_fail(data);
+}

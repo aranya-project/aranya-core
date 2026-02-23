@@ -110,12 +110,14 @@ impl IdentifierTypeStack {
         Err(CompileErrorType::NotDefined(name.to_string()))
     }
 
-    /// Clear local variables to compile a new function.
-    ///
     /// Push a new, empty scope on top of the type stack.
     pub fn enter_function(&mut self) {
-        self.locals.clear();
         self.locals.push(HashMap::new());
+    }
+
+    /// Clear local variables when exiting a function defintion.
+    pub fn exit_function(&mut self) {
+        self.locals.clear();
     }
 
     /// Enter a new block scope.

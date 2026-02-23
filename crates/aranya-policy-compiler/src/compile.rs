@@ -1335,6 +1335,7 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 
+        self.identifier_types.exit_function();
         Ok(())
     }
 
