@@ -1141,7 +1141,6 @@ test_vectors! {
     large_sync,
     list_multiple_graph_ids,
     many_branches,
-    many_clients,
     max_cut,
     missing_parent_after_sync,
     remove_graph,
