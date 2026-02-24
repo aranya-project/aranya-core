@@ -199,6 +199,16 @@ impl VType {
             None
         }
     }
+
+    // TODO: Update return type to list/tuple for `TypeKind::Result`. https://github.com/aranya-project/aranya-core/pull/498
+    /// Gets the struct name if this type contains a struct name.
+    pub fn struct_type(&self) -> Option<&Ident> {
+        match &self.kind {
+            TypeKind::Struct(name) => Some(name),
+            TypeKind::Optional(inner) => inner.struct_type(),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for VType {

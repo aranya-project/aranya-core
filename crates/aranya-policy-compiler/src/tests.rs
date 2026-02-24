@@ -3402,7 +3402,7 @@ fn test_structs_listed_out_of_order() {
 
         "#,
         r#"
-            effect Fi { s struct Foo }
+            effect Fi { s option[struct Foo] }
             command Foo {
                 fields {
                     i int
