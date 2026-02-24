@@ -3657,8 +3657,9 @@ fn test_result_match() {
 
     compile_pass(policy_str);
 
-    let invalid = [(
-        r#"
+    let invalid = [
+        (
+            r#"
         function match_duplicate_arms(r result[int, string]) int {
             return match r {
                 Ok(v) => v
@@ -3666,8 +3667,20 @@ fn test_result_match() {
                 _ => 0
             }
         }"#,
-        CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
-    )];
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+        function f(r result[bool, bool]) int {
+            return match r {
+                Ok(true) | Ok(false) => 0
+                Ok(x) => 1
+            }
+        }
+        "#,
+            CompileErrorType::Unknown("Result patterns cannot be used in alternation.".to_string()),
+        ),
+    ];
     for (src, expected) in invalid {
         let err_type = compile_fail(src);
         assert_eq!(err_type, expected);

@@ -1065,7 +1065,8 @@ impl CompileState<'_> {
             })
             .collect::<Vec<&Expression>>();
 
-        // Check for duplicates by comparing expression kinds, not including spans
+        // Check for duplicate arm values
+        // FIXME: Comparison should ignore spans (#583).
         for (i, v1) in all_values.iter().enumerate() {
             for v2 in &all_values[..i] {
                 if v1.kind == v2.kind {
@@ -1088,6 +1089,7 @@ impl CompileState<'_> {
             ));
         }
 
+        // Lower scrutinee
         let scrutinee = match s {
             LanguageContext::Statement(s) => &s.expression,
             LanguageContext::Expression(e) => &e.scrutinee,
@@ -1095,12 +1097,27 @@ impl CompileState<'_> {
         let scrutinee = self.lower_expression(scrutinee)?;
         let mut scrutinee_t = scrutinee.vtype.clone();
 
+        // Lower patterns
         let mut n: usize = 0;
         let mut patterns_out = Vec::new();
         let mut has_result_pattern = false;
         for pattern in &patterns {
             let pattern = match pattern {
                 MatchPattern::Values(values) => {
+                    // HACK disallow using result patterns in alternation, until #574.
+                    if values.len() > 1
+                        && values.iter().any(|value| {
+                            matches!(value.kind, ExprKind::ResultOk(_) | ExprKind::ResultErr(_))
+                        })
+                    {
+                        return Err(self.err_loc(
+                            CompileErrorType::Unknown(String::from(
+                                "Result patterns cannot be used in alternation.",
+                            )),
+                            pattern.span(),
+                        ));
+                    }
+
                     let mut values_out = Vec::new();
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
