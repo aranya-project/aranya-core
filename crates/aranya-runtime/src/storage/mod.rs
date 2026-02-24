@@ -219,10 +219,6 @@ pub enum StorageError {
     CommandOutOfBounds(Location),
     #[error("IO error")]
     IoError,
-    #[error("not a merge command")]
-    NotMerge,
-    #[error("command with id {0} not found")]
-    NoSuchId(CmdId),
     #[error("policy mismatch")]
     PolicyMismatch,
     #[error("cannot write an empty perspective")]
