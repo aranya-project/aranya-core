@@ -243,7 +243,7 @@ where
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
             client.add_commands(&mut trx, sink, &cmds)?;
-            client.commit(&mut trx, sink)?;
+            client.commit(trx, sink)?;
             client.update_heads(
                 graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
@@ -392,7 +392,7 @@ where
                         let mut sink_guard = self.sink.lock().await;
                         let sink = sink_guard.deref_mut();
                         client.add_commands(&mut trx, sink, &cmds)?;
-                        client.commit(&mut trx, sink)?;
+                        client.commit(trx, sink)?;
                         client.update_heads(
                             graph_id,
                             cmds.iter().filter_map(|cmd| cmd.address().ok()),

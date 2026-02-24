@@ -75,7 +75,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
     /// Write current perspective, merge transaction heads, and commit to graph.
     pub(super) fn commit(
-        &mut self,
+        mut self,
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
@@ -157,8 +157,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 }
             }
         }
-
-        self.original_head = None;
 
         Ok(())
     }
@@ -802,7 +800,9 @@ mod test {
         }
 
         pub fn commit(&mut self) -> Result<(), ClientError> {
-            self.trx.commit(
+            let graph_id = self.trx.graph_id;
+            let trx = mem::replace(&mut self.trx, Transaction::new(graph_id));
+            trx.commit(
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,

@@ -130,7 +130,7 @@ where
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     pub fn commit(
         &mut self,
-        trx: &mut Transaction<SP, PS>,
+        trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
     ) -> Result<(), ClientError> {
         trx.commit(
@@ -138,8 +138,7 @@ where
             &mut self.policy_store,
             sink,
             &mut self.buffers,
-        )?;
-        Ok(())
+        )
     }
 
     /// Add commands to the transaction, writing the results to

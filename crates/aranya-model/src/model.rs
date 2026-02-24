@@ -538,7 +538,7 @@ where
             }
         }
 
-        request_state.commit(&mut request_trx, &mut sink)?;
+        request_state.commit(request_trx, &mut sink)?;
 
         Ok(())
     }
