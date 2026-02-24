@@ -23,15 +23,35 @@ Policy {
             ],
             identifier: "Foo" @ 8..11,
             fields: [],
-            seal: [],
-            open: [],
+            seal: [
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
+                            Todo(
+                                81..87,
+                            ),
+                        ) @ 81..87,
+                    },
+                ) @ 74..88,
+            ],
+            open: [
+                Return(
+                    ReturnStatement {
+                        expression: InternalFunction(
+                            Todo(
+                                108..114,
+                            ),
+                        ) @ 108..114,
+                    },
+                ) @ 101..115,
+            ],
             policy: [],
             recall: [],
-            span: 0..64,
+            span: 0..132,
         },
     ],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo {\n    attributes {\n        priority: \"high\",\n    }\n}\n",
+    text: "command Foo {\n    attributes {\n        priority: \"high\",\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {}\n}\n",
 }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.19.0...aranya-policy-compiler-v0.20.0) - 2026-02-17
+
+### Other
+
+- Validate fields in user defined types ([#513](https://github.com/aranya-project/aranya-core/pull/513))
+- Fix #447: Require policy block in command. ([#449](https://github.com/aranya-project/aranya-core/pull/449))
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.18.0...aranya-policy-compiler-v0.19.0) - 2026-01-23
 
 ### Other

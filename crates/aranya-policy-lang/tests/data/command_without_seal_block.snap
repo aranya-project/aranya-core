@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Syntax error
+  |
+3 |     policy {
+  |     ^ expected seal_block

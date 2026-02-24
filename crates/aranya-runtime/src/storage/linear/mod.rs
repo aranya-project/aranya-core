@@ -28,16 +28,17 @@ pub mod libc;
 pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
+use core::ops::Bound;
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
 };
 
 pub mod io;
@@ -74,15 +75,15 @@ pub struct LinearSegment<R> {
 #[derive(Debug, Serialize, Deserialize)]
 struct SegmentRepr {
     /// Self offset in file.
-    offset: usize,
+    offset: SegmentIndex,
     prior: Prior<Location>,
     parents: Prior<Address>,
     policy: PolicyId,
     /// Offset in file to associated fact index.
     facts: usize,
     commands: Vec1<CommandData>,
-    max_cut: usize,
-    skip_list: Vec<(Location, usize)>,
+    max_cut: MaxCut,
+    skip_list: Vec<Location>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,7 +101,7 @@ pub struct LinearCommand<'a> {
     priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: usize,
+    max_cut: MaxCut,
 }
 
 type Bytes = Box<[u8]>;
@@ -137,8 +138,8 @@ pub struct LinearPerspective<R> {
     facts: LinearFactPerspective<R>,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
-    max_cut: usize,
-    last_common_ancestor: Option<(Location, usize)>,
+    max_cut: MaxCut,
+    last_common_ancestor: Option<Location>,
 }
 
 impl<R> LinearPerspective<R> {
@@ -147,8 +148,8 @@ impl<R> LinearPerspective<R> {
         parents: Prior<Address>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior<R>,
-        max_cut: usize,
-        last_common_ancestor: Option<(Location, usize)>,
+        max_cut: MaxCut,
+        last_common_ancestor: Option<Location>,
     ) -> Self {
         Self {
             prior,
@@ -220,7 +221,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             Prior::None,
             policy_id,
             FactPerspectivePrior::None,
-            0,
+            MaxCut(0),
             None,
         )
     }
@@ -279,22 +280,22 @@ impl<W: Write> LinearStorage<W> {
     fn get_skip(
         &self,
         segment: <Self as Storage>::Segment,
-        max_cut: usize,
-    ) -> Result<Option<(Location, usize)>, StorageError> {
+        max_cut: MaxCut,
+    ) -> Result<Option<Location>, StorageError> {
         let mut head = segment;
         let mut current = None;
         'outer: loop {
             if max_cut > head.longest_max_cut()? {
                 return Ok(current);
             }
-            current = Some((head.first_location(), head.shortest_max_cut()));
+            current = Some(head.first_location());
             if max_cut >= head.shortest_max_cut() {
                 return Ok(current);
             }
             // Assumes skip list is sorted in ascending order.
             // We always want to skip as close to the root as possible.
-            for (skip, skip_max_cut) in head.skip_list() {
-                if skip_max_cut <= &max_cut {
+            for skip in head.skip_list() {
+                if skip.max_cut <= max_cut {
                     head = self.get_segment(*skip)?;
                     continue 'outer;
                 }
@@ -332,23 +333,28 @@ impl<W: Write> LinearStorage<W> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
         let segment = writer.append(|offset| SegmentRepr {
-            offset,
+            offset: SegmentIndex(offset),
             prior: Prior::None,
             parents: Prior::None,
             policy: init.policy,
             facts,
             commands,
-            max_cut: 0,
+            max_cut: MaxCut(0),
             skip_list: vec![],
         })?;
 
         let head = Location::new(
             segment.offset,
             segment
-                .commands
-                .len()
-                .checked_sub(1)
-                .assume("vec1 length >= 1")?,
+                .max_cut
+                .checked_add(
+                    segment
+                        .commands
+                        .len()
+                        .checked_sub(1)
+                        .assume("vec1 length >= 1")?,
+                )
+                .assume("valid max cut")?,
         );
 
         writer.commit(head)?;
@@ -403,7 +409,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             .get_command(parent)
             .ok_or(StorageError::CommandOutOfBounds(parent))?;
         let policy = segment.repr.policy;
-        let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location() {
+        let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location()? {
             FactPerspectivePrior::FactIndex {
                 offset: segment.repr.facts,
                 reader: self.writer.readonly(),
@@ -417,7 +423,7 @@ impl<F: Write> Storage for LinearStorage<F> {
                 None => FactPerspectivePrior::None,
             };
             let mut facts = LinearFactPerspective::new(prior);
-            for data in &segment.repr.commands[..=parent.command] {
+            for data in &segment.repr.commands[..=segment.repr.cmd_index(parent.max_cut)?] {
                 facts.apply_updates(&data.updates);
             }
             if facts.prior.is_none() {
@@ -454,7 +460,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
         // If at head of segment, or no facts in segment,
         // we don't need to apply updates.
-        if location == segment.head_location()
+        if location == segment.head_location()?
             || segment
                 .repr
                 .commands
@@ -477,7 +483,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             None => FactPerspectivePrior::None,
         };
         let mut facts = LinearFactPerspective::new(prior);
-        for data in &segment.repr.commands[..=location.command] {
+        for data in &segment.repr.commands[..=segment.repr.cmd_index(location.max_cut)?] {
             facts.apply_updates(&data.updates);
         }
 
@@ -488,7 +494,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         &self,
         left: Location,
         right: Location,
-        last_common_ancestor: (Location, usize),
+        last_common_ancestor: Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Self::Perspective, StorageError> {
@@ -532,7 +538,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
-        let repr = reader.fetch(location.segment)?;
+        let repr = reader.fetch(location.segment.0)?;
         let seg = LinearSegment { repr, reader };
 
         Ok(seg)
@@ -542,12 +548,16 @@ impl<F: Write> Storage for LinearStorage<F> {
         self.writer.head()
     }
 
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.get_head()?, &segment)? {
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBuffer,
+    ) -> Result<(), StorageError> {
+        if !self.is_ancestor(self.get_head()?, &segment, buffers)? {
             return Err(StorageError::HeadNotAncestor);
         }
 
-        self.writer.commit(segment.head_location())
+        self.writer.commit(segment.head_location()?)
     }
 
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
@@ -560,49 +570,46 @@ impl<F: Write> Storage for LinearStorage<F> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let get_skips =
-            |l: Location, count: usize| -> Result<Vec<(Location, usize)>, StorageError> {
-                let mut rng = &mut Rng as &mut dyn Csprng;
-                let mut skips = vec![];
-                for _ in 0..count {
-                    let segment = self.get_segment(l)?;
-                    let l_max_cut = segment
-                        .get_command(l)
-                        .assume("location must exist")?
-                        .max_cut;
-                    if l_max_cut > 0 {
-                        let max_cut = rng.gen_range(0..l_max_cut);
-                        if let Some(skip) = self.get_skip(segment, max_cut)? {
-                            if !skips.contains(&skip) {
-                                skips.push(skip);
-                            }
-                        } else {
-                            break;
+        let get_skips = |l: Location, count: usize| -> Result<Vec<Location>, StorageError> {
+            let mut rng = Rng;
+            let mut skips = vec![];
+            for _ in 0..count {
+                let segment = self.get_segment(l)?;
+                if l.max_cut > MaxCut(0) {
+                    let max_cut = MaxCut(rng.gen_range(0..l.max_cut.0));
+                    if let Some(skip) = self.get_skip(segment, max_cut)? {
+                        if !skips.contains(&skip) {
+                            skips.push(skip);
                         }
+                    } else {
+                        break;
                     }
                 }
-                Ok(skips)
-            };
+            }
+            Ok(skips)
+        };
 
         let skip_list = match perspective.prior {
             Prior::None => vec![],
             Prior::Merge(_, _) => {
-                let (lca, max_cut) = perspective.last_common_ancestor.assume("lca must exist")?;
+                let lca = perspective.last_common_ancestor.assume("lca must exist")?;
                 let mut skips = get_skips(lca, 2)?;
-                if !skips.contains(&(lca, max_cut)) {
-                    skips.push((lca, max_cut));
+                if !skips.contains(&lca) {
+                    skips.push(lca);
                 }
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|loc| loc.max_cut);
                 skips
             }
             Prior::Single(l) => {
                 let mut skips = get_skips(l, 3)?;
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|loc| loc.max_cut);
                 skips
             }
         };
         let repr = self.writer.append(|offset| SegmentRepr {
-            offset,
+            offset: SegmentIndex(offset),
             prior: perspective.prior,
             parents: perspective.parents,
             policy: perspective.policy,
@@ -676,60 +683,16 @@ impl<R: Read> Segment for LinearSegment<R> {
     where
         R: 'a;
 
-    fn head(&self) -> Result<Self::Command<'_>, StorageError> {
-        let data = self.repr.commands.last();
-        let parent = if let Some(prev) = usize::checked_sub(self.repr.commands.len(), 2) {
-            Prior::Single(Address {
-                id: self.repr.commands[prev].id,
-                max_cut: self
-                    .repr
-                    .max_cut
-                    .checked_add(prev)
-                    .assume("must not overflow")?,
-            })
-        } else {
-            self.repr.parents
-        };
-        Ok(LinearCommand {
-            id: &data.id,
-            parent,
-            priority: data.priority.clone(),
-            policy: data.policy.as_deref(),
-            data: &data.data,
-            max_cut: self
-                .repr
-                .max_cut
-                .checked_add(self.repr.commands.len())
-                .assume("must not overflow")?
-                .checked_sub(1)
-                .assume("must not overflow")?,
-        })
+    fn index(&self) -> SegmentIndex {
+        self.repr.offset
     }
 
-    fn first(&self) -> Self::Command<'_> {
-        let data = self.repr.commands.first();
-        LinearCommand {
-            id: &data.id,
-            parent: self.repr.parents,
-            priority: data.priority.clone(),
-            policy: data.policy.as_deref(),
-            data: &data.data,
-            max_cut: self.repr.max_cut,
-        }
-    }
-
-    fn head_location(&self) -> Location {
-        // vec1 length >= 1
-        #[allow(clippy::arithmetic_side_effects)]
-        Location::new(self.repr.offset, self.repr.commands.len() - 1)
+    fn head_id(&self) -> CmdId {
+        self.repr.commands.last().id
     }
 
     fn first_location(&self) -> Location {
-        Location::new(self.repr.offset, 0)
-    }
-
-    fn contains(&self, location: Location) -> bool {
-        location.segment == self.repr.offset && location.command < self.repr.commands.len()
+        Location::new(self.repr.offset, self.repr.max_cut)
     }
 
     fn policy(&self) -> PolicyId {
@@ -744,8 +707,9 @@ impl<R: Read> Segment for LinearSegment<R> {
         if self.repr.offset != location.segment {
             return None;
         }
-        let data = self.repr.commands.get(location.command)?;
-        let parent = if let Some(prev) = usize::checked_sub(location.command, 1) {
+        let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
+        let data = self.repr.commands.get(cmd_idx)?;
+        let parent = if let Some(prev) = usize::checked_sub(cmd_idx, 1) {
             if let Some(max_cut) = self.repr.max_cut.checked_add(prev) {
                 Prior::Single(Address {
                     id: self.repr.commands[prev].id,
@@ -757,45 +721,14 @@ impl<R: Read> Segment for LinearSegment<R> {
         } else {
             self.repr.parents
         };
-        self.repr
-            .max_cut
-            .checked_add(location.command)
-            .map(|max_cut| LinearCommand {
-                id: &data.id,
-                parent,
-                priority: data.priority.clone(),
-                policy: data.policy.as_deref(),
-                data: &data.data,
-                max_cut,
-            })
-    }
-
-    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
-        if self.repr.offset != location.segment {
-            // TODO(jdygert): Result?
-            return Vec::new();
-        }
-
-        // TODO(jdygert): Optimize?
-        (location.command..self.repr.commands.len())
-            .map(|c| Location::new(location.segment, c))
-            .map(|loc| {
-                self.get_command(loc)
-                    .expect("constructed location is valid")
-            })
-            .collect()
-    }
-
-    fn get_by_address(&self, address: Address) -> Option<Location> {
-        if address.max_cut < self.repr.max_cut {
-            return None;
-        }
-        let idx = address.max_cut.checked_sub(self.repr.max_cut)?;
-        let cmd = self.repr.commands.get(idx)?;
-        if cmd.id != address.id {
-            return None;
-        }
-        Some(Location::new(self.repr.offset, idx))
+        Some(LinearCommand {
+            id: &data.id,
+            parent,
+            priority: data.priority.clone(),
+            policy: data.policy.as_deref(),
+            data: &data.data,
+            max_cut: location.max_cut,
+        })
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
@@ -805,26 +738,62 @@ impl<R: Read> Segment for LinearSegment<R> {
         })
     }
 
-    fn skip_list(&self) -> &[(Location, usize)] {
+    fn skip_list(&self) -> &[Location] {
         &self.repr.skip_list
     }
 
-    fn shortest_max_cut(&self) -> usize {
+    fn shortest_max_cut(&self) -> MaxCut {
         self.repr.max_cut
     }
 
-    fn longest_max_cut(&self) -> Result<usize, StorageError> {
+    fn longest_max_cut(&self) -> Result<MaxCut, StorageError> {
         Ok(self
             .repr
             .max_cut
-            .checked_add(self.repr.commands.len())
-            .assume("must not overflow")?
-            .checked_sub(1)
+            .checked_add(
+                self.repr
+                    .commands
+                    .len()
+                    .checked_sub(1)
+                    .assume("must not overflow")?,
+            )
             .assume("must not overflow")?)
     }
 }
 
+impl SegmentRepr {
+    fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
+        max_cut
+            .distance_from(self.max_cut)
+            .ok_or(StorageError::CommandOutOfBounds(Location::new(
+                self.offset,
+                max_cut,
+            )))
+    }
+}
+
 impl<R: Read> FactIndex for LinearFactIndex<R> {}
+
+#[cfg(all(test, feature = "graphviz"))]
+impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
+    fn name(&self) -> String {
+        use alloc::string::ToString as _;
+        self.repr.offset.to_string()
+    }
+
+    fn prior(&self) -> Result<Option<Self>, StorageError> {
+        self.repr
+            .prior
+            .map(|p| {
+                let repr = self.reader.fetch(p)?;
+                Ok(Self {
+                    repr,
+                    reader: self.reader.clone(),
+                })
+            })
+            .transpose()
+    }
+}
 
 type MapIter = alloc::collections::btree_map::IntoIter<Keys, Option<Bytes>>;
 pub struct QueryIterator {
@@ -886,7 +855,7 @@ impl<R: Read> LinearFactIndex<R> {
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(map) = facts.facts.get(name) {
-                for (k, v) in super::memory::find_prefixes(map, prefix) {
+                for (k, v) in find_prefixes(map, prefix) {
                     // don't override, if we've already found the fact (including deletions)
                     if !matches.contains_key(k) {
                         matches.insert(k.clone(), v.map(Into::into));
@@ -980,7 +949,7 @@ impl<R: Read> LinearFactPerspective<R> {
             }
         };
         if let Some(map) = self.map.get(name) {
-            for (k, v) in super::memory::find_prefixes(map, prefix) {
+            for (k, v) in find_prefixes(map, prefix) {
                 // overwrite "earlier" facts
                 matches.insert(k.clone(), v.map(Into::into));
             }
@@ -1094,9 +1063,12 @@ impl<R: Read> Perspective for LinearPerspective<R> {
                 id: last.id,
                 max_cut: self
                     .max_cut
-                    .checked_add(self.commands.len())
-                    .assume("must not overflow")?
-                    .checked_sub(1)
+                    .checked_add(
+                        self.commands
+                            .len()
+                            .checked_sub(1)
+                            .assume("must not overflow")?,
+                    )
                     .assume("must not overflow")?,
             })
         } else {
@@ -1136,9 +1108,18 @@ impl Command for LinearCommand<'_> {
         self.data
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
+}
+
+fn find_prefixes<'m, 'p: 'm>(
+    map: &'m FactMap,
+    prefix: &'p [Box<[u8]>],
+) -> impl Iterator<Item = (&'m Keys, Option<&'m [u8]>)> + 'm {
+    map.range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
+        .take_while(|(k, _)| k.starts_with(prefix))
+        .map(|(k, v)| (k, v.as_deref()))
 }
 
 #[cfg(test)]

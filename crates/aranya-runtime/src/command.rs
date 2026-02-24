@@ -2,7 +2,7 @@ pub use aranya_crypto::policy::CmdId;
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
-use crate::Prior;
+use crate::{MaxCut, Prior};
 
 /// Identify how the client will sort the associated [`Command`].
 // Note: Order of variants affects derived Ord: Merge is least and Init is greatest.
@@ -49,9 +49,9 @@ pub trait Command {
     fn bytes(&self) -> &[u8];
 
     /// Return this command's max cut. Max cut is the maximum distance to the init command.
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         match self.parent() {
-            Prior::None => Ok(0),
+            Prior::None => Ok(MaxCut(0)),
             Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
             Prior::Merge(l, r) => Ok(l
                 .max_cut
@@ -91,7 +91,7 @@ impl<C: Command> Command for &C {
         (*self).bytes()
     }
 
-    fn max_cut(&self) -> Result<usize, Bug> {
+    fn max_cut(&self) -> Result<MaxCut, Bug> {
         (*self).max_cut()
     }
 
@@ -100,7 +100,7 @@ impl<C: Command> Command for &C {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Ord, PartialEq, PartialOrd, Eq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Ord, PartialEq, PartialOrd, Eq)]
 /// An address contains all of the information needed to find a command in
 /// another graph.
 ///
@@ -108,14 +108,14 @@ impl<C: Command> Command for &C {
 /// max_cut allows that command to be found efficiently.
 pub struct Address {
     pub id: CmdId,
-    pub max_cut: usize,
+    pub max_cut: MaxCut,
 }
 
 impl Prior<Address> {
     /// Returns the max cut for the command that is after this prior.
-    pub fn next_max_cut(&self) -> Result<usize, Bug> {
+    pub fn next_max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(match self {
-            Self::None => 1,
+            Self::None => MaxCut(1),
             Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
             Self::Merge(l, r) => l
                 .max_cut

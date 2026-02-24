@@ -1,6 +1,7 @@
 mod error;
 mod lower;
 mod target;
+mod topo;
 mod types;
 
 use std::{
@@ -19,7 +20,9 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
+    Meta, Module, Struct, Target, Value,
+    ffi::{self, ModuleSchema},
+    named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
@@ -30,7 +33,11 @@ pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
     target::PolicyInterface,
 };
-use self::{target::CompileTarget, types::IdentifierTypeStack};
+use self::{
+    target::CompileTarget,
+    topo::TopoSort,
+    types::{IdentifierTypeStack, UserType},
+};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -276,16 +283,12 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Insert a struct definition while preventing duplicates of the struct name and fields
+    /// Insert a struct definition while preventing duplicates of the struct fields.
     pub fn define_struct(
         &mut self,
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if self.m.struct_defs.contains_key(&identifier.name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
-        }
-
         let has_struct_refs = items
             .iter()
             .any(|item| matches!(item, StructItem::StructRef(_)));
@@ -303,6 +306,7 @@ impl<'a> CompileState<'a> {
                             field.identifier.to_string(),
                         )));
                     }
+
                     // TODO(eric): Use `Span::default()`?
                     if has_struct_refs {
                         field_definitions.push(FieldDefinition {
@@ -319,11 +323,14 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(field.clone());
                     }
                 }
-                StructItem::StructRef(ident) => {
+                StructItem::StructRef(field_type_ident) => {
                     let other =
-                        self.m.struct_defs.get(&ident.name).ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ident.to_string()))
-                        })?;
+                        self.m
+                            .struct_defs
+                            .get(&field_type_ident.name)
+                            .ok_or_else(|| {
+                                self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
+                            })?;
                     for field in other {
                         if field_definitions
                             .iter()
@@ -348,6 +355,10 @@ impl<'a> CompileState<'a> {
                 }
             }
         }
+
+        field_definitions
+            .iter()
+            .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
 
         self.m
             .struct_defs
@@ -1216,13 +1227,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.seal.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the seal block
         let args = &[param::this(command.identifier.clone())];
         let ret = VType {
@@ -1261,13 +1265,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.open.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the open block
         let args = &[param::envelope()];
         let ret = VType {
@@ -1567,73 +1564,156 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn define_interfaces(&mut self) -> Result<(), CompileError> {
-        for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
-        }
+    fn sorted_type_definitions(
+        &self,
+    ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
+        // TODO(Steve): Use span information so a better error message can be created
+        let mut type_defs: HashMap<&Identifier, _> = HashMap::new();
+        let mut insert_type_def = |ident, def| {
+            // Check for duplicate type names.
+            // struct Foo { .. }
+            // effect Foo { .. }
+            if type_defs.insert(ident, def).is_some() {
+                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
+            }
 
-        for effect in &self.policy.effects {
-            let fields: Vec<StructItem<FieldDefinition>> = effect
-                .items
-                .iter()
-                .map(|i| match i {
-                    StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                        identifier: f.identifier.clone(),
-                        field_type: f.field_type.clone(),
-                    }),
-                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                })
-                .collect();
-            self.define_struct(effect.identifier.clone(), &fields)?;
-            self.m.effects.insert(effect.identifier.name.clone());
-        }
+            Ok(())
+        };
 
-        // define the structs provided by FFI schema
-        for ffi_mod in self.ffi_modules {
-            for s in ffi_mod.structs {
-                let fields: Vec<StructItem<FieldDefinition>> = s
-                    .fields
-                    .iter()
-                    .map(|a| {
-                        StructItem::Field(FieldDefinition {
-                            identifier: Ident {
-                                name: a.name.clone(),
-                                span: Span::default(),
-                            },
-                            field_type: VType::from(&a.vtype),
-                        })
-                    })
-                    .collect();
-                let ident = Ident {
-                    name: s.name.clone(),
-                    span: Span::default(),
-                };
-                self.define_struct(ident, &fields)?;
+        let mut topo = TopoSort::new();
+
+        fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
+            match item {
+                // { +Foo }
+                StructItem::StructRef(ident) => Some(&ident.name),
+                // { field_name struct Foo }
+                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
             }
         }
 
+        // Create dependency graph.
+        for struct_def in &self.policy.structs {
+            let deps = struct_def.items.iter().filter_map(extract_struct_ident);
+            let ident = &struct_def.identifier.name;
+
+            insert_type_def(ident, UserType::Struct(struct_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for effect_def in &self.policy.effects {
+            let deps = effect_def.items.iter().filter_map(|item| match item {
+                // { +Foo }
+                StructItem::StructRef(ident) => Some(&ident.name),
+                // { field_name struct Foo }
+                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
+            });
+            let ident = &effect_def.identifier.name;
+
+            insert_type_def(ident, UserType::Effect(effect_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for fact_def in &self.policy.facts {
+            let deps = fact_def
+                .fields()
+                .filter_map(|def| def.field_type.as_struct().map(|ident| &ident.name));
+            let ident = &fact_def.identifier.name;
+
+            insert_type_def(ident, UserType::Fact(fact_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for command_def in &self.policy.commands {
+            let deps = command_def.fields.iter().filter_map(extract_struct_ident);
+            let ident = &command_def.identifier.name;
+
+            insert_type_def(ident, UserType::Command(command_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for ffi_mod in self.ffi_modules {
+            for ffi_struct_def in ffi_mod.structs {
+                let deps = ffi_struct_def
+                    .fields
+                    .iter()
+                    // struct field insertion is not implemented for FFI structs so we can't check for it
+                    .filter_map(|field| match field.vtype {
+                        ffi::Type::Struct(ref ident) => Some(ident),
+                        _ => None,
+                    });
+                let ident = &ffi_struct_def.name;
+
+                insert_type_def(ident, UserType::FFIStruct(ffi_struct_def))?;
+                topo.insert(ident, deps);
+            }
+        }
+
+        let sorted_idents = topo.sort().map_err(|err| self.err(err.into()))?;
+
+        let sorted_defs = sorted_idents
+            .into_iter()
+            .filter_map(move |ident| type_defs.remove(ident));
+        Ok(sorted_defs)
+    }
+
+    fn define_interfaces(&mut self) -> Result<(), CompileError> {
         // map enum names to constants
         for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
         }
 
-        for fact in &self.policy.facts {
-            let FactDefinition { key, value, .. } = fact;
+        // Compile user-defined types in order
+        for utype in self.sorted_type_definitions()? {
+            match utype {
+                UserType::Struct(struct_def) => {
+                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
+                }
+                UserType::Effect(effect) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = effect
+                        .items
+                        .iter()
+                        .map(|i| match i {
+                            StructItem::Field(f) => StructItem::Field(FieldDefinition {
+                                identifier: f.identifier.clone(),
+                                field_type: f.field_type.clone(),
+                            }),
+                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                        })
+                        .collect();
+                    self.define_struct(effect.identifier.clone(), &fields)?;
+                    self.m.effects.insert(effect.identifier.name.clone());
+                }
+                UserType::Fact(fact) => {
+                    let fields: Vec<StructItem<FieldDefinition>> =
+                        fact.fields().cloned().map(StructItem::Field).collect();
 
-            let fields: Vec<StructItem<FieldDefinition>> = key
-                .iter()
-                .chain(value.iter())
-                .cloned()
-                .map(StructItem::Field)
-                .collect();
-
-            self.define_struct(fact.identifier.clone(), &fields)?;
-            self.define_fact(fact)?;
-        }
-
-        // Define command structs before compiling functions
-        for command in &self.policy.commands {
-            self.define_struct(command.identifier.clone(), &command.fields)?;
+                    self.define_struct(fact.identifier.clone(), &fields)?;
+                    self.define_fact(fact)?;
+                }
+                UserType::Command(command) => {
+                    self.define_struct(command.identifier.clone(), &command.fields)?;
+                }
+                UserType::FFIStruct(s) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = s
+                        .fields
+                        .iter()
+                        .map(|a| {
+                            StructItem::Field(FieldDefinition {
+                                identifier: Ident {
+                                    name: a.name.clone(),
+                                    span: Span::default(),
+                                },
+                                field_type: VType::from(&a.vtype),
+                            })
+                        })
+                        .collect();
+                    let ident = Ident {
+                        name: s.name.clone(),
+                        span: Span::default(),
+                    };
+                    self.define_struct(ident, &fields)?;
+                }
+            }
         }
 
         for action in &self.policy.actions {
@@ -1705,15 +1785,14 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(Value::Bool(*v)),
             ExprKind::String(v) => Ok(Value::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name).cloned()
-                else {
+                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         struct_ast.identifier.name,
                     ))));
                 };
 
-                let struct_ast = self.evaluate_sources(struct_ast, &struct_def)?;
+                let struct_ast = self.evaluate_sources(struct_ast, struct_def)?;
 
                 let NamedStruct {
                     identifier, fields, ..

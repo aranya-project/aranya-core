@@ -1,5 +1,4 @@
 use alloc::vec;
-use core::mem;
 
 use buggy::{BugExt as _, bug};
 use heapless::{Deque, Vec};
@@ -12,7 +11,10 @@ use super::{
 use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
-    storage::{GraphId, Location, Segment as _, Storage, StorageProvider},
+    storage::{
+        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
+        TraversalBuffers,
+    },
 };
 
 #[derive(Default, Debug)]
@@ -34,6 +36,7 @@ impl PeerCache {
         storage: &S,
         command: Address,
         cmd_loc: Location,
+        buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -43,7 +46,7 @@ impl PeerCache {
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
-                .get_location(*request_head)?
+                .get_location(*request_head, buffers)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
             if request_head.id
@@ -56,12 +59,12 @@ impl PeerCache {
                 add_command = false;
             }
             // If the new head is an ancestor of the request head, don't add it
-            if (new_head.same_segment(req_head_loc) && new_head.command <= req_head_loc.command)
-                || storage.is_ancestor(new_head, &req_head_seg)?
+            if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
+                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
             {
                 add_command = false;
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg)?)
+            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
         };
         self.heads
             .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
@@ -150,8 +153,7 @@ enum SyncResponderState {
     Stopped,
 }
 
-#[derive(Default)]
-pub struct SyncResponder {
+pub struct SyncResponder<'a> {
     session_id: Option<u128>,
     graph_id: Option<GraphId>,
     state: SyncResponderState,
@@ -160,11 +162,12 @@ pub struct SyncResponder {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    buffers: &'a mut TraversalBuffers,
 }
 
-impl SyncResponder {
+impl<'a> SyncResponder<'a> {
     /// Create a new [`SyncResponder`].
-    pub fn new() -> Self {
+    pub fn new(buffers: &'a mut TraversalBuffers) -> Self {
         Self {
             session_id: None,
             graph_id: None,
@@ -174,6 +177,7 @@ impl SyncResponder {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
+            buffers,
         }
     }
 
@@ -217,11 +221,18 @@ impl SyncResponder {
                 self.state = S::Send;
                 for command in &self.has {
                     // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) = storage.get_location(*command)? {
-                        response_cache.add_command(storage, *command, cmd_loc)?;
+                    if let Some(cmd_loc) =
+                        storage.get_location(*command, &mut self.buffers.primary)?
+                    {
+                        response_cache.add_command(
+                            storage,
+                            *command,
+                            cmd_loc,
+                            &mut self.buffers.primary,
+                        )?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
 
                 self.get_next(target, provider)?
             }
@@ -290,12 +301,13 @@ impl SyncResponder {
     fn find_needed_segments(
         commands: &[Address],
         storage: &impl Storage,
+        buffers: &mut TraversalBuffers,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         let mut have_locations = vec::Vec::new(); //BUG: not constant size
         for &addr in commands {
             // Note: We could use things we don't have as a hint to
             // know we should perform a sync request.
-            if let Some(location) = storage.get_location(addr)? {
+            if let Some(location) = storage.get_location(addr, &mut buffers.secondary)? {
                 have_locations.push(location);
             }
         }
@@ -311,8 +323,8 @@ impl SyncResponder {
                 if location_a != location_b {
                     let segment_b = storage.get_segment(location_b)?;
                     if location_a.same_segment(location_b)
-                        && location_a.command <= location_b.command
-                        || storage.is_ancestor(location_a, &segment_b)?
+                        && location_a.max_cut <= location_b.max_cut
+                        || storage.is_ancestor(location_a, &segment_b, &mut buffers.secondary)?
                     {
                         is_ancestor_of_other = true;
                         break;
@@ -324,71 +336,71 @@ impl SyncResponder {
             }
         }
 
-        let mut heads = vec::Vec::new();
-        heads.push(storage.get_head()?);
+        let queue = buffers.primary.get();
+        queue.push(storage.get_head()?)?;
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
-        while !heads.is_empty() {
-            let current = mem::take(&mut heads);
-            'heads: for head in current {
-                let segment = storage.get_segment(head)?;
-                // If the segment is already in the result, skip it
-                if segment.contains_any(&result) {
-                    continue 'heads;
+        while let Some(head) = queue.pop() {
+            // Check if the current segment head is an ancestor of any location in have_locations.
+            // If so, stop traversing backward from this point since the requester already has
+            // this command and all its ancestors.
+            let mut is_have_ancestor = false;
+            for &have_location in &have_locations {
+                let have_segment = storage.get_segment(have_location)?;
+                if storage.is_ancestor(head, &have_segment, &mut buffers.secondary)? {
+                    is_have_ancestor = true;
+                    break;
                 }
+            }
+            if is_have_ancestor {
+                continue;
+            }
 
-                // Check if the current segment head is an ancestor of any location in have_locations.
-                // If so, stop traversing backward from this point since the requester already has
-                // this command and all its ancestors.
-                for &have_location in &have_locations {
-                    let have_segment = storage.get_segment(have_location)?;
-                    if storage.is_ancestor(head, &have_segment)? {
-                        continue 'heads;
-                    }
+            let segment = storage.get_segment(head)?;
+
+            // If the requester has any commands in this segment, send from the next command
+            if let Some(latest_loc) = have_locations
+                .iter()
+                .filter(|&&location| location.same_segment(head))
+                .max_by_key(|&&location| location.max_cut)
+            {
+                let next_max_cut = latest_loc
+                    .max_cut
+                    .checked_add(1)
+                    .assume("command + 1 mustn't overflow")?;
+                let next_location = Location {
+                    max_cut: next_max_cut,
+                    segment: head.segment,
+                };
+
+                let head_loc = segment.head_location()?;
+                if next_location.max_cut > head_loc.max_cut {
+                    continue;
                 }
-
-                // If the requester has any commands in this segment, send from the next command
-                if let Some(latest_loc) = have_locations
-                    .iter()
-                    .filter(|&&location| segment.contains(location))
-                    .max_by_key(|&&location| location.command)
-                {
-                    let next_command = latest_loc
-                        .command
-                        .checked_add(1)
-                        .assume("command + 1 mustn't overflow")?;
-                    let next_location = Location {
-                        segment: head.segment,
-                        command: next_command,
-                    };
-
-                    let head_loc = segment.head_location();
-                    if next_location.command > head_loc.command {
-                        continue 'heads;
-                    }
-                    if result.is_full() {
-                        result.pop_back();
-                    }
-                    result
-                        .push_front(next_location)
-                        .ok()
-                        .assume("too many segments")?;
-                    continue 'heads;
-                }
-
-                heads.extend(segment.prior());
-
                 if result.is_full() {
                     result.pop_back();
                 }
-
-                let location = segment.first_location();
                 result
-                    .push_front(location)
+                    .push_front(next_location)
                     .ok()
                     .assume("too many segments")?;
+                continue;
             }
+
+            if result.is_full() {
+                result.pop_back();
+            }
+
+            for prior in segment.prior() {
+                queue.push(prior)?;
+            }
+
+            let location = segment.first_location();
+            result
+                .push_front(location)
+                .ok()
+                .assume("too many segments")?;
         }
         let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
         for l in result {
@@ -397,6 +409,7 @@ impl SyncResponder {
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
         r.sort();
+
         Ok(r)
     }
 
@@ -460,7 +473,7 @@ impl SyncResponder {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

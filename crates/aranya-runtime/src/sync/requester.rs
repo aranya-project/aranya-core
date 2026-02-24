@@ -10,8 +10,8 @@ use super::{
     SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
-    Address, Command as _, GraphId, Location,
-    storage::{Segment as _, Storage as _, StorageError, StorageProvider},
+    Address, GraphId, Location,
+    storage::{Segment as _, Storage as _, StorageError, StorageProvider, TraversalBuffers},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -99,17 +99,18 @@ enum SyncRequesterState {
     Reset,
 }
 
-pub struct SyncRequester {
+pub struct SyncRequester<'a> {
     session_id: u128,
     graph_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
+    buffers: &'a mut TraversalBuffers,
 }
 
-impl SyncRequester {
+impl<'a> SyncRequester<'a> {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(graph_id: GraphId, rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(graph_id: GraphId, rng: R, buffers: &'a mut TraversalBuffers) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -121,17 +122,23 @@ impl SyncRequester {
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
+            buffers,
         }
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(graph_id: GraphId, session_id: u128) -> Self {
+    pub fn new_session_id(
+        graph_id: GraphId,
+        session_id: u128,
+        buffers: &'a mut TraversalBuffers,
+    ) -> Self {
         Self {
             session_id,
             graph_id,
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
+            buffers,
         }
     }
 
@@ -172,22 +179,22 @@ impl SyncRequester {
     }
 
     /// Receive a sync message. Returns parsed sync commands.
-    pub fn receive<'a>(
+    pub fn receive<'b>(
         &mut self,
-        data: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
-        let (message, remaining): (SyncResponseMessage, &'a [u8]) =
+        data: &'b [u8],
+    ) -> Result<Option<Vec<SyncCommand<'b>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        let (message, remaining): (SyncResponseMessage, &'b [u8]) =
             postcard::take_from_bytes(data)?;
 
         self.get_sync_commands(message, remaining)
     }
 
     /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
-    pub fn get_sync_commands<'a>(
+    pub fn get_sync_commands<'b>(
         &mut self,
         message: SyncResponseMessage,
-        remaining: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        remaining: &'b [u8],
+    ) -> Result<Option<Vec<SyncCommand<'b>, COMMAND_RESPONSE_MAX>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }
@@ -335,7 +342,7 @@ impl SyncRequester {
     }
 
     fn get_commands(
-        &self,
+        &mut self,
         provider: &mut impl StorageProvider,
         peer_cache: &mut PeerCache,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
@@ -350,7 +357,7 @@ impl SyncRequester {
                 let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
                 for address in peer_cache.heads() {
                     let loc = storage
-                        .get_location(*address)?
+                        .get_location(*address, &mut self.buffers.primary)?
                         .assume("location must exist")?;
                     cache_locations
                         .push(loc)
@@ -366,19 +373,14 @@ impl SyncRequester {
                 let head = storage.get_head()?;
                 let mut current = vec![head];
 
-                // Here we just get the first command from the most reaseant
-                // COMMAND_SAMPLE_MAX segments in the graph. This is probbly
+                // Here we just get the first command from the most recent
+                // COMMAND_SAMPLE_MAX segments in the graph. This is probably
                 // not the best strategy as if you are far enough ahead of
                 // the other client they will just send you everything they have.
                 while commands.len() < COMMAND_SAMPLE_MAX && !current.is_empty() {
                     let mut next = vec::Vec::new(); //BUG not constant memory
 
                     'current: for &location in &current {
-                        let segment = storage.get_segment(location)?;
-
-                        let head = segment.head()?;
-                        let head_address = head.address()?;
-
                         // Check if we've hit a PeerCache head - if so, stop traversing this path
                         for &peer_cache_loc in &cache_locations {
                             // If this is the same location as a PeerCache head, we've hit it
@@ -389,15 +391,20 @@ impl SyncRequester {
                             // we've passed the PeerCache head, so stop traversing this path
                             let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
                             if (peer_cache_loc.same_segment(location)
-                                && location.command <= peer_cache_loc.command)
-                                || storage.is_ancestor(location, &peer_cache_segment)?
+                                && location.max_cut <= peer_cache_loc.max_cut)
+                                || storage.is_ancestor(
+                                    location,
+                                    &peer_cache_segment,
+                                    &mut self.buffers.primary,
+                                )?
                             {
                                 continue 'current;
                             }
                         }
 
+                        let segment = storage.get_segment(location)?;
                         commands
-                            .push(head_address)
+                            .push(segment.head_address()?)
                             .map_err(|_| SyncError::CommandOverflow)?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {

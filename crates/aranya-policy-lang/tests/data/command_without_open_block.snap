@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Syntax error
+  |
+6 |     policy {
+  |     ^ expected open_block

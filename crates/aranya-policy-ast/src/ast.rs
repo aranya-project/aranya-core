@@ -921,6 +921,13 @@ pub struct FactDefinition {
     pub span: Span,
 }
 
+impl FactDefinition {
+    /// Returns an iterator of the [`Self::key`] and [`Self::value`] fields combined.
+    pub fn fields(&self) -> impl Iterator<Item = &FieldDefinition> {
+        self.key.iter().chain(self.value.iter())
+    }
+}
+
 impl Spanned for FactDefinition {
     fn span(&self) -> Span {
         self.span
