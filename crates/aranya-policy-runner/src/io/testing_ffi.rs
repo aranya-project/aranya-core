@@ -125,4 +125,18 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         })?;
         Ok(BaseId::from_bytes(array_bytes))
     }
+
+    /// This exists purely to unit test the `PolicyVm` error variant in
+    /// [`RunFile`](crate::RunFile).
+    #[doc(hidden)]
+    #[ffi_export(def = "function cause_machine_error() bool")]
+    pub fn cause_machine_error<E: Engine>(
+        &self,
+        _ctx: &CommandContext,
+        _eng: &E,
+    ) -> Result<bool, MachineError> {
+        Err(MachineError::new(MachineErrorType::Unknown(
+            "BOO!".to_string(),
+        )))
+    }
 }

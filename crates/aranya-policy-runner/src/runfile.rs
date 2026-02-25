@@ -344,8 +344,7 @@ preamble:
     fn preamble_policy_lang_vm_error() {
         let text = r#"
 preamble:
-    let x = if false {: todo() } else {: "foo" }
-    let y = x > 3
+    let x = testing::cause_machine_error()
         "#
         .trim();
 
@@ -353,8 +352,22 @@ preamble:
 
         let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
         let r = rf.get_preamble_values(&mut ce, &mut ks);
-        println!("{r:?}");
         assert!(matches!(r, Err(RunFileError::PolicyVm(_))));
+    }
+
+    #[test]
+    fn preamble_policy_lang_vm_panic() {
+        let text = r#"
+preamble:
+    let x = todo()
+        "#
+        .trim();
+
+        let (mut ce, mut ks) = test_prereqs();
+
+        let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
+        let r = rf.get_preamble_values(&mut ce, &mut ks);
+        assert!(matches!(r, Err(RunFileError::PolicyVmPanic)));
     }
 
     #[test]
