@@ -105,6 +105,7 @@ fn test_bytes() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         action foo(id_input id, x bytes) {
@@ -154,6 +155,7 @@ fn test_structs() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         action foo(id_input id, x int) {
@@ -556,8 +558,8 @@ fn test_counting() -> anyhow::Result<()> {
         fact Foo[i int]=>{}
 
         command Setup {
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create Foo[i:1]=>{}
@@ -568,8 +570,8 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestUpTo {
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
                 check count_one == 1
@@ -584,8 +586,8 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestAtLeast {
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 check at_least 1 Foo[i:?]
                 check at_least 3 Foo[i:?]
@@ -595,8 +597,8 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestAtMost {
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 check at_most 1 Foo[i:?] == false
                 check at_most 3 Foo[i:?]
@@ -606,8 +608,8 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestExactly {
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 check exactly 1 Foo[i:?] == false
                 check exactly 3 Foo[i:?]
@@ -978,6 +980,7 @@ fn test_if_branches() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         action foo(x int) {
@@ -1075,6 +1078,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         action foo(x int) {
@@ -1111,6 +1115,7 @@ fn test_match_default() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         action foo(x int) {
@@ -1170,6 +1175,7 @@ fn test_match_expression() -> anyhow::Result<()> {
             fields { x int }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
         action foo(x int) {
             let y = match x {
@@ -1262,6 +1268,7 @@ fn test_pure_function() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         function f(x int) int {
@@ -1651,6 +1658,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         action foo() {
@@ -1724,11 +1732,12 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 fn test_enum_reference() -> anyhow::Result<()> {
     let text = r#"
         command Sip {
-            seal { return todo() }
-            open { return todo() }
             fields {
                 a string
             }
+            seal { return todo() }
+            open { return todo() }
+            policy {}
         }
 
         enum Drink {
@@ -1904,8 +1913,8 @@ fn test_map() -> anyhow::Result<()> {
         }
 
         command Setup {
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create F[i:1]=>{n:1}
@@ -1919,8 +1928,8 @@ fn test_map() -> anyhow::Result<()> {
             fields {
                 value int
             }
-            open { return todo() }
             seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     emit Result {
@@ -2126,6 +2135,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
         struct Bar {
             x int,
@@ -2173,6 +2183,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
         struct Bar {
             x int,
@@ -2313,6 +2324,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             fields { x int, y string }
             seal { return todo() }
             open { return todo() }
+            policy {}
         }
 
         function new_foo(x int, y string) struct Foo {

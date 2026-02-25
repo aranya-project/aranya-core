@@ -72,7 +72,7 @@ function create_uni_channel(
     pub(crate) fn create_uni_channel<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,

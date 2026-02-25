@@ -28,8 +28,9 @@ pub mod libc;
 pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
+use core::ops::Bound;
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
@@ -37,7 +38,7 @@ use vec1::Vec1;
 use crate::{
     Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
     MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    SegmentIndex, Storage, StorageError, StorageProvider,
+    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
 };
 
 pub mod io;
@@ -547,8 +548,12 @@ impl<F: Write> Storage for LinearStorage<F> {
         self.writer.head()
     }
 
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.get_head()?, &segment)? {
+    fn commit(
+        &mut self,
+        segment: Self::Segment,
+        buffers: &mut TraversalBuffer,
+    ) -> Result<(), StorageError> {
+        if !self.is_ancestor(self.get_head()?, &segment, buffers)? {
             return Err(StorageError::HeadNotAncestor);
         }
 
@@ -566,7 +571,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             .map_err(|_| StorageError::EmptyPerspective)?;
 
         let get_skips = |l: Location, count: usize| -> Result<Vec<Location>, StorageError> {
-            let mut rng = &mut Rng as &mut dyn Csprng;
+            let mut rng = Rng;
             let mut skips = vec![];
             for _ in 0..count {
                 let segment = self.get_segment(l)?;
@@ -592,12 +597,14 @@ impl<F: Write> Storage for LinearStorage<F> {
                 if !skips.contains(&lca) {
                     skips.push(lca);
                 }
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|loc| loc.max_cut);
                 skips
             }
             Prior::Single(l) => {
                 let mut skips = get_skips(l, 3)?;
-                skips.sort();
+                // Sort by max_cut ascending so we can jump as far back as possible
+                skips.sort_by_key(|loc| loc.max_cut);
                 skips
             }
         };
@@ -767,6 +774,27 @@ impl SegmentRepr {
 
 impl<R: Read> FactIndex for LinearFactIndex<R> {}
 
+#[cfg(all(test, feature = "graphviz"))]
+impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
+    fn name(&self) -> String {
+        use alloc::string::ToString as _;
+        self.repr.offset.to_string()
+    }
+
+    fn prior(&self) -> Result<Option<Self>, StorageError> {
+        self.repr
+            .prior
+            .map(|p| {
+                let repr = self.reader.fetch(p)?;
+                Ok(Self {
+                    repr,
+                    reader: self.reader.clone(),
+                })
+            })
+            .transpose()
+    }
+}
+
 type MapIter = alloc::collections::btree_map::IntoIter<Keys, Option<Bytes>>;
 pub struct QueryIterator {
     it: MapIter,
@@ -827,7 +855,7 @@ impl<R: Read> LinearFactIndex<R> {
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(map) = facts.facts.get(name) {
-                for (k, v) in super::memory::find_prefixes(map, prefix) {
+                for (k, v) in find_prefixes(map, prefix) {
                     // don't override, if we've already found the fact (including deletions)
                     if !matches.contains_key(k) {
                         matches.insert(k.clone(), v.map(Into::into));
@@ -921,7 +949,7 @@ impl<R: Read> LinearFactPerspective<R> {
             }
         };
         if let Some(map) = self.map.get(name) {
-            for (k, v) in super::memory::find_prefixes(map, prefix) {
+            for (k, v) in find_prefixes(map, prefix) {
                 // overwrite "earlier" facts
                 matches.insert(k.clone(), v.map(Into::into));
             }
@@ -1083,6 +1111,15 @@ impl Command for LinearCommand<'_> {
     fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
+}
+
+fn find_prefixes<'m, 'p: 'm>(
+    map: &'m FactMap,
+    prefix: &'p [Box<[u8]>],
+) -> impl Iterator<Item = (&'m Keys, Option<&'m [u8]>)> + 'm {
+    map.range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
+        .take_while(|(k, _)| k.starts_with(prefix))
+        .map(|(k, v)| (k, v.as_deref()))
 }
 
 #[cfg(test)]

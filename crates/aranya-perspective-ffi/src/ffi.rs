@@ -24,7 +24,7 @@ impl FfiPerspective {
     pub(crate) fn head_id<E: aranya_crypto::Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
     ) -> Result<CmdId, MachineError> {
         match ctx {
             CommandContext::Action(actx) => Ok(actx.head_id),

@@ -57,7 +57,7 @@ impl Hsm {
         static HSM: OnceLock<RwLock<Hsm>> = OnceLock::new();
         HSM.get_or_init(|| {
             RwLock::new(Self {
-                aead: Aes256Gcm::new(&Random::random(&mut Rng)),
+                aead: Aes256Gcm::new(&Random::random(Rng)),
                 keys: Default::default(),
             })
         })
@@ -87,7 +87,7 @@ impl Hsm {
         // A random nonce is fine for this example. In practice,
         // you would probably want to ensure that you never
         // repeat nonces.
-        let nonce = GenericArray::<u8, _>::random(&mut Rng);
+        let nonce = GenericArray::<u8, _>::random(Rng);
 
         // Bind the ciphertext to the (alias, context) tuple.
         let ad = postcard::to_allocvec(&AuthData { alias, context })
@@ -162,7 +162,7 @@ impl Hsm {
 
     /// Creates a new `SigningKey`.
     pub fn new_signing_key(&mut self) -> KeyId {
-        let sk = SigningKey::random(&mut Rng);
+        let sk = SigningKey::random(Rng);
         let id = Self::signer_key_id(&SigningKey::public(&sk));
         self.keys.insert(id, HsmKey::Signing(sk));
         id

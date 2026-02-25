@@ -1,0 +1,9 @@
+command Foo {
+    fields {}
+    seal {
+        return ok()
+    }
+    policy {
+        finish {}
+    }
+}

@@ -174,12 +174,12 @@ where
     T: TestImpl,
     CS: CipherSuite,
 {
-    fn new<R: Csprng>(rng: &mut R, state: T::Aranya<CS>) -> Self {
-        let ident_sk = IdentityKey::new(rng);
+    fn new<R: Csprng>(rng: R, state: T::Aranya<CS>) -> Self {
+        let ident_sk = IdentityKey::new(&rng);
         let id = ident_sk.id().expect("can access device ID");
         Self {
             ident_sk,
-            enc_sk: EncryptionKey::new(rng),
+            enc_sk: EncryptionKey::new(&rng),
             state,
             chans: HashMap::new(),
             id,
@@ -285,7 +285,7 @@ where
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
-        let mut device = Device::new(&mut self.eng, aranya);
+        let mut device = Device::new(&self.eng, aranya);
         let client = Client::<T::Afc<E::CS>>::new(afc);
 
         for (label, device_type) in labels {
@@ -313,7 +313,7 @@ where
                 let (our_side, peer_side) = {
                     let author = (&device, device_type);
                     let peer = (peer, *peer_type);
-                    Self::new_channels(&mut self.eng, author, peer, label)
+                    Self::new_channels(&self.eng, author, peer, label)
                 };
 
                 // Register the peer.
@@ -344,7 +344,7 @@ where
     }
 
     fn new_channels(
-        eng: &mut E,
+        eng: &E,
         author: (&Device<T, E::CS>, ChanOp),
         peer: (&Device<T, E::CS>, ChanOp),
         label: LabelId,
@@ -387,7 +387,7 @@ where
     ///
     /// It returns the channel information for (author, peer).
     fn new_uni_channel(
-        eng: &mut E,
+        eng: &E,
         seal: &Device<T, E::CS>,
         open: &Device<T, E::CS>,
         label_id: LabelId,
@@ -783,21 +783,21 @@ where
 }
 
 /// Returns a random `u32` in [0, n).
-pub fn rand_intn<R: Csprng>(rng: &mut R, n: u32) -> u32 {
-    fn rand_u32<R: Csprng>(rng: &mut R) -> u32 {
+pub fn rand_intn<R: Csprng>(rng: R, n: u32) -> u32 {
+    fn rand_u32<R: Csprng>(rng: R) -> u32 {
         let mut b = [0u8; 4];
         rng.fill_bytes(&mut b);
         u32::from_le_bytes(b)
     }
     assert_ne!(n, 0);
     if n.is_power_of_two() {
-        return rand_u32(rng) & (n - 1);
+        return rand_u32(&rng) & (n - 1);
     }
-    let mut v = rand_u32(rng);
+    let mut v = rand_u32(&rng);
     if v > u32::MAX - n {
         let ceil = u32::MAX - u32::MAX % n;
         while v >= ceil {
-            v = rand_u32(rng);
+            v = rand_u32(&rng);
         }
     }
     v % n

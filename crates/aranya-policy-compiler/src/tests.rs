@@ -36,7 +36,7 @@ fn compile_pass(text: &str) -> Module {
 #[track_caller]
 fn compile_fail(text: &str) -> CompileErrorType {
     match compile(text) {
-        Ok(_) => panic!("policy compilation should have failed"),
+        Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err.err_type(),
     }
 }
@@ -204,7 +204,9 @@ fn test_seal_open_command() {
             fields {}
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -226,46 +228,15 @@ fn test_seal_open_command() {
 }
 
 #[test]
-fn test_command_without_seal_block() {
-    let text = r#"
-        command Foo {
-            fields {}
-            policy {}
-        }
-    "#;
-
-    let err = compile_fail(text);
-    assert_eq!(
-        err,
-        CompileErrorType::Unknown(String::from("Empty/missing seal block in command"))
-    );
-}
-
-#[test]
-fn test_command_without_open_block() {
-    let text = r#"
-        command Foo {
-            fields {}
-            seal { return todo() }
-            policy {}
-        }
-    "#;
-
-    let err = compile_fail(text);
-    assert_eq!(
-        err,
-        CompileErrorType::Unknown(String::from("Empty/missing open block in command"))
-    );
-}
-
-#[test]
 fn test_command_with_no_return_in_seal_block() {
     let text = r#"
         command Foo {
             fields {}
             seal { let x = 3 }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -280,7 +251,9 @@ fn test_command_with_no_return_in_open_block() {
             fields {}
             seal { return todo() }
             open { let x = 3 }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -300,6 +273,9 @@ fn test_command_attributes() {
             }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -336,8 +312,11 @@ fn test_command_attributes_should_be_unique() {
             a: 5,
             a: "five"
         }
-        open { return todo() }
         seal { return todo() }
+        open { return todo() }
+        policy {
+            finish {}
+        }
     }
     "#;
     let err = compile_fail(text);
@@ -352,6 +331,9 @@ fn test_command_attributes_must_be_literals() {
             attributes { i: saturating_add(2, 1) }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }"#,
         r#"
         function f() int { return 3 }
@@ -359,6 +341,9 @@ fn test_command_attributes_must_be_literals() {
             attributes { i: f() }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }
     "#,
     ];
@@ -381,7 +366,9 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -434,7 +421,9 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                 }
                 seal { return todo() }
                 open { return todo() }
-                policy {}
+                policy {
+                    finish {}
+                }
             }
             "#,
             CompileErrorType::NotDefined(String::from("Bar")),
@@ -449,7 +438,9 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                 }
                 seal { return todo() }
                 open { return todo() }
-                policy {}
+                policy {
+                    finish {}
+                }
             }
             "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
@@ -476,7 +467,9 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
         "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
@@ -491,7 +484,9 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
             }
             seal { return todo() }
             open { return todo() }
-            policy {}
+            policy {
+                finish {}
+            }
         }
         "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
@@ -581,12 +576,14 @@ fn test_struct_field_insertion_errors() {
         ),
         (
             r#"struct Foo { +Foo }"#,
-            CompileErrorType::NotDefined("Foo".to_string()),
+            CompileErrorType::Unknown(
+                "Found cyclic dependencies when compiling structs:\n- [Foo]".to_string(),
+            ),
         ),
     ];
     for (text, err_type) in cases {
         let err = compile_fail(text);
-        assert_eq!(err, err_type);
+        assert_eq!(err, err_type, "{text}");
     }
 }
 
@@ -1078,6 +1075,9 @@ fn test_serialize_deserialize() {
             open {
                 return deserialize(envelope.payload)
             }
+            policy {
+                finish {}
+            }
         }
     "#;
 
@@ -1310,6 +1310,9 @@ fn test_match_duplicate() {
                 }
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
 
             action foo(x int) {
@@ -1352,6 +1355,9 @@ fn test_match_alternation_duplicates() {
             }
             seal { return todo() }
             open { return todo() }
+            policy {
+                finish {}
+            }
         }
 
         action foo(x int) {
@@ -1381,6 +1387,7 @@ fn test_match_default_not_last() {
             }
             seal { return todo() }
             open { return todo() }
+            policy { }
         }
 
         action foo(x int) {
@@ -1742,6 +1749,8 @@ fn test_invalid_finish_expressions() {
     let invalid_expression = &r#"
             fact Foo[]=>{x int}
             command Test {
+                seal { return todo() }
+                open { return todo() }
                 policy {
                     finish {
                         create Foo[]=>{x: saturating_add(1, 2)}
@@ -2026,6 +2035,8 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
+                    seal { return todo() }
+                    open { return todo() }
                     policy {
                         check 0
                     }
@@ -2044,6 +2055,8 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
+                    seal { return todo() }
+                    open { return todo() }
                     policy {
                         finish {
                             emit 0
@@ -2056,9 +2069,9 @@ fn test_type_errors() {
         Case {
             t: r#"
                 command Foo {
-                    seal {
-                      return serialize(3)
-                    }
+                    seal { return serialize(3) }
+                    open { return todo() }
+                    policy {}
                 }
             "#,
             e: "serializing int, expected struct Foo",
@@ -2072,6 +2085,7 @@ fn test_type_errors() {
                     open {
                       return deserialize(3)
                     }
+                    policy {}
                 }
             "#,
             e: "deserializing int, expected bytes",
@@ -2138,6 +2152,8 @@ fn test_type_errors() {
             t: r#"
                 fact Foo[x int]=>{y bool}
                 command MangleFoo {
+                    seal { return todo() }
+                    open { return todo() }
                     policy {
                         finish {
                             update Foo[x: 0]=>{y: ?} to {y: 3}
@@ -2910,6 +2926,63 @@ fn test_function_arguments_with_undefined_types() {
 }
 
 #[test]
+fn test_structs_with_undefined_types() {
+    let cases = [
+        (
+            r#"
+            fact Foo[]=>{ s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ s option[struct Unknown] }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            fact Foo[]=>{ e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { s struct Unknown }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { e enum Unknown }
+            "#,
+            CompileErrorType::NotDefined("enum Unknown".to_string()),
+        ),
+        (
+            r#"
+            struct Bar { self_ref struct Bar }
+            "#,
+            CompileErrorType::Unknown(
+                "Found cyclic dependencies when compiling structs:\n- [Bar]".into(),
+            ),
+        ),
+        (
+            r#"
+            struct Bar { f int }
+            fact Foo[]=>{ s struct Unknown, b struct Bar, fi struct Fi }
+            struct Fi { s string }
+            "#,
+            CompileErrorType::NotDefined("struct Unknown".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
 fn test_substruct_errors() {
     struct Case {
         t: &'static str,
@@ -2953,6 +3026,9 @@ fn test_substruct_errors() {
                     }
                     seal { return todo() }
                     open { return todo() }
+                    policy {
+                        finish {}
+                    }
                 }
                 struct Bar {
                     x int,
@@ -3069,6 +3145,9 @@ fn test_struct_conversion() {
                 }
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
             action convert() {
                 let bar = Foo { a: 1, b: "test" } as Bar
@@ -3207,6 +3286,9 @@ fn test_action_command_persistence() {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
             ephemeral action test() {
                 publish Cmd {}
@@ -3218,6 +3300,9 @@ fn test_action_command_persistence() {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
+                policy {
+                    finish {}
+                }
             }
             action test() {
                 publish Cmd {}
@@ -3236,6 +3321,9 @@ fn test_action_command_persistence() {
                     fields {}
                     seal { return todo() }
                     open { return todo() }
+                    policy {
+                        finish {}
+                    }
                 }
                 ephemeral action test() {
                     publish Cmd {}
@@ -3252,6 +3340,9 @@ fn test_action_command_persistence() {
                     fields {}
                     seal { return todo() }
                     open { return todo() }
+                    policy {
+                        finish {}
+                    }
                 }
                 action test() {
                     publish Cmd {}
@@ -3267,3 +3358,141 @@ fn test_action_command_persistence() {
         assert_eq!(err, expected);
     }
 }
+
+#[test]
+fn test_structs_listed_out_of_order() {
+    let valid_cases = [
+        r#"
+            effect Fi { fum struct Fum }
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo {}
+        "#,
+        r#"
+            struct Fum { +Fi, +Foo }
+            effect Fi { s string }
+            fact Foo[x int]=>{ b bool }
+        "#,
+        r#"
+            function ret_bar() struct Bar {
+                let fum = Fum { b: true }
+                return Bar { s: "s", num: 1, f: fum }
+            }
+
+            struct Fum { b bool }
+            struct Bar { +Foo, num int, f struct Fum }
+            struct Foo { s string }
+
+        "#,
+        r#"
+            effect Fi { s struct Foo }
+            command Foo {
+                fields {
+                    i int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+        "#,
+    ];
+
+    let invalid_cases = [
+        (
+            r#"
+            struct Fum { b struct Bar, f struct Foo }
+            struct Bar { f struct Foo }
+            struct Foo { fum struct Fum } // cycle
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]",
+            )),
+            None,
+        ),
+        (
+            r#"
+            struct Fum { +Fi, +Foo }
+            effect Fi { s string }
+            fact Foo[x int]=>{ fum struct Fum } // cycle
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Foo, Fum]",
+            )),
+            None,
+        ),
+        (
+            r#"
+            effect Bar { s struct Co }
+            command Co {
+                fields {
+                    fi struct Bar, // cycle
+                    i int
+                }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+        "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [Co, Bar]",
+            )),
+            None,
+        ),
+        (
+            r#" "#,
+            CompileErrorType::Unknown(String::from(
+                "Found cyclic dependencies when compiling structs:\n- [FFIBar, FFIFoo]",
+            )),
+            Some(FFI_WITH_CYCLE),
+        ),
+    ];
+
+    for case in valid_cases {
+        compile_pass(case);
+    }
+
+    for (src, expected_err, maybe_ffi_modules) in invalid_cases {
+        // TODO: Use `compile_fail` here when FFI types are compiled conditionally.
+        // Types in FFI modules are compiled all the time so we can't add modules that contain compilation errors
+        // like `FFI_WITH_CYCLE` to every case.
+        let policy = match parse_policy_str(src, Version::V2) {
+            Ok(p) => p,
+            Err(err) => panic!("{err}"),
+        };
+        let err = match Compiler::new(&policy)
+            .ffi_modules(maybe_ffi_modules.unwrap_or(&[]))
+            .compile()
+        {
+            Ok(_) => panic!("policy compilation should have failed - src: {src}"),
+            Err(err) => err.err_type(),
+        };
+
+        assert_eq!(err, expected_err,);
+    }
+}
+
+const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
+    name: ident!("cyclic_types"),
+    functions: &[],
+    structs: &[
+        ffi::Struct {
+            name: ident!("FFIFoo"),
+            fields: &[ffi::Arg {
+                name: ident!("bar"),
+                vtype: ffi::Type::Struct(ident!("FFIBar")),
+            }],
+        },
+        ffi::Struct {
+            name: ident!("FFIBar"),
+            fields: &[ffi::Arg {
+                name: ident!("foo"),
+                vtype: ffi::Type::Struct(ident!("FFIFoo")),
+            }],
+        },
+    ],
+    enums: &[],
+}];
