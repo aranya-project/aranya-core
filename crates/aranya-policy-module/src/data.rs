@@ -137,6 +137,8 @@ pub enum Value {
     Identifier(Identifier),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
+    /// Result value
+    Result(#[rkyv(omit_bounds)] Result<Box<Value>, Box<Value>>),
 }
 
 impl Value {
@@ -217,6 +219,8 @@ impl Value {
             Self::Identifier(_) => String::from("Identifier"),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
+            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
         }
     }
 
@@ -245,6 +249,12 @@ impl Value {
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
+            (Self::Result(Ok(inner)), TypeKind::Result(result_type)) => {
+                inner.fits_type(&result_type.ok)
+            }
+            (Self::Result(Err(inner)), TypeKind::Result(result_type)) => {
+                inner.fits_type(&result_type.err)
+            }
             _ => false,
         }
     }
@@ -521,6 +531,8 @@ impl Display for Value {
             Self::Identifier(name) => write!(f, "{name}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
+            Self::Result(Ok(v)) => write!(f, "Ok({})", v),
+            Self::Result(Err(v)) => write!(f, "Err({})", v),
         }
     }
 }

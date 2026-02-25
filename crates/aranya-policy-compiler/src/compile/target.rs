@@ -107,6 +107,12 @@ impl CompileTarget {
                 Some(defs.len() as u64)
             }
             TypeKind::Never => Some(0),
+            TypeKind::Result(result_type) => {
+                // Result cardinality is the sum of the cardinalities of the ok and err types.
+                let ok_cardinality = self.cardinality(&result_type.ok.kind)?;
+                let err_cardinality = self.cardinality(&result_type.err.kind)?;
+                ok_cardinality.checked_add(err_cardinality)
+            }
         }
     }
 }
