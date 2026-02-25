@@ -274,9 +274,7 @@ fn test_action_wrong_args() -> anyhow::Result<()> {
 
 #[test]
 fn test_action_call_action() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1, Version::V2).expect("should parse");
-    let module = Compiler::new(&policy).compile().expect("should compile");
-    let machine = Machine::from_module(module).expect("should create machine");
+    let machine = compile(TEST_POLICY_1);
     let mut io = TestIO::new();
     let mut published = Vec::new();
 
@@ -321,14 +319,9 @@ fn test_command_policy() -> anyhow::Result<()> {
 
 #[test]
 fn test_command_invalid_this() {
-    let policy = parse_policy_str(TEST_POLICY_1, Version::V2).expect("should parse");
+    let mut machine = compile(TEST_POLICY_1);
 
     let name = ident!("Foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()
-        .expect("should compile");
-    let mut machine = Machine::from_module(module).expect("should create machine");
     let ctx = dummy_ctx_policy(name.clone());
 
     // invalid field count
@@ -2235,10 +2228,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
-        let module = Compiler::new(&policy).compile().expect("compile");
-        let machine = Machine::from_module(module).expect("machine");
+        let machine = compile(&format!("action f() {{ check {expr} }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2263,13 +2253,7 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
-        let module = Compiler::new(&policy)
-            .debug(true)
-            .compile()
-            .expect("compile");
-        let machine = Machine::from_module(module).expect("machine");
+        let machine = compile(&format!("action f() {{ check {expr} }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2290,10 +2274,7 @@ fn test_boolean_short_circuit() {
 #[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
-        let module = Compiler::new(&policy).compile().expect("compile");
-        let machine = Machine::from_module(module).expect("machine");
+        let machine = compile(&format!("action f() {{ check {expr} }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
