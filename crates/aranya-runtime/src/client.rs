@@ -128,11 +128,13 @@ where
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
+    ///
+    /// Returns whether any new commands were added.
     pub fn commit(
         &mut self,
         trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<bool, ClientError> {
         trx.commit(
             &mut self.provider,
             &mut self.policy_store,

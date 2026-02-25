@@ -80,10 +80,12 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         buffers: &mut TraversalBuffers,
-    ) -> Result<(), ClientError> {
+    ) -> Result<bool, ClientError> {
         let storage = provider.get_storage(self.graph_id)?;
 
-        let original_head = self.original_head.ok_or(StorageError::EmptyPerspective)?;
+        let Some(original_head) = self.original_head else {
+            return Ok(false);
+        };
         if original_head != storage.get_head()? {
             return Err(ClientError::ConcurrentTransaction);
         }
@@ -94,6 +96,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             let segment = storage.write(p)?;
             self.heads
                 .insert(segment.head_id(), segment.head_location()?);
+        }
+
+        if self.heads.is_empty() {
+            return Ok(false);
         }
 
         // Merge heads pairwise until single head left, then commit.
@@ -158,7 +164,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             }
         }
 
-        Ok(())
+        Ok(true)
     }
 
     /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
@@ -802,12 +808,13 @@ mod test {
         pub fn commit(&mut self) -> Result<(), ClientError> {
             let graph_id = self.trx.graph_id;
             let trx = mem::replace(&mut self.trx, Transaction::new(graph_id));
-            trx.commit(
+            assert!(trx.commit(
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-            )
+            )?);
+            Ok(())
         }
     }
 
@@ -946,7 +953,6 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             commit;
@@ -969,7 +975,6 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "h" "i" "j";
             "d" < "e" "f" "g";
             commit;
@@ -992,7 +997,6 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             "e" < finalize "fff1";
@@ -1018,7 +1022,6 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             "e" < finalize "fff1";
