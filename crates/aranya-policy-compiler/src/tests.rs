@@ -11,6 +11,43 @@ use aranya_policy_module::{
 
 use crate::{CompileError, CompileErrorType, Compiler, InvalidCallColor, validate::validate};
 
+const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
+    ModuleSchema {
+        name: ident!("test"),
+        functions: &[ffi::Func {
+            name: ident!("doit"),
+            args: &[ffi::Arg {
+                name: ident!("x"),
+                vtype: ffi::Type::Int,
+            }],
+            return_type: ffi::Type::Bool,
+        }],
+        structs: &[],
+        enums: &[],
+    },
+    ModuleSchema {
+        name: ident!("cyclic_types"),
+        functions: &[],
+        structs: &[
+            ffi::Struct {
+                name: ident!("FFIFoo"),
+                fields: &[ffi::Arg {
+                    name: ident!("bar"),
+                    vtype: ffi::Type::Struct(ident!("FFIBar")),
+                }],
+            },
+            ffi::Struct {
+                name: ident!("FFIBar"),
+                fields: &[ffi::Arg {
+                    name: ident!("foo"),
+                    vtype: ffi::Type::Struct(ident!("FFIFoo")),
+                }],
+            },
+        ],
+        enums: &[],
+    },
+];
+
 #[track_caller]
 fn compile(text: &str) -> Result<Module, CompileError> {
     let policy = match parse_policy_str(text, Version::V2) {
@@ -18,7 +55,7 @@ fn compile(text: &str) -> Result<Module, CompileError> {
         Err(err) => panic!("{err}"),
     };
     Compiler::new(&policy)
-        .ffi_modules(FAKE_SCHEMA)
+        .ffi_modules(TEST_SCHEMAS)
         .debug(true)
         .compile()
 }
@@ -1913,20 +1950,6 @@ fn test_if_match_block_scope() {
     }
 }
 
-const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
-    name: ident!("test"),
-    functions: &[ffi::Func {
-        name: ident!("doit"),
-        args: &[ffi::Arg {
-            name: ident!("x"),
-            vtype: ffi::Type::Int,
-        }],
-        return_type: ffi::Type::Bool,
-    }],
-    structs: &[],
-    enums: &[],
-}];
-
 #[test]
 fn test_type_errors() {
     struct Case {
@@ -3409,7 +3432,6 @@ fn test_structs_listed_out_of_order() {
             CompileErrorType::Unknown(String::from(
                 "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]",
             )),
-            None,
         ),
         (
             r#"
@@ -3420,7 +3442,6 @@ fn test_structs_listed_out_of_order() {
             CompileErrorType::Unknown(String::from(
                 "Found cyclic dependencies when compiling structs:\n- [Foo, Fum]",
             )),
-            None,
         ),
         (
             r#"
@@ -3440,14 +3461,12 @@ fn test_structs_listed_out_of_order() {
             CompileErrorType::Unknown(String::from(
                 "Found cyclic dependencies when compiling structs:\n- [Co, Bar]",
             )),
-            None,
         ),
         (
-            r#" "#,
+            r#"use cyclic_types"#,
             CompileErrorType::Unknown(String::from(
                 "Found cyclic dependencies when compiling structs:\n- [FFIBar, FFIFoo]",
             )),
-            Some(FFI_WITH_CYCLE),
         ),
     ];
 
@@ -3455,44 +3474,8 @@ fn test_structs_listed_out_of_order() {
         compile_pass(case);
     }
 
-    for (src, expected_err, maybe_ffi_modules) in invalid_cases {
-        // TODO: Use `compile_fail` here when FFI types are compiled conditionally.
-        // Types in FFI modules are compiled all the time so we can't add modules that contain compilation errors
-        // like `FFI_WITH_CYCLE` to every case.
-        let policy = match parse_policy_str(src, Version::V2) {
-            Ok(p) => p,
-            Err(err) => panic!("{err}"),
-        };
-        let err = match Compiler::new(&policy)
-            .ffi_modules(maybe_ffi_modules.unwrap_or(&[]))
-            .compile()
-        {
-            Ok(_) => panic!("policy compilation should have failed - src: {src}"),
-            Err(err) => err.err_type(),
-        };
-
-        assert_eq!(err, expected_err,);
+    for (src, expected_err) in invalid_cases {
+        let err = compile_fail(src);
+        assert_eq!(err, expected_err);
     }
 }
-
-const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
-    name: ident!("cyclic_types"),
-    functions: &[],
-    structs: &[
-        ffi::Struct {
-            name: ident!("FFIFoo"),
-            fields: &[ffi::Arg {
-                name: ident!("bar"),
-                vtype: ffi::Type::Struct(ident!("FFIBar")),
-            }],
-        },
-        ffi::Struct {
-            name: ident!("FFIBar"),
-            fields: &[ffi::Arg {
-                name: ident!("foo"),
-                vtype: ffi::Type::Struct(ident!("FFIFoo")),
-            }],
-        },
-    ],
-    enums: &[],
-}];
