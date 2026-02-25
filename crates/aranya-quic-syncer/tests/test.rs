@@ -4,7 +4,7 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, SyncRequester,
+    ClientState, GraphId, SyncRequester, TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{StorageProvider, linear::testing::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -65,11 +65,12 @@ async fn test_sync() -> Result<()> {
         tx,
         server_addr2.local_addr()?,
     )?;
+    let mut buffers = TraversalBuffers::new();
     syncer2
         .sync(
             client2.lock().await.deref_mut(),
             addr1,
-            SyncRequester::new(graph_id, Rng),
+            SyncRequester::new(graph_id, Rng, &mut buffers),
             sink2.lock().await.deref_mut(),
             graph_id,
         )
@@ -120,23 +121,25 @@ async fn test_sync_subscribe() -> Result<()> {
     for i in 0..6 {
         sink2.lock().await.add_expectation(TestEffect::Got(i));
     }
+    let mut buffers = TraversalBuffers::new();
     syncer1
         .lock()
         .await
         .subscribe(
             client1.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, Rng),
+            SyncRequester::new(graph_id, Rng, &mut buffers),
             5,
             u64::MAX,
             addr2,
         )
         .await?;
+    let mut buffers = TraversalBuffers::new();
     syncer2
         .lock()
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, Rng),
+            SyncRequester::new(graph_id, Rng, &mut buffers),
             5,
             u64::MAX,
             addr1,
@@ -158,12 +161,13 @@ async fn test_sync_subscribe() -> Result<()> {
     assert_eq!(sink1.lock().await.count(), 0);
     assert_eq!(sink2.lock().await.count(), 0);
 
+    let mut buffers = TraversalBuffers::new();
     syncer2
         .lock()
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, Rng),
+            SyncRequester::new(graph_id, Rng, &mut buffers),
             1,
             u64::MAX,
             addr1,
@@ -188,12 +192,13 @@ async fn test_sync_subscribe() -> Result<()> {
     // Sink 2 should not receive the push because the subscription expired.
     assert_eq!(sink2.lock().await.count(), 1);
 
+    let mut buffers = TraversalBuffers::new();
     syncer2
         .lock()
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, Rng),
+            SyncRequester::new(graph_id, Rng, &mut buffers),
             5,
             286, // The exact number of bytes to be sent
             addr1,
@@ -231,21 +236,23 @@ async fn test_sync_subscribe() -> Result<()> {
     // remaining bytes to send it.
     assert_eq!(sink2.lock().await.count(), 1);
 
+    let mut buffers = TraversalBuffers::new();
     syncer2
         .lock()
         .await
         .subscribe(
             client2.lock().await.deref_mut(),
-            SyncRequester::new(graph_id, Rng),
+            SyncRequester::new(graph_id, Rng, &mut buffers),
             1,
             u64::MAX,
             addr1,
         )
         .await?;
+    let mut buffers = TraversalBuffers::new();
     syncer2
         .lock()
         .await
-        .unsubscribe(SyncRequester::new(graph_id, Rng), addr1)
+        .unsubscribe(SyncRequester::new(graph_id, Rng, &mut buffers), addr1)
         .await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
