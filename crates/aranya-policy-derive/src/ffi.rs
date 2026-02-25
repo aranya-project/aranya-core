@@ -750,10 +750,7 @@ impl ToTokens for VTypeTokens<'_> {
             TypeKind::Result(result_type) => {
                 let ok = VTypeTokens::new(&result_type.ok, vm);
                 let err = VTypeTokens::new(&result_type.err, vm);
-                quote!(Result {
-                    ok: &#vm::ffi::Type::#ok,
-                    err: &#vm::ffi::Type::#err,
-                })
+                quote!(Result(&#vm::ffi::Type::#ok, &#vm::ffi::Type::#err))
             }
         };
         tokens.extend(item);
