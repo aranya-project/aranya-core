@@ -16,7 +16,7 @@ use spideroak_crypto::{
     rust,
     signer::Signer,
     typenum::U64,
-    zeroize::{Zeroize, ZeroizeOnDrop},
+    zeroize::ZeroizeOnDrop,
 };
 
 use crate::{
@@ -131,7 +131,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
             RawSecret::Decap(sk) => Ciphertext::Decap(sk.try_export_secret()?.into_bytes()),
             RawSecret::Mac(sk) => Ciphertext::Mac(sk.try_export_secret()?.into_bytes()),
             RawSecret::Prk(sk) => Ciphertext::Prk(sk.into_bytes().into_bytes()),
-            RawSecret::Seed(sk) => Ciphertext::Seed(sk.into_bytes().into()),
+            RawSecret::Seed(sk) => Ciphertext::Seed((*sk).into()),
             RawSecret::Signing(sk) => Ciphertext::Signing(sk.try_export_secret()?.into_bytes()),
         };
         self.aead.seal_in_place(
@@ -214,11 +214,6 @@ enum Ciphertext<CS: CipherSuite> {
 }
 
 impl<CS: CipherSuite> ZeroizeOnDrop for Ciphertext<CS> {}
-impl<CS: CipherSuite> Drop for Ciphertext<CS> {
-    fn drop(&mut self) {
-        self.as_bytes_mut().zeroize();
-    }
-}
 
 impl<CS: CipherSuite> Ciphertext<CS> {
     const fn name(&self) -> &'static str {

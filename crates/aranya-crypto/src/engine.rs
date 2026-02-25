@@ -30,7 +30,7 @@ use spideroak_crypto::{
 use crate::{
     ciphersuite::CipherSuite,
     id::{IdError, Identified},
-    zeroize::{Zeroize as _, ZeroizeOnDrop},
+    zeroize::Zeroizing,
 };
 
 /// The core trait used by the cryptography engine APIs.
@@ -136,68 +136,6 @@ pub trait RawSecretWrap<E: Engine> {
         T: UnwrappedKey<E::CS>;
 }
 
-/// A cryptographic seed.
-#[repr(transparent)]
-pub struct RawSeed([u8; 64]);
-
-impl RawSeed {
-    /// Creates a new seed.
-    #[inline]
-    pub const fn new(seed: [u8; 64]) -> Self {
-        Self(seed)
-    }
-
-    /// Returns the inner bytes.
-    #[inline]
-    pub const fn as_bytes(&self) -> &[u8; 64] {
-        &self.0
-    }
-
-    /// Returns the seed bytes, consuming `self`.
-    ///
-    /// This method replaces the internal storage with zeros before `self` is
-    /// dropped, so the original in-struct buffer is not left containing the seed.
-    ///
-    /// # Security
-    ///
-    /// The returned `[u8; 64]` is still secret material and is **not**
-    /// automatically zeroized; callers must handle/clear it appropriately.
-    #[inline]
-    pub fn into_bytes(mut self) -> [u8; 64] {
-        let mut out = [0u8; 64];
-        core::mem::swap(&mut out, &mut self.0);
-        out
-    }
-}
-
-impl Clone for RawSeed {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl From<[u8; 64]> for RawSeed {
-    #[inline]
-    fn from(seed: [u8; 64]) -> Self {
-        Self::new(seed)
-    }
-}
-
-impl From<RawSeed> for [u8; 64] {
-    #[inline]
-    fn from(seed: RawSeed) -> Self {
-        seed.into_bytes()
-    }
-}
-
-impl ZeroizeOnDrop for RawSeed {}
-impl Drop for RawSeed {
-    fn drop(&mut self) {
-        self.0.zeroize();
-    }
-}
-
 /// A raw, unwrapped secret.
 pub enum RawSecret<CS: CipherSuite> {
     /// A symmetric AEAD key.
@@ -209,7 +147,7 @@ pub enum RawSecret<CS: CipherSuite> {
     /// A PRK.
     Prk(Prk<<CS::Kdf as Kdf>::PrkSize>),
     /// Cryptographic seeds.
-    Seed(RawSeed),
+    Seed(Zeroizing<[u8; 64]>),
     /// An asymmetric signing key.
     Signing(<CS::Signer as Signer>::SigningKey),
 }

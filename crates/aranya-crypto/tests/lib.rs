@@ -13,7 +13,7 @@ test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 mod unwrapped_tests {
     use core::marker::PhantomData;
 
-    use aranya_crypto::{BaseId, Identified, engine::RawSeed, id::IdError, unwrapped};
+    use aranya_crypto::{BaseId, Identified, id::IdError, unwrapped, zeroize::Zeroizing};
 
     #[test]
     fn test_unwrapped() {
@@ -32,7 +32,9 @@ mod unwrapped_tests {
             name: Seed;
             type: Seed;
             into: |seed: Self| { seed.seed.into() };
-            from: |seed: RawSeed| { Seed { seed: seed.into(), _marker: PhantomData } };
+            from: |seed: Zeroizing<[u8; 64]>| {
+                Seed { seed: *seed, _marker: PhantomData }
+            };
         }
     }
 }

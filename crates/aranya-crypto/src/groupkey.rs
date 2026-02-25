@@ -11,13 +11,13 @@ use spideroak_crypto::{
     import::Import,
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
-    zeroize::{Zeroize as _, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
 use crate::{
     aranya::VerifyingKey,
     ciphersuite::{CipherSuite, CipherSuiteExt as _},
-    engine::{RawSeed, unwrapped},
+    engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
     id::{IdError, Identified, custom_id},
@@ -251,7 +251,9 @@ unwrapped! {
     name: GroupKey;
     type: Seed;
     into: |key: Self| { key.seed.into() };
-    from: |seed: RawSeed| { Self::from_seed(seed.into()) };
+    from: |seed: Zeroizing<[u8; 64]>| {
+        Self::from_seed(*seed)
+    };
 }
 
 impl<CS: CipherSuite> Identified for GroupKey<CS> {

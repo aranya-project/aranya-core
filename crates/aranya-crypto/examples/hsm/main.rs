@@ -24,6 +24,7 @@ use aranya_crypto::{
     engine::{self, AlgId, RawSecret, RawSecretWrap, UnwrappedKey, WrongKeyType},
     id::IdError,
     kem_with_oid,
+    zeroize::Zeroizing,
 };
 use buggy::{Bug, bug};
 use serde::{Deserialize, Serialize};
@@ -162,7 +163,7 @@ enum RawSecretBytes<CS: CipherSuite> {
     Decap(SecretKeyBytes<<<CS::Kem as Kem>::DecapKey as SecretKey>::Size>),
     Mac(SecretKeyBytes<<<CS::Mac as Mac>::Key as SecretKey>::Size>),
     Prk(Prk<<CS::Kdf as Kdf>::PrkSize>),
-    Seed([u8; 64]),
+    Seed(Zeroizing<[u8; 64]>),
     // Signing is not needed since it's stored inside the HSM.
 }
 
