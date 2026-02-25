@@ -122,7 +122,7 @@ impl WorkingDirectory {
 /// writes a new one.
 fn load_secret_key<K: SecretKey, R: Csprng>(
     working_directory: &WorkingDirectory,
-    rng: &mut R,
+    rng: &R,
 ) -> anyhow::Result<K> {
     let key_path = working_directory.secret_key();
 
@@ -152,16 +152,16 @@ fn load_secret_key<K: SecretKey, R: Csprng>(
 /// Loads the crypto engine using the secret key
 fn load_crypto_engine<R: Csprng>(
     working_directory: &WorkingDirectory,
-    mut rng: R,
+    rng: R,
 ) -> anyhow::Result<DefaultEngine<R>> {
-    let secret_key = load_secret_key(working_directory, &mut rng)?;
+    let secret_key = load_secret_key(working_directory, &rng)?;
     Ok(DefaultEngine::new(&secret_key, rng))
 }
 
 /// Loads the Device ID from disk or generates a new one
 fn load_device_id(
     working_directory: &WorkingDirectory,
-    rng: &mut impl Csprng,
+    rng: &impl Csprng,
 ) -> anyhow::Result<DeviceId> {
     let id_path = working_directory.device_id();
 
@@ -176,7 +176,8 @@ fn load_device_id(
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => {
             tracing::debug!("generating device ID");
-            let rng_device_id = rng.bytes();
+            let mut rng_device_id = [0u8; 32];
+            rng.fill_bytes(&mut rng_device_id);
             let device_id = DeviceId::from_bytes(rng_device_id);
             fs::write(&id_path, rng_device_id)?;
             tracing::debug!("Device ID saved to '{}'", id_path.display());
@@ -240,12 +241,12 @@ fn inner_logic(
 
     // Load or generate policy prerequisites: Keystore, Device ID, and Crypto Engine
     let mut keystore = fs_keystore::Store::open(working_directory.keystore_dir())?;
-    let mut rng = if deterministic_rng {
+    let rng = if deterministic_rng {
         SwitchableRng::new_deterministic()
     } else {
         SwitchableRng::new_default()
     };
-    let device_id = load_device_id(working_directory, &mut rng)?;
+    let device_id = load_device_id(working_directory, &rng)?;
     let mut crypto_engine = load_crypto_engine(working_directory, rng)?;
 
     // Iterate over all run files, execute their preambles, and collect

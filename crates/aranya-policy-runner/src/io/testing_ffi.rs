@@ -31,7 +31,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     pub fn random_bytes<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         n: i64,
     ) -> Result<Vec<u8>, MachineError> {
         if n <= 0 {
@@ -52,7 +52,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     pub fn random_id<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
     ) -> Result<BaseId, MachineError> {
         let bytes = self.random_bytes(_ctx, eng, 32)?;
         let array_bytes = bytes.try_into().expect("we asked for 32 bytes");
@@ -63,7 +63,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     pub fn random_key<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
     ) -> Result<Vec<u8>, MachineError> {
         let sk: SigningKey<E::CS> = SigningKey::new(eng);
         let mut refmut = self.keystore.try_borrow_mut().map_err(|e| {
@@ -88,7 +88,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     pub fn bytes_from_hex<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         hex_str: Text,
     ) -> Result<Vec<u8>, MachineError> {
         let s = hex_str.as_str();
@@ -114,7 +114,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     pub fn id_from_hex<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         hex_str: Text,
     ) -> Result<BaseId, MachineError> {
         let bytes = self.bytes_from_hex(_ctx, _eng, hex_str)?;

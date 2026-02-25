@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     fmt,
     fs::OpenOptions,
     io::{self, BufRead as _, BufReader},
@@ -214,10 +213,10 @@ impl RunFile {
             .ffi_modules(&[TestingFfi::<KS>::SCHEMA])
             .compile()?;
 
-        let machine = Machine::from_module(module)?;
-        let io = RefCell::new(PreambleIO::new(crypto_engine, keystore));
+        let machine = Machine::from_module(module).expect("cannot get unsupported version");
+        let mut io = PreambleIO::new(crypto_engine, keystore);
         let mut rs = machine.create_run_state(
-            &io,
+            &mut io,
             CommandContext::Policy(PolicyContext {
                 name: ident!("preamble"),
                 id: Id::default(),
@@ -312,8 +311,9 @@ preamble:
     }
 
     fn test_prereqs() -> (DefaultEngine<SwitchableRng>, MemStore) {
-        let secret_key = AeadKey::random(&mut SwitchableRng::new_default());
-        let engine = DefaultEngine::new(&secret_key, SwitchableRng::new_default());
+        let rng = SwitchableRng::new_default();
+        let secret_key = AeadKey::random(&rng);
+        let engine = DefaultEngine::new(&secret_key, rng);
         let keystore = MemStore::new();
         (engine, keystore)
     }
