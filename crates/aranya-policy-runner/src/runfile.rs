@@ -10,7 +10,7 @@ use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::{ParseError, ParseErrorKind, parse_expression, parse_policy_str};
 use aranya_policy_vm::{
     CommandContext, ExitReason, Identifier, Label, LabelType, Machine, MachineError, PolicyContext,
-    UnsupportedVersion, Value, ast::ExprKind, ffi::FfiModule as _, ident,
+    Value, ast::ExprKind, ffi::FfiModule as _, ident,
 };
 
 use crate::{
@@ -57,14 +57,6 @@ pub enum RunFileError {
     PolicyVmCheck,
     #[error("Policy VM Panic")]
     PolicyVmPanic,
-    #[error("Policy Version")]
-    PolicyVersion,
-}
-
-impl From<UnsupportedVersion> for RunFileError {
-    fn from(_value: UnsupportedVersion) -> Self {
-        Self::PolicyVersion
-    }
 }
 
 /// A thing that can be run. Either an action or a raw command struct.
