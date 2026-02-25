@@ -159,8 +159,8 @@ none = { "None" }
 some = { "Some" }
 optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
 
-ok = { "Ok(" ~ expression ~ ")" }
-err = { "Err(" ~ expression ~ ")" }
+ok = { "Ok" ~ "(" ~ expression ~ ")" }
+err = { "Err" ~ "(" ~ expression ~ ")" }
 result_literal = { ok | err }
 
 // A query expression evaluates a fact literal, returning a result
