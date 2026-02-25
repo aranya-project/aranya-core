@@ -2429,6 +2429,7 @@ fn test_comparison_operators() {
     check("2 >= 1");
     check("!(2 < 1)");
     check("!(2 <= 1)");
+    check("saturating_sub(5, 2) > 2");
 }
 
 #[test]

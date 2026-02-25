@@ -45,7 +45,7 @@ pub(crate) enum UserType<'a> {
 #[derive(Debug, Clone)]
 pub struct IdentifierTypeStack {
     globals: HashMap<Identifier, VType>,
-    locals: Vec<Vec<HashMap<Identifier, VType>>>,
+    locals: Vec<HashMap<Identifier, VType>>,
 }
 
 impl IdentifierTypeStack {
@@ -53,7 +53,7 @@ impl IdentifierTypeStack {
     pub fn new() -> Self {
         Self {
             globals: HashMap::new(),
-            locals: vec![vec![HashMap::new()]],
+            locals: vec![HashMap::new()],
         }
     }
 
@@ -77,7 +77,7 @@ impl IdentifierTypeStack {
         if self.globals.contains_key(&ident) {
             return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
         }
-        let locals = self.locals.last_mut().expect("no function scope");
+        let locals = &mut self.locals;
         for prev in locals.iter().rev() {
             if prev.contains_key(&ident) {
                 return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
@@ -99,11 +99,9 @@ impl IdentifierTypeStack {
     /// found in the current scope.
     #[allow(clippy::result_large_err)]
     pub fn get(&self, name: &Identifier) -> Result<VType, CompileErrorType> {
-        if let Some(locals) = self.locals.last() {
-            for scope in locals.iter().rev() {
-                if let Some(v) = scope.get(name) {
-                    return Ok(v.clone());
-                }
+        for scope in self.locals.iter().rev() {
+            if let Some(v) = scope.get(name) {
+                return Ok(v.clone());
             }
         }
         if let Some(v) = self.globals.get(name) {
@@ -114,30 +112,22 @@ impl IdentifierTypeStack {
 
     /// Push a new, empty scope on top of the type stack.
     pub fn enter_function(&mut self) {
-        self.locals.push(vec![HashMap::new()]);
+        self.locals.push(HashMap::new());
     }
 
-    /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
-    /// stack, as this indicates a mistake in the compiler.
+    /// Clear local variables when exiting a function defintion.
     pub fn exit_function(&mut self) {
-        self.locals.pop().expect("no function scope");
+        self.locals.clear();
     }
 
     /// Enter a new block scope.
     pub fn enter_block(&mut self) {
-        self.locals
-            .last_mut()
-            .expect("no function scope")
-            .push(HashMap::new());
+        self.locals.push(HashMap::new());
     }
 
     /// Exit the current block scope.
     pub fn exit_block(&mut self) {
-        self.locals
-            .last_mut()
-            .expect("no function scope")
-            .pop()
-            .expect("no block scope");
+        self.locals.pop().expect("no block scope");
     }
 }
 
@@ -152,19 +142,14 @@ pub fn check_type(
     target_type: VType,
     errmsg: &'static str,
 ) -> Result<VType, TypeUnifyError> {
-    match ty.kind {
-        TypeKind::Never => Ok(target_type),
-        _ => {
-            if ty.fits_type(&target_type) {
-                Ok(ty)
-            } else {
-                Err(TypeUnifyError {
-                    left: ty,
-                    right: target_type,
-                    ctx: errmsg,
-                })
-            }
-        }
+    if ty.fits_type(&target_type) {
+        Ok(ty)
+    } else {
+        Err(TypeUnifyError {
+            left: ty,
+            right: target_type,
+            ctx: errmsg,
+        })
     }
 }
 

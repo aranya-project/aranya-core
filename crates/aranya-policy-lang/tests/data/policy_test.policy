@@ -92,3 +92,5 @@ ephemeral command C {
 }
 
 ephemeral action a() {}
+
+let escaped_newline = "line1\nline2"

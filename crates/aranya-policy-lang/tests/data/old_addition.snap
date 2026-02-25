@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+Invalid operator: line 2 column 14: found `+`, addition now uses functions `add` or `saturating_add`

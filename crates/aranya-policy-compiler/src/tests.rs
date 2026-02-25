@@ -1083,6 +1083,39 @@ fn test_serialize_deserialize() {
     "#;
 
     compile_pass(text);
+
+    let invalid_cases = [
+        r#"
+            struct Foo {
+                f string
+            }
+
+            function get_bytes() bytes {
+                return todo()
+            }
+
+            function err() struct Foo {
+                return deserialize(get_bytes())
+            }
+        "#,
+        r#"
+            struct Foo {
+                f string
+            }
+
+            function err(f struct Foo) bytes {
+                return serialize(f)
+            }
+        "#,
+    ];
+
+    for case in invalid_cases {
+        let err_type = compile_fail(case);
+        assert!(
+            matches!(err_type, CompileErrorType::InvalidExpression(_)),
+            "{err_type}"
+        );
+    }
 }
 
 #[test]
@@ -2247,6 +2280,15 @@ fn test_type_errors() {
             "#,
             e: "match pattern 2 has type string, expected type int",
         },
+        Case {
+            t: r#"
+                function f() bool {
+                    if !todo() == 42 { return false }
+                    return true
+                }
+            "#,
+            e: "type mismatch: bool != int",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -3050,6 +3092,24 @@ fn test_substruct_errors() {
             "#,
             e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
         },
+        Case {
+            t: r#"
+                struct Foo {
+                    x int,
+                    y bool,
+                }
+                struct Bar {
+                    x int,
+                    y string,
+                    z string,
+                }
+                function baz(source struct Bar) struct Foo {
+                    return source substruct Foo
+                }
+            "#,
+            // TODO: Improve error message when field names match but types differ.
+            e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -3513,3 +3573,40 @@ const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
     ],
     enums: &[],
 }];
+
+#[test]
+fn test_exit_statement_context() {
+    let data = r#"
+        command C {
+            fields { }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                if false {
+                    finish {}
+                }
+                // still in finish context instead of policy
+                let y = !true // invalid finish expression
+                finish {}
+            }
+        }
+    "#;
+
+    compile_pass(data);
+}
+
+#[test]
+fn test_exit_function() {
+    let data = r#"
+        function foo() int {
+            let a = 0
+            return a
+        }
+
+        function bar() int {
+            return a
+        }
+    "#;
+
+    compile_fail(data);
+}
