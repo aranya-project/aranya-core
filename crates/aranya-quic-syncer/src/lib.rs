@@ -426,9 +426,7 @@ where
             let mut buffers = TraversalBuffers::new();
             let mut response_syncer = SyncResponder::new(&mut buffers);
             let mut commands = Vec::new();
-            commands
-                .extend_from_slice(response_cache.heads())
-                .expect("infallible error");
+            commands.extend(response_cache.heads().iter().map(|h| h.address()));
             response_syncer.receive(SyncRequestMessage::SyncRequest {
                 session_id,
                 graph_id,

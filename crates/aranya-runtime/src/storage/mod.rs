@@ -206,6 +206,29 @@ impl fmt::Display for Location {
     }
 }
 
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LocatedAddress {
+    pub id: CmdId,
+    pub segment: SegmentIndex,
+    pub max_cut: MaxCut,
+}
+
+impl LocatedAddress {
+    pub fn address(self) -> Address {
+        Address {
+            id: self.id,
+            max_cut: self.max_cut,
+        }
+    }
+
+    pub fn location(self) -> Location {
+        Location {
+            segment: self.segment,
+            max_cut: self.max_cut,
+        }
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StorageError {
@@ -413,32 +436,19 @@ pub trait Storage {
         fact_perspective: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError>;
 
-    /// Determine whether the given location is an ancestor of the given segment.
+    /// Determine whether the given location is an ancestor of the given location.
     fn is_ancestor(
         &self,
         search_location: Location,
-        segment: &Self::Segment,
+        start_location: Location,
         buffers: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let queue = buffers.get();
-
-        // Try to use skip list to jump directly backward.
-        // Skip list is sorted by max_cut ascending, so first valid skip
-        // jumps as far back as possible.
-        if let Some(&skip) = segment
-            .skip_list()
-            .iter()
-            .find(|skip| skip.max_cut >= search_location.max_cut)
-        {
-            queue.push(skip)?;
-        } else {
-            // No valid skip - add prior locations to queue
-            for prior in segment.prior() {
-                if prior.max_cut >= search_location.max_cut {
-                    queue.push(prior)?;
-                }
-            }
+        if search_location.max_cut > start_location.max_cut || search_location == start_location {
+            return Ok(false);
         }
+
+        let queue = buffers.get();
+        queue.push(start_location)?;
 
         while let Some(loc) = queue.pop() {
             debug_assert!(
