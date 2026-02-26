@@ -272,8 +272,10 @@ function struct_fn(
         _eng: &E,
         r: Result<i64, Text>,
     ) -> Result<Result<i64, Text>, MachineError> {
-        Ok(r.map(|x| x + 1)
-            .map_err(|s| s.as_str().to_uppercase().try_into().unwrap()))
+        Ok(match r {
+            Ok(x) => Ok(x.checked_add(1).ok_or(MachineErrorType::IntegerOverflow)?),
+            Err(s) => Err(s.as_str().to_uppercase().try_into().expect("valid text")),
+        })
     }
 }
 
@@ -480,5 +482,12 @@ fn test_ffi_derive() {
         let got = state.pop_value().unwrap();
         let want = Value::Result(Err(Box::new(Value::String(text!("HELLO")))));
         assert_eq!(got, want);
+
+        state.push(Value::Result(Ok(Box::new(Value::Int(i64::MAX)))));
+        let err = state.call("test_result").unwrap_err();
+        assert_eq!(
+            err,
+            TestStateError::Module(MachineErrorType::IntegerOverflow.into())
+        );
     }
 }
