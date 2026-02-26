@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use aranya_policy_ast::{self as ast, FieldDefinition, TypeKind, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Label, LabelType, Module, ModuleData, Struct, Value,
+    ConstStruct, ConstValue, Label, LabelType, Module, ModuleData,
     ffi::{self, ModuleSchema},
 };
 
@@ -327,15 +327,15 @@ fn test_command_attributes() {
             assert_eq!(attrs.len(), 3);
             assert_eq!(
                 attrs.get("i").expect("should find 1st value").value,
-                Value::Int(5)
+                ConstValue::Int(5)
             );
             assert_eq!(
                 attrs.get("s").expect("should find 2nd value").value,
-                Value::String(text!("abc"))
+                ConstValue::String(text!("abc"))
             );
             assert_eq!(
                 attrs.get("priority").expect("should find 3nd value").value,
-                Value::Enum(ident!("Priority"), 1)
+                ConstValue::Enum(ident!("Priority"), 1)
             );
         }
     }
@@ -2414,11 +2414,11 @@ fn test_struct_composition_global_let_and_command_attributes() {
 
     let ModuleData::V0(mod_data) = compile_pass(policy_str).data;
 
-    let expected = Value::Struct(Struct {
+    let expected = ConstValue::Struct(ConstStruct {
         name: ident!("Foo"),
         fields: BTreeMap::from([
-            (ident!("x"), Value::Int(1000)),
-            (ident!("y"), Value::Int(20)),
+            (ident!("x"), ConstValue::Int(1000)),
+            (ident!("y"), ConstValue::Int(20)),
         ]),
     });
 

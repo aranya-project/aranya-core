@@ -10,9 +10,9 @@ use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
-    MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
-    RunState, SealContext, Stack as _, Struct, Value, ident, text,
+    ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Identifier,
+    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext,
+    PolicyContext, RunState, SealContext, Stack as _, Struct, Value, ident, text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -1676,24 +1676,24 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         BTreeMap::from([
             (
                 ident!("d"),
-                Value::Struct(Struct {
+                ConstValue::Struct(ConstStruct {
                     name: ident!("Bar"),
                     fields: BTreeMap::from([
                         (
                             ident!("a"),
-                            Value::Struct(Struct {
+                            ConstValue::Struct(ConstStruct {
                                 name: ident!("Far"),
-                                fields: BTreeMap::from([(ident!("a"), Value::Int(3))]),
+                                fields: BTreeMap::from([(ident!("a"), ConstValue::Int(3))]),
                             }),
                         ),
-                        (ident!("b"), Value::String(text!("y"))),
-                        (ident!("c"), Value::Bool(false)),
+                        (ident!("b"), ConstValue::String(text!("y"))),
+                        (ident!("c"), ConstValue::Bool(false)),
                     ]),
                 }),
             ),
-            (ident!("x"), Value::Int(42)),
-            (ident!("y"), Value::String(text!("hello world"))),
-            (ident!("z"), Value::Bool(true)),
+            (ident!("x"), ConstValue::Int(42)),
+            (ident!("y"), ConstValue::String(text!("hello world"))),
+            (ident!("z"), ConstValue::Bool(true)),
         ])
     });
 

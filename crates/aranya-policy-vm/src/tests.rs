@@ -1,15 +1,12 @@
 #![cfg(test)]
 #![allow(clippy::unwrap_used)]
 
-extern crate alloc;
-
 mod ffi;
 mod io;
 
-use alloc::collections::BTreeMap;
-
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Span, Text, ident, text};
+use aranya_policy_module::{ConstStruct, ConstValue};
 use io::TestIO;
 
 use crate::{
@@ -259,7 +256,7 @@ fn test_ffi() {
 #[test]
 fn test_extcall() {
     let machine = Machine::new([
-        Instruction::Const(Value::String(text!("hi"))),
+        Instruction::Const(ConstValue::String(text!("hi"))),
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -280,7 +277,7 @@ fn test_extcall() {
 #[test]
 fn test_extcall_invalid_module() {
     let machine = Machine::new([
-        Instruction::Const(Value::String(text!("hi"))),
+        Instruction::Const(ConstValue::String(text!("hi"))),
         Instruction::ExtCall(1, 0), // invalid module id
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -297,7 +294,7 @@ fn test_extcall_invalid_module() {
 #[test]
 fn test_extcall_invalid_proc() {
     let machine = Machine::new([
-        Instruction::Const(Value::String(text!("hi"))),
+        Instruction::Const(ConstValue::String(text!("hi"))),
         Instruction::ExtCall(0, 1), // invalid proc id
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -314,7 +311,7 @@ fn test_extcall_invalid_proc() {
 #[test]
 fn test_extcall_invalid_arg() {
     let machine = Machine::new([
-        Instruction::Const(Value::Int(0)), // function expects string
+        Instruction::Const(ConstValue::Int(0)), // function expects string
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -425,7 +422,7 @@ fn test_errors() {
     // AlreadyDefined: Define a name twice
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::Dup,
             Instruction::Def(x.clone()),
             Instruction::Def(x.clone()),
@@ -436,8 +433,8 @@ fn test_errors() {
     // InvalidType: 3 > "x" (same case as 3 < "x")
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(text.clone())),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::String(text.clone())),
             Instruction::Gt,
         ],
         MachineErrorType::invalid_type("Int, Int", "Int, String", "Greater-than comparison"),
@@ -446,8 +443,8 @@ fn test_errors() {
     // InvalidType: 3 + "x" (same case as 3 - "x")
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(text.clone())),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::String(text.clone())),
             Instruction::Add,
         ],
         MachineErrorType::invalid_type("Int", "String", "Value -> i64"),
@@ -455,15 +452,15 @@ fn test_errors() {
 
     // InvalidType: !3
     error_test_harness(
-        &[Instruction::Const(Value::Int(3)), Instruction::Not],
+        &[Instruction::Const(ConstValue::Int(3)), Instruction::Not],
         MachineErrorType::invalid_type("bool", "Int", "Value -> bool"),
     );
 
     // InvalidType: Set a struct value on a thing that isn't a struct
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::StructSet(x.clone()),
         ],
         MachineErrorType::invalid_type("Struct", "Int", "Value -> Struct"),
@@ -472,8 +469,8 @@ fn test_errors() {
     // InvalidType: Set a fact key on a thing that isn't a fact
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::FactKeySet(x.clone()),
         ],
         MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
@@ -482,8 +479,8 @@ fn test_errors() {
     // InvalidType: Set a fact value on a thing that isn't a fact
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::FactValueSet(x.clone()),
         ],
         MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
@@ -492,7 +489,7 @@ fn test_errors() {
     // InvalidType: Branch on a non-bool value
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::Branch(Target::Unresolved(Label::new_temp(x.clone()))),
         ],
         MachineErrorType::invalid_type("Bool", "Int", "Value -> bool"),
@@ -501,33 +498,33 @@ fn test_errors() {
     // InvalidStructGet: Access `foo.x` when `x` is not a member of `foo`
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct::new(ident!("foo"), &[]))),
+            Instruction::Const(ConstValue::Struct(ConstStruct::empty(ident!("foo")))),
             Instruction::StructGet(x.clone()),
         ],
         MachineErrorType::InvalidStructMember(x.clone()),
     );
 
     // InvalidFact: Update a fact that does not exist
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Fact(Fact {
+    general_test_harness(
+        &[Instruction::Dup, Instruction::Update],
+        |_| Ok(()),
+        |rs| {
+            rs.stack.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })),
-            Instruction::Dup,
-            Instruction::Update,
-        ],
-        MachineErrorType::InvalidFact(x.clone()),
+            })?;
+            let err = rs.run().unwrap_err().err_type;
+            assert_eq!(err, MachineErrorType::InvalidFact(x.clone()));
+            Ok(())
+        },
+        ctx.clone(),
     );
 
     // InvalidSchema: Publish a command that was not defined
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct {
-                name: x.clone(),
-                fields: BTreeMap::new(),
-            })),
+            Instruction::Const(ConstValue::Struct(ConstStruct::empty(x.clone()))),
             Instruction::Publish,
         ],
         MachineErrorType::InvalidSchema(x.clone()),
@@ -536,10 +533,7 @@ fn test_errors() {
     // InvalidSchema: Emit an effect that was not defined
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct {
-                name: x.clone(),
-                fields: BTreeMap::new(),
-            })),
+            Instruction::Const(ConstValue::Struct(ConstStruct::empty(x.clone()))),
             Instruction::Emit,
         ],
         MachineErrorType::InvalidSchema(x.clone()),
@@ -590,38 +584,45 @@ fn test_errors() {
             );
             Ok(())
         },
-        ctx,
+        ctx.clone(),
     );
 
     // IO: Delete a fact that does not exist
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Fact(Fact {
+    general_test_harness(
+        &[Instruction::Delete],
+        |_| Ok(()),
+        |rs| {
+            rs.stack.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })),
-            Instruction::Delete,
-        ],
-        MachineErrorType::IO(MachineIOError::FactNotFound),
+            })?;
+            let err = rs.run().unwrap_err().err_type;
+            assert_eq!(err, MachineErrorType::IO(MachineIOError::FactNotFound));
+            Ok(())
+        },
+        ctx.clone(),
     );
 
     // IO: Create a fact that already exists
     // This _should_ be failing because the fact has not been declared
     // in schema, but TestIO does not care about fact schema and the
     // machine does not check it.
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Fact(Fact {
+    general_test_harness(
+        &[Instruction::Dup, Instruction::Create, Instruction::Create],
+        |_| Ok(()),
+        |rs| {
+            rs.stack.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })),
-            Instruction::Dup,
-            Instruction::Create,
-            Instruction::Create,
-        ],
-        MachineErrorType::IO(MachineIOError::FactExists),
+            })?;
+            let err = rs.run().unwrap_err().err_type;
+            assert_eq!(err, MachineErrorType::IO(MachineIOError::FactExists));
+            Ok(())
+        },
+        ctx.clone(),
     );
+
     // Unknown untested as it cannot be created
 }
