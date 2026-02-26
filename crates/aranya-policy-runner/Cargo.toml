@@ -37,8 +37,3 @@ aranya-policy-ifgen-build = { version = "0.13.0", path = "../aranya-policy-ifgen
 
 [lints]
 workspace = true
-
-# TODO - remove these
-[features]
-preview = []
-afc = []
