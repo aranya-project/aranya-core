@@ -9,7 +9,10 @@ use aranya_policy_module::{
     ffi::{self, ModuleSchema},
 };
 
-use crate::{CompileError, CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+use crate::{
+    CompileError, CompileErrorType, Compiler, InvalidCallColor,
+    validate::{ValidationResult, validate},
+};
 
 const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     ModuleSchema {
@@ -2845,7 +2848,7 @@ fn test_validate_return() {
     for p in valid {
         let m = compile_pass(p);
         assert!(
-            validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Success),
             "Expected case to be valid: {}",
             p
         );
@@ -2854,7 +2857,7 @@ fn test_validate_return() {
     for p in invalid {
         let m = compile_pass(p);
         assert!(
-            !validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Failure),
             "Expected case to be invalid: {}",
             p
         );
@@ -2963,7 +2966,7 @@ fn test_validate_publish() {
     for p in valid {
         let m = compile_pass(&p);
         assert!(
-            validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Success),
             "Expected case to be valid: {}",
             p
         );
@@ -2972,7 +2975,7 @@ fn test_validate_publish() {
     for p in invalid {
         let m = compile_pass(&p);
         assert!(
-            !validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Failure),
             "Expected case to be invalid: {}",
             p
         );
@@ -3744,7 +3747,168 @@ fn test_nested_result() {
 }
 
 #[test]
-fn test_unused_values() {
+fn validate_result_values() {
+    let invalid = [
+        // Not a result type
+        "function f() result[int, string] { return 0 }",
+        // Ok type mismatch
+        "function f() result[int, string] { return Ok(\"1\") }",
+        // Err type mismatch
+        "function f() result[int, string] { return Err(1) }",
+    ];
+
+    for src in invalid {
+        let result = compile_fail(src);
+        assert_eq!(
+            result,
+            CompileErrorType::InvalidType(
+                "Return value of `f()` must be result[int, string]".to_string(),
+            ),
+            "expected error for source: {}",
+            src
+        );
+    }
+}
+
+#[test]
+fn test_result_match() {
+    let policy_str = r#"
+        function may_fail(x int) result[int, string] {
+            if x > 0 {
+                return Ok(x)
+            } else {
+                return Err("negative input")
+            }
+        }
+
+        function match_statement(r result[int, string]) int {
+            match r {
+                Ok(v) => {
+                    return v
+                }
+                Err(e) => {
+                    return 0
+                }
+            }
+        }
+
+        function match_expr_with_return(x int) result[int, string] {
+            let n = match may_fail(x) {
+                Ok(n) => n
+                Err(e) => return Err(e)
+            }
+            return Ok(n)
+        }
+    "#;
+
+    compile_pass(policy_str);
+
+    let invalid = [
+        (
+            r#"
+        function match_duplicate_arms(r result[int, string]) int {
+            return match r {
+                Ok(v) => v
+                Ok(v) => v
+                _ => 0
+            }
+        }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+        function f(r result[bool, bool]) int {
+            return match r {
+                Ok(true) | Ok(false) => 0
+                Ok(x) => 1
+            }
+        }
+        "#,
+            CompileErrorType::Unknown("Result patterns cannot be used in alternation.".to_string()),
+        ),
+    ];
+    for (src, expected) in invalid {
+        let err_type = compile_fail(src);
+        assert_eq!(err_type, expected);
+    }
+}
+
+#[test]
+fn test_match_struct_with_result_field_needs_default() {
+    let err = compile_fail(
+        r#"
+        struct Bar { r result[int, string] }
+
+        function foo(b struct Bar) int {
+            return match b {
+                Bar { r: Ok(42) } => 1
+                Bar { r: Ok(16) } => 2
+            }
+        }
+    "#,
+    );
+    assert_eq!(err, CompileErrorType::MissingDefaultPattern);
+
+    compile_pass(
+        r#"
+        struct Bar { r result[int, string] }
+
+        function foo(b struct Bar) int {
+            return match b {
+                Bar { r: Ok(42) } => 1
+                Bar { r: Ok(16) } => 2
+                _ => 0
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_nested_result() {
+    let texts = vec![
+        r#"
+        enum Err { Fail }
+        function foo(n int) result[result[int, enum Err], enum Err] {
+            if n > 0 {
+                return Ok(Ok(42))
+            } else {
+                return Err(Err::Fail)
+            }
+        }
+        "#,
+        r#"
+        enum Err { Fail }
+        function foo(n int) result[option[int], enum Err] {
+            if n > 0 {
+                return Ok(Some(42))
+            } else if n == 0 {
+                return Ok(None)
+            } else {
+                return Err(Err::Fail)
+            }
+        }
+        "#,
+        r#"
+        enum Err { Fail }
+        function bar(n int) option[result[int, enum Err]] {
+            if n > 0 {
+                return Some(Ok(42))
+            } else if n == 0 {
+                return Some(Err(Err::Fail))
+            } else {
+                return None
+            }
+        }
+        "#,
+    ];
+    for text in texts {
+        compile_pass(text);
+    }
+}
+
+#[test]
+fn validate_unused_values() {
     let cases = [
         (
             r#"
@@ -3833,6 +3997,7 @@ fn test_unused_values() {
             "qux: unused variable(s): `y`",
         ),
         (
+            // TODO: this should pass; tracer needs to build control flow graph to properly track usage of `a` and `b`
             r#"
             function f(n int) int {
                 let a = n
@@ -3856,24 +4021,18 @@ fn test_unused_values() {
         if expected_msg.is_empty() {
             let result = validate(&module);
             assert!(
-                result.is_valid(true),
-                "case #{i} should have no validation errors, but got: {:?}",
-                result.num_errors
+                matches!(result, ValidationResult::Success),
+                "case #{i} should have no validation issues, but got: {:?}",
+                result
             );
         } else {
             // This case SHOULD fail validation
             let result = validate(&module);
             assert!(
-                result.num_errors == 0 && result.num_warnings > 0,
-                "case #{i} should have passed, but got {} error(s) and {} warning(s)",
-                result.num_errors,
-                result.num_warnings,
+                matches!(result, ValidationResult::Warning),
+                "case #{i} should have produced warnings, but got {:?}",
+                result,
             );
-            // assert_eq!(
-            //     &result.warnings[0].as_str(),
-            //     expected_msg,
-            //     "case #{i} should have expected unused variable warning"
-            // );
         }
     }
 }

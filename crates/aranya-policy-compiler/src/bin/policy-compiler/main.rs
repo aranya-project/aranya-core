@@ -1,6 +1,9 @@
 use std::{fs::File, path::PathBuf, process::ExitCode};
 
-use aranya_policy_compiler::{Compiler, validate::validate};
+use aranya_policy_compiler::{
+    Compiler,
+    validate::{ValidationResult, validate},
+};
 use aranya_policy_lang::lang::parse_policy_document;
 use clap::Parser;
 
@@ -55,7 +58,7 @@ pub fn main() -> ExitCode {
         }
     };
 
-    if !args.no_validate && !validate(&module).is_valid(false) {
+    if !args.no_validate && validate(&module) == ValidationResult::Failure {
         return ExitCode::FAILURE;
     }
 
