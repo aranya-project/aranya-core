@@ -11,9 +11,7 @@ mod sink;
 mod working_directory;
 
 use std::{
-    borrow::Cow,
-    fs,
-    path::{Path, PathBuf},
+    borrow::Cow, fs, io::Write, path::{Path, PathBuf}
 };
 
 use anyhow::Context as _;
@@ -28,8 +26,14 @@ use policy::{create_vmpolicy, load_and_compile_policy};
 use rng::SwitchableRng;
 use runfile::PolicyRunnable;
 pub use runfile::RunFile;
-use sink::EchoSink;
+use sink::WriterSink;
 use working_directory::WorkingDirectory;
+
+#[derive(Debug, Clone)]
+enum OutputDestination {
+    Stdout,
+    File(PathBuf),
+}
 
 /// The core Policy Runner object
 ///
@@ -56,6 +60,7 @@ pub struct PolicyRunner {
     working_directory: WorkingDirectory,
     run_files: Vec<RunFile>,
     policy: String,
+    output_destination: OutputDestination,
     deterministic_rng: bool,
     marker: bool,
     validator: bool,
@@ -75,6 +80,7 @@ impl PolicyRunner {
             working_directory,
             run_files: Vec::new(),
             policy,
+            output_destination: OutputDestination::Stdout,
             deterministic_rng: false,
             marker: false,
             validator: false,
@@ -105,6 +111,18 @@ impl PolicyRunner {
     pub fn with_runfiles(mut self, run_files: Vec<RunFile>) -> anyhow::Result<Self> {
         self.run_files = run_files;
         Ok(self)
+    }
+
+    /// Set the output destination to a file.
+    pub fn with_output_file(mut self, path: impl AsRef<Path>) -> Self {
+        self.output_destination = OutputDestination::File(path.as_ref().to_path_buf());
+        self
+    }
+
+    /// Set the output destination to stdout.
+    pub fn with_output_stdout(mut self) -> Self {
+        self.output_destination = OutputDestination::Stdout;
+        self
     }
 
     /// Configure whether to use a deterministic RNG. This causes all
@@ -174,7 +192,11 @@ impl PolicyRunner {
         let vm_policy = create_vmpolicy(machine, crypto_engine, keystore, device_id)?;
 
         let mut provider = self.working_directory.get_storage_provider()?;
-        let mut sink = EchoSink::default();
+        let out_stream: &mut dyn Write = match &self.output_destination {
+            OutputDestination::Stdout => &mut std::io::stdout(),
+            OutputDestination::File(path) => &mut fs::File::create_new(path)?,
+        };
+        let mut sink = WriterSink::new(out_stream);
 
         let (mut perspective, storage) = match self.working_directory.get_graph_id()? {
             Some(graph_id) => {
@@ -190,7 +212,7 @@ impl PolicyRunner {
 
         for schedule in run_schedules {
             if self.marker {
-                println!("--- {}", schedule.file_path.display());
+                sink.mark(schedule.file_path)?;
             }
             for i in schedule.thunk_range {
                 let action_ident = Identifier::try_from(format!("policy_runner_thunk_{i}"))

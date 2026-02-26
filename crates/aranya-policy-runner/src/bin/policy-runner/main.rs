@@ -16,6 +16,9 @@ struct Args {
     /// If unspecified, a temporary directory is used.
     #[arg(long, short)]
     working_directory: Option<PathBuf>,
+    /// Send output to a file instead of stdout.
+    #[arg(long, short)]
+    output: Option<PathBuf>,
     /// Use a deterministic RNG.
     ///
     /// This does not affect the randomly generated temporary working
@@ -55,6 +58,11 @@ fn main() -> anyhow::Result<()> {
         .with_marker(args.marker)
         .with_validator(args.validator)
         .with_runfile_paths(args.runs)?;
+    let runner = if let Some(path) = args.output {
+        runner.with_output_file(path)
+    } else {
+        runner
+    };
 
     runner.run()?;
 
