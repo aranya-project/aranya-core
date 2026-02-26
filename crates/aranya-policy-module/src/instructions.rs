@@ -10,7 +10,7 @@ mod meta;
 
 pub use meta::*;
 
-use crate::{Label, data::Value};
+use crate::{Label, data::ConstValue};
 
 /// Reason for ending execution.
 #[must_use]
@@ -108,7 +108,9 @@ impl Display for Target {
 pub enum Instruction {
     // data
     /// Push a value onto the stack
-    Const(Value),
+    Const(ConstValue),
+    /// Push an identifier onto the stack
+    Identifier(Identifier),
     /// Define a local value by name
     Def(Identifier),
     /// Get a local value by name
@@ -214,6 +216,7 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Const(v) => write!(f, "const {v}"),
+            Self::Identifier(ident) => write!(f, "ident {ident}"),
             Self::Def(ident) => write!(f, "def {ident}"),
             Self::Get(ident) => write!(f, "get {ident}"),
             Self::Dup => write!(f, "dup"),

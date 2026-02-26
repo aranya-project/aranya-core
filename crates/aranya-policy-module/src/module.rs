@@ -9,7 +9,7 @@ use aranya_policy_ast::{self as ast, Identifier, Param};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, Instruction, Label, Value,
+    CodeMap, ConstValue, Instruction, Label,
     named::{NamedMap, named},
 };
 
@@ -117,7 +117,7 @@ pub struct ModuleV0 {
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 /// An action definition.
@@ -182,7 +182,7 @@ pub struct Attribute {
     /// The name of the attribute.
     pub name: ast::Ident,
     /// The value of the attribute.
-    pub value: Value,
+    pub value: ConstValue,
 }
 named!(Attribute);
 

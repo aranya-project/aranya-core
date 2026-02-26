@@ -1,16 +1,14 @@
-extern crate alloc;
-
 use alloc::{collections::BTreeMap, string::ToString as _, vec, vec::Vec};
 
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::Value;
+use aranya_policy_module::ConstValue;
 
-use crate::MachineErrorType;
+use crate::{MachineErrorType, Value};
 
 /// Manages value assignment.
 #[derive(Debug)]
 pub struct ScopeManager<'a> {
-    globals: &'a BTreeMap<Identifier, Value>,
+    globals: &'a BTreeMap<Identifier, ConstValue>,
     locals: Vec<Vec<BTreeMap<Identifier, Value>>>,
 }
 
@@ -18,7 +16,7 @@ impl<'a> ScopeManager<'a> {
     /// Create a new scope manager with the given global assignments.
     ///
     /// Globals are always reachable.
-    pub fn new(globals: &'a BTreeMap<Identifier, Value>) -> Self {
+    pub fn new(globals: &'a BTreeMap<Identifier, ConstValue>) -> Self {
         Self {
             globals,
             locals: vec![vec![BTreeMap::new()]],
@@ -73,7 +71,7 @@ impl<'a> ScopeManager<'a> {
             }
         }
         if let Some(v) = self.globals.get(key) {
-            return Ok(v.clone());
+            return Ok(v.clone().into());
         }
         Err(MachineErrorType::NotDefined(ident.to_string()))
     }
@@ -122,7 +120,7 @@ mod test {
 
     #[test]
     fn test_scope() {
-        let globals = BTreeMap::from([(ident!("g"), Value::Int(42))]);
+        let globals = BTreeMap::from([(ident!("g"), ConstValue::Int(42))]);
         let mut scope = ScopeManager::new(&globals);
 
         assert_eq!(scope.get(&ident!("g")), Ok(Value::Int(42)));

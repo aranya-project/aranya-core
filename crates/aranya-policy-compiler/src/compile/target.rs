@@ -5,7 +5,7 @@ use std::{
 
 use aranya_policy_ast::{self as ast, Identifier, TypeKind};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, Instruction, Label, Module, ModuleData, ModuleV0, Value,
+    ActionDef, CodeMap, CommandDef, ConstValue, Instruction, Label, Module, ModuleData, ModuleV0,
     named::NamedMap,
 };
 use ast::FactDefinition;
@@ -21,22 +21,14 @@ pub(crate) struct CompileTarget {
     pub progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
-    /// Action definitions
-    pub action_defs: NamedMap<ActionDef>,
     /// Command definitions (`fields`)
     pub command_defs: NamedMap<CommandDef>,
-    /// Effect identifiers. The effect definitions can be found in `struct_defs`.
-    pub effects: BTreeSet<Identifier>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
-    /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
-    /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
-    /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
+    /// Public interface
+    pub interface: PolicyInterface,
 }
 
 impl CompileTarget {
@@ -45,14 +37,10 @@ impl CompileTarget {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: NamedMap::new(),
             command_defs: NamedMap::new(),
-            effects: BTreeSet::new(),
             fact_defs: BTreeMap::new(),
-            struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
             codemap: Some(codemap),
-            globals: BTreeMap::new(),
+            interface: PolicyInterface::new(),
         }
     }
 
@@ -65,6 +53,7 @@ impl CompileTarget {
     pub fn into_module(self) -> Module {
         // Convert enum defs IndexMap into BTreeMap.
         let enum_defs = self
+            .interface
             .enum_defs
             .into_iter()
             .map(|(k, v)| (k, v.into_iter().collect()))
@@ -74,13 +63,13 @@ impl CompileTarget {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
-                action_defs: self.action_defs,
+                action_defs: self.interface.action_defs,
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
-                struct_defs: self.struct_defs,
+                struct_defs: self.interface.struct_defs,
                 enum_defs,
                 codemap: self.codemap,
-                globals: self.globals,
+                globals: self.interface.globals,
             }),
         }
     }
@@ -98,7 +87,7 @@ impl CompileTarget {
                 self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self.struct_defs.get(&ident.name)?;
+                let defs = self.interface.struct_defs.get(&ident.name)?;
                 defs.iter()
                     .map(|def| self.cardinality(&def.field_type.kind))
                     .reduce(|acc, e| match e {
@@ -108,7 +97,7 @@ impl CompileTarget {
                     .flatten()
             }
             TypeKind::Enum(ident) => {
-                let defs = self.enum_defs.get(&ident.name)?;
+                let defs = self.interface.enum_defs.get(&ident.name)?;
                 Some(defs.len() as u64)
             }
             TypeKind::Never => Some(0),
@@ -131,7 +120,7 @@ impl Display for CompileTarget {
             writeln!(f, "  {}: {:?}", k, v)?;
         }
         writeln!(f, "Struct definitions:")?;
-        for (k, v) in &self.struct_defs {
+        for (k, v) in &self.interface.struct_defs {
             writeln!(f, "  {}: {:?}", k, v)?;
         }
         Ok(())
@@ -140,6 +129,7 @@ impl Display for CompileTarget {
 
 /// The public interface of a policy.
 #[derive(Debug)]
+#[cfg_attr(test, derive(Clone, Eq, PartialEq))]
 pub struct PolicyInterface {
     /// Action definitions
     pub action_defs: NamedMap<ActionDef>,
@@ -149,15 +139,18 @@ pub struct PolicyInterface {
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
     pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
+    /// Globally scoped variables
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
-impl From<CompileTarget> for PolicyInterface {
-    fn from(t: CompileTarget) -> Self {
+impl PolicyInterface {
+    const fn new() -> Self {
         Self {
-            action_defs: t.action_defs,
-            effects: t.effects,
-            struct_defs: t.struct_defs,
-            enum_defs: t.enum_defs,
+            action_defs: NamedMap::new(),
+            effects: BTreeSet::new(),
+            struct_defs: BTreeMap::new(),
+            enum_defs: BTreeMap::new(),
+            globals: BTreeMap::new(),
         }
     }
 }
