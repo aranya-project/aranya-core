@@ -2015,7 +2015,7 @@ pub struct Compiler<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
     stub_ffi: bool,
-    extra_globals: Vec<(Identifier, Value)>,
+    predefined_globals: Vec<(Identifier, Value)>,
 }
 
 impl<'a> Compiler<'a> {
@@ -2026,7 +2026,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
-            extra_globals: Vec::new(),
+            predefined_globals: Vec::new(),
         }
     }
 
@@ -2050,10 +2050,11 @@ impl<'a> Compiler<'a> {
         self
     }
 
+    /// Adds a list of (identifier, value) pairs to the predefined globals list.
     #[cfg(feature = "internals")]
     #[must_use]
     pub fn with_globals(mut self, globals: impl IntoIterator<Item = (Identifier, Value)>) -> Self {
-        self.extra_globals
+        self.predefined_globals
             .append(&mut globals.into_iter().collect());
         self
     }
@@ -2076,7 +2077,7 @@ impl<'a> Compiler<'a> {
         let codemap = CodeMap::new(&self.policy.text);
         let mut machine = CompileTarget::new(codemap);
         let mut identifier_types = IdentifierTypeStack::new();
-        for (ident, v) in &self.extra_globals {
+        for (ident, v) in &self.predefined_globals {
             let kind = v
                 .vtype()
                 .ok_or(CompileError::new(CompileErrorType::Unknown(
@@ -2090,7 +2091,7 @@ impl<'a> Compiler<'a> {
                 .add_global(ident.clone(), vtype)
                 .expect("global already exists");
         }
-        machine.add_globals(self.extra_globals);
+        machine.add_globals(self.predefined_globals);
 
         Ok(CompileState {
             policy: self.policy,
