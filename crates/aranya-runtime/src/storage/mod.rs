@@ -106,12 +106,6 @@ impl TraversalQueue {
         self.entries.iter().all(|(_, covered)| *covered)
     }
 
-    /// Remove entry with matching segment index.
-    pub fn remove_segment(&mut self, segment: SegmentIndex) {
-        if let Some(i) = self.entries.iter().position(|(loc, _)| loc.segment == segment) {
-            self.entries.swap_remove(i);
-        }
-    }
 
     /// Move entries with `max_cut > threshold` into result vec, removing them from the queue.
     pub fn drain_to_vec_above(

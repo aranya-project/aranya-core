@@ -385,10 +385,11 @@ impl<'a> SyncResponder<'a> {
 
             if covered {
                 // Case 1: Covered — peer already has this. Propagate coverage
-                // to priors and remove them from pending if present.
+                // to priors so they'll be processed as covered if not yet
+                // visited. Don't remove from pending: a prior may have been
+                // added through an uncovered path that still needs it.
                 for prior in segment.prior() {
                     heads.push_covered(prior, true)?;
-                    pending.remove_segment(prior.segment);
                 }
             } else {
                 // Advance have_cursor past locations with max_cut above this
@@ -421,11 +422,12 @@ impl<'a> SyncResponder<'a> {
                 }
 
                 if let Some((_idx, hloc)) = best_have {
-                    // Case 2: Contains a have_location.
-                    // Push priors as covered.
+                    // Case 2: Contains a have_location. Push priors as
+                    // covered. Don't remove from pending: a prior may have
+                    // been added through a different uncovered path and
+                    // still be needed.
                     for prior in segment.prior() {
                         heads.push_covered(prior, true)?;
-                        pending.remove_segment(prior.segment);
                     }
 
                     // If the peer doesn't have the whole segment (have_location
