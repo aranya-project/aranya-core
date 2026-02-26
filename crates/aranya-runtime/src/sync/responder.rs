@@ -303,40 +303,6 @@ impl<'a> SyncResponder<'a> {
         storage: &impl Storage,
         buffers: &mut TraversalBuffers,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        #[cfg(test)]
-        let mut _timer = {
-            static CALL_COUNT: core::sync::atomic::AtomicU32 =
-                core::sync::atomic::AtomicU32::new(0);
-            let call_num = CALL_COUNT.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            struct Timer {
-                start: std::time::Instant,
-                is_ancestor_calls: u32,
-                call_num: u32,
-                have_locations_count: u32,
-                segments_visited: u32,
-            }
-            impl Drop for Timer {
-                fn drop(&mut self) {
-                    let elapsed = self.start.elapsed();
-                    eprintln!(
-                        "[find_needed_segments #{}] is_ancestor calls: {}, have_locations: {}, segments visited: {}, time: {:.3}ms",
-                        self.call_num,
-                        self.is_ancestor_calls,
-                        self.have_locations_count,
-                        self.segments_visited,
-                        elapsed.as_secs_f64() * 1000.0,
-                    );
-                }
-            }
-            Timer {
-                start: std::time::Instant::now(),
-                is_ancestor_calls: 0,
-                call_num,
-                have_locations_count: 0,
-                segments_visited: 0,
-            }
-        };
-
         // Resolve command addresses to locations. Use buffers.primary as
         // scratch for each get_location call (it gets cleared before main loop).
         let mut have_locations: Vec<Location, COMMAND_SAMPLE_MAX> = Vec::new();
@@ -344,11 +310,6 @@ impl<'a> SyncResponder<'a> {
             if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
                 let _ = have_locations.push(location);
             }
-        }
-
-        #[cfg(test)]
-        {
-            _timer.have_locations_count = have_locations.len() as u32;
         }
 
         // Sort descending by max_cut so we can discard from the front as we
@@ -371,11 +332,6 @@ impl<'a> SyncResponder<'a> {
         let mut collected = alloc::vec::Vec::new();
 
         while let Some((head, covered)) = heads.pop_covered() {
-            #[cfg(test)]
-            {
-                _timer.segments_visited = _timer.segments_visited.wrapping_add(1);
-            }
-
             // Flush pending entries whose shortest_max_cut (stored as max_cut)
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.

@@ -521,47 +521,8 @@ where
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
     let mut buffers = TraversalBuffers::new();
 
-    #[cfg(test)]
-    let mut timing = {
-        struct RuleTiming {
-            sync_time_ms: f64,
-            sync_count: u32,
-            action_time_ms: f64,
-            action_count: u32,
-            other_time_ms: f64,
-            other_count: u32,
-        }
-        impl Drop for RuleTiming {
-            fn drop(&mut self) {
-                eprintln!(
-                    "[run_test timing] Sync: {:.1}ms ({} rules), ActionSet: {:.1}ms ({} rules), Other: {:.1}ms ({} rules)",
-                    self.sync_time_ms, self.sync_count,
-                    self.action_time_ms, self.action_count,
-                    self.other_time_ms, self.other_count,
-                );
-            }
-        }
-        RuleTiming {
-            sync_time_ms: 0.0,
-            sync_count: 0,
-            action_time_ms: 0.0,
-            action_count: 0,
-            other_time_ms: 0.0,
-            other_count: 0,
-        }
-    };
-
     for rule in actions {
         debug!(?rule);
-
-        #[cfg(test)]
-        let _rule_start = std::time::Instant::now();
-        #[cfg(test)]
-        let _rule_kind = match &rule {
-            TestRule::Sync { .. } => 0u8,
-            TestRule::ActionSet { .. } => 1u8,
-            _ => 2u8,
-        };
 
         match rule {
             TestRule::AddClient { id } => {
@@ -797,13 +758,12 @@ where
                                     .assume("cache must exist")?
                                     .borrow_mut();
 
-                                let (_, received) =
-                                    sync::<<SB as StorageBackend>::StorageProvider>(
-                                        (&mut request_cache, &mut request_client),
-                                        (&mut response_cache, &mut response_client),
-                                        &mut sink,
-                                        *graph_id,
-                                    )?;
+                                let (_, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                                    (&mut request_cache, &mut request_client),
+                                    (&mut response_cache, &mut response_client),
+                                    &mut sink,
+                                    *graph_id,
+                                )?;
 
                                 if received > 0 {
                                     any_received = true;
@@ -841,37 +801,7 @@ where
             }
             _ => {}
         }
-
-        #[cfg(test)]
-        {
-            let elapsed = _rule_start.elapsed().as_secs_f64() * 1000.0;
-            match _rule_kind {
-                0 => {
-                    timing.sync_time_ms += elapsed;
-                    timing.sync_count += 1;
-                }
-                1 => {
-                    timing.action_time_ms += elapsed;
-                    timing.action_count += 1;
-                }
-                _ => {
-                    timing.other_time_ms += elapsed;
-                    timing.other_count += 1;
-                }
-            }
-        }
     }
-
-    #[cfg(test)]
-    SYNC_TIMING.with(|t| {
-        let mut t = t.borrow_mut();
-        eprintln!(
-            "[sync breakdown {} calls] poll: {:.1}ms, dispatch: {:.1}ms, receive: {:.1}ms, add_commands: {:.1}ms, commit: {:.1}ms",
-            t.5, t.0, t.1, t.2, t.3, t.4,
-        );
-        // Reset for next test
-        *t = (0.0, 0.0, 0.0, 0.0, 0.0, 0);
-    });
 
     Ok(())
 }
@@ -1036,33 +966,20 @@ where
     result
 }
 
-#[cfg(test)]
-thread_local! {
-    static SYNC_TIMING: std::cell::RefCell<(f64, f64, f64, f64, f64, u32)> =
-        const { std::cell::RefCell::new((0.0, 0.0, 0.0, 0.0, 0.0, 0)) };
-}
-
 fn sync<SP: StorageProvider>(
     (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
     graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-
     let mut buffers = TraversalBuffers::new();
     let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(graph_id);
 
-    #[cfg(test)]
-    let t0 = std::time::Instant::now();
-
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
-
-    #[cfg(test)]
-    let t1 = std::time::Instant::now();
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -1073,53 +990,18 @@ fn sync<SP: StorageProvider>(
         response_cache,
     )?;
 
-    #[cfg(test)]
-    let t2 = std::time::Instant::now();
-
     if len == 0 {
-        #[cfg(test)]
-        SYNC_TIMING.with(|t| {
-            let mut t = t.borrow_mut();
-            t.0 += (t1 - t0).as_secs_f64() * 1000.0;
-            t.1 += (t2 - t1).as_secs_f64() * 1000.0;
-            t.5 += 1;
-        });
         return Ok((sent, received));
     }
 
-    #[cfg(test)]
-    let t3 = std::time::Instant::now();
-
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        #[cfg(test)]
-        let t4 = std::time::Instant::now();
-
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-
-        #[cfg(test)]
-        let t5 = std::time::Instant::now();
-
         request_state.commit(&mut request_trx, sink)?;
-
-        #[cfg(test)]
-        let t6 = std::time::Instant::now();
-
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
         )?;
-
-        #[cfg(test)]
-        SYNC_TIMING.with(|t| {
-            let mut t = t.borrow_mut();
-            t.0 += (t1 - t0).as_secs_f64() * 1000.0;
-            t.1 += (t2 - t1).as_secs_f64() * 1000.0;
-            t.2 += (t4 - t3).as_secs_f64() * 1000.0;
-            t.3 += (t5 - t4).as_secs_f64() * 1000.0;
-            t.4 += (t6 - t5).as_secs_f64() * 1000.0;
-            t.5 += 1;
-        });
     }
 
     Ok((sent, received))
@@ -1286,6 +1168,7 @@ macro_rules! test_vectors {
 }
 
 test_vectors! {
+    a_10000_commands,
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
