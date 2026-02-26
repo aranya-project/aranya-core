@@ -97,15 +97,18 @@ impl WorkingDirectory {
         match fs::read(&id_path) {
             Ok(buf) => {
                 tracing::debug!("loaded Device ID from '{}'", id_path.display());
-                let bytes = buf
-                    .try_into()
-                    .map_err(|_| anyhow!("Stored Device ID is not exactly 32 bytes"))?;
+                let bytes = buf.try_into().map_err(|_| {
+                    anyhow!(
+                        "Stored Device ID is not exactly {} bytes",
+                        size_of::<DeviceId>()
+                    )
+                })?;
                 let device_id = DeviceId::from_bytes(bytes);
                 Ok(device_id)
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 tracing::debug!("generating device ID");
-                let mut rng_device_id = [0u8; 32];
+                let mut rng_device_id = [0u8; size_of::<DeviceId>()];
                 rng.fill_bytes(&mut rng_device_id);
                 let device_id = DeviceId::from_bytes(rng_device_id);
                 fs::write(&id_path, rng_device_id)?;
@@ -166,7 +169,7 @@ impl WorkingDirectory {
                 tracing::debug!("loaded Graph ID from '{}'", id_path.display());
                 let bytes = buf
                     .try_into()
-                    .map_err(|_| anyhow!("Stored Graph ID is not exactly 32 bytes"))?;
+                    .map_err(|_| anyhow!("Stored Graph ID is not exactly {} bytes", size_of::<GraphId>()))?;
                 Ok(Some(GraphId::from_bytes(bytes)))
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),

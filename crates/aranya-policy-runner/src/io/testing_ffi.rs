@@ -86,8 +86,17 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         _ctx: &CommandContext,
         eng: &E,
     ) -> Result<BaseId, MachineError> {
-        let bytes = self.random_bytes(_ctx, eng, 32)?;
-        let array_bytes = bytes.try_into().expect("we asked for 32 bytes");
+        let bytes = self.random_bytes(
+            _ctx,
+            eng,
+            size_of::<BaseId>()
+                .try_into()
+                .expect("size_of::<BaseId>() is abnormal"),
+        )?;
+        let array_bytes = bytes.try_into().map_err(|_| {
+            tracing::error!("could not convert {} bytes to array", size_of::<BaseId>());
+            MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
+        })?;
         Ok(BaseId::from_bytes(array_bytes))
     }
 
@@ -107,7 +116,9 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
             tracing::error!("Unable to insert key into keystore: {e}");
             MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
         })?;
-        let pk = sk.public().expect("what");
+        let pk = sk
+            .public()
+            .expect("could not get public key from secret key");
         postcard::to_allocvec(&pk).map_err(|e| {
             tracing::error!("Could not serialize pubkey: {e}");
             MachineError::new(MachineErrorType::Unknown(
@@ -151,9 +162,10 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     ) -> Result<BaseId, MachineError> {
         let bytes = self.bytes_from_hex(_ctx, _eng, hex_str)?;
         let array_bytes = bytes.try_into().map_err(|_| {
-            MachineError::new(MachineErrorType::Unknown(
-                "Not exactly 32 bytes".to_string(),
-            ))
+            MachineError::new(MachineErrorType::Unknown(format!(
+                "Not exactly {} bytes",
+                size_of::<BaseId>()
+            )))
         })?;
         Ok(BaseId::from_bytes(array_bytes))
     }
