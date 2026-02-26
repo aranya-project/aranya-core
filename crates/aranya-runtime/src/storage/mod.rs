@@ -28,7 +28,7 @@ pub const QUEUE_CAPACITY: usize = 512;
 /// accumulating entries across many levels as a FIFO would.
 #[derive(Debug, Default)]
 pub struct TraversalQueue {
-    entries: heapless::Vec<Location, QUEUE_CAPACITY>,
+    entries: heapless::Vec<(Location, bool), QUEUE_CAPACITY>,
 }
 
 impl TraversalQueue {
@@ -44,28 +44,90 @@ impl TraversalQueue {
         self.entries.clear();
     }
 
-    /// Enqueues a location.
+    /// Returns true if no entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Enqueues a location with `covered = false`.
     ///
     /// If an entry with the same segment exists, its max cut will be updated
     /// if the supplied max cut is higher.
     pub fn push(&mut self, loc: Location) -> Result<(), StorageError> {
-        if let Some(prev) = self.entries.iter_mut().find(|x| x.same_segment(loc)) {
-            prev.max_cut = prev.max_cut.max(loc.max_cut);
+        self.push_covered(loc, false)
+    }
+
+    /// Enqueues a location with the given covered flag.
+    ///
+    /// If an entry with the same segment exists, max cut is updated to the
+    /// max. The covered flag tracks whether the peer has the segment up to
+    /// the entry's max_cut (the segment head). When a push changes the head:
+    /// - Higher max_cut: adopts the new push's covered status (old coverage
+    ///   was below the new head and doesn't imply coverage of the new head).
+    /// - Same max_cut: OR's covered flags.
+    /// - Lower max_cut: no change (partial coverage can't mark the head).
+    pub fn push_covered(&mut self, loc: Location, covered: bool) -> Result<(), StorageError> {
+        if let Some(prev) = self
+            .entries
+            .iter_mut()
+            .find(|x| x.0.same_segment(loc))
+        {
+            if loc.max_cut > prev.0.max_cut {
+                prev.0.max_cut = loc.max_cut;
+                prev.1 = covered;
+            } else if loc.max_cut == prev.0.max_cut {
+                prev.1 |= covered;
+            }
+            // else: lower max_cut — no change to head or covered flag.
             return Ok(());
         }
         self.entries
-            .push(loc)
+            .push((loc, covered))
             .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
     }
 
-    /// Pop a location with the highest max cut.
+    /// Pop a location with the highest max cut, discarding the covered flag.
     pub fn pop(&mut self) -> Option<Location> {
+        self.pop_covered().map(|(loc, _)| loc)
+    }
+
+    /// Pop a location with the highest max cut, including its covered flag.
+    pub fn pop_covered(&mut self) -> Option<(Location, bool)> {
         let (i, _) = self
             .entries
             .iter()
             .enumerate()
-            .max_by_key(|&(_, &loc)| loc)?;
+            .max_by_key(|&(_, &(loc, _))| loc)?;
         Some(self.entries.swap_remove(i))
+    }
+
+    /// Returns true if all entries have `covered = true` (or queue is empty).
+    pub fn all_covered(&self) -> bool {
+        self.entries.iter().all(|(_, covered)| *covered)
+    }
+
+    /// Remove entry with matching segment index.
+    pub fn remove_segment(&mut self, segment: SegmentIndex) {
+        if let Some(i) = self.entries.iter().position(|(loc, _)| loc.segment == segment) {
+            self.entries.swap_remove(i);
+        }
+    }
+
+    /// Move entries with `max_cut > threshold` into result vec, removing them from the queue.
+    pub fn drain_to_vec_above(
+        &mut self,
+        threshold: MaxCut,
+        result: &mut Vec<Location>,
+    ) {
+        let mut i = 0;
+        while i < self.entries.len() {
+            if self.entries[i].0.max_cut > threshold {
+                let (loc, _) = self.entries.swap_remove(i);
+                result.push(loc);
+            } else {
+                i = i.wrapping_add(1);
+            }
+        }
     }
 }
 

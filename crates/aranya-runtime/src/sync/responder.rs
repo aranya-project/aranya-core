@@ -1,7 +1,5 @@
-use alloc::vec;
-
 use buggy::{BugExt as _, bug};
-use heapless::{Deque, Vec};
+use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -295,122 +293,191 @@ impl<'a> SyncResponder<'a> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
-    /// This (probably) returns a Vec of segment addresses where the head of each segment is
-    /// not the ancestor of any samples we have been sent. If that is longer than
-    /// SEGMENT_BUFFER_MAX, it contains the oldest segment heads where that holds.
+    /// Returns segments (or partial segments) that the peer doesn't have.
+    ///
+    /// Uses a single backward traversal with coverage propagation to
+    /// eliminate all `is_ancestor()` calls. See
+    /// `aranya-docs/docs/find-needed-segments-optimization.md`.
     fn find_needed_segments(
         commands: &[Address],
         storage: &impl Storage,
         buffers: &mut TraversalBuffers,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        let mut have_locations = vec::Vec::new(); //BUG: not constant size
+        #[cfg(test)]
+        let mut _timer = {
+            static CALL_COUNT: core::sync::atomic::AtomicU32 =
+                core::sync::atomic::AtomicU32::new(0);
+            let call_num = CALL_COUNT.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+            struct Timer {
+                start: std::time::Instant,
+                is_ancestor_calls: u32,
+                call_num: u32,
+                have_locations_count: u32,
+                segments_visited: u32,
+            }
+            impl Drop for Timer {
+                fn drop(&mut self) {
+                    let elapsed = self.start.elapsed();
+                    eprintln!(
+                        "[find_needed_segments #{}] is_ancestor calls: {}, have_locations: {}, segments visited: {}, time: {:.3}ms",
+                        self.call_num,
+                        self.is_ancestor_calls,
+                        self.have_locations_count,
+                        self.segments_visited,
+                        elapsed.as_secs_f64() * 1000.0,
+                    );
+                }
+            }
+            Timer {
+                start: std::time::Instant::now(),
+                is_ancestor_calls: 0,
+                call_num,
+                have_locations_count: 0,
+                segments_visited: 0,
+            }
+        };
+
+        // Resolve command addresses to locations. Use buffers.primary as
+        // scratch for each get_location call (it gets cleared before main loop).
+        let mut have_locations: Vec<Location, COMMAND_SAMPLE_MAX> = Vec::new();
         for &addr in commands {
-            // Note: We could use things we don't have as a hint to
-            // know we should perform a sync request.
-            if let Some(location) = storage.get_location(addr, &mut buffers.secondary)? {
-                have_locations.push(location);
+            if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
+                let _ = have_locations.push(location);
             }
         }
 
-        // Filter out locations that are ancestors of other locations in the list.
-        // If location A is an ancestor of location B, we only need to keep B since
-        // having B implies having A and all its ancestors.
-        // Iterate backwards so we can safely remove items
-        for i in (0..have_locations.len()).rev() {
-            let location_a = have_locations[i];
-            let mut is_ancestor_of_other = false;
-            for &location_b in &have_locations {
-                if location_a != location_b {
-                    let segment_b = storage.get_segment(location_b)?;
-                    if location_a.same_segment(location_b)
-                        && location_a.max_cut <= location_b.max_cut
-                        || storage.is_ancestor(location_a, &segment_b, &mut buffers.secondary)?
-                    {
-                        is_ancestor_of_other = true;
-                        break;
-                    }
-                }
-            }
-            if is_ancestor_of_other {
-                have_locations.remove(i);
-            }
+        #[cfg(test)]
+        {
+            _timer.have_locations_count = have_locations.len() as u32;
         }
 
-        let queue = buffers.primary.get();
-        queue.push(storage.get_head()?)?;
+        // Sort descending by max_cut so we can discard from the front as we
+        // descend through the graph.
+        have_locations.sort_by(|a, b| b.max_cut.cmp(&a.max_cut));
 
-        let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
+        // Index into have_locations: everything before this has max_cut above
+        // the current segment's longest_max_cut and can be skipped.
+        let mut have_cursor: usize = 0;
 
-        while let Some(head) = queue.pop() {
-            // Check if the current segment head is an ancestor of any location in have_locations.
-            // If so, stop traversing backward from this point since the requester already has
-            // this command and all its ancestors.
-            let mut is_have_ancestor = false;
-            for &have_location in &have_locations {
-                let have_segment = storage.get_segment(have_location)?;
-                if storage.is_ancestor(head, &have_segment, &mut buffers.secondary)? {
-                    is_have_ancestor = true;
-                    break;
-                }
+        // heads queue: segments to process, popped by highest max_cut.
+        let heads = buffers.primary.get();
+        heads.push(storage.get_head()?)?;
+
+        // pending queue: segments tentatively needed by the peer.
+        let pending = buffers.secondary.get();
+
+        // Accumulate all needed segments; truncate to SEGMENT_BUFFER_MAX at
+        // the end, keeping the lowest max_cut entries (ancestors first).
+        let mut collected = alloc::vec::Vec::new();
+
+        while let Some((head, covered)) = heads.pop_covered() {
+            #[cfg(test)]
+            {
+                _timer.segments_visited = _timer.segments_visited.wrapping_add(1);
             }
-            if is_have_ancestor {
-                continue;
-            }
+
+            // Flush pending entries whose shortest_max_cut (stored as max_cut)
+            // is above the just-popped entry's longest_max_cut. No future
+            // have_location can reach them since we process in descending order.
+            pending.drain_to_vec_above(head.max_cut, &mut collected);
 
             let segment = storage.get_segment(head)?;
 
-            // If the requester has any commands in this segment, send from the next command
-            if let Some(latest_loc) = have_locations
-                .iter()
-                .filter(|&&location| location.same_segment(head))
-                .max_by_key(|&&location| location.max_cut)
-            {
-                let next_max_cut = latest_loc
-                    .max_cut
-                    .checked_add(1)
-                    .assume("command + 1 mustn't overflow")?;
-                let next_location = Location {
-                    max_cut: next_max_cut,
-                    segment: head.segment,
-                };
-
-                let head_loc = segment.head_location()?;
-                if next_location.max_cut > head_loc.max_cut {
-                    continue;
+            if covered {
+                // Case 1: Covered — peer already has this. Propagate coverage
+                // to priors and remove them from pending if present.
+                for prior in segment.prior() {
+                    heads.push_covered(prior, true)?;
+                    pending.remove_segment(prior.segment);
                 }
-                if result.is_full() {
-                    result.pop_back();
+            } else {
+                // Advance have_cursor past locations with max_cut above this
+                // segment's longest_max_cut — they've already been passed.
+                let longest = segment.longest_max_cut()?;
+                while have_cursor < have_locations.len() {
+                    if have_locations[have_cursor].max_cut <= longest {
+                        break;
+                    }
+                    have_cursor = have_cursor.wrapping_add(1);
                 }
-                result
-                    .push_front(next_location)
-                    .ok()
-                    .assume("too many segments")?;
-                continue;
+
+                // Look for a have_location in this segment: same SegmentIndex
+                // with max_cut within shortest_max_cut..=longest_max_cut.
+                let shortest = segment.shortest_max_cut();
+                let mut best_have: Option<(usize, Location)> = None;
+                let mut scan = have_cursor;
+                while scan < have_locations.len() {
+                    let hloc = have_locations[scan];
+                    if hloc.max_cut < shortest {
+                        break; // rest are even lower, can't be in this segment
+                    }
+                    if hloc.segment == head.segment {
+                        // Take the highest max_cut match (first found, since sorted desc)
+                        if best_have.is_none() {
+                            best_have = Some((scan, hloc));
+                        }
+                    }
+                    scan = scan.wrapping_add(1);
+                }
+
+                if let Some((_idx, hloc)) = best_have {
+                    // Case 2: Contains a have_location.
+                    // Push priors as covered.
+                    for prior in segment.prior() {
+                        heads.push_covered(prior, true)?;
+                        pending.remove_segment(prior.segment);
+                    }
+
+                    // If the peer doesn't have the whole segment (have_location
+                    // is not at the segment head), add a partial entry to pending
+                    // starting from the command after the highest have_location.
+                    if hloc.max_cut < longest {
+                        let next_max_cut = hloc
+                            .max_cut
+                            .checked_add(1)
+                            .assume("command + 1 mustn't overflow")?;
+                        let partial_loc = Location {
+                            max_cut: next_max_cut,
+                            segment: head.segment,
+                        };
+                        pending.push(partial_loc)?;
+                    }
+                    // else: peer has the entire segment, nothing to send.
+                } else {
+                    // Case 3: Uncovered, no have_location. Add to pending and
+                    // continue traversal through priors.
+                    pending.push(segment.first_location())?;
+                    for prior in segment.prior() {
+                        heads.push(prior)?;
+                    }
+                }
             }
 
-            if result.is_full() {
-                result.pop_back();
+            // Early termination: if all remaining heads are covered, stop.
+            // Every remaining path leads to segments the peer already has.
+            if heads.all_covered() && !heads.is_empty() {
+                break;
             }
-
-            for prior in segment.prior() {
-                queue.push(prior)?;
-            }
-
-            let location = segment.first_location();
-            result
-                .push_front(location)
-                .ok()
-                .assume("too many segments")?;
         }
-        let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        for l in result {
-            r.push(l).ok().assume("too many segments")?;
-        }
-        // Order segments to ensure that a segment isn't received before its
-        // ancestor segments.
-        r.sort();
 
-        Ok(r)
+        // Flush all remaining pending segments.
+        while let Some(loc) = pending.pop() {
+            collected.push(loc);
+        }
+
+        // Sort to ensure causal order (parents before children).
+        collected.sort();
+
+        // Keep only the lowest max_cut entries (ancestors first) when
+        // there are more needed segments than fit in the buffer.
+        collected.truncate(SEGMENT_BUFFER_MAX);
+
+        let mut result: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
+        for loc in collected {
+            let _ = result.push(loc);
+        }
+
+        Ok(result)
     }
 
     fn get_next(
