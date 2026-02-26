@@ -1,3 +1,30 @@
+//! Testing FFI
+//!
+//! An FFI for `preamble:` sections that provides utility functions for
+//! creating specific or random values.
+//!
+//! ## `function random_bytes(n int) bytes`
+//!
+//! Generate `n` random bytes.
+//!
+//! ## `function random_id() id`
+//!
+//! Generate a random ID.
+//!
+//! ## `function random_key() bytes`
+//!
+//! Generate a random key. The secret portion of the key is stored
+//! in the keystore.
+//!
+//! ## `function bytes_from_hex(hex_str string) bytes`
+//!
+//! Convert a hex string into bytes. The number of hex digits must
+//! be a multiple of 2.
+//!
+//! ## `function id_from_hex(hex_str string) id`
+//!
+//! Convert a hex string into an ID. The hex string must have
+//! exactly 64 hex digits.
 use std::{cell::RefCell, ops::DerefMut as _};
 
 use aranya_crypto::{BaseId, Engine, KeyStore, KeyStoreExt as _, SigningKey};
@@ -7,6 +34,10 @@ use aranya_policy_vm::{
 
 /// TestingFFI contains utility functions for generating bytes and ids
 /// for various testing needs.
+///
+/// It is not expected that you will instantiate this yourself, as it is
+/// not useful outside of the policy runner framework.
+#[doc(hidden)]
 pub struct TestingFfi<'o, KS> {
     // RefCell is needed here because the FFI traits only allow
     // functions to be called with `&self` but we need to be able to
@@ -18,6 +49,7 @@ pub struct TestingFfi<'o, KS> {
 }
 
 impl<'o, KS> TestingFfi<'o, KS> {
+    #[doc(hidden)]
     pub fn new(keystore: &'o mut KS) -> Self {
         Self {
             keystore: RefCell::new(keystore),

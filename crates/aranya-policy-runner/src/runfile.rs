@@ -1,6 +1,47 @@
+//! A "run file" is a simple text script format which defines variables,
+//! actions, and commands to execute over an Aranya policy.
+//!
+//! ```text
+//! preamble:
+//!   let my_id = testing::random_id()
+//! do:
+//!   add_user(my_id)
+//!   AddUser {
+//!     id: my_id
+//!   }
+//! ```
+//!
+//! ## Structure
+//!
+//! A run file consists of two sections, the `preamble` section, and the
+//! `do` section. The `preamble:` and `do:` tokens must appear at the
+//! beginning of the line. All other lines can be indented however you
+//! like.
+//!
+//! ### `preamble`
+//!
+//! The preamble allows the definition of global variables that can be
+//! used in any run file. In the example above, the variable `my_id` is
+//! created.
+//!
+//! The `preamble` section is optional.
+//!
+//! ### `do`
+//!
+//! The "do" section defines a series of actions and commands to execute
+//! on the policy. Actions are specified with the usual function call
+//! syntax, and commands are specified as raw struct literals. The above
+//! example calls a hypothetical action `add_user` with the `my_id`
+//! variable defined in the preamble, then does the same thing as a raw
+//! command struct.
+//!
+//! Commands and actions must start on new lines, but can continue
+//! across multiple lines without explicit continuation syntax. The
+//! parser consumes lines until something parses as either an action
+//! call or struct literal.
 use std::{
     fmt,
-    fs::OpenOptions,
+    fs::File,
     io::{self, BufRead as _, BufReader},
     path::{Path, PathBuf},
 };
@@ -13,11 +54,9 @@ use aranya_policy_vm::{
     Value, ast::ExprKind, ffi::FfiModule as _, ident,
 };
 
-use crate::{
-    io::{PreambleIO, testing_ffi::TestingFfi},
-    policy::CE,
-};
+use crate::io::{PreambleIO, testing_ffi::TestingFfi};
 
+/// A run file syntax error.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SyntaxError {
     line: usize,
@@ -41,6 +80,7 @@ impl fmt::Display for SyntaxError {
 
 impl std::error::Error for SyntaxError {}
 
+/// Errors that can be produced from run file parsing or execution.
 #[derive(Debug, thiserror::Error)]
 pub enum RunFileError {
     #[error("I/O Error")]
@@ -60,14 +100,16 @@ pub enum RunFileError {
 }
 
 /// A thing that can be run. Either an action or a raw command struct.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PolicyRunnable {
+    /// An action call
     Action(String),
+    /// A command struct
     Command(String),
 }
 
-// Parsed version of a policy file.
-#[derive(Debug)]
+/// Partially parsed version of a policy file.
+#[derive(Debug, Clone)]
 pub struct RunFile {
     /// The path to the run file. Used for printing markers.
     pub file_path: PathBuf,
@@ -78,12 +120,13 @@ pub struct RunFile {
 }
 
 impl RunFile {
-    /// Construct a `RunFile` by loading and parsing it from a file path.
+    /// Construct a `RunFile` by loading it from a file path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, RunFileError> {
-        let f = OpenOptions::new().read(true).open(path.as_ref())?;
+        let f = File::open(path.as_ref())?;
         Self::from_reader(f, path)
     }
 
+    /// Construct a `RunFile` by reading it from a [`std::io::Read`] implementation.
     pub fn from_reader<R: io::Read>(
         reader: R,
         file_path: impl AsRef<Path>,
@@ -189,7 +232,7 @@ impl RunFile {
     /// can use the `testing` FFI calls. The function is called and
     /// values are extracted from the machine after the function
     /// returns.
-    pub fn get_preamble_values<KS: KeyStore>(
+    pub fn get_preamble_values<CE: aranya_crypto::Engine, KS: KeyStore>(
         &self,
         crypto_engine: &mut CE,
         keystore: &mut KS,
@@ -242,8 +285,9 @@ mod tests {
         Random as _, dangerous::spideroak_crypto::aead::AeadKey, default::DefaultEngine,
         keystore::memstore::MemStore,
     };
+    use aranya_policy_vm::{Value, ident};
 
-    use crate::SwitchableRng;
+    use crate::{SwitchableRng, runfile::PolicyRunnable};
 
     use super::{RunFile, RunFileError};
 
@@ -302,12 +346,27 @@ preamble:
         assert!(RunFile::from_reader(text.as_bytes(), "test.run").is_ok());
     }
 
+    /// Create the objects we need to run policy preamble
     fn test_prereqs() -> (DefaultEngine<SwitchableRng>, MemStore) {
         let rng = SwitchableRng::new_default();
         let secret_key = AeadKey::random(&rng);
         let engine = DefaultEngine::new(&secret_key, rng);
         let keystore = MemStore::new();
         (engine, keystore)
+    }
+
+    #[test]
+    fn runfile_from_parts() {
+        let (mut ce, mut ks) = test_prereqs();
+        let rf = RunFile {
+            file_path: "<generated>".into(),
+            preamble: "let x = 3".into(),
+            do_things: vec![PolicyRunnable::Action("todo()".into())],
+        };
+        let v = rf
+            .get_preamble_values(&mut ce, &mut ks)
+            .expect("could not get preamble values");
+        assert_eq!(&v, &[(ident!("x"), Value::Int(3))]);
     }
 
     #[test]

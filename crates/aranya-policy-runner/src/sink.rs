@@ -1,5 +1,6 @@
 use aranya_runtime::{Sink, VmEffect};
 
+/// A [`Sink`] that prints effects to `stdout` when it is committed.
 #[derive(Default)]
 pub struct EchoSink {
     buffer: Vec<VmEffect>,

@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    ops::Range,
-    path::{Path, PathBuf},
-};
+use std::{ops::Range, path::Path};
 
 use anyhow::Context as _;
 use aranya_afc_util::Ffi as AfcFfi;
@@ -22,11 +18,13 @@ use aranya_runtime::{FfiCallable, VmPolicy};
 
 use crate::{PolicyRunnable, RunFile, SwitchableRng};
 
-pub type CE = DefaultEngine<SwitchableRng>;
-pub type KS = fs_keystore::Store;
+type CE = DefaultEngine<SwitchableRng>;
+type KS = fs_keystore::Store;
 
-pub struct RunSchedule {
-    pub file_path: PathBuf,
+/// A `RunSchedule` keeps track of which action thunks are associated
+/// with which file, so they can be run in sequence.
+pub struct RunSchedule<'a> {
+    pub file_path: &'a Path,
     pub thunk_range: Range<usize>,
 }
 
@@ -42,20 +40,21 @@ pub const FFI_MODULES: [ModuleSchema<'static>; 6] = [
     PerspectiveFfi::SCHEMA,
 ];
 
-pub fn load_and_compile_policy(
-    policy_path: impl AsRef<Path>,
+/// Utility function for loading the policy and injecting the run file
+/// action thunks and global values into it. Returns a `Vec` of
+/// [`RunSchedule`]s.
+pub fn load_and_compile_policy<'a>(
+    policy_doc: &str,
     globals: impl IntoIterator<Item = (Identifier, Value)>,
-    run_files: Vec<RunFile>,
+    run_files: &'a [RunFile],
     validator: bool,
-) -> anyhow::Result<(Machine, Vec<RunSchedule>)> {
-    // Load the policy data from file
-    let mut policy_doc = fs::read_to_string(policy_path.as_ref())?;
-
+) -> anyhow::Result<(Machine, Vec<RunSchedule<'a>>)> {
+    let mut policy_doc = policy_doc.to_string();
     // Append generated policy thunks to the policy doc
     policy_doc.push_str("\n```policy\n");
     let mut thunk_counter = 0usize;
     let thunk_schedule = run_files
-        .into_iter()
+        .iter()
         .map(|run_file| {
             let thunk_start = thunk_counter;
             for policy_runnable in &run_file.do_things {
@@ -77,7 +76,7 @@ pub fn load_and_compile_policy(
             }
             // Each "schedule" captures a range of thunks for a given run file.
             RunSchedule {
-                file_path: run_file.file_path,
+                file_path: &run_file.file_path,
                 thunk_range: thunk_start..thunk_counter,
             }
         })
@@ -101,6 +100,8 @@ pub fn load_and_compile_policy(
     Ok((machine, thunk_schedule))
 }
 
+/// Takes an instantiated machine, crypto engine, keystore, and device
+/// ID; and creates a [`VmPolicy`] instance.
 pub fn create_vmpolicy(
     machine: Machine,
     crypto_engine: CE,
