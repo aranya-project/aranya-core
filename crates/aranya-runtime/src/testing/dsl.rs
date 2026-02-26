@@ -180,6 +180,11 @@ pub enum TestRule {
         client: u64,
         ids: Vec<u64>,
     },
+    ConvergeAll {
+        graph: u64,
+        clients: u64,
+        max_syncs: u64,
+    },
 }
 
 impl Display for TestRule {
@@ -318,6 +323,15 @@ impl Display for TestRule {
                 r#"{{"VerifyGraphIds": {{ "client": {}, "ids": {:?} }} }},"#,
                 client, ids
             ),
+            Self::ConvergeAll {
+                graph,
+                clients,
+                max_syncs,
+            } => write!(
+                f,
+                r#"{{"ConvergeAll": {{ "graph": {}, "clients": {}, "max_syncs": {} }} }},"#,
+                graph, clients, max_syncs,
+            ),
         }
     }
 }
@@ -416,57 +430,14 @@ where
                             _ => {}
                         }
                     }
-                    // Converge clients 1, 2, 3, etc. by repeatedly syncing them with each other
-                    // until they all have the same graph. This is necessary because merge commands
-                    // created during syncs need to propagate to all clients.
-                    // We loop multiple times to ensure convergence (merge commands from one client
-                    // need to be sent to others, which may create new merges, etc.)
-                    for _convergence_round in 0..5 {
-                        // Sync client 1 with all other clients so client 1 has the entire graph.
-                        for i in 2..clients {
-                            generated_actions.push(TestRule::Sync {
-                                graph,
-                                client: 1,
-                                from: i,
-                                must_send: None,
-                                must_receive: None,
-                                max_syncs,
-                            });
-                        }
-                        // Sync other clients with client 1 so they get everything from client 1.
-                        for i in 2..clients {
-                            generated_actions.push(TestRule::Sync {
-                                graph,
-                                client: i,
-                                from: 1,
-                                must_send: None,
-                                must_receive: None,
-                                max_syncs,
-                            });
-                        }
-                    }
-                    // Sync the entire graph to client 0 at once.
-                    generated_actions.push(TestRule::Sync {
+                    // Converge all clients by syncing every pair in both
+                    // directions until no client receives new commands.
+                    generated_actions.push(TestRule::ConvergeAll {
                         graph,
-                        client: 0,
-                        from: 1,
-                        must_send: None,
-                        must_receive: None,
+                        clients,
                         max_syncs,
                     });
-                    // Sync other clients with client 0 so other clients have any extra merges
-                    // created by client 0.
-                    for i in 1..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: i,
-                            from: 0,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
-                    }
-                    // Compare all graphs to ensure they're the same after syncing.
+                    // Verify all graphs are identical after convergence.
                     for i in 1..clients {
                         generated_actions.push(TestRule::CompareGraphs {
                             clienta: 0,
@@ -789,6 +760,66 @@ where
                 let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
                 assert_eq!(max_cut, head.max_cut);
+            }
+            TestRule::ConvergeAll {
+                graph,
+                clients: client_count,
+                max_syncs,
+            } => {
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                loop {
+                    let mut any_received = false;
+                    for i in 0..client_count {
+                        for j in 0..client_count {
+                            if i == j {
+                                continue;
+                            }
+
+                            let mut request_client = clients
+                                .get(&i)
+                                .ok_or(TestError::MissingClient)?
+                                .borrow_mut();
+                            let mut response_client = clients
+                                .get(&j)
+                                .ok_or(TestError::MissingClient)?
+                                .borrow_mut();
+
+                            for _ in 0..max_syncs {
+                                client_heads.entry((graph, i, j)).or_default();
+                                client_heads.entry((graph, j, i)).or_default();
+                                let mut request_cache = client_heads
+                                    .get(&(graph, i, j))
+                                    .assume("cache must exist")?
+                                    .borrow_mut();
+                                let mut response_cache = client_heads
+                                    .get(&(graph, j, i))
+                                    .assume("cache must exist")?
+                                    .borrow_mut();
+
+                                let (_, received) =
+                                    sync::<<SB as StorageBackend>::StorageProvider>(
+                                        (&mut request_cache, &mut request_client),
+                                        (&mut response_cache, &mut response_client),
+                                        &mut sink,
+                                        *graph_id,
+                                    )?;
+
+                                if received > 0 {
+                                    any_received = true;
+                                }
+                                if received == 0 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if !any_received {
+                        break;
+                    }
+                }
+
+                assert_eq!(0, sink.count());
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             TestRule::VerifyGraphIds { client, ids } => {
