@@ -167,9 +167,12 @@ impl WorkingDirectory {
         match fs::read(&id_path) {
             Ok(buf) => {
                 tracing::debug!("loaded Graph ID from '{}'", id_path.display());
-                let bytes = buf
-                    .try_into()
-                    .map_err(|_| anyhow!("Stored Graph ID is not exactly {} bytes", size_of::<GraphId>()))?;
+                let bytes = buf.try_into().map_err(|_| {
+                    anyhow!(
+                        "Stored Graph ID is not exactly {} bytes",
+                        size_of::<GraphId>()
+                    )
+                })?;
                 Ok(Some(GraphId::from_bytes(bytes)))
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),

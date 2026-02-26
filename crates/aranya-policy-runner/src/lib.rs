@@ -11,7 +11,10 @@ mod sink;
 mod working_directory;
 
 use std::{
-    borrow::Cow, fs, io::Write, path::{Path, PathBuf}
+    borrow::Cow,
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
 };
 
 use anyhow::Context as _;

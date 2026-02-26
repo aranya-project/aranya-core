@@ -287,9 +287,8 @@ mod tests {
     };
     use aranya_policy_vm::{Value, ident};
 
-    use crate::{SwitchableRng, runfile::PolicyRunnable};
-
     use super::{RunFile, RunFileError};
+    use crate::{SwitchableRng, runfile::PolicyRunnable};
 
     #[test]
     fn parse_correct() {
