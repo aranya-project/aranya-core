@@ -20,7 +20,7 @@ use anyhow::Context as _;
 use aranya_crypto::{Csprng, default::DefaultEngine};
 use aranya_policy_vm::Identifier;
 use aranya_runtime::{
-    ActionPlacement, Policy as _, PolicyId, Sink as _, Storage as _, StorageProvider as _, VmAction,
+    ActionPlacement, Policy as _, PolicyId, Sink as _, Storage as _, StorageProvider as _, TraversalBuffer, VmAction
 };
 use policy::{create_vmpolicy, load_and_compile_policy};
 use rng::SwitchableRng;
@@ -215,7 +215,7 @@ impl PolicyRunner {
         if let Some(storage) = storage {
             // Storage already exists, commit
             let segment = storage.write(perspective)?;
-            storage.commit(segment)?;
+            storage.commit(segment, &mut TraversalBuffer::new())?;
         } else {
             // Storage did not already exist, create a new one and save our Graph ID
             let (new_graph_id, _) = provider.new_storage(perspective)?;
