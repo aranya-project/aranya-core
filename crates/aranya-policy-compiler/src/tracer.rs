@@ -2,7 +2,7 @@ mod analyzers;
 mod error;
 
 pub use analyzers::*;
-use aranya_policy_module::{Instruction, Label, ModuleV0, Target};
+use aranya_policy_module::{Instruction, Label, Meta, ModuleV0, Target};
 pub use error::TraceError;
 use error::TraceErrorType;
 
@@ -90,6 +90,7 @@ pub struct TraceAnalyzer<'a> {
 struct TraceIntermediate {
     failures: Vec<Vec<TraceFailure>>,
     successful_branch_paths: Vec<Vec<usize>>,
+    successful_instruction_paths: Vec<Vec<usize>>,
 }
 
 impl TraceAnalyzer<'_> {
@@ -116,11 +117,16 @@ impl TraceAnalyzer<'_> {
         let TraceIntermediate {
             mut failures,
             mut successful_branch_paths,
+            successful_instruction_paths,
         } = self.trace_inner(start)?;
         successful_branch_paths.sort();
         successful_branch_paths.dedup();
 
-        self.post_analyze(&mut failures, &successful_branch_paths);
+        self.post_analyze(
+            &mut failures,
+            &successful_branch_paths,
+            &successful_instruction_paths,
+        );
 
         // Flatten failures into a single list
         let mut failures: Vec<TraceFailure> = failures.into_iter().flatten().collect();
@@ -143,6 +149,7 @@ impl TraceAnalyzer<'_> {
         // Keep track of all the branches from paths that didn't fail, for use by
         // post-analysis.
         let mut successful_branch_paths = vec![];
+        let mut successful_instruction_paths = vec![];
 
         while pc < self.ct.progmem.len() {
             self.instruction_path.push(pc);
@@ -187,11 +194,13 @@ impl TraceAnalyzer<'_> {
                     let TraceIntermediate {
                         failures: jump_failures,
                         successful_branch_paths: mut success_branches,
+                        successful_instruction_paths: mut success_instr_paths,
                     } = jump_tracer.trace_inner(jump_pc)?;
                     for (idx, mut jf) in jump_failures.into_iter().enumerate() {
                         failures[idx].append(&mut jf);
-                        successful_branch_paths.append(&mut success_branches);
                     }
+                    successful_branch_paths.append(&mut success_branches);
+                    successful_instruction_paths.append(&mut success_instr_paths);
                 }
                 Instruction::Call(t) => {
                     let next_addr = *match t {
@@ -207,21 +216,32 @@ impl TraceAnalyzer<'_> {
                     continue; // skip address increment when jumping
                 }
                 Instruction::Return => {
+                    if !self.call_stack.is_empty() {
+                        pc = self.call_stack.pop().expect("impossible stack");
+                    }
+                    // Continue execution to allow analyzers to check for unreachable code
+                }
+                Instruction::Meta(Meta::FunctionEnd) => {
+                    // FunctionEnd only terminates if we're at the top level (call stack is empty)
+                    // Otherwise, it's unreachable code after a return in a nested function
                     if self.call_stack.is_empty() {
-                        // Exit on empty return
                         successful_branch_paths.push(self.branches.clone());
+                        successful_instruction_paths.push(self.instruction_path.clone());
                         return Ok(TraceIntermediate {
                             failures,
                             successful_branch_paths,
+                            successful_instruction_paths,
                         });
                     }
-                    pc = self.call_stack.pop().expect("impossible empty stack");
+                    // Continue to allow unreachable code detection in nested functions
                 }
                 Instruction::Exit(_) => {
                     successful_branch_paths.push(self.branches.clone());
+                    successful_instruction_paths.push(self.instruction_path.clone());
                     return Ok(TraceIntermediate {
                         failures,
                         successful_branch_paths,
+                        successful_instruction_paths,
                     });
                 }
                 _ => (),
@@ -256,9 +276,16 @@ impl TraceAnalyzer<'_> {
         &mut self,
         failures: &mut [Vec<TraceFailure>],
         successful_branch_paths: &[Vec<usize>],
+        successful_instruction_paths: &[Vec<usize>],
     ) {
-        for (analyzer, failures) in self.analyzers.iter_mut().zip(failures.iter_mut()) {
-            analyzer.post_analyze(failures, successful_branch_paths);
+        for (analyzer, analyzer_failures) in self.analyzers.iter_mut().zip(failures.iter_mut()) {
+            let new_failures = analyzer.post_analyze(
+                analyzer_failures,
+                successful_branch_paths,
+                successful_instruction_paths,
+                self.ct,
+            );
+            analyzer_failures.extend(new_failures);
         }
     }
 }

@@ -2756,14 +2756,269 @@ fn test_validate_return() {
         }"#,
     ];
 
+    for (i, p) in valid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(!validate(&m), "valid case {}", i);
+    }
+
+    for (i, p) in invalid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(validate(&m), "invalid case {}", i);
+    }
+}
+
+#[test]
+fn test_validate_unreachable_code() {
+    let valid = [
+        r#"function a() int {
+            return 0
+        }"#,
+        r#"function b(x int) int {
+            if x > 0 {
+                return 1
+            }
+            return 0
+        }"#,
+        r#"function c(x int) int {
+            if x > 0 {
+                return 1
+            } else {
+                return 0
+            }
+        }"#,
+        r#"function with_check(x int) int {
+            if x > 0 {
+                check true
+                return 1
+            } else {
+                check true
+            }
+            let y = 2
+            return y
+        }"#,
+        r#"function with_match(x int) int {
+            match x {
+                0 => { return 0 }
+                _ => { }
+            }
+            let y = 6
+            return y
+        }
+        "#,
+        r#"
+        function baz() int {
+            let x = 5
+            return x
+        }
+        function foobar() int {
+            return baz()
+        }
+        function should_be_valid() int {
+            let y = foobar()
+            return y
+        }
+        "#,
+    ];
+
+    let invalid = [
+        // Straight-line unreachable code after return
+        r#"function unreachable() int {
+            return 0
+            let c = 1
+        }"#,
+        // Multiple statements after return
+        r#"function unreachable2() int {
+            return 0
+            let c = 1
+            let d = 2
+        }"#,
+        // Code after if-else where both branches return
+        r#"function unreachable3(x int) int {
+            if x > 0 {
+                return 1
+            } else {
+                return 0
+            }
+            let y = 2
+        }"#,
+        r#"
+        function unreachable4() int {
+            return 0
+            return 1
+        }"#,
+        r#"function unreachable_with_match(x int) int {
+            match x {
+                0 => { return 0 }
+                _ => { return 2 }
+            }
+            let z = 3
+        }"#,
+    ];
+
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(!validate(&m), "Expected case to be valid: {}", p);
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(
+            validate(&m),
+            "Expected case to be invalid (unreachable code): {}",
+            p
+        );
+    }
+}
+
+#[test]
+fn test_validate_finish() {
+    // Valid cases: policy and recall blocks with finish blocks
+    let valid = [
+        // Basic command with finish in both policy and recall
+        r#"
+            command FinishPolicyAndRecall {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+                recall {
+                    finish {}
+                }
+            }
+        "#,
+        // Policy with statements before finish
+        r#"
+            fact Bar[] => {}
+            command Baz {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    check true
+                    let x = 5
+                    finish {
+                        create Bar[] => {}
+                    }
+                }
+            }
+        "#,
+        // Both blocks with statements and finish
+        r#"
+            fact Test[] => {}
+            command Complex {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    let x = 5
+                    check x > 0
+                    finish {
+                        create Test[] => {}
+                    }
+                }
+                recall {
+                    let y = 10
+                    finish {
+                        delete Test[]
+                    }
+                }
+            }
+        "#,
+        // Empty policy and recall blocks (no statements = no finish required)
+        r#"
+            command Empty {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+                recall {}
+            }
+        "#,
+        // Conditional paths all reaching finish
+        r#"
+            command Conditional {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    if true {
+                        finish {}
+                    } else {
+                    }
+                    finish {}
+                }
+                recall {
+                    finish {}
+                }
+            }
+        "#,
+    ];
+
+    // Invalid cases: policy or recall blocks with statements but no finish
+    let invalid = [
+        // Policy block with statements but no finish
+        r#"
+            command NoFinishPolicy {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    let x = 5
+                    // missing finish here
+                }
+            }
+        "#,
+        // Recall block with statements but no finish
+        r#"
+            command NoFinishRecall {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {}
+                recall {
+                    let y = 10
+                    // missing finish here
+                }
+            }
+        "#,
+        // Not all paths in policy reach finish
+        r#"
+            command NoFinishConditional {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    if true {
+                        let z = 3 // missing finish here
+                    }
+                    else {
+                        finish {}
+                    }
+                }
+            }
+        "#,
+    ];
+
+    for (i, p) in valid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            !validate(&m),
+            "Case {}: Expected case to be valid: {}",
+            i,
+            p
+        );
+    }
+
+    for (i, p) in invalid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            validate(&m),
+            "Case {}: Expected case to be invalid (missing finish): {}",
+            i,
+            p
+        );
     }
 }
 
@@ -2841,6 +3096,7 @@ fn test_validate_publish() {
         ),
     ];
 
+    // all paths must publish
     let invalid = [
         concat(
             r#"
@@ -2866,14 +3122,24 @@ fn test_validate_publish() {
         ),
     ];
 
-    for p in valid {
-        let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+    for (i, p) in valid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            !validate(&m),
+            "Case {}: Expected case to be valid: {}",
+            i,
+            p
+        );
     }
 
-    for p in invalid {
-        let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+    for (i, p) in invalid.iter().enumerate() {
+        let m = compile_pass(p);
+        assert!(
+            validate(&m),
+            "Case {}: Expected case to be invalid: {}",
+            i,
+            p
+        );
     }
 }
 
