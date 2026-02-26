@@ -248,12 +248,6 @@ user-id = 293722 # aranya-project-bot
 start = "2024-10-16"
 end = "2025-12-19"
 
-[[trusted.aranya-bearssl-sys]]
-criteria = "safe-to-deploy"
-user-id = 293722 # aranya-project-bot
-start = "2024-10-15"
-end = "2025-12-19"
-
 [[trusted.aranya-capi-codegen]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
