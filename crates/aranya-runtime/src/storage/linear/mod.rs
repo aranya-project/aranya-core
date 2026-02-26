@@ -553,7 +553,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         segment: Self::Segment,
         buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.get_head()?, &segment, buffers)? {
+        if !self.is_ancestor(self.get_head()?, segment.head_location()?, buffers)? {
             return Err(StorageError::HeadNotAncestor);
         }
 

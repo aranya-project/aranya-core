@@ -9,7 +9,7 @@ use super::{
     SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
 };
 use crate::{
-    StorageError, SyncType,
+    LocatedAddress, StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
@@ -19,7 +19,7 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct PeerCache {
-    heads: Vec<Address, { PEER_HEAD_MAX }>,
+    heads: Vec<LocatedAddress, { PEER_HEAD_MAX }>,
 }
 
 impl PeerCache {
@@ -27,15 +27,14 @@ impl PeerCache {
         Self { heads: Vec::new() }
     }
 
-    pub fn heads(&self) -> &[Address] {
+    pub fn heads(&self) -> &[LocatedAddress] {
         &self.heads
     }
 
     pub fn add_command<S>(
         &mut self,
         storage: &S,
-        command: Address,
-        cmd_loc: Location,
+        new: LocatedAddress,
         buffers: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
@@ -43,36 +42,23 @@ impl PeerCache {
     {
         let mut add_command = true;
 
-        let mut retain_head = |request_head: &Address, new_head: Location| {
-            let new_head_seg = storage.get_segment(new_head)?;
-            let req_head_loc = storage
-                .get_location(*request_head, buffers)?
-                .assume("location must exist")?;
-            let req_head_seg = storage.get_segment(req_head_loc)?;
-            if request_head.id
-                == new_head_seg
-                    .get_command(new_head)
-                    .assume("location must exist")?
-                    .address()?
-                    .id
-            {
+        let mut retain_head = |old: &LocatedAddress| -> Result<bool, StorageError> {
+            if old.id == new.id || storage.is_ancestor(new.location(), old.location(), buffers)? {
+                // Don't add this command, keep existing command
                 add_command = false;
+                return Ok(true);
             }
-            // If the new head is an ancestor of the request head, don't add it
-            if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
-                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
-            {
-                add_command = false;
+            if storage.is_ancestor(old.location(), new.location(), buffers)? {
+                // Remove existing head.
+                return Ok(false);
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
+            // Just keep existing head.
+            Ok(true)
         };
-        self.heads
-            .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
-        if add_command && !self.heads.is_full() {
-            self.heads
-                .push(command)
-                .ok()
-                .assume("command locations should not be full")?;
+        self.heads.retain(|h| retain_head(h).unwrap_or(false));
+        if add_command {
+            // TODO(jdygert): Replace an old head when full?
+            self.heads.push(new).ok();
         }
 
         Ok(())
@@ -226,8 +212,11 @@ impl<'a> SyncResponder<'a> {
                     {
                         response_cache.add_command(
                             storage,
-                            *command,
-                            cmd_loc,
+                            LocatedAddress {
+                                id: command.id,
+                                segment: cmd_loc.segment,
+                                max_cut: command.max_cut,
+                            },
                             &mut self.buffers.primary,
                         )?;
                     }
@@ -320,15 +309,9 @@ impl<'a> SyncResponder<'a> {
             let location_a = have_locations[i];
             let mut is_ancestor_of_other = false;
             for &location_b in &have_locations {
-                if location_a != location_b {
-                    let segment_b = storage.get_segment(location_b)?;
-                    if location_a.same_segment(location_b)
-                        && location_a.max_cut <= location_b.max_cut
-                        || storage.is_ancestor(location_a, &segment_b, &mut buffers.secondary)?
-                    {
-                        is_ancestor_of_other = true;
-                        break;
-                    }
+                if storage.is_ancestor(location_a, location_b, &mut buffers.secondary)? {
+                    is_ancestor_of_other = true;
+                    break;
                 }
             }
             if is_ancestor_of_other {
@@ -347,8 +330,8 @@ impl<'a> SyncResponder<'a> {
             // this command and all its ancestors.
             let mut is_have_ancestor = false;
             for &have_location in &have_locations {
-                let have_segment = storage.get_segment(have_location)?;
-                if storage.is_ancestor(head, &have_segment, &mut buffers.secondary)? {
+                // TODO(jdygert): Check same segment behavior
+                if storage.is_ancestor(head, have_location, &mut buffers.secondary)? {
                     is_have_ancestor = true;
                     break;
                 }

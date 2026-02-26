@@ -355,17 +355,14 @@ impl<'a> SyncRequester<'a> {
             }
             Ok(storage) => {
                 let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
-                for address in peer_cache.heads() {
-                    let loc = storage
-                        .get_location(*address, &mut self.buffers.primary)?
-                        .assume("location must exist")?;
+                for head in peer_cache.heads() {
                     cache_locations
-                        .push(loc)
+                        .push(head.location())
                         .ok()
                         .assume("command locations should not be full")?;
                     if commands.len() < COMMAND_SAMPLE_MAX {
                         commands
-                            .push(*address)
+                            .push(head.address())
                             .map_err(|_| SyncError::CommandOverflow)?;
                     }
                 }
@@ -389,15 +386,11 @@ impl<'a> SyncRequester<'a> {
                             }
                             // If the current location is an ancestor of a PeerCache head,
                             // we've passed the PeerCache head, so stop traversing this path
-                            let peer_cache_segment = storage.get_segment(peer_cache_loc)?;
-                            if (peer_cache_loc.same_segment(location)
-                                && location.max_cut <= peer_cache_loc.max_cut)
-                                || storage.is_ancestor(
-                                    location,
-                                    &peer_cache_segment,
-                                    &mut self.buffers.primary,
-                                )?
-                            {
+                            if storage.is_ancestor(
+                                location,
+                                peer_cache_loc,
+                                &mut self.buffers.primary,
+                            )? {
                                 continue 'current;
                             }
                         }
