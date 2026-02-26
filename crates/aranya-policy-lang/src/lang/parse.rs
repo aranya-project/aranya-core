@@ -17,10 +17,10 @@ use pest::{
 };
 use serde::{Deserialize, Serialize};
 
-mod error;
+pub mod error;
 mod markdown;
 
-pub use error::{ParseError, ParseErrorKind};
+use error::{ParseError, ParseErrorKind};
 pub use markdown::{ChunkOffset, parse_policy_document};
 
 mod keywords;
@@ -251,7 +251,7 @@ impl<'a, 'b> ChunkParser<'a> {
                         let outer_span = outer_span.assume("outer span was passed in")?;
                         let outer_ast_span = self.to_ast_span(outer_span)?;
                         return Err(ParseError::new(
-                            ParseErrorKind::InvalidNestedOption {
+                            error::InvalidNestedOption {
                                 outer: outer_ast_span,
                                 inner: span,
                             },
@@ -711,14 +711,14 @@ impl<'a, 'b> ChunkParser<'a> {
                 let kind = match op.as_rule() {
                     Rule::add => {
                         return Err(ParseError::new(
-                            ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
+                            error::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
                             String::from("found `+`"),
                             Some(expr_span)
                         ));
                     }
                     Rule::subtract => {
                         return Err(ParseError::new(
-                            ParseErrorKind::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
+                            error::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
                             String::from("found `-`"),
                             Some(expr_span)
                         ));
@@ -1712,7 +1712,7 @@ fn parse_policy_chunk(
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         let err = ParseError::new(
-            ParseErrorKind::InvalidVersion {
+            error::InvalidVersion {
                 found: policy.version.to_string(),
                 required: Version::V2,
             },

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use aranya_policy_ast::Policy;
 use aranya_policy_lang::lang::{
-    self, ParseError, ParseErrorKind, Version, parse_policy_document, parse_policy_str,
+    self, ParseError, Version, error, parse_policy_document, parse_policy_str,
 };
 
 #[test]
@@ -17,10 +17,11 @@ fn accept_only_latest_lang_version() {
         *parse_policy_str(src, Version::V1)
             .expect_err("should not accept V1")
             .kind,
-        ParseErrorKind::InvalidVersion {
+        error::InvalidVersion {
             found: "1".to_string(),
             required: Version::V2
         }
+        .into()
     );
     parse_policy_str(src, Version::V2).expect("should accept V2");
 
@@ -32,11 +33,14 @@ policy-version: 1
 ```policy
 ```
 "#;
-    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| *r.kind
-        == ParseErrorKind::InvalidVersion {
-            found: "1".to_string(),
-            required: Version::V2
-        }));
+    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| {
+        *r.kind
+            == error::InvalidVersion {
+                found: "1".to_string(),
+                required: Version::V2,
+            }
+            .into()
+    }));
 
     // parse markdown (v2)
     let policy_v2_md = r#"---

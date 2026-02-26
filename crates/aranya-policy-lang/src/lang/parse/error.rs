@@ -1,12 +1,60 @@
 use std::fmt::Display;
 
-use annotate_snippets::{AnnotationKind, Level, Patch, Renderer, Snippet};
 use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
 use pest::error::Error as PestError;
 use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
+
+pub(crate) mod rendering;
+
+/// Invalid usage of an infix operator (i.e. `+` or `-`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvalidOperator {
+    pub(crate) lhs: Span,
+    pub(crate) op: Span,
+    pub(crate) rhs: Span,
+}
+
+impl Display for InvalidOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid operator")
+    }
+}
+
+/// Usage of an older policy version
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvalidVersion {
+    pub found: String,
+    pub required: Version,
+}
+
+impl Display for InvalidVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let found = &self.found;
+        let required = &self.required;
+        write!(
+            f,
+            "Invalid policy version {found}, supported version is {required}"
+        )
+    }
+}
+
+/// Invalid usage of option/optional syntax
+///
+///(crate) `optional option[T]`, `optional optional T`, etc.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvalidNestedOption {
+    pub(crate) outer: Span,
+    pub(crate) inner: Span,
+}
+
+impl Display for InvalidNestedOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid nested option")
+    }
+}
 
 /// The kinds of errors a parse operation can produce
 ///
@@ -15,9 +63,9 @@ use crate::lang::parse::Rule;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid operator was used.
-    InvalidOperator { lhs: Span, op: Span, rhs: Span },
+    InvalidOperator(InvalidOperator),
     /// Invalid usage of nesting optional types using the old syntax was found.
-    InvalidNestedOption { outer: Span, inner: Span },
+    InvalidNestedOption(InvalidNestedOption),
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
     /// A statement is invalid for its scope.
@@ -33,7 +81,7 @@ pub enum ParseErrorKind {
     /// The right side of a substruct operator is not an identifier.
     InvalidSubstruct,
     /// The policy version expressed in the front matter is not valid.
-    InvalidVersion { found: String, required: Version },
+    InvalidVersion(InvalidVersion),
     /// Some part of an expression is badly formed.
     Expression,
     /// The Pest parser was unable to parse the document.
@@ -48,23 +96,36 @@ pub enum ParseErrorKind {
     Unknown,
 }
 
+impl From<InvalidOperator> for ParseErrorKind {
+    fn from(value: InvalidOperator) -> Self {
+        Self::InvalidOperator(value)
+    }
+}
+
+impl From<InvalidVersion> for ParseErrorKind {
+    fn from(value: InvalidVersion) -> Self {
+        Self::InvalidVersion(value)
+    }
+}
+
+impl From<InvalidNestedOption> for ParseErrorKind {
+    fn from(value: InvalidNestedOption) -> Self {
+        Self::InvalidNestedOption(value)
+    }
+}
+
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidOperator { .. } => write!(f, "Invalid operator"),
-            Self::InvalidNestedOption { .. } => write!(f, "Invalid nested option"),
+            Self::InvalidOperator(inner) => write!(f, "{inner}"),
+            Self::InvalidNestedOption(inner) => write!(f, "{inner}"),
             Self::InvalidType => write!(f, "Invalid type"),
             Self::InvalidStatement => write!(f, "Invalid statement"),
             Self::InvalidNumber => write!(f, "Invalid number"),
             Self::InvalidString => write!(f, "Invalid string"),
             Self::InvalidFunctionCall => write!(f, "Invalid function call"),
             Self::InvalidSubstruct => write!(f, "Invalid substruct operation"),
-            Self::InvalidVersion { found, required } => {
-                write!(
-                    f,
-                    "Invalid policy version {found}, supported version is {required}"
-                )
-            }
+            Self::InvalidVersion(inner) => write!(f, "{inner}"),
             Self::Expression => write!(f, "Invalid expression"),
             Self::Syntax => write!(f, "Syntax error"),
             Self::FrontMatter => write!(f, "Front matter YAML parse error"),
@@ -86,9 +147,13 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span>) -> Self {
+    pub(crate) fn new(
+        kind: impl Into<ParseErrorKind>,
+        message: String,
+        span: Option<Span>,
+    ) -> Self {
         Self {
-            kind: Box::new(kind),
+            kind: Box::new(kind.into()),
             message,
             span,
             source: None,
@@ -102,120 +167,6 @@ impl ParseError {
             source: Some(source),
             ..self
         }
-    }
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self {
-            kind,
-            message,
-            span: maybe_span,
-            source: maybe_source,
-        } = self;
-        let title = Level::ERROR.primary_title(kind.to_string());
-        let (Some(span), Some(input)) = (maybe_span, maybe_source) else {
-            let report = vec![title.element(Level::NOTE.message(message))];
-            let message = Renderer::plain().render(&report);
-            return write!(f, "{message}");
-        };
-
-        let mut report = Vec::new();
-        let mut annotate_entire_span = || {
-            let primary_annoation = Snippet::source(input).annotation(
-                AnnotationKind::Primary
-                    .span(span.start()..span.end())
-                    .label(message),
-            );
-
-            report.push(title.clone().element(primary_annoation));
-        };
-
-        let source = Snippet::source(input);
-        match **kind {
-            ParseErrorKind::InvalidOperator { lhs, op, rhs } => {
-                report.push(
-                    title.elements([
-                        // The message should refer specifically to the operator and not the entire expression
-                        Snippet::source(input).annotation(
-                            AnnotationKind::Primary
-                                .span(op.start()..op.end())
-                                .label(message),
-                        ),
-                    ]),
-                );
-
-                fn add_patch<'a>(
-                    prefix: &'static str,
-                    snippet: Snippet<'a, Patch<'a>>,
-                    lhs: Span,
-                    rhs: Span,
-                ) -> Snippet<'a, Patch<'a>> {
-                    snippet
-                        .patch(Patch::new(lhs.start()..lhs.start(), prefix))
-                        .patch(Patch::new(lhs.end()..rhs.start(), ", "))
-                        .patch(Patch::new(rhs.end()..rhs.end(), ")"))
-                }
-
-                let elements = if input[op.start()..op.end()] == *"+" {
-                    [
-                        add_patch("saturating_add(", source.clone(), lhs, rhs),
-                        add_patch("add(", source, lhs, rhs),
-                    ]
-                } else {
-                    [
-                        add_patch("saturating_sub(", source.clone(), lhs, rhs),
-                        add_patch("sub(", source, lhs, rhs),
-                    ]
-                };
-
-                let group = Level::HELP
-                    .secondary_title("you might have meant to use an arithmetic function")
-                    .elements(elements);
-
-                report.push(group);
-            }
-            ParseErrorKind::InvalidNestedOption { outer, inner } => {
-                annotate_entire_span();
-
-                let old_prefix = "optional ";
-                let is_old = |s: &str| s.starts_with(old_prefix);
-                let is_old_outer = is_old(&input[outer.start()..outer.end()]);
-                let is_old_inner = is_old(&input[inner.start()..inner.end()]);
-
-                let mut snippet = source;
-
-                if is_old_outer {
-                    snippet = snippet
-                        .patch(Patch::new(
-                            outer.start()..(outer.start().saturating_add(old_prefix.len())),
-                            "option[",
-                        ))
-                        .patch(Patch::new(outer.end()..outer.end(), "]"));
-                }
-
-                if is_old_inner {
-                    snippet = snippet
-                        .patch(Patch::new(
-                            inner.start()..(inner.start().saturating_add(old_prefix.len())),
-                            "option[",
-                        ))
-                        .patch(Patch::new(inner.end()..inner.end(), "]"));
-                }
-
-                let group = Level::HELP
-                    .secondary_title("you might have meant to use `option[T]`")
-                    .elements([snippet]);
-
-                report.push(group);
-            }
-            _ => {
-                annotate_entire_span();
-            }
-        }
-
-        let message = Renderer::plain().render(&report);
-        write!(f, "{message}")
     }
 }
 
