@@ -216,7 +216,7 @@ impl PolicyRunner {
             }
             for i in schedule.thunk_range {
                 let action_ident = Identifier::try_from(format!("policy_runner_thunk_{i}"))
-                    .context("thunk {i} should be defined")?;
+                    .with_context(|| format!("thunk {i} should be defined"))?;
 
                 let action = VmAction {
                     name: action_ident,
