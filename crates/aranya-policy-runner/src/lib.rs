@@ -20,15 +20,16 @@ use anyhow::Context as _;
 use aranya_crypto::{Csprng, default::DefaultEngine};
 use aranya_policy_vm::Identifier;
 use aranya_runtime::{
-    ActionPlacement, Policy as _, PolicyId, Sink as _, Storage as _, StorageProvider as _, TraversalBuffer, VmAction
+    ActionPlacement, Policy as _, PolicyId, Sink as _, Storage as _, StorageProvider as _,
+    TraversalBuffer, VmAction,
 };
+pub use io::testing_ffi;
 use policy::{create_vmpolicy, load_and_compile_policy};
 use rng::SwitchableRng;
 use runfile::PolicyRunnable;
 pub use runfile::RunFile;
 use sink::EchoSink;
 use working_directory::WorkingDirectory;
-pub use io::testing_ffi;
 
 /// The core Policy Runner object
 ///
@@ -207,7 +208,10 @@ impl PolicyRunner {
                         &mut sink,
                         ActionPlacement::OnGraph,
                     )
-                    .inspect_err(|_| sink.rollback())?;
+                    .inspect_err(|e| {
+                        tracing::error!("VM Policy Error: {e}");
+                        sink.rollback();
+                    })?;
                 sink.commit();
             }
         }
