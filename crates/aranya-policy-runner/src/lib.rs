@@ -264,7 +264,7 @@ impl PolicyRunner {
         }
         self.working_directory
             .make_dirs()
-            .context("Could not create working directory")?;
+            .context("Could not set up working directory")?;
 
         self.inner_logic()
             .inspect_err(|e| eprintln!("Execution failed: {e}"))

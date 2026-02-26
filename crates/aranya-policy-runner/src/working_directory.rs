@@ -85,7 +85,7 @@ impl WorkingDirectory {
     /// Utility function to create all necessary directories
     pub fn make_dirs(&self) -> anyhow::Result<()> {
         for d in [&self.keystore_dir(), &self.graph_dir()] {
-            fs::create_dir_all(d)?;
+            fs::create_dir_all(d).with_context(|| format!("cannot create {}", d.display()))?;
         }
         Ok(())
     }
