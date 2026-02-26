@@ -9,7 +9,10 @@ use aranya_policy_module::{
     ffi::{self, ModuleSchema},
 };
 
-use crate::{CompileError, CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+use crate::{
+    CompileError, CompileErrorType, Compiler, InvalidCallColor,
+    validate::{ValidationResult, validate},
+};
 
 const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     ModuleSchema {
@@ -2759,7 +2762,7 @@ fn test_validate_return() {
     for p in valid {
         let m = compile_pass(p);
         assert!(
-            validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Success),
             "Expected case to be valid: {}",
             p
         );
@@ -2768,7 +2771,7 @@ fn test_validate_return() {
     for p in invalid {
         let m = compile_pass(p);
         assert!(
-            !validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Failure),
             "Expected case to be invalid: {}",
             p
         );
@@ -2877,7 +2880,7 @@ fn test_validate_publish() {
     for p in valid {
         let m = compile_pass(&p);
         assert!(
-            validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Success),
             "Expected case to be valid: {}",
             p
         );
@@ -2886,7 +2889,7 @@ fn test_validate_publish() {
     for p in invalid {
         let m = compile_pass(&p);
         assert!(
-            !validate(&m).is_valid(true),
+            matches!(validate(&m), ValidationResult::Failure),
             "Expected case to be invalid: {}",
             p
         );
@@ -3497,7 +3500,7 @@ fn test_structs_listed_out_of_order() {
 }
 
 #[test]
-fn test_unused_values() {
+fn validate_unused_values() {
     let cases = [
         (
             r#"
@@ -3586,6 +3589,7 @@ fn test_unused_values() {
             "qux: unused variable(s): `y`",
         ),
         (
+            // TODO: this should pass; tracer needs to build control flow graph to properly track usage of `a` and `b`
             r#"
             function f(n int) int {
                 let a = n
@@ -3609,24 +3613,18 @@ fn test_unused_values() {
         if expected_msg.is_empty() {
             let result = validate(&module);
             assert!(
-                result.is_valid(true),
-                "case #{i} should have no validation errors, but got: {:?}",
-                result.num_errors
+                matches!(result, ValidationResult::Success),
+                "case #{i} should have no validation issues, but got: {:?}",
+                result
             );
         } else {
             // This case SHOULD fail validation
             let result = validate(&module);
             assert!(
-                result.num_errors == 0 && result.num_warnings > 0,
-                "case #{i} should have passed, but got {} error(s) and {} warning(s)",
-                result.num_errors,
-                result.num_warnings,
+                matches!(result, ValidationResult::Warning),
+                "case #{i} should have produced warnings, but got {:?}",
+                result,
             );
-            // assert_eq!(
-            //     &result.warnings[0].as_str(),
-            //     expected_msg,
-            //     "case #{i} should have expected unused variable warning"
-            // );
         }
     }
 }

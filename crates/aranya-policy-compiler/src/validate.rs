@@ -6,31 +6,27 @@ use crate::{
     UnusedVarAnalyzer, ValueAnalyzer,
 };
 
-#[derive(Debug, Clone)]
-pub struct ValidationResult {
-    pub num_warnings: usize,
-    pub num_errors: usize,
-}
-
-impl ValidationResult {
-    /// Returns true if there are no errors, and (if `include_warnings` is true) no warnings.
-    pub fn is_valid(&self, include_warnings: bool) -> bool {
-        self.num_errors == 0 && (!include_warnings || self.num_warnings == 0)
-    }
+/// Result of policy validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationResult {
+    /// No warnings or errors
+    Success,
+    /// One or more warnings, but no errors
+    Warning,
+    /// One or more errors
+    Failure,
 }
 
 /// Post-compilation validation. Ensure:
 /// - action branches publish a command
 /// - variables are assigned before use
+/// - functions code paths return values
 /// - no unused variables
 /// - all function code paths return values
 /// - commands enter a finish block
 pub fn validate(module: &Module) -> ValidationResult {
     let ModuleData::V0(ref m) = module.data;
-    let mut result = ValidationResult {
-        num_warnings: 0,
-        num_errors: 0,
-    };
+    let mut result = ValidationResult::Success;
 
     // Get all global variable names
     let global_names: Vec<Identifier> = m.globals.keys().cloned().collect();
@@ -82,18 +78,17 @@ pub fn validate(module: &Module) -> ValidationResult {
                     println!();
                     match issue.level {
                         FailureLevel::Warning => {
-                            result.num_warnings = result.num_warnings.saturating_add(1);
+                            result = ValidationResult::Warning;
                         }
                         FailureLevel::Error => {
-                            result.num_errors = result.num_errors.saturating_add(1);
+                            result = ValidationResult::Failure;
                         }
                     }
                 }
             }
             Err(e) => {
                 println!("{e}");
-                result.num_errors = result.num_errors.saturating_add(1);
-                return result;
+                return ValidationResult::Failure;
             }
         }
     }
