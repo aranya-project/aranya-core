@@ -935,21 +935,27 @@ where
         }
     }
 
-    // Find the convergence phase which should be preserved
-    // The GenerateGraph rule creates a distinctive sync with high max_syncs
-    // (commands / COMMAND_RESPONSE_MAX + 100) before the verification CompareGraphs.
-    // We look for a Sync with max_syncs > 10 as the start of convergence.
+    // Find the convergence phase which should be preserved.
+    // The GenerateGraph rule creates either a ConvergeAll or a distinctive
+    // Sync with high max_syncs before the verification CompareGraphs.
+    // We look for ConvergeAll or a Sync with max_syncs > 10 as the start
+    // of convergence.
     let mut convergence_idx = end_idx;
     for (i, rule) in rules.iter().enumerate().skip(start_idx) {
-        if let TestRule::Sync { max_syncs, .. } = rule
-            && *max_syncs > 10
-        {
-            convergence_idx = i;
-            break;
+        match rule {
+            TestRule::ConvergeAll { .. } => {
+                convergence_idx = i;
+                break;
+            }
+            TestRule::Sync { max_syncs, .. } if *max_syncs > 10 => {
+                convergence_idx = i;
+                break;
+            }
+            _ => {}
         }
     }
 
-    // If we didn't find a high max_syncs, fall back to looking for CompareGraphs
+    // If we didn't find a convergence marker, fall back to looking for CompareGraphs
     if convergence_idx == end_idx {
         for (i, rule) in rules.iter().enumerate().skip(start_idx) {
             if matches!(rule, TestRule::CompareGraphs { .. }) {
@@ -1283,6 +1289,8 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    generate_graph_failure,
+    no_such_parent,
     generate_graph_saved,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
