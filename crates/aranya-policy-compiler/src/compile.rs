@@ -1645,6 +1645,15 @@ impl<'a> CompileState<'a> {
         }
 
         for ffi_mod in self.ffi_modules {
+            // Only define structs if they were imported.
+            if !self
+                .policy
+                .ffi_imports
+                .iter()
+                .any(|import| import.name == ffi_mod.name)
+            {
+                continue;
+            }
             for ffi_struct_def in ffi_mod.structs {
                 let deps = ffi_struct_def
                     .fields
