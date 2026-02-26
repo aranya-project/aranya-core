@@ -99,17 +99,17 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
     ) -> Result<Vec<u8>, MachineError> {
         let sk: SigningKey<E::CS> = SigningKey::new(eng);
         let mut refmut = self.keystore.try_borrow_mut().map_err(|e| {
-            tracing::error!("{e}");
+            tracing::error!("Keystore could not be borrowed: {e}");
             MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
         })?;
         let keystore = refmut.deref_mut();
         keystore.insert_key(eng, sk.clone()).map_err(|e| {
-            tracing::error!("{e}");
+            tracing::error!("Unable to insert key into keystore: {e}");
             MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
         })?;
         let pk = sk.public().expect("what");
         postcard::to_allocvec(&pk).map_err(|e| {
-            tracing::error!("{e}");
+            tracing::error!("Could not serialize pubkey: {e}");
             MachineError::new(MachineErrorType::Unknown(
                 "Could not serialize pubkey".to_string(),
             ))
