@@ -174,7 +174,7 @@ data:
             end: 55
   enum_defs: {}
   codemap:
-    text: "command Foo {\n    fields {\n        a int,\n        b int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {\n        finish {}\n    }\n}\naction foo(b int) {\n    let i = 4\n    let x = if b == 0 { :saturating_add(4, i) } else { :3 }\n    let y = Foo{\n        a: x,\n        b: 4\n    }\n}"
+    text: "[source code]"
     mapping:
       - - 1
         - start: 0

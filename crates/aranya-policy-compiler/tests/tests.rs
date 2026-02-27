@@ -89,7 +89,10 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
         let module = compile_pass(&text);
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-            insta::assert_yaml_snapshot!(name, module)
+            insta::assert_yaml_snapshot!(name, module, {
+                // Redact the "text" field from the code map to clean up the snapshots a bit
+                ".data.codemap.text" => "[source code]",
+            })
         });
     } else if name.contains("fail") {
         let error = compile_fail(&text);
