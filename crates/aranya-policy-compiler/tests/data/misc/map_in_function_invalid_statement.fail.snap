@@ -2,5 +2,11 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid statement in pure function context at line 2 col 5:
-	map Pet[name:?]=>{} as p {}
+error: invalid statement
+  |
+1 | function pets() int {
+2 |     map Pet[name:?]=>{} as p {}
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ statement doesn't make sense in pure function context
+3 |     return 0
+4 | }
+  |

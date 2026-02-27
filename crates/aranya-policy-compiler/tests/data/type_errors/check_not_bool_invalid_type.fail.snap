@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: check must have boolean expression at line 5 col 9:
-	check 0
+error: invalid type: int
+  |
+5 |         check 0
+  |               ^ expected `bool` but found `int`

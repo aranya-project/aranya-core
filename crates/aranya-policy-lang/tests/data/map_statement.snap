@@ -39,7 +39,10 @@ Policy {
                                     "i" @ 52..53,
                                     Expression(
                                         Int(
-                                            1,
+                                            IntLiteral {
+                                                value: 1,
+                                                span: 54..55,
+                                            },
                                         ) @ 54..55,
                                     ),
                                 ),

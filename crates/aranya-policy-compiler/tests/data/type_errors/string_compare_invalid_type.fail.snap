@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: invalid binary operation at line 2 col 5:
-	return x < "test"
+error: invalid type: string
+  |
+2 |     return x < "test"
+  |            ^^^^^^^^^^ expected `int` but found `string`

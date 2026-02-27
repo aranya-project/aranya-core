@@ -23,13 +23,19 @@ Policy {
                                 Block(
                                     [],
                                     Int(
-                                        1,
+                                        IntLiteral {
+                                            value: 1,
+                                            span: 39..40,
+                                        },
                                     ) @ 39..40,
                                 ) @ 36..42,
                                 Block(
                                     [],
                                     Int(
-                                        0,
+                                        IntLiteral {
+                                            value: 0,
+                                            span: 51..52,
+                                        },
                                     ) @ 51..52,
                                 ) @ 48..54,
                             ),

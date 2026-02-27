@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{fmt, str::FromStr};
+use core::{cmp, fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -19,12 +19,39 @@ impl Ident {
     }
 }
 
-impl<T> PartialEq<T> for Ident
-where
-    T: AsRef<str> + ?Sized,
-{
-    fn eq(&self, other: &T) -> bool {
-        self.inner == other.as_ref()
+impl PartialEq<str> for Ident {
+    fn eq(&self, other: &str) -> bool {
+        self.inner == other
+    }
+}
+
+impl PartialEq<&str> for Ident {
+    fn eq(&self, other: &&str) -> bool {
+        self.inner == *other
+    }
+}
+
+impl PartialEq<Identifier> for Ident {
+    fn eq(&self, other: &Identifier) -> bool {
+        &self.inner == other
+    }
+}
+
+impl AsRef<str> for Ident {
+    fn as_ref(&self) -> &str {
+        self.inner.as_str()
+    }
+}
+
+impl core::borrow::Borrow<Identifier> for Ident {
+    fn borrow(&self) -> &Identifier {
+        &self.inner
+    }
+}
+
+impl core::borrow::Borrow<str> for Ident {
+    fn borrow(&self) -> &str {
+        self.inner.as_str()
     }
 }
 
@@ -415,7 +442,6 @@ pub struct FunctionCall {
 }
 }
 
-spanned! {
 /// A named struct literal
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
@@ -425,7 +451,14 @@ pub struct NamedStruct {
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
+    /// The source location of this struct literal
+    pub span: Span,
 }
+
+impl Spanned for NamedStruct {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -498,8 +531,7 @@ pub enum InternalFunction {
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
-    // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function
@@ -538,6 +570,34 @@ pub struct ForeignFunctionCall {
 }
 }
 
+/// A 64-bit signed integer
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntLiteral {
+    value: i64,
+    span: Span,
+}
+
+impl IntLiteral {
+    /// Creates a new [IntLiteral].
+    pub fn new(value: i64, span: Span) -> Self {
+        Self { value, span }
+    }
+}
+
+impl Spanned for IntLiteral {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl Deref for IntLiteral {
+    type Target = i64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
 /// All of the things which can be in an expression.
 pub type Expression = WithSpan<ExprKind>;
 
@@ -545,7 +605,7 @@ pub type Expression = WithSpan<ExprKind>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal

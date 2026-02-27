@@ -1,15 +1,21 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
-    FunctionDefinition, Ident, Identifier, InternalFunction, LanguageContext, MatchExpression,
-    MatchPattern, MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement,
-    StmtKind, TypeKind, VType, ident, thir,
+    FunctionDefinition, Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern,
+    MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind,
+    VType, ident, thir,
 };
 use buggy::{Bug, BugExt as _, bug};
 use tracing::warn;
 
 use super::{
-    CompileError, CompileErrorType, CompileState, FunctionColor, InvalidCallColor, Scope,
-    StatementContext, find_duplicate,
+    CompileError, CompileState, FunctionColor, Scope, StatementContext,
+    error::{
+        AlreadyDefined, BadArgument, BugError, DuplicateMatchPatterns, InvalidCallColor,
+        InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidStatement,
+        InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
+        TodoFound, UnknownError, UnreachableMatchArm,
+    },
+    find_duplicate,
     types::{self, DisplayType},
 };
 
@@ -20,7 +26,7 @@ impl CompileState<'_> {
             .statement_context
             .last()
             .ok_or_else(|| {
-                self.err(CompileErrorType::Bug(Bug::new(
+                self.err(BugError(Bug::new(
                     "compiling statement without statement context",
                 )))
             })?
@@ -28,19 +34,19 @@ impl CompileState<'_> {
         Ok(cs)
     }
 
-    fn get_fact_def(&self, name: &Identifier) -> Result<&FactDefinition, CompileError> {
-        self.m
-            .fact_defs
-            .get(name)
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
+    fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
+        self.m.fact_defs.get(&name.inner).ok_or_else(|| {
+            let note = format!("fact `{}` not defined", name);
+            self.err(NotDefined(note, name.span))
+        })
     }
 
     fn unreachable_match_arm_error(&self, span: Span) -> CompileError {
-        self.err_loc(CompileErrorType::UnreachableMatchArm, span)
+        self.err(UnreachableMatchArm(span))
     }
 
     fn redundant_match_arm_error(&self, span: Span) -> CompileError {
-        self.err_loc(CompileErrorType::RedundantMatchArm, span)
+        self.err(RedundantMatchArm(span))
     }
 
     /// Lower a struct literal, ensuring it matches its definition.
@@ -57,41 +63,39 @@ impl CompileState<'_> {
             .get(&s.identifier.inner)
             .cloned()
         else {
-            return Err(self.err(CompileErrorType::NotDefined(format!(
-                "Struct `{}` not defined",
-                s.identifier
-            ))));
+            let note = format!("struct `{}` not defined", s.identifier);
+            return Err(self.err(NotDefined(note, s.identifier.span)));
         };
 
         let s = self.evaluate_sources(s, &struct_def)?;
 
         // Check for duplicate fields in the struct literal
-        if let Some(duplicate_field) = find_duplicate(&s.fields, |(ident, _)| &ident.inner) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                duplicate_field.to_string(),
-            )));
+        if let Some((ident1, ident2)) = find_duplicate(&s.fields, |(ident, _)| ident) {
+            let err = AlreadyDefined::new(ident1.clone(), ident2.clone());
+            return Err(self.err(err));
         }
 
         let mut fields = Vec::new();
         for (field_name, e) in &s.fields {
-            let def_field_type = &struct_def
+            let def_field = &struct_def
                 .iter()
                 .find(|f| f.identifier.inner == field_name.inner)
                 .ok_or_else(|| {
-                    self.err(CompileErrorType::InvalidType(format!(
+                    let note = format!(
                         "field `{}` not found in `Struct {}`",
                         field_name.inner, s.identifier
-                    )))
-                })?
-                .field_type;
+                    );
+                    self.err(NotDefined(note, field_name.span))
+                })?;
             let e = self.lower_expression(e)?;
-            if !e.vtype.fits_type(def_field_type) {
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "`Struct {}` field `{}` is not {}",
-                    s.identifier,
-                    field_name.inner,
-                    DisplayType(def_field_type)
-                ))));
+            if !e.vtype.fits_type(&def_field.field_type) {
+                let err = InvalidType::new(
+                    def_field.field_type.to_string(),
+                    Some(def_field.span()),
+                    e.vtype.to_string(),
+                    e.span,
+                );
+                return Err(self.err(err));
             }
             fields.push((field_name.clone(), e));
         }
@@ -109,6 +113,8 @@ impl CompileState<'_> {
     /// - a fact with this name was defined
     /// - the keys and values defined in the schema are present, and have the correct types
     /// - there are no duplicate keys or values
+    ///
+    /// `require_value` should be true for fact literals used in create statements and false otherwise.
     fn lower_fact_literal(
         &mut self,
         fact: &FactLiteral,
@@ -122,8 +128,10 @@ impl CompileState<'_> {
         let value_fields = if let Some(fact_value_fields) = &fact.value_fields {
             Some(self.lower_fact_values(&fact_def, fact_value_fields)?)
         } else if require_value {
-            return Err(self.err(CompileErrorType::InvalidFactLiteral(
-                "fact literal requires value".to_string(),
+            return Err(self.err(InvalidFactLiteral::new(
+                "fact literal requires value when used in a create statement",
+                fact.span(),
+                None::<(&str, _)>,
             )));
         } else {
             None
@@ -141,50 +149,71 @@ impl CompileState<'_> {
         fact_def: &FactDefinition,
         fact_key_fields: &[(Ident, FactField)],
     ) -> Result<Vec<(Ident, thir::Expression)>, CompileError> {
-        let name = &fact_def.identifier;
-
         // Note: Bind values exist at compile time (as FactField::Bind), so we can expect the literal
         // key/value sets to match the schema. E.g. given `fact Foo[i int, j int]` and `query Foo[i:1, j:?]`,
         // we will get two sequences with the same number of items. If not, abort.
 
         // key sets must have the same length
         if fact_key_fields.len() != fact_def.key.len() {
-            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
-                "Fact keys don't match definition",
-            ))));
+            // TODO(Steve): Consider replacing this with a new error type (unknown/missing field error)
+            // that can be used for struct and fact literals.
+            let note = "The number of Fact keys don't match the definition".to_owned();
+            return Err(self.err(InvalidFactLiteral::new(
+                note,
+                fact_key_fields.span(),
+                Some((
+                    format!(
+                        "definition has {} keys but the expression has {} keys",
+                        fact_def.key.len(),
+                        fact_key_fields.len()
+                    ),
+                    fact_def.span(),
+                )),
+            )));
         }
         let mut key_fields = Vec::new();
-        let mut bind_found = false;
+        let mut bind_found = None;
         for ((lit_key_name, lit_key_field), schema_key) in fact_key_fields.iter().zip(&fact_def.key)
         {
             if schema_key.identifier.inner != lit_key_name.inner {
-                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                // TODO(Steve): Consider replacing this with a new error type (unknown/missing field error)
+                // that can be used for struct and fact literals.
+                let note = format!(
                     "Invalid key: expected {}, got {}",
                     schema_key.identifier, lit_key_name
-                ))));
+                );
+                return Err(self.err(InvalidFactLiteral::new(
+                    note,
+                    lit_key_name.span(),
+                    Some(("expected because of this", schema_key.identifier.span)),
+                )));
             }
 
             match lit_key_field {
                 FactField::Expression(e) => {
-                    if bind_found {
-                        return Err(self.err(CompileErrorType::InvalidFactLiteral(
-                            "leading bind values not allowed".to_string(),
+                    if let Some(span) = bind_found {
+                        return Err(self.err(InvalidFactLiteral::new(
+                            "leading bind values not allowed",
+                            span,
+                            None::<(&str, _)>,
                         )));
                     }
                     let e = self.lower_expression(e)?;
                     let def_field_type = &schema_key.field_type;
                     if !e.vtype.fits_type(def_field_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Fact `{name}` value field `{lit_key_name}` found `{}`, not `{}`",
-                            e.vtype,
-                            DisplayType(def_field_type)
-                        ))));
+                        let err = InvalidType::new(
+                            def_field_type.to_string(),
+                            Some(def_field_type.span),
+                            e.vtype.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
                     key_fields.push((lit_key_name.clone(), e));
                 }
-                FactField::Bind(_) => {
+                FactField::Bind(span) => {
                     // Skip bind values
-                    bind_found = true;
+                    bind_found = Some(*span);
                 }
             }
         }
@@ -196,13 +225,24 @@ impl CompileState<'_> {
         fact_def: &FactDefinition,
         fact_value_fields: &[(Ident, FactField)],
     ) -> Result<Vec<(Ident, thir::Expression)>, CompileError> {
-        let name = &fact_def.identifier;
+        // TODO(Steve): Consider replacing this with a new error type (unknown/missing field error)
+        // that can be used for struct and fact literals.
 
         // value block must have the same number of values as the schema
         if fact_value_fields.len() != fact_def.value.len() {
-            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
-                "incorrect number of values",
-            ))));
+            let note = "The number of Fact values don't match the definition".to_owned();
+            return Err(self.err(InvalidFactLiteral::new(
+                note,
+                fact_value_fields.span(),
+                Some((
+                    format!(
+                        "definition has {} values but the expression has {} values",
+                        fact_def.value.len(),
+                        fact_value_fields.len()
+                    ),
+                    fact_def.span(),
+                )),
+            )));
         }
 
         let mut value_fields = Vec::new();
@@ -211,20 +251,27 @@ impl CompileState<'_> {
             fact_value_fields.iter().zip(&fact_def.value)
         {
             if lit_value_name.inner != schema_value.identifier.inner {
-                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                let note = format!(
                     "Expected value {}, got {}",
                     schema_value.identifier, lit_value_name.inner
-                ))));
+                );
+                return Err(self.err(InvalidFactLiteral::new(
+                    note,
+                    lit_value_name.span,
+                    Some(("expected because of this", schema_value.identifier.span)),
+                )));
             }
             if let FactField::Expression(e) = &lit_value_field {
                 let def_field_type = &schema_value.field_type;
                 let e = self.lower_expression(e)?;
                 if !e.vtype.fits_type(def_field_type) {
-                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "Fact `{name}` value field `{lit_value_name}` found `{}`, not `{}`",
-                        e.vtype,
-                        DisplayType(def_field_type)
-                    ))));
+                    let err = InvalidType::new(
+                        def_field_type.to_string(),
+                        Some(schema_value.identifier.span),
+                        e.vtype.to_string(),
+                        e.span,
+                    );
+                    return Err(self.err(err));
                 }
                 value_fields.push((lit_value_name.clone(), e));
             }
@@ -243,10 +290,10 @@ impl CompileState<'_> {
             | ExprKind::Dot(_, _)
             | ExprKind::Optional(_)
             | ExprKind::EnumReference(_) => Ok(()),
-            _ => Err(self.err_loc(
-                CompileErrorType::InvalidExpression(expression.clone()),
-                expression.span(),
-            )),
+            _ => {
+                let note = "This expression is invalid in finish blocks/functions";
+                Err(self.err(InvalidExpression(note, expression.clone(), None)))
+            }
         }
     }
 
@@ -254,7 +301,7 @@ impl CompileState<'_> {
         &mut self,
         expression: &Expression,
     ) -> Result<thir::Expression, CompileError> {
-        if self.get_statement_context()? == StatementContext::Finish {
+        if matches!(self.get_statement_context()?, StatementContext::Finish(_)) {
             self.check_finish_expression(expression)?;
         }
 
@@ -300,11 +347,12 @@ impl CompileState<'_> {
                         inner_expr = Some(Box::new(inner));
                     }
                 }
-                if matches!(inner_vtype.inner, TypeKind::Optional(_)) {
-                    return Err(self.err(CompileErrorType::InvalidType(
-                        "Cannot wrap option in another option".into(),
-                    )));
-                }
+                // We allow nested optional types.
+                // if matches!(inner_vtype.inner, TypeKind::Optional(_)) {
+                //     return Err(self.err(CompileErrorType::InvalidType(
+                //         "Cannot wrap option in another option".into(),
+                //     )));
+                // }
                 thir::Expression {
                     kind: thir::ExprKind::Optional(inner_expr),
                     vtype: VType {
@@ -375,18 +423,28 @@ impl CompileState<'_> {
                         inner: TypeKind::Bool,
                         span: c.span,
                     }) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "if condition must be a boolean expression, was type {}",
-                            cond.vtype,
-                        ))));
+                        let err = InvalidType::new(
+                            "bool".to_owned(),
+                            None,
+                            cond.vtype.to_string(),
+                            cond.span,
+                        );
+                        return Err(self.err(err));
                     }
                     let t = self.lower_expression(t)?;
                     let f = self.lower_expression(f)?;
 
                     // The type of `if` is whatever the subexpressions
                     // are, as long as they are the same type
-                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone())
-                        .map_err(|e| self.err(e.into()))?;
+                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone()).map_err(|e| {
+                        let err = InvalidType::new(
+                            e.left.to_string(),
+                            Some(e.left.span()),
+                            e.right.to_string(),
+                            e.right.span(),
+                        );
+                        self.err(err)
+                    })?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::If(
                             Box::new(cond),
@@ -402,10 +460,14 @@ impl CompileState<'_> {
                         StatementContext::PureFunction(FunctionDefinition {
                             identifier, ..
                         }) if identifier == "seal" => {}
-                        _ => {
-                            return Err(
-                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
-                            );
+                        ctx => {
+                            let note =
+                                "'serialize' can only be used in the 'seal' block of a command";
+                            return Err(self.err(InvalidExpression(
+                                note,
+                                expression.clone(),
+                                Some(ctx.span()),
+                            )));
                         }
                     }
 
@@ -423,10 +485,13 @@ impl CompileState<'_> {
                     let e = self.lower_expression(e)?;
                     let ty = &e.vtype;
                     if !ty.fits_type(&struct_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "serializing {ty}, expected {}",
-                            DisplayType(&struct_type)
-                        ))));
+                        let err = InvalidType::new(
+                            struct_type.to_string(),
+                            Some(struct_type.span),
+                            ty.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
 
                     let ty = VType {
@@ -453,10 +518,14 @@ impl CompileState<'_> {
                                 },
                             ..
                         }) if identifier == "open" => struct_name,
-                        _ => {
-                            return Err(
-                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
-                            );
+                        ctx => {
+                            let note =
+                                "'deserialize' can only be used in the 'open' block of a command";
+                            return Err(self.err(InvalidExpression(
+                                note,
+                                expression.clone(),
+                                Some(ctx.span()),
+                            )));
                         }
                     };
 
@@ -466,9 +535,9 @@ impl CompileState<'_> {
                         inner: TypeKind::Bytes,
                         span: e.span,
                     }) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "deserializing {ty}, expected bytes",
-                        ))));
+                        let err =
+                            InvalidType::new("bytes".to_owned(), None, ty.to_string(), e.span);
+                        return Err(self.err(err));
                     }
 
                     let ty = VType {
@@ -484,7 +553,7 @@ impl CompileState<'_> {
                     }
                 }
                 InternalFunction::Todo(span) => {
-                    let err = self.err(CompileErrorType::TodoFound);
+                    let err: CompileError = self.err(TodoFound(*span));
                     if !self.is_debug {
                         return Err(err);
                     }
@@ -504,26 +573,32 @@ impl CompileState<'_> {
                     .function_signatures
                     .get(&f.identifier.inner)
                     .ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(f.identifier.to_string()))
+                        let note = format!("function `{}` not defined", f.identifier);
+                        self.err(NotDefined(note, f.identifier.span))
                     })?;
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 let FunctionColor::Pure(return_type) = signature.color.clone() else {
-                    return Err(
-                        self.err(CompileErrorType::InvalidCallColor(InvalidCallColor::Finish))
-                    );
+                    // Note: `expression.span` is used here instead of `f.span()`
+                    // so the parentheses enclosing the params are included.
+                    return Err(self.err(InvalidCallColor(
+                        InvalidCallColorKind::Finish,
+                        expression.span(),
+                        None,
+                    )));
                 };
                 // For now all we can do is check that the argument
                 // list has the same length.
                 // TODO(chip): Do more deep type analysis to check
                 // arguments and return types.
                 if signature.args.len() != f.arguments.len() {
-                    return Err(self.err(CompileErrorType::BadArgument(format!(
+                    let note = format!(
                         "call to `{}` has {} arguments and it should have {}",
                         f.identifier,
                         f.arguments.len(),
                         signature.args.len()
-                    ))));
+                    );
+                    return Err(self.err(BadArgument(note, f.span())));
                 }
                 let f = self.lower_function_call(f)?;
 
@@ -539,9 +614,10 @@ impl CompileState<'_> {
                     .policy
                     .ffi_imports
                     .iter()
-                    .any(|m| m.inner == f.module.inner)
+                    .any(|m| m.inner.as_str() == f.module.inner.as_str())
                 {
-                    return Err(self.err(CompileErrorType::NotDefined(f.module.inner.to_string())));
+                    let note = format!("module `{}` not imported", f.module);
+                    return Err(self.err(NotDefined(note, f.module.span)));
                 }
 
                 let mut args = Vec::new();
@@ -561,9 +637,10 @@ impl CompileState<'_> {
                         .ffi_modules
                         .iter()
                         .enumerate()
-                        .find(|(_, m)| m.name == f.module.inner)
+                        .find(|(_, m)| m.name == f.module.inner.as_str())
                         .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(f.module.inner.to_string()))
+                            let note = format!("module `{}` not defined", f.module);
+                            self.err(NotDefined(note, f.module.span))
                         })?;
 
                     // find module function by name
@@ -571,42 +648,38 @@ impl CompileState<'_> {
                         .functions
                         .iter()
                         .enumerate()
-                        .find(|(_, proc)| proc.name == f.identifier.inner)
+                        .find(|(_, proc)| proc.name == f.identifier.inner.as_str())
                         .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(format!(
-                                "{}::{}",
-                                f.module.inner, f.identifier.inner
-                            )))
+                            let note =
+                                format!("function `{}::{}` not defined", f.module, f.identifier);
+                            self.err(NotDefined(note, f.identifier.span))
                         })?;
 
                     ids = Some((module_id, procedure_id));
 
                     // verify number of arguments matches the function signature
                     if f.arguments.len() != procedure.args.len() {
-                        return Err(
-                            self.err(CompileErrorType::BadArgument(f.identifier.to_string()))
+                        let note = format!(
+                            "call to `{}` has {} arguments but it should have {}",
+                            procedure.name.clone(),
+                            f.arguments.len(),
+                            procedure.args.len()
                         );
+                        return Err(self.err(BadArgument(note, f.span())));
                     }
 
                     // push args
-                    for (i, (arg_def, arg_e)) in
-                        procedure.args.iter().zip(f.arguments.iter()).enumerate()
-                    {
+                    for (arg_def, arg_e) in procedure.args.iter().zip(f.arguments.iter()) {
                         let arg_e = self.lower_expression(arg_e)?;
                         let arg_def_vtype = (&arg_def.vtype).into();
                         if !arg_e.vtype.fits_type(&arg_def_vtype) {
-                            let arg_n = i
-                                .checked_add(1)
-                                .assume("function argument count overflow")?;
-                            return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "Argument {} (`{}`) in FFI call to `{}::{}` found `{}`, not `{}`",
-                                arg_n,
-                                arg_def.name,
-                                f.module,
-                                f.identifier,
-                                arg_e.vtype,
-                                DisplayType(&arg_def_vtype)
-                            ))));
+                            let err = InvalidType::new(
+                                arg_def_vtype.to_string(),
+                                None,
+                                arg_e.vtype.to_string(),
+                                arg_e.span,
+                            );
+                            return Err(self.err(err));
                         }
                         args.push(arg_e);
                     }
@@ -628,16 +701,20 @@ impl CompileState<'_> {
             ExprKind::Return(ret_expr) => {
                 let ctx = self.get_statement_context()?;
                 let StatementContext::PureFunction(fd) = ctx else {
-                    return Err(self.err(CompileErrorType::InvalidExpression(expression.clone())));
+                    // TODO(Steve): Add 'InvalidReturn' error.
+                    let note = "return expressions can't be used in this context";
+                    return Err(self.err(InvalidExpression(note, expression.clone(), None)));
                 };
                 // ensure return expression type matches function signature
                 let et = self.lower_expression(ret_expr)?;
                 if !et.vtype.fits_type(&fd.return_type) {
-                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "Return value of `{}()` must be {}",
-                        fd.identifier,
-                        DisplayType(&fd.return_type)
-                    ))));
+                    let err = InvalidType::new(
+                        fd.return_type.to_string(),
+                        Some(fd.return_type.span),
+                        et.vtype.to_string(),
+                        et.span,
+                    );
+                    return Err(self.err(err));
                 }
                 thir::Expression {
                     kind: thir::ExprKind::Return(Box::new(et)),
@@ -650,10 +727,8 @@ impl CompileState<'_> {
             }
             ExprKind::Identifier(i) => {
                 let ty = self.identifier_types.get(i).map_err(|_| {
-                    self.err(CompileErrorType::NotDefined(format!(
-                        "Unknown identifier `{}`",
-                        i
-                    )))
+                    let note = format!("'{}' not in scope", i);
+                    self.err(NotDefined(note, i.span))
                 })?;
                 thir::Expression {
                     kind: thir::ExprKind::Identifier(i.clone()),
@@ -680,28 +755,24 @@ impl CompileState<'_> {
                 let t = self.lower_expression(t)?;
 
                 let name = t.vtype.as_struct().ok_or_else(|| {
-                    self.err(CompileErrorType::InvalidType(
-                        "Expression left of `.` is not a struct".into(),
+                    self.err(InvalidType::new(
+                        "struct T".to_owned(),
+                        None,
+                        t.vtype.to_string(),
+                        t.span,
                     ))
                 })?;
-                let struct_def =
-                    self.m
-                        .interface
-                        .struct_defs
-                        .get(name.as_str())
-                        .ok_or_else(|| {
-                            self.err(CompileErrorType::InvalidType(format!(
-                                "Struct `{name}` not defined"
-                            )))
-                        })?;
+                let struct_def = self.m.interface.struct_defs.get(name).ok_or_else(|| {
+                    let note = format!("struct `{name}` not defined");
+                    self.err(NotDefined(note, name.span))
+                })?;
                 let field_def = struct_def
                     .iter()
                     .find(|f| f.identifier.inner == s.inner)
                     .ok_or_else(|| {
-                        self.err(CompileErrorType::InvalidType(format!(
-                            "Struct `{}` has no member `{}`",
-                            name, s.inner
-                        )))
+                        // TODO(Steve): Replace with a new unknown field error type.
+                        let note = format!("struct `{}` has no member `{}`", name, s.inner);
+                        self.err(NotDefined(note, s.span))
                     })?;
                 let ty = field_def.field_type.clone();
                 thir::Expression {
@@ -713,24 +784,23 @@ impl CompileState<'_> {
             ExprKind::Substruct(lhs, sub) => {
                 let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.inner).cloned()
                 else {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "Struct `{}` not defined",
-                        sub.inner
-                    ))));
+                    let note = format!("struct `{}` not defined", sub);
+                    return Err(self.err(NotDefined(note, sub.span)));
                 };
 
                 let lhs_expression = self.lower_expression(lhs)?;
                 let lhs_struct_name = lhs_expression.vtype.as_struct().ok_or_else(|| {
-                    self.err(CompileErrorType::InvalidType(
-                        "Expression to the left of the substruct operator is not a struct".into(),
+                    self.err(InvalidType::new(
+                        "struct T".to_owned(),
+                        None,
+                        lhs_expression.vtype.to_string(),
+                        lhs_expression.span,
                     ))
                 })?;
-                let Some(lhs_field_defns) =
-                    self.m.interface.struct_defs.get(&lhs_struct_name.inner)
+                let Some(lhs_field_defns) = self.m.interface.struct_defs.get(&lhs_struct_name.inner)
                 else {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "Struct `{lhs_struct_name}` is not defined",
-                    ))));
+                    let note = format!("struct `{lhs_struct_name}` not defined");
+                    return Err(self.err(NotDefined(note, lhs_struct_name.span)));
                 };
 
                 // Check that the struct type on the RHS is a subset of the struct expression on the LHS
@@ -738,15 +808,14 @@ impl CompileState<'_> {
                     lhs_field_defns.iter().any(|lhs_field| {
                         lhs_field.identifier.inner == field_def.identifier.inner
                             && lhs_field
-                                .field_type
-                                .inner
+                                .field_type.inner
                                 .matches(&field_def.field_type.inner)
                     })
                 }) {
-                    return Err(self.err(CompileErrorType::InvalidSubstruct(
-                        sub.inner.clone(),
-                        lhs_struct_name.inner.clone(),
-                    )));
+                    return Err(self.err(InvalidSubstruct {
+                        sub: sub.clone(),
+                        lhs: (lhs_struct_name.to_string(), lhs_expression.span),
+                    }));
                 }
 
                 let ty = VType {
@@ -770,13 +839,17 @@ impl CompileState<'_> {
                     .get(&rhs_ident.inner)
                     .cloned()
                     .ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
+                        let note = format!("struct `{rhs_ident}` not defined");
+                        self.err(NotDefined(note, rhs_ident.span))
                     })?;
 
                 let lhs_expression = self.lower_expression(lhs)?;
                 let lhs_struct_name = lhs_expression.vtype.as_struct().ok_or_else(|| {
-                    self.err(CompileErrorType::InvalidType(
-                        "Expression to the left of `as` is not a struct".to_string(),
+                    self.err(InvalidType::new(
+                        "struct T".to_owned(),
+                        None,
+                        lhs_expression.vtype.to_string(),
+                        lhs_expression.span,
                     ))
                 })?;
                 let lhs_fields = self
@@ -785,9 +858,8 @@ impl CompileState<'_> {
                     .struct_defs
                     .get(&lhs_struct_name.inner)
                     .ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(format!(
-                            "struct {lhs_struct_name}"
-                        )))
+                        let note = format!("struct `{lhs_struct_name}` not defined");
+                        self.err(NotDefined(note, lhs_struct_name.span))
                     })?;
 
                 // Check that both structs have the same field names and types (though not necessarily in the same order)
@@ -796,10 +868,10 @@ impl CompileState<'_> {
                         .iter()
                         .all(|f| rhs_fields.iter().any(|v| f.matches(v)))
                 {
-                    return Err(self.err(CompileErrorType::InvalidCast(
-                        lhs_struct_name.inner.clone(),
-                        rhs_ident.inner.clone(),
-                    )));
+                    return Err(self.err(InvalidCast {
+                        rhs: rhs_ident.clone(),
+                        lhs: (lhs_struct_name.to_string(), lhs_expression.span),
+                    }));
                 }
 
                 let ty = VType {
@@ -852,11 +924,18 @@ impl CompileState<'_> {
                             inner: kind,
                             span: expression.span,
                         },
-                        "invalid binary operation",
+                        expression.span,
                     )
                     .map_err(|e| self.err(e))?,
-                    None => types::unify_pair(a.vtype.clone(), b.vtype.clone())
-                        .map_err(|e| self.err(e.into()))?,
+                    None => types::unify_pair(a.vtype.clone(), b.vtype.clone()).map_err(|e| {
+                        let err = InvalidType::new(
+                            e.left.to_string(),
+                            Some(e.left.span()),
+                            e.right.to_string(),
+                            e.right.span(),
+                        );
+                        self.err(err)
+                    })?,
                 };
 
                 thir::Expression {
@@ -881,10 +960,7 @@ impl CompileState<'_> {
                     "",
                 )
                 .map_err(|err| {
-                    CompileErrorType::InvalidType(format!(
-                        "cannot invert non-boolean expression of type {}",
-                        err.left
-                    ))
+                    InvalidType::new(err.right.to_string(), None, err.left.to_string(), e.span)
                 })
                 .map_err(|e| self.err(e))?;
 
@@ -904,9 +980,13 @@ impl CompileState<'_> {
                 match &e.vtype.inner {
                     TypeKind::Optional(_) => {}
                     _ => {
-                        return Err(self.err(CompileErrorType::InvalidType(
-                            "`is` must operate on an optional expression".into(),
-                        )));
+                        let err = InvalidType::new(
+                            "option[T]".to_owned(),
+                            None,
+                            e.vtype.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
                 }
 
@@ -983,26 +1063,25 @@ impl CompileState<'_> {
         let arg_defs = self
             .function_signatures
             .get(&fc.identifier.inner)
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.to_string())))?
+            .ok_or_else(|| {
+                let note = format!("function `{}` not defined", fc.identifier);
+                self.err(NotDefined(note, fc.identifier.span))
+            })?
             .args
             .clone();
 
         let mut arguments = Vec::new();
 
-        for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+        for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.ty) {
-                let arg_n = i
-                    .checked_add(1)
-                    .assume("function argument count overflow")?;
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Argument {} (`{}`) in call to `{}` found `{}`, expected `{}`",
-                    arg_n,
-                    param.name,
-                    fc.identifier,
-                    arg_te.vtype,
-                    DisplayType(&param.ty)
-                ))));
+                let err = InvalidType::new(
+                    param.ty.to_string(),
+                    Some(param.ty.span),
+                    arg_te.vtype.to_string(),
+                    arg_e.span,
+                );
+                return Err(self.err(err));
             }
             arguments.push(arg_te);
         }
@@ -1030,9 +1109,9 @@ impl CompileState<'_> {
                 ..
             } => (**t).clone(),
             _ => {
-                return Err(self.err(CompileErrorType::InvalidType(
-                    "Cannot unwrap non-option expression".into(),
-                )));
+                let err =
+                    InvalidType::new("option[T]".to_owned(), None, e.vtype.to_string(), e.span);
+                return Err(self.err(err));
             }
         };
         Ok(thir::Expression {
@@ -1080,10 +1159,14 @@ impl CompileState<'_> {
                     .iter()
                     .any(|(v2, _): &(ExprKind, Span)| value.matches(v2))
                 {
-                    return Err(self.err_loc(
-                        CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-                        v_span,
-                    ));
+                    return Err(self.err(DuplicateMatchPatterns {
+                        patt1: v_span,
+                        patt2: all_values
+                            .iter()
+                            .find(|(v2, _)| value.matches(v2))
+                            .expect("matched")
+                            .1,
+                    }));
                 }
 
                 // Check for unreachable arms (binding before literal across arms)
@@ -1121,15 +1204,20 @@ impl CompileState<'_> {
         }
 
         // find duplicate default arms
-        let default_count = patterns
+        let default_patts: Vec<_> = patterns
             .iter()
             .filter(|p| matches!(p, MatchPattern::Default(_)))
-            .count();
+            .collect();
+        let default_count = default_patts.len();
         if default_count > 1 {
-            return Err(self.err_loc(
-                CompileErrorType::AlreadyDefined(String::from("duplicate match arm default value")),
-                span,
-            ));
+            let [pattern_1, pattern_2, ..] = default_patts[..] else {
+                unreachable!("There's at least 2 items")
+            };
+            let err = DuplicateMatchPatterns {
+                patt1: pattern_1.span(),
+                patt2: pattern_2.span(),
+            };
+            return Err(self.err(err));
         }
 
         let scrutinee = match s {
@@ -1153,10 +1241,12 @@ impl CompileState<'_> {
                             let arm_t = self.lower_expression(value)?;
                             scrutinee_type = types::unify_pair(scrutinee_type, arm_t.vtype.clone())
                                 .map_err(|err| {
-                                    CompileErrorType::InvalidType(format!(
-                                        "match pattern {n} has type {}, expected type {}",
-                                        err.right, err.left
-                                    ))
+                                    InvalidType::new(
+                                        err.left.to_string(),
+                                        None,
+                                        err.right.to_string(),
+                                        value.span,
+                                    )
                                 })
                                 .map_err(|err| self.err(err))?;
                             values_out.push(arm_t);
@@ -1165,11 +1255,12 @@ impl CompileState<'_> {
                                 ExprKind::Ok(inner) | ExprKind::Err(inner) => {
                                     // Binding pattern: Ok(x) or Err(e) where x/e are identifiers
                                     let is_ok = matches!(&value.inner, ExprKind::Ok(_));
-                                    let TypeKind::Result(result_type) = &scrutinee_type.inner
-                                    else {
-                                        return Err(self.err(CompileErrorType::InvalidType(
-                                            "Result pattern requires scrutinee to be a Result type"
-                                                .to_string(),
+                                    let TypeKind::Result(result_type) = &scrutinee_type.inner else {
+                                        return Err(self.err(InvalidType::new(
+                                            "result[T, E]".to_owned(),
+                                            None,
+                                            scrutinee_type.to_string(),
+                                            value.span(),
                                         )));
                                     };
                                     let inner_type = if is_ok {
@@ -1178,9 +1269,11 @@ impl CompileState<'_> {
                                         result_type.err.clone()
                                     };
                                     let ExprKind::Identifier(ident) = &inner.inner else {
-                                        return Err(self.err(CompileErrorType::InvalidType(
-                                            "Result pattern value must be a literal or an identifier"
-                                                .to_string(),
+                                        return Err(self.err(InvalidType::new(
+                                            "identifier".to_owned(),
+                                            None,
+                                            "non-identifier expression".to_owned(),
+                                            inner.span(),
                                         )));
                                     };
                                     let inner = thir::Expression {
@@ -1203,9 +1296,11 @@ impl CompileState<'_> {
                                     // Anything else is not a valid pattern. For example, an
                                     // identifier without Ok/Err, function call, property access,
                                     // or other non-literal expression.
-                                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                                        "match pattern {n} is not a valid expression",
-                                    ))));
+                                    return Err(self.err(InvalidExpression(
+                                        "match pattern must be a literal expression",
+                                        value.clone(),
+                                        None,
+                                    )));
                                 }
                             }
                         }
@@ -1215,9 +1310,10 @@ impl CompileState<'_> {
                 MatchPattern::Default(span) => {
                     // Ensure this is the last case, and also that it's not the only case.
                     if !core::ptr::eq(pattern, patterns.last().expect("patterns is not empty")) {
-                        return Err(self.err(CompileErrorType::Unknown(String::from(
-                            "Default match case must be last.",
-                        ))));
+                        return Err(self.err(UnknownError(
+                            String::from("Default match case must be last."),
+                            Some(*span),
+                        )));
                     }
                     thir::MatchPattern::Default(*span)
                 }
@@ -1274,7 +1370,7 @@ impl CompileState<'_> {
                 .is_none_or(|c| c > all_values.len() as u64);
 
         if missing_default {
-            return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
+            return Err(self.err(MissingDefaultPattern(span)));
         }
 
         // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
@@ -1297,7 +1393,7 @@ impl CompileState<'_> {
                                 thir::ExprKind::Ok(inner) | thir::ExprKind::Err(inner) => {
                                     if let thir::ExprKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
-                                            .add(ident.inner.clone(), inner.vtype.clone())
+                                            .add(ident.clone(), inner.vtype.clone())
                                             .map_err(|e| self.err(e))?;
                                     }
                                 }
@@ -1329,7 +1425,7 @@ impl CompileState<'_> {
             }
             LanguageContext::Expression(e) => {
                 let mut arms = Vec::new();
-                for (i, arm) in e.arms.iter().enumerate() {
+                for arm in &e.arms {
                     let pattern = patterns.next().assume("expected pattern for match arm")?;
 
                     // Enter a scope for each match arm (for variable isolation)
@@ -1342,7 +1438,7 @@ impl CompileState<'_> {
                                 thir::ExprKind::Ok(inner) | thir::ExprKind::Err(inner) => {
                                     if let thir::ExprKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
-                                            .add(ident.inner.clone(), inner.vtype.clone())
+                                            .add(ident.clone(), inner.vtype.clone())
                                             .map_err(|e| self.err(e))?;
                                     }
                                 }
@@ -1363,11 +1459,12 @@ impl CompileState<'_> {
                             expr_type = Some(
                                 types::unify_pair(t, etype)
                                     .map_err(|err| {
-                                        let n = i.saturating_add(1);
-                                        CompileErrorType::InvalidType(format!(
-                                            "match arm expression {n} has type {}, expected {}",
-                                            err.right, err.left
-                                        ))
+                                        InvalidType::new(
+                                            err.left.to_string(),
+                                            Some(err.left.span),
+                                            err.right.to_string(),
+                                            e.span,
+                                        )
                                     })
                                     .map_err(|err| self.err(err))?,
                             );
@@ -1422,7 +1519,7 @@ impl CompileState<'_> {
                 ) => {
                     let et = self.lower_expression(&s.expression)?;
                     self.identifier_types
-                        .add(s.identifier.inner.clone(), et.vtype.clone())
+                        .add(s.identifier.clone(), et.vtype.clone())
                         .map_err(|e| self.err(e))?;
                     // NOTE: We allow assigning Never, which is useful for stubbing out code during development.
                     thir::StmtKind::Let(thir::LetStatement {
@@ -1442,9 +1539,13 @@ impl CompileState<'_> {
                         inner: TypeKind::Bool,
                         span: s.expression.span,
                     }) {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "check must have boolean expression",
-                        ))));
+                        let err = InvalidType::new(
+                            "bool".to_owned(),
+                            None,
+                            et.vtype.to_string(),
+                            et.span,
+                        );
+                        return Err(self.err(err));
                     }
                     thir::StmtKind::Check(thir::CheckStatement { expression: et })
                 }
@@ -1475,10 +1576,13 @@ impl CompileState<'_> {
                             inner: TypeKind::Bool,
                             span: cond.span,
                         }) {
-                            return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "if condition must be a boolean expression, was type {}",
-                                cond.vtype,
-                            ))));
+                            let err = InvalidType::new(
+                                "bool".to_owned(),
+                                None,
+                                cond.vtype.to_string(),
+                                cond.span,
+                            );
+                            return Err(self.err(err));
                         }
                         let stmts = self.lower_statements(branch, Scope::Layered)?;
                         branches.push((cond, stmts));
@@ -1493,15 +1597,21 @@ impl CompileState<'_> {
                 (StmtKind::Publish(e), StatementContext::Action(action)) => {
                     let e = self.lower_expression(e)?;
                     let ident = e.vtype.as_struct().ok_or_else(|| {
-                        self.err(CompileErrorType::InvalidType(format!(
-                            "Cannot publish `{}`, must be a command struct",
-                            e.vtype
-                        )))
+                        self.err(InvalidType::new(
+                            "struct T".to_owned(),
+                            None,
+                            e.vtype.to_string(),
+                            e.span,
+                        ))
                     })?;
                     if !self.m.command_defs.contains(ident.as_str()) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Struct `{ident}` is not a Command struct",
-                        ))));
+                        let err = InvalidType::new(
+                            "Command Struct T".to_owned(),
+                            None,
+                            "Struct T".to_owned(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
 
                     //  Persistent actions can publish only persistent commands, and vice versa.
@@ -1513,10 +1623,13 @@ impl CompileState<'_> {
                         .assume("command must be defined")?
                         .persistence;
                     if !action.persistence.matches(command_persistence) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "{} action `{}` cannot publish {} command `{}`",
-                            action.persistence, action.identifier, command_persistence, ident
-                        ))));
+                        let err = InvalidType::new(
+                            format!("{} command", action.persistence),
+                            None,
+                            format!("{} command", command_persistence),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
                     thir::StmtKind::Publish(e)
                 }
@@ -1524,11 +1637,13 @@ impl CompileState<'_> {
                     // ensure return expression type matches function signature
                     let e = self.lower_expression(&s.expression)?;
                     if !e.vtype.fits_type(&fd.return_type) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Return value of `{}()` must be {}",
-                            fd.identifier,
-                            DisplayType(&fd.return_type)
-                        ))));
+                        let err = InvalidType::new(
+                            fd.return_type.to_string(),
+                            Some(fd.return_type.span),
+                            e.vtype.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
                     thir::StmtKind::Return(thir::ReturnStatement { expression: e })
                 }
@@ -1536,7 +1651,7 @@ impl CompileState<'_> {
                     StmtKind::Finish(s),
                     StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
                 ) => {
-                    self.enter_statement_context(StatementContext::Finish);
+                    self.enter_statement_context(StatementContext::Finish(statement.span));
                     let s = self.lower_statements(s, Scope::Layered)?;
                     self.exit_statement_context();
 
@@ -1545,12 +1660,10 @@ impl CompileState<'_> {
                         statement,
                         statements.last().expect("statements is not empty"),
                     ) {
-                        return Err(self.err_loc(
-                            CompileErrorType::Unknown(
-                                "`finish` must be the last statement in the block".to_owned(),
-                            ),
-                            statement.span,
-                        ));
+                        return Err(self.err(UnknownError(
+                            "`finish` must be the last statement in the block".to_owned(),
+                            Some(statement.span),
+                        )));
                     }
 
                     thir::StmtKind::Finish(s)
@@ -1561,7 +1674,7 @@ impl CompileState<'_> {
                     self.identifier_types.enter_block();
                     self.identifier_types
                         .add(
-                            map_stmt.identifier.inner.clone(),
+                            map_stmt.identifier.clone(),
                             VType {
                                 inner: TypeKind::Struct(map_stmt.fact.identifier.clone()),
                                 span: map_stmt.fact.identifier.span,
@@ -1577,38 +1690,33 @@ impl CompileState<'_> {
                         statements: s,
                     })
                 }
-                (StmtKind::Create(s), StatementContext::Finish) => {
+                (StmtKind::Create(s), StatementContext::Finish(_)) => {
                     // Do not allow bind values during fact creation
                     if let Some(span) = find_bind(&s.fact.key_fields)
                         .or_else(|| s.fact.value_fields.as_ref().and_then(|f| find_bind(f)))
                     {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(String::from(
-                                "Cannot create fact with bind values",
-                            )),
-                            span,
-                        ));
+                        let note = "Cannot create fact with bind values".to_owned();
+                        return Err(self.err(BadArgument(note, span)));
                     }
 
                     let fact = self.lower_fact_literal(&s.fact, true)?;
                     thir::StmtKind::Create(thir::CreateStatement { fact })
                 }
-                (StmtKind::Update(s), StatementContext::Finish) => {
+                (StmtKind::Update(s), StatementContext::Finish(_)) => {
                     // ensure fact is mutable
                     let fact_def = self.get_fact_def(&s.fact.identifier)?;
                     if fact_def.immutable {
-                        return Err(
-                            self.err(CompileErrorType::Unknown(String::from("fact is immutable")))
+                        // TODO(Steve): This should probably be a new error type
+                        let note = format!(
+                            "fact `{}` is immutable so it cannot be updated.",
+                            fact_def.identifier
                         );
+                        return Err(self.err(UnknownError(note, Some(s.span()))));
                     }
 
                     if let Some(span) = find_bind(&s.fact.key_fields) {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(String::from(
-                                "Cannot update fact with wildcard keys",
-                            )),
-                            span,
-                        ));
+                        let note = "Cannot update fact with wildcard keys".to_owned();
+                        return Err(self.err(BadArgument(note, span)));
                     }
 
                     let fact = self.lower_fact_literal(&s.fact, false)?;
@@ -1616,80 +1724,77 @@ impl CompileState<'_> {
                     // Verify the 'to' fact literal
                     if let Some(span) = find_bind(&s.to) {
                         // Cannot bind in the set statement
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(String::from(
-                                "Cannot update fact to a bind value",
-                            )),
-                            span,
-                        ));
+                        let note = "Cannot update fact to a bind value".to_owned();
+                        return Err(self.err(BadArgument(note, span)));
                     }
                     let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
                     let to = self.lower_fact_values(&fact_def, &s.to)?;
 
                     thir::StmtKind::Update(thir::UpdateStatement { fact, to })
                 }
-                (StmtKind::Delete(s), StatementContext::Finish) => {
+                (StmtKind::Delete(s), StatementContext::Finish(_)) => {
                     if let Some(span) = find_bind(&s.fact.key_fields) {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(String::from(
-                                "Cannot delete fact with wildcard keys",
-                            )),
-                            span,
-                        ));
+                        let note = "Cannot delete fact with wildcard keys".to_owned();
+                        return Err(self.err(BadArgument(note, span)));
                     }
 
                     let fact = self.lower_fact_literal(&s.fact, false)?;
 
                     thir::StmtKind::Delete(thir::DeleteStatement { fact })
                 }
-                (StmtKind::Emit(e), StatementContext::Finish) => {
+                (StmtKind::Emit(e), StatementContext::Finish(_)) => {
                     let e = self.lower_expression(e)?;
                     let struct_name = e.vtype.as_struct().ok_or_else(|| {
-                        self.err(CompileErrorType::InvalidType(format!(
-                            "Cannot emit `{}`, must be an effect struct",
-                            e.vtype
-                        )))
+                        self.err(InvalidType::new(
+                            "struct T".to_owned(),
+                            None,
+                            e.vtype.to_string(),
+                            e.span,
+                        ))
                     })?;
-                    if !self.m.interface.effects.contains(struct_name.as_str()) {
-                        return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "Struct `{struct_name}` is not an effect struct",
-                        ))));
+                    if !self.m.interface.effects.contains(struct_name) {
+                        let err = InvalidType::new(
+                            "effect struct T".to_owned(),
+                            None,
+                            "struct T".to_owned(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
                     thir::StmtKind::Emit(e)
                 }
-                (StmtKind::FunctionCall(f), StatementContext::Finish) => {
+                (StmtKind::FunctionCall(f), StatementContext::Finish(finish_ctx_span)) => {
                     let signature = self
                         .function_signatures
                         .get(&f.identifier.inner)
                         .ok_or_else(|| {
-                            self.err_loc(
-                                CompileErrorType::NotDefined(f.identifier.to_string()),
-                                statement.span,
-                            )
+                            let note = format!("function `{}` not defined", f.identifier);
+                            self.err(NotDefined(note, f.identifier.span))
                         })?;
                     // Check that this function is the right color -
                     // only finish functions are allowed in finish
                     // blocks.
                     if let FunctionColor::Pure(_) = signature.color {
-                        return Err(self.err_loc(
-                            CompileErrorType::InvalidCallColor(InvalidCallColor::Pure),
+                        // Note: `statement.span` is used here instead of `f.span()`
+                        // so the parentheses enclosing the params are included.
+                        return Err(self.err(InvalidCallColor(
+                            InvalidCallColorKind::Pure,
                             statement.span,
-                        ));
+                            Some(*finish_ctx_span),
+                        )));
                     }
                     // For now all we can do is check that the argument
                     // list has the same length.
                     // TODO(chip): Do more deep type analysis to check
                     // arguments and return types.
                     if signature.args.len() != f.arguments.len() {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(format!(
-                                "call to `{}` has {} arguments but it should have {}",
-                                f.identifier,
-                                f.arguments.len(),
-                                signature.args.len()
-                            )),
-                            statement.span,
-                        ));
+                        let note = format!(
+                            "call to `{}` has {} arguments but it should have {}",
+                            f.identifier,
+                            f.arguments.len(),
+                            signature.args.len()
+                        );
+                        return Err(self.err(BadArgument(note, statement.span)));
                     }
                     let f = self.lower_function_call(f)?;
                     thir::StmtKind::FunctionCall(f)
@@ -1701,22 +1806,18 @@ impl CompileState<'_> {
                         .iter()
                         .find(|a| a.identifier == fc.identifier.inner)
                     else {
-                        return Err(self.err_loc(
-                            CompileErrorType::NotDefined(fc.identifier.inner.to_string()),
-                            statement.span,
-                        ));
+                        let note = format!("action `{}` not defined", fc.identifier);
+                        return Err(self.err(NotDefined(note, fc.identifier.span)));
                     };
 
                     if action_def.arguments.len() != fc.arguments.len() {
-                        return Err(self.err_loc(
-                            CompileErrorType::BadArgument(format!(
-                                "call to `{}` has {} arguments, but it should have {}",
-                                fc.identifier.inner,
-                                fc.arguments.len(),
-                                action_def.arguments.len()
-                            )),
-                            statement.span,
-                        ));
+                        let note = format!(
+                            "call to `{}` has {} arguments, but it should have {}",
+                            fc.identifier.inner,
+                            fc.arguments.len(),
+                            action_def.arguments.len()
+                        );
+                        return Err(self.err(BadArgument(note, statement.span)));
                     }
 
                     let mut args = Vec::new();
@@ -1724,15 +1825,14 @@ impl CompileState<'_> {
                         let arg = self.lower_expression(arg)?;
                         let expected_arg = &action_def.arguments[i];
                         if !arg.vtype.fits_type(&expected_arg.ty) {
-                            return Err(self.err_loc(
-                                CompileErrorType::BadArgument(format!(
-                                    "invalid argument type for `{}`: expected `{}`, but got `{}`",
-                                    expected_arg.name.inner,
-                                    DisplayType(&expected_arg.ty),
-                                    arg.vtype,
-                                )),
-                                statement.span,
-                            ));
+                            // TODO(Steve): Replace with an 'InvalidType' error to make it consistent with calls to pure functions
+                            let note = format!(
+                                "invalid argument type for `{}`: expected `{}`, but got `{}`",
+                                expected_arg.name,
+                                DisplayType(&expected_arg.ty),
+                                arg.vtype,
+                            );
+                            return Err(self.err(BadArgument(note, statement.span)));
                         }
                         args.push(arg);
                     }
@@ -1753,18 +1853,13 @@ impl CompileState<'_> {
                         "",
                     )
                     .map_err(|err| {
-                        CompileErrorType::InvalidType(format!(
-                            "debug assertion must be a boolean expression, was type {}",
-                            err.left
-                        ))
+                        InvalidType::new(err.right.to_string(), None, err.left.to_string(), e.span)
                     })
                     .map_err(|e| self.err(e))?;
                     thir::StmtKind::DebugAssert(e)
                 }
                 (_, _) => {
-                    return Err(
-                        self.err_loc(CompileErrorType::InvalidStatement(context), statement.span)
-                    );
+                    return Err(self.err(InvalidStatement(context, statement.span)));
                 }
             };
             output.push(thir::Statement {

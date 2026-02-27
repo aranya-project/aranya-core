@@ -2,4 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: Drink at line 1 col 1:
+error: the name `Drink` is defined multiple times
+  |
+1 | enum Drink {
+  |      ----- previous defintion here
+...
+5 | enum Drink {
+  |      ^^^^^ re-defined here

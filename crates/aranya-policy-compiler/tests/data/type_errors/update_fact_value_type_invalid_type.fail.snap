@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Fact `Foo` value field `y` found `int`, not `bool` at line 7 col 13:
-	update Foo[x: 0]=>{y: ?} to {y: 3}
+error: invalid type: int
+  |
+1 | fact Foo[x int]=>{y bool}
+  |                   - expected because of this
+...
+7 |             update Foo[x: 0]=>{y: ?} to {y: 3}
+  |                                             ^ expected `bool` but found `int`

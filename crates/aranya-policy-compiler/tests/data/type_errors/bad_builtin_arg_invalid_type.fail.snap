@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Argument 2 (`y`) in call to `saturating_add` found `string`, expected `int` at line 2 col 5:
-	return saturating_add(x, "foo")
+error: invalid type: string
+  |
+2 |     return saturating_add(x, "foo")
+  |                              ^^^^^ expected `int` but found `string`

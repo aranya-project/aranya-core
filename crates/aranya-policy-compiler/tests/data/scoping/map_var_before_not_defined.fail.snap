@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: Unknown identifier `p` at line 3 col 5:
-	check p == None
+error: a thing being referenced is not in scope
+  |
+3 |     check p == None
+  |           ^ 'p' not in scope

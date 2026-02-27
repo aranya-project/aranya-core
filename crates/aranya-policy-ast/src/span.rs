@@ -7,12 +7,13 @@ use core::{
 use serde_derive::{Deserialize, Serialize};
 
 /// Wraps a type to add a [`Span`].
+///
+/// The span is treated as metadata: it is **not** considered for equality,
+/// hashing, or ordering — only the inner value is. This lets `WithSpan<T>`
+/// be used as a map key that behaves like `T`.
 #[derive(
     Clone,
     Copy,
-    PartialEq,
-    Eq,
-    Hash,
     Serialize,
     Deserialize,
     rkyv::Archive,
@@ -25,6 +26,32 @@ pub struct WithSpan<T> {
     pub inner: T,
     /// The span.
     pub span: Span,
+}
+
+impl<T: PartialEq> PartialEq for WithSpan<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<T: Eq> Eq for WithSpan<T> {}
+
+impl<T: core::hash::Hash> core::hash::Hash for WithSpan<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for WithSpan<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl<T: Ord> Ord for WithSpan<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
 }
 
 impl<T> WithSpan<T> {
@@ -102,6 +129,8 @@ impl<T> WithSpanExt for T {}
     PartialEq,
     Eq,
     Hash,
+    PartialOrd,
+    Ord,
     Serialize,
     Deserialize,
     rkyv::Archive,
@@ -359,6 +388,7 @@ macro_rules! spanned {
                 spans
                     .iter()
                     .copied()
+                    .filter(|span| !span.is_empty())
                     .reduce(|acc, span| acc.merge(span))
                     .unwrap_or_default()
             }
