@@ -170,26 +170,12 @@ impl PolicyRunner {
         let device_id = self.working_directory.load_device_id(&rng)?;
         let mut crypto_engine = self.load_crypto_engine(rng)?;
 
-        // Iterate over all run files, execute their preambles, and collect
-        // those values into `runfile_globals`.
-        // This two-stage iter/collect looks a little weird, but the first
-        // stage handles the `Result`s created by the map closure and the
-        // second one flattens the `Vec`s created by
-        // `get_preamble_values()`.
-        let runfile_globals = self
-            .run_files
-            .iter()
-            .map(|rf| rf.get_preamble_values(&mut crypto_engine, &mut keystore))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-
         // Compile the policy with additional globals provided by the run files
         let (machine, run_schedules) = load_and_compile_policy(
             &self.policy,
-            runfile_globals,
             &self.run_files,
+            &mut crypto_engine,
+            &mut keystore,
             self.validator,
         )?;
         let vm_policy = create_vmpolicy(machine, crypto_engine, keystore, device_id)?;
@@ -223,7 +209,7 @@ impl PolicyRunner {
 
                 let action = VmAction {
                     name: action_ident,
-                    args: Cow::Borrowed(&[]),
+                    args: Cow::Borrowed(&schedule.preamble_values),
                 };
                 sink.begin();
                 vm_policy
