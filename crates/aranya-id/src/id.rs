@@ -34,7 +34,10 @@ pub trait Sealed {}
 /// A type that can be used as a tag for [`Id`].
 ///
 /// Do not implement this yourself. Use [`custom_id`].
-pub trait IdTag: Sealed {}
+pub trait IdTag: Sealed {
+    #[doc(hidden)]
+    const __NAME: &str;
+}
 
 custom_id! {
     /// The base ID type.
@@ -145,7 +148,7 @@ impl<Tag: IdTag> FromStr for Id<Tag> {
 
 impl<Tag: IdTag> Debug for Id<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Id({})", self.to_base58())
+        write!(f, "{}({})", Tag::__NAME, self.to_base58())
     }
 }
 
@@ -326,7 +329,9 @@ macro_rules! custom_id {
                 pub struct [< $name Tag >];
 
                 impl $crate::__hidden::Sealed for [< $name Tag >] {}
-                impl $crate::IdTag for [< $name Tag >] {}
+                impl $crate::IdTag for [< $name Tag >] {
+                    const __NAME: &str = stringify!($name);
+                }
             }
 
             $(#[$meta])*
