@@ -1,8 +1,6 @@
 extern crate alloc;
 
-use alloc::{
-    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
-};
+use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
@@ -76,6 +74,8 @@ impl ConstValue {
                     span: Span::empty(),
                 })))
             }
+            // TODO add case for Result
+            _ => None,
         }
     }
 
@@ -105,8 +105,8 @@ impl Display for ConstValue {
             Self::Enum(name, value) => write!(f, "{name}::{value}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
-            Self::Ok(v) => write!(f, "Ok({})", v),
-            Self::Err(v) => write!(f, "Err({})", v),
+            Self::Result(Ok(v)) => write!(f, "Ok({})", v),
+            Self::Result(Err(v)) => write!(f, "Err({})", v),
         }
     }
 }
