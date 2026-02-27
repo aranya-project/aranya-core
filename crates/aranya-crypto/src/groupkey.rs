@@ -11,7 +11,7 @@ use spideroak_crypto::{
     import::Import,
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
-    zeroize::{Zeroize as _, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
 use crate::{
@@ -250,8 +250,10 @@ impl<CS: CipherSuite> GroupKey<CS> {
 unwrapped! {
     name: GroupKey;
     type: Seed;
-    into: |key: Self| { key.seed };
-    from: |seed: [u8;64] | { Self::from_seed(seed) };
+    into: |key: Self| { key.seed.into() };
+    from: |seed: Zeroizing<[u8; 64]>| {
+        Self::from_seed(*seed)
+    };
 }
 
 impl<CS: CipherSuite> Identified for GroupKey<CS> {
