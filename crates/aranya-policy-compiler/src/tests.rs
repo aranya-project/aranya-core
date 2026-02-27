@@ -79,33 +79,6 @@ fn compile_fail(text: &str) -> CompileErrorType {
 }
 
 #[test]
-fn test_compile() {
-    let text = r#"
-        command Foo {
-            fields {
-                a int,
-                b int
-            }
-            seal { return todo() }
-            open { return todo() }
-            policy {
-                finish {}
-            }
-        }
-        action foo(b int) {
-            let i = 4
-            let x = if b == 0 { :saturating_add(4, i) } else { :3 }
-            let y = Foo{
-                a: x,
-                b: 4
-            }
-        }
-    "#;
-
-    compile_pass(text);
-}
-
-#[test]
 fn test_undefined_struct() {
     let text = r#"
         action foo() {

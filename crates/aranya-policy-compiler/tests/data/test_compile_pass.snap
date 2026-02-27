@@ -1,0 +1,212 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Meta:
+        Finish: true
+    - Block
+    - End
+    - Exit: Normal
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Return
+    - Meta:
+        Let: this
+    - Def: this
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+    - Meta:
+        Let: b
+    - Def: b
+    - Const:
+        Int: 4
+    - Meta:
+        Let: i
+    - Def: i
+    - Meta:
+        Get: b
+    - Get: b
+    - Const:
+        Int: 0
+    - Eq
+    - Branch:
+        Resolved: 43
+    - Block
+    - Const:
+        Int: 3
+    - End
+    - Jump:
+        Resolved: 49
+    - Block
+    - Const:
+        Int: 4
+    - Meta:
+        Get: i
+    - Get: i
+    - SaturatingAdd
+    - End
+    - Meta:
+        Let: x
+    - Def: x
+    - StructNew: Foo
+    - Meta:
+        Get: x
+    - Get: x
+    - StructSet: a
+    - Const:
+        Int: 4
+    - StructSet: b
+    - Meta:
+        Let: y
+    - Def: y
+    - Return
+  labels:
+    ? name: Foo
+      ltype: CommandPolicy
+    : 1
+    ? name: Foo
+      ltype: CommandRecall
+    : 10
+    ? name: Foo
+      ltype: CommandSeal
+    : 15
+    ? name: Foo
+      ltype: CommandOpen
+    : 22
+    ? name: foo
+      ltype: Action
+    : 29
+  action_defs:
+    - name:
+        name: foo
+        span:
+          start: 162
+          end: 165
+      persistence: Persistent
+      params:
+        - name:
+            name: b
+            span:
+              start: 166
+              end: 167
+          ty:
+            kind: Int
+            span:
+              start: 168
+              end: 171
+  command_defs:
+    - name:
+        name: Foo
+        span:
+          start: 8
+          end: 11
+      persistence: Persistent
+      attributes: []
+      fields:
+        - name:
+            name: a
+            span:
+              start: 35
+              end: 36
+          ty:
+            kind: Int
+            span:
+              start: 37
+              end: 40
+        - name:
+            name: b
+            span:
+              start: 50
+              end: 51
+          ty:
+            kind: Int
+            span:
+              start: 52
+              end: 55
+  fact_defs: {}
+  struct_defs:
+    Foo:
+      - identifier:
+          name: a
+          span:
+            start: 35
+            end: 36
+        field_type:
+          kind: Int
+          span:
+            start: 37
+            end: 40
+      - identifier:
+          name: b
+          span:
+            start: 50
+            end: 51
+        field_type:
+          kind: Int
+          span:
+            start: 52
+            end: 55
+  enum_defs: {}
+  codemap:
+    text: "command Foo {\n    fields {\n        a int,\n        b int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {\n        finish {}\n    }\n}\naction foo(b int) {\n    let i = 4\n    let x = if b == 0 { :saturating_add(4, i) } else { :3 }\n    let y = Foo{\n        a: x,\n        b: 4\n    }\n}"
+    mapping:
+      - - 1
+        - start: 0
+          end: 0
+      - - 5
+        - start: 137
+          end: 146
+      - - 10
+        - start: 0
+          end: 0
+      - - 15
+        - start: 0
+          end: 154
+      - - 18
+        - start: 73
+          end: 87
+      - - 22
+        - start: 0
+          end: 154
+      - - 25
+        - start: 100
+          end: 114
+      - - 29
+        - start: 155
+          end: 300
+      - - 31
+        - start: 179
+          end: 193
+      - - 34
+        - start: 193
+          end: 253
+      - - 51
+        - start: 253
+          end: 299
+  globals: {}
