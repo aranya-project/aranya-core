@@ -71,17 +71,19 @@ DeviceInfo { device_id: 111thX6LZfHDZZKUs92fh1cxwDCA3ZJ3RGvuRPy5sAQN, device_key
 
 ### Execute multiple run files with separation marker
 
-This executes the first three examples in one go. We do not specify the
+This executes all of the above examples in one go. We do not specify the
 working directory, so this runs independently in a temporary directory
 that is removed after execution.
 
 ```text
-$ policy-runner --marker examples/policy.md examples/{init,hello,add_raw_device}.run
---- examples/init
-TeamCreated { owner_dev: 5Bq1Ctuurk28WLkm7PtLwgZwJut8Lcfoqja5CEYMeg46 }
-UserAdded { dev: Bd2s5eMHnCRUKHni1usWLmkD9ntny98GYAc4Rcp9zTpo }
---- examples/hello
+$ policy-runner --marker examples/policy.md examples/{init,hello,add_raw_device, get_raw_device}.run
+--- examples/init.run
+TeamCreated { owner_dev: 6V1zpGgX16S3UkzHZ1QYfWak9XpkxVg12DaYUwZTWB9M }
+UserAdded { dev: 54MPYg3vo9seBBpaQw6rwP6dU4SnkFkaw7fy8t8eurvE }
+--- examples/hello.run
 Message { msg: "Hello from test runner" }
---- examples/add_raw_device
+--- examples/add_raw_device.run
 UserAdded { dev: 111thX6LZfHDZZKUs92fh1cxwDCA3ZJ3RGvuRPy5sAQN }
+--- examples/get_raw_device.run
+DeviceInfo { device_id: 111thX6LZfHDZZKUs92fh1cxwDCA3ZJ3RGvuRPy5sAQN, device_key: b:AA55AA55AA55AA55 }
 ```
