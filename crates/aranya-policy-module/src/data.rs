@@ -1,6 +1,8 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
+use alloc::{
+    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
+};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, Text, TypeKind, VType};
@@ -75,8 +77,8 @@ impl ConstValue {
                 }))
             }
             Self::Result(Ok(ok)) => {
-                let ok_kind = ok.vtype()?;
-                Some(TypeKind::Result(Box::new(ResultTypeKind {
+                let ok_kind = ok.vtype();
+                TypeKind::Result(Box::new(ResultTypeKind {
                     ok: VType {
                         kind: ok_kind,
                         span: Span::empty(),
@@ -85,11 +87,11 @@ impl ConstValue {
                         kind: TypeKind::Never,
                         span: Span::empty(),
                     },
-                })))
+                }))
             }
             Self::Result(Err(err)) => {
-                let err_kind = err.vtype()?;
-                Some(TypeKind::Result(Box::new(ResultTypeKind {
+                let err_kind = err.vtype();
+                TypeKind::Result(Box::new(ResultTypeKind {
                     ok: VType {
                         kind: TypeKind::Never,
                         span: Span::empty(),
@@ -98,7 +100,7 @@ impl ConstValue {
                         kind: err_kind,
                         span: Span::empty(),
                     },
-                })))
+                }))
             }
         }
     }
