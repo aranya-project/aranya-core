@@ -219,16 +219,10 @@ pub enum StorageError {
     CommandOutOfBounds(Location),
     #[error("IO error")]
     IoError,
-    #[error("not a merge command")]
-    NotMerge,
-    #[error("command with id {0} not found")]
-    NoSuchId(CmdId),
     #[error("policy mismatch")]
     PolicyMismatch,
     #[error("cannot write an empty perspective")]
     EmptyPerspective,
-    #[error("segment must be a descendant of the head for commit")]
-    HeadNotAncestor,
     #[error("traversal queue overflow (capacity {0})")]
     TraversalQueueOverflow(usize),
     #[error("command's parents do not match the perspective head")]
@@ -396,13 +390,11 @@ pub trait Storage {
         self.get_command_address(self.get_head()?)
     }
 
-    /// Sets the given segment as the head of the graph.  Returns an error if
-    /// the current head is not an ancestor of the provided segment.
-    fn commit(
-        &mut self,
-        segment: Self::Segment,
-        buffers: &mut TraversalBuffer,
-    ) -> Result<(), StorageError>;
+    /// Sets the given segment as the head of the graph.
+    ///
+    /// The given segment must be a descendant of the current graph head.
+    /// Implementations may rely on this for correctness, but not for safety.
+    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;
