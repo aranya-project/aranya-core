@@ -128,18 +128,18 @@ impl Display for ErrorKind {
 /// An extension trait.
 pub trait KeyStoreExt: KeyStore {
     /// Wraps and inserts the key.
-    fn insert_key<E, K>(&mut self, eng: &mut E, key: K) -> Result<K::Id, Self::Error>
+    fn insert_key<E, K>(&mut self, eng: &E, key: K) -> Result<K::Id, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
@@ -147,7 +147,7 @@ pub trait KeyStoreExt: KeyStore {
 
 impl<T: KeyStore> KeyStoreExt for T {
     /// Wraps and inserts the key.
-    fn insert_key<E, K>(&mut self, eng: &mut E, key: K) -> Result<K::Id, Self::Error>
+    fn insert_key<E, K>(&mut self, eng: &E, key: K) -> Result<K::Id, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -159,7 +159,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -175,7 +175,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,

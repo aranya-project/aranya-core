@@ -2,8 +2,10 @@ command Foo {
     seal {
         return bar(this)
     }
-
     open {
         return baz(envelope)
+    }
+    policy {
+        
     }
 }

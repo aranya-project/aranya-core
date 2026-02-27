@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.18.0...aranya-crypto-ffi-v0.19.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.17.0...aranya-crypto-ffi-v0.18.0) - 2026-01-23
+
+### Other
+
+- updated the following local packages: aranya-policy-vm
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.16.0...aranya-crypto-ffi-v0.17.0) - 2026-01-06
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-crypto
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.15.1...aranya-crypto-ffi-v0.16.0) - 2025-12-11
+
+### Other
+
+- updated the following local packages: aranya-policy-vm
+
 ## [0.15.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.15.0...aranya-crypto-ffi-v0.15.1) - 2025-11-12
 
 ### Other

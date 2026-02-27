@@ -37,24 +37,24 @@ Policy {
                     ReturnStatement {
                         expression: FunctionCall(
                             FunctionCall {
-                                identifier: "baz" @ 83..86,
+                                identifier: "baz" @ 82..85,
                                 arguments: [
                                     Identifier(
-                                        "envelope" @ 87..95,
-                                    ) @ 87..95,
+                                        "envelope" @ 86..94,
+                                    ) @ 86..94,
                                 ],
                             },
-                        ) @ 83..96,
+                        ) @ 82..95,
                     },
-                ) @ 76..101,
+                ) @ 75..100,
             ],
             policy: [],
             recall: [],
-            span: 0..104,
+            span: 0..131,
         },
     ],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo {\n    seal {\n        return bar(this)\n    }\n\n    open {\n        return baz(envelope)\n    }\n}\n",
+    text: "command Foo {\n    seal {\n        return bar(this)\n    }\n    open {\n        return baz(envelope)\n    }\n    policy {\n        \n    }\n}\n",
 }

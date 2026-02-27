@@ -5,13 +5,13 @@ expression: decl
 FunctionDecl {
     identifier: "foo" @ 9..12,
     arguments: [
-        FieldDefinition {
-            identifier: "x" @ 13..14,
-            field_type: Int @ 15..18,
+        Param {
+            name: "x" @ 13..14,
+            ty: Int @ 15..18,
         },
-        FieldDefinition {
-            identifier: "y" @ 20..21,
-            field_type: Struct(
+        Param {
+            name: "y" @ 20..21,
+            ty: Struct(
                 "bar" @ 29..32,
             ) @ 22..32,
         },

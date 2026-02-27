@@ -1,10 +1,7 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned as _, boxed::Box, vec::Vec};
-use core::{
-    cell::RefCell,
-    ops::{Deref, DerefMut},
-};
+use core::ops::{Deref, DerefMut};
 
 use aranya_crypto::{BaseId, policy::CmdId};
 use aranya_policy_vm::{
@@ -13,57 +10,50 @@ use aranya_policy_vm::{
     ast::{Identifier, Text},
     ffi::FfiModule,
 };
-use buggy::BugExt as _;
-use spin::Mutex;
 use tracing::error;
 
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
-pub trait FfiCallable<E> {
+pub trait FfiCallable<CE> {
     /// Invokes a function in the module.
     fn call(
         &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &CE,
     ) -> Result<(), MachineError>;
 }
 
-impl<FM, E> FfiCallable<E> for FM
+impl<FM, CE> FfiCallable<CE> for FM
 where
     FM: FfiModule,
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
 {
     fn call(
         &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &CE,
     ) -> Result<(), MachineError> {
         FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
     }
 }
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
-pub struct VmPolicyIO<'o, P, S, E, FFI> {
-    facts: &'o RefCell<&'o mut P>,
-    sink: &'o RefCell<&'o mut S>,
-    engine: &'o Mutex<E>,
-    ffis: &'o [FFI],
+pub struct VmPolicyIO<'o, P, S, CE, FFI> {
+    pub facts: &'o mut P,
+    pub sink: &'o mut S,
+    pub engine: &'o CE,
+    pub ffis: &'o [FFI],
 }
 
-impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
+impl<'o, P, S, CE, FFI> VmPolicyIO<'o, P, S, CE, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
-    /// [`crate::engine::Sink`].
-    pub fn new(
-        facts: &'o RefCell<&'o mut P>,
-        sink: &'o RefCell<&'o mut S>,
-        engine: &'o Mutex<E>,
-        ffis: &'o [FFI],
-    ) -> Self {
+    /// [`crate::policy::Sink`].
+    pub fn new(facts: &'o mut P, sink: &'o mut S, engine: &'o CE, ffis: &'o [FFI]) -> Self {
         VmPolicyIO {
             facts,
             sink,
@@ -73,13 +63,13 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     }
 }
 
-impl<P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, E, FFI>
+impl<P, S, CE, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, CE, FFI>
 where
     P: FactPerspective,
     S: Sink<VmEffect>,
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
     FFI: DerefMut,
-    <FFI as Deref>::Target: FfiCallable<E>,
+    <FFI as Deref>::Target: FfiCallable<CE>,
 {
     type QueryIterator = VmFactCursor<P>;
 
@@ -91,10 +81,7 @@ where
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
         let value = ser_values(value)?;
-        self.facts
-            .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .insert(name.as_str().to_owned(), keys, value);
+        self.facts.insert(name.as_str().to_owned(), keys, value);
         Ok(())
     }
 
@@ -104,10 +91,7 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
-        self.facts
-            .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .delete(name.as_str().to_owned(), keys);
+        self.facts.delete(name.as_str().to_owned(), keys);
         Ok(())
     }
 
@@ -117,15 +101,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let keys = ser_keys(key);
-        let iter = self
-            .facts
-            .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .query_prefix(name.as_str(), &keys)
-            .map_err(|e| {
-                error!("query failed: {e}");
-                MachineIOError::Internal
-            })?;
+        let iter = self.facts.query_prefix(name.as_str(), &keys).map_err(|e| {
+            error!("query failed: {e}");
+            MachineIOError::Internal
+        })?;
         Ok(VmFactCursor { iter })
     }
 
@@ -137,15 +116,12 @@ where
         recalled: bool,
     ) {
         let fields: Vec<_> = fields.into_iter().collect();
-        self.sink
-            .try_borrow_mut()
-            .expect("should be able to borrow sink")
-            .consume(VmEffect {
-                name,
-                fields,
-                command,
-                recalled,
-            });
+        self.sink.consume(VmEffect {
+            name,
+            fields,
+            command,
+            recalled,
+        });
     }
 
     fn call(
@@ -155,13 +131,10 @@ where
         stack: &mut MachineStack,
         ctx: &CommandContext,
     ) -> Result<(), MachineError> {
-        let sink = &mut self.engine.lock();
-        self.ffis.get(module).map_or(
-            Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
-                module,
-            ))),
-            |ffi| ffi.call(procedure, stack, ctx, sink),
-        )
+        self.ffis
+            .get(module)
+            .ok_or(MachineErrorType::FfiModuleNotDefined(module))?
+            .call(procedure, stack, ctx, self.engine)
     }
 }
 

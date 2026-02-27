@@ -11,12 +11,11 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use cfg_if::cfg_if;
-
 use crate::util::const_assert;
 
 // A mutex that can NOT be used in shared memory.
-cfg_if! {
+#[cfg(any(test, feature = "memory"))]
+cfg_if::cfg_if! {
     if #[cfg(feature = "std")] {
         pub(crate) type StdMutex<T> = std::sync::Mutex<T>;
     } else {

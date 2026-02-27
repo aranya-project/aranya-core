@@ -1,6 +1,6 @@
 use alloc::{format, string::String};
 
-use crate::{engine::EngineError, storage::StorageError};
+use crate::{policy::PolicyError, storage::StorageError};
 
 #[derive(Debug, thiserror::Error)]
 /// Errors that can occur because of creation or use of VmPolicy.
@@ -9,9 +9,9 @@ pub enum VmPolicyError {
     /// [postcard::Error].
     #[error("deserialize error: {0}")]
     Deserialization(#[from] postcard::Error),
-    /// An error happened while executing policy. Stores an interior [EngineError].
-    #[error("engine error: {0}")]
-    EngineError(#[from] EngineError),
+    /// An error happened while executing policy. Stores an interior [PolicyError].
+    #[error("policy error: {0}")]
+    PolicyError(#[from] PolicyError),
     /// An error happened at the storage layer. Stores an interior [StorageError].
     #[error("storage error: {0}")]
     StorageError(#[from] StorageError),

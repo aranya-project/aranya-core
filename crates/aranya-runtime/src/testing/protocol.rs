@@ -1,4 +1,4 @@
-//! [`Engine`]/[`Policy`] test implementation.
+//! [`PolicyStore`]/[`Policy`] test implementation.
 use alloc::vec::Vec;
 
 use buggy::bug;
@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, CmdId, Command, Engine, EngineError, FactPerspective, Keys, MAX_COMMAND_LENGTH,
-    MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
+    Address, CmdId, Command, FactPerspective, Keys, MAX_COMMAND_LENGTH, MaxCut, MergeIds,
+    Perspective, Policy, PolicyError, PolicyId, PolicyStore, Prior, Priority, Sink, alloc,
     testing::hash_for_testing_only,
 };
 
@@ -79,11 +79,11 @@ impl Command for TestProtocol<'_> {
     }
 }
 
-pub struct TestEngine {
+pub struct TestPolicyStore {
     policy: TestPolicy,
 }
 
-impl TestEngine {
+impl TestPolicyStore {
     pub fn new() -> Self {
         Self {
             policy: TestPolicy::new(0),
@@ -91,21 +91,21 @@ impl TestEngine {
     }
 }
 
-impl Default for TestEngine {
+impl Default for TestPolicyStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Engine for TestEngine {
+impl PolicyStore for TestPolicyStore {
     type Policy = TestPolicy;
     type Effect = TestEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
     }
 }
@@ -123,7 +123,7 @@ impl TestPolicy {
         &self,
         command: &WireBasic,
         facts: &mut impl FactPerspective,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), PolicyError> {
         let (group, count) = command.payload;
 
         let key = group.to_be_bytes();
@@ -138,7 +138,7 @@ impl TestPolicy {
         policy_command: &WireProtocol,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<<Self as Policy>::Effect>,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), PolicyError> {
         if let WireProtocol::Basic(m) = &policy_command {
             self.origin_check_message(m, facts)?;
 
@@ -148,7 +148,7 @@ impl TestPolicy {
         Ok(())
     }
 
-    fn init<'a>(&self, target: &'a mut [u8], nonce: u64) -> Result<TestProtocol<'a>, EngineError> {
+    fn init<'a>(&self, target: &'a mut [u8], nonce: u64) -> Result<TestProtocol<'a>, PolicyError> {
         let message = WireInit {
             nonce: u128::from(nonce),
             policy_num: nonce.to_le_bytes(),
@@ -166,7 +166,7 @@ impl TestPolicy {
         target: &'a mut [u8],
         parent: Address,
         payload: (u64, u64),
-    ) -> Result<TestProtocol<'a>, EngineError> {
+    ) -> Result<TestProtocol<'a>, PolicyError> {
         let prority = 0; //BUG
 
         let message = WireBasic {
@@ -183,10 +183,10 @@ impl TestPolicy {
     }
 }
 
-fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8], EngineError> {
+fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8], PolicyError> {
     postcard::serialize_with_flavor(message, Slice::new(target))
         .inspect_err(|err| error!(?err))
-        .map_err(|_| EngineError::Write)
+        .map_err(|_| PolicyError::Write)
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -276,11 +276,11 @@ impl Policy for TestPolicy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-        _placement: crate::engine::CommandPlacement,
-    ) -> Result<(), EngineError> {
+        _placement: crate::policy::CommandPlacement,
+    ) -> Result<(), PolicyError> {
         let policy_command: WireProtocol = postcard::from_bytes(command.bytes())
             .inspect_err(|err| error!(?err))
-            .map_err(|_| EngineError::Read)?;
+            .map_err(|_| PolicyError::Read)?;
         self.call_rule_internal(&policy_command, facts, sink)
     }
 
@@ -288,7 +288,7 @@ impl Policy for TestPolicy {
         &self,
         target: &'a mut [u8],
         ids: MergeIds,
-    ) -> Result<TestProtocol<'a>, EngineError> {
+    ) -> Result<TestProtocol<'a>, PolicyError> {
         let (left, right) = ids.into();
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
@@ -302,12 +302,12 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        _placement: crate::engine::ActionPlacement,
-    ) -> Result<(), EngineError> {
+        _placement: crate::policy::ActionPlacement,
+    ) -> Result<(), PolicyError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
                 id: CmdId::default(),
-                max_cut: 0,
+                max_cut: MaxCut(0),
             },
             Prior::Single(id) => id,
             Prior::Merge(_, _) => bug!("cannot get merge command in call_action"),
@@ -323,7 +323,7 @@ impl Policy for TestPolicy {
                 facts
                     .add_command(&command)
                     .inspect_err(|err| error!(?err))
-                    .map_err(|_| EngineError::Write)?;
+                    .map_err(|_| PolicyError::Write)?;
             }
             TestActions::SetValue(key, value) => {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
@@ -336,7 +336,7 @@ impl Policy for TestPolicy {
                 facts
                     .add_command(&command)
                     .inspect_err(|err| error!(?err))
-                    .map_err(|_| EngineError::Write)?;
+                    .map_err(|_| PolicyError::Write)?;
             }
         }
 

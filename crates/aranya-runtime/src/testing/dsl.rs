@@ -7,7 +7,7 @@
 //!
 //! ```
 //! use aranya_runtime::{
-//!     storage::memory::MemStorageProvider,
+//!     storage::linear::testing::MemStorageProvider,
 //!     testing::dsl::{StorageBackend, test_suite},
 //! };
 //!
@@ -16,7 +16,7 @@
 //!     type StorageProvider = MemStorageProvider;
 //!
 //!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-//!         MemStorageProvider::new()
+//!         MemStorageProvider::default()
 //!     }
 //! }
 //! test_suite!(|| MemBackend);
@@ -27,7 +27,7 @@
 //!
 //! ```
 //! use aranya_runtime::{
-//!     storage::memory::MemStorageProvider,
+//!     storage::linear::testing::MemStorageProvider,
 //!     testing::dsl::{StorageBackend, vectors},
 //! };
 //!
@@ -36,7 +36,7 @@
 //!     type StorageProvider = MemStorageProvider;
 //!
 //!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-//!         MemStorageProvider::new()
+//!         MemStorageProvider::default()
 //!     }
 //! }
 //! vectors::run_all(|| MemBackend).unwrap();
@@ -58,19 +58,20 @@ use core::{
     iter,
 };
 #[cfg(any(test, feature = "std"))]
-use std::time::Instant;
+use std::{env, fs};
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, EngineError,
-    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment as _, Storage,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
+    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    TraversalBuffer, TraversalBuffers,
     testing::{
-        protocol::{TestActions, TestEffect, TestEngine, TestSink},
+        protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
     },
 };
@@ -86,36 +87,24 @@ fn default_max_syncs() -> u64 {
 /// Dispatches the SyncType contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
-pub fn dispatch<A: DeserializeOwned + Serialize>(
+pub fn dispatch(
     data: &[u8],
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
 ) -> Result<usize, SyncError> {
-    let sync_type: SyncType<A> = postcard::from_bytes(data)?;
+    let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
-        SyncType::Poll {
-            request,
-            address: _,
-        } => {
-            let mut response_syncer: SyncResponder<()> = SyncResponder::new(());
+        SyncType::Poll { request } => {
+            let mut buffers = TraversalBuffers::new();
+            let mut response_syncer = SyncResponder::new(&mut buffers);
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
         }
-        SyncType::Subscribe {
-            storage_id: _,
-            remain_open: _,
-            max_bytes: _,
-            address: _,
-            commands: _,
-        } => unimplemented!(),
-        SyncType::Unsubscribe { address: _ } => unimplemented!(),
-        SyncType::Push {
-            message: _,
-            storage_id: _,
-            address: _,
-        } => unimplemented!(),
+        SyncType::Subscribe { .. } => unimplemented!(),
+        SyncType::Unsubscribe { .. } => unimplemented!(),
+        SyncType::Push { .. } => unimplemented!(),
         SyncType::Hello(_) => unimplemented!(),
     };
     Ok(len)
@@ -185,7 +174,7 @@ pub enum TestRule {
     MaxCut {
         client: u64,
         graph: u64,
-        max_cut: usize,
+        max_cut: MaxCut,
     },
     VerifyGraphIds {
         client: u64,
@@ -342,7 +331,7 @@ pub enum TestError {
     #[error(transparent)]
     Client(#[from] ClientError),
     #[error(transparent)]
-    Engine(#[from] EngineError),
+    Policy(#[from] PolicyError),
     #[error(transparent)]
     Sync(#[from] SyncError),
     #[error(transparent)]
@@ -370,7 +359,7 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = &mut Rng as &mut dyn Csprng;
+    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -388,7 +377,9 @@ where
                         add_command_chance > 0,
                         "There must be a positive command chance or it will never exit"
                     );
-                    let max_syncs = 2;
+                    // Calculate the maximum number of syncs needed to send all commands.
+                    // We add 100 to account for extra syncs needed for merge commands.
+                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
                     let mut generated_actions = Vec::new();
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
@@ -425,27 +416,34 @@ where
                             _ => {}
                         }
                     }
-                    // Sync client 1 with all clients so client 1 has the entire graph.
-                    for i in 2..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: 1,
-                            from: i,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
-                    }
-                    // Sync other clients with client 1 so all clients have the entire graph.
-                    for i in 2..clients {
-                        generated_actions.push(TestRule::Sync {
-                            graph,
-                            client: i,
-                            from: 1,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs,
-                        });
+                    // Converge clients 1, 2, 3, etc. by repeatedly syncing them with each other
+                    // until they all have the same graph. This is necessary because merge commands
+                    // created during syncs need to propagate to all clients.
+                    // We loop multiple times to ensure convergence (merge commands from one client
+                    // need to be sent to others, which may create new merges, etc.)
+                    for _convergence_round in 0..5 {
+                        // Sync client 1 with all other clients so client 1 has the entire graph.
+                        for i in 2..clients {
+                            generated_actions.push(TestRule::Sync {
+                                graph,
+                                client: 1,
+                                from: i,
+                                must_send: None,
+                                must_receive: None,
+                                max_syncs,
+                            });
+                        }
+                        // Sync other clients with client 1 so they get everything from client 1.
+                        for i in 2..clients {
+                            generated_actions.push(TestRule::Sync {
+                                graph,
+                                client: i,
+                                from: 1,
+                                must_send: None,
+                                must_receive: None,
+                                max_syncs,
+                            });
+                        }
                     }
                     // Sync the entire graph to client 0 at once.
                     generated_actions.push(TestRule::Sync {
@@ -454,7 +452,7 @@ where
                         from: 1,
                         must_send: None,
                         must_receive: None,
-                        max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
+                        max_syncs,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -501,7 +499,15 @@ where
                             from: 0,
                             must_send: None,
                             must_receive: None,
-                            max_syncs: 1,
+                            max_syncs: 100000,
+                        });
+                    }
+                    for i in 1..clients {
+                        generated_actions.push(TestRule::CompareGraphs {
+                            clienta: 0,
+                            clientb: i,
+                            graph,
+                            equal: true,
                         });
                     }
                     generated_actions
@@ -511,6 +517,30 @@ where
         })
         .collect();
 
+    // Check if we should dump generated rules to a file for debugging
+    #[cfg(any(test, feature = "std"))]
+    if let Ok(dump_path) = env::var("DUMP_GENERATED_RULES") {
+        let json = serde_json::to_string_pretty(&actions).unwrap();
+        // If path is relative and doesn't start with ./, save to testdata directory
+        let final_path = if dump_path.starts_with('/') || dump_path.starts_with("./") {
+            // Absolute or explicit relative path, use as-is
+            dump_path
+        } else {
+            // Relative path, save to testdata directory
+            let testdata_dir = format!("{}/src/testing/testdata", env!("CARGO_MANIFEST_DIR"));
+            // Create testdata directory if it doesn't exist
+            fs::create_dir_all(&testdata_dir).unwrap();
+            format!("{}/{}", testdata_dir, dump_path)
+        };
+        fs::write(&final_path, json).unwrap();
+        eprintln!(
+            "[DUMP] Dumped {} generated rules to {}",
+            actions.len(),
+            final_path
+        );
+        debug!("Dumped generated rules to {}", final_path);
+    }
+
     let mut graphs = BTreeMap::new();
     let mut clients = BTreeMap::new();
 
@@ -518,19 +548,17 @@ where
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
+    let mut buffers = TraversalBuffers::new();
 
     for rule in actions {
         debug!(?rule);
 
-        #[cfg(any(test, feature = "std"))]
-        let start = Instant::now();
-
         match rule {
             TestRule::AddClient { id } => {
-                let engine = TestEngine::new();
+                let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
-                let state = ClientState::new(engine, storage);
+                let state = ClientState::new(policy_store, storage);
                 clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
@@ -539,13 +567,13 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let storage_id = state.new_graph(
+                let graph_id = state.new_graph(
                     policy_data.as_slice(),
                     TestActions::Init(policy),
                     &mut sink,
                 )?;
 
-                graphs.insert(id, storage_id);
+                graphs.insert(id, graph_id);
 
                 assert_eq!(0, sink.count());
             }
@@ -554,8 +582,8 @@ where
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
-                state.remove_graph(*storage_id)?;
+                let graph_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                state.remove_graph(*graph_id)?;
 
                 assert_eq!(0, sink.count());
             }
@@ -567,7 +595,7 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let mut request_client = clients
                     .get(&client)
@@ -591,18 +619,17 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
-                        &mut request_cache,
-                        &mut response_cache,
-                        &mut request_client,
-                        &mut response_client,
-                        client,
+
+                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                        (&mut request_cache, &mut request_client),
+                        (&mut response_cache, &mut response_client),
                         &mut sink,
-                        *storage_id,
+                        *graph_id,
                     )?;
                     total_received += received;
                     total_sent += sent;
-                    if received < COMMAND_RESPONSE_MAX {
+                    // Break when no commands are received, meaning the requester has caught up
+                    if received == 0 {
                         break;
                     }
                 }
@@ -643,11 +670,11 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*storage_id, &mut sink, set)?;
+                    state.action(*graph_id, &mut sink, set)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -659,10 +686,10 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(*storage_id)?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                print_graph(storage, head)?;
+                print_graph(storage, head, &mut buffers.primary)?;
             }
 
             TestRule::CompareGraphs {
@@ -681,19 +708,32 @@ where
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let storage_a = state_a.provider().get_storage(*storage_id)?;
-                let storage_b = state_b.provider().get_storage(*storage_id)?;
+                let storage_a = state_a.provider().get_storage(*graph_id)?;
+                let storage_b = state_b.provider().get_storage(*graph_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
-                    debug!("Graph A");
-                    print_graph(storage_a, head_a)?;
-                    debug!("Graph B");
-                    print_graph(storage_b, head_b)?;
+                    debug!("Graph A (client {})", clienta);
+                    let cmds_a = print_graph(storage_a, head_a, &mut buffers.primary)?;
+                    debug!("Graph B (client {})", clientb);
+                    let cmds_b = print_graph(storage_b, head_b, &mut buffers.primary)?;
+
+                    // Compare command sets
+                    let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
+                    let only_in_b: Vec<_> = cmds_b.difference(&cmds_a).collect();
+
+                    debug!("Commands only in Graph A: {} commands", only_in_a.len());
+                    for &cmd in &only_in_a {
+                        debug!("  Only in A: {}", short_b58(*cmd));
+                    }
+                    debug!("Commands only in Graph B: {} commands", only_in_b.len());
+                    for &cmd in &only_in_b {
+                        debug!("  Only in B: {}", short_b58(*cmd));
+                    }
                 }
                 assert_eq!(equal, same);
             }
@@ -706,15 +746,13 @@ where
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(*storage_id)?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                let seg = storage.get_segment(head)?;
-                let command = seg.get_command(head).assume("command must exist")?;
-                assert_eq!(max_cut, command.max_cut()?);
+                assert_eq!(max_cut, head.max_cut);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
-            TestRule::VerifyGraphIds { client, ref ids } => {
+            TestRule::VerifyGraphIds { client, ids } => {
                 let mut state = clients
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
@@ -733,38 +771,183 @@ where
             }
             _ => {}
         }
-        #[cfg(any(test, feature = "std"))]
-        if false {
-            {
-                let duration = start.elapsed();
-                debug!("Time elapsed in rule {:?} is: {:?}", rule, duration);
-            }
-        }
     }
 
     Ok(())
 }
 
-fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
-    request_cache: &mut PeerCache,
-    response_cache: &mut PeerCache,
-    request_state: &mut ClientState<TestEngine, SP>,
-    response_state: &mut ClientState<TestEngine, SP>,
-    server_address: u64,
+/// Minimizes a failing test using delta debugging.
+///
+/// This function takes a test that is known to fail and systematically
+/// removes commands to find a minimal failing test case. It operates
+/// only on the "interesting" section between IgnoreExpectations markers and the convergence phase.
+/// The convergence phase is defined as the first Sync with max_syncs > 10.
+/// The interesting section is defined as the section between IgnoreExpectations markers.
+/// The interesting section is then minimized using delta debugging.
+/// The minimized test is then run and if it fails, the process is repeated.
+/// The process is repeated until the test passes.
+/// The minimized test is then returned.
+///
+/// This function is used to minimize failing tests for debugging purposes.
+#[cfg(any(test, feature = "std"))]
+pub fn minimize_test<SB, F>(backend_factory: F, rules: &[TestRule]) -> Vec<TestRule>
+where
+    SB: StorageBackend,
+    F: FnMut() -> SB,
+{
+    use std::{cell::RefCell, panic, rc::Rc, time::Instant};
+
+    // Wrap the factory in an Rc<RefCell> so we can use it across catch_unwind
+    let factory_cell = Rc::new(RefCell::new(backend_factory));
+
+    // Helper to check if a test fails (including panics)
+    let test_fails = |rules: &[TestRule]| -> bool {
+        let factory = Rc::clone(&factory_cell);
+        let rules = rules.to_vec();
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(move || {
+            let backend = factory.borrow_mut()();
+            run_test(backend, &rules)
+        }));
+        result.is_err() || matches!(result, Ok(Err(_)))
+    };
+
+    // First, verify the test actually fails
+    if !test_fails(rules) {
+        println!("WARNING: Test does not fail, returning original rules");
+        return rules.to_vec();
+    }
+
+    // Find the interesting section (between IgnoreExpectations)
+    let mut start_idx = 0;
+    let mut end_idx = rules.len();
+
+    for (i, rule) in rules.iter().enumerate() {
+        if matches!(rule, TestRule::IgnoreExpectations { ignore: true }) {
+            start_idx = i + 1;
+            break;
+        }
+    }
+
+    for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+        if matches!(rule, TestRule::IgnoreExpectations { ignore: false }) {
+            end_idx = i;
+            break;
+        }
+    }
+
+    // Find the convergence phase which should be preserved
+    // The GenerateGraph rule creates a distinctive sync with high max_syncs
+    // (commands / COMMAND_RESPONSE_MAX + 100) before the verification CompareGraphs.
+    // We look for a Sync with max_syncs > 10 as the start of convergence.
+    let mut convergence_idx = end_idx;
+    for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+        if let TestRule::Sync { max_syncs, .. } = rule
+            && *max_syncs > 10
+        {
+            convergence_idx = i;
+            break;
+        }
+    }
+
+    // If we didn't find a high max_syncs, fall back to looking for CompareGraphs
+    if convergence_idx == end_idx {
+        for (i, rule) in rules.iter().enumerate().skip(start_idx) {
+            if matches!(rule, TestRule::CompareGraphs { .. }) {
+                convergence_idx = i;
+                break;
+            }
+        }
+    }
+
+    let prefix: Vec<_> = rules[..start_idx].to_vec();
+    let mut interesting: Vec<_> = rules[start_idx..convergence_idx].to_vec();
+    let suffix: Vec<_> = rules[convergence_idx..].to_vec();
+
+    let start_time = Instant::now();
+    let mut iterations = 0;
+
+    // Delta debugging (ddmin) algorithm
+    let mut granularity = 2;
+    while granularity <= interesting.len() {
+        let chunk_size = interesting.len() / granularity;
+        if chunk_size == 0 {
+            break;
+        }
+
+        let mut progress = false;
+
+        // Try removing each chunk
+        for i in 0..granularity {
+            let start = i * chunk_size;
+            let end = if i == granularity - 1 {
+                interesting.len()
+            } else {
+                (i + 1) * chunk_size
+            };
+
+            // Create test without this chunk
+            let mut test_rules = prefix.clone();
+            test_rules.extend_from_slice(&interesting[..start]);
+            test_rules.extend_from_slice(&interesting[end..]);
+            test_rules.extend_from_slice(&suffix);
+
+            iterations += 1;
+            if test_fails(&test_rules) {
+                // Still fails! Keep this reduction
+                interesting = [&interesting[..start], &interesting[end..]].concat();
+                println!(
+                    "Reduced to {} interesting rules (removed chunk {}/{}, granularity {})",
+                    interesting.len(),
+                    i + 1,
+                    granularity,
+                    granularity
+                );
+                progress = true;
+                break;
+            }
+        }
+
+        if progress {
+            // Start over with coarser granularity
+            granularity = 2;
+        } else {
+            // Try finer granularity
+            granularity *= 2;
+        }
+    }
+
+    let elapsed = start_time.elapsed();
+    let mut result = prefix;
+    result.extend(interesting);
+    result.extend(suffix);
+
+    println!("Minimization complete!");
+    println!("  Original: {} rules", rules.len());
+    println!("  Minimal:  {} rules", result.len());
+    println!("  Iterations: {}", iterations);
+    println!("  Time: {:?}", elapsed);
+
+    result
+}
+
+fn sync<SP: StorageProvider>(
+    (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
-    storage_id: GraphId,
+    graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, server_address);
+    let mut buffers = TraversalBuffers::new();
+    let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
     assert!(request_syncer.ready());
 
-    let mut request_trx = request_state.transaction(storage_id);
+    let mut request_trx = request_state.transaction(graph_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let len = dispatch::<A>(
+    let len = dispatch(
         &buffer[..len],
         &mut target,
         response_state.provider(),
@@ -777,9 +960,12 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        request_state.commit(&mut request_trx, sink)?;
-        let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-        request_state.update_heads(storage_id, addresses, request_cache)?;
+        request_state.commit(request_trx, sink)?;
+        request_state.update_heads(
+            graph_id,
+            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            request_cache,
+        )?;
     }
 
     Ok((sent, received))
@@ -799,12 +985,18 @@ impl Display for Parent {
     }
 }
 
-pub fn print_graph<S>(storage: &S, location: Location) -> Result<(), StorageError>
+pub fn print_graph<S>(
+    storage: &S,
+    location: Location,
+    buffers: &mut TraversalBuffer,
+) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
 {
     let mut visited = BTreeSet::new();
     let mut locations = vec![location];
+    let mut command_ids = BTreeSet::new();
+
     while let Some(loc) = locations.pop() {
         if visited.contains(&loc.segment) {
             continue;
@@ -813,11 +1005,13 @@ where
         let segment = storage.get_segment(loc)?;
         let commands = segment.get_from(segment.first_location());
         for command in commands.iter().rev() {
+            let cmd_id = command.id();
+            command_ids.insert(cmd_id);
             debug!(
                 "id: {} location {:?} max_cut: {} parent: {}",
-                short_b58(command.id()),
+                short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?)?
+                    .get_location(command.address()?, buffers)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())
@@ -825,7 +1019,8 @@ where
         }
         locations.extend(segment.prior());
     }
-    Ok(())
+
+    Ok(command_ids)
 }
 
 /// Walk the graph and yield all visited IDs.
@@ -844,7 +1039,7 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
         let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
         let id = seg.get_command(loc).unwrap().id();
 
-        if let Some(previous) = loc.previous() {
+        if let Some(previous) = seg.previous(loc) {
             // We will visit the segment again.
             stack.push(previous);
         } else {
@@ -887,10 +1082,10 @@ macro_rules! test_vectors {
 
             $(
                 #[doc = concat!("Runs ", stringify!($name), ".")]
-                pub fn $name<SB, F>(f: F) -> Result<(), TestError>
+                pub fn $name<SB, F>(mut f: F) -> Result<(), TestError>
                 where
                     SB: StorageBackend,
-                    F: FnOnce() -> SB,
+                    F: FnMut() -> SB,
                 {
                     const DATA: &str = include_str!(concat!(
                         env!("CARGO_MANIFEST_DIR"),
@@ -899,6 +1094,20 @@ macro_rules! test_vectors {
                         ".test",
                     ));
                     let rules: Vec<TestRule> = serde_json::from_str(DATA)?;
+
+                    // Check if we should minimize this test
+                    #[cfg(any(test, feature = "std"))]
+                    if let Ok(minimize_name) = env::var("MINIMIZE_TEST") {
+                        if minimize_name == stringify!($name) {
+                            let minimal_rules = minimize_test(&mut f, &rules);
+                            let output_path = format!("{}_minimal.test", stringify!($name));
+                            let json = serde_json::to_string_pretty(&minimal_rules).unwrap();
+                            fs::write(&output_path, json).unwrap();
+                            println!("Wrote minimal test to {}", output_path);
+                            return Ok(());
+                        }
+                    }
+
                     run_test::<SB>(f(), &rules)
                 }
             )+
@@ -925,6 +1134,10 @@ macro_rules! test_vectors {
 test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
+    generate_graph,
+    exponential_traversal_regression,
+    find_needed_segments_queue_max,
+    four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
     many_branches,

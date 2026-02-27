@@ -11,10 +11,10 @@ use tracing::trace;
 use super::dsl::dispatch;
 use crate::{
     ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    VmEffect, VmEffectData, VmPolicy, VmPolicyError,
-    engine::{Engine, EngineError, PolicyId, Sink},
+    TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
-    storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
+    storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
 };
@@ -301,12 +301,12 @@ impl Sink<VmEffect> for VecSink {
 }
 
 /// Used by the VM tests.
-pub struct TestEngine {
+pub struct TestPolicyStore {
     policy: VmPolicy<DefaultEngine<Rng>>,
 }
 
-impl TestEngine {
-    /// Creates a `TestEngine` from a [`Module`].
+impl TestPolicyStore {
+    /// Creates a `TestPolicyStore` from a [`Module`].
     pub fn from_module(module: Module) -> Self {
         let machine = Machine::from_module(module).expect("could not load compiled module");
 
@@ -315,7 +315,7 @@ impl TestEngine {
             machine,
             eng,
             vec![Box::from(TestFfiEnvelope {
-                device: DeviceId::random(&mut Rng),
+                device: DeviceId::random(Rng),
             })],
         )
         .expect("Could not load policy");
@@ -323,15 +323,15 @@ impl TestEngine {
     }
 }
 
-impl Engine for TestEngine {
+impl PolicyStore for TestPolicyStore {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
     type Effect = VmEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
     }
 }
@@ -340,57 +340,56 @@ impl Engine for TestEngine {
 /// the Policy VM to execute Policy. Hopefully the comments will
 /// make this useful for adaptation into a proper implementation.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
-    // TestEngine implements the Engine interface. It defines the core types that implement
-    // the Engine itself, one of which is the Policy implementation. This particular Engine
+pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    // TestPolicyStore implements the PolicyStore interface. It defines the core types that implement
+    // the PolicyStore itself, one of which is the Policy implementation. This particular PolicyStore
     // implementation parses a policy document to create a VMPolicy instance which it owns.
     // But there is no requirement that it should do this, and in the future, it is
     // expected that the VM will consume compiled policy code to eliminate the need for the
     // parser/compiler to work in constrained environments.
 
     // We're using MemStorageProvider as our storage interface.
-    let provider = MemStorageProvider::new();
-    // ClientState contains the engine and the storage provider. It is the main interface
+    let provider = MemStorageProvider::default();
+    // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an ID referencing the
-    // storage for the graph.
-    let storage_id = cs
+    // Create a new graph. This builds an Init event and returns an ID referencing the graph.
+    let graph_id = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    // Create and execute an action in the policy. The action type is defined by the Engine
+    // Create and execute an action in the policy. The action type is defined by the policy store
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
     // to the action call in policy language.
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
+    cs.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created
     // correctly. Direct access to the storage provider should not be necessary in normal
     // operation.
 
-    // Get the storage provider and get the storage associated with our storage ID to peek
+    // Get the storage provider and get the storage associated with our graph ID to peek
     // into its graph.
-    let storage = cs.provider().get_storage(storage_id)?;
+    let storage = cs.provider().get_storage(graph_id)?;
     // Find the head Location.
     let head = storage.get_head()?;
 
@@ -418,11 +417,11 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
 /// Test creating a fact.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
-    let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
 
     let graph = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
@@ -457,42 +456,41 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
 /// Test ephemeral Aranya session.
 /// See `https://github.com/aranya-project/aranya-docs/blob/main/src/Aranya-Sessions-note.md`.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
-    let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
 
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an ID referencing the
-    // storage for the graph.
-    let storage_id = cs
+    // Create a new graph. This builds an Init event and returns an ID referencing the graph.
+    let graph_id = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    // Create and execute an action in the policy. The action type is defined by the Engine
+    // Create and execute an action in the policy. The action type is defined by the policy store
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
     // to the action call in policy language.
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
+    cs.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     {
         let msgs = {
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             let mut msg_sink = MsgSink::new();
 
             // increment
@@ -527,7 +525,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
 
             // Receive the increment commands
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
                     .receive(&cs, &mut sink, msg)
@@ -539,7 +537,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
         sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
 
         // Call the increment action
-        cs.action(storage_id, &mut sink, vm_action!(increment()))
+        cs.action(graph_id, &mut sink, vm_action!(increment()))
             .expect("could not call action");
 
         {
@@ -547,7 +545,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 10 }));
 
             // Receive the increment commands
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
                     .receive(&cs, &mut sink, msg)
@@ -558,7 +556,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Verify that the graph was not affected by the ephemeral commands.
 
-    let storage = cs.provider().get_storage(storage_id)?;
+    let storage = cs.provider().get_storage(graph_id)?;
     let head = storage.get_head()?;
 
     let fact_name = "Stuff";
@@ -576,21 +574,21 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     Ok(())
 }
 
-/// Syncs the first client at `storage_id` to the second client.
-fn test_sync<E, P, S>(
-    storage_id: GraphId,
-    cs1: &mut ClientState<E, P>,
-    cs2: &mut ClientState<E, P>,
+/// Syncs the first client at `graph_id` to the second client.
+fn test_sync<PS, P, S>(
+    graph_id: GraphId,
+    cs1: &mut ClientState<PS, P>,
+    cs2: &mut ClientState<PS, P>,
     sink: &mut S,
 ) where
     P: StorageProvider,
-    E: Engine,
-    S: Sink<<E>::Effect>,
+    PS: PolicyStore,
+    S: Sink<<PS>::Effect>,
 {
-    let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
+    let mut buffers = TraversalBuffers::new();
+    let mut sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
 
-    let mut req_transaction = cs1.transaction(storage_id);
+    let mut req_transaction = cs1.transaction(graph_id);
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -599,7 +597,7 @@ fn test_sync<E, P, S>(
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = dispatch::<()>(
+        let len = dispatch(
             &buffer[..len],
             &mut target,
             cs1.provider(),
@@ -613,24 +611,27 @@ fn test_sync<E, P, S>(
         }
     }
 
-    cs2.commit(&mut req_transaction, sink).expect("commit");
+    cs2.commit(req_transaction, sink).expect("commit");
 }
 
 /// Tests the command ID and recall status in emitted `VmEffect`s.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(), VmPolicyError> {
+pub fn test_effect_metadata(
+    policy_store_1: TestPolicyStore,
+    policy_store_2: TestPolicyStore,
+) -> Result<(), VmPolicyError> {
     // create client 1 and initialize it with a nonce of 1
-    let provider = MemStorageProvider::new();
-    let mut cs1 = ClientState::new(engine, provider);
+    let provider = MemStorageProvider::default();
+    let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
-    let storage_id = cs1
+    let graph_id = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
-    cs1.action(storage_id, &mut sink, vm_action!(create_action(1)))
+    cs1.action(graph_id, &mut sink, vm_action!(create_action(1)))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     assert_ne!(sink.last().command, CmdId::default());
@@ -638,15 +639,15 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     sink.clear();
 
     // create client 2 and sync it with client 1
-    let provider = MemStorageProvider::new();
-    let mut cs2 = ClientState::new(engine2, provider);
-    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    let provider = MemStorageProvider::default();
+    let mut cs2 = ClientState::new(policy_store_2, provider);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
 
     // At this point, clients are fully synced. Client 2 adds an Increment command, which
     // brings the counter to 2 from their perspective.
-    cs2.action(storage_id, &mut sink, vm_action!(increment()))
+    cs2.action(graph_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
     let increment_cmd_id = sink.last().command;
@@ -655,7 +656,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     // MEANWHILE, IN A PARALLEL UNIVERSE - client 1 adds the Invalidate command, which sets
     // the counter value to a negative number. This will cause the check to fail in the
     // Increment command, preventing any further use of this counter.
-    cs1.action(storage_id, &mut sink, vm_action!(invalidate()))
+    cs1.action(graph_id, &mut sink, vm_action!(invalidate()))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));
     sink.clear();
@@ -663,7 +664,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
     // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
     // check will fail, and recall will be executed. This produces an OutOfRange effect.
-    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(
         sink.last(),
         &vm_effect!(OutOfRange {

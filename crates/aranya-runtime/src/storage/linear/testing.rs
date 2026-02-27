@@ -4,7 +4,10 @@ use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{GraphId, Location, StorageError};
+use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
+
+/// Alias for memory-backed storage provider commonly used in tests.
+pub type MemStorageProvider = super::LinearStorageProvider<Manager>;
 
 #[derive(Default)]
 pub struct Manager {
@@ -102,7 +105,10 @@ impl io::Read for Reader {
         let items = self.shared.items.lock();
         let bytes = items
             .get(offset)
-            .ok_or(StorageError::SegmentOutOfBounds(Location::new(offset, 0)))?;
+            .ok_or(StorageError::SegmentOutOfBounds(Location::new(
+                SegmentIndex(offset),
+                MaxCut(usize::MAX), // Not right but this is just for testing...
+            )))?;
         postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
     }
 }

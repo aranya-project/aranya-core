@@ -111,7 +111,7 @@ function sign(
     pub(crate) fn sign<E: Engine>(
         &self,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &E,
         our_sign_sk_id: SigningKeyId,
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
@@ -150,7 +150,7 @@ function verify(
     pub(crate) fn verify<E: Engine>(
         &self,
         ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         author_sign_pk: Vec<u8>,
         command_bytes: Vec<u8>,
         command_id: CmdId,

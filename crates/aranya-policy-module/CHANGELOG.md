@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.18.0...aranya-policy-module-v0.18.1) - 2026-02-17
+
+### Other
+
+- updated the following local packages: aranya-policy-ast
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.17.0...aranya-policy-module-v0.18.0) - 2026-01-23
+
+### Other
+
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.16.0...aranya-policy-module-v0.17.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.15.0...aranya-policy-module-v0.16.0) - 2025-12-11
+
+### Other
+
+- allow nested option ([#502](https://github.com/aranya-project/aranya-core/pull/502))
+- remove `Typeish` and `NullableVType` ([#486](https://github.com/aranya-project/aranya-core/pull/486))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.14.0...aranya-policy-module-v0.15.0) - 2025-11-05
 
 ### Other

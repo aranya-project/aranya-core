@@ -9,17 +9,6 @@ use derive_where::derive_where;
 
 use super::shared::assert_ffi_safe;
 
-/// Reports whether `v` is aligned to `align`.
-pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
-    assert!(align.is_power_of_two());
-    v % align == 0
-}
-
-/// Reports whether `ptr` is aligned to `align`.
-fn is_aligned<T>(ptr: *const T) -> bool {
-    (ptr as usize) % align_of::<T>() == 0
-}
-
 /// A cache-aligned `T`.
 #[cfg_attr(
     any(target_arch = "aarch64", target_arch = "powerpc64"),
@@ -69,7 +58,7 @@ impl<T: Sized> Aligned<T> {
     /// it returns `None`.
     pub fn new(ptr: *mut T, layout: Layout) -> Option<Self> {
         // Fast path: ptr is suitably aligned.
-        if is_aligned(ptr) {
+        if ptr.is_aligned() {
             return Some(Self {
                 ptr: NonNull::new(ptr)?,
             });

@@ -1,22 +1,17 @@
-extern crate alloc;
-
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
     string::{String, ToString as _},
     vec,
     vec::Vec,
 };
-use core::{
-    cell::RefCell,
-    fmt::{self, Display},
-};
+use core::fmt::{self, Display};
 
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
-    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
-    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
+    ModuleData, ModuleV0, Target, UnsupportedVersion, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -24,7 +19,8 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
+    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, OpenContext,
+    PolicyContext, SealContext, Struct, TryAsMut, Value, ValueConversionError,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -49,7 +45,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
             return false;
         };
 
-        if !key.value.vtype().matches(&key_value.field_type.kind) {
+        if !key.value.fits_type(&key_value.field_type) {
             return false;
         }
     }
@@ -65,10 +61,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         };
 
         // Ensure fact value type matches schema
-        let Some(value_type) = value.value.vtype() else {
-            return false;
-        };
-        if !value_type.matches(&schema_value.field_type.kind) {
+        if !value.value.fits_type(&schema_value.field_type) {
             return false;
         }
     }
@@ -147,7 +140,7 @@ pub struct Machine {
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 impl Machine {
@@ -240,11 +233,7 @@ impl Machine {
     }
 
     /// Create a RunState associated with this Machine.
-    pub fn create_run_state<'a, M>(
-        &'a self,
-        io: &'a RefCell<M>,
-        ctx: CommandContext,
-    ) -> RunState<'a, M>
+    pub fn create_run_state<'a, M>(&'a self, io: &'a mut M, ctx: CommandContext) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
     {
@@ -256,7 +245,7 @@ impl Machine {
         &mut self,
         name: Identifier,
         args: Args,
-        io: &'_ RefCell<M>,
+        io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
@@ -273,7 +262,7 @@ impl Machine {
         &mut self,
         this_data: Struct,
         envelope: Struct,
-        io: &'_ RefCell<M>,
+        io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
@@ -319,12 +308,12 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     scope: ScopeManager<'a>,
     /// The stack
     pub stack: MachineStack,
-    /// The call state stack - stores return addresses
+    /// The call state stack - stores return addresses and stack depths
     call_state: Vec<usize>,
     /// The program counter
     pc: usize,
     /// I/O callbacks
-    io: &'a RefCell<M>,
+    pub io: &'a mut M,
     /// Execution Context (actually used for more than Commands)
     ctx: CommandContext,
     // Cursors for `QueryStart` results
@@ -338,12 +327,12 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> Self {
+    pub fn new(machine: &'a Machine, io: &'a mut M, ctx: CommandContext) -> Self {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(HVec::new()),
-            call_state: vec![],
+            call_state: Vec::new(),
             pc: 0,
             io,
             ctx,
@@ -506,7 +495,37 @@ where
         let instruction = self.machine.progmem[self.pc()].clone();
 
         match instruction {
+            Instruction::SaveSP => {
+                self.call_state.push(self.stack.len());
+            }
+            Instruction::RestoreSP => {
+                let saved_sp = self.call_state.pop().ok_or_else(|| {
+                    self.err(MachineErrorType::BadState("no saved stack pointer"))
+                })?;
+                match self
+                    .stack
+                    .len()
+                    .cmp(&saved_sp.checked_add(1).assume("stack size < isize::MAX")?)
+                {
+                    core::cmp::Ordering::Less => {
+                        return Err(self.err(MachineErrorType::BadState(
+                            "callable has consumed too many stack values",
+                        )));
+                    }
+                    core::cmp::Ordering::Equal => {}
+                    core::cmp::Ordering::Greater => {
+                        let v = self.stack.pop_value()?;
+                        while self.stack.len() > saved_sp {
+                            self.stack.pop_value()?;
+                        }
+                        self.stack.push_value(v)?;
+                    }
+                }
+            }
             Instruction::Const(v) => {
+                self.ipush(v)?;
+            }
+            Instruction::Identifier(v) => {
                 self.ipush(v)?;
             }
             Instruction::Def(key) => {
@@ -580,10 +599,7 @@ where
                 self.scope.exit_function().map_err(|e| self.err(e))?;
             }
             Instruction::ExtCall(module, proc) => {
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .call(module, proc, &mut self.stack, &self.ctx)?;
+                self.io.call(module, proc, &mut self.stack, &self.ctx)?;
             }
             Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
             Instruction::Add | Instruction::Sub => {
@@ -595,10 +611,7 @@ where
                     _ => unreachable!(),
                 };
                 // Checked operations return Optional<Int>
-                match r {
-                    Some(value) => self.ipush(value)?,
-                    None => self.ipush(Value::None)?,
-                }
+                self.ipush(r)?;
             }
             Instruction::SaturatingAdd | Instruction::SaturatingSub => {
                 let b: i64 = self.ipop()?;
@@ -753,27 +766,17 @@ where
             }
             Instruction::Create => {
                 let f: Fact = self.ipop()?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_insert(f.name, f.keys, f.values)?;
+                self.io.fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
                 let f: Fact = self.ipop()?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_delete(f.name, f.keys)?;
+                self.io.fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
                 let mut fact_from: Fact = self.ipop()?;
                 let mut replaced_fact = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact_from.name.clone(), fact_from.keys)?;
+                    let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next().ok_or_else(|| {
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
@@ -793,13 +796,8 @@ where
                     }
                 }
 
+                self.io.fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_delete(fact_from.name, replaced_fact.0)?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
             Instruction::Emit => {
@@ -815,10 +813,7 @@ where
                         );
                     }
                 };
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .effect(s.name, fields, command, recall);
+                self.io.effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
@@ -827,11 +822,7 @@ where
                 self.validate_fact_literal(&qf)?;
 
                 let result = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(qf.name.clone(), qf.keys.clone())?;
+                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
                         Ok(f) => {
@@ -844,17 +835,13 @@ where
                         Err(e) => Some(Err(e)),
                     })
                 };
-                match result {
-                    Some(r) => {
-                        let f = r?;
-                        let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
-                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
-                        let s = Struct::new(qf.name, fields);
-                        self.ipush(s)?;
-                    }
-                    None => self.ipush(Value::None)?,
-                }
+                let maybe_fact = result.transpose()?.map(|f| {
+                    let mut fields: Vec<KVPair> = vec![];
+                    fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                    fields.append(&mut f.1.into_iter().map(Into::into).collect());
+                    Struct::new(qf.name, fields)
+                });
+                self.ipush(maybe_fact)?;
             }
             Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
@@ -862,11 +849,7 @@ where
 
                 let mut count = 0;
                 {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact.name.clone(), fact.keys.clone())?;
+                    let mut iter = self.io.fact_query(fact.name.clone(), fact.keys.clone())?;
 
                     while count < limit {
                         let Some(r) = iter.next() else { break };
@@ -888,11 +871,7 @@ where
             Instruction::QueryStart => {
                 let fact: Fact = self.ipop()?;
                 self.validate_fact_literal(&fact)?;
-                let iter = self
-                    .io
-                    .try_borrow()
-                    .assume("should be able to borrow io")?
-                    .fact_query(fact.name, fact.keys)?;
+                let iter = self.io.fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
             }
             Instruction::QueryNext(ident) => {
@@ -974,6 +953,26 @@ where
                 }
                 self.ipush(s)?;
             }
+            Instruction::Some => {
+                let value = self.ipop_value()?;
+                self.ipush(Value::Option(Some(Box::new(value))))?;
+            }
+            Instruction::Unwrap => {
+                let value = self.ipop_value()?;
+                if let Value::Option(opt) = value {
+                    if let Some(inner) = opt {
+                        self.ipush(*inner)?;
+                    } else {
+                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
+                    }
+                } else {
+                    return Err(self.err(MachineErrorType::invalid_type(
+                        "Option[_]",
+                        value.type_name(),
+                        "Option[T] -> T",
+                    )));
+                }
+            }
             Instruction::Meta(_m) => {}
             Instruction::Cast(identifier) => {
                 let value = self.ipop_value()?;
@@ -1038,12 +1037,10 @@ where
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
             #[cfg(feature = "bench")]
+            if let Some(instruction) = self.machine.progmem.get(self.pc())
+                && let Some(name) = instruction.to_string().split_whitespace().next()
             {
-                if let Some(instruction) = self.machine.progmem.get(self.pc()) {
-                    if let Some(name) = instruction.to_string().split_whitespace().next() {
-                        self.stopwatch.start(name);
-                    }
-                }
+                self.stopwatch.start(name);
             }
 
             let result = self
@@ -1118,9 +1115,8 @@ where
                 )));
             }
         }
-        self.scope
-            .set(ident!("this"), Value::Struct(this_data))
-            .map_err(|e| self.err(e))?;
+
+        self.ipush(this_data)?;
 
         #[cfg(feature = "bench")]
         self.stopwatch.stop();

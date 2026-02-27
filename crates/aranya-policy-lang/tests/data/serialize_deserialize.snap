@@ -44,11 +44,11 @@ Policy {
             ],
             policy: [],
             recall: [],
-            span: 0..118,
+            span: 0..133,
         },
     ],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo {\n    seal {\n        return serialize(this)\n    }\n\n    open {\n        return deserialize(envelope)\n    }\n}\n",
+    text: "command Foo {\n    seal {\n        return serialize(this)\n    }\n\n    open {\n        return deserialize(envelope)\n    }\n\n    policy {}\n}\n",
 }

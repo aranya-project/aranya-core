@@ -5,11 +5,11 @@ extern crate alloc;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{self as ast, Identifier};
+use aranya_policy_ast::{self as ast, Identifier, Param};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, Instruction, Label, Value,
+    CodeMap, ConstValue, Instruction, Label,
     named::{NamedMap, named},
 };
 
@@ -117,7 +117,7 @@ pub struct ModuleV0 {
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 /// An action definition.
@@ -141,26 +141,6 @@ pub struct ActionDef {
     pub params: NamedMap<Param>,
 }
 named!(ActionDef);
-
-/// An action or function parameter.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub struct Param {
-    /// The name of the parameter.
-    pub name: ast::Ident,
-    /// The type of the parameter.
-    pub ty: ast::VType,
-}
-named!(Param);
 
 /// A command definition.
 #[derive(
@@ -202,7 +182,7 @@ pub struct Attribute {
     /// The name of the attribute.
     pub name: ast::Ident,
     /// The value of the attribute.
-    pub value: Value,
+    pub value: ConstValue,
 }
 named!(Attribute);
 

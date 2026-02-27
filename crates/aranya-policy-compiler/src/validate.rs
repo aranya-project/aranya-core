@@ -1,4 +1,4 @@
-use aranya_policy_ast::{Identifier, ident};
+use aranya_policy_ast::Identifier;
 use aranya_policy_module::{LabelType, Module, ModuleData};
 
 use crate::{
@@ -19,36 +19,23 @@ pub fn validate(module: &Module) -> bool {
     let global_names: Vec<Identifier> = m.globals.keys().cloned().collect();
 
     for l in m.labels.keys() {
-        let mut predefined_names = vec![];
+        let mut tracer = TraceAnalyzerBuilder::new(m);
         match l.ltype {
+            LabelType::Action => {
+                tracer = tracer.add_analyzer(ActionAnalyzer::new());
+            }
             LabelType::CommandPolicy | LabelType::CommandRecall => {
-                predefined_names.push(ident!("this"));
-                predefined_names.push(ident!("envelope"));
+                tracer = tracer.add_analyzer(FinishAnalyzer::new());
             }
-            LabelType::CommandSeal => {
-                predefined_names.push(ident!("this"));
-            }
-            LabelType::CommandOpen => {
-                predefined_names.push(ident!("envelope"));
-            }
-            LabelType::Function | LabelType::Action => {}
-            LabelType::Temporary => continue,
-        }
-
-        let tracer = TraceAnalyzerBuilder::new(m);
-        let tracer = match l.ltype {
-            LabelType::Action => tracer
-                .add_analyzer(ActionAnalyzer::new())
-                .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names)),
             LabelType::CommandSeal | LabelType::CommandOpen => {
-                tracer.add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
+                // TODO: Add function analyzer once panics are handled correctly.
             }
-            LabelType::CommandPolicy | LabelType::CommandRecall => tracer
-                .add_analyzer(ValueAnalyzer::new(global_names.clone(), predefined_names))
-                .add_analyzer(FinishAnalyzer::new()),
-            LabelType::Function => tracer.add_analyzer(FunctionAnalyzer::new()),
+            LabelType::Function => {
+                tracer = tracer.add_analyzer(FunctionAnalyzer::new());
+            }
             LabelType::Temporary => unreachable!("Shouldn't have gotten this label type"),
-        };
+        }
+        let tracer = tracer.add_analyzer(ValueAnalyzer::new(global_names.clone()));
         let tracer = tracer.build();
 
         match tracer.trace(l) {

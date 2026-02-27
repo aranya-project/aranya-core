@@ -1,10 +1,7 @@
 use std::{collections::HashSet, fs::File, io::Write as _};
 
 use aranya_policy_lang::{
-    ast::{
-        EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, TypeKind,
-        VType,
-    },
+    ast::{EnumDefinition, FunctionDecl, Param, StructDefinition, StructItem, TypeKind, VType},
     lang,
 };
 use proc_macro2::{Span, TokenStream};
@@ -162,7 +159,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 }
             }
             #[automatically_derived]
-            impl #vm::Typed for #name {
+            impl #vm::ffi::Typed for #name {
                 const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#vm::ident!(#name_str));
             }
         }
@@ -236,7 +233,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 }
             }
             #[automatically_derived]
-            impl #vm::Typed for #name {
+            impl #vm::ffi::Typed for #name {
                 const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#vm::ident!(#name_str));
             }
         }
@@ -290,7 +287,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 .map(|arg| {
                     let name = format_ident!("__arg_{}", arg.ident);
                     let rtype = &arg.ty.ty;
-                    let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
+                    let vtype = VTypeTokens::new(&arg.def.ty, &vm);
                     let msg = format!(
                         "mismatched types: expected `{want}`, found `{got}`",
                         want = quote!(#vtype),
@@ -299,7 +296,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     let const_assert = quote_spanned! {rtype.span()=>
                         const {
                             let want = #vm::__type!(#vtype);
-                            let got = <#rtype as #vm::Typed>::TYPE;
+                            let got = <#rtype as #vm::ffi::Typed>::TYPE;
                             if !got.const_eq(&want) {
                                 panic!(#msg);
                             }
@@ -340,8 +337,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         let funcs = funcs.iter().map(|f| {
             let name = f.ext_name.to_string();
             let args = f.args.iter().map(|arg| {
-                let name = arg.def.identifier.as_str();
-                let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
+                let name = arg.def.name.as_str();
+                let vtype = VTypeTokens::new(&arg.def.ty, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
             let return_type = {
@@ -382,7 +379,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
                     __ctx: &#vm::CommandContext,
-                    __eng: &mut __E,
+                    __eng: &__E,
                 ) -> ::core::result::Result<(), Self::Error> {
                     #[allow(non_camel_case_types, clippy::enum_variant_names)]
                     enum __Func {
@@ -617,12 +614,12 @@ impl Func {
             .any(|arg| matches!(arg, FnArg::Receiver(_)));
 
         // The second and third arguments are `&CommandContext`
-        // and `&mut E`, which are passed in by `call`, so skip
+        // and `&E`, which are passed in by `call`, so skip
         // them.
         //
         // TODO(eric): we should issue a diagnostic when the
         // first non-self argument isn't `&CommandContext` and
-        // second argument isn't `&mut E`.
+        // second argument isn't `&E`.
         let num_skip = if is_method { 3 } else { 2 };
         let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
             Some(n) => n,
@@ -664,13 +661,13 @@ impl Func {
 
                     // arg name should match definition
                     if !ident.to_string().starts_with("_")
-                        && def.identifier.name != ident.to_string().as_str()
+                        && def.name.name != ident.to_string().as_str()
                     {
                         return Err(Error::new_spanned(
                             ident,
                             format!(
                                 "arg identifier `{ident}` should match definition (`{}`)",
-                                def.identifier.name
+                                def.name.name
                             ),
                         ));
                     }
@@ -713,7 +710,7 @@ impl Func {
 struct Arg {
     ident: Ident,
     ty: PatType,
-    def: FieldDefinition,
+    def: Param,
 }
 
 /// Implements [`ToTokens`] for `VType.`

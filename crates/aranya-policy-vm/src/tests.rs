@@ -1,16 +1,12 @@
 #![cfg(test)]
 #![allow(clippy::unwrap_used)]
 
-extern crate alloc;
-
 mod ffi;
 mod io;
 
-use alloc::collections::BTreeMap;
-use core::cell::RefCell;
-
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, Span, Text, ident, text};
+use aranya_policy_module::{ConstStruct, ConstValue};
 use io::TestIO;
 
 use crate::{
@@ -41,10 +37,10 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
 
 #[test]
 fn test_pop() {
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Pop]);
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     // Add something to the stack
     rs.stack.push(5).unwrap();
@@ -72,17 +68,17 @@ fn test_add() {
     ];
 
     for t in &tups {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         // adds t.0+t.1
         rs.stack.push(t.0).unwrap();
         rs.stack.push(t.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::Int(t.2));
+        assert_eq!(rs.stack.0[0], Value::from(Some(t.2)));
     }
 }
 
@@ -97,16 +93,16 @@ fn test_add_overflow() {
     ];
 
     for p in &pairs {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::None);
+        assert_eq!(rs.stack.0[0], Value::NONE);
     }
 }
 
@@ -116,17 +112,17 @@ fn test_sub() {
     let tups: [(i64, i64, i64); 4] = [(5, 3, 2), (5, 8, -3), (-10, 8, -18), (-10, -5, -5)];
 
     for t in &tups {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         // sub t.0-t.1
         rs.stack.push(t.0).unwrap();
         rs.stack.push(t.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::Int(t.2));
+        assert_eq!(rs.stack.0[0], Value::from(Some(t.2)));
     }
 }
 
@@ -143,16 +139,16 @@ fn test_sub_overflow() {
     ];
 
     for p in &pairs {
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
-        let mut rs = machine.create_run_state(&io, ctx);
+        let mut rs = machine.create_run_state(&mut io, ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
-        assert_eq!(rs.stack.0[0], Value::None);
+        assert_eq!(rs.stack.0[0], Value::NONE);
     }
 }
 
@@ -196,7 +192,7 @@ fn test_stack() -> anyhow::Result<()> {
     s.push(text!("hello"))?;
     s.push(Struct::new(FOO, &[]))?;
     s.push(Fact::new(BAR))?;
-    s.push_value(Value::None)?;
+    s.push_value(Value::NONE)?;
     assert_eq!(
         s.stack,
         vec![
@@ -205,15 +201,15 @@ fn test_stack() -> anyhow::Result<()> {
             Value::String(text!("hello")),
             Value::Struct(Struct::new(FOO, &[])),
             Value::Fact(Fact::new(BAR)),
-            Value::None,
+            Value::NONE,
         ]
     );
 
     // Test pop and peek
     let v = s.peek_value()?;
-    assert_eq!(v, &Value::None);
+    assert_eq!(v, &Value::NONE);
     let v = s.pop_value()?;
-    assert_eq!(v, Value::None);
+    assert_eq!(v, Value::NONE);
 
     let v: &Fact = s.peek()?;
     assert_eq!(v, &Fact::new(BAR));
@@ -244,7 +240,7 @@ fn test_stack() -> anyhow::Result<()> {
 
 #[test]
 fn test_ffi() {
-    let io = RefCell::new(TestIO::new());
+    let io = TestIO::new();
 
     // Push value onto stack, and call FFI function
     let mut stack = TestStack::new();
@@ -252,9 +248,7 @@ fn test_ffi() {
         .push(Value::String(text!("hello")))
         .expect("can't push");
     let ctx = dummy_ctx_action(ident!("test"));
-    io.borrow_mut()
-        .call(0, 0, &mut stack, &ctx)
-        .expect("Should succeed");
+    io.call(0, 0, &mut stack, &ctx).expect("Should succeed");
 
     // Verify function was called
     assert!(stack.pop::<Text>().expect("should have return value") == text!("HELLO"));
@@ -263,13 +257,13 @@ fn test_ffi() {
 #[test]
 fn test_extcall() {
     let machine = Machine::new([
-        Instruction::Const(Value::String(text!("hi"))),
+        Instruction::Const(ConstValue::String(text!("hi"))),
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.run().expect("Should succeed").success();
 
@@ -284,13 +278,13 @@ fn test_extcall() {
 #[test]
 fn test_extcall_invalid_module() {
     let machine = Machine::new([
-        Instruction::Const(Value::String(text!("hi"))),
+        Instruction::Const(ConstValue::String(text!("hi"))),
         Instruction::ExtCall(1, 0), // invalid module id
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -301,13 +295,13 @@ fn test_extcall_invalid_module() {
 #[test]
 fn test_extcall_invalid_proc() {
     let machine = Machine::new([
-        Instruction::Const(Value::String(text!("hi"))),
+        Instruction::Const(ConstValue::String(text!("hi"))),
         Instruction::ExtCall(0, 1), // invalid proc id
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -318,13 +312,13 @@ fn test_extcall_invalid_proc() {
 #[test]
 fn test_extcall_invalid_arg() {
     let machine = Machine::new([
-        Instruction::Const(Value::Int(0)), // function expects string
+        Instruction::Const(ConstValue::Int(0)), // function expects string
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
-    let mut rs = machine.create_run_state(&io, ctx);
+    let mut rs = machine.create_run_state(&mut io, ctx);
 
     // Empty stack - should fail
     assert_eq!(
@@ -388,17 +382,17 @@ fn general_test_harness<F, G>(
 
     machine_closure(&mut m).unwrap();
 
-    let io = RefCell::new(TestIO::new());
-    let mut rs = m.create_run_state(&io, ctx);
+    let mut io = TestIO::new();
+    let mut rs = m.create_run_state(&mut io, ctx);
     rs_closure(&mut rs).unwrap();
 }
 
 fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType) {
     let m = Machine::new(instructions.to_owned());
 
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let ctx = dummy_ctx_policy(ident!("test"));
-    let mut rs = m.create_run_state(&io, ctx);
+    let mut rs = m.create_run_state(&mut io, ctx);
     assert_eq!(rs.run(), Err(MachineError::new(error_type)));
 }
 
@@ -429,7 +423,7 @@ fn test_errors() {
     // AlreadyDefined: Define a name twice
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::Dup,
             Instruction::Def(x.clone()),
             Instruction::Def(x.clone()),
@@ -440,8 +434,8 @@ fn test_errors() {
     // InvalidType: 3 > "x" (same case as 3 < "x")
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(text.clone())),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::String(text.clone())),
             Instruction::Gt,
         ],
         MachineErrorType::invalid_type("Int, Int", "Int, String", "Greater-than comparison"),
@@ -450,8 +444,8 @@ fn test_errors() {
     // InvalidType: 3 + "x" (same case as 3 - "x")
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(text.clone())),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::String(text.clone())),
             Instruction::Add,
         ],
         MachineErrorType::invalid_type("Int", "String", "Value -> i64"),
@@ -459,15 +453,15 @@ fn test_errors() {
 
     // InvalidType: !3
     error_test_harness(
-        &[Instruction::Const(Value::Int(3)), Instruction::Not],
+        &[Instruction::Const(ConstValue::Int(3)), Instruction::Not],
         MachineErrorType::invalid_type("bool", "Int", "Value -> bool"),
     );
 
     // InvalidType: Set a struct value on a thing that isn't a struct
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::StructSet(x.clone()),
         ],
         MachineErrorType::invalid_type("Struct", "Int", "Value -> Struct"),
@@ -476,8 +470,8 @@ fn test_errors() {
     // InvalidType: Set a fact key on a thing that isn't a fact
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::FactKeySet(x.clone()),
         ],
         MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
@@ -486,8 +480,8 @@ fn test_errors() {
     // InvalidType: Set a fact value on a thing that isn't a fact
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::FactValueSet(x.clone()),
         ],
         MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
@@ -496,7 +490,7 @@ fn test_errors() {
     // InvalidType: Branch on a non-bool value
     error_test_harness(
         &[
-            Instruction::Const(Value::Int(3)),
+            Instruction::Const(ConstValue::Int(3)),
             Instruction::Branch(Target::Unresolved(Label::new_temp(x.clone()))),
         ],
         MachineErrorType::invalid_type("Bool", "Int", "Value -> bool"),
@@ -505,33 +499,33 @@ fn test_errors() {
     // InvalidStructGet: Access `foo.x` when `x` is not a member of `foo`
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct::new(ident!("foo"), &[]))),
+            Instruction::Const(ConstValue::Struct(ConstStruct::empty(ident!("foo")))),
             Instruction::StructGet(x.clone()),
         ],
         MachineErrorType::InvalidStructMember(x.clone()),
     );
 
     // InvalidFact: Update a fact that does not exist
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Fact(Fact {
+    general_test_harness(
+        &[Instruction::Dup, Instruction::Update],
+        |_| Ok(()),
+        |rs| {
+            rs.stack.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })),
-            Instruction::Dup,
-            Instruction::Update,
-        ],
-        MachineErrorType::InvalidFact(x.clone()),
+            })?;
+            let err = rs.run().unwrap_err().err_type;
+            assert_eq!(err, MachineErrorType::InvalidFact(x.clone()));
+            Ok(())
+        },
+        ctx.clone(),
     );
 
     // InvalidSchema: Publish a command that was not defined
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct {
-                name: x.clone(),
-                fields: BTreeMap::new(),
-            })),
+            Instruction::Const(ConstValue::Struct(ConstStruct::empty(x.clone()))),
             Instruction::Publish,
         ],
         MachineErrorType::InvalidSchema(x.clone()),
@@ -540,10 +534,7 @@ fn test_errors() {
     // InvalidSchema: Emit an effect that was not defined
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct {
-                name: x.clone(),
-                fields: BTreeMap::new(),
-            })),
+            Instruction::Const(ConstValue::Struct(ConstStruct::empty(x.clone()))),
             Instruction::Emit,
         ],
         MachineErrorType::InvalidSchema(x.clone()),
@@ -594,38 +585,45 @@ fn test_errors() {
             );
             Ok(())
         },
-        ctx,
+        ctx.clone(),
     );
 
     // IO: Delete a fact that does not exist
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Fact(Fact {
+    general_test_harness(
+        &[Instruction::Delete],
+        |_| Ok(()),
+        |rs| {
+            rs.stack.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })),
-            Instruction::Delete,
-        ],
-        MachineErrorType::IO(MachineIOError::FactNotFound),
+            })?;
+            let err = rs.run().unwrap_err().err_type;
+            assert_eq!(err, MachineErrorType::IO(MachineIOError::FactNotFound));
+            Ok(())
+        },
+        ctx.clone(),
     );
 
     // IO: Create a fact that already exists
     // This _should_ be failing because the fact has not been declared
     // in schema, but TestIO does not care about fact schema and the
     // machine does not check it.
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Fact(Fact {
+    general_test_harness(
+        &[Instruction::Dup, Instruction::Create, Instruction::Create],
+        |_| Ok(()),
+        |rs| {
+            rs.stack.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })),
-            Instruction::Dup,
-            Instruction::Create,
-            Instruction::Create,
-        ],
-        MachineErrorType::IO(MachineIOError::FactExists),
+            })?;
+            let err = rs.run().unwrap_err().err_type;
+            assert_eq!(err, MachineErrorType::IO(MachineIOError::FactExists));
+            Ok(())
+        },
+        ctx.clone(),
     );
+
     // Unknown untested as it cannot be created
 }

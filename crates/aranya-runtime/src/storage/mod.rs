@@ -8,13 +8,118 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt as _};
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
-pub mod memory;
+
+/// Default capacity for the traversal queue.
+///
+/// This should be large enough to hold the maximum expected "active frontier"
+/// during backward traversal, which is bounded by peer count.
+pub const QUEUE_CAPACITY: usize = 512;
+
+/// Type for the queue used in traversal operations.
+///
+/// Locations with the highest `max_cut` are processed first. This bounds the
+/// queue size to the graph width at any given `max_cut` level, rather than
+/// accumulating entries across many levels as a FIFO would.
+#[derive(Debug, Default)]
+pub struct TraversalQueue {
+    entries: heapless::Vec<Location, QUEUE_CAPACITY>,
+}
+
+impl TraversalQueue {
+    /// Create an empty traversal queue.
+    pub const fn new() -> Self {
+        Self {
+            entries: heapless::Vec::new(),
+        }
+    }
+
+    /// Clear the traversal queue.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Enqueues a location.
+    ///
+    /// If an entry with the same segment exists, its max cut will be updated
+    /// if the supplied max cut is higher.
+    pub fn push(&mut self, loc: Location) -> Result<(), StorageError> {
+        if let Some(prev) = self.entries.iter_mut().find(|x| x.same_segment(loc)) {
+            prev.max_cut = prev.max_cut.max(loc.max_cut);
+            return Ok(());
+        }
+        self.entries
+            .push(loc)
+            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+    }
+
+    /// Pop a location with the highest max cut.
+    pub fn pop(&mut self) -> Option<Location> {
+        let (i, _) = self
+            .entries
+            .iter()
+            .enumerate()
+            .max_by_key(|&(_, &loc)| loc)?;
+        Some(self.entries.swap_remove(i))
+    }
+}
+
+/// A queue buffer for a single graph traversal operation.
+///
+/// Access via [`get()`](Self::get), which clears the buffer automatically.
+pub struct TraversalBuffer {
+    queue: TraversalQueue,
+}
+
+impl TraversalBuffer {
+    pub const fn new() -> Self {
+        Self {
+            queue: TraversalQueue::new(),
+        }
+    }
+
+    /// Returns a cleared queue ready for use.
+    pub fn get(&mut self) -> &mut TraversalQueue {
+        self.queue.clear();
+        &mut self.queue
+    }
+}
+
+impl Default for TraversalBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Reusable buffers for graph traversal operations.
+///
+/// Contains two independent queue buffers so that an outer traversal
+/// (e.g. `find_needed_segments`) can maintain state in one buffer while
+/// calling leaf operations (e.g. `is_ancestor`) that use the other.
+pub struct TraversalBuffers {
+    pub primary: TraversalBuffer,
+    pub secondary: TraversalBuffer,
+}
+
+impl TraversalBuffers {
+    pub const fn new() -> Self {
+        Self {
+            primary: TraversalBuffer::new(),
+            secondary: TraversalBuffer::new(),
+        }
+    }
+}
+
+impl Default for TraversalBuffers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(feature = "low-mem-usage")]
 pub const MAX_COMMAND_LENGTH: usize = 400;
@@ -26,15 +131,55 @@ aranya_crypto::custom_id! {
     pub struct GraphId;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Location {
-    pub segment: usize,
-    pub command: usize,
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct SegmentIndex(pub usize);
+
+impl fmt::Display for SegmentIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
-impl From<(usize, usize)> for Location {
-    fn from((segment, command): (usize, usize)) -> Self {
-        Self::new(segment, command)
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct MaxCut(pub usize);
+
+impl fmt::Display for MaxCut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl MaxCut {
+    /// Adds an amount to the max cut, returning `None` on overflow.
+    #[must_use]
+    pub fn checked_add(self, other: usize) -> Option<Self> {
+        self.0.checked_add(other).map(Self)
+    }
+
+    /// Gets a max cut one lower than this, returning `None` on overflow.
+    #[must_use]
+    pub fn decremented(self) -> Option<Self> {
+        self.0.checked_sub(1).map(Self)
+    }
+
+    /// Gets the distance between two max cuts, returning `None` on overflow.
+    #[must_use]
+    pub fn distance_from(self, other: Self) -> Option<usize> {
+        self.0.checked_sub(other.0)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Location {
+    pub max_cut: MaxCut,
+    pub segment: SegmentIndex,
+}
+
+impl From<(SegmentIndex, MaxCut)> for Location {
+    fn from((segment, max_cut): (SegmentIndex, MaxCut)) -> Self {
+        Self::new(segment, max_cut)
     }
 }
 
@@ -45,20 +190,8 @@ impl AsRef<Self> for Location {
 }
 
 impl Location {
-    pub fn new(segment: usize, command: usize) -> Self {
-        Self { segment, command }
-    }
-
-    /// If this is not the first command in a segment, return a location
-    /// pointing to the previous command.
-    #[must_use]
-    pub fn previous(mut self) -> Option<Self> {
-        if let Some(n) = usize::checked_sub(self.command, 1) {
-            self.command = n;
-            Some(self)
-        } else {
-            None
-        }
+    pub fn new(segment: SegmentIndex, max_cut: MaxCut) -> Self {
+        Self { max_cut, segment }
     }
 
     /// Returns true if other location is in the same segment.
@@ -69,7 +202,7 @@ impl Location {
 
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.segment, self.command)
+        write!(f, "{}:{}", self.segment, self.max_cut)
     }
 }
 
@@ -82,20 +215,16 @@ pub enum StorageError {
     NoSuchStorage,
     #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
-    #[error("command index {} is out of bounds in segment {}", .0.command, .0.segment)]
+    #[error("max cut {} is out of bounds in segment {}", .0.max_cut, .0.segment)]
     CommandOutOfBounds(Location),
     #[error("IO error")]
     IoError,
-    #[error("not a merge command")]
-    NotMerge,
-    #[error("command with id {0} not found")]
-    NoSuchId(CmdId),
     #[error("policy mismatch")]
     PolicyMismatch,
     #[error("cannot write an empty perspective")]
     EmptyPerspective,
-    #[error("segment must be a descendant of the head for commit")]
-    HeadNotAncestor,
+    #[error("traversal queue overflow (capacity {0})")]
+    TraversalQueueOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
@@ -161,35 +290,62 @@ pub trait Storage {
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
-    fn get_location(&self, address: Address) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address)
+    fn get_location(
+        &self,
+        address: Address,
+        buffers: &mut TraversalBuffer,
+    ) -> Result<Option<Location>, StorageError> {
+        self.get_location_from(self.get_head()?, address, buffers)
     }
 
     /// Returns the location of Command with id by searching from the given location.
+    ///
+    /// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm specification.
     fn get_location_from(
         &self,
         start: Location,
         address: Address,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        let mut queue = Vec::new();
-        queue.push(start);
-        'outer: while let Some(loc) = queue.pop() {
-            let head = self.get_segment(loc)?;
-            if address.max_cut > head.longest_max_cut()? {
-                continue;
+        if start.max_cut < address.max_cut {
+            return Ok(None);
+        }
+
+        let queue = buffers.get();
+        queue.push(start)?;
+
+        while let Some(loc) = queue.pop() {
+            debug_assert!(
+                loc.max_cut >= address.max_cut,
+                "Invariant: we only enqueue locations with at least the target max cut"
+            );
+
+            // Must load segment
+            let segment = self.get_segment(loc)?;
+
+            // Search commands in this segment.
+            if let Some(found) = segment.get_by_address(address) {
+                return Ok(Some(found));
             }
-            if let Some(loc) = head.get_by_address(address) {
-                return Ok(Some(loc));
-            }
-            // Assumes skip list is sorted in ascending order.
-            // We always want to skip as close to the root as possible.
-            for (skip, max_cut) in head.skip_list() {
-                if max_cut >= &address.max_cut {
-                    queue.push(*skip);
-                    continue 'outer;
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so the first entry
+            // with max_cut >= target has the lowest valid max_cut, jumping
+            // furthest back in the graph.
+            if let Some(&skip) = segment
+                .skip_list()
+                .iter()
+                .find(|skip| skip.max_cut >= address.max_cut)
+            {
+                queue.push(skip)?;
+            } else {
+                // No valid skip - add prior locations to queue
+                for prior in segment.prior() {
+                    if prior.max_cut >= address.max_cut {
+                        queue.push(prior)?;
+                    }
                 }
             }
-            queue.extend(head.prior());
         }
         Ok(None)
     }
@@ -218,7 +374,7 @@ pub trait Storage {
         &self,
         left: Location,
         right: Location,
-        last_common_ancestor: (Location, usize),
+        last_common_ancestor: Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Self::Perspective, StorageError>;
@@ -234,8 +390,10 @@ pub trait Storage {
         self.get_command_address(self.get_head()?)
     }
 
-    /// Sets the given segment as the head of the graph.  Returns an error if
-    /// the current head is not an ancestor of the provided segment.
+    /// Sets the given segment as the head of the graph.
+    ///
+    /// The given segment must be a descendant of the current graph head.
+    /// Implementations may rely on this for correctness, but not for safety.
     fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
 
     /// Writes the given perspective to a segment.
@@ -252,37 +410,64 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
+        buffers: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let mut queue = Vec::new();
-        queue.extend(segment.prior());
-        let segment = self.get_segment(search_location)?;
-        let address = segment
-            .get_command(search_location)
-            .assume("location must exist")?
-            .address()?;
-        'outer: while let Some(location) = queue.pop() {
-            if location.segment == search_location.segment
-                && location.command >= search_location.command
-            {
-                return Ok(true);
-            }
-            let segment = self.get_segment(location)?;
-            if address.max_cut > segment.longest_max_cut()? {
-                continue;
-            }
-            for (skip, max_cut) in segment.skip_list() {
-                if max_cut >= &address.max_cut {
-                    queue.push(*skip);
-                    continue 'outer;
+        let queue = buffers.get();
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so first valid skip
+        // jumps as far back as possible.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= search_location.max_cut)
+        {
+            queue.push(skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= search_location.max_cut {
+                    queue.push(prior)?;
                 }
             }
-            queue.extend(segment.prior());
+        }
+
+        while let Some(loc) = queue.pop() {
+            debug_assert!(
+                loc.max_cut >= search_location.max_cut,
+                "Invariant: we only enqueue locations with at least the target max cut"
+            );
+
+            // Must load segment
+            let segment = self.get_segment(loc)?;
+
+            // Search commands in this segment.
+            if segment.get_command(search_location).is_some() {
+                return Ok(true);
+            }
+
+            // Try to use skip list to jump directly backward.
+            // Skip list is sorted by max_cut ascending, so the first entry
+            // with max_cut >= target has the lowest valid max_cut, jumping
+            // furthest back in the graph.
+            if let Some(&skip) = segment
+                .skip_list()
+                .iter()
+                .find(|skip| skip.max_cut >= search_location.max_cut)
+            {
+                queue.push(skip)?;
+            } else {
+                // No valid skip - add prior locations to queue
+                for prior in segment.prior() {
+                    if prior.max_cut >= search_location.max_cut {
+                        queue.push(prior)?;
+                    }
+                }
+            }
         }
         Ok(false)
     }
 }
-
-type MaxCut = usize;
 
 /// A segment is a nonempty sequence of commands persisted to storage.
 ///
@@ -299,20 +484,11 @@ pub trait Segment {
     where
         Self: 'a;
 
-    /// Returns the head of the segment.
-    fn head(&self) -> Result<Self::Command<'_>, StorageError>;
+    /// Returns the segment's index.
+    fn index(&self) -> SegmentIndex;
 
-    /// Returns the first Command in the segment.
-    fn first(&self) -> Self::Command<'_>;
-
-    /// Returns the location of the head of the segment.
-    fn head_location(&self) -> Location;
-
-    /// Returns the location of the first command.
-    fn first_location(&self) -> Location;
-
-    /// Returns true if the segment contains the location.
-    fn contains(&self, location: Location) -> bool;
+    /// Returns the ID of the head of the segment.
+    fn head_id(&self) -> CmdId;
 
     /// Returns the id for the policy used for this segment.
     fn policy(&self) -> PolicyId;
@@ -323,24 +499,8 @@ pub trait Segment {
     /// Returns the command at the given location.
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
 
-    /// Returns the location of the command with the given address from within this segment.
-    fn get_by_address(&self, address: Address) -> Option<Location>;
-
-    /// Returns an iterator of commands starting at the given location.
-    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>>;
-
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
-
-    fn contains_any<I>(&self, locations: I) -> bool
-    where
-        I: IntoIterator,
-        I::Item: AsRef<Location>,
-    {
-        locations
-            .into_iter()
-            .any(|loc| self.contains(*loc.as_ref()))
-    }
 
     /// The shortest max cut for this segment.
     ///
@@ -360,7 +520,60 @@ pub trait Segment {
     ///
     /// For merge commands the last location in the skip list is the least
     /// common ancestor.
-    fn skip_list(&self) -> &[(Location, MaxCut)];
+    fn skip_list(&self) -> &[Location];
+
+    /// Returns an iterator of commands starting at the given location.
+    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
+        let segment = location.segment;
+        core::iter::successors(Some(location.max_cut), |max_cut| max_cut.checked_add(1))
+            .map_while(|max_cut| self.get_command(Location { max_cut, segment }))
+            .collect()
+    }
+
+    /// Returns the location of the command with the given address from within this segment.
+    fn get_by_address(&self, address: Address) -> Option<Location> {
+        let loc = Location::new(self.index(), address.max_cut);
+        let cmd = self.get_command(loc)?;
+        if cmd.id() != address.id {
+            return None;
+        }
+        Some(loc)
+    }
+
+    /// Returns the location of the first command.
+    fn first_location(&self) -> Location {
+        Location {
+            max_cut: self.shortest_max_cut(),
+            segment: self.index(),
+        }
+    }
+
+    /// Returns the location of the head of the segment.
+    fn head_location(&self) -> Result<Location, StorageError> {
+        Ok(Location {
+            max_cut: self.longest_max_cut()?,
+            segment: self.index(),
+        })
+    }
+
+    /// Returns the address of the head of the segment.
+    fn head_address(&self) -> Result<Address, StorageError> {
+        Ok(Address {
+            id: self.head_id(),
+            max_cut: self.longest_max_cut()?,
+        })
+    }
+
+    /// Walks a location toward init if it would still point within this segment.
+    #[must_use]
+    fn previous(&self, mut location: Location) -> Option<Location> {
+        debug_assert_eq!(location.segment, self.index());
+        if location.max_cut <= self.shortest_max_cut() {
+            return None;
+        }
+        location.max_cut = location.max_cut.decremented()?;
+        Some(location)
+    }
 }
 
 /// An index of facts in storage.
@@ -448,6 +661,15 @@ pub trait QueryMut: Query {
     fn delete(&mut self, name: String, keys: Keys);
 }
 
+// TODO(jdygert): Expose this?
+#[cfg(all(test, feature = "graphviz"))]
+pub(crate) trait FactIndexExtra {
+    fn name(&self) -> String;
+    fn prior(&self) -> Result<Option<Self>, StorageError>
+    where
+        Self: Sized;
+}
+
 /// A sequence of byte-based keys, used for facts.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Keys(Box<[Box<[u8]>]>);
@@ -489,6 +711,25 @@ impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
     }
 }
 
-// TODO: Fix and enable
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    fn loc(seg: usize, mc: usize) -> Location {
+        Location::new(SegmentIndex(seg), MaxCut(mc))
+    }
+
+    #[test]
+    fn test_queue_overflow_returns_error() {
+        let mut queue = TraversalQueue::new();
+        // Fill to capacity
+        for i in 0..QUEUE_CAPACITY {
+            queue.push(loc(i, i)).unwrap();
+        }
+        // Next push should fail with TraversalQueueOverflow
+        let result = queue
+            .push(loc(999, 999))
+            .expect_err("expected push_queue to fail");
+        assert_eq!(result, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
+    }
+}

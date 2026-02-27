@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/aranya-project/aranya-core/compare/aranya-id-v0.2.0...aranya-id-v0.2.1) - 2026-01-06
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.2.0](https://github.com/aranya-project/aranya-core/compare/aranya-id-v0.1.0...aranya-id-v0.2.0) - 2025-11-05
 
 ### Other

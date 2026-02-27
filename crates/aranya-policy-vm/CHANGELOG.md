@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.18.0...aranya-policy-vm-v0.19.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+- Fix #447: Require policy block in command. ([#449](https://github.com/aranya-project/aranya-core/pull/449))
+- remove refcell usage for MachineIO ([#558](https://github.com/aranya-project/aranya-core/pull/558))
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.17.0...aranya-policy-vm-v0.18.0) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.16.0...aranya-policy-vm-v0.17.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.15.1...aranya-policy-vm-v0.16.0) - 2025-12-11
+
+### Other
+
+- allow nested option ([#502](https://github.com/aranya-project/aranya-core/pull/502))
+- clean up dev profile and some feature sets ([#507](https://github.com/aranya-project/aranya-core/pull/507))
+- split type checking and instruction generation ([#500](https://github.com/aranya-project/aranya-core/pull/500))
+- add alternative parsing `option[T]` ([#499](https://github.com/aranya-project/aranya-core/pull/499))
+
 ## [0.15.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.15.0...aranya-policy-vm-v0.15.1) - 2025-11-12
 
 ### Other

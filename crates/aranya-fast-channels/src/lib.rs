@@ -82,26 +82,26 @@
 //!         .map_err(Error::SharedMem)?
 //! };
 //!
-//! let (mut eng, _) = E::from_entropy(Rng);
+//! let (eng, _) = E::from_entropy(Rng);
 //!
-//! let device1_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let device1_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device1_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let device1_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
-//! let device2_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let device2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device2_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let device2_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
 //! // The label ID used for encryption and decryption.
-//! let label_id = LabelId::random(&mut Rng);
+//! let label_id = LabelId::random(Rng);
 //!
 //! let ch1 = UniChannel {
-//!     parent_cmd_id: CmdId::random(&mut eng),
+//!     parent_cmd_id: CmdId::random(&eng),
 //!     our_sk: &device1_enc_sk,
 //!     seal_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,
 //!     open_id: device2_id,
 //!     label_id,
 //! };
-//! let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &ch1)?;
+//! let UniSecrets { author, peer } = UniSecrets::new(&eng, &ch1)?;
 //!
 //! // Inform device1 about device2.
 //! let seal = UniSealKey::from_author_secret(&ch1, author)?.into_raw_key();

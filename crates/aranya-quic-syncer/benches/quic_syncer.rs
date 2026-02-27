@@ -15,9 +15,9 @@ use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, Sink, SyncRequester,
-    memory::MemStorageProvider,
-    testing::protocol::{TestActions, TestEffect, TestEngine},
+    ClientState, GraphId, Sink, SyncRequester, TraversalBuffers,
+    storage::linear::testing::MemStorageProvider,
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use criterion::{Criterion, criterion_group, criterion_main};
 use s2n_quic::Server;
@@ -61,14 +61,14 @@ impl Sink<TestEffect> for CountSink {
     }
 }
 
-fn create_client() -> ClientState<TestEngine, MemStorageProvider> {
-    let engine = TestEngine::new();
-    let storage = MemStorageProvider::new();
-    ClientState::new(engine, storage)
+fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
+    let policy_store = TestPolicyStore::new();
+    let storage = MemStorageProvider::default();
+    ClientState::new(policy_store, storage)
 }
 
 fn new_graph(
-    client: &mut ClientState<TestEngine, MemStorageProvider>,
+    client: &mut ClientState<TestPolicyStore, MemStorageProvider>,
     sink: &mut CountSink,
 ) -> Result<GraphId> {
     let policy_data = 0_u64.to_be_bytes();
@@ -78,14 +78,14 @@ fn new_graph(
 }
 
 fn add_commands(
-    client: &mut ClientState<TestEngine, MemStorageProvider>,
-    storage_id: GraphId,
+    client: &mut ClientState<TestPolicyStore, MemStorageProvider>,
+    graph_id: GraphId,
     sink: &mut CountSink,
     n: u64,
 ) {
     for x in 0..n {
         client
-            .action(storage_id, sink, TestActions::SetValue(0, x))
+            .action(graph_id, sink, TestActions::SetValue(0, x))
             .expect("unable to add command");
     }
 }
@@ -140,7 +140,7 @@ fn sync_bench(c: &mut Criterion) {
                 .expect("Syncer creation must succeed"),
             ));
 
-            let storage_id = new_graph(
+            let graph_id = new_graph(
                 response_client.lock().await.deref_mut(),
                 response_sink.lock().await.deref_mut(),
             )
@@ -149,7 +149,7 @@ fn sync_bench(c: &mut Criterion) {
             let task = tokio::spawn(run_syncer(Arc::clone(&syncer2), server2, rx2));
             add_commands(
                 response_client.lock().await.deref_mut(),
-                storage_id,
+                graph_id,
                 response_sink.lock().await.deref_mut(),
                 iters,
             );
@@ -157,15 +157,17 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server2_addr);
+                let mut buffers = TraversalBuffers::new();
+                let sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
                 if let Err(e) = syncer1
                     .lock()
                     .await
                     .sync(
                         request_client.lock().await.deref_mut(),
+                        server2_addr,
                         sync_requester,
                         request_sink.lock().await.deref_mut(),
-                        storage_id,
+                        graph_id,
                     )
                     .await
                 {

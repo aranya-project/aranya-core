@@ -10,7 +10,7 @@ mod meta;
 
 pub use meta::*;
 
-use crate::{Label, data::Value};
+use crate::{Label, data::ConstValue};
 
 /// Reason for ending execution.
 #[must_use]
@@ -108,7 +108,9 @@ impl Display for Target {
 pub enum Instruction {
     // data
     /// Push a value onto the stack
-    Const(Value),
+    Const(ConstValue),
+    /// Push an identifier onto the stack
+    Identifier(Identifier),
     /// Define a local value by name
     Def(Identifier),
     /// Get a local value by name
@@ -198,6 +200,14 @@ pub enum Instruction {
     Serialize,
     /// Deserialize a command struct
     Deserialize,
+    /// Save the stack depth for later restoration.
+    SaveSP,
+    /// Restore the stack depth.
+    RestoreSP,
+    /// Wrap value in `Some`
+    Some,
+    /// Unwrap `Some` value
+    Unwrap,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -206,6 +216,7 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Const(v) => write!(f, "const {v}"),
+            Self::Identifier(ident) => write!(f, "ident {ident}"),
             Self::Def(ident) => write!(f, "def {ident}"),
             Self::Get(ident) => write!(f, "get {ident}"),
             Self::Dup => write!(f, "dup"),
@@ -247,6 +258,10 @@ impl Display for Instruction {
             Self::QueryNext(ident) => write!(f, "query.next {ident}"),
             Self::Serialize => write!(f, "serialize"),
             Self::Deserialize => write!(f, "deserialize"),
+            Self::SaveSP => write!(f, "save SP"),
+            Self::RestoreSP => write!(f, "restore SP"),
+            Self::Some => write!(f, "some"),
+            Self::Unwrap => write!(f, "unwrap"),
             Self::Meta(m) => write!(f, "meta: {m}"),
             Self::Cast(identifier) => write!(f, "cast {identifier}"),
         }
