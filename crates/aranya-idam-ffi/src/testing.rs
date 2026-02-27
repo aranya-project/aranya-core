@@ -85,6 +85,7 @@ where
         name: ident!("dummy"),
         id: CmdId::default(),
         author: DeviceId::default(),
+        parent_id: CmdId::default(),
         version: BaseId::default(),
     });
 
@@ -250,6 +251,7 @@ where
             name: ident!("different_name"),
             id: CmdId::default(),
             author: DeviceId::default(),
+            parent_id: CmdId::default(),
             version: BaseId::default(),
         });
         let err = ffi

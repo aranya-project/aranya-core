@@ -17,8 +17,6 @@ pub struct TestFfiEnvelope {
     module = "envelope",
     def = r#"
 struct Envelope {
-    // The parent command ID.
-    parent_id id,
     // The author's device ID.
     author_id id,
     // Uniquely identifies the command.
@@ -63,7 +61,6 @@ impl TestFfiEnvelope {
         let command_id = hash_for_testing_only(&data);
 
         Ok(Envelope {
-            parent_id: parent_id.as_base(),
             author_id: author_id.as_base(),
             command_id: command_id.as_base(),
             payload,
@@ -80,5 +77,14 @@ impl TestFfiEnvelope {
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Infallible> {
         Ok(envelope_input.payload)
+    }
+
+    #[ffi_export(def = "function parent_id() id")]
+    fn parent_id<E>(&self, ctx: &CommandContext, _eng: &E) -> Result<CmdId, MachineError> {
+        match ctx {
+            CommandContext::Open(ctx) => Ok(ctx.parent_id),
+            CommandContext::Policy(ctx) => Ok(ctx.parent_id),
+            _ => bug!("parent_id called in wrong context"),
+        }
     }
 }
