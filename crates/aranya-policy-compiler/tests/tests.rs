@@ -101,6 +101,9 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
             insta::assert_snapshot!(name, error)
         });
     } else {
-        panic!("Test file '{name}', must contain 'pass' or 'fail' in the file name.")
+        panic!(
+            "Test file '{}', must contain 'pass' or 'fail' in the file name.",
+            src.display()
+        )
     }
 }
