@@ -9,7 +9,10 @@ use aranya_policy_module::{
     ffi::{self, ModuleSchema},
 };
 
-use crate::{CompileError, CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+use crate::{
+    CompileError, CompileErrorType, Compiler, InvalidCallColor,
+    validate::{ValidationResult, validate},
+};
 
 const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     ModuleSchema {
@@ -2758,12 +2761,20 @@ fn test_validate_return() {
 
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(
+            matches!(validate(&m), ValidationResult::Success),
+            "Expected case to be valid: {}",
+            p
+        );
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(
+            matches!(validate(&m), ValidationResult::Failure),
+            "Expected case to be invalid: {}",
+            p
+        );
     }
 }
 
@@ -2868,12 +2879,20 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(
+            matches!(validate(&m), ValidationResult::Success),
+            "Expected case to be valid: {}",
+            p
+        );
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(
+            matches!(validate(&m), ValidationResult::Failure),
+            "Expected case to be invalid: {}",
+            p
+        );
     }
 }
 
@@ -3477,5 +3496,135 @@ fn test_structs_listed_out_of_order() {
     for (src, expected_err) in invalid_cases {
         let err = compile_fail(src);
         assert_eq!(err, expected_err);
+    }
+}
+
+#[test]
+fn validate_unused_values() {
+    let cases = [
+        (
+            r#"
+            function f() int {
+                let x = 3 // unused variable
+                return 0
+            }
+            "#,
+            "f: unused variable(s): `x`",
+        ),
+        (
+            r#"
+            // Check that we're actually detecting ALL unused let variables
+            function g() int {
+                let a = 1
+                let b = 2
+                let c = saturating_add(a, b)
+                return 0  // c is unused
+            }
+            "#,
+            "g: unused variable(s): `c`",
+        ),
+        (
+            r#"
+            // Track variables in nested scopes
+            function bar() int {
+                let a = 0
+                if a > 0 {
+                    let x = 1 // x is unused
+                }
+                return a
+            }
+            "#,
+            "bar: unused variable(s): `x`",
+        ),
+        (
+            r#"
+            // Multiple unused variables in the same function
+            function baz() int {
+                let x = 1 // unused
+                let y = 2
+                let z = 3 // unused
+                return y
+            }
+            "#,
+            "baz: unused variable(s): `x`, `z`",
+        ),
+        (
+            r#"
+            // Unused function argument
+            function f(x int) int {
+                return 42
+            }
+            "#,
+            "f: unused variable(s): `x`",
+        ),
+        (
+            r#"
+            // Multiple unused function arguments
+            function g(x int, y int, z int) int {
+                return y
+            }
+            "#,
+            "g: unused variable(s): `z`, `x`", // NOTE arg values are popped in reverse order
+        ),
+        (
+            r#"
+            // Used function argument should not error
+            function h(x int) int {
+                return x
+            }
+            "#,
+            "", // Should not produce an error
+        ),
+        (
+            r#"
+            // Check inside nested blocks
+            function qux() int {
+                let x = 1
+                if true {
+                    let y = 2 // unused
+                }
+                return x
+            }
+            "#,
+            "qux: unused variable(s): `y`",
+        ),
+        (
+            // TODO: this should pass; tracer needs to build control flow graph to properly track usage of `a` and `b`
+            r#"
+            function f(n int) int {
+                let a = n
+                let b = saturating_add(n, 1)
+                if n > 0 {
+                    return a // b unused here
+                }
+                else {
+                    return b // a unused here
+                }
+            }
+            "#,
+            "f: unused variable(s): `a`, `b`",
+        ),
+    ];
+
+    for (i, (text, expected_msg)) in cases.iter().enumerate() {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let module = Compiler::new(&policy).compile().expect("should compile");
+
+        if expected_msg.is_empty() {
+            let result = validate(&module);
+            assert!(
+                matches!(result, ValidationResult::Success),
+                "case #{i} should have no validation issues, but got: {:?}",
+                result
+            );
+        } else {
+            // This case SHOULD fail validation
+            let result = validate(&module);
+            assert!(
+                matches!(result, ValidationResult::Warning),
+                "case #{i} should have produced warnings, but got {:?}",
+                result,
+            );
+        }
     }
 }
