@@ -482,6 +482,7 @@ name = "aranya-policy-text"
 version = "0.1.4"
 dependencies = [
  "aranya-policy-text-macro",
+ "cfg-if",
  "proptest",
  "rkyv",
  "serde",

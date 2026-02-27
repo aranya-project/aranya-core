@@ -1,62 +1,197 @@
-use core::slice;
+//! String representation adapted from `compact_str`.
 
+use core::{
+    mem::{MaybeUninit, transmute},
+    ptr,
+};
+
+use cfg_if::cfg_if;
 use rkyv::{
     rancor::{Fallible, Source},
     string::{ArchivedString, StringResolver},
 };
 
-// TODO(jdygert): Better repr to fit in 16 bytes.
-#[derive(Clone)]
-pub enum Repr {
-    Static(&'static str),
-    Inline { bytes: [u8; MAX_INLINE], len: u8 },
-    Heap(arc::ArcStr),
+/// Smart string representation.
+///
+/// Three variants:
+/// - Inline (like [u8; N], 16 bytes on 64-bit and 12 bytes on 32-bit)
+/// - Static (like &'static str)
+/// - Shared (like Arc<str>)
+///
+/// We tag the last byte of repr.
+/// - [0, 192) means a full inline string
+///   - the last byte of valid utf8 must fall in this range
+/// - [192, 208) gives the length of an inline string
+/// - 208 is a shared arc str
+/// - 209 is a static str
+///
+/// On 64-bit we can limit the length to 2^56 so we have a free byte to tag.
+///
+/// On 32-bit we throw in an extra word since 2^24 = 16MB is a bit small for a
+/// max length. This also gives us 12 bytes inline instead of 8.
+#[repr(C)]
+pub struct Repr {
+    ptr: MaybeUninit<*const u8>,
+    len: MaybeUninit<Length>,
 }
 
-/// The max number of bytes that can fit in the inline variant without increasing `Repr`'s size.
-const MAX_INLINE: usize = 3 * size_of::<usize>() - 2;
+/// SAFETY: Repr is thread safe.
+unsafe impl Send for Repr {}
+/// SAFETY: Repr is thread safe.
+unsafe impl Sync for Repr {}
+
+// TODO(jdygert): I can't find a guarantee that pointers contain no padding.
+// If they do, then copying an inline `Repr` might not copy those padding bytes.
+const _: () = assert!(
+    size_of::<*const u8>() + size_of::<Length>() == size_of::<Repr>(),
+    "There must be no padding in `Repr`",
+);
+
+/// The max size of a string we can fit inline
+const MAX_INLINE: usize = size_of::<Repr>();
+
+const TAG_ARC: u8 = 208;
+const TAG_STATIC: u8 = 209;
+
+/// When our string is stored inline, we represent the length of the string in the last byte, offset
+/// by `LENGTH_MASK`
+const LENGTH_MASK: u8 = 0b11000000;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+struct Length(usize, #[cfg(target_pointer_width = "32")] usize);
+
+impl Length {
+    const fn tag(len: usize, t: u8) -> Self {
+        Self::assert_fits(len);
+        cfg_if! {
+            if #[cfg(target_pointer_width = "32")] {
+                Self(len, usize::from_le_bytes([0, 0, 0, t]))
+            } else if #[cfg(target_endian = "big")] {
+                Self((len << 8) | t as usize)
+            } else {
+                Self(len | ((t as usize) << 56))
+            }
+        }
+    }
+
+    const fn untag(self) -> usize {
+        cfg_if! {
+            if #[cfg(target_pointer_width = "32")] {
+                self.0
+            } else if #[cfg(target_endian = "big")] {
+                self.0 >> 8
+            } else {
+                (self.0 << 8) >> 8
+            }
+        }
+    }
+
+    const fn assert_fits(len: usize) {
+        cfg_if! {
+            if #[cfg(not(target_pointer_width = "32"))] {
+                const SHIFT: usize = (size_of::<usize>() - 1) * 8;
+                assert!(len >> SHIFT == 0);
+            }
+        }
+    }
+}
 
 impl Repr {
     pub const fn empty() -> Self {
-        Self::Static("")
+        Self::from_static("")
     }
 
     pub const fn from_static(s: &'static str) -> Self {
-        Self::Static(s)
+        Self {
+            ptr: MaybeUninit::new(s.as_bytes().as_ptr()),
+            len: MaybeUninit::new(Length::tag(s.len(), TAG_STATIC)),
+        }
     }
 
     pub fn from_str(s: &str) -> Self {
         let len = s.len();
         if len <= MAX_INLINE {
-            let mut bytes = [0u8; MAX_INLINE];
-            bytes[..len].copy_from_slice(s.as_bytes());
-            Self::Inline {
-                bytes,
-                len: len as u8,
+            let mut bytes = [MaybeUninit::<u8>::uninit(); MAX_INLINE];
+            // Note: this length will get overwritten if `len == MAX_INLINE`.
+            bytes[MAX_INLINE - 1].write(len as u8 | LENGTH_MASK);
+            // SAFETY: `s.len() <= bytes.len()` and valid pointers.
+            unsafe {
+                ptr::copy_nonoverlapping(s.as_ptr(), bytes.as_mut_ptr().cast::<u8>(), len);
             }
+            // SAFETY: Same size and `Repr` is all `MaybeUninit`.
+            unsafe { transmute::<[MaybeUninit<u8>; MAX_INLINE], Self>(bytes) }
         } else {
-            Self::Heap(arc::ArcStr::new(s))
+            Self {
+                ptr: MaybeUninit::new(arc::create(s)),
+                len: MaybeUninit::new(Length::tag(s.len(), TAG_ARC)),
+            }
         }
     }
 
     pub const fn as_str(&self) -> &str {
-        match self {
-            Self::Static(s) => s,
-            Self::Inline { bytes, len } => {
-                debug_assert!((*len as usize) <= MAX_INLINE);
-                // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
-                let s = unsafe { slice::from_raw_parts(bytes.as_ptr(), *len as usize) };
-                // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
-                unsafe { core::str::from_utf8_unchecked(s) }
+        // SAFETY: We always ensure valid utf8.
+        unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
+    }
+
+    pub const fn as_bytes(&self) -> &[u8] {
+        // initially has the value of the stack pointer, conditionally becomes the heap pointer
+        let mut pointer = ptr::from_ref(self).cast::<u8>();
+        if self.last_byte() >= TAG_ARC {
+            // SAFETY: ptr is initialized when tagged as arc or shared.
+            pointer = unsafe { self.ptr.assume_init() };
+        }
+
+        // initially has the value of the stack length, conditionally becomes the heap length
+        let mut length = self.last_byte().wrapping_sub(LENGTH_MASK) as usize;
+        if length > MAX_INLINE {
+            length = MAX_INLINE;
+        }
+        if self.last_byte() >= TAG_ARC {
+            // SAFETY: len is initialized when tagged as arc or shared.
+            length = unsafe { self.len.assume_init() }.untag();
+        }
+
+        // SAFETY: We know the data is valid, aligned, and part of the same contiguous allocated
+        // chunk. It's also valid for the lifetime of self
+        unsafe { core::slice::from_raw_parts(pointer, length) }
+    }
+
+    const fn last_byte(&self) -> u8 {
+        // SAFETY: The last byte is always initialized.
+        unsafe { ptr::from_ref(self).cast::<u8>().add(MAX_INLINE - 1).read() }
+    }
+}
+
+impl Clone for Repr {
+    fn clone(&self) -> Self {
+        // increment counter if shared
+        if self.last_byte() == TAG_ARC {
+            // SAFETY: ptr is initialized and valid arc pointer when tagged as arc
+            unsafe {
+                arc::increment(self.ptr.assume_init());
             }
-            Self::Heap(s) => s.as_ref(),
+        }
+        // SAFETY: inline/static are fine to bytewise copy.
+        // arc is fine to bytewise copy once we have incremented.
+        unsafe { ptr::read(self) }
+    }
+}
+
+impl Drop for Repr {
+    fn drop(&mut self) {
+        if self.last_byte() == TAG_ARC {
+            // SAFETY: ptr is initialized and valid arc pointer when tagged as arc
+            unsafe {
+                arc::decrement(self.ptr.assume_init(), self.len.assume_init());
+            }
         }
     }
 }
 
 impl Default for Repr {
     fn default() -> Self {
-        Self::Static("")
+        Self::empty()
     }
 }
 
@@ -163,106 +298,83 @@ mod arc {
     use core::{
         alloc::Layout,
         ptr::{self, NonNull},
-        sync::atomic,
+        sync::atomic::{self, AtomicUsize},
     };
 
-    pub struct ArcStr {
-        ptr: NonNull<ArcStrInner>,
-    }
-
-    // SAFETY: `ArcStr` is thread safe.
-    unsafe impl Send for ArcStr {}
-    // SAFETY: `ArcStr` is thread safe.
-    unsafe impl Sync for ArcStr {}
-
-    #[repr(C)]
-    struct ArcStrInner {
-        strong: atomic::AtomicUsize,
-        data: str,
-    }
+    use super::Length;
 
     const MAX_REFCOUNT: usize = isize::MAX as usize;
 
-    impl ArcStr {
-        pub fn new(v: &str) -> Self {
-            let ptr = ArcStrInner::allocate(v.len());
+    pub(super) fn create(v: &str) -> *const u8 {
+        let ptr = allocate(v.len());
 
-            // SAFETY: `ptr` is valid, we are initializing the fields now.
-            unsafe {
-                ptr::addr_of_mut!((*ptr.as_ptr()).strong).write(atomic::AtomicUsize::new(1));
-                ptr::copy_nonoverlapping(
-                    v.as_ptr(),
-                    ptr::addr_of_mut!((*ptr.as_ptr()).data).cast::<u8>(),
-                    v.len(),
-                );
-            }
+        // SAFETY: `ptr` is valid, we are initializing the fields now.
+        unsafe {
+            let strong = ptr.cast::<AtomicUsize>();
+            strong.write(AtomicUsize::new(1));
 
-            Self { ptr }
-        }
-
-        pub const fn as_ref(&self) -> &str {
-            &self.inner().data
-        }
-
-        #[inline]
-        const fn inner(&self) -> &ArcStrInner {
-            // SAFETY: While this arc is alive we're guaranteed that the inner pointer is valid.
-            unsafe { self.ptr.as_ref() }
+            let data = ptr.byte_add(size_of::<AtomicUsize>()).cast::<u8>();
+            ptr::copy_nonoverlapping(v.as_ptr(), data, v.len());
+            data
         }
     }
 
-    impl ArcStrInner {
-        /// Allocate an uninitialized `ArcStrInner`.
-        fn allocate(len: usize) -> NonNull<Self> {
-            let layout = Self::layout(len);
+    fn allocate(len: usize) -> *mut () {
+        let layout = make_layout(len);
 
-            // SAFETY: layout is nonzero.
-            let ptr = unsafe { alloc::alloc::alloc(layout) };
-            let ptr = ptr::slice_from_raw_parts_mut(ptr, len) as *mut Self;
-            let Some(ptr) = NonNull::new(ptr) else {
-                alloc::alloc::handle_alloc_error(layout);
-            };
+        // SAFETY: layout is nonzero.
+        let ptr = unsafe { alloc::alloc::alloc(layout) };
+        let ptr = ptr::slice_from_raw_parts_mut(ptr, len);
+        let Some(ptr) = NonNull::new(ptr) else {
+            alloc::alloc::handle_alloc_error(layout);
+        };
 
-            ptr
-        }
-
-        fn layout(len: usize) -> Layout {
-            Layout::new::<atomic::AtomicUsize>()
-                .extend(Layout::array::<u8>(len).expect("fits isize"))
-                .expect("fits isize")
-                .0
-                .pad_to_align()
-        }
+        ptr.as_ptr().cast()
     }
 
-    impl Clone for ArcStr {
-        fn clone(&self) -> Self {
-            let old = self.inner().strong.fetch_add(1, atomic::Ordering::Relaxed);
+    fn make_layout(len: usize) -> Layout {
+        Layout::new::<AtomicUsize>()
+            .extend(Layout::array::<u8>(len).expect("fits isize"))
+            .expect("fits isize")
+            .0
+            .pad_to_align()
+    }
 
+    unsafe fn strong_from_data(ptr: *const u8) -> *const AtomicUsize {
+        // SAFETY: Given pointer must be valid.
+        unsafe { ptr.sub(size_of::<AtomicUsize>()).cast::<AtomicUsize>() }
+    }
+
+    /// SAFETY: Must be a live pointer originating from `create`.
+    pub(super) unsafe fn increment(ptr: *const u8) {
+        // SAFETY: See function requirements.
+        unsafe {
+            let strong = strong_from_data(ptr);
+            let old = (*strong).fetch_add(1, atomic::Ordering::Relaxed);
             // This will only fail if someone does `loop { mem::forget(x.clone()) }`.
             // See `std::sync::Arc` for details.
             assert!(old <= MAX_REFCOUNT);
-
-            Self { ptr: self.ptr }
         }
     }
 
-    impl Drop for ArcStr {
-        fn drop(&mut self) {
-            if self.inner().strong.fetch_sub(1, atomic::Ordering::Release) != 1 {
+    /// SAFETY: Must be a live pointer originating from `create`.
+    /// The pointer must not be used afterward.
+    /// The length must be the length which the arc was created with.
+    pub(super) unsafe fn decrement(ptr: *const u8, len: Length) {
+        // SAFETY: See function requirements.
+        unsafe {
+            let strong = strong_from_data(ptr);
+            if (*strong).fetch_sub(1, atomic::Ordering::Release) != 1 {
                 return;
             }
 
             atomic::fence(atomic::Ordering::Acquire);
 
-            let layout = Layout::for_value(self.inner());
+            let layout = make_layout(len.untag());
 
             // SAFETY: We have ensured we are the only owner of this arc
-            // and can now drop the value and allocation.
-            unsafe {
-                ptr::drop_in_place(self.ptr.as_ptr());
-                alloc::alloc::dealloc(self.ptr.as_ptr().cast(), layout);
-            }
+            // and can now drop the allocation.
+            alloc::alloc::dealloc(strong.cast_mut().cast(), layout);
         }
     }
 }
@@ -273,12 +385,27 @@ mod test {
 
     use super::*;
 
+    fn check(s: &str) {
+        let repr = Repr::from_str(s);
+        assert_eq!(repr.as_str(), s);
+        let repr2 = repr.clone();
+        assert_eq!(repr, repr2);
+        drop(repr);
+        assert_eq!(repr2.as_str(), s);
+        drop(repr2);
+    }
+
     proptest! {
         #[test]
-        fn proptest_repr(s in ".{1,25}") {
-            let repr = Repr::from_str(&s);
-            assert_eq!(repr.as_str(), s.as_str());
+        fn proptest_repr(s: String) {
+            check(&s);
         }
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        check("");
+        check(&str::repeat("\0", MAX_INLINE));
     }
 
     #[test]
