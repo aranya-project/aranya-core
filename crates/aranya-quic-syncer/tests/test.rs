@@ -200,7 +200,7 @@ async fn test_sync_subscribe() -> Result<()> {
             client2.lock().await.deref_mut(),
             SyncRequester::new(graph_id, Rng, &mut buffers),
             5,
-            286, // The exact number of bytes to be sent
+            412, // The exact number of bytes to be sent
             addr1,
         )
         .await?;
