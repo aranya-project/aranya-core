@@ -1,4 +1,4 @@
-use core::{marker::PhantomData, ptr};
+use core::marker::PhantomData;
 
 use super::{
     alias::{self, Alias},
@@ -51,7 +51,7 @@ macro_rules! to_inner_ref {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_ref($xref) {
-            v => $crate::__hide!(v).kind().to_inner_ref(v),
+            v => $crate::__hide!(v).kind().to_inner(v),
         }
     }};
 }
@@ -65,7 +65,7 @@ macro_rules! to_inner_mut {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref($xref) {
-            v => $crate::__hide!(v).kind().to_inner_mut(v),
+            v => $crate::__hide!(v).kind().to_inner(v),
         }
     }};
 }
@@ -79,7 +79,7 @@ macro_rules! to_inner_ptr {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_const_ptr($ptr) {
-            v => $crate::__hide!(v).kind().to_inner_ptr(v),
+            v => $crate::__hide!(v).kind().to_inner(v),
         }
     }};
 }
@@ -93,7 +93,7 @@ macro_rules! to_inner_mut_ptr {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref_ptr($ptr) {
-            v => $crate::__hide!(v).kind().to_inner_mut_ptr(v),
+            v => $crate::__hide!(v).kind().to_inner(v),
         }
     }};
 }
@@ -107,7 +107,7 @@ macro_rules! to_inner_slice {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice($slice) {
-            v => $crate::__hide!(v).kind().to_inner_slice(v),
+            v => $crate::__hide!(v).kind().to_inner(v),
         }
     }};
 }
@@ -121,7 +121,7 @@ macro_rules! to_inner_slice_mut {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, ToInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice_mut($slice) {
-            v => $crate::__hide!(v).kind().to_inner_slice_mut(v),
+            v => $crate::__hide!(v).kind().to_inner(v),
         }
     }};
 }
@@ -149,14 +149,14 @@ macro_rules! from_inner_ref {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_ref($xref) {
-            v => $crate::__hide!(v => &$ty).kind().from_inner_ref(v),
+            v => $crate::__hide!(v => &$ty).kind().from_inner(v),
         }
     }};
     ($xref:expr, $ty:expr $(,)?) => {{
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_ref($xref) {
-            v => $crate::__hide!(v => &$ty).kind().from_inner_ref(v),
+            v => $crate::__hide!(v => &$ty).kind().from_inner(v),
         }
     }};
 }
@@ -170,7 +170,7 @@ macro_rules! from_inner_mut {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref($xref) {
-            v => $crate::__hide!(v => &mut $ty).kind().from_inner_mut(v),
+            v => $crate::__hide!(v => &mut $ty).kind().from_inner(v),
         }
     }};
 }
@@ -184,7 +184,7 @@ macro_rules! from_inner_ptr {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_const_ptr($ptr) {
-            v => $crate::__hide!(v => *const $ty).kind().from_inner_ptr(v),
+            v => $crate::__hide!(v => *const $ty).kind().from_inner(v),
         }
     }};
 }
@@ -198,7 +198,7 @@ macro_rules! from_inner_mut_ptr {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_mut_ref_ptr($ptr) {
-            v => $crate::__hide!(v => *mut $ty).kind().from_inner_mut_ptr(v),
+            v => $crate::__hide!(v => *mut $ty).kind().from_inner(v),
         }
     }};
 }
@@ -212,7 +212,7 @@ macro_rules! from_inner_slice {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice($slice) {
-            v => $crate::__hide!(v => &[$ty]).kind().from_inner_slice(v),
+            v => $crate::__hide!(v => &[$ty]).kind().from_inner(v),
         }
     }};
 }
@@ -226,7 +226,7 @@ macro_rules! from_inner_slice_mut {
         #[allow(unused_imports)]
         use $crate::internal::conv::cast::{DefaultKind as _, FromInnerKind as _};
         match $crate::internal::conv::cast::arg_must_be_slice_mut($slice) {
-            v => $crate::__hide!(v => &mut [$ty]).kind().from_inner_slice_mut(v),
+            v => $crate::__hide!(v => &mut [$ty]).kind().from_inner(v),
         }
     }};
 }
@@ -346,74 +346,14 @@ pub trait ToInnerKind {
     }
 }
 impl<T: NewType> ToInnerKind for &Hide1<T> {}
-impl<T: NewType> ToInnerKind for &Hide1<&[T]> {}
-impl<T: NewType> ToInnerKind for &Hide1<&mut [T]> {}
+// impl<T: NewType> ToInnerKind for &Hide1<&[T]> {}
+// impl<T: NewType> ToInnerKind for &Hide1<&mut [T]> {}
 impl<T: NewType, const N: usize> ToInnerKind for &Hide1<&[T; N]> {}
 impl<T: NewType, const N: usize> ToInnerKind for &Hide1<&mut [T; N]> {}
 impl ToInnerTag {
     /// Casts a [`NewType`] to its inner type.
-    pub fn to_inner<T: NewType>(self, val: T) -> T::Inner {
+    pub fn to_inner<T: NewType<Inner: Sized>>(self, val: T) -> T::Inner {
         alias::cast(ToInner(val))
-    }
-
-    /// Casts a [`NewType`] to its inner type.
-    pub fn to_inner_ref<T: NewType>(self, val: &T) -> &T::Inner {
-        alias::cast_ref(
-            // SAFETY:
-            //
-            // - `ToInner<T>` has the same memory layout as `T`.
-            // - `val` is a ref, so the pointer is never null.
-            unsafe { &*ptr::from_ref::<T>(val).cast::<ToInner<T>>() },
-        )
-    }
-
-    /// Casts a [`NewType`] to its inner type.
-    pub fn to_inner_mut<T: NewType>(self, val: &mut T) -> &mut T::Inner {
-        alias::cast_mut(
-            // SAFETY:
-            //
-            // - `ToInner<T>` has the same memory layout as `T`.
-            // - `val` is an exclusive ref, so the pointer is
-            //   never null.
-            unsafe { &mut *ptr::from_mut::<T>(val).cast::<ToInner<T>>() },
-        )
-    }
-
-    /// Casts a [`NewType`] to its inner type.
-    pub fn to_inner_ptr<T: NewType>(self, val: *const T) -> *const T::Inner {
-        alias::cast_ptr(val.cast::<ToInner<T>>())
-    }
-
-    /// Casts a [`NewType`] to its inner type.
-    pub fn to_inner_mut_ptr<T: NewType>(self, val: *mut T) -> *mut T::Inner {
-        alias::cast_mut_ptr(val.cast::<ToInner<T>>())
-    }
-
-    /// Casts a slice of [`NewType`] to its inner type.
-    pub fn to_inner_slice<T: NewType>(self, val: &[T]) -> &[T::Inner] {
-        alias::cast_slice(
-            // SAFETY:
-            //
-            // - `ToInner<T>` has the same memory layout as `T`.
-            // - `val` is a ref, so the pointer is never null.
-            // - `val` is a slice, so its length is always less
-            //   than `isize::MAX`.
-            unsafe { &*(ptr::from_ref::<[T]>(val) as *const [ToInner<T>]) },
-        )
-    }
-
-    /// Casts a slice of [`NewType`] to its inner type.
-    pub fn to_inner_slice_mut<T: NewType>(self, val: &mut [T]) -> &mut [T::Inner] {
-        alias::cast_slice_mut(
-            // SAFETY:
-            //
-            // - `ToInner<T>` has the same memory layout as `T`.
-            // - `val` is an exclusive ref, so the pointer is
-            //   never null.
-            // - `val` is a slice, so its length is always less
-            //   than `isize::MAX`.
-            unsafe { &mut *(ptr::from_mut::<[T]>(val) as *mut [ToInner<T>]) },
-        )
     }
 }
 
@@ -442,76 +382,14 @@ pub trait FromInnerKind {
     }
 }
 impl<T> FromInnerKind for &Hide2<T, T::Inner> where T: NewType {}
-impl<T> FromInnerKind for &Hide2<&[T], &[T::Inner]> where T: NewType {}
-impl<T> FromInnerKind for &Hide2<&mut [T], &mut [T::Inner]> where T: NewType {}
-impl<T, const N: usize> FromInnerKind for &Hide2<&[T; N], &[T::Inner; N]> where T: NewType {}
-impl<T, const N: usize> FromInnerKind for &Hide2<&mut [T; N], &mut [T::Inner; N]> where T: NewType {}
+// impl<T> FromInnerKind for &Hide2<&[T], &[T::Inner]> where T: NewType {}
+// impl<T> FromInnerKind for &Hide2<&mut [T], &mut [T::Inner]> where T: NewType {}
+// impl<T, const N: usize> FromInnerKind for &Hide2<&[T; N], &[T::Inner; N]> where T: NewType {}
+// impl<T, const N: usize> FromInnerKind for &Hide2<&mut [T; N], &mut [T::Inner; N]> where T: NewType {}
 impl FromInnerTag {
     /// Creates a [`NewType`] from its inner type.
-    pub fn from_inner<T: NewType>(self, val: T::Inner) -> T {
+    pub fn from_inner<T: NewType<Inner: Sized>>(self, val: T::Inner) -> T {
         alias::cast(FromInner(val))
-    }
-
-    /// Creates a [`NewType`] from its inner type.
-    pub fn from_inner_ref<T: NewType>(self, val: &T::Inner) -> &T {
-        alias::cast_ref(
-            // SAFETY:
-            //
-            // - `FromInner<T>` has the same memory layout as
-            //   `T::Inner`.
-            // - `val` is a ref, so the pointer is never null.
-            unsafe { &*ptr::from_ref::<T::Inner>(val).cast::<FromInner<T::Inner>>() },
-        )
-    }
-
-    /// Creates a [`NewType`] from its inner type.
-    pub fn from_inner_mut<T: NewType>(self, val: &mut T::Inner) -> &mut T {
-        alias::cast_mut(
-            // SAFETY:
-            //
-            // - `FromInner<T>` has the same memory layout as
-            //   `T::Inner`.
-            // - `val` is an exclusive ref, so the pointer is
-            //   never null.
-            unsafe { &mut *ptr::from_mut::<T::Inner>(val).cast::<FromInner<T::Inner>>() },
-        )
-    }
-
-    /// Creates a [`NewType`] from its inner type.
-    pub fn from_inner_ptr<T: NewType>(self, val: *const T::Inner) -> *const T {
-        alias::cast_ptr(val.cast::<FromInner<T::Inner>>())
-    }
-
-    /// Creates a [`NewType`] from its inner type.
-    pub fn from_inner_mut_ptr<T: NewType>(self, val: *mut T::Inner) -> *mut T {
-        alias::cast_mut_ptr(val.cast::<FromInner<T::Inner>>())
-    }
-
-    /// Casts a slice of [`NewType`] to its inner type.
-    pub fn from_inner_slice<T: NewType>(self, val: &[T::Inner]) -> &[T] {
-        alias::cast_slice(
-            // SAFETY:
-            //
-            // - `FromInner<T>` has the same memory layout as `T`.
-            // - `val` is a ref, so the pointer is never null.
-            // - `val` is a slice, so its length is always less
-            //   than `isize::MAX`.
-            unsafe { &*(ptr::from_ref::<[T::Inner]>(val) as *const [FromInner<T::Inner>]) },
-        )
-    }
-
-    /// Casts a slice of [`NewType`] to its inner type.
-    pub fn from_inner_slice_mut<T: NewType>(self, val: &mut [T::Inner]) -> &mut [T] {
-        alias::cast_slice_mut(
-            // SAFETY:
-            //
-            // - `FromInner<T>` has the same memory layout as `T`.
-            // - `val` is an exclusive ref, so the pointer is
-            //   never null.
-            // - `val` is a slice, so its length is always less
-            //   than `isize::MAX`.
-            unsafe { &mut *(ptr::from_mut::<[T::Inner]>(val) as *mut [FromInner<T::Inner>]) },
-        )
     }
 }
 
