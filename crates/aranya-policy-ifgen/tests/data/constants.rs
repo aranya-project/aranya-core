@@ -19,8 +19,6 @@ pub const g_bool: bool = true;
 pub const g_enum: Answer = Answer::new(1i64).unwrap();
 /// g_int constant.
 pub const g_int: i64 = 42i64;
-/// g_none constant.
-pub const g_none: Option<()> = None;
 /// g_some constant.
 pub const g_some: Option<i64> = Some(42i64);
 /// g_string constant.

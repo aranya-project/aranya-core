@@ -11,14 +11,15 @@ use quote::quote;
 pub fn generate_code(target: &PolicyInterface) -> String {
     let reachable = collect_reachable_types(target);
 
-    let constants = target.globals.iter().map(|(id, value)| {
-        let (ty, lit) = constant_value_to_type_and_literal(value);
+    let constants = target.globals.iter().filter_map(|(id, value)| {
+        let ty = constant_value_to_type(value)?;
+        let lit = constant_value_to_literal(value);
         let doc = format!(" {id} constant.");
         let name = mk_ident(id);
-        quote! {
+        Some(quote! {
             #[doc = #doc]
             pub const #name: #ty = #lit;
-        }
+        })
     });
 
     let structs = target
@@ -198,37 +199,57 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
     }
 }
 
-fn constant_value_to_type_and_literal(value: &ConstValue) -> (TokenStream, TokenStream) {
+fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
+    Some(match value {
+        ConstValue::Int(_) => quote!(i64),
+        ConstValue::Bool(_) => quote!(bool),
+        ConstValue::String(_) => quote!(Text),
+        ConstValue::Struct(st) => {
+            let ident = mk_ident(&st.name);
+            quote!(#ident)
+        }
+        ConstValue::Enum(ident, _) => {
+            let ident = mk_ident(ident);
+            quote!(#ident)
+        }
+        ConstValue::Option(Some(value)) => {
+            let ty = constant_value_to_type(value)?;
+            quote!(Option<#ty>)
+        }
+        // `Option<!>` would probably work if/when `never_type` stabilizes.
+        // Any other choice would give us a type that probably isn't very
+        // useful since we can't just coerce it to some other `Option<T>`.
+        ConstValue::Option(None) => return None,
+    })
+}
+
+fn constant_value_to_literal(value: &ConstValue) -> TokenStream {
     match value {
-        ConstValue::Int(n) => (quote!(i64), quote!(#n)),
-        ConstValue::Bool(b) => (quote!(bool), quote!(#b)),
+        ConstValue::Int(n) => quote!(#n),
+        ConstValue::Bool(b) => quote!(#b),
         ConstValue::String(text) => {
             let text = text.as_str();
-            (quote!(Text), quote!(text!(#text)))
+            quote!(text!(#text))
         }
         ConstValue::Struct(st) => {
             let ident = mk_ident(&st.name);
-            let ty = quote!(#ident);
             let fields = st.fields.iter().map(|(k, v)| {
                 let ident = mk_ident(k);
-                let lit = constant_value_to_type_and_literal(v).1;
+                let lit = constant_value_to_literal(v);
                 quote! {
                     #ident: #lit
                 }
             });
-            let lit = quote!(#ident { #(#fields),* });
-            (ty, lit)
+            quote!(#ident { #(#fields),* })
         }
         ConstValue::Enum(ident, variant) => {
             let ident = mk_ident(ident);
-            let ty = quote!(#ident);
-            let lit = quote!(#ident::new(#variant).unwrap());
-            (ty, lit)
+            quote!(#ident::new(#variant).unwrap())
         }
-        ConstValue::Option(None) => (quote!(Option<()>), quote!(None)),
+        ConstValue::Option(None) => quote!(None),
         ConstValue::Option(Some(value)) => {
-            let (ty, lit) = constant_value_to_type_and_literal(value);
-            (quote!(Option<#ty>), quote!(Some(#lit)))
+            let lit = constant_value_to_literal(value);
+            quote!(Some(#lit))
         }
     }
 }
