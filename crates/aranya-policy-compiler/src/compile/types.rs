@@ -3,7 +3,8 @@ use std::{
     fmt::{self, Display},
 };
 
-use aranya_policy_ast::{FactLiteral, Identifier, NamedStruct, TypeKind, VType};
+use aranya_policy_ast::{self as ast, FactLiteral, Identifier, NamedStruct, TypeKind, VType};
+use aranya_policy_module::ffi;
 
 use crate::{CompileError, CompileErrorType, compile::CompileState};
 
@@ -29,6 +30,14 @@ impl From<TypeUnifyError> for CompileErrorType {
     fn from(err: TypeUnifyError) -> Self {
         Self::InvalidType(err.to_string())
     }
+}
+
+pub(crate) enum UserType<'a> {
+    Struct(&'a ast::StructDefinition),
+    Fact(&'a ast::FactDefinition),
+    Effect(&'a ast::EffectDefinition),
+    Command(&'a ast::CommandDefinition),
+    FFIStruct(&'a ffi::Struct<'a>),
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
@@ -181,7 +190,12 @@ impl Display for DisplayType<'_> {
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
-        if self.m.struct_defs.contains_key(&s.identifier.name) {
+        if self
+            .m
+            .interface
+            .struct_defs
+            .contains_key(&s.identifier.name)
+        {
             Ok(VType {
                 kind: TypeKind::Struct(s.identifier.clone()),
                 span: s.identifier.span,

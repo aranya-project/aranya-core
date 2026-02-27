@@ -1,11 +1,12 @@
-use core::iter::DoubleEndedIterator;
+use core::{fmt, iter::DoubleEndedIterator};
 
 use buggy::Bug;
 use tracing::error;
 
 use crate::{
     Address, CmdId, Command, GraphId, PeerCache, Perspective as _, Policy, PolicyError,
-    PolicyStore, Sink, Storage as _, StorageError, StorageProvider, policy::ActionPlacement,
+    PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffers,
+    policy::ActionPlacement,
 };
 
 mod braiding;
@@ -38,6 +39,8 @@ pub enum ClientError {
     /// split into two separate graph states which can never successfully sync.
     #[error("found parallel finalize commands during braid")]
     ParallelFinalize,
+    #[error("concurrent transaction usage")]
+    ConcurrentTransaction,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -55,10 +58,20 @@ impl From<PolicyError> for ClientError {
 ///
 /// - `PS` should be an implementation of [`PolicyStore`].
 /// - `SP` should be an implementation of [`StorageProvider`].
-#[derive(Debug)]
 pub struct ClientState<PS, SP> {
     policy_store: PS,
     provider: SP,
+    buffers: TraversalBuffers,
+}
+
+// Manual Debug impl to exclude `buffers` (large, not useful in debug output).
+impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientState")
+            .field("policy_store", &self.policy_store)
+            .field("provider", &self.provider)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<PS, SP> ClientState<PS, SP> {
@@ -67,6 +80,7 @@ impl<PS, SP> ClientState<PS, SP> {
         Self {
             policy_store,
             provider,
+            buffers: TraversalBuffers::new(),
         }
     }
 
@@ -114,13 +128,19 @@ where
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
+    ///
+    /// Returns whether any new commands were added.
     pub fn commit(
         &mut self,
-        trx: &mut Transaction<SP, PS>,
+        trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
-    ) -> Result<(), ClientError> {
-        trx.commit(&mut self.provider, &mut self.policy_store, sink)?;
-        Ok(())
+    ) -> Result<bool, ClientError> {
+        trx.commit(
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            &mut self.buffers,
+        )
     }
 
     /// Add commands to the transaction, writing the results to
@@ -132,7 +152,13 @@ where
         sink: &mut impl Sink<PS::Effect>,
         commands: impl IntoIterator<Item: Command>,
     ) -> Result<usize, ClientError> {
-        trx.add_commands(commands, &mut self.provider, &mut self.policy_store, sink)
+        trx.add_commands(
+            commands,
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            &mut self.buffers,
+        )
     }
 
     pub fn update_heads<I>(
@@ -151,8 +177,8 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address)? {
-                request_heads.add_command(storage, address, loc)?;
+            if let Some(loc) = storage.get_location(address, &mut self.buffers.primary)? {
+                request_heads.add_command(storage, address, loc, &mut self.buffers.primary)?;
             } else {
                 error!(
                     "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
@@ -229,6 +255,9 @@ where
             // Graph doesn't exist
             return false;
         };
-        storage.get_location(address).unwrap_or(None).is_some()
+        storage
+            .get_location(address, &mut self.buffers.primary)
+            .unwrap_or(None)
+            .is_some()
     }
 }

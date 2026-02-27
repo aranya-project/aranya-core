@@ -131,7 +131,7 @@ checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "aranya-afc-util"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
@@ -158,7 +158,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-codegen"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -209,7 +209,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-macro"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "aranya-capi-codegen",
  "proc-macro2",
@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "aranya-crypto",
  "aranya-id",
@@ -246,7 +246,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",
@@ -259,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-device-ffi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -267,7 +267,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-envelope-ffi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.17.2"
+version = "0.18.0"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-idam-ffi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aranya-crypto",
  "aranya-idam-ffi",
@@ -363,7 +363,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-perspective-ffi"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ast"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "aranya-policy-text",
  "rkyv",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -392,13 +392,14 @@ dependencies = [
  "ciborium",
  "clap",
  "indexmap",
+ "petgraph",
  "thiserror 2.0.7",
  "tracing",
 ]
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",
@@ -409,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
@@ -424,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-build"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -438,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-macro"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -447,7 +448,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-lang"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -466,14 +467,11 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-module"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
- "aranya-id",
  "aranya-policy-ast",
  "fnv",
  "indexmap",
- "proptest",
- "proptest-derive",
  "rkyv",
  "serde",
  "thiserror 2.0.7",
@@ -502,10 +500,11 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "aranya-crypto",
+ "aranya-id",
  "aranya-policy-ast",
  "aranya-policy-compiler",
  "aranya-policy-derive",
@@ -516,6 +515,9 @@ dependencies = [
  "ciborium",
  "heapless 0.9.1",
  "postcard",
+ "proptest",
+ "proptest-derive",
+ "serde",
  "table_formatter",
  "thiserror 2.0.7",
 ]
@@ -557,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",
@@ -1400,6 +1402,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1824,9 +1832,9 @@ dependencies = [
 
 [[package]]
 name = "keccak"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
+checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
 dependencies = [
  "cpufeatures",
 ]
@@ -2192,6 +2200,18 @@ dependencies = [
  "once_cell",
  "pest",
  "sha2",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
+dependencies = [
+ "fixedbitset",
+ "hashbrown 0.15.2",
+ "indexmap",
+ "serde",
 ]
 
 [[package]]
@@ -3109,9 +3129,9 @@ dependencies = [
 
 [[package]]
 name = "spideroak-crypto"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0391e11840a14f462baa45fdb3bb19433e613a1468951f2b248a0ff40648f384"
+checksum = "c901b44b1697abe85dc4797e0689fe0ae0c24a2318d4996ae0421df9df71665a"
 dependencies = [
  "aes",
  "aes-gcm",

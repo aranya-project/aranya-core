@@ -7,7 +7,8 @@ use super::braiding;
 use crate::{
     Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
     Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
-    Segment as _, Sink, Storage, StorageError, StorageProvider, policy::CommandPlacement,
+    Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBuffer, TraversalBuffers,
+    policy::CommandPlacement,
 };
 
 /// Transaction used to receive many commands at once.
@@ -19,6 +20,8 @@ use crate::{
 pub struct Transaction<SP: StorageProvider, PS> {
     /// The ID of the associated graph
     graph_id: GraphId,
+    /// The head of the graph when this transaction is first used.
+    original_head: Option<Location>,
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
@@ -33,6 +36,7 @@ impl<SP: StorageProvider, PS> Transaction<SP, PS> {
     pub(super) const fn new(graph_id: GraphId) -> Self {
         Self {
             graph_id,
+            original_head: None,
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
@@ -54,14 +58,15 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         &self,
         storage: &mut SP::Storage,
         address: Address,
+        buffers: &mut TraversalBuffer,
     ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
-        if let Some(found) = storage.get_location(address)? {
+        if let Some(found) = storage.get_location(address, buffers)? {
             return Ok(Some(found));
         }
         // Search from our temporary heads.
         for &head in self.heads.values() {
-            if let Some(found) = storage.get_location_from(head, address)? {
+            if let Some(found) = storage.get_location_from(head, address, buffers)? {
                 return Ok(Some(found));
             }
         }
@@ -70,12 +75,20 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
     /// Write current perspective, merge transaction heads, and commit to graph.
     pub(super) fn commit(
-        &mut self,
+        mut self,
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
-    ) -> Result<(), ClientError> {
+        buffers: &mut TraversalBuffers,
+    ) -> Result<bool, ClientError> {
         let storage = provider.get_storage(self.graph_id)?;
+
+        let Some(original_head) = self.original_head else {
+            return Ok(false);
+        };
+        if original_head != storage.get_head()? {
+            return Err(ClientError::ConcurrentTransaction);
+        }
 
         // Write out current perspective.
         if let Some(p) = Option::take(&mut self.perspective) {
@@ -83,6 +96,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             let segment = storage.write(p)?;
             self.heads
                 .insert(segment.head_id(), segment.head_location()?);
+        }
+
+        if self.heads.is_empty() {
+            return Ok(false);
         }
 
         // Merge heads pairwise until single head left, then commit.
@@ -111,8 +128,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 }
                 let command = policy.merge(&mut buffer, merge_ids)?;
 
-                let (braid, last_common_ancestor) =
-                    make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy)?;
+                let (braid, last_common_ancestor) = make_braid_segment::<_, PS>(
+                    storage, left_loc, right_loc, sink, policy, buffers,
+                )?;
 
                 let mut perspective = storage.new_merge_perspective(
                     left_loc,
@@ -127,29 +145,26 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 heads.push_back((segment.head_id(), segment.head_location()?));
             } else {
                 let segment = storage.get_segment(left_loc)?;
-                // Try to commit. If it fails with `HeadNotAncestor`, we know we
-                // need to merge with the graph head.
-                match storage.commit(segment) {
-                    Ok(()) => break,
-                    Err(StorageError::HeadNotAncestor) => {
-                        if merging_head {
-                            bug!("merging with graph head again, would loop");
-                        }
 
-                        merging_head = true;
-
-                        heads.push_back((left_id, left_loc));
-
-                        let head_loc = storage.get_head()?;
-                        let segment = storage.get_segment(head_loc)?;
-                        heads.push_back((segment.head_id(), segment.head_location()?));
+                if storage.is_ancestor(storage.get_head()?, &segment, &mut buffers.primary)? {
+                    storage.commit(segment)?;
+                    debug_assert!(heads.is_empty());
+                } else {
+                    if merging_head {
+                        bug!("merging with graph head again, would loop");
                     }
-                    Err(e) => return Err(e.into()),
+                    merging_head = true;
+
+                    heads.push_back((left_id, left_loc));
+
+                    let head_loc = storage.get_head()?;
+                    let segment = storage.get_segment(head_loc)?;
+                    heads.push_back((segment.head_id(), segment.head_location()?));
                 }
             }
         }
 
-        Ok(())
+        Ok(true)
     }
 
     /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
@@ -161,6 +176,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, ClientError> {
         let mut commands = commands.into_iter();
         let mut count: usize = 0;
@@ -176,6 +192,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             Err(e) => return Err(e.into()),
         };
 
+        if self.original_head.is_none() {
+            self.original_head = Some(storage.get_head()?);
+        }
+
         // Handle remaining commands.
         for command in commands {
             if self
@@ -187,7 +207,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 continue;
             }
 
-            if self.locate(storage, command.address()?)?.is_some() {
+            if self
+                .locate(storage, command.address()?, &mut buffers.primary)?
+                .is_some()
+            {
                 // Command already added.
                 continue;
             }
@@ -200,11 +223,18 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     }
                 }
                 Prior::Single(parent) => {
-                    self.add_single(storage, policy_store, sink, &command, parent)?;
+                    self.add_single(storage, policy_store, sink, &command, parent, buffers)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    self.add_merge(storage, policy_store, sink, &command, left, right)?;
+                    self.add_merge(
+                        storage,
+                        policy_store,
+                        sink,
+                        &command,
+                        (left, right),
+                        buffers,
+                    )?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             }
@@ -220,8 +250,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         sink: &mut impl Sink<PS::Effect>,
         command: &impl Command,
         parent: Address,
+        buffers: &mut TraversalBuffers,
     ) -> Result<(), ClientError> {
-        let perspective = self.get_perspective(parent, storage)?;
+        let perspective = self.get_perspective(parent, storage, buffers)?;
 
         let policy_id = perspective.policy();
         let policy = policy_store.get_policy(policy_id)?;
@@ -253,8 +284,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         command: &impl Command,
-        left: Address,
-        right: Address,
+        (left, right): (Address, Address),
+        buffers: &mut TraversalBuffers,
     ) -> Result<bool, ClientError> {
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
@@ -263,17 +294,17 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         let left_loc = self
-            .locate(storage, left)?
+            .locate(storage, left, &mut buffers.primary)?
             .ok_or(ClientError::NoSuchParent(left.id))?;
         let right_loc = self
-            .locate(storage, right)?
+            .locate(storage, right, &mut buffers.primary)?
             .ok_or(ClientError::NoSuchParent(right.id))?;
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) =
-            make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy)?;
+            make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy, buffers)?;
 
         let mut perspective = storage.new_merge_perspective(
             left_loc,
@@ -302,6 +333,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         &mut self,
         parent: Address,
         storage: &mut <SP as StorageProvider>::Storage,
+        buffers: &mut TraversalBuffers,
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
         if self.phead == Some(parent.id) {
             // Command will append to current perspective.
@@ -319,7 +351,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         let loc = self
-            .locate(storage, parent)?
+            .locate(storage, parent, &mut buffers.primary)?
             .ok_or(ClientError::NoSuchParent(parent.id))?;
 
         // Get a new perspective and store it in the transaction.
@@ -389,8 +421,9 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
+    buffers: &mut TraversalBuffers,
 ) -> Result<(S::FactIndex, Location), ClientError> {
-    let order = braiding::braid(storage, left, right)?;
+    let order = braiding::braid(storage, left, right, &mut buffers.primary)?;
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
     let (&first, rest) = order.split_first().assume("braid is non-empty")?;
@@ -463,9 +496,9 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, SegmentIndex,
-        memory::MemStorageProvider,
+        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority,
         policy::{ActionPlacement, CommandPlacement},
+        storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
 
@@ -649,6 +682,7 @@ mod test {
         client: ClientState<SeqPolicyStore, SP>,
         trx: Transaction<SP, SeqPolicyStore>,
         max_cuts: HashMap<CmdId, MaxCut>,
+        buffers: TraversalBuffers,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
@@ -659,6 +693,7 @@ mod test {
             let mut trx = Transaction::new(GraphId::transmute(ids[0]));
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
+            let mut buffers = TraversalBuffers::new();
             for (max_cut, &id) in ids.iter().enumerate() {
                 let max_cut = MaxCut(max_cut);
                 let cmd = SeqCommand::new(id, prior, max_cut);
@@ -667,6 +702,7 @@ mod test {
                     &mut client.provider,
                     &mut client.policy_store,
                     &mut NullSink,
+                    &mut buffers,
                 )?;
                 max_cuts.insert(id, max_cut);
                 prior = Prior::Single(Address { id, max_cut });
@@ -675,6 +711,7 @@ mod test {
                 client,
                 trx,
                 max_cuts,
+                buffers,
             })
         }
 
@@ -695,6 +732,7 @@ mod test {
                     &mut self.client.provider,
                     &mut self.client.policy_store,
                     &mut NullSink,
+                    &mut self.buffers,
                 )?;
                 self.max_cuts.insert(id, max_cut);
                 prev = Address { id, max_cut };
@@ -711,6 +749,7 @@ mod test {
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
+                &mut self.buffers,
             )?;
             self.max_cuts.insert(id, max_cut);
             Ok(())
@@ -733,6 +772,7 @@ mod test {
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
+                &mut self.buffers,
             )?;
             for &id in &ids[1..] {
                 let cmd = SeqCommand::new(
@@ -750,6 +790,7 @@ mod test {
                     &mut self.client.provider,
                     &mut self.client.policy_store,
                     &mut NullSink,
+                    &mut self.buffers,
                 )?;
             }
             Ok(())
@@ -772,11 +813,15 @@ mod test {
         }
 
         pub fn commit(&mut self) -> Result<(), ClientError> {
-            self.trx.commit(
+            let graph_id = self.trx.graph_id;
+            let trx = mem::replace(&mut self.trx, Transaction::new(graph_id));
+            assert!(trx.commit(
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
-            )
+                &mut self.buffers,
+            )?);
+            Ok(())
         }
     }
 
@@ -822,7 +867,7 @@ mod test {
     #[test]
     fn test_simple() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "b";
             "a" < "c";
@@ -834,12 +879,9 @@ mod test {
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
-        crate::storage::memory::graphviz::dot(g, "simple");
+        graphviz::dot(g, "simple");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(5), MaxCut(3))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(3));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -851,7 +893,7 @@ mod test {
     #[test]
     fn test_complex() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "1" "2" "3";
             "3" < "4" "6" "7";
@@ -871,12 +913,9 @@ mod test {
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
-        crate::storage::memory::graphviz::dot(g, "complex");
+        graphviz::dot(g, "complex");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(15), MaxCut(15))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(15));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -891,7 +930,7 @@ mod test {
     #[test]
     fn test_duplicates() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
             "a" < "b" "c";
             "a" < "b";
@@ -907,12 +946,9 @@ mod test {
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
-        crate::storage::memory::graphviz::dot(g, "duplicates");
+        graphviz::dot(g, "duplicates");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(2), MaxCut(4))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(4));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -922,9 +958,8 @@ mod test {
     #[test]
     fn test_mid_braid_1() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             commit;
@@ -933,12 +968,9 @@ mod test {
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
-        crate::storage::memory::graphviz::dot(g, "mid_braid_1");
+        graphviz::dot(g, "mid_braid_1");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(3), MaxCut(7))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(7));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -948,9 +980,8 @@ mod test {
     #[test]
     fn test_mid_braid_2() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "h" "i" "j";
             "d" < "e" "f" "g";
             commit;
@@ -959,12 +990,9 @@ mod test {
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
-        crate::storage::memory::graphviz::dot(g, "mid_braid_2");
+        graphviz::dot(g, "mid_braid_2");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(3), MaxCut(7))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(7));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -974,9 +1002,8 @@ mod test {
     #[test]
     fn test_sequential_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             "e" < finalize "fff1";
@@ -988,12 +1015,9 @@ mod test {
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
-        crate::storage::memory::graphviz::dot(g, "finalize_success");
+        graphviz::dot(g, "finalize_success");
 
-        assert_eq!(
-            g.get_head().unwrap(),
-            Location::new(SegmentIndex(5), MaxCut(9))
-        );
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(9));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1003,9 +1027,8 @@ mod test {
     #[test]
     fn test_parallel_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::new());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
             "a";
-            commit;
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             "e" < finalize "fff1";
@@ -1013,5 +1036,193 @@ mod test {
         };
         let err = gb.commit().expect_err("merge should fail");
         assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
+    }
+
+    #[cfg(feature = "graphviz")]
+    mod graphviz {
+        #![allow(clippy::unwrap_used)]
+
+        use std::{
+            collections::{HashSet, VecDeque},
+            fs::File,
+            io::BufWriter,
+        };
+
+        use dot_writer::{Attributes as _, DotWriter, Style};
+
+        use crate::{
+            Command as _, FactIndexExtra, Location, Prior, Query, Segment as _, Storage,
+            testing::short_b58,
+        };
+
+        fn loc(location: impl Into<Location>) -> String {
+            let location = location.into();
+            format!("\"{}:{}\"", location.segment, location.max_cut)
+        }
+
+        fn get_seq(p: &impl Query) -> String {
+            p.query("seq", &[]).unwrap().map_or(String::new(), |seq| {
+                String::from_utf8(seq.into_vec()).unwrap()
+            })
+        }
+
+        fn get_segments(storage: &impl Storage) -> Vec<Location> {
+            let mut locations = Vec::new();
+            let mut seen_segments = HashSet::new();
+            let mut segment_queue = VecDeque::new();
+            segment_queue.push_back(storage.get_head().unwrap());
+            while let Some(location) = segment_queue.pop_front() {
+                if !seen_segments.insert(location.segment) {
+                    continue;
+                }
+                let segment = storage.get_segment(location).unwrap();
+                segment_queue.extend(segment.prior());
+                locations.push(location);
+            }
+            locations.sort_by_key(|loc| loc.segment);
+            locations
+        }
+
+        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter<'_>) {
+            let mut graph = out.digraph();
+            graph
+                .graph_attributes()
+                .set("compound", "true", false)
+                .set("rankdir", "RL", false)
+                .set_style(Style::Filled)
+                .set("color", "grey", false);
+            graph
+                .node_attributes()
+                .set("shape", "square", false)
+                .set_style(Style::Filled)
+                .set("color", "lightgrey", false);
+
+            let mut seen_facts = HashSet::new();
+            let mut external_facts = Vec::new();
+
+            let segments = get_segments(storage);
+
+            for &location in &segments {
+                let segment = storage.get_segment(location).unwrap();
+
+                let mut cluster = graph.cluster();
+                match segment.prior() {
+                    Prior::None => {
+                        cluster.graph_attributes().set("color", "green", false);
+                    }
+                    Prior::Single(..) => {}
+                    Prior::Merge(..) => {
+                        cluster.graph_attributes().set("color", "crimson", false);
+                    }
+                }
+
+                // Draw commands and edges between commands within the segment.
+                for (i, cmd) in segment
+                    .get_from(segment.first_location())
+                    .into_iter()
+                    .enumerate()
+                {
+                    {
+                        let mut node =
+                            cluster.node_named(loc((segment.index(), cmd.max_cut().unwrap())));
+                        node.set_label(&short_b58(cmd.id()));
+                        match cmd.parent() {
+                            Prior::None => {
+                                node.set("shape", "house", false);
+                            }
+                            Prior::Single(..) => {}
+                            Prior::Merge(..) => {
+                                node.set("shape", "hexagon", false);
+                            }
+                        }
+                    }
+                    if i > 0 {
+                        let previous = cmd.max_cut().unwrap().decremented().expect("i must be > 0");
+                        cluster.edge(
+                            loc((segment.index(), cmd.max_cut().unwrap())),
+                            loc((segment.index(), previous)),
+                        );
+                    }
+                }
+
+                // Draw edges to previous segments.
+                let first = loc(segment.first_location());
+                for p in segment.prior() {
+                    cluster.edge(&first, loc(p));
+                }
+
+                // Draw fact index for this segment.
+                let facts = segment.facts().unwrap();
+                let curr = facts.name();
+                cluster
+                    .node_named(curr.clone())
+                    .set_label(&get_seq(&facts))
+                    .set("shape", "cylinder", false)
+                    .set("color", "black", false)
+                    .set("style", "solid", false);
+                cluster
+                    .edge(loc(segment.head_location().unwrap()), &curr)
+                    .attributes()
+                    .set("color", "red", false);
+
+                seen_facts.insert(curr);
+
+                // Make sure prior facts of fact index will get processed later.
+                let mut prior = facts.prior().unwrap();
+                while let Some(node) = prior {
+                    let name = node.name();
+                    if !seen_facts.insert(name) {
+                        break;
+                    }
+                    prior = node.prior().unwrap();
+                    external_facts.push(node);
+                }
+            }
+
+            graph
+                .node_attributes()
+                .set("shape", "cylinder", false)
+                .set("color", "black", false)
+                .set("style", "solid", false);
+
+            for fact in external_facts {
+                // Draw nodes for fact indices not directly associated with a segment.
+                graph.node_named(fact.name()).set_label(&get_seq(&fact));
+
+                // Draw edge to prior facts.
+                if let Some(prior) = fact.prior().unwrap() {
+                    graph
+                        .edge(fact.name(), prior.name())
+                        .attributes()
+                        .set("color", "blue", false);
+                }
+            }
+
+            // Draw edges to prior facts for fact indices in segments.
+            for &location in &segments {
+                let segment = storage.get_segment(location).unwrap();
+                let facts = segment.facts().unwrap();
+                if let Some(prior) = facts.prior().unwrap() {
+                    graph
+                        .edge(facts.name(), prior.name())
+                        .attributes()
+                        .set("color", "blue", false);
+                }
+            }
+
+            // Draw HEAD indicator.
+            graph.node_named("HEAD").set("shape", "none", false);
+            graph.edge("HEAD", loc(storage.get_head().unwrap()));
+        }
+
+        pub fn dot(storage: &impl Storage<FactIndex: FactIndexExtra>, name: &str) {
+            std::fs::create_dir_all(".ignore").unwrap();
+            dotwrite(
+                storage,
+                &mut DotWriter::from(&mut BufWriter::new(
+                    File::create(format!(".ignore/{name}.dot")).unwrap(),
+                )),
+            );
+        }
     }
 }

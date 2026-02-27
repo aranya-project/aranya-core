@@ -8,8 +8,8 @@ use test_log::test;
 
 use crate::{
     Address, ClientState, Command as _, GraphId, MAX_SYNC_MESSAGE_SIZE, MaxCut, NullSink,
-    PeerCache, StorageProvider as _, SyncRequester, SyncResponder, SyncType,
-    storage::{Storage as _, memory::MemStorageProvider},
+    PeerCache, StorageProvider as _, SyncRequester, SyncResponder, SyncType, TraversalBuffers,
+    storage::{Storage as _, linear::testing::MemStorageProvider},
     testing::protocol::{TestActions, TestPolicy, TestPolicyStore, TestProtocol},
 };
 
@@ -18,13 +18,13 @@ fn test_large_sync() {
     let mut response_cache = PeerCache::new();
     let mut request_cache = PeerCache::new();
 
-    let mut client = ClientState::new(TestPolicyStore::new(), MemStorageProvider::new());
+    let mut client = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
 
     let graph_id = client
         .new_graph(&[0], TestActions::Init(0), &mut NullSink)
         .unwrap();
 
-    let mut other = ClientState::new(TestPolicyStore::new(), MemStorageProvider::new());
+    let mut other = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
     sync(
         graph_id,
         &mut client,
@@ -40,7 +40,7 @@ fn test_large_sync() {
         max_cut: MaxCut(0),
     }];
     let mut rng = thread_rng();
-    let mut fuel = 100_000i32;
+    let mut fuel = 10_000i32;
     while fuel > 0 {
         eprintln!("fuel = {fuel}");
         // choose starting point
@@ -69,7 +69,7 @@ fn test_large_sync() {
 
     dbg!(seen.len());
 
-    client.commit(&mut trx, &mut NullSink).unwrap();
+    client.commit(trx, &mut NullSink).unwrap();
     eprintln!(
         "#segments = {}, expected around {}",
         client
@@ -121,14 +121,16 @@ fn sync(
 
     let mut request_trx = request_state.transaction(graph_id);
 
-    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng::new());
+    let mut buffers = TraversalBuffers::new();
+    let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
     assert!(request_syncer.ready());
 
     let (len, _) = request_syncer
         .poll(&mut buffer, request_state.provider(), request_cache)
         .unwrap();
 
-    let mut response_syncer = SyncResponder::new();
+    let mut buffers = TraversalBuffers::new();
+    let mut response_syncer = SyncResponder::new(&mut buffers);
     let SyncType::Poll { request } = postcard::from_bytes(&buffer[..len]).unwrap() else {
         panic!();
     };
@@ -154,9 +156,7 @@ fn sync(
     }
 
     eprintln!("committing sync");
-    request_state
-        .commit(&mut request_trx, &mut NullSink)
-        .unwrap();
+    request_state.commit(request_trx, &mut NullSink).unwrap();
 
     added
 }

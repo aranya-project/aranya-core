@@ -10,7 +10,6 @@ use aranya_policy_vm::{
     ast::{Identifier, Text},
     ffi::FfiModule,
 };
-use spin::Mutex;
 use tracing::error;
 
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
@@ -23,7 +22,7 @@ pub trait FfiCallable<CE> {
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut CE,
+        eng: &CE,
     ) -> Result<(), MachineError>;
 }
 
@@ -37,7 +36,7 @@ where
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut CE,
+        eng: &CE,
     ) -> Result<(), MachineError> {
         FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
     }
@@ -47,14 +46,14 @@ where
 pub struct VmPolicyIO<'o, P, S, CE, FFI> {
     pub facts: &'o mut P,
     pub sink: &'o mut S,
-    pub engine: &'o Mutex<CE>,
+    pub engine: &'o CE,
     pub ffis: &'o [FFI],
 }
 
 impl<'o, P, S, CE, FFI> VmPolicyIO<'o, P, S, CE, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
     /// [`crate::policy::Sink`].
-    pub fn new(facts: &'o mut P, sink: &'o mut S, engine: &'o Mutex<CE>, ffis: &'o [FFI]) -> Self {
+    pub fn new(facts: &'o mut P, sink: &'o mut S, engine: &'o CE, ffis: &'o [FFI]) -> Self {
         VmPolicyIO {
             facts,
             sink,
@@ -132,13 +131,10 @@ where
         stack: &mut MachineStack,
         ctx: &CommandContext,
     ) -> Result<(), MachineError> {
-        let engine = &mut self.engine.lock();
-        self.ffis.get(module).map_or(
-            Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
-                module,
-            ))),
-            |ffi| ffi.call(procedure, stack, ctx, engine),
-        )
+        self.ffis
+            .get(module)
+            .ok_or(MachineErrorType::FfiModuleNotDefined(module))?
+            .call(procedure, stack, ctx, self.engine)
     }
 }
 

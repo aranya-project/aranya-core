@@ -16,9 +16,9 @@ use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
+    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester, TraversalBuffers,
     policy::Sink,
-    storage::memory::MemStorageProvider,
+    storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use clap::Parser;
@@ -66,7 +66,8 @@ async fn sync_peer<PS, SP, S>(
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(graph_id, &mut Rng::new());
+    let mut buffers = TraversalBuffers::new();
+    let sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
     let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}
@@ -109,7 +110,7 @@ async fn run(options: Opt) -> Result<()> {
     };
 
     let policy_store = TestPolicyStore::new();
-    let storage = MemStorageProvider::new();
+    let storage = MemStorageProvider::default();
 
     let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage)));
     let sink = Arc::new(TMutex::new(PrintSink {}));

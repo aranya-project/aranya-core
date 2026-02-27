@@ -8,8 +8,8 @@ use aranya_crypto::{
 };
 use aranya_policy_vm::{
     self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
-    Stack as _, Text, Typed, Value, ValueConversionError,
-    ffi::{FfiModule, Type, ffi},
+    Stack as _, Text, Value, ValueConversionError,
+    ffi::{FfiModule, Type, Typed, ffi},
     ident, text,
 };
 
@@ -55,7 +55,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
         });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;
         self.module
-            .call(*idx, &mut self.stack, &ctx, &mut self.engine)
+            .call(*idx, &mut self.stack, &ctx, &self.engine)
             .map_err(TestStateError::Module)
     }
 
@@ -168,29 +168,19 @@ enum TestEnum { A, B }
 )]
 impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function add2(x int, y int) int")]
-    fn add<E: Engine>(
-        _ctx: &CommandContext,
-        _eng: &mut E,
-        x: i64,
-        y: i64,
-    ) -> Result<i64, Overflow> {
+    fn add<E: Engine>(_ctx: &CommandContext, _eng: &E, x: i64, y: i64) -> Result<i64, Overflow> {
         x.checked_add(y).ok_or(Overflow)
     }
 
     #[ffi_export(def = "function sub2(x int, y int) int")]
-    fn sub<E: Engine>(
-        _ctx: &CommandContext,
-        _eng: &mut E,
-        x: i64,
-        y: i64,
-    ) -> Result<i64, Overflow> {
+    fn sub<E: Engine>(_ctx: &CommandContext, _eng: &E, x: i64, y: i64) -> Result<i64, Overflow> {
         x.checked_sub(y).ok_or(Overflow)
     }
 
     #[ffi_export(def = "function concat(a string, b string) string")]
     fn concat<E: Engine>(
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         a: Text,
         b: Text,
     ) -> Result<Text, MachineError> {
@@ -202,21 +192,21 @@ impl<T, G> TestModule<'_, T, G> {
     fn identity<E: Engine>(
         &self,
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         id_input: BaseId,
     ) -> Result<BaseId, Infallible> {
         Ok(id_input)
     }
 
     #[ffi_export(def = "function no_args() int")]
-    fn no_args<E: Engine>(&self, _ctx: &CommandContext, _eng: &mut E) -> Result<i64, MachineError> {
+    fn no_args<E: Engine>(&self, _ctx: &CommandContext, _eng: &E) -> Result<i64, MachineError> {
         Ok(Self::NO_ARGS_RESULT)
     }
 
     #[ffi_export(def = "function custom_type(label int) int")]
     fn custom_type<E: Engine>(
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         label: Label,
     ) -> Result<Label, Infallible> {
         assert_eq!(label, Self::CUSTOM_TYPE_ARG);
@@ -226,7 +216,7 @@ impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function custom_type_optional(label option[int]) option[int]")]
     fn custom_type_optional<E: Engine>(
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         label: Option<Label>,
     ) -> Result<Option<Label>, Infallible> {
         assert_eq!(label, Some(Self::CUSTOM_TYPE_ARG));
@@ -236,7 +226,7 @@ impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
     fn custom_def<E: Engine>(
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         _a: i64,
         _b: Vec<u8>,
     ) -> Result<bool, Infallible> {
@@ -251,7 +241,7 @@ function struct_fn(
 "#)]
     fn struct_fn<E: Engine>(
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         a: S0,
         b: S1,
     ) -> Result<S2, Infallible> {
@@ -266,7 +256,7 @@ function struct_fn(
     #[ffi_export(def = r#"function test_enum(e enum TestEnum) enum TestEnum"#)]
     fn test_enum<E: Engine>(
         _ctx: &CommandContext,
-        _eng: &mut E,
+        _eng: &E,
         e: TestEnum,
     ) -> Result<TestEnum, MachineError> {
         Ok(e)
@@ -346,7 +336,7 @@ fn test_ffi_derive() {
     // Positive test for `identity`.
     {
         let a = BaseId::default();
-        let b = BaseId::random(&mut Rng);
+        let b = BaseId::random(Rng);
 
         state.push(b);
         state.push(a);
@@ -418,7 +408,7 @@ fn test_ffi_derive() {
             b: vec![1, 2, 3, 4],
             c: 42,
             d: true,
-            e: BaseId::random(&mut Rng),
+            e: BaseId::random(Rng),
             f: S0 { x: 1234 },
             g: Some(42),
         };

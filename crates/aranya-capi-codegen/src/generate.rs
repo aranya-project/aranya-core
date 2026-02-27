@@ -123,6 +123,7 @@ fn generate(cfg: Config, items: Vec<Item>) -> Result<TokenStream, BuildError> {
         #(#fns)*
         #(#other)*
 
+        #[allow(deprecated)]
         mod #mod_hidden {
             #[allow(clippy::wildcard_imports)]
             use super::*;

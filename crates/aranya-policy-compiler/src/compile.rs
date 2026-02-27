@@ -1,6 +1,7 @@
 mod error;
 mod lower;
 mod target;
+mod topo;
 mod types;
 
 use std::{
@@ -18,8 +19,10 @@ use aranya_policy_ast::{
     StructItem, TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
-    ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Struct, Target, Value, ffi::ModuleSchema, named::NamedMap,
+    ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
+    Instruction, Label, LabelType, Meta, Module, Target,
+    ffi::{self, ModuleSchema},
+    named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt as _;
@@ -30,7 +33,11 @@ pub use self::{
     error::{CompileError, CompileErrorType, InvalidCallColor},
     target::PolicyInterface,
 };
-use self::{target::CompileTarget, types::IdentifierTypeStack};
+use self::{
+    target::CompileTarget,
+    topo::TopoSort,
+    types::{IdentifierTypeStack, UserType},
+};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -276,16 +283,12 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Insert a struct definition while preventing duplicates of the struct name and fields
+    /// Insert a struct definition while preventing duplicates of the struct fields.
     pub fn define_struct(
         &mut self,
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if self.m.struct_defs.contains_key(&identifier.name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
-        }
-
         let has_struct_refs = items
             .iter()
             .any(|item| matches!(item, StructItem::StructRef(_)));
@@ -303,6 +306,7 @@ impl<'a> CompileState<'a> {
                             field.identifier.to_string(),
                         )));
                     }
+
                     // TODO(eric): Use `Span::default()`?
                     if has_struct_refs {
                         field_definitions.push(FieldDefinition {
@@ -319,10 +323,14 @@ impl<'a> CompileState<'a> {
                         field_definitions.push(field.clone());
                     }
                 }
-                StructItem::StructRef(ident) => {
-                    let other =
-                        self.m.struct_defs.get(&ident.name).ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ident.to_string()))
+                StructItem::StructRef(field_type_ident) => {
+                    let other = self
+                        .m
+                        .interface
+                        .struct_defs
+                        .get(&field_type_ident.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
                         })?;
                     for field in other {
                         if field_definitions
@@ -349,7 +357,12 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        field_definitions
+            .iter()
+            .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
+
         self.m
+            .interface
             .struct_defs
             .insert(identifier.name, field_definitions);
         Ok(())
@@ -361,7 +374,7 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let enum_name = &enum_def.identifier;
         // ensure enum name is unique
-        if self.m.enum_defs.contains_key(&enum_name.name) {
+        if self.m.interface.enum_defs.contains_key(&enum_name.name) {
             return Err(self.err(CompileErrorType::AlreadyDefined(enum_name.name.to_string())));
         }
 
@@ -385,7 +398,10 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m.enum_defs.insert(enum_name.name.clone(), values);
+        self.m
+            .interface
+            .enum_defs
+            .insert(enum_name.name.clone(), values);
 
         Ok(())
     }
@@ -565,17 +581,17 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         match expression.kind {
             thir::ExprKind::Int(n) => {
-                self.append_instruction(Instruction::Const(Value::Int(n)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(n)));
             }
             thir::ExprKind::String(s) => {
-                self.append_instruction(Instruction::Const(Value::String(s)));
+                self.append_instruction(Instruction::Const(ConstValue::String(s)));
             }
             thir::ExprKind::Bool(b) => {
-                self.append_instruction(Instruction::Const(Value::Bool(b)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(b)));
             }
             thir::ExprKind::Optional(o) => match o {
                 None => {
-                    self.append_instruction(Instruction::Const(Value::NONE));
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
                 }
                 Some(v) => {
                     self.compile_typed_expression(*v)?;
@@ -593,7 +609,7 @@ impl<'a> CompileState<'a> {
                 thir::InternalFunction::Exists(f) => {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
-                    self.append_instruction(Instruction::Const(Value::NONE));
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
@@ -663,7 +679,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Get(i.name));
             }
             thir::ExprKind::EnumReference(e) => {
-                self.append_instruction(Instruction::Const(Value::Enum(
+                self.append_instruction(Instruction::Const(ConstValue::Enum(
                     e.identifier.name,
                     e.value,
                 )));
@@ -673,7 +689,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name) else {
+                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub
@@ -690,7 +706,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*lhs)?;
 
                 for field_name in field_names {
-                    self.append_instruction(Instruction::Const(Value::Identifier(field_name)));
+                    self.append_instruction(Instruction::Identifier(field_name));
                 }
 
                 if let Some(field_count) = NonZeroUsize::new(field_count) {
@@ -713,7 +729,7 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::Branch(Target::Unresolved(mid.clone())));
 
-                self.append_instruction(Instruction::Const(Value::Bool(false)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(false)));
                 self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
 
                 self.define_label(mid, self.wp)?;
@@ -734,7 +750,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
 
                 self.define_label(mid, self.wp)?;
-                self.append_instruction(Instruction::Const(Value::Bool(true)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(true)));
 
                 self.define_label(end, self.wp)?;
             }
@@ -787,7 +803,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*e)?;
 
                 // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::NONE));
+                self.append_instruction(Instruction::Const(ConstValue::NONE));
                 // Check if the value is equal to None
                 self.append_instruction(Instruction::Eq);
                 if expr_is_some {
@@ -811,10 +827,12 @@ impl<'a> CompileState<'a> {
 
     // Get an enum value from an enum reference expression
     fn enum_value(&self, e: &aranya_policy_ast::EnumReference) -> Result<i64, CompileError> {
-        let enum_def =
-            self.m.enum_defs.get(&e.identifier.name).ok_or_else(|| {
-                self.err(CompileErrorType::NotDefined(e.identifier.name.to_string()))
-            })?;
+        let enum_def = self
+            .m
+            .interface
+            .enum_defs
+            .get(&e.identifier.name)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.name.to_string())))?;
         let value = enum_def.get(&e.value.name).ok_or_else(|| {
             self.err(CompileErrorType::NotDefined(format!(
                 "{}::{}",
@@ -993,7 +1011,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Struct(name),
                 ..
             } => {
-                if name != "Envelope" && !self.m.struct_defs.contains_key(&name.name) {
+                if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
@@ -1001,7 +1019,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Enum(name),
                 ..
             } => {
-                if !self.m.enum_defs.contains_key(&name.name) {
+                if !self.m.interface.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
@@ -1078,6 +1096,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.m
+            .interface
             .action_defs
             .insert(ActionDef {
                 name: action_node.identifier.clone(),
@@ -1120,7 +1139,7 @@ impl<'a> CompileState<'a> {
         let value = self.expression_value(expression)?;
         let vt = value.vtype().expect("global let expression has weird type");
 
-        match self.m.globals.entry(identifier.name.clone()) {
+        match self.m.interface.globals.entry(identifier.name.clone()) {
             Entry::Vacant(e) => {
                 e.insert(value);
             }
@@ -1154,7 +1173,7 @@ impl<'a> CompileState<'a> {
         // Duplicate value for testing
         self.append_instruction(Instruction::Dup);
         // Push a None to compare against
-        self.append_instruction(Instruction::Const(Value::NONE));
+        self.append_instruction(Instruction::Const(ConstValue::NONE));
         // Is the value not equal to None?
         self.append_instruction(Instruction::Eq);
         self.append_instruction(Instruction::Not);
@@ -1216,13 +1235,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.seal.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the seal block
         let args = &[param::this(command.identifier.clone())];
         let ret = VType {
@@ -1261,13 +1273,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         span: Span,
     ) -> Result<(), CompileError> {
-        if command.open.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                span,
-            ));
-        }
-
         // fake a function def for the open block
         let args = &[param::envelope()];
         let ret = VType {
@@ -1395,9 +1400,14 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
-                    })?;
+                    let struct_def = self
+                        .m
+                        .interface
+                        .struct_defs
+                        .get(&ref_name.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                        })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1448,7 +1458,7 @@ impl<'a> CompileState<'a> {
             FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(limit)),
             FactCountType::AtLeast(_) => {
                 self.append_instruction(Instruction::FactCount(limit));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Lt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1456,7 +1466,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Gt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1464,7 +1474,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Eq);
             }
         }
@@ -1567,77 +1577,176 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn define_interfaces(&mut self) -> Result<(), CompileError> {
-        for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
-        }
+    fn sorted_type_definitions(
+        &self,
+    ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
+        // TODO(Steve): Use span information so a better error message can be created
+        let mut type_defs: HashMap<&Identifier, _> = HashMap::new();
+        let mut insert_type_def = |ident, def| {
+            // Check for duplicate type names.
+            // struct Foo { .. }
+            // effect Foo { .. }
+            if type_defs.insert(ident, def).is_some() {
+                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
+            }
 
-        for effect in &self.policy.effects {
-            let fields: Vec<StructItem<FieldDefinition>> = effect
-                .items
-                .iter()
-                .map(|i| match i {
-                    StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                        identifier: f.identifier.clone(),
-                        field_type: f.field_type.clone(),
-                    }),
-                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                })
-                .collect();
-            self.define_struct(effect.identifier.clone(), &fields)?;
-            self.m.effects.insert(effect.identifier.name.clone());
-        }
+            Ok(())
+        };
 
-        // define the structs provided by FFI schema
-        for ffi_mod in self.ffi_modules {
-            for s in ffi_mod.structs {
-                let fields: Vec<StructItem<FieldDefinition>> = s
-                    .fields
-                    .iter()
-                    .map(|a| {
-                        StructItem::Field(FieldDefinition {
-                            identifier: Ident {
-                                name: a.name.clone(),
-                                span: Span::default(),
-                            },
-                            field_type: VType::from(&a.vtype),
-                        })
-                    })
-                    .collect();
-                let ident = Ident {
-                    name: s.name.clone(),
-                    span: Span::default(),
-                };
-                self.define_struct(ident, &fields)?;
+        let mut topo = TopoSort::new();
+
+        fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
+            match item {
+                // { +Foo }
+                StructItem::StructRef(ident) => Some(&ident.name),
+                // { field_name struct Foo }
+                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
             }
         }
 
+        // Create dependency graph.
+        for struct_def in &self.policy.structs {
+            let deps = struct_def.items.iter().filter_map(extract_struct_ident);
+            let ident = &struct_def.identifier.name;
+
+            insert_type_def(ident, UserType::Struct(struct_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for effect_def in &self.policy.effects {
+            let deps = effect_def.items.iter().filter_map(|item| match item {
+                // { +Foo }
+                StructItem::StructRef(ident) => Some(&ident.name),
+                // { field_name struct Foo }
+                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
+            });
+            let ident = &effect_def.identifier.name;
+
+            insert_type_def(ident, UserType::Effect(effect_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for fact_def in &self.policy.facts {
+            let deps = fact_def
+                .fields()
+                .filter_map(|def| def.field_type.as_struct().map(|ident| &ident.name));
+            let ident = &fact_def.identifier.name;
+
+            insert_type_def(ident, UserType::Fact(fact_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for command_def in &self.policy.commands {
+            let deps = command_def.fields.iter().filter_map(extract_struct_ident);
+            let ident = &command_def.identifier.name;
+
+            insert_type_def(ident, UserType::Command(command_def))?;
+            topo.insert(ident, deps);
+        }
+
+        for ffi_mod in self.ffi_modules {
+            // Only define structs if they were imported.
+            if !self
+                .policy
+                .ffi_imports
+                .iter()
+                .any(|import| import.name == ffi_mod.name)
+            {
+                continue;
+            }
+            for ffi_struct_def in ffi_mod.structs {
+                let deps = ffi_struct_def
+                    .fields
+                    .iter()
+                    // struct field insertion is not implemented for FFI structs so we can't check for it
+                    .filter_map(|field| match field.vtype {
+                        ffi::Type::Struct(ref ident) => Some(ident),
+                        _ => None,
+                    });
+                let ident = &ffi_struct_def.name;
+
+                insert_type_def(ident, UserType::FFIStruct(ffi_struct_def))?;
+                topo.insert(ident, deps);
+            }
+        }
+
+        let sorted_idents = topo.sort().map_err(|err| self.err(err.into()))?;
+
+        let sorted_defs = sorted_idents
+            .into_iter()
+            .filter_map(move |ident| type_defs.remove(ident));
+        Ok(sorted_defs)
+    }
+
+    fn define_interfaces(&mut self) -> Result<(), CompileError> {
         // map enum names to constants
         for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
         }
 
-        for fact in &self.policy.facts {
-            let FactDefinition { key, value, .. } = fact;
+        // Compile user-defined types in order
+        for utype in self.sorted_type_definitions()? {
+            match utype {
+                UserType::Struct(struct_def) => {
+                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
+                }
+                UserType::Effect(effect) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = effect
+                        .items
+                        .iter()
+                        .map(|i| match i {
+                            StructItem::Field(f) => StructItem::Field(FieldDefinition {
+                                identifier: f.identifier.clone(),
+                                field_type: f.field_type.clone(),
+                            }),
+                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                        })
+                        .collect();
+                    self.define_struct(effect.identifier.clone(), &fields)?;
+                    self.m
+                        .interface
+                        .effects
+                        .insert(effect.identifier.name.clone());
+                }
+                UserType::Fact(fact) => {
+                    let fields: Vec<StructItem<FieldDefinition>> =
+                        fact.fields().cloned().map(StructItem::Field).collect();
 
-            let fields: Vec<StructItem<FieldDefinition>> = key
-                .iter()
-                .chain(value.iter())
-                .cloned()
-                .map(StructItem::Field)
-                .collect();
-
-            self.define_struct(fact.identifier.clone(), &fields)?;
-            self.define_fact(fact)?;
-        }
-
-        // Define command structs before compiling functions
-        for command in &self.policy.commands {
-            self.define_struct(command.identifier.clone(), &command.fields)?;
+                    self.define_struct(fact.identifier.clone(), &fields)?;
+                    self.define_fact(fact)?;
+                }
+                UserType::Command(command) => {
+                    self.define_struct(command.identifier.clone(), &command.fields)?;
+                }
+                UserType::FFIStruct(s) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = s
+                        .fields
+                        .iter()
+                        .map(|a| {
+                            StructItem::Field(FieldDefinition {
+                                identifier: Ident {
+                                    name: a.name.clone(),
+                                    span: Span::default(),
+                                },
+                                field_type: VType::from(&a.vtype),
+                            })
+                        })
+                        .collect();
+                    let ident = Ident {
+                        name: s.name.clone(),
+                        span: Span::default(),
+                    };
+                    self.define_struct(ident, &fields)?;
+                }
+            }
         }
 
         for action in &self.policy.actions {
             self.define_action(action)?;
+        }
+
+        for global_let in &self.policy.global_lets {
+            self.compile_global_let(global_let)?;
         }
 
         debug_assert!(self.m.progmem.is_empty(), "{:?}", self.m.progmem);
@@ -1651,11 +1760,6 @@ impl<'a> CompileState<'a> {
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        // Compile global let statements
-        for global_let in &self.policy.global_lets {
-            self.compile_global_let(global_let)?;
-        }
 
         self.define_builtins()?;
 
@@ -1698,14 +1802,18 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Get expression value, e.g. ExprKind::Int => Value::Int
-    fn expression_value(&self, e: &Expression) -> Result<Value, CompileError> {
+    /// Get expression value, e.g. ExprKind::Int => ConstValue::Int
+    fn expression_value(&self, e: &Expression) -> Result<ConstValue, CompileError> {
         match &e.kind {
-            ExprKind::Int(v) => Ok(Value::Int(*v)),
-            ExprKind::Bool(v) => Ok(Value::Bool(*v)),
-            ExprKind::String(v) => Ok(Value::String(v.clone())),
+            ExprKind::Int(v) => Ok(ConstValue::Int(*v)),
+            ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
+            ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name).cloned()
+                let Some(struct_def) = self
+                    .m
+                    .interface
+                    .struct_defs
+                    .get(&struct_ast.identifier.name)
                 else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
@@ -1713,13 +1821,13 @@ impl<'a> CompileState<'a> {
                     ))));
                 };
 
-                let struct_ast = self.evaluate_sources(struct_ast, &struct_def)?;
+                let struct_ast = self.evaluate_sources(struct_ast, struct_def)?;
 
                 let NamedStruct {
                     identifier, fields, ..
                 } = struct_ast.as_ref();
 
-                Ok(Value::Struct(Struct {
+                Ok(ConstValue::Struct(ConstStruct {
                     name: identifier.name.clone(),
                     fields: {
                         let mut value_fields = BTreeMap::new();
@@ -1732,15 +1840,16 @@ impl<'a> CompileState<'a> {
             }
             ExprKind::EnumReference(e) => {
                 let value = self.enum_value(e)?;
-                Ok(Value::Enum(e.identifier.name.clone(), value))
+                Ok(ConstValue::Enum(e.identifier.name.clone(), value))
             }
             ExprKind::Dot(expr, field_ident) => match &expr.kind {
                 ExprKind::Identifier(struct_ident) => self
                     .m
+                    .interface
                     .globals
                     .get(&struct_ident.name)
                     .and_then(|val| match val {
-                        Value::Struct(Struct { fields, .. }) => {
+                        ConstValue::Struct(ConstStruct { fields, .. }) => {
                             fields.get(&field_ident.name).cloned()
                         }
                         _ => None,
@@ -1789,6 +1898,7 @@ impl<'a> CompileState<'a> {
             })?;
             let src_field_defns = self
                 .m
+                .interface
                 .struct_defs
                 .get(&src_struct_type_name.name)
                 .assume("identifier with a struct type has that struct already defined")
@@ -1980,7 +2090,7 @@ impl<'a> Compiler<'a> {
     pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
-        Ok(cs.m.into())
+        Ok(cs.m.interface)
     }
 
     fn set_up_compile_state(&self) -> CompileState<'_> {

@@ -62,17 +62,17 @@ use crate::{
 /// }
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
-/// let (mut eng, _) = E::from_entropy(Rng);
-/// let parent_cmd_id = CmdId::random(&mut eng);
-/// let label_id = LabelId::random(&mut eng);
+/// let (eng, _) = E::from_entropy(Rng);
+/// let parent_cmd_id = CmdId::random(&eng);
+/// let label_id = LabelId::random(&eng);
 ///
-/// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+/// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
+/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&eng)
 ///     .id()
 ///     .expect("device1 ID should be valid");
 ///
-/// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng)
+/// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
+/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&eng)
 ///     .id()
 ///     .expect("device2 ID should be valid");
 ///
@@ -89,7 +89,7 @@ use crate::{
 ///     label_id,
 /// };
 /// let UniSecrets { author, peer } =
-///     UniSecrets::new(&mut eng, &device1_ch).expect("unable to create `UniSecrets`");
+///     UniSecrets::new(&eng, &device1_ch).expect("unable to create `UniSecrets`");
 /// let mut device1 = key_from_author(&device1_ch, author);
 ///
 /// // ...and device2 decrypts the encapsulation to discover the
@@ -112,7 +112,7 @@ use crate::{
 ///
 ///     let version = 4;
 ///     type E = DefaultEngine<Rng, DefaultCipherSuite>;
-///     let label_id = LabelId::random(&mut Rng);
+///     let label_id = LabelId::random(Rng);
 ///
 ///     let (ciphertext, seq) = {
 ///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
@@ -251,7 +251,7 @@ pub struct UniSecrets<CS: CipherSuite> {
 impl<CS: CipherSuite> UniSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// unidirectional channel.
-    pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
+    pub fn new<E: Engine<CS = CS>>(eng: &E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_sk = ch.our_sk;
         let peer_pk = ch.their_pk;

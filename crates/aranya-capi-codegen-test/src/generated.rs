@@ -61,6 +61,16 @@ pub enum PrefixError {
     #[capi(msg = "invalid argument")]
     InvalidArg,
 }
+#[repr(C)]
+#[deprecated(note = "struct is deprecated")]
+#[cfg(cbindgen)]
+pub struct PrefixTestDeprecatedStruct {
+    #[deprecated(note = "field is deprecated")]
+    bar: ::core::primitive::u8,
+}
+#[deprecated(note = "struct is deprecated")]
+#[cfg(not(cbindgen))]
+pub type PrefixTestDeprecatedStruct = self::__hidden::PrefixTestDeprecatedStruct;
 #[repr(transparent)]
 #[cfg(feature = "test_cfg")]
 #[cfg(cbindgen)]
@@ -76,6 +86,28 @@ pub struct PrefixTestConfigInheritance2(::core::primitive::u8);
 #[cfg(not(cbindgen))]
 pub type PrefixTestConfigInheritance2 = self::__hidden::PrefixTestConfigInheritance2;
 #[unsafe(no_mangle)]
+#[deprecated(note = "func is deprecated")]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_deprecated_func() {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    match { __tramp_prefix_test_deprecated_func() } {
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_deprecated_func() -> () {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
+    match { crate::defs::test_deprecated_func() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
+    }
+}
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit0() {
@@ -89,6 +121,7 @@ pub extern "C" fn prefix_test_unit_unit0() {
 fn __tramp_prefix_test_unit_unit0() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_unit0() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -109,6 +142,7 @@ pub extern "C" fn prefix_test_unit_unit1() -> () {
 fn __tramp_prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_unit1() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -169,6 +203,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
 > {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_result_unit_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -191,6 +226,7 @@ pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
 fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -215,6 +251,7 @@ pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
 fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u16_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -239,6 +276,7 @@ pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
 fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -263,6 +301,7 @@ pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
 fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u64_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -287,6 +326,7 @@ pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
 fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_usize_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -309,6 +349,7 @@ pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
 fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -333,6 +374,7 @@ pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
 fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i16_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -357,6 +399,7 @@ pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
 fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -381,6 +424,7 @@ pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
 fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i64_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -405,6 +449,7 @@ pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
 fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_isize_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -427,6 +472,7 @@ pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primit
 fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u8_u8(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -451,6 +497,7 @@ pub extern "C" fn prefix_test_u16_u16(
 fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive::u16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u16_u16(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -475,6 +522,7 @@ pub extern "C" fn prefix_test_u32_u32(
 fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u32_u32(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -499,6 +547,7 @@ pub extern "C" fn prefix_test_u64_u64(
 fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive::u64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u64_u64(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -527,6 +576,7 @@ fn __tramp_prefix_test_usize_usize(
 ) -> ::core::primitive::usize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_usize_usize(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -549,6 +599,7 @@ pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primit
 fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i8_i8(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -573,6 +624,7 @@ pub extern "C" fn prefix_test_i16_i16(
 fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive::i16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i16_i16(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -597,6 +649,7 @@ pub extern "C" fn prefix_test_i32_i32(
 fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive::i32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i32_i32(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -621,6 +674,7 @@ pub extern "C" fn prefix_test_i64_i64(
 fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive::i64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i64_i64(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -649,6 +703,7 @@ fn __tramp_prefix_test_isize_isize(
 ) -> ::core::primitive::isize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_isize_isize(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -680,6 +735,7 @@ fn __tramp_prefix_test_u8_u8_u8(
 ) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u8_u8_u8(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -711,6 +767,7 @@ fn __tramp_prefix_test_u16_u16_u16(
 ) -> ::core::primitive::u16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u16_u16_u16(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -742,6 +799,7 @@ fn __tramp_prefix_test_u32_u32_u32(
 ) -> ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u32_u32_u32(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -773,6 +831,7 @@ fn __tramp_prefix_test_u64_u64_u64(
 ) -> ::core::primitive::u64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_u64_u64_u64(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -804,6 +863,7 @@ fn __tramp_prefix_test_usize_usize_usize(
 ) -> ::core::primitive::usize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_usize_usize_usize(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -835,6 +895,7 @@ fn __tramp_prefix_test_i8_i8_i8(
 ) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i8_i8_i8(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -866,6 +927,7 @@ fn __tramp_prefix_test_i16_i16_i16(
 ) -> ::core::primitive::i16 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i16_i16_i16(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -897,6 +959,7 @@ fn __tramp_prefix_test_i32_i32_i32(
 ) -> ::core::primitive::i32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i32_i32_i32(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -928,6 +991,7 @@ fn __tramp_prefix_test_i64_i64_i64(
 ) -> ::core::primitive::i64 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_i64_i64_i64(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -959,6 +1023,7 @@ fn __tramp_prefix_test_isize_isize_isize(
 ) -> ::core::primitive::isize {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_isize_isize_isize(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1035,6 +1100,7 @@ fn __tramp_prefix_test_enum_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_enum_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1055,6 +1121,7 @@ pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
 fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_enum() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1150,6 +1217,7 @@ fn __tramp_prefix_test_enum_enum(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_enum_enum(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1269,6 +1337,7 @@ fn __tramp_prefix_test_enum_result_enum_error(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_enum_result_enum_error(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1305,6 +1374,7 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
     let _a: _ = __capi::to_inner!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1325,6 +1395,7 @@ pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
 fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_struct() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1407,6 +1478,7 @@ fn __tramp_prefix_test_ref_struct_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ref_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1436,6 +1508,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
     let _a: *const _ = __capi::to_inner_ptr!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ptr_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1462,6 +1535,7 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     let a: _ = __capi::to_inner!(a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_struct_struct(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1567,6 +1641,7 @@ fn __tramp_prefix_test_unit_result_struct_error(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_result_struct_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1658,6 +1733,7 @@ fn __tramp_prefix_test_optional_ref_struct(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_optional_ref_struct(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1739,6 +1815,7 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_optional_mut_ref_struct(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1820,6 +1897,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ref_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1849,6 +1927,7 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
     let _a: *const _ = __capi::to_inner_ptr!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ptr_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -1951,6 +2030,7 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_unit_result_safestruct_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2042,6 +2122,7 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ownedptr_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2123,6 +2204,7 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ownedptr_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2204,6 +2286,7 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ownedptr_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2235,6 +2318,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
 ) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2266,6 +2350,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
 ) -> *const *const *const *const ::core::primitive::u32 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2353,6 +2438,7 @@ fn __tramp_prefix_test_slice_u8_unit(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_slice_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2428,6 +2514,7 @@ fn __tramp_prefix_test_ref_arr_u8_unit(
     let _a: &[u8; 64] = __capi::try_as_ref!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ref_arr_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2519,6 +2606,7 @@ fn __tramp_prefix_test_ref_arr_u8_ret(
     };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_ref_arr_u8_ret(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2597,6 +2685,7 @@ fn __tramp_prefix_test_mut_ref_arr_u8_unit(
     let _a: &mut [u8; 64] = __capi::try_as_mut!(_a);
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_mut_ref_arr_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2656,6 +2745,7 @@ fn __tramp_prefix_ext_error_init(
     );
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { self::ext_error_init(out) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2719,6 +2809,7 @@ fn __tramp_prefix_ext_error_cleanup(
     );
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { self::ext_error_cleanup(ptr) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2754,6 +2845,7 @@ pub extern "C" fn prefix_test_cfg_inheritance() {
 fn __tramp_prefix_test_cfg_inheritance() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_cfg_inheritance() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2776,6 +2868,7 @@ pub extern "C" fn prefix_test_cfg_inheritance2() {
 fn __tramp_prefix_test_cfg_inheritance2() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(clippy::semicolon_if_nothing_returned)] #[allow(unused_braces)]
+    #[allow(deprecated)]
     match { crate::defs::test_cfg_inheritance2() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
@@ -2786,6 +2879,7 @@ fn __tramp_prefix_test_cfg_inheritance2() -> () {
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PrefixEnum(::core::primitive::u8);
+#[allow(deprecated)]
 mod __hidden {
     #[allow(clippy::wildcard_imports)]
     use super::*;
@@ -3295,6 +3389,156 @@ mod __hidden {
                 Self::from_underlying(other)
             }
         }
+    };
+    #[cfg(not(cbindgen))]
+    pub type PrefixTestDeprecatedStruct = __PrefixTestDeprecatedStructFfiWrapper<
+        crate::defs::TestDeprecatedStruct,
+        ::core::primitive::u8,
+    >;
+    #[repr(transparent)]
+    #[derive(Debug)]
+    #[cfg(not(cbindgen))]
+    pub struct __PrefixTestDeprecatedStructFfiWrapper<Inner, _0> {
+        pub inner: Inner,
+        _0: ::core::marker::PhantomData<_0>,
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> __capi::InitDefault
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        Inner: __capi::InitDefault,
+    {
+        fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
+            <Inner as __capi::InitDefault>::init_default(unsafe {
+                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                    .cast::<::core::mem::MaybeUninit<Inner>>()
+            });
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> ::core::marker::Copy
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> ::core::clone::Clone
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        Inner: ::core::clone::Clone,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                inner: ::core::clone::Clone::clone(&self.inner),
+                _0: ::core::marker::PhantomData,
+            }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> ::core::ops::Deref
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0> {
+        type Target = Inner;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> ::core::ops::DerefMut
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> __capi::Builder for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        Inner: __capi::Builder,
+    {
+        type Output = <Inner as __capi::Builder>::Output;
+        type Error = <Inner as __capi::Builder>::Error;
+        unsafe fn build(
+            self,
+            out: &mut ::core::mem::MaybeUninit<Self::Output>,
+        ) -> ::core::result::Result<(), Self::Error> {
+            unsafe { __capi::Builder::build(self.inner, out) }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    unsafe impl<_0> __capi::internal::conv::newtype::NewType
+    for __PrefixTestDeprecatedStructFfiWrapper<crate::defs::TestDeprecatedStruct, _0> {
+        type Inner = crate::defs::TestDeprecatedStruct;
+    }
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    impl<Inner, _0> __capi::types::Opaque
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        Inner: __capi::types::Opaque,
+    {}
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner, _0> __capi::types::Input
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        _0: __capi::types::Input,
+    {}
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner, _0> __capi::types::ByValue
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        Inner: ::core::marker::Copy,
+        _0: __capi::types::ByValue,
+    {}
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner, _0> __capi::types::ByConstPtr
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        _0: __capi::types::ByConstPtr,
+    {}
+    #[automatically_derived]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner, _0> __capi::types::ByMutPtr
+    for __PrefixTestDeprecatedStructFfiWrapper<Inner, _0>
+    where
+        _0: __capi::types::ByMutPtr,
+    {}
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::size_of::<PrefixTestDeprecatedStruct>();
+        const WANT: usize = ::core::mem::size_of::<crate::defs::TestDeprecatedStruct>();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid size: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::align_of::<PrefixTestDeprecatedStruct>();
+        const WANT: usize = ::core::mem::align_of::<crate::defs::TestDeprecatedStruct>();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid alignment: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: bool = ::core::mem::needs_drop::<PrefixTestDeprecatedStruct>();
+        const WANT: bool = ::core::mem::needs_drop::<
+            crate::defs::TestDeprecatedStruct,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid `Drop` impl: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
     };
     #[cfg(feature = "test_cfg")]
     #[cfg(not(cbindgen))]

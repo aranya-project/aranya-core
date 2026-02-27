@@ -7,7 +7,7 @@
 //!
 //! ```
 //! use aranya_runtime::{
-//!     storage::memory::MemStorageProvider,
+//!     storage::linear::testing::MemStorageProvider,
 //!     testing::dsl::{StorageBackend, test_suite},
 //! };
 //!
@@ -16,7 +16,7 @@
 //!     type StorageProvider = MemStorageProvider;
 //!
 //!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-//!         MemStorageProvider::new()
+//!         MemStorageProvider::default()
 //!     }
 //! }
 //! test_suite!(|| MemBackend);
@@ -27,7 +27,7 @@
 //!
 //! ```
 //! use aranya_runtime::{
-//!     storage::memory::MemStorageProvider,
+//!     storage::linear::testing::MemStorageProvider,
 //!     testing::dsl::{StorageBackend, vectors},
 //! };
 //!
@@ -36,7 +36,7 @@
 //!     type StorageProvider = MemStorageProvider;
 //!
 //!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-//!         MemStorageProvider::new()
+//!         MemStorageProvider::default()
 //!     }
 //! }
 //! vectors::run_all(|| MemBackend).unwrap();
@@ -58,9 +58,9 @@ use core::{
     iter,
 };
 #[cfg(any(test, feature = "std"))]
-use std::{env, fs, time::Instant};
+use std::{env, fs};
 
-use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -69,6 +69,7 @@ use crate::{
     Address, ClientError, ClientState, CmdId, Command as _, GraphId, Location,
     MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -95,7 +96,8 @@ pub fn dispatch(
     let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
         SyncType::Poll { request } => {
-            let mut response_syncer = SyncResponder::new();
+            let mut buffers = TraversalBuffers::new();
+            let mut response_syncer = SyncResponder::new(&mut buffers);
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache)?
@@ -357,7 +359,7 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = &mut Rng as &mut dyn Csprng;
+    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -520,8 +522,24 @@ where
     #[cfg(any(test, feature = "std"))]
     if let Ok(dump_path) = env::var("DUMP_GENERATED_RULES") {
         let json = serde_json::to_string_pretty(&actions).unwrap();
-        fs::write(&dump_path, json).unwrap();
-        debug!("Dumped generated rules to {}", dump_path);
+        // If path is relative and doesn't start with ./, save to testdata directory
+        let final_path = if dump_path.starts_with('/') || dump_path.starts_with("./") {
+            // Absolute or explicit relative path, use as-is
+            dump_path
+        } else {
+            // Relative path, save to testdata directory
+            let testdata_dir = format!("{}/src/testing/testdata", env!("CARGO_MANIFEST_DIR"));
+            // Create testdata directory if it doesn't exist
+            fs::create_dir_all(&testdata_dir).unwrap();
+            format!("{}/{}", testdata_dir, dump_path)
+        };
+        fs::write(&final_path, json).unwrap();
+        eprintln!(
+            "[DUMP] Dumped {} generated rules to {}",
+            actions.len(),
+            final_path
+        );
+        debug!("Dumped generated rules to {}", final_path);
     }
 
     let mut graphs = BTreeMap::new();
@@ -531,12 +549,10 @@ where
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
+    let mut buffers = TraversalBuffers::new();
 
     for rule in actions {
         debug!(?rule);
-
-        #[cfg(any(test, feature = "std"))]
-        let start = Instant::now();
 
         match rule {
             TestRule::AddClient { id } => {
@@ -604,11 +620,10 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
+
                     let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
-                        &mut request_cache,
-                        &mut response_cache,
-                        &mut request_client,
-                        &mut response_client,
+                        (&mut request_cache, &mut request_client),
+                        (&mut response_cache, &mut response_client),
                         &mut sink,
                         *graph_id,
                     )?;
@@ -675,7 +690,7 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                print_graph(storage, head)?;
+                print_graph(storage, head, &mut buffers.primary)?;
             }
 
             TestRule::CompareGraphs {
@@ -704,9 +719,9 @@ where
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a)?;
+                    let cmds_a = print_graph(storage_a, head_a, &mut buffers.primary)?;
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b)?;
+                    let cmds_b = print_graph(storage_b, head_b, &mut buffers.primary)?;
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -738,7 +753,7 @@ where
                 assert_eq!(max_cut, head.max_cut);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
-            TestRule::VerifyGraphIds { client, ref ids } => {
+            TestRule::VerifyGraphIds { client, ids } => {
                 let mut state = clients
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
@@ -756,13 +771,6 @@ where
                 assert_eq!(actual_ids, expected_ids);
             }
             _ => {}
-        }
-        #[cfg(any(test, feature = "std"))]
-        if false {
-            {
-                let duration = start.elapsed();
-                debug!("Time elapsed in rule {:?} is: {:?}", rule, duration);
-            }
         }
     }
 
@@ -924,14 +932,13 @@ where
 }
 
 fn sync<SP: StorageProvider>(
-    request_cache: &mut PeerCache,
-    response_cache: &mut PeerCache,
-    request_state: &mut ClientState<TestPolicyStore, SP>,
-    response_state: &mut ClientState<TestPolicyStore, SP>,
+    (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
     graph_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(graph_id, &mut Rng);
+    let mut buffers = TraversalBuffers::new();
+    let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(graph_id);
@@ -954,7 +961,7 @@ fn sync<SP: StorageProvider>(
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received = request_state.add_commands(&mut request_trx, sink, cmds)?;
-        request_state.commit(&mut request_trx, sink)?;
+        request_state.commit(request_trx, sink)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
@@ -979,7 +986,11 @@ impl Display for Parent {
     }
 }
 
-pub fn print_graph<S>(storage: &S, location: Location) -> Result<BTreeSet<CmdId>, StorageError>
+pub fn print_graph<S>(
+    storage: &S,
+    location: Location,
+    buffers: &mut TraversalBuffer,
+) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
 {
@@ -1001,7 +1012,7 @@ where
                 "id: {} location {:?} max_cut: {} parent: {}",
                 short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?)?
+                    .get_location(command.address()?, buffers)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())
@@ -1125,11 +1136,12 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    exponential_traversal_regression,
+    find_needed_segments_queue_max,
     four_seventy_three_failure,
     large_sync,
     list_multiple_graph_ids,
     many_branches,
-    many_clients,
     max_cut,
     missing_parent_after_sync,
     remove_graph,

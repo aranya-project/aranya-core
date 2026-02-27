@@ -67,7 +67,7 @@ macro_rules! kem_with_oid {
             type Encap = <$inner as $crate::dangerous::spideroak_crypto::kem::Kem>::Encap;
 
             fn encap<R: $crate::dangerous::spideroak_crypto::csprng::Csprng>(
-                rng: &mut R,
+                rng: R,
                 pkR: &Self::EncapKey,
             ) -> Result<(Self::Secret, Self::Encap), $crate::dangerous::spideroak_crypto::kem::KemError> {
                 <$inner as $crate::dangerous::spideroak_crypto::kem::Kem>::encap(rng, pkR)
@@ -88,7 +88,7 @@ macro_rules! kem_with_oid {
             }
 
             fn auth_encap<R: $crate::dangerous::spideroak_crypto::csprng::Csprng>(
-                rng: &mut R,
+                rng: R,
                 pkR: &Self::EncapKey,
                 skS: &Self::DecapKey,
             ) -> Result<(Self::Secret, Self::Encap), $crate::dangerous::spideroak_crypto::kem::KemError> {

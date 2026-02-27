@@ -27,7 +27,7 @@
 //! let (eng, _) = DefaultEngine::from_entropy(Rng);
 //! // Create a list of FFI module implementations
 //! let ffi_modules = vec![Box::from(TestFfiEnvelope {
-//!     device: DeviceId::random(&mut Rng),
+//!     device: DeviceId::random(Rng),
 //! })];
 //! // And finally, create the VmPolicy
 //! let policy = VmPolicy::new(machine, eng, ffi_modules).unwrap();
@@ -121,12 +121,11 @@ use core::fmt;
 
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
+    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
     ast::{Identifier, Persistence},
 };
 use buggy::{BugExt as _, bug};
-use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
@@ -194,7 +193,7 @@ macro_rules! vm_effect {
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<CE> {
     machine: Machine,
-    engine: Mutex<CE>,
+    engine: CE,
     ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
@@ -209,7 +208,7 @@ impl<CE> VmPolicy<CE> {
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
-            engine: Mutex::new(engine),
+            engine,
             ffis,
             priority_map,
         })
@@ -261,7 +260,7 @@ impl PriorityAttrs {
         let init = attrs
             .get("init")
             .map(|attr| match attr.value {
-                Value::Bool(b) => Ok(b),
+                ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name,
                     "finalize",
@@ -274,7 +273,7 @@ impl PriorityAttrs {
         let finalize = attrs
             .get("finalize")
             .map(|attr| match attr.value {
-                Value::Bool(b) => Ok(b),
+                ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name,
                     "finalize",
@@ -287,7 +286,7 @@ impl PriorityAttrs {
         let priority: Option<u32> = attrs
             .get("priority")
             .map(|attr| match attr.value {
-                Value::Int(b) => b.try_into().map_err(|_| {
+                ConstValue::Int(b) => b.try_into().map_err(|_| {
                     AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
                 }),
                 _ => Err(AttributeError::type_mismatch(
