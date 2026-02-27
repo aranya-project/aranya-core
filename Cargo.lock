@@ -478,6 +478,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-policy-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aranya-afc-util",
+ "aranya-crypto",
+ "aranya-crypto-ffi",
+ "aranya-device-ffi",
+ "aranya-envelope-ffi",
+ "aranya-idam-ffi",
+ "aranya-perspective-ffi",
+ "aranya-policy-compiler",
+ "aranya-policy-ifgen",
+ "aranya-policy-ifgen-build",
+ "aranya-policy-lang",
+ "aranya-policy-vm",
+ "aranya-runtime",
+ "clap",
+ "postcard",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 2.0.7",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "aranya-policy-text"
 version = "0.1.4"
 dependencies = [
