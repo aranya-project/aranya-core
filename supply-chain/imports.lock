@@ -36,12 +36,6 @@ user-id = 6743
 user-login = "epage"
 user-name = "Ed Page"
 
-[[publisher.aranya-bearssl-sys]]
-version = "0.1.0"
-when = "2024-10-15"
-user-id = 293722
-user-login = "aranya-project-bot"
-
 [[publisher.buggy]]
 version = "0.1.0"
 when = "2025-01-24"
