@@ -16,7 +16,7 @@ use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester, TraversalBuffers,
+    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
     policy::Sink,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
@@ -66,8 +66,7 @@ async fn sync_peer<PS, SP, S>(
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let mut buffers = TraversalBuffers::new();
-    let sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
+    let sync_requester = SyncRequester::new(graph_id, Rng);
     let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
     match fut.await {
         Ok(_) => {}
@@ -156,6 +155,7 @@ async fn run(options: Opt) -> Result<()> {
         )
         .await;
     }
+
     for i in 1..6 {
         // The creator will send a message which will be read by the peer
         if options.new_graph {

@@ -580,20 +580,25 @@ fn test_sync<PS, P, S>(
     cs1: &mut ClientState<PS, P>,
     cs2: &mut ClientState<PS, P>,
     sink: &mut S,
+    buffers: &mut TraversalBuffers,
 ) where
     P: StorageProvider,
     PS: PolicyStore,
     S: Sink<<PS>::Effect>,
 {
-    let mut buffers = TraversalBuffers::new();
-    let mut sync_requester = SyncRequester::new(graph_id, Rng, &mut buffers);
+    let mut sync_requester = SyncRequester::new(graph_id, Rng);
 
     let mut req_transaction = cs1.transaction(graph_id);
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = sync_requester
-            .poll(&mut buffer, cs2.provider(), &mut PeerCache::new())
+            .poll(
+                &mut buffer,
+                cs2.provider(),
+                &mut PeerCache::new(),
+                &mut buffers.primary,
+            )
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -602,16 +607,18 @@ fn test_sync<PS, P, S>(
             &mut target,
             cs1.provider(),
             &mut PeerCache::new(),
+            buffers,
         )
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds)
+            cs2.add_commands(&mut req_transaction, sink, &cmds, &mut buffers.primary)
                 .expect("add commands");
         }
     }
 
-    cs2.commit(req_transaction, sink).expect("commit");
+    cs2.commit(req_transaction, sink, &mut buffers.primary)
+        .expect("commit");
 }
 
 /// Tests the command ID and recall status in emitted `VmEffect`s.
@@ -622,6 +629,8 @@ pub fn test_effect_metadata(
     policy_store_1: TestPolicyStore,
     policy_store_2: TestPolicyStore,
 ) -> Result<(), VmPolicyError> {
+    let mut buffers = TraversalBuffers::new();
+
     // create client 1 and initialize it with a nonce of 1
     let provider = MemStorageProvider::default();
     let mut cs1 = ClientState::new(policy_store_1, provider);
@@ -641,7 +650,7 @@ pub fn test_effect_metadata(
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::default();
     let mut cs2 = ClientState::new(policy_store_2, provider);
-    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut buffers);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
 
@@ -664,7 +673,7 @@ pub fn test_effect_metadata(
     // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
     // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
     // check will fail, and recall will be executed. This produces an OutOfRange effect.
-    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut buffers);
     assert_eq!(
         sink.last(),
         &vm_effect!(OutOfRange {
