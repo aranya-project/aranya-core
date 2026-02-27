@@ -13,18 +13,18 @@ Module {
     struct_defs: {
         "Bar": [
             FieldDefinition {
-                identifier: "s" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "s" @ 185..186,
+                field_type: String @ 187..193,
             },
             FieldDefinition {
-                identifier: "num" @ 0..0,
-                field_type: Int @ 0..0,
+                identifier: "num" @ 148..151,
+                field_type: Int @ 152..155,
             },
             FieldDefinition {
-                identifier: "f" @ 0..0,
+                identifier: "f" @ 157..158,
                 field_type: Struct(
                     "Fum" @ 166..169,
-                ) @ 0..0,
+                ) @ 159..169,
             },
         ],
         "Foo": [

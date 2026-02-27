@@ -2,5 +2,11 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid statement in pure function context at line 3 col 5:
-	action bar()
+error: invalid statement
+  |
+2 | function foo() int {
+3 |     action bar()
+  |     ^^^^^^^^^^^^ statement doesn't make sense in pure function context
+4 |     return 0
+5 | }
+  |

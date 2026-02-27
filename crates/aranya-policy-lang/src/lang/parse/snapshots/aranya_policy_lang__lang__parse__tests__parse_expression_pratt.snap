@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
-assertion_line: 167
 expression: expr_parsed
 ---
 Unwrap(
@@ -14,10 +13,16 @@ Unwrap(
                             identifier: "add" @ 19..22,
                             arguments: [
                                 Int(
-                                    3,
+                                    IntLiteral {
+                                        value: 3,
+                                        span: 23..24,
+                                    },
                                 ) @ 23..24,
                                 Int(
-                                    7,
+                                    IntLiteral {
+                                        value: 7,
+                                        span: 26..27,
+                                    },
                                 ) @ 26..27,
                             ],
                         },
@@ -28,7 +33,10 @@ Unwrap(
                         identifier: "saturating_sub" @ 30..44,
                         arguments: [
                             Int(
-                                0,
+                                IntLiteral {
+                                    value: 0,
+                                    span: 45..46,
+                                },
                             ) @ 45..46,
                             Identifier(
                                 "b" @ 48..49,

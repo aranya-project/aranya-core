@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Cannot emit `int`, must be an effect struct at line 6 col 13:
-	emit 0
+error: invalid type: int
+  |
+6 |             emit 0
+  |                  ^ expected `struct T` but found `int`

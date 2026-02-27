@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: duplicate match arm value at line 4 col 9:
-	Ok(v)
+error: duplicate match patterns found
+  |
+3 |         Ok(v) => v
+  |         ^^^^^ duplicate pattern
+4 |         Ok(v) => v
+  |         ----- first defined here

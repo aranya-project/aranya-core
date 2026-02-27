@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: Drink at line 2 col 5:
-	let n = Drink::Coffee
+error: a thing being referenced is not in scope
+  |
+2 |     let n = Drink::Coffee
+  |             ^^^^^ enum `Drink` not defined

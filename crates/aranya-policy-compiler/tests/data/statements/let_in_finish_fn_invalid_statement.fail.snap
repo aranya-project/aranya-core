@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid statement in finish block/function context at line 2 col 5:
-	let x = 3
+error: invalid statement
+  |
+1 |   finish function foo() {
+2 | /     let x = 3
+3 | | }
+  | |_^ statement doesn't make sense in finish block/function context

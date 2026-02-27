@@ -1,6 +1,6 @@
 use crate::{
-    EnumReference, ExprKind, Expression, Ident, NamedStruct, ResultTypeKind, TypeKind, VType,
-    WithSpanExt as _, ident,
+    EnumReference, ExprKind, Expression, Ident, IntLiteral, NamedStruct, ResultTypeKind, Span,
+    TypeKind, VType, WithSpanExt as _, ident,
 };
 
 // Helper functions to reduce boilerplate
@@ -10,10 +10,12 @@ fn enum_ref(identifier: Ident, value: Ident) -> ExprKind {
 }
 
 fn named_struct(name: Ident, fields: impl IntoIterator<Item = (Ident, Expression)>) -> ExprKind {
+    let span = name.span;
     ExprKind::NamedStruct(NamedStruct {
         identifier: name,
         fields: fields.into_iter().collect(),
         sources: Vec::new(),
+        span,
     })
 }
 
@@ -55,11 +57,11 @@ fn test_expr_matches_named_struct() {
     // Two identical NamedStruct expressions with different spans should match
     let struct1 = named_struct(
         ident!("MyStruct").at(0..8),
-        [(ident!("field").at(9..14), ExprKind::Int(42).at(16..18))],
+        [(ident!("field").at(9..14), ExprKind::Int(IntLiteral::new(42, Span::empty())).at(16..18))],
     );
     let struct2 = named_struct(
         ident!("MyStruct").at(100..108),
-        [(ident!("field").at(109..114), ExprKind::Int(42).at(116..118))],
+        [(ident!("field").at(109..114), ExprKind::Int(IntLiteral::new(42, Span::empty())).at(116..118))],
     );
 
     assert!(
@@ -85,14 +87,14 @@ fn test_expr_matches_result_with_struct() {
     let ok1 = ok_expr(
         named_struct(
             ident!("MyStruct").at(3..11),
-            [(ident!("field").at(14..19), ExprKind::Int(42).at(21..23))],
+            [(ident!("field").at(14..19), ExprKind::Int(IntLiteral::new(42, Span::empty())).at(21..23))],
         )
         .at(3..24),
     );
     let ok2 = ok_expr(
         named_struct(
             ident!("MyStruct").at(200..208),
-            [(ident!("field").at(211..216), ExprKind::Int(42).at(218..220))],
+            [(ident!("field").at(211..216), ExprKind::Int(IntLiteral::new(42, Span::empty())).at(218..220))],
         )
         .at(200..221),
     );

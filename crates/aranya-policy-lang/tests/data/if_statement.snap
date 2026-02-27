@@ -17,13 +17,19 @@ Policy {
                         branches: [
                             (
                                 Int(
-                                    0,
+                                    IntLiteral {
+                                        value: 0,
+                                        span: 23..24,
+                                    },
                                 ) @ 23..24,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1,
+                                                IntLiteral {
+                                                    value: 1,
+                                                    span: 41..42,
+                                                },
                                             ) @ 41..42,
                                         },
                                     ) @ 35..47,
@@ -38,13 +44,19 @@ Policy {
                         branches: [
                             (
                                 Int(
-                                    0,
+                                    IntLiteral {
+                                        value: 0,
+                                        span: 57..58,
+                                    },
                                 ) @ 57..58,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1,
+                                                IntLiteral {
+                                                    value: 1,
+                                                    span: 75..76,
+                                                },
                                             ) @ 75..76,
                                         },
                                     ) @ 69..81,
@@ -56,7 +68,10 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         expression: Int(
-                                            2,
+                                            IntLiteral {
+                                                value: 2,
+                                                span: 104..105,
+                                            },
                                         ) @ 104..105,
                                     },
                                 ) @ 98..110,
@@ -69,13 +84,19 @@ Policy {
                         branches: [
                             (
                                 Int(
-                                    0,
+                                    IntLiteral {
+                                        value: 0,
+                                        span: 120..121,
+                                    },
                                 ) @ 120..121,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1,
+                                                IntLiteral {
+                                                    value: 1,
+                                                    span: 138..139,
+                                                },
                                             ) @ 138..139,
                                         },
                                     ) @ 132..148,
@@ -87,10 +108,16 @@ Policy {
                                                     identifier: "add" @ 156..159,
                                                     arguments: [
                                                         Int(
-                                                            1,
+                                                            IntLiteral {
+                                                                value: 1,
+                                                                span: 160..161,
+                                                            },
                                                         ) @ 160..161,
                                                         Int(
-                                                            1,
+                                                            IntLiteral {
+                                                                value: 1,
+                                                                span: 163..164,
+                                                            },
                                                         ) @ 163..164,
                                                     ],
                                                 },
@@ -101,13 +128,19 @@ Policy {
                             ),
                             (
                                 Int(
-                                    2,
+                                    IntLiteral {
+                                        value: 2,
+                                        span: 180..181,
+                                    },
                                 ) @ 180..181,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                3,
+                                                IntLiteral {
+                                                    value: 3,
+                                                    span: 198..199,
+                                                },
                                             ) @ 198..199,
                                         },
                                     ) @ 192..204,
@@ -115,13 +148,19 @@ Policy {
                             ),
                             (
                                 Int(
-                                    4,
+                                    IntLiteral {
+                                        value: 4,
+                                        span: 214..215,
+                                    },
                                 ) @ 214..215,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                5,
+                                                IntLiteral {
+                                                    value: 5,
+                                                    span: 232..233,
+                                                },
                                             ) @ 232..233,
                                         },
                                     ) @ 226..238,
@@ -133,7 +172,10 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         expression: Int(
-                                            6,
+                                            IntLiteral {
+                                                value: 6,
+                                                span: 261..262,
+                                            },
                                         ) @ 261..262,
                                     },
                                 ) @ 255..267,

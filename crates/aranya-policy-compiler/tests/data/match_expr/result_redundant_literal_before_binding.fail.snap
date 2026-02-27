@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-redundant literal pattern in same arm — binding already matches all values at line 3 col 17:
-	Ok(n)
+error: redundant literal pattern in same arm — binding already matches all values
+  |
+3 |         Ok(5) | Ok(n) => n
+  |                 ^^^^^

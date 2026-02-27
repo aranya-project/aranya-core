@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid cast: `Foo` cannot be converted to `Bar` at line 4 col 5:
-	return Foo { a: 1, b: "test" } as Bar
+error: invalid cast: `Foo` cannot be converted to `Bar`
+  |
+4 |     return Foo { a: 1, b: "test" } as Bar
+  |            -----------------------    ^^^ `Foo` cannot be converted to `Bar`
+  |            |
+  |            type `Foo`

@@ -2,11 +2,14 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-Missing default pattern in `match` statement/expression at line 11 col 13:
-	match traffic {
-        Light {  color: LightColor::Red, go: false } => 0
-        Light {  color: LightColor::Yellow, go: false } => 2
-        Light {  color: LightColor::Yellow, go: true } => 3
-        Light {  color: LightColor::Green, go: false } => 4
-        Light {  color: LightColor::Green, go: true } => 5
-    }
+error: Missing default pattern in `match` statement/expression
+   |
+11 |       let x = match traffic {
+   |  _____________^
+12 | |         Light {  color: LightColor::Red, go: false } => 0
+13 | |         Light {  color: LightColor::Yellow, go: false } => 2
+14 | |         Light {  color: LightColor::Yellow, go: true } => 3
+15 | |         Light {  color: LightColor::Green, go: false } => 4
+16 | |         Light {  color: LightColor::Green, go: true } => 5
+17 | |     }
+   | |_____^

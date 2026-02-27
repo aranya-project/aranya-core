@@ -2,8 +2,11 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-Missing default pattern in `match` statement/expression at line 2 col 13:
-	match maybe_bool {
-        None => 0
-        Some(false) => 2
-    }
+error: Missing default pattern in `match` statement/expression
+  |
+2 |       let x = match maybe_bool {
+  |  _____________^
+3 | |         None => 0
+4 | |         Some(false) => 2
+5 | |     }
+  | |_____^

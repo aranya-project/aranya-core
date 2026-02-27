@@ -21,7 +21,10 @@ Policy {
                                     LetStatement {
                                         identifier: "a" @ 41..42,
                                         expression: Int(
-                                            3,
+                                            IntLiteral {
+                                                value: 3,
+                                                span: 45..46,
+                                            },
                                         ) @ 45..46,
                                     },
                                 ) @ 37..55,
@@ -29,7 +32,10 @@ Policy {
                                     LetStatement {
                                         identifier: "b" @ 59..60,
                                         expression: Int(
-                                            4,
+                                            IntLiteral {
+                                                value: 4,
+                                                span: 63..64,
+                                            },
                                         ) @ 63..64,
                                     },
                                 ) @ 55..73,

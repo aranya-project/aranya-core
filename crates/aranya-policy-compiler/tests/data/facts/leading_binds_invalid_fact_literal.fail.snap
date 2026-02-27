@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-fact literal does not match definition: leading bind values not allowed at line 3 col 5:
-	check exists Foo[x: ?, y: 42] => {}
+error: fact literal does not match definition: leading bind values not allowed
+  |
+3 |     check exists Foo[x: ?, y: 42] => {}
+  |                         ^ leading bind values not allowed

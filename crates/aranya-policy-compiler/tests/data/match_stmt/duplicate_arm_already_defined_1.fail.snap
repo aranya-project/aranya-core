@@ -2,5 +2,11 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: duplicate match arm value at line 20 col 9:
-	5
+error: Missing default pattern in `match` statement/expression
+   |
+13 | /     match x {
+14 | |         5 => {
+15 | |             publish Result { x: x }
+...  |
+23 | |     }
+   | |_____^
