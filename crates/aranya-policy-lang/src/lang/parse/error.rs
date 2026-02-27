@@ -1,14 +1,60 @@
 use std::fmt::Display;
 
-use aranya_policy_ast::Version;
+use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
-use pest::{
-    Span,
-    error::{Error as PestError, LineColLocation},
-};
+use pest::error::Error as PestError;
 use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
+
+pub(crate) mod rendering;
+
+/// Invalid usage of an infix operator (i.e. `+` or `-`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvalidOperator {
+    pub(crate) lhs: Span,
+    pub(crate) op: Span,
+    pub(crate) rhs: Span,
+}
+
+impl Display for InvalidOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid operator")
+    }
+}
+
+/// Usage of an older policy version
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvalidVersion {
+    pub found: String,
+    pub required: Version,
+}
+
+impl Display for InvalidVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let found = &self.found;
+        let required = &self.required;
+        write!(
+            f,
+            "Invalid policy version {found}, supported version is {required}"
+        )
+    }
+}
+
+/// Invalid usage of option/optional syntax
+///
+///(crate) `optional option[T]`, `optional optional T`, etc.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvalidNestedOption {
+    pub(crate) outer: Span,
+    pub(crate) inner: Span,
+}
+
+impl Display for InvalidNestedOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid nested option")
+    }
+}
 
 /// The kinds of errors a parse operation can produce
 ///
@@ -17,7 +63,9 @@ use crate::lang::parse::Rule;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseErrorKind {
     /// An invalid operator was used.
-    InvalidOperator,
+    InvalidOperator(InvalidOperator),
+    /// Invalid usage of nesting optional types using the old syntax was found.
+    InvalidNestedOption(InvalidNestedOption),
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
     /// A statement is invalid for its scope.
@@ -30,12 +78,10 @@ pub enum ParseErrorKind {
     /// A function call is badly formed.
     // TODO(chip): I'm not sure this is actually reachable.
     InvalidFunctionCall,
-    /// The right side of a dot operator is not an identifier.
-    InvalidMember,
     /// The right side of a substruct operator is not an identifier.
     InvalidSubstruct,
     /// The policy version expressed in the front matter is not valid.
-    InvalidVersion { found: String, required: Version },
+    InvalidVersion(InvalidVersion),
     /// Some part of an expression is badly formed.
     Expression,
     /// The Pest parser was unable to parse the document.
@@ -50,23 +96,36 @@ pub enum ParseErrorKind {
     Unknown,
 }
 
+impl From<InvalidOperator> for ParseErrorKind {
+    fn from(value: InvalidOperator) -> Self {
+        Self::InvalidOperator(value)
+    }
+}
+
+impl From<InvalidVersion> for ParseErrorKind {
+    fn from(value: InvalidVersion) -> Self {
+        Self::InvalidVersion(value)
+    }
+}
+
+impl From<InvalidNestedOption> for ParseErrorKind {
+    fn from(value: InvalidNestedOption) -> Self {
+        Self::InvalidNestedOption(value)
+    }
+}
+
 impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidOperator => write!(f, "Invalid operator"),
+            Self::InvalidOperator(inner) => write!(f, "{inner}"),
+            Self::InvalidNestedOption(inner) => write!(f, "{inner}"),
             Self::InvalidType => write!(f, "Invalid type"),
             Self::InvalidStatement => write!(f, "Invalid statement"),
             Self::InvalidNumber => write!(f, "Invalid number"),
             Self::InvalidString => write!(f, "Invalid string"),
             Self::InvalidFunctionCall => write!(f, "Invalid function call"),
-            Self::InvalidMember => write!(f, "Invalid member"),
             Self::InvalidSubstruct => write!(f, "Invalid substruct operation"),
-            Self::InvalidVersion { found, required } => {
-                write!(
-                    f,
-                    "Invalid policy version {found}, supported version is {required}"
-                )
-            }
+            Self::InvalidVersion(inner) => write!(f, "{inner}"),
             Self::Expression => write!(f, "Invalid expression"),
             Self::Syntax => write!(f, "Syntax error"),
             Self::FrontMatter => write!(f, "Front matter YAML parse error"),
@@ -77,56 +136,53 @@ impl Display for ParseErrorKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ParseError {
-    pub kind: ParseErrorKind,
+    pub kind: Box<ParseErrorKind>,
     pub message: String,
     /// Line and column location of the error, if available.
-    pub location: Option<(usize, usize)>,
+    pub span: Option<Span>,
+    /// Text containing the entire policy, if available.
+    pub source: Option<String>,
 }
 
 impl ParseError {
-    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> Self {
-        let location = span.map(|s| s.start_pos().line_col());
+    pub(crate) fn new(
+        kind: impl Into<ParseErrorKind>,
+        message: String,
+        span: Option<Span>,
+    ) -> Self {
         Self {
-            kind,
+            kind: Box::new(kind.into()),
             message,
-            location,
+            span,
+            source: None,
         }
     }
 
-    /// Return a new error with a location starting from the given line.
+    // Return a new error with the source text.
     #[must_use]
-    pub fn adjust_line_number(mut self, start_line: usize) -> Self {
-        if let Some((line, _)) = &mut self.location {
-            *line = line.saturating_add(start_line);
+    pub(crate) fn with_source(self, source: String) -> Self {
+        Self {
+            source: Some(source),
+            ..self
         }
-        self
-    }
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: ", self.kind)?;
-        if let Some((line, column)) = self.location {
-            write!(f, "line {line} column {column}: ")?;
-        }
-        write!(f, "{}", self.message)?;
-        Ok(())
     }
 }
 
 impl From<PestError<Rule>> for ParseError {
     fn from(e: PestError<Rule>) -> Self {
-        let p = match e.line_col {
-            LineColLocation::Pos(p) => p,
-            LineColLocation::Span(p, _) => p,
+        use pest::error::InputLocation;
+        // Assumes that the error location has already been adjusted in `aranya_policy_lang::lang::parse::mangle_pest_error`
+        let span = match e.location {
+            InputLocation::Pos(start) => Span::new(start, start.saturating_add(1)),
+            InputLocation::Span((start, end)) => Span::new(start, end),
         };
-        Self {
-            kind: ParseErrorKind::Syntax,
-            message: e.to_string(),
-            location: Some(p),
-        }
+        Self::new(
+            ParseErrorKind::Syntax,
+            e.variant.message().to_string(),
+            Some(span),
+        )
     }
 }
 

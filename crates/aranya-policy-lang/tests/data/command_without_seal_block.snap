@@ -2,9 +2,7 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Syntax error: line 3 column 5:  --> 3:5
+error: Syntax error
   |
 3 |     policy {
-  |     ^---
-  |
-  = expected seal_block
+  |     ^ expected seal_block

@@ -4,5 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-1 | use _
-  |     ^ expected identifier
+6 |     return f.1
+  |              ^ expected identifier

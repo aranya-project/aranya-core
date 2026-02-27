@@ -2,4 +2,7 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Invalid string: line 1 column 9: string contained nul byte
+error: Invalid string
+  |
+1 | let x = "a␀b"
+  |         ^^^^^ string contained null byte

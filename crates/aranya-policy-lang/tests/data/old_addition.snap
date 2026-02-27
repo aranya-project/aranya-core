@@ -4,14 +4,14 @@ expression: err
 ---
 error: Invalid operator
   |
-2 |     return 3 - 4
-  |              ^ found `-`
+2 |     return 3 + 4
+  |              ^ found `+`
   |
 help: you might have meant to use an arithmetic function
   |
-2 -     return 3 - 4
-2 +     return saturating_sub(3, 4)
+2 -     return 3 + 4
+2 +     return saturating_add(3, 4)
   |
-2 -     return 3 - 4
-2 +     return sub(3, 4)
+2 -     return 3 + 4
+2 +     return add(3, 4)
   |
