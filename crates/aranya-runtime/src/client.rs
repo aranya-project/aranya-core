@@ -39,6 +39,8 @@ pub enum ClientError {
     /// split into two separate graph states which can never successfully sync.
     #[error("found parallel finalize commands during braid")]
     ParallelFinalize,
+    #[error("concurrent transaction usage")]
+    ConcurrentTransaction,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -126,18 +128,19 @@ where
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
+    ///
+    /// Returns whether any new commands were added.
     pub fn commit(
         &mut self,
-        trx: &mut Transaction<SP, PS>,
+        trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<bool, ClientError> {
         trx.commit(
             &mut self.provider,
             &mut self.policy_store,
             sink,
             &mut self.buffers,
-        )?;
-        Ok(())
+        )
     }
 
     /// Add commands to the transaction, writing the results to
@@ -217,7 +220,7 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment, &mut self.buffers.primary)?;
+                storage.commit(segment)?;
                 sink.commit();
                 Ok(())
             }

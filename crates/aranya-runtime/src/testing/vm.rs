@@ -611,7 +611,7 @@ fn test_sync<PS, P, S>(
         }
     }
 
-    cs2.commit(&mut req_transaction, sink).expect("commit");
+    cs2.commit(req_transaction, sink).expect("commit");
 }
 
 /// Tests the command ID and recall status in emitted `VmEffect`s.
