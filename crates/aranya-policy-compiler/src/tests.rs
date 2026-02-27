@@ -1709,6 +1709,27 @@ fn test_bad_statements() {
 }
 
 #[test]
+fn test_global_let_valid_expressions() {
+    let cases = &[
+        ("None", ConstValue::Option(None)),
+        (
+            "Some(42)",
+            ConstValue::Option(Some(Box::new(ConstValue::Int(42)))),
+        ),
+        (
+            "Some(None)",
+            ConstValue::Option(Some(Box::new(ConstValue::NONE))),
+        ),
+    ];
+
+    for (input, output) in cases {
+        let module = compile_pass(&format!("let global = {input}"));
+        let ModuleData::V0(data) = module.data;
+        assert_eq!(data.globals["global"], *output);
+    }
+}
+
+#[test]
 fn test_global_let_invalid_expressions() {
     let texts = &[
         r#"
@@ -1723,9 +1744,6 @@ fn test_global_let_invalid_expressions() {
         "#,
         r#"
             let x = envelope::author_id(envelope)
-        "#,
-        r#"
-            let x = None
         "#,
         r#"
             // Globals cannot depend on other global variables
