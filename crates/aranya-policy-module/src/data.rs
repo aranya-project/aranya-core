@@ -90,7 +90,11 @@ impl<Tag: IdTag> Typed for Id<Tag> {
 }
 
 impl<T: Typed> Typed for Option<T> {
-    const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
+    const TYPE: Type<'static> = Type::Optional(&T::TYPE);
+}
+
+impl<T: Typed, E: Typed> Typed for Result<T, E> {
+    const TYPE: Type<'static> = Type::Result(&T::TYPE, &E::TYPE);
 }
 
 /// All of the value types allowed in the VM
@@ -165,6 +169,22 @@ impl<T: TryFromValue> TryFromValue for Option<T> {
             });
         };
         opt.map(|v| T::try_from_value(*v)).transpose()
+    }
+}
+
+impl<T: TryFromValue, E: TryFromValue> TryFromValue for Result<T, E> {
+    fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
+        let Value::Result(res) = value else {
+            return Err(ValueConversionError::InvalidType {
+                want: "Result".into(),
+                got: value.type_name(),
+                msg: format!("Value -> {}", core::any::type_name::<Self>()),
+            });
+        };
+        match res {
+            Ok(v) => T::try_from_value(*v).map(Ok),
+            Err(v) => E::try_from_value(*v).map(Err),
+        }
     }
 }
 
@@ -263,6 +283,15 @@ impl Value {
 impl<T: Into<Self>> From<Option<T>> for Value {
     fn from(value: Option<T>) -> Self {
         Self::Option(value.map(Into::into).map(Box::new))
+    }
+}
+
+impl<T: Into<Self>, E: Into<Self>> From<Result<T, E>> for Value {
+    fn from(value: Result<T, E>) -> Self {
+        Self::Result(match value {
+            Ok(v) => Ok(Box::new(v.into())),
+            Err(v) => Err(Box::new(v.into())),
+        })
     }
 }
 
