@@ -6,8 +6,8 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
-    SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
+    COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX, SyncCommand, SyncError,
+    dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
     Address, GraphId, Location,
@@ -179,10 +179,7 @@ impl<'a> SyncRequester<'a> {
     }
 
     /// Receive a sync message. Returns parsed sync commands.
-    pub fn receive<'b>(
-        &mut self,
-        data: &'b [u8],
-    ) -> Result<Option<Vec<SyncCommand<'b>, COMMAND_RESPONSE_MAX>>, SyncError> {
+    pub fn receive<'b>(&mut self, data: &'b [u8]) -> Result<Option<SyncCommands<'b>>, SyncError> {
         let (message, remaining): (SyncResponseMessage, &'b [u8]) =
             postcard::take_from_bytes(data)?;
 
@@ -194,17 +191,13 @@ impl<'a> SyncRequester<'a> {
         &mut self,
         message: SyncResponseMessage,
         remaining: &'b [u8],
-    ) -> Result<Option<Vec<SyncCommand<'b>, COMMAND_RESPONSE_MAX>>, SyncError> {
+    ) -> Result<Option<SyncCommands<'b>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }
 
         let result = match message {
-            SyncResponseMessage::SyncResponse {
-                response_index,
-                commands,
-                ..
-            } => {
+            SyncResponseMessage::SyncResponse { response_index, .. } => {
                 if !matches!(
                     self.state,
                     SyncRequesterState::Start | SyncRequesterState::Waiting
@@ -222,46 +215,7 @@ impl<'a> SyncRequester<'a> {
                     .assume("next_message_index + 1 mustn't overflow")?;
                 self.state = SyncRequesterState::Waiting;
 
-                let mut result = Vec::new();
-                let mut start: usize = 0;
-                for meta in commands {
-                    let policy_len = meta.policy_length as usize;
-
-                    let policy = match policy_len == 0 {
-                        true => None,
-                        false => {
-                            let end = start
-                                .checked_add(policy_len)
-                                .assume("start + policy_len mustn't overflow")?;
-                            let policy = &remaining[start..end];
-                            start = end;
-                            Some(policy)
-                        }
-                    };
-
-                    let len = meta.length as usize;
-                    let end = start
-                        .checked_add(len)
-                        .assume("start + len mustn't overflow")?;
-                    let payload = &remaining[start..end];
-                    start = end;
-
-                    let command = SyncCommand {
-                        id: meta.id,
-                        priority: meta.priority,
-                        parent: meta.parent,
-                        policy,
-                        data: payload,
-                        max_cut: meta.max_cut,
-                    };
-
-                    result
-                        .push(command)
-                        .ok()
-                        .assume("commands is not larger than result")?;
-                }
-
-                Some(result)
+                Some(access(remaining)?)
             }
 
             SyncResponseMessage::SyncEnd { max_index, .. } => {
@@ -481,4 +435,13 @@ impl<'a> SyncRequester<'a> {
 
         Ok((Self::write(target, message)?, sent))
     }
+}
+
+pub type SyncCommands<'a> = &'a [rkyv::Archived<SyncCommand<'a>>];
+
+fn access(bytes: &[u8]) -> Result<&[rkyv::Archived<SyncCommand<'_>>], SyncError> {
+    Ok(rkyv::access::<rkyv::vec::ArchivedVec<rkyv::Archived<SyncCommand<'_>>>, rkyv::rancor::Error>(
+        bytes,
+    )
+    .map_err(SyncError::RkyvAccess)?.as_slice())
 }

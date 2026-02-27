@@ -172,13 +172,13 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// and integrating the new commands.
     pub(super) fn add_commands(
         &mut self,
-        commands: &[impl Command],
+        commands: impl IntoIterator<Item: Command>,
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         buffers: &mut TraversalBuffers,
     ) -> Result<usize, ClientError> {
-        let mut commands = commands.iter();
+        let mut commands = commands.into_iter();
         let mut count: usize = 0;
 
         // Get storage or try to initialize with first command.
@@ -187,7 +187,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
                 count = count.checked_add(1).assume("must not overflow")?;
-                self.init(command, policy_store, provider, sink)?
+                self.init(&command, policy_store, provider, sink)?
             }
             Err(e) => return Err(e.into()),
         };
@@ -223,11 +223,18 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     }
                 }
                 Prior::Single(parent) => {
-                    self.add_single(storage, policy_store, sink, command, parent, buffers)?;
+                    self.add_single(storage, policy_store, sink, &command, parent, buffers)?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    self.add_merge(storage, policy_store, sink, command, (left, right), buffers)?;
+                    self.add_merge(
+                        storage,
+                        policy_store,
+                        sink,
+                        &command,
+                        (left, right),
+                        buffers,
+                    )?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             }
