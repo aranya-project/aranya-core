@@ -1169,6 +1169,7 @@ macro_rules! test_vectors {
 
 test_vectors! {
     a_10000_commands,
+    a_40000,
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,

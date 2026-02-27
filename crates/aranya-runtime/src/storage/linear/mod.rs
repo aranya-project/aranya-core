@@ -27,8 +27,8 @@ pub mod libc;
 #[cfg(feature = "testing")]
 pub mod testing;
 
-use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
-use core::ops::Bound;
+use alloc::{boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec, vec::Vec};
+use core::{cell::RefCell, ops::Bound};
 
 use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
@@ -64,11 +64,12 @@ pub struct LinearStorageProvider<FM: IoManager> {
 
 pub struct LinearStorage<W> {
     writer: W,
+    segment_cache: RefCell<BTreeMap<SegmentIndex, Rc<SegmentRepr>>>,
 }
 
 #[derive(Debug)]
 pub struct LinearSegment<R> {
-    repr: SegmentRepr,
+    repr: Rc<SegmentRepr>,
     reader: R,
 }
 
@@ -359,13 +360,24 @@ impl<W: Write> LinearStorage<W> {
 
         writer.commit(head)?;
 
-        let storage = Self { writer };
+        let segment_cache = RefCell::new(BTreeMap::new());
+        segment_cache
+            .borrow_mut()
+            .insert(segment.offset, Rc::new(segment));
+
+        let storage = Self {
+            writer,
+            segment_cache,
+        };
 
         Ok(storage)
     }
 
     fn open(writer: W) -> Result<Self, StorageError> {
-        Ok(Self { writer })
+        Ok(Self {
+            writer,
+            segment_cache: RefCell::new(BTreeMap::new()),
+        })
     }
 
     fn compact(&mut self, mut repr: FactIndexRepr) -> Result<FactIndexRepr, StorageError> {
@@ -537,11 +549,26 @@ impl<F: Write> Storage for LinearStorage<F> {
     }
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
-        let reader = self.writer.readonly();
-        let repr = reader.fetch(location.segment.0)?;
-        let seg = LinearSegment { repr, reader };
-
-        Ok(seg)
+        let repr = {
+            let cache = self.segment_cache.borrow();
+            cache.get(&location.segment).cloned()
+        };
+        let repr = match repr {
+            Some(repr) => repr,
+            None => {
+                let reader = self.writer.readonly();
+                let fetched: SegmentRepr = reader.fetch(location.segment.0)?;
+                let repr = Rc::new(fetched);
+                self.segment_cache
+                    .borrow_mut()
+                    .insert(location.segment, Rc::clone(&repr));
+                repr
+            }
+        };
+        Ok(LinearSegment {
+            repr,
+            reader: self.writer.readonly(),
+        })
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
@@ -618,6 +645,10 @@ impl<F: Write> Storage for LinearStorage<F> {
             max_cut: perspective.max_cut,
             skip_list,
         })?;
+        let repr = Rc::new(repr);
+        self.segment_cache
+            .borrow_mut()
+            .insert(repr.offset, Rc::clone(&repr));
 
         Ok(LinearSegment {
             repr,
