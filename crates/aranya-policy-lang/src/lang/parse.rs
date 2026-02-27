@@ -1,12 +1,12 @@
 use std::{assert_matches, fmt};
 
 use aranya_policy_ast::{
-    self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
-    EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction,
-    LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
-    MatchStatement, NamedStruct, Param, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version, ident,
+    self as ast, CheckStatement, CreateStatement, DeleteStatement, EnumDefinition, EnumReference,
+    ExprKind, Expression, FactField, FactLiteral, FieldDefinition, ForeignFunctionCall,
+    FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction, LetStatement, MapStatement,
+    MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement, NamedStruct,
+    Param, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text, TypeKind, UpdateStatement,
+    VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -360,14 +360,6 @@ impl ChunkParser<'_> {
             name: field.name,
             vtype: field.vtype,
         })
-    }
-
-    fn parse_effect_field_definition(&self, field: Pair) -> Result<EffectFieldDefinition> {
-        let mut pc = self.descend(field);
-        let name = pc.consume_ident(self)?;
-        let vtype = pc.consume_type(self)?;
-
-        Ok(EffectFieldDefinition { name, vtype })
     }
 
     /// Parse a Rule::string_literal into a String.
@@ -1421,6 +1413,23 @@ impl ChunkParser<'_> {
         })
     }
 
+    fn parse_struct_item(&self, field: Pair) -> Result<ast::StructItem> {
+        match field.as_rule() {
+            Rule::field_definition => {
+                Ok(ast::StructItem::Field(self.parse_field_definition(field)?))
+            }
+            Rule::field_insertion => {
+                let ident = self.descend(field).consume_ident(self)?;
+                Ok(ast::StructItem::StructRef(ident))
+            }
+            _ => Err(ParseError::new(
+                ParseErrorKind::Unknown,
+                String::from("invalid struct item token"),
+                Some(self.to_ast_span(field.as_span())?),
+            )),
+        }
+    }
+
     /// Parse a `Rule::effect_definition` into an [EffectDefinition](ast::EffectDefinition).
     fn parse_effect_definition(&self, item: Pair) -> Result<ast::EffectDefinition> {
         assert_eq!(item.as_rule(), Rule::effect_definition);
@@ -1432,22 +1441,7 @@ impl ChunkParser<'_> {
         // All remaining tokens are fields
         let mut items = vec![];
         for field in pc.into_inner() {
-            match field.as_rule() {
-                Rule::effect_field_definition => items.push(ast::StructItem::Field(
-                    self.parse_effect_field_definition(field)?,
-                )),
-                Rule::field_insertion => {
-                    let ident = self.descend(field).consume_ident(self)?;
-                    items.push(ast::StructItem::StructRef(ident));
-                }
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in effect definition"),
-                        Some(self.to_ast_span(field.as_span())?),
-                    ));
-                }
-            }
+            items.push(self.parse_struct_item(field)?);
         }
 
         Ok(ast::EffectDefinition { name, items, span })
@@ -1464,22 +1458,7 @@ impl ChunkParser<'_> {
         // All remaining tokens are fields
         let mut items = vec![];
         for field in pc.into_inner() {
-            match field.as_rule() {
-                Rule::field_definition => {
-                    items.push(ast::StructItem::Field(self.parse_field_definition(field)?));
-                }
-                Rule::field_insertion => {
-                    let ident = self.descend(field).consume_ident(self)?;
-                    items.push(ast::StructItem::StructRef(ident));
-                }
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in struct definition"),
-                        Some(self.to_ast_span(field.as_span())?),
-                    ));
-                }
-            }
+            items.push(self.parse_struct_item(field)?);
         }
 
         Ok(ast::StructDefinition { name, items, span })

@@ -15,7 +15,7 @@ Policy {
                     "Foo" @ 41..44,
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "y" @ 50..51,
                         vtype: Int @ 53..56,
                     },

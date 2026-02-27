@@ -47,7 +47,7 @@ immutable_modifier = { "immutable" }
 // action[flavor] foo(a int) [result[unit, T]] { ... }
 action_definition = { "action" ~ ws ~ flavor ~ ws ~ identifier ~ ws ~ function_arguments ~ ws ~ (result_t ~ ws)? ~ statement_block }
 // effect Foo { bar id }
-effect_definition = { "effect" ~ ws ~ identifier ~ ws ~ effect_struct_def }
+effect_definition = { "effect" ~ ws ~ identifier ~ ws ~ struct_def }
 // struct Foo { bar id }
 struct_definition = { "struct" ~ ws ~ identifier ~ ws ~ struct_def }
 // enum Result { OK, Err }
@@ -353,8 +353,6 @@ block_statement_list = { (ws ~ statements)* }
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
 struct_def = _{ "{" ~ ws ~ field_definition_and_insertion_list? ~ "}" }
-// An effect struct definition is the same
-effect_struct_def = _{ "{" ~ ws ~ effect_field_definition_list? ~ "}" }
 // Struct composition is shorthand for including the fields of some other
 // struct(s) when defining a struct literal
 struct_composition = { "..." ~ ws ~ identifier }
@@ -414,10 +412,6 @@ field_insertion = { "+" ~ ws ~ identifier }
 field_definition_list = _{ field_definition ~ ws ~ ("," ~ ws ~ field_definition ~ ws)* ~ ("," ~ ws)? }
 // Similar to _field_definition_list, but allows field insertion
 field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ ws ~ ("," ~ ws ~ (field_definition | field_insertion) ~ ws)* ~ ("," ~ ws)? }
-// An effect field definition works like a regular field
-effect_field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype }
-// Ditto the list form
-effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ ws ~ ("," ~ ws ~ (effect_field_definition | field_insertion) ~ ws)* ~ ("," ~ ws)? }
 
 
 // ## Types

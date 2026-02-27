@@ -86,13 +86,13 @@ Policy {
             name: "Added" @ 256..261,
             items: [
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "x" @ 268..269,
                         vtype: Int @ 271..274,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "y" @ 280..281,
                         vtype: Int @ 283..286,
                     },

@@ -197,19 +197,19 @@ Policy {
             name: "GameStart" @ 789..798,
             items: [
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "gameID" @ 805..811,
                         vtype: Id @ 813..815,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "x" @ 821..822,
                         vtype: Id @ 824..826,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "o" @ 832..833,
                         vtype: Id @ 835..837,
                     },
@@ -221,31 +221,31 @@ Policy {
             name: "GameUpdate" @ 1510..1520,
             items: [
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "gameID" @ 1527..1533,
                         vtype: Id @ 1535..1537,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "player" @ 1543..1549,
                         vtype: Id @ 1551..1553,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "p" @ 1559..1560,
                         vtype: String @ 1567..1573,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "X" @ 1579..1580,
                         vtype: Int @ 1587..1590,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "Y" @ 1596..1597,
                         vtype: Int @ 1604..1607,
                     },
@@ -257,19 +257,19 @@ Policy {
             name: "GameOver" @ 1619..1627,
             items: [
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "gameID" @ 1634..1640,
                         vtype: Id @ 1642..1644,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "winner" @ 1650..1656,
                         vtype: Id @ 1658..1660,
                     },
                 ),
                 Field(
-                    EffectFieldDefinition {
+                    FieldDefinition {
                         name: "p" @ 1666..1667,
                         vtype: String @ 1669..1675,
                     },

@@ -274,23 +274,6 @@ impl FieldDefinition {
     }
 }
 
-/// An identifier and its type.
-///
-/// A variant used exclusively for Effects
-#[derive(Debug, Clone)]
-pub struct EffectFieldDefinition {
-    /// the field's name
-    pub name: Ident,
-    /// the field's type
-    pub vtype: VType,
-}
-
-impl Spanned for EffectFieldDefinition {
-    fn span(&self) -> Span {
-        self.name.span.merge(self.vtype.span())
-    }
-}
-
 /// Value part of a key/value pair for a fact field.
 #[derive(Debug, Clone)]
 pub enum FactField {
@@ -1144,7 +1127,7 @@ pub struct EffectDefinition {
     /// The name of the effect
     pub name: Ident,
     /// The fields of the effect and their types
-    pub items: Vec<StructItem<EffectFieldDefinition>>,
+    pub items: Vec<StructItem>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1161,7 +1144,7 @@ pub struct StructDefinition {
     /// The name of the struct
     pub name: Ident,
     /// The fields of the struct and their types
-    pub items: Vec<StructItem<FieldDefinition>>,
+    pub items: Vec<StructItem>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1174,16 +1157,16 @@ impl Spanned for StructDefinition {
 
 /// Struct field or insertion reference
 #[derive(Debug, Clone)]
-pub enum StructItem<T> {
+pub enum StructItem {
     /// Field definition
-    Field(T),
+    Field(FieldDefinition),
     /// Named struct whose fields to add to the current struct
     StructRef(Ident),
 }
 
-impl<T> StructItem<T> {
+impl StructItem {
     /// Get the field definition from this struct item
-    pub fn field(&self) -> Option<&T> {
+    pub fn field(&self) -> Option<&FieldDefinition> {
         match self {
             Self::Field(f) => Some(f),
             Self::StructRef(_) => None,
@@ -1191,7 +1174,7 @@ impl<T> StructItem<T> {
     }
 }
 
-impl<T: Spanned> Spanned for StructItem<T> {
+impl Spanned for StructItem {
     fn span(&self) -> Span {
         match self {
             Self::Field(f) => f.span(),
@@ -1229,7 +1212,7 @@ pub struct CommandDefinition {
     /// The name of the command
     pub name: Ident,
     /// The fields of the command and their types
-    pub fields: Vec<StructItem<FieldDefinition>>,
+    pub fields: Vec<StructItem>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
     /// The named recall blocks for this command
@@ -1252,7 +1235,7 @@ pub struct BaseCommandDefinition {
     /// The name of the base command
     pub name: Ident,
     /// The fields of the base command and their types
-    pub fields: Vec<StructItem<FieldDefinition>>,
+    pub fields: Vec<StructItem>,
     /// The get key block
     pub get_key: Vec<Statement>,
     /// The source location of this definition
