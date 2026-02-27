@@ -2032,7 +2032,7 @@ impl<'a> CompileState<'a> {
 }
 
 /// Flag for controling scope when compiling statement blocks.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq)]
 enum Scope {
     /// Enter a new layered scope.
     Layered,
@@ -2046,7 +2046,6 @@ pub struct Compiler<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
     stub_ffi: bool,
-    predefined_globals: Vec<(Identifier, Value)>,
 }
 
 impl<'a> Compiler<'a> {
@@ -2057,7 +2056,6 @@ impl<'a> Compiler<'a> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
-            predefined_globals: Vec::new(),
         }
     }
 
@@ -2081,50 +2079,24 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Adds a list of (identifier, value) pairs to the predefined globals list.
-    #[cfg(feature = "internals")]
-    #[must_use]
-    pub fn with_globals(mut self, globals: impl IntoIterator<Item = (Identifier, Value)>) -> Self {
-        self.predefined_globals
-            .append(&mut globals.into_iter().collect());
-        self
-    }
-
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
-        let mut cs = self.set_up_compile_state()?;
+        let mut cs = self.set_up_compile_state();
         cs.compile()?;
         Ok(cs.m.into_module())
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
     pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
-        let mut cs = self.set_up_compile_state()?;
+        let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
         Ok(cs.m.interface)
     }
 
-    fn set_up_compile_state(self) -> Result<CompileState<'a>, CompileError> {
+    fn set_up_compile_state(&self) -> CompileState<'_> {
         let codemap = CodeMap::new(&self.policy.text);
-        let mut machine = CompileTarget::new(codemap);
-        let mut identifier_types = IdentifierTypeStack::new();
-        for (ident, v) in &self.predefined_globals {
-            let kind = v
-                .vtype()
-                .ok_or(CompileError::new(CompileErrorType::Unknown(
-                    "Global value must have a typekind".to_string(),
-                )))?;
-            let vtype = VType {
-                kind,
-                span: Span::empty(),
-            };
-            identifier_types
-                .add_global(ident.clone(), vtype)
-                .expect("global already exists");
-        }
-        machine.add_globals(self.predefined_globals);
-
-        Ok(CompileState {
+        let machine = CompileTarget::new(codemap);
+        CompileState {
             policy: self.policy,
             m: machine,
             wp: 0,
@@ -2133,11 +2105,11 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types,
+            identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
-        })
+        }
     }
 }
 

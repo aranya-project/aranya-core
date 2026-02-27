@@ -19,7 +19,7 @@ aranya-device-ffi = { version = "0.19.0", path = "../aranya-device-ffi" }
 aranya-envelope-ffi = { version = "0.19.0", path = "../aranya-envelope-ffi" }
 aranya-idam-ffi = { version = "0.19.0", path = "../aranya-idam-ffi" }
 aranya-perspective-ffi = { version = "0.19.0", path = "../aranya-perspective-ffi" }
-aranya-policy-compiler = { version = "0.20.0", path = "../aranya-policy-compiler", features = ["internals"] }
+aranya-policy-compiler = { version = "0.20.0", path = "../aranya-policy-compiler" }
 aranya-policy-ifgen = { version = "0.20.0", path = "../aranya-policy-ifgen" }
 aranya-policy-lang = { version = "0.13.0", path = "../aranya-policy-lang" }
 aranya-policy-vm = { version = "0.19.0", path = "../aranya-policy-vm" }
