@@ -19,6 +19,10 @@ pub const g_bool: bool = true;
 pub const g_enum: Answer = Answer::new(1i64).unwrap();
 /// g_int constant.
 pub const g_int: i64 = 42i64;
+/// g_none constant.
+pub const g_none: Option<()> = None;
+/// g_some constant.
+pub const g_some: Option<i64> = Some(42i64);
 /// g_string constant.
 pub const g_string: Text = text!("a\n\u{1}b");
 /// g_struct constant.
@@ -26,6 +30,8 @@ pub const g_struct: Complex = Complex {
     m_bool: false,
     m_enum: Answer::new(0i64).unwrap(),
     m_int: 1i64,
+    m_none: None,
+    m_some: Some(2i64),
     m_string: text!("hello"),
     m_struct: Simple { m_int: 3i64 },
 };
@@ -39,6 +45,8 @@ pub struct Complex {
     pub m_int: i64,
     pub m_bool: bool,
     pub m_string: Text,
+    pub m_some: Option<i64>,
+    pub m_none: Option<i64>,
     pub m_enum: Answer,
     pub m_struct: Simple,
 }
