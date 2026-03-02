@@ -927,10 +927,10 @@ impl CompileState<'_> {
                 LanguageContext::Statement(_) => bug!("expected match expression"),
                 LanguageContext::Expression(m) => m,
             },
-            ExprKind::ResultOk(e) => {
+            ExprKind::Ok(e) => {
                 let inner = self.lower_expression(e)?;
                 thir::Expression {
-                    kind: thir::ExprKind::ResultOk(Box::new(inner.clone())),
+                    kind: thir::ExprKind::Ok(Box::new(inner.clone())),
                     vtype: VType {
                         kind: TypeKind::Result(Box::new(ResultTypeKind {
                             ok: inner.vtype,
@@ -944,10 +944,10 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
-            ExprKind::ResultErr(e) => {
+            ExprKind::Err(e) => {
                 let inner = self.lower_expression(e)?;
                 thir::Expression {
-                    kind: thir::ExprKind::ResultErr(Box::new(inner.clone())),
+                    kind: thir::ExprKind::Err(Box::new(inner.clone())),
                     vtype: VType {
                         kind: TypeKind::Result(Box::new(ResultTypeKind {
                             ok: VType {
@@ -1046,7 +1046,7 @@ impl CompileState<'_> {
         // identifiers, which can't be compared, like values can. So we ignore the identifiers, and
         // just make sure the pattern (Ok/Err) isn't duplicated.
         let result_ok_marker = Expression {
-            kind: ExprKind::ResultOk(Box::new(Expression {
+            kind: ExprKind::Ok(Box::new(Expression {
                 kind: ExprKind::Identifier(Ident {
                     name: ident!("result_ok_pattern"),
                     span: Span::empty(),
@@ -1056,7 +1056,7 @@ impl CompileState<'_> {
             span: Span::empty(),
         };
         let result_err_marker = Expression {
-            kind: ExprKind::ResultErr(Box::new(Expression {
+            kind: ExprKind::Err(Box::new(Expression {
                 kind: ExprKind::Identifier(Ident {
                     name: ident!("result_err_pattern"),
                     span: Span::empty(),
@@ -1121,9 +1121,9 @@ impl CompileState<'_> {
                 MatchPattern::Values(values) => {
                     // HACK disallow using result patterns in alternation, until #574.
                     if values.len() > 1
-                        && values.iter().any(|value| {
-                            matches!(value.kind, ExprKind::ResultOk(_) | ExprKind::ResultErr(_))
-                        })
+                        && values
+                            .iter()
+                            .any(|value| matches!(value.kind, ExprKind::Ok(_) | ExprKind::Err(_)))
                     {
                         return Err(self.err_loc(
                             CompileErrorType::Unknown(String::from(

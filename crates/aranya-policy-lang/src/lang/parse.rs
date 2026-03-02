@@ -457,7 +457,7 @@ impl ChunkParser<'_> {
         // Check if this is a single-value Result pattern: Ok(identifier) or Err(identifier)
         if values.len() == 1 {
             match &values[0].kind {
-                ExprKind::ResultOk(inner) => {
+                ExprKind::Ok(inner) => {
                     if let ExprKind::Identifier(id) = &inner.kind {
                         Ok(MatchPattern::ResultPattern(ResultPattern::Ok(id.clone())))
                     } else {
@@ -469,7 +469,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 }
-                ExprKind::ResultErr(inner) => {
+                ExprKind::Err(inner) => {
                     if let ExprKind::Identifier(id) = &inner.kind {
                         Ok(MatchPattern::ResultPattern(ResultPattern::Err(id.clone())))
                     } else {
@@ -650,7 +650,7 @@ impl ChunkParser<'_> {
                             })?;
                             let expr = self.parse_expression(v)?;
                             Ok(Expression {
-                                kind: ExprKind::ResultOk(Box::new(expr)),
+                                kind: ExprKind::Ok(Box::new(expr)),
                                 span
                             })
                         }
@@ -665,7 +665,7 @@ impl ChunkParser<'_> {
                             })?;
                             let expr = self.parse_expression(v)?;
                             Ok(Expression {
-                                kind: ExprKind::ResultErr(Box::new(expr)),
+                                kind: ExprKind::Err(Box::new(expr)),
                                 span,
                             })
                         }

@@ -625,9 +625,9 @@ pub enum ExprKind {
     /// An optional literal
     Optional(Option<Box<Expression>>),
     /// A Result Ok literal
-    ResultOk(Box<Expression>),
+    Ok(Box<Expression>),
     /// A Result Err literal
-    ResultErr(Box<Expression>),
+    Err(Box<Expression>),
     /// A named struct
     NamedStruct(NamedStruct),
     /// One of the [InternalFunction]s

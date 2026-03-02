@@ -183,9 +183,9 @@ pub enum ExprKind {
     /// Match expression
     Match(Box<MatchExpression>),
     /// Result Ok variant
-    ResultOk(Box<Expression>),
+    Ok(Box<Expression>),
     /// Result Err variant
-    ResultErr(Box<Expression>),
+    Err(Box<Expression>),
 }
 
 spanned! {

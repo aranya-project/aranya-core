@@ -820,13 +820,13 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
-            thir::ExprKind::ResultOk(e) => {
+            thir::ExprKind::Ok(e) => {
                 // Compile the inner expression and wrap it in Ok
                 self.compile_typed_expression(*e)?;
                 // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
                 self.append_instruction(Instruction::Wrap(WrapType::Ok));
             }
-            thir::ExprKind::ResultErr(e) => {
+            thir::ExprKind::Err(e) => {
                 // Compile the inner expression and wrap it in Err
                 self.compile_typed_expression(*e)?;
                 self.append_instruction(Instruction::Wrap(WrapType::Err));

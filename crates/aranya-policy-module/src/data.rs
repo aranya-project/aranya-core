@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
+use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
 /// A constant or literal value used in policy.
@@ -74,8 +74,32 @@ impl ConstValue {
                     span: Span::empty(),
                 })))
             }
-            // TODO add case for Result
-            _ => None,
+            Self::Result(Ok(ok)) => {
+                let ok_kind = ok.vtype()?;
+                Some(TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: VType {
+                        kind: ok_kind,
+                        span: Span::empty(),
+                    },
+                    err: VType {
+                        kind: TypeKind::Never,
+                        span: Span::empty(),
+                    },
+                })))
+            }
+            Self::Result(Err(err)) => {
+                let err_kind = err.vtype()?;
+                Some(TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: VType {
+                        kind: TypeKind::Never,
+                        span: Span::empty(),
+                    },
+                    err: VType {
+                        kind: err_kind,
+                        span: Span::empty(),
+                    },
+                })))
+            }
         }
     }
 
