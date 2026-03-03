@@ -802,12 +802,10 @@ impl<'a> CompileState<'a> {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
 
-                // Push a None to compare against
-                self.append_instruction(Instruction::Const(ConstValue::NONE));
-                // Check if the value is equal to None
-                self.append_instruction(Instruction::Eq);
-                if expr_is_some {
-                    // If we're checking for not Some, invert the result of the Eq to None
+                // Check if the value is `Some(_)`.
+                self.append_instruction(Instruction::Is(WrapType::Some));
+                if !expr_is_some {
+                    // For `is None`, invert.
                     self.append_instruction(Instruction::Not);
                 }
             }

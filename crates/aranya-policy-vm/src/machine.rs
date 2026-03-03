@@ -981,48 +981,16 @@ where
                 self.ipush(Value::Bool(is_type))?;
             }
             Instruction::Unwrap(wrap_type) => {
-                let pc = self.pc;
-                let assert_wrap_type =
-                    |expected: WrapType, got: WrapType| -> Result<(), MachineError> {
-                        if got != expected {
-                            return Err(MachineError::from_position(
-                                MachineErrorType::invalid_type(
-                                    got.to_string(),
-                                    expected.to_string(),
-                                    "Unwrap",
-                                ),
-                                pc,
-                                None,
-                            ));
-                        }
-                        Ok(())
-                    };
                 let value = self.ipop_value()?;
-                let inner = match value {
-                    Value::Option(opt) => match opt {
-                        Some(inner) => {
-                            assert_wrap_type(WrapType::Some, wrap_type)?;
-                            *inner
-                        }
-                        None => {
-                            return Err(
-                                self.err(MachineErrorType::Unknown("unwrapped None".into()))
-                            );
-                        }
-                    },
-                    Value::Result(Ok(inner)) => {
-                        assert_wrap_type(WrapType::Ok, wrap_type)?;
-                        *inner
-                    }
-                    Value::Result(Err(inner)) => {
-                        assert_wrap_type(WrapType::Err, wrap_type)?;
-                        *inner
-                    }
-                    _ => {
+                let inner = match (wrap_type, value) {
+                    (WrapType::Ok, Value::Result(Ok(inner))) => *inner,
+                    (WrapType::Err, Value::Result(Err(inner))) => *inner,
+                    (WrapType::Some, Value::Option(Some(inner))) => *inner,
+                    (want, got) => {
                         return Err(self.err(MachineErrorType::invalid_type(
-                            "Result or Option",
-                            value.type_name(),
-                            "Unwrap instruction only works on Result and Option values",
+                            want.to_string(),
+                            got.type_name(),
+                            "unwrap type mismatch",
                         )));
                     }
                 };

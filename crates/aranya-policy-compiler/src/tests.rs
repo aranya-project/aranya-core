@@ -3566,28 +3566,6 @@ fn test_structs_listed_out_of_order() {
     }
 }
 
-const FFI_WITH_CYCLE: &[ModuleSchema<'static>] = &[ModuleSchema {
-    name: ident!("cyclic_types"),
-    functions: &[],
-    structs: &[
-        ffi::Struct {
-            name: ident!("FFIFoo"),
-            fields: &[ffi::Arg {
-                name: ident!("bar"),
-                vtype: ffi::Type::Struct(ident!("FFIBar")),
-            }],
-        },
-        ffi::Struct {
-            name: ident!("FFIBar"),
-            fields: &[ffi::Arg {
-                name: ident!("foo"),
-                vtype: ffi::Type::Struct(ident!("FFIFoo")),
-            }],
-        },
-    ],
-    enums: &[],
-}];
-
 #[test]
 fn test_result_values() {
     let invalid = [
