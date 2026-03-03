@@ -282,7 +282,7 @@ impl CompileState<'_> {
                     None => {
                         inner_vtype = VType {
                             kind: TypeKind::Never,
-                            span: Span::empty(),
+                            span: expression.span,
                         };
                         inner_expr = None;
                     }
@@ -936,7 +936,7 @@ impl CompileState<'_> {
                             ok: inner.vtype,
                             err: VType {
                                 kind: TypeKind::Never,
-                                span: Span::empty(),
+                                span: expression.span,
                             },
                         })),
                         span: expression.span,
@@ -952,7 +952,7 @@ impl CompileState<'_> {
                         kind: TypeKind::Result(Box::new(ResultTypeKind {
                             ok: VType {
                                 kind: TypeKind::Never,
-                                span: Span::empty(),
+                                span: expression.span,
                             },
                             err: inner.vtype,
                         })),
