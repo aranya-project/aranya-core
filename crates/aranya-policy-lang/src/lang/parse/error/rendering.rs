@@ -44,12 +44,12 @@ impl Report for InvalidOperator {
         let elements = if input[op.start()..op.end()] == *"+" {
             [
                 add_patch("saturating_add(", source.clone(), lhs, rhs),
-                add_patch("add(", source, lhs, rhs),
+                add_patch("check_unwrap add(", source, lhs, rhs),
             ]
         } else {
             [
                 add_patch("saturating_sub(", source.clone(), lhs, rhs),
-                add_patch("sub(", source, lhs, rhs),
+                add_patch("check_unwrap sub(", source, lhs, rhs),
             ]
         };
 

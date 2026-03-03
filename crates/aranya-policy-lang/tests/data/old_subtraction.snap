@@ -13,5 +13,5 @@ help: you might have meant to use an arithmetic function
 2 +     return saturating_sub(3, 4)
   |
 2 -     return 3 - 4
-2 +     return sub(3, 4)
+2 +     return check_unwrap sub(3, 4)
   |
