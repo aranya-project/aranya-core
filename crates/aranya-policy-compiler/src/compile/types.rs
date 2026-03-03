@@ -190,7 +190,12 @@ impl Display for DisplayType<'_> {
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
-        if self.m.struct_defs.contains_key(&s.identifier.name) {
+        if self
+            .m
+            .interface
+            .struct_defs
+            .contains_key(&s.identifier.name)
+        {
             Ok(VType {
                 kind: TypeKind::Struct(s.identifier.clone()),
                 span: s.identifier.span,

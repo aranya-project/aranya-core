@@ -548,14 +548,16 @@ impl<F: Write> Storage for LinearStorage<F> {
         self.writer.head()
     }
 
-    fn commit(
-        &mut self,
-        segment: Self::Segment,
-        buffers: &mut TraversalBuffer,
-    ) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.get_head()?, &segment, buffers)? {
-            return Err(StorageError::HeadNotAncestor);
-        }
+    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
+        debug_assert!(
+            self.is_ancestor(
+                self.get_head()?,
+                &segment,
+                #[allow(unused_allocation, reason = "box large type to reduce stack usage")]
+                Box::new(TraversalBuffer::new()).as_mut()
+            )?,
+            "new head segment must be descendant of old head"
+        );
 
         self.writer.commit(segment.head_location()?)
     }

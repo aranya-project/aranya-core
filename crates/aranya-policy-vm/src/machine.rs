@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{
     boxed::Box,
     collections::BTreeMap,
@@ -12,9 +10,8 @@ use core::fmt::{self, Display};
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
-    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
-    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
+    ModuleData, ModuleV0, Target, UnsupportedVersion, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -22,7 +19,8 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
+    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, OpenContext,
+    PolicyContext, SealContext, Struct, TryAsMut, Value, ValueConversionError,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -47,7 +45,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
             return false;
         };
 
-        if !key.value.vtype().matches(&key_value.field_type.kind) {
+        if !key.value.fits_type(&key_value.field_type) {
             return false;
         }
     }
@@ -63,10 +61,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         };
 
         // Ensure fact value type matches schema
-        let Some(value_type) = value.value.vtype() else {
-            return false;
-        };
-        if !value_type.matches(&schema_value.field_type.kind) {
+        if !value.value.fits_type(&schema_value.field_type) {
             return false;
         }
     }
@@ -145,7 +140,7 @@ pub struct Machine {
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 impl Machine {
@@ -528,6 +523,9 @@ where
                 }
             }
             Instruction::Const(v) => {
+                self.ipush(v)?;
+            }
+            Instruction::Identifier(v) => {
                 self.ipush(v)?;
             }
             Instruction::Def(key) => {

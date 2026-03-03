@@ -1,6 +1,4 @@
-use aranya_policy_module::{TryAsMut, TryFromValue, Value, ValueConversionError};
-
-use crate::error::MachineErrorType;
+use crate::{TryAsMut, TryFromValue, Value, ValueConversionError, error::MachineErrorType};
 
 /// A stack data structure.
 pub trait Stack {

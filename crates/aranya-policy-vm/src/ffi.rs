@@ -1,6 +1,10 @@
 //! The VM's foreign function interface.
 
+use alloc::vec::Vec;
+
 use aranya_crypto::Engine;
+use aranya_id::{Id, IdTag};
+use aranya_policy_ast::Text;
 pub use aranya_policy_module::ffi::*;
 
 #[cfg(feature = "derive")]
@@ -26,4 +30,45 @@ pub trait FfiModule {
         ctx: &CommandContext,
         eng: &E,
     ) -> Result<(), Self::Error>;
+}
+
+/// Allows a type to be used by FFI derive.
+pub trait Typed {
+    /// Indicates the type of the type.
+    const TYPE: Type<'static>;
+}
+
+macro_rules! impl_typed {
+    ($name:ty => $type:ident) => {
+        impl Typed for $name {
+            const TYPE: Type<'static> = Type::$type;
+        }
+    };
+}
+
+impl_typed!(Text => String);
+
+impl_typed!(Vec<u8> => Bytes);
+impl_typed!(&[u8] => Bytes);
+
+impl_typed!(isize => Int);
+impl_typed!(i64 => Int);
+impl_typed!(i32 => Int);
+impl_typed!(i16 => Int);
+impl_typed!(i8 => Int);
+
+impl_typed!(usize => Int);
+impl_typed!(u64 => Int);
+impl_typed!(u32 => Int);
+impl_typed!(u16 => Int);
+impl_typed!(u8 => Int);
+
+impl_typed!(bool => Bool);
+
+impl<Tag: IdTag> Typed for Id<Tag> {
+    const TYPE: Type<'static> = Type::Id;
+}
+
+impl<T: Typed> Typed for Option<T> {
+    const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
 }
