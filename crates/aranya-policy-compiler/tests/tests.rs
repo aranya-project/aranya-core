@@ -87,7 +87,7 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
         .expect("filename not utf8");
     let text = std::fs::read_to_string(src.as_path()).expect("could not read source file");
 
-    if name.contains("pass") {
+    if name.ends_with(".pass.policy") {
         let module = compile_pass(&text);
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
@@ -96,7 +96,7 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
                 ".data.codemap.text" => "[source code]",
             });
         });
-    } else if name.contains("fail") {
+    } else if name.ends_with(".fail.policy") {
         let error = compile_fail(&text);
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
@@ -104,7 +104,7 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
         });
     } else {
         panic!(
-            "Test file '{}', must contain 'pass' or 'fail' in the file name.",
+            "Test file '{}', must end in '.pass.policy' or '.fail.policy'.",
             src.display()
         )
     }
