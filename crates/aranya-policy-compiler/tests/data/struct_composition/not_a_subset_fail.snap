@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+Struct Bar must be a subset of Struct Foo at line 4 col 5:
+	let new_foo = Foo {
+        y: true,
+        ...b
+    }
