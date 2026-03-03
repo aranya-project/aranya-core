@@ -15,6 +15,8 @@ use crate::{
 
 #[test]
 fn test_large_sync() {
+    let mut buffers = TraversalBuffers::new();
+
     let mut response_cache = PeerCache::new();
     let mut request_cache = PeerCache::new();
 
@@ -31,6 +33,7 @@ fn test_large_sync() {
         &mut other,
         &mut response_cache,
         &mut request_cache,
+        &mut buffers,
     );
 
     let mut trx = client.transaction(graph_id);
@@ -63,13 +66,15 @@ fn test_large_sync() {
             seen.push(prev);
         }
         client
-            .add_commands(&mut trx, &mut NullSink, commands)
+            .add_commands(&mut trx, &mut NullSink, commands, &mut buffers.primary)
             .unwrap();
     }
 
     dbg!(seen.len());
 
-    client.commit(trx, &mut NullSink).unwrap();
+    client
+        .commit(trx, &mut NullSink, &mut buffers.primary)
+        .unwrap();
     eprintln!(
         "#segments = {}, expected around {}",
         client
@@ -94,6 +99,7 @@ fn test_large_sync() {
             &mut other,
             &mut response_cache,
             &mut request_cache,
+            &mut buffers,
         );
         let y = sync(
             graph_id,
@@ -101,6 +107,7 @@ fn test_large_sync() {
             &mut client,
             &mut request_cache,
             &mut response_cache,
+            &mut buffers,
         );
         assert!(x > 0 || y > 0);
     }
@@ -114,6 +121,7 @@ fn sync(
     request_state: &mut Client,
     response_cache: &mut PeerCache,
     request_cache: &mut PeerCache,
+    buffers: &mut TraversalBuffers,
 ) -> usize {
     let mut added = 0;
     let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -121,16 +129,20 @@ fn sync(
 
     let mut request_trx = request_state.transaction(graph_id);
 
-    let mut buffers = TraversalBuffers::new();
-    let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
+    let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
 
     let (len, _) = request_syncer
-        .poll(&mut buffer, request_state.provider(), request_cache)
+        .poll(
+            &mut buffer,
+            request_state.provider(),
+            request_cache,
+            &mut buffers.primary,
+        )
         .unwrap();
 
     let mut buffers = TraversalBuffers::new();
-    let mut response_syncer = SyncResponder::new(&mut buffers);
+    let mut response_syncer = SyncResponder::new();
     let SyncType::Poll { request } = postcard::from_bytes(&buffer[..len]).unwrap() else {
         panic!();
     };
@@ -139,7 +151,12 @@ fn sync(
 
     loop {
         let len = response_syncer
-            .poll(&mut target, response_state.provider(), response_cache)
+            .poll(
+                &mut target,
+                response_state.provider(),
+                response_cache,
+                &mut buffers,
+            )
             .unwrap();
         if len == 0 {
             break;
@@ -148,7 +165,7 @@ fn sync(
         if let Some(cmds) = request_syncer.receive(&target[..len]).unwrap() {
             tracing::info!("synced {} commands", cmds.len());
             added += request_state
-                .add_commands(&mut request_trx, &mut NullSink, cmds)
+                .add_commands(&mut request_trx, &mut NullSink, cmds, &mut buffers.primary)
                 .unwrap();
         } else {
             break;
@@ -156,7 +173,9 @@ fn sync(
     }
 
     eprintln!("committing sync");
-    request_state.commit(request_trx, &mut NullSink).unwrap();
+    request_state
+        .commit(request_trx, &mut NullSink, &mut buffers.primary)
+        .unwrap();
 
     added
 }
