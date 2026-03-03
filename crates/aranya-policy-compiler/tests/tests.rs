@@ -1,3 +1,5 @@
+#![allow(clippy::panic)]
+
 use std::path::PathBuf;
 
 use aranya_policy_ast::{Version, ident};
@@ -92,13 +94,13 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
             insta::assert_yaml_snapshot!(name, module, {
                 // Redact the "text" field from the code map to clean up the snapshots a bit
                 ".data.codemap.text" => "[source code]",
-            })
+            });
         });
     } else if name.contains("fail") {
         let error = compile_fail(&text);
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-            insta::assert_snapshot!(name, error)
+            insta::assert_snapshot!(name, error);
         });
     } else {
         panic!(
