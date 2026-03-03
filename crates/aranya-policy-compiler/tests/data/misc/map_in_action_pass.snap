@@ -1,0 +1,105 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - FactNew: Pet
+    - QueryStart
+    - Block
+    - QueryNext: p
+    - Branch:
+        Resolved: 13
+    - Meta:
+        Get: p
+    - Get: p
+    - StructGet: age
+    - Meta:
+        Let: age
+    - Def: age
+    - End
+    - Jump:
+        Resolved: 3
+    - End
+    - Return
+  labels:
+    ? name: pets
+      ltype: Action
+    : 1
+  action_defs:
+    - name:
+        name: pets
+        span:
+          start: 40
+          end: 44
+      persistence: Persistent
+      params: []
+  command_defs: []
+  fact_defs:
+    Pet:
+      immutable: false
+      identifier:
+        name: Pet
+        span:
+          start: 5
+          end: 8
+      key:
+        - identifier:
+            name: name
+            span:
+              start: 9
+              end: 13
+          field_type:
+            kind: String
+            span:
+              start: 14
+              end: 20
+      value:
+        - identifier:
+            name: age
+            span:
+              start: 24
+              end: 27
+          field_type:
+            kind: Int
+            span:
+              start: 28
+              end: 31
+      span:
+        start: 0
+        end: 32
+  struct_defs:
+    Pet:
+      - identifier:
+          name: name
+          span:
+            start: 9
+            end: 13
+        field_type:
+          kind: String
+          span:
+            start: 14
+            end: 20
+      - identifier:
+          name: age
+          span:
+            start: 24
+            end: 27
+        field_type:
+          kind: Int
+          span:
+            start: 28
+            end: 31
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 53
+          end: 105
+      - - 6
+        - start: 84
+          end: 104
+  globals: {}

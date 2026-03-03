@@ -1,0 +1,111 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: a
+    - Def: a
+    - SaveSP
+    - FactNew: Foo
+    - Meta:
+        Get: a
+    - Get: a
+    - FactKeySet: a
+    - Query
+    - Dup
+    - Const:
+        Option: ~
+    - Eq
+    - Not
+    - Branch:
+        Resolved: 15
+    - Exit: Panic
+    - Unwrap
+    - Meta:
+        Let: foo
+    - Def: foo
+    - Meta:
+        Get: foo
+    - Get: foo
+    - RestoreSP
+    - Return
+    - Exit: Panic
+  labels:
+    ? name: get_foo
+      ltype: Function
+    : 1
+  action_defs: []
+  command_defs: []
+  fact_defs:
+    Foo:
+      immutable: false
+      identifier:
+        name: Foo
+        span:
+          start: 5
+          end: 8
+      key:
+        - identifier:
+            name: a
+            span:
+              start: 9
+              end: 10
+          field_type:
+            kind: Int
+            span:
+              start: 11
+              end: 14
+      value:
+        - identifier:
+            name: b
+            span:
+              start: 18
+              end: 19
+          field_type:
+            kind: Int
+            span:
+              start: 20
+              end: 23
+      span:
+        start: 0
+        end: 24
+  struct_defs:
+    Foo:
+      - identifier:
+          name: a
+          span:
+            start: 9
+            end: 10
+        field_type:
+          kind: Int
+          span:
+            start: 11
+            end: 14
+      - identifier:
+          name: b
+          span:
+            start: 18
+            end: 19
+        field_type:
+          kind: Int
+          span:
+            start: 20
+            end: 23
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 26
+          end: 125
+      - - 4
+        - start: 67
+          end: 113
+      - - 18
+        - start: 113
+          end: 124
+  globals: {}

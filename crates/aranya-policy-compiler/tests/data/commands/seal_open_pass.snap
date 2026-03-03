@@ -1,0 +1,95 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Meta:
+        Finish: true
+    - Block
+    - End
+    - Exit: Normal
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Return
+    - Meta:
+        Let: this
+    - Def: this
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+  labels:
+    ? name: Foo
+      ltype: CommandPolicy
+    : 1
+    ? name: Foo
+      ltype: CommandRecall
+    : 10
+    ? name: Foo
+      ltype: CommandSeal
+    : 15
+    ? name: Foo
+      ltype: CommandOpen
+    : 22
+  action_defs: []
+  command_defs:
+    - name:
+        name: Foo
+        span:
+          start: 8
+          end: 11
+      persistence: Persistent
+      attributes: []
+      fields: []
+  fact_defs: {}
+  struct_defs:
+    Foo: []
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 0
+          end: 0
+      - - 5
+        - start: 103
+          end: 112
+      - - 10
+        - start: 0
+          end: 0
+      - - 15
+        - start: 0
+          end: 120
+      - - 18
+        - start: 39
+          end: 53
+      - - 22
+        - start: 0
+          end: 120
+      - - 25
+        - start: 66
+          end: 80
+  globals: {}

@@ -1,0 +1,9 @@
+command Foo {
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            emit 0
+        }
+    }
+}

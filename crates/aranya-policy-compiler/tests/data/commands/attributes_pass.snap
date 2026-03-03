@@ -1,0 +1,121 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Meta:
+        Finish: true
+    - Block
+    - End
+    - Exit: Normal
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Return
+    - Meta:
+        Let: this
+    - Def: this
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+  labels:
+    ? name: A
+      ltype: CommandPolicy
+    : 1
+    ? name: A
+      ltype: CommandRecall
+    : 10
+    ? name: A
+      ltype: CommandSeal
+    : 15
+    ? name: A
+      ltype: CommandOpen
+    : 22
+  action_defs: []
+  command_defs:
+    - name:
+        name: A
+        span:
+          start: 36
+          end: 37
+      persistence: Persistent
+      attributes:
+        - name:
+            name: i
+            span:
+              start: 65
+              end: 66
+          value:
+            Int: 5
+        - name:
+            name: s
+            span:
+              start: 79
+              end: 80
+          value:
+            String: abc
+        - name:
+            name: priority
+            span:
+              start: 97
+              end: 105
+          value:
+            Enum:
+              - Priority
+              - 1
+      fields: []
+  fact_defs: {}
+  struct_defs:
+    A: []
+  enum_defs:
+    Priority:
+      High: 1
+      Low: 0
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 0
+          end: 0
+      - - 5
+        - start: 203
+          end: 212
+      - - 10
+        - start: 0
+          end: 0
+      - - 15
+        - start: 28
+          end: 220
+      - - 18
+        - start: 139
+          end: 153
+      - - 22
+        - start: 28
+          end: 220
+      - - 25
+        - start: 166
+          end: 180
+  globals: {}

@@ -1,0 +1,9 @@
+struct S {
+    x int
+}
+function f() struct S {
+    return S {
+        x: 1,
+        x: 2,
+    }
+}

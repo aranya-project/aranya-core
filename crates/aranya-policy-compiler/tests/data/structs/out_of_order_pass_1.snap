@@ -1,0 +1,82 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+  labels: {}
+  action_defs: []
+  command_defs: []
+  fact_defs: {}
+  struct_defs:
+    Bar:
+      - identifier:
+          name: f
+          span:
+            start: 84
+            end: 85
+        field_type:
+          kind:
+            Struct:
+              name: Foo
+              span:
+                start: 93
+                end: 96
+          span:
+            start: 86
+            end: 96
+    Fi:
+      - identifier:
+          name: fum
+          span:
+            start: 12
+            end: 15
+        field_type:
+          kind:
+            Struct:
+              name: Fum
+              span:
+                start: 23
+                end: 26
+          span:
+            start: 16
+            end: 26
+    Foo: []
+    Fum:
+      - identifier:
+          name: b
+          span:
+            start: 42
+            end: 43
+        field_type:
+          kind:
+            Struct:
+              name: Bar
+              span:
+                start: 51
+                end: 54
+          span:
+            start: 44
+            end: 54
+      - identifier:
+          name: f
+          span:
+            start: 56
+            end: 57
+        field_type:
+          kind:
+            Struct:
+              name: Foo
+              span:
+                start: 65
+                end: 68
+          span:
+            start: 58
+            end: 68
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping: []
+  globals: {}

@@ -1,0 +1,11 @@
+effect Fi { s struct Foo }
+command Foo {
+    fields {
+        i int
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

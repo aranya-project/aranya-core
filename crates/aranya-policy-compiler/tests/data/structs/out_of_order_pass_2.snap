@@ -1,0 +1,113 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+  labels: {}
+  action_defs: []
+  command_defs: []
+  fact_defs:
+    Foo:
+      immutable: false
+      identifier:
+        name: Foo
+        span:
+          start: 53
+          end: 56
+      key:
+        - identifier:
+            name: x
+            span:
+              start: 57
+              end: 58
+          field_type:
+            kind: Int
+            span:
+              start: 59
+              end: 62
+      value:
+        - identifier:
+            name: b
+            span:
+              start: 67
+              end: 68
+          field_type:
+            kind: Bool
+            span:
+              start: 69
+              end: 73
+      span:
+        start: 48
+        end: 75
+  struct_defs:
+    Fi:
+      - identifier:
+          name: s
+          span:
+            start: 37
+            end: 38
+        field_type:
+          kind: String
+          span:
+            start: 39
+            end: 45
+    Foo:
+      - identifier:
+          name: x
+          span:
+            start: 57
+            end: 58
+        field_type:
+          kind: Int
+          span:
+            start: 59
+            end: 62
+      - identifier:
+          name: b
+          span:
+            start: 67
+            end: 68
+        field_type:
+          kind: Bool
+          span:
+            start: 69
+            end: 73
+    Fum:
+      - identifier:
+          name: s
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: String
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: x
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: Int
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: b
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: Bool
+          span:
+            start: 0
+            end: 0
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping: []
+  globals: {}

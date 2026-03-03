@@ -1,0 +1,131 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Meta:
+        Finish: true
+    - Block
+    - End
+    - Exit: Normal
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Return
+    - Meta:
+        Let: this
+    - Def: this
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+  labels:
+    ? name: Foo
+      ltype: CommandPolicy
+    : 1
+    ? name: Foo
+      ltype: CommandRecall
+    : 10
+    ? name: Foo
+      ltype: CommandSeal
+    : 15
+    ? name: Foo
+      ltype: CommandOpen
+    : 22
+  action_defs: []
+  command_defs:
+    - name:
+        name: Foo
+        span:
+          start: 35
+          end: 38
+      persistence: Persistent
+      attributes: []
+      fields:
+        - name:
+            name: i
+            span:
+              start: 62
+              end: 63
+          ty:
+            kind: Int
+            span:
+              start: 64
+              end: 67
+  fact_defs: {}
+  struct_defs:
+    Fi:
+      - identifier:
+          name: s
+          span:
+            start: 12
+            end: 13
+        field_type:
+          kind:
+            Struct:
+              name: Foo
+              span:
+                start: 21
+                end: 24
+          span:
+            start: 14
+            end: 24
+    Foo:
+      - identifier:
+          name: i
+          span:
+            start: 62
+            end: 63
+        field_type:
+          kind: Int
+          span:
+            start: 64
+            end: 67
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 0
+          end: 0
+      - - 5
+        - start: 149
+          end: 158
+      - - 10
+        - start: 0
+          end: 0
+      - - 15
+        - start: 27
+          end: 166
+      - - 18
+        - start: 85
+          end: 99
+      - - 22
+        - start: 27
+          end: 166
+      - - 25
+        - start: 112
+          end: 126
+  globals: {}

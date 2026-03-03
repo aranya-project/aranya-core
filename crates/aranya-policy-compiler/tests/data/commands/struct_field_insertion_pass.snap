@@ -1,0 +1,187 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Meta:
+        Finish: true
+    - Block
+    - End
+    - Exit: Normal
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - Meta:
+        Let: this
+    - Def: this
+    - Return
+    - Meta:
+        Let: this
+    - Def: this
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+    - Meta:
+        Let: envelope
+    - Def: envelope
+    - SaveSP
+    - Exit: Panic
+    - RestoreSP
+    - Return
+    - Exit: Panic
+  labels:
+    ? name: Foo
+      ltype: CommandPolicy
+    : 1
+    ? name: Foo
+      ltype: CommandRecall
+    : 10
+    ? name: Foo
+      ltype: CommandSeal
+    : 15
+    ? name: Foo
+      ltype: CommandOpen
+    : 22
+  action_defs: []
+  command_defs:
+    - name:
+        name: Foo
+        span:
+          start: 59
+          end: 62
+      persistence: Persistent
+      attributes: []
+      fields:
+        - name:
+            name: a
+            span:
+              start: 0
+              end: 0
+          ty:
+            kind: Int
+            span:
+              start: 0
+              end: 0
+        - name:
+            name: b
+            span:
+              start: 0
+              end: 0
+          ty:
+            kind: String
+            span:
+              start: 0
+              end: 0
+        - name:
+            name: c
+            span:
+              start: 100
+              end: 101
+          ty:
+            kind: Bool
+            span:
+              start: 0
+              end: 0
+  fact_defs: {}
+  struct_defs:
+    Bar:
+      - identifier:
+          name: a
+          span:
+            start: 13
+            end: 14
+        field_type:
+          kind: Int
+          span:
+            start: 15
+            end: 18
+    Baz:
+      - identifier:
+          name: a
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: Int
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: b
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: String
+          span:
+            start: 0
+            end: 0
+    Foo:
+      - identifier:
+          name: a
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: Int
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: b
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: String
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: c
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: Bool
+          span:
+            start: 0
+            end: 0
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 0
+          end: 0
+      - - 5
+        - start: 188
+          end: 197
+      - - 10
+        - start: 0
+          end: 0
+      - - 15
+        - start: 51
+          end: 205
+      - - 18
+        - start: 124
+          end: 138
+      - - 22
+        - start: 51
+          end: 205
+      - - 25
+        - start: 151
+          end: 165
+  globals: {}

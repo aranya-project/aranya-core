@@ -1,0 +1,110 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - SaveSP
+    - StructNew: Fum
+    - Const:
+        Bool: true
+    - StructSet: b
+    - Meta:
+        Let: fum
+    - Def: fum
+    - StructNew: Bar
+    - Const:
+        String: s
+    - StructSet: s
+    - Const:
+        Int: 1
+    - StructSet: num
+    - Meta:
+        Get: fum
+    - Get: fum
+    - StructSet: f
+    - RestoreSP
+    - Return
+    - Exit: Panic
+  labels:
+    ? name: ret_bar
+      ltype: Function
+    : 1
+  action_defs: []
+  command_defs: []
+  fact_defs: {}
+  struct_defs:
+    Bar:
+      - identifier:
+          name: s
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: String
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: num
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind: Int
+          span:
+            start: 0
+            end: 0
+      - identifier:
+          name: f
+          span:
+            start: 0
+            end: 0
+        field_type:
+          kind:
+            Struct:
+              name: Fum
+              span:
+                start: 166
+                end: 169
+          span:
+            start: 0
+            end: 0
+    Foo:
+      - identifier:
+          name: s
+          span:
+            start: 185
+            end: 186
+        field_type:
+          kind: String
+          span:
+            start: 187
+            end: 193
+    Fum:
+      - identifier:
+          name: b
+          span:
+            start: 120
+            end: 121
+        field_type:
+          kind: Bool
+          span:
+            start: 122
+            end: 126
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 0
+          end: 105
+      - - 2
+        - start: 36
+          end: 66
+      - - 7
+        - start: 66
+          end: 104
+  globals: {}

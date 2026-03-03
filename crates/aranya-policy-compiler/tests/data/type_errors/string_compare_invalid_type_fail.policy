@@ -1,0 +1,3 @@
+function g(x string) bool {
+    return x < "test"
+}

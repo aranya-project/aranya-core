@@ -1,0 +1,73 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Meta:
+        Let: n
+    - Def: n
+    - Meta:
+        Get: n
+    - Get: n
+    - Dup
+    - Const:
+        Int: 0
+    - Eq
+    - Branch:
+        Resolved: 10
+    - Jump:
+        Resolved: 13
+    - Pop
+    - Const:
+        Option: ~
+    - Jump:
+        Resolved: 17
+    - Pop
+    - Const:
+        Int: 0
+    - Some
+    - Jump:
+        Resolved: 17
+    - Meta:
+        Let: x
+    - Def: x
+    - Return
+  labels:
+    ? name: f
+      ltype: Action
+    : 1
+  action_defs:
+    - name:
+        name: f
+        span:
+          start: 7
+          end: 8
+      persistence: Persistent
+      params:
+        - name:
+            name: n
+            span:
+              start: 9
+              end: 10
+          ty:
+            kind: Int
+            span:
+              start: 11
+              end: 14
+  command_defs: []
+  fact_defs: {}
+  struct_defs: {}
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 0
+          end: 86
+      - - 3
+        - start: 22
+          end: 85
+  globals: {}

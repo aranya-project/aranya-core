@@ -1,0 +1,128 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+data:
+  version: V0
+  progmem:
+    - Exit: Panic
+    - Const:
+        Int: 42
+    - Meta:
+        Let: n
+    - Def: n
+    - FactNew: Pet
+    - QueryStart
+    - Block
+    - QueryNext: p
+    - Branch:
+        Resolved: 24
+    - Meta:
+        Get: p
+    - Get: p
+    - StructGet: age
+    - Const:
+        Int: 0
+    - Gt
+    - Branch:
+        Resolved: 16
+    - Exit: Check
+    - Meta:
+        Get: n
+    - Get: n
+    - Const:
+        Int: 42
+    - Eq
+    - Branch:
+        Resolved: 22
+    - Exit: Check
+    - End
+    - Jump:
+        Resolved: 6
+    - End
+    - Return
+  labels:
+    ? name: pets
+      ltype: Action
+    : 1
+  action_defs:
+    - name:
+        name: pets
+        span:
+          start: 40
+          end: 44
+      persistence: Persistent
+      params: []
+  command_defs: []
+  fact_defs:
+    Pet:
+      immutable: false
+      identifier:
+        name: Pet
+        span:
+          start: 5
+          end: 8
+      key:
+        - identifier:
+            name: name
+            span:
+              start: 9
+              end: 13
+          field_type:
+            kind: String
+            span:
+              start: 14
+              end: 20
+      value:
+        - identifier:
+            name: age
+            span:
+              start: 24
+              end: 27
+          field_type:
+            kind: Int
+            span:
+              start: 28
+              end: 31
+      span:
+        start: 0
+        end: 32
+  struct_defs:
+    Pet:
+      - identifier:
+          name: name
+          span:
+            start: 9
+            end: 13
+        field_type:
+          kind: String
+          span:
+            start: 14
+            end: 20
+      - identifier:
+          name: age
+          span:
+            start: 24
+            end: 27
+        field_type:
+          kind: Int
+          span:
+            start: 28
+            end: 31
+  enum_defs: {}
+  codemap:
+    text: "[source code]"
+    mapping:
+      - - 1
+        - start: 53
+          end: 68
+      - - 4
+        - start: 68
+          end: 142
+      - - 9
+        - start: 99
+          end: 123
+      - - 16
+        - start: 123
+          end: 141
+  globals: {}
