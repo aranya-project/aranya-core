@@ -5,7 +5,7 @@ use tracing::error;
 
 use crate::{
     Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
-    PolicyError, PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffers,
+    PolicyError, PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffer,
     policy::ActionPlacement,
 };
 
@@ -39,6 +39,8 @@ pub enum ClientError {
     /// split into two separate graph states which can never successfully sync.
     #[error("found parallel finalize commands during braid")]
     ParallelFinalize,
+    #[error("concurrent transaction usage")]
+    ConcurrentTransaction,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -59,7 +61,6 @@ impl From<PolicyError> for ClientError {
 pub struct ClientState<PS, SP> {
     policy_store: PS,
     provider: SP,
-    buffers: TraversalBuffers,
 }
 
 // Manual Debug impl to exclude `buffers` (large, not useful in debug output).
@@ -78,7 +79,6 @@ impl<PS, SP> ClientState<PS, SP> {
         Self {
             policy_store,
             provider,
-            buffers: TraversalBuffers::new(),
         }
     }
 
@@ -126,18 +126,15 @@ where
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
+    ///
+    /// Returns whether any new commands were added.
     pub fn commit(
         &mut self,
-        trx: &mut Transaction<SP, PS>,
+        trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
-    ) -> Result<(), ClientError> {
-        trx.commit(
-            &mut self.provider,
-            &mut self.policy_store,
-            sink,
-            &mut self.buffers,
-        )?;
-        Ok(())
+        buffer: &mut TraversalBuffer,
+    ) -> Result<bool, ClientError> {
+        trx.commit(&mut self.provider, &mut self.policy_store, sink, buffer)
     }
 
     /// Add commands to the transaction, writing the results to
@@ -148,13 +145,14 @@ where
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
+        buffer: &mut TraversalBuffer,
     ) -> Result<usize, ClientError> {
         trx.add_commands(
             commands,
             &mut self.provider,
             &mut self.policy_store,
             sink,
-            &mut self.buffers,
+            buffer,
         )
     }
 
@@ -163,6 +161,7 @@ where
         graph_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
+        buffer: &mut TraversalBuffer,
     ) -> Result<(), ClientError>
     where
         I: IntoIterator<Item = Address>,
@@ -174,7 +173,7 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address, &mut self.buffers.primary)? {
+            if let Some(loc) = storage.get_location(address, buffer)? {
                 request_heads.add_command(
                     storage,
                     LocatedAddress {
@@ -182,7 +181,7 @@ where
                         segment: loc.segment,
                         max_cut: address.max_cut,
                     },
-                    &mut self.buffers.primary,
+                    buffer,
                 )?;
             } else {
                 error!(
@@ -225,7 +224,7 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment, &mut self.buffers.primary)?;
+                storage.commit(segment)?;
                 sink.commit();
                 Ok(())
             }
@@ -255,13 +254,18 @@ where
     ///
     /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
     /// This method is used to determine if we need to sync when a hello message is received.
-    pub fn command_exists(&mut self, graph_id: GraphId, address: Address) -> bool {
+    pub fn command_exists(
+        &mut self,
+        graph_id: GraphId,
+        address: Address,
+        buffer: &mut TraversalBuffer,
+    ) -> bool {
         let Ok(storage) = self.provider.get_storage(graph_id) else {
             // Graph doesn't exist
             return false;
         };
         storage
-            .get_location(address, &mut self.buffers.primary)
+            .get_location(address, buffer)
             .unwrap_or(None)
             .is_some()
     }
