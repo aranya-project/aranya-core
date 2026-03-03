@@ -69,7 +69,7 @@ impl Report for InvalidNestedOption {
         let title = Level::ERROR.primary_title(self.to_string());
 
         // Get the span of the entire expression
-        let span = inner.merge(outer.clone());
+        let span = inner.merge(*outer);
         let primary_annoation = Snippet::source(input).annotation(
             AnnotationKind::Primary
                 .span(span.start()..span.end())
@@ -130,10 +130,10 @@ impl Display for ParseError {
 
         match **kind {
             ParseErrorKind::InvalidOperator(ref inner) => {
-                inner.add_group(input, message, &mut report)
+                inner.add_group(input, message, &mut report);
             }
             ParseErrorKind::InvalidNestedOption(ref inner) => {
-                inner.add_group(input, message, &mut report)
+                inner.add_group(input, message, &mut report);
             }
             _ => {
                 let primary_annoation = Snippet::source(input).annotation(
@@ -142,7 +142,7 @@ impl Display for ParseError {
                         .label(message),
                 );
 
-                report.push(title.clone().element(primary_annoation))
+                report.push(title.clone().element(primary_annoation));
             }
         }
 
