@@ -83,32 +83,16 @@ fn test_add() {
 
 #[test]
 fn test_is_consumes_value_and_pushes_bool() {
+    let ok = |i| Value::Result(Ok(Box::new(Value::Int(i))));
+    let err = |i| Value::Result(Err(Box::new(Value::Int(i))));
+    let some = |i| Value::Option(Some(Box::new(Value::Int(i))));
+
     let cases = [
-        (
-            WrapType::Ok,
-            Value::Result(Ok(Box::new(Value::Int(7)))),
-            true,
-        ),
-        (
-            WrapType::Ok,
-            Value::Result(Err(Box::new(Value::Int(7)))),
-            false,
-        ),
-        (
-            WrapType::Err,
-            Value::Result(Err(Box::new(Value::Int(7)))),
-            true,
-        ),
-        (
-            WrapType::Err,
-            Value::Result(Ok(Box::new(Value::Int(7)))),
-            false,
-        ),
-        (
-            WrapType::Some,
-            Value::Option(Some(Box::new(Value::Int(7)))),
-            true,
-        ),
+        (WrapType::Ok, ok(7), true),
+        (WrapType::Ok, err(7), false),
+        (WrapType::Err, err(7), true),
+        (WrapType::Err, ok(7), false),
+        (WrapType::Some, some(7), true),
         (WrapType::Some, Value::Option(None), false),
     ];
 

@@ -1184,15 +1184,16 @@ impl CompileState<'_> {
         // HACK: We skip cardinality checking for results for now, because computing it correctly requires significant
         // changes, e.g. allowing actual expressions in result patterns (rather than limiting them to identifiers). It
         // will be implemented in #574.
-        let need_default = if has_result_pattern {
-            default_count == 0 && patterns.len() < 2
-        } else {
-            default_count == 0
-                && self
-                    .m
-                    .cardinality(&scrutinee_t.kind)
-                    .is_none_or(|c| c > all_values.len() as u64)
-        };
+        let need_default = default_count == 0
+            && if has_result_pattern {
+                patterns.len() < 2
+            } else {
+                default_count == 0
+                    && self
+                        .m
+                        .cardinality(&scrutinee_t.kind)
+                        .is_none_or(|c| c > all_values.len() as u64)
+            };
 
         if need_default {
             return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
