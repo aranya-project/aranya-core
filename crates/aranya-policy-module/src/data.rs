@@ -51,28 +51,28 @@ impl ConstValue {
     pub const NONE: Self = Self::Option(None);
 
     /// Get the associated [`TypeKind`].
-    pub fn vtype(&self) -> Option<TypeKind> {
+    pub fn vtype(&self) -> TypeKind {
         match self {
-            Self::Int(_) => Some(TypeKind::Int),
-            Self::Bool(_) => Some(TypeKind::Bool),
-            Self::String(_) => Some(TypeKind::String),
-            Self::Enum(name, _) => Some(TypeKind::Enum(Ident {
+            Self::Int(_) => TypeKind::Int,
+            Self::Bool(_) => TypeKind::Bool,
+            Self::String(_) => TypeKind::String,
+            Self::Enum(name, _) => TypeKind::Enum(Ident {
                 name: name.to_owned(),
                 span: Span::empty(),
-            })),
-            Self::Struct(s) => Some(TypeKind::Struct(Ident {
+            }),
+            Self::Struct(s) => TypeKind::Struct(Ident {
                 name: s.name.clone(),
                 span: Span::empty(),
-            })),
+            }),
             Self::Option(o) => {
                 let inner_kind = match o {
-                    Some(inner_value) => inner_value.vtype()?,
+                    Some(inner_value) => inner_value.vtype(),
                     None => TypeKind::Never,
                 };
-                Some(TypeKind::Optional(Box::new(VType {
+                TypeKind::Optional(Box::new(VType {
                     kind: inner_kind,
                     span: Span::empty(),
-                })))
+                }))
             }
             Self::Result(Ok(ok)) => {
                 let ok_kind = ok.vtype()?;
