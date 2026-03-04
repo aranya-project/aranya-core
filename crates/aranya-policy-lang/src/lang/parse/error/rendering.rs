@@ -29,27 +29,22 @@ impl Report for InvalidOperator {
             ]),
         );
 
-        fn add_patch<'a>(
-            prefix: &'static str,
-            snippet: Snippet<'a, Patch<'a>>,
-            lhs: &Span,
-            rhs: &Span,
-        ) -> Snippet<'a, Patch<'a>> {
+        let add_patch = |prefix: &'static str, snippet: Snippet<'a, Patch<'a>>| {
             snippet
                 .patch(Patch::new(lhs.start()..lhs.start(), prefix))
                 .patch(Patch::new(lhs.end()..rhs.start(), ", "))
                 .patch(Patch::new(rhs.end()..rhs.end(), ")"))
-        }
+        };
 
         let elements = if input[op.start()..op.end()] == *"+" {
             [
-                add_patch("saturating_add(", source.clone(), lhs, rhs),
-                add_patch("check_unwrap add(", source, lhs, rhs),
+                add_patch("saturating_add(", source.clone()),
+                add_patch("check_unwrap add(", source),
             ]
         } else {
             [
-                add_patch("saturating_sub(", source.clone(), lhs, rhs),
-                add_patch("check_unwrap sub(", source, lhs, rhs),
+                add_patch("saturating_sub(", source.clone()),
+                add_patch("check_unwrap sub(", source),
             ]
         };
 
@@ -85,22 +80,21 @@ impl Report for InvalidNestedOption {
 
         let mut snippet = source;
 
-        if is_old_outer {
-            snippet = snippet
+        let add_patch = |snippet: Snippet<'a, Patch<'a>>, span: &Span| {
+            snippet
                 .patch(Patch::new(
-                    outer.start()..(outer.start().saturating_add(old_prefix.len())),
+                    span.start()..(span.start().saturating_add(old_prefix.len())),
                     "option[",
                 ))
-                .patch(Patch::new(outer.end()..outer.end(), "]"));
+                .patch(Patch::new(span.end()..span.end(), "]"))
+        };
+
+        if is_old_outer {
+            snippet = add_patch(snippet, outer);
         }
 
         if is_old_inner {
-            snippet = snippet
-                .patch(Patch::new(
-                    inner.start()..(inner.start().saturating_add(old_prefix.len())),
-                    "option[",
-                ))
-                .patch(Patch::new(inner.end()..inner.end(), "]"));
+            snippet = add_patch(snippet, inner);
         }
 
         let group = Level::HELP
