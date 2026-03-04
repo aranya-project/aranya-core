@@ -1731,9 +1731,9 @@ fn parse_policy_chunk(
     parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.with_source(policy.text.clone()))
 }
 
-fn parse_policy_chunk_inner<'a>(
-    chunk: Pairs<'a, Rule>,
-    p: &ChunkParser<'a>,
+fn parse_policy_chunk_inner(
+    chunk: Pairs<'_, Rule>,
+    p: &ChunkParser<'_>,
     policy: &mut ast::Policy,
 ) -> Result<(), ParseError> {
     for item in chunk {
