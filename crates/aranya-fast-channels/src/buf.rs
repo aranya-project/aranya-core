@@ -150,7 +150,7 @@ impl<const N: usize> Buf for heapless::Vec<u8, N> {
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
         match Self::resize(self, new_len, value) {
             Ok(()) => Ok(()),
-            Err(()) => Err(AllocError::new()),
+            Err(_) => Err(AllocError::new()),
         }
     }
 }
