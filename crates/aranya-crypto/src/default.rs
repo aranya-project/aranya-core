@@ -16,6 +16,7 @@ use spideroak_crypto::{
     rust,
     signer::Signer,
     typenum::U64,
+    zeroize::ZeroizeOnDrop,
 };
 
 use crate::{
@@ -130,7 +131,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
             RawSecret::Decap(sk) => Ciphertext::Decap(sk.try_export_secret()?.into_bytes()),
             RawSecret::Mac(sk) => Ciphertext::Mac(sk.try_export_secret()?.into_bytes()),
             RawSecret::Prk(sk) => Ciphertext::Prk(sk.into_bytes().into_bytes()),
-            RawSecret::Seed(sk) => Ciphertext::Seed(sk.into()),
+            RawSecret::Seed(sk) => Ciphertext::Seed((*sk).into()),
             RawSecret::Signing(sk) => Ciphertext::Signing(sk.try_export_secret()?.into_bytes()),
         };
         self.aead.seal_in_place(
@@ -181,7 +182,8 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
                 RawSecret::Prk(Prk::new(SecretKeyBytes::new(data.clone())))
             }
             (AlgId::Seed(()), Ciphertext::Seed(data)) => {
-                RawSecret::Seed(Import::<_>::import(data.as_slice())?)
+                let seed: [u8; 64] = Import::<_>::import(data.as_slice())?;
+                RawSecret::Seed(seed.into())
             }
             (AlgId::Signing(_), Ciphertext::Signing(data)) => {
                 RawSecret::Signing(Import::<_>::import(data.as_slice())?)
@@ -210,6 +212,8 @@ enum Ciphertext<CS: CipherSuite> {
     Seed(GenericArray<u8, U64>),
     Signing(GenericArray<u8, <<CS::Signer as Signer>::SigningKey as SecretKey>::Size>),
 }
+
+impl<CS: CipherSuite> ZeroizeOnDrop for Ciphertext<CS> {}
 
 impl<CS: CipherSuite> Ciphertext<CS> {
     const fn name(&self) -> &'static str {
