@@ -1,0 +1,7 @@
+struct Foo {
+    f string
+}
+
+function err(f struct Foo) bytes {
+    return serialize(f)
+}
