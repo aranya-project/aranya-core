@@ -61,6 +61,13 @@ fn parse_ffi_decl() {
 }
 
 #[test]
+fn parse_ffi_decl_error() {
+    let text = "function foo(x optional optional int, y struct bar) bool";
+    let err = lang::parse_ffi_decl(text).unwrap_err();
+    insta::assert_snapshot!(err);
+}
+
+#[test]
 fn parse_ffi_structs_enums() {
     let text = r#"
         struct A {
@@ -75,6 +82,30 @@ fn parse_ffi_structs_enums() {
     .trim();
     let types = lang::parse_ffi_structs_enums(text).expect("parse");
     insta::assert_debug_snapshot!(types);
+}
+
+#[test]
+fn parse_ffi_structs_enums_error() {
+    let text = r#"
+        struct A {
+            x int,
+            y optional optional bool
+        }
+
+        struct B {}
+
+        enum Color { Red, White, Blue }
+    "#
+    .trim();
+    let err = lang::parse_ffi_structs_enums(text).unwrap_err();
+    insta::assert_snapshot!(err);
+}
+
+#[test]
+fn parse_expression_error() {
+    let text = "3 + 7".trim();
+    let err = lang::parse_expression(text).unwrap_err();
+    insta::assert_snapshot!(err);
 }
 
 #[rstest::rstest]

@@ -1650,7 +1650,8 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
 
 /// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
 /// in the source text.
-fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
+fn mangle_pest_error(offset: Option<usize>, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
+    let offset = offset.unwrap_or_default();
     let pos = match &mut e.location {
         InputLocation::Pos(p) => {
             *p = match p.checked_add(offset).assume("p + offset must not wrap") {
@@ -1724,7 +1725,7 @@ fn parse_policy_chunk(
         return Err(err);
     }
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))
+        .map_err(|e| mangle_pest_error(Some(start.byte), &policy.text, e))
         .map_err(|e| e.with_source(policy.text.clone()))?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
@@ -1767,61 +1768,71 @@ fn parse_policy_chunk_inner(
 }
 
 pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
-    let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+    fn inner(s: &str) -> Result<Expression, ParseError> {
+        let mut pairs =
+            PolicyParser::parse(Rule::expression, s).map_err(|e| mangle_pest_error(None, s, e))?;
 
-    let token = pairs
-        .next()
-        .assume("has tokens")
-        .map_err(|bug| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
+        let token = pairs
+            .next()
+            .assume("has tokens")
+            .map_err(|bug| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
 
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, s.len());
-    p.parse_expression(token)
+        let pratt = get_pratt_parser();
+        let p = ChunkParser::new(0, &pratt, s.len());
+        p.parse_expression(token)
+    }
+
+    inner(s).map_err(|e| e.with_source(s.to_string()))
 }
 
 /// Parse a function or finish function declaration for the FFI
 pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
-    let pratt = get_pratt_parser();
-    let parser = ChunkParser::new(0, &pratt, data.len());
+    pub fn inner(data: &str) -> Result<ast::FunctionDecl, ParseError> {
+        let pratt = get_pratt_parser();
+        let parser = ChunkParser::new(0, &pratt, data.len());
 
-    let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
-    let decl = def.next().ok_or_else(|| {
-        ParseError::new(
-            ParseErrorKind::Unknown,
-            String::from("Not a function declaration"),
-            None,
-        )
-    })?;
+        let mut def =
+            PolicyParser::parse(Rule::ffi_def, data).map_err(|e| mangle_pest_error(None, data, e))?;
+        let decl = def.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::Unknown,
+                String::from("Not a function declaration"),
+                None,
+            )
+        })?;
 
-    let rule = decl.as_rule();
+        let rule = decl.as_rule();
 
-    assert!(matches!(
-        rule,
-        Rule::function_decl | Rule::finish_function_decl
-    ));
+        assert!(matches!(
+            rule,
+            Rule::function_decl | Rule::finish_function_decl
+        ));
 
-    let pc = parser.descend(decl.clone());
-    let identifier = pc.consume_ident(&parser)?;
+        let pc = parser.descend(decl.clone());
+        let identifier = pc.consume_ident(&parser)?;
 
-    let token = pc.consume_of_type(Rule::function_arguments)?;
-    let mut arguments = vec![];
-    for field in token.into_inner() {
-        arguments.push(parser.parse_parameter(field)?);
+        let token = pc.consume_of_type(Rule::function_arguments)?;
+        let mut arguments = vec![];
+        for field in token.into_inner() {
+            arguments.push(parser.parse_parameter(field)?);
+        }
+
+        let return_type = if rule == Rule::function_decl {
+            Some(pc.consume_type(&parser)?)
+        } else {
+            None
+        };
+
+        let fn_decl = ast::FunctionDecl {
+            identifier,
+            arguments,
+            return_type,
+        };
+
+        Ok(fn_decl)
     }
 
-    let return_type = if rule == Rule::function_decl {
-        Some(pc.consume_type(&parser)?)
-    } else {
-        None
-    };
-
-    let fn_decl = ast::FunctionDecl {
-        identifier,
-        arguments,
-        return_type,
-    };
-
-    Ok(fn_decl)
+    inner(data).map_err(|e| e.with_source(data.to_string()))
 }
 
 /// A series of Struct or Enum definitions for the FFI
@@ -1833,25 +1844,30 @@ pub struct FfiTypes {
 
 /// Parse a series of type definitions for the FFI
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
-    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, data.len());
-    let mut structs = vec![];
-    let mut enums = vec![];
-    for s in def {
-        match s.as_rule() {
-            Rule::struct_definition => {
-                structs.push(p.parse_struct_definition(s)?);
+    fn inner(data: &str) -> Result<FfiTypes, ParseError> {
+        let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)
+            .map_err(|e| mangle_pest_error(None, data, e))?;
+        let pratt = get_pratt_parser();
+        let p = ChunkParser::new(0, &pratt, data.len());
+        let mut structs = vec![];
+        let mut enums = vec![];
+        for s in def {
+            match s.as_rule() {
+                Rule::struct_definition => {
+                    structs.push(p.parse_struct_definition(s)?);
+                }
+                Rule::enum_definition => {
+                    enums.push(p.parse_enum_definition(s)?);
+                }
+                Rule::EOI => break,
+                _ => break,
             }
-            Rule::enum_definition => {
-                enums.push(p.parse_enum_definition(s)?);
-            }
-            Rule::EOI => break,
-            _ => break,
         }
+
+        Ok(FfiTypes { structs, enums })
     }
 
-    Ok(FfiTypes { structs, enums })
+    inner(data).map_err(|e| e.with_source(data.to_string()))
 }
 
 /// Creates the default pratt parser ruleset.
