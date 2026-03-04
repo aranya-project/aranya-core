@@ -1,4 +1,4 @@
-use aranya_policy_ast::Identifier;
+use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{LabelType, Module, ModuleData};
 
 use crate::{
@@ -46,7 +46,9 @@ pub fn validate(module: &Module) -> ValidationResult {
         }
         let tracer = tracer
             .add_analyzer(ValueAnalyzer::new(global_names.clone()))
-            .add_analyzer(UnusedVarAnalyzer::new());
+            .add_analyzer(UnusedVarAnalyzer::with_predefined_vars(
+                [ident!("envelope"), ident!("this")].into(),
+            ));
         let tracer = tracer.build();
 
         match tracer.trace(l) {

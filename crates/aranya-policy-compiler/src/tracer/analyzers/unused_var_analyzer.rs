@@ -1,4 +1,4 @@
-use aranya_policy_ast::{Identifier, ident};
+use aranya_policy_ast::Identifier;
 use aranya_policy_module::{Instruction, ModuleV0};
 use indexmap::IndexSet;
 
@@ -10,22 +10,26 @@ use crate::tracer::TraceError;
 pub struct UnusedVarAnalyzer {
     /// Stack of scopes, each containing variables that must be used (created by Def)
     scope_stack: Vec<IndexSet<Identifier>>,
-    /// Predefined variables that are allowed to be unused (like 'this' and 'envelope')
+    /// Predefined variables that are allowed to be unused, e.g. 'this' and 'envelope',
+    /// which are implicitly defined in command contexts.
     predefined_vars: IndexSet<Identifier>,
 }
 
 impl Default for UnusedVarAnalyzer {
     fn default() -> Self {
-        Self::new()
+        Self {
+            scope_stack: vec![IndexSet::new()],
+            predefined_vars: IndexSet::new(),
+        }
     }
 }
 
 impl UnusedVarAnalyzer {
     pub fn new() -> Self {
-        let mut predefined_vars = IndexSet::new();
-        predefined_vars.insert(ident!("this"));
-        predefined_vars.insert(ident!("envelope"));
+        Self::default()
+    }
 
+    pub fn with_predefined_vars(predefined_vars: IndexSet<Identifier>) -> Self {
         Self {
             scope_stack: vec![IndexSet::new()],
             predefined_vars,
