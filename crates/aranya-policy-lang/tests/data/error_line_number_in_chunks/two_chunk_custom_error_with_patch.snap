@@ -7,7 +7,7 @@ error: Invalid operator
 15 |         return x + y
    |                  ^ found `+`
    |
-help: you might have meant to use an arithmetic function
+help: you should use an arithmetic function
    |
 15 -         return x + y
 15 +         return saturating_add(x, y)

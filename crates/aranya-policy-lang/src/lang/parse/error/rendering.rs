@@ -54,7 +54,7 @@ impl Report for InvalidOperator {
         };
 
         let group = Level::HELP
-            .secondary_title("you might have meant to use an arithmetic function")
+            .secondary_title("you should use an arithmetic function")
             .elements(elements);
 
         report.push(group);
@@ -104,7 +104,7 @@ impl Report for InvalidNestedOption {
         }
 
         let group = Level::HELP
-            .secondary_title("you might have meant to use `option[T]`")
+            .secondary_title("you should use `option[T]`")
             .elements([snippet]);
 
         report.push(group);
