@@ -1,50 +1,10 @@
 #![cfg(test)]
 
-use aranya_policy_ast::{Version, ident};
+use aranya_policy_ast::Version;
 use aranya_policy_lang::lang::parse_policy_str;
-use aranya_policy_module::{
-    Module,
-    ffi::{self, ModuleSchema},
-};
+use aranya_policy_module::Module;
 
 use crate::{Compiler, validate::validate};
-
-const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
-    ModuleSchema {
-        name: ident!("test"),
-        functions: &[ffi::Func {
-            name: ident!("doit"),
-            args: &[ffi::Arg {
-                name: ident!("x"),
-                vtype: ffi::Type::Int,
-            }],
-            return_type: ffi::Type::Bool,
-        }],
-        structs: &[],
-        enums: &[],
-    },
-    ModuleSchema {
-        name: ident!("cyclic_types"),
-        functions: &[],
-        structs: &[
-            ffi::Struct {
-                name: ident!("FFIFoo"),
-                fields: &[ffi::Arg {
-                    name: ident!("bar"),
-                    vtype: ffi::Type::Struct(ident!("FFIBar")),
-                }],
-            },
-            ffi::Struct {
-                name: ident!("FFIBar"),
-                fields: &[ffi::Arg {
-                    name: ident!("foo"),
-                    vtype: ffi::Type::Struct(ident!("FFIFoo")),
-                }],
-            },
-        ],
-        enums: &[],
-    },
-];
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -53,11 +13,7 @@ fn compile_pass(text: &str) -> Module {
         Ok(p) => p,
         Err(err) => panic!("{err}"),
     };
-    match Compiler::new(&policy)
-        .ffi_modules(TEST_SCHEMAS)
-        .debug(true)
-        .compile()
-    {
+    match Compiler::new(&policy).debug(true).compile() {
         Ok(m) => m,
         Err(err) => panic!("{err}"),
     }
