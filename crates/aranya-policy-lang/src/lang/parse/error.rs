@@ -43,7 +43,7 @@ impl Display for InvalidVersion {
 
 /// Invalid usage of option/optional syntax
 ///
-///(crate) `optional option[T]`, `optional optional T`, etc.
+/// `optional option[T]`, `optional optional T`, etc.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InvalidNestedOption {
     pub(crate) outer: Span,
