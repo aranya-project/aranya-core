@@ -1600,7 +1600,7 @@ impl<'a> CompileState<'a> {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.name),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
+                StructItem::Field(field) => field.field_type.struct_type().map(|ident| &ident.name),
             }
         }
 
@@ -1618,7 +1618,7 @@ impl<'a> CompileState<'a> {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.name),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.name),
+                StructItem::Field(field) => field.field_type.struct_type().map(|ident| &ident.name),
             });
             let ident = &effect_def.identifier.name;
 
@@ -1629,7 +1629,7 @@ impl<'a> CompileState<'a> {
         for fact_def in &self.policy.facts {
             let deps = fact_def
                 .fields()
-                .filter_map(|def| def.field_type.as_struct().map(|ident| &ident.name));
+                .filter_map(|def| def.field_type.struct_type().map(|ident| &ident.name));
             let ident = &fact_def.identifier.name;
 
             insert_type_def(ident, UserType::Fact(fact_def))?;
