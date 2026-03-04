@@ -155,7 +155,7 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
         unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
     "#
     .trim();
-    let mut pairs = PolicyParser::parse(Rule::expression, source).map_err(ParseError::from)?;
+    let mut pairs = PolicyParser::parse(Rule::expression, source)?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, source.len());
     let expr_pair = pairs.next().unwrap();
@@ -199,7 +199,7 @@ fn parse_optional() {
     fn parse_vtype(text: &str) -> Result<VType, ParseError> {
         let pratt = get_pratt_parser();
         let p = ChunkParser::new(0, &pratt, text.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, text).map_err(ParseError::from)?;
+        let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
         let pair = pairs.next().unwrap();
         p.parse_type(pair)
     }
