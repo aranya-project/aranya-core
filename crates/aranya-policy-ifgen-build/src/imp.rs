@@ -303,9 +303,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
     }
 
     for value in target.globals.values() {
-        if let Some(ty) = value.vtype() {
-            visit(&struct_defs, &mut found, &ty);
-        }
+        visit(&struct_defs, &mut found, &value.vtype());
     }
 
     found
