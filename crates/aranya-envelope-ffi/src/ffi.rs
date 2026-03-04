@@ -78,8 +78,6 @@ pub struct Ffi;
     module = "envelope",
     def = r#"
 struct Envelope {
-    // The parent command ID.
-    parent_id id,
     // The author's device ID.
     author_id id,
     // Uniquely identifies the command.
@@ -93,26 +91,6 @@ struct Envelope {
 "#
 )]
 impl Ffi {
-    /// Returns the envelope's `parent_id` field.
-    #[ffi_export(def = r#"
-function parent_id(envelope_input struct Envelope) id
-"#)]
-    pub(crate) fn parent_id<E: Engine>(
-        &self,
-        ctx: &CommandContext,
-        _eng: &E,
-        envelope_input: Envelope,
-    ) -> Result<BaseId, Error> {
-        match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
-                Ok(envelope_input.parent_id)
-            }
-            _ => Err(WrongContext(
-                "`envelope::parent_id` called outside of an `open`, `policy`, or `recall` block",
-            )
-            .into()),
-        }
-    }
     /// Returns the envelope's `author_id` field.
     #[ffi_export(def = r#"
 function author_id(envelope_input struct Envelope) id
@@ -200,7 +178,6 @@ function payload(envelope_input struct Envelope) bytes
     /// Creates a new envelope.
     #[ffi_export(def = r#"
 function new(
-    parent_id id,
     author_id id,
     command_id id,
     signature bytes,
@@ -212,7 +189,6 @@ function new(
         &self,
         ctx: &CommandContext,
         _eng: &E,
-        parent_id: CmdId,
         author_id: DeviceId,
         command_id: CmdId,
         signature: Vec<u8>,
@@ -220,7 +196,6 @@ function new(
     ) -> Result<Envelope, Error> {
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
-                parent_id: parent_id.as_base(),
                 command_id: command_id.as_base(),
                 author_id: author_id.as_base(),
                 signature,

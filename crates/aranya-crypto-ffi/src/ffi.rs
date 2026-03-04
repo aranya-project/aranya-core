@@ -35,12 +35,10 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///     }
 ///
 ///     open {
-///         let parent_id = envelope::parent_id(envelope)
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = /* TODO */
 ///         let command = crypto::verify(
 ///             author_sign_pk,
-///             parent_id,
 ///             envelope::payload(envelope),
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
@@ -144,7 +142,6 @@ function sign(
     #[ffi_export(def = r#"
 function verify(
     author_sign_pk bytes,
-    parent_id id,
     command_bytes bytes,
     command_id id,
     signature bytes,
@@ -155,7 +152,6 @@ function verify(
         ctx: &CommandContext,
         _eng: &E,
         author_sign_pk: Vec<u8>,
-        parent_id: CmdId,
         command_bytes: Vec<u8>,
         command_id: CmdId,
         signature: Vec<u8>,
@@ -170,7 +166,7 @@ function verify(
         let cmd = Cmd {
             data: &command_bytes,
             name: ctx.name.as_str(),
-            parent_id: &parent_id,
+            parent_id: &ctx.parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id)) {
