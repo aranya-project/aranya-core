@@ -1650,7 +1650,11 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
 
 /// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
 /// in the source text.
-fn mangle_pest_error(offset: Option<usize>, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
+fn mangle_pest_error(
+    offset: Option<usize>,
+    text: &str,
+    mut e: pest::error::Error<Rule>,
+) -> ParseError {
     let offset = offset.unwrap_or_default();
     let pos = match &mut e.location {
         InputLocation::Pos(p) => {
@@ -1787,12 +1791,12 @@ pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
 
 /// Parse a function or finish function declaration for the FFI
 pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
-    pub fn inner(data: &str) -> Result<ast::FunctionDecl, ParseError> {
+    fn inner(data: &str) -> Result<ast::FunctionDecl, ParseError> {
         let pratt = get_pratt_parser();
         let parser = ChunkParser::new(0, &pratt, data.len());
 
-        let mut def =
-            PolicyParser::parse(Rule::ffi_def, data).map_err(|e| mangle_pest_error(None, data, e))?;
+        let mut def = PolicyParser::parse(Rule::ffi_def, data)
+            .map_err(|e| mangle_pest_error(None, data, e))?;
         let decl = def.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Unknown,
