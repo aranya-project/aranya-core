@@ -5,7 +5,7 @@ use tracing::error;
 
 use crate::{
     Address, CmdId, Command, GraphId, PeerCache, Perspective as _, Policy, PolicyError,
-    PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffers,
+    PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffer,
     policy::ActionPlacement,
 };
 
@@ -61,7 +61,6 @@ impl From<PolicyError> for ClientError {
 pub struct ClientState<PS, SP> {
     policy_store: PS,
     provider: SP,
-    buffers: TraversalBuffers,
 }
 
 // Manual Debug impl to exclude `buffers` (large, not useful in debug output).
@@ -80,7 +79,6 @@ impl<PS, SP> ClientState<PS, SP> {
         Self {
             policy_store,
             provider,
-            buffers: TraversalBuffers::new(),
         }
     }
 
@@ -134,13 +132,9 @@ where
         &mut self,
         trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
+        buffer: &mut TraversalBuffer,
     ) -> Result<bool, ClientError> {
-        trx.commit(
-            &mut self.provider,
-            &mut self.policy_store,
-            sink,
-            &mut self.buffers,
-        )
+        trx.commit(&mut self.provider, &mut self.policy_store, sink, buffer)
     }
 
     /// Add commands to the transaction, writing the results to
@@ -151,13 +145,14 @@ where
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
+        buffer: &mut TraversalBuffer,
     ) -> Result<usize, ClientError> {
         trx.add_commands(
             commands,
             &mut self.provider,
             &mut self.policy_store,
             sink,
-            &mut self.buffers,
+            buffer,
         )
     }
 
@@ -166,6 +161,7 @@ where
         graph_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
+        buffer: &mut TraversalBuffer,
     ) -> Result<(), ClientError>
     where
         I: IntoIterator<Item = Address>,
@@ -177,8 +173,8 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address, &mut self.buffers.primary)? {
-                request_heads.add_command(storage, address, loc, &mut self.buffers.primary)?;
+            if let Some(loc) = storage.get_location(address, buffer)? {
+                request_heads.add_command(storage, address, loc, buffer)?;
             } else {
                 error!(
                     "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
@@ -250,13 +246,18 @@ where
     ///
     /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
     /// This method is used to determine if we need to sync when a hello message is received.
-    pub fn command_exists(&mut self, graph_id: GraphId, address: Address) -> bool {
+    pub fn command_exists(
+        &mut self,
+        graph_id: GraphId,
+        address: Address,
+        buffer: &mut TraversalBuffer,
+    ) -> bool {
         let Ok(storage) = self.provider.get_storage(graph_id) else {
             // Graph doesn't exist
             return false;
         };
         storage
-            .get_location(address, &mut self.buffers.primary)
+            .get_location(address, buffer)
             .unwrap_or(None)
             .is_some()
     }

@@ -1137,7 +1137,7 @@ impl<'a> CompileState<'a> {
         let expression = &global_let.expression;
 
         let value = self.expression_value(expression)?;
-        let vt = value.vtype().expect("global let expression has weird type");
+        let vt = value.vtype();
 
         match self.m.interface.globals.entry(identifier.name.clone()) {
             Entry::Vacant(e) => {

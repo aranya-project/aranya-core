@@ -36,9 +36,6 @@ alloc = [
 	"spideroak-crypto/alloc",
 ]
 
-# Enable BearSSL.
-bearssl = ["spideroak-crypto/bearssl"]
-
 # Enable committing AEAD implementations.
 committing-aead = ["spideroak-crypto/committing-aead"]
 
@@ -194,7 +191,6 @@ always_include_features = [
 	"afc",
 	"alloc",
 	"apq",
-	"bearssl",
 	"clone-aead",
 	"committing-aead",
 	"ed25519_batch",

@@ -167,6 +167,7 @@ where
     client_state: Arc<TMutex<ClientState<PS, SP>>>,
     sink: Arc<TMutex<S>>,
     return_address: Bytes,
+    buffers: TraversalBuffers,
 }
 
 impl<PS, SP, S> Syncer<PS, SP, S>
@@ -196,6 +197,7 @@ where
             client_state,
             sink,
             return_address,
+            buffers: TraversalBuffers::new(),
         })
     }
 
@@ -206,14 +208,19 @@ where
         &mut self,
         client: &mut ClientState<PS, SP>,
         peer_address: SocketAddr,
-        mut syncer: SyncRequester<'_>,
+        mut syncer: SyncRequester,
         sink: &mut S,
         graph_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
+        let (len, _) = syncer.poll(
+            &mut buffer,
+            client.provider(),
+            heads,
+            &mut self.buffers.primary,
+        )?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -242,12 +249,13 @@ where
         {
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
-            client.add_commands(&mut trx, sink, &cmds)?;
-            client.commit(trx, sink)?;
+            client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
+            client.commit(trx, sink, &mut self.buffers.primary)?;
             client.update_heads(
                 graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
                 heads,
+                &mut self.buffers.primary,
             )?;
             self.push(graph_id)?;
         }
@@ -261,7 +269,7 @@ where
     pub async fn subscribe(
         &mut self,
         client: &mut ClientState<PS, SP>,
-        mut sync_requester: SyncRequester<'_>,
+        mut sync_requester: SyncRequester,
         remain_open: u64,
         max_bytes: u64,
         peer_addr: SocketAddr,
@@ -274,6 +282,7 @@ where
             heads,
             remain_open,
             max_bytes,
+            &mut self.buffers.primary,
         )?;
 
         let mut conn = self
@@ -302,7 +311,7 @@ where
     /// Unsubscribe the specified graph to a peer at the given address.
     pub async fn unsubscribe(
         &mut self,
-        mut sync_requester: SyncRequester<'_>,
+        mut sync_requester: SyncRequester,
         peer_addr: SocketAddr,
     ) -> Result<(), QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -336,12 +345,16 @@ where
             SyncType::Poll { request } => {
                 let response_cache = self.remote_heads.entry(peer_address).or_default();
                 let mut client = self.client_state.lock().await;
-                let mut buffers = TraversalBuffers::new();
-                let mut response_syncer = SyncResponder::new(&mut buffers);
+                let mut response_syncer = SyncResponder::new();
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
 
-                response_syncer.poll(target, client.provider(), response_cache)?
+                response_syncer.poll(
+                    target,
+                    client.provider(),
+                    response_cache,
+                    &mut self.buffers,
+                )?
             }
             SyncType::Subscribe {
                 remain_open,
@@ -366,6 +379,7 @@ where
                             graph_id,
                             commands.as_slice().iter().copied(),
                             response_cache,
+                            &mut self.buffers.primary,
                         )?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
@@ -379,9 +393,8 @@ where
                 0
             }
             SyncType::Push { message, graph_id } => {
-                let mut buffers = TraversalBuffers::new();
                 let mut sync_requester =
-                    SyncRequester::new_session_id(graph_id, message.session_id(), &mut buffers);
+                    SyncRequester::new_session_id(graph_id, message.session_id());
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)?
                     && !cmds.is_empty()
                 {
@@ -391,12 +404,13 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().await;
                         let sink = sink_guard.deref_mut();
-                        client.add_commands(&mut trx, sink, &cmds)?;
-                        client.commit(trx, sink)?;
+                        client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
+                        client.commit(trx, sink, &mut self.buffers.primary)?;
                         client.update_heads(
                             graph_id,
                             cmds.iter().filter_map(|cmd| cmd.address().ok()),
                             response_cache,
+                            &mut self.buffers.primary,
                         )?;
                     }
                     self.push(graph_id)?;
@@ -423,8 +437,7 @@ where
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
-            let mut buffers = TraversalBuffers::new();
-            let mut response_syncer = SyncResponder::new(&mut buffers);
+            let mut response_syncer = SyncResponder::new();
             let mut commands = Vec::new();
             commands
                 .extend_from_slice(response_cache.heads())
@@ -437,8 +450,11 @@ where
             })?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len =
-                response_syncer.push(&mut target, self.client_state.lock().await.provider())?;
+            let len = response_syncer.push(
+                &mut target,
+                self.client_state.lock().await.provider(),
+                &mut self.buffers,
+            )?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;
