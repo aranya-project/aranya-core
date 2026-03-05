@@ -227,6 +227,8 @@ fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
         // Any other choice would give us a type that probably isn't very
         // useful since we can't just coerce it to some other `Option<T>`.
         ConstValue::Option(None) => return None,
+        // Disallow for same logic as `Option(None)` above.
+        ConstValue::Result(_) => return None,
     })
 }
 
@@ -257,6 +259,14 @@ fn constant_value_to_literal(value: &ConstValue) -> TokenStream {
         ConstValue::Option(Some(value)) => {
             let lit = constant_value_to_literal(value);
             quote!(Some(#lit))
+        }
+        ConstValue::Result(Ok(value)) => {
+            let lit = constant_value_to_literal(value);
+            quote!(Ok(#lit))
+        }
+        ConstValue::Result(Err(value)) => {
+            let lit = constant_value_to_literal(value);
+            quote!(Err(#lit))
         }
     }
 }

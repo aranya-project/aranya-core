@@ -11,6 +11,9 @@ let g_string = "a\n\x01b"
 let g_some = Some(42)
 let g_none = None
 
+let g_ok = Ok(42)
+let g_err = Err("err")
+
 let g_enum = Answer::No
 
 let g_struct = Complex {
@@ -19,6 +22,8 @@ let g_struct = Complex {
     m_string: "hello",
     m_some: Some(2),
     m_none: None,
+    m_ok: Ok(4),
+    m_err: Err("uh oh"),
     m_enum: Answer::Yes,
     m_struct: Simple { m_int: 3 }
 }
@@ -34,6 +39,8 @@ struct Complex {
     m_string string,
     m_some option[int],
     m_none option[int],
+    m_ok result[int, string],
+    m_err result[int, string],
     m_enum enum Answer,
     m_struct struct Simple,
 }

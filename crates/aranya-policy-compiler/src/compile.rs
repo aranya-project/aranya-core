@@ -1936,6 +1936,8 @@ impl<'a> CompileState<'a> {
                 Some(e) => Some(Box::new(self.expression_value(e)?)),
                 None => None,
             })),
+            ExprKind::Ok(e) => Ok(ConstValue::Result(Ok(Box::new(self.expression_value(e)?)))),
+            ExprKind::Err(e) => Ok(ConstValue::Result(Err(Box::new(self.expression_value(e)?)))),
             _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
         }
     }

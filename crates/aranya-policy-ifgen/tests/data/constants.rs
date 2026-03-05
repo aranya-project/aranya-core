@@ -27,8 +27,10 @@ pub const g_string: Text = text!("a\n\u{1}b");
 pub const g_struct: Complex = Complex {
     m_bool: false,
     m_enum: Answer::new(0i64).unwrap(),
+    m_err: Err(text!("uh oh")),
     m_int: 1i64,
     m_none: None,
+    m_ok: Ok(4i64),
     m_some: Some(2i64),
     m_string: text!("hello"),
     m_struct: Simple { m_int: 3i64 },
@@ -45,6 +47,8 @@ pub struct Complex {
     pub m_string: Text,
     pub m_some: Option<i64>,
     pub m_none: Option<i64>,
+    pub m_ok: Result<i64, Text>,
+    pub m_err: Result<i64, Text>,
     pub m_enum: Answer,
     pub m_struct: Simple,
 }
