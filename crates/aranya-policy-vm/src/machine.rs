@@ -11,7 +11,7 @@ use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
-    ModuleData, ModuleV0, Target, UnsupportedVersion, named::NamedMap,
+    ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -442,6 +442,13 @@ where
             .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
     }
 
+    fn ipeek_value(&mut self) -> Result<&mut Value, MachineError> {
+        let pc = self.pc;
+        self.stack
+            .peek_value()
+            .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
+    }
+
     /// Validate a struct against defined schema.
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
@@ -537,7 +544,7 @@ where
                 self.ipush(value)?;
             }
             Instruction::Dup => {
-                let v = self.stack.peek_value()?.clone();
+                let v = self.ipeek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -953,27 +960,42 @@ where
                 }
                 self.ipush(s)?;
             }
-            Instruction::Some => {
-                let value = self.ipop_value()?;
-                self.ipush(Value::Option(Some(Box::new(value))))?;
-            }
-            Instruction::Unwrap => {
-                let value = self.ipop_value()?;
-                if let Value::Option(opt) = value {
-                    if let Some(inner) = opt {
-                        self.ipush(*inner)?;
-                    } else {
-                        return Err(self.err(MachineErrorType::Unknown("unwrapped None".into())));
-                    }
-                } else {
-                    return Err(self.err(MachineErrorType::invalid_type(
-                        "Option[_]",
-                        value.type_name(),
-                        "Option[T] -> T",
-                    )));
-                }
-            }
             Instruction::Meta(_m) => {}
+            Instruction::Wrap(wrap_type) => {
+                // Replace top of stack with wrapped value
+                let value = self.ipop_value()?;
+                let wrapped = match wrap_type {
+                    WrapType::Ok => Value::Result(Ok(Box::new(value))),
+                    WrapType::Err => Value::Result(Err(Box::new(value))),
+                    WrapType::Some => Value::Option(Some(Box::new(value))),
+                };
+                self.ipush(wrapped)?;
+            }
+            Instruction::Is(wrap_type) => {
+                let value = self.ipop_value()?;
+                let is_type = match wrap_type {
+                    WrapType::Some => matches!(value, Value::Option(Some(_))),
+                    WrapType::Ok => matches!(value, Value::Result(Ok(_))),
+                    WrapType::Err => matches!(value, Value::Result(Err(_))),
+                };
+                self.ipush(Value::Bool(is_type))?;
+            }
+            Instruction::Unwrap(wrap_type) => {
+                let value = self.ipop_value()?;
+                let inner = match (wrap_type, value) {
+                    (WrapType::Ok, Value::Result(Ok(inner))) => *inner,
+                    (WrapType::Err, Value::Result(Err(inner))) => *inner,
+                    (WrapType::Some, Value::Option(Some(inner))) => *inner,
+                    (want, got) => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            want.to_string(),
+                            got.type_name(),
+                            "unwrap type mismatch",
+                        )));
+                    }
+                };
+                self.ipush(inner)?;
+            }
             Instruction::Cast(identifier) => {
                 let value = self.ipop_value()?;
                 match value {

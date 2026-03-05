@@ -71,6 +71,8 @@ pub enum Value {
     Identifier(Identifier),
     /// Optional value
     Option(Option<Box<Self>>),
+    /// Result value
+    Result(Result<Box<Value>, Box<Value>>),
 }
 
 impl Value {
@@ -97,6 +99,22 @@ impl<T: TryFromValue> TryFromValue for Option<T> {
             });
         };
         opt.map(|v| T::try_from_value(*v)).transpose()
+    }
+}
+
+impl<T: TryFromValue, E: TryFromValue> TryFromValue for Result<T, E> {
+    fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
+        let Value::Result(res) = value else {
+            return Err(ValueConversionError::InvalidType {
+                want: "Result".into(),
+                got: value.type_name(),
+                msg: format!("Value -> {}", core::any::type_name::<Self>()),
+            });
+        };
+        match res {
+            Ok(v) => T::try_from_value(*v).map(Ok),
+            Err(v) => E::try_from_value(*v).map(Err),
+        }
     }
 }
 
@@ -131,6 +149,8 @@ impl Value {
             Self::Identifier(_) => String::from("Identifier"),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
+            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
         }
     }
 
@@ -159,6 +179,12 @@ impl Value {
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
+            (Self::Result(Ok(inner)), TypeKind::Result(result_type)) => {
+                inner.fits_type(&result_type.ok)
+            }
+            (Self::Result(Err(inner)), TypeKind::Result(result_type)) => {
+                inner.fits_type(&result_type.err)
+            }
             _ => false,
         }
     }
@@ -173,6 +199,10 @@ impl From<ConstValue> for Value {
             ConstValue::Struct(st) => Self::Struct(st.into()),
             ConstValue::Enum(id, variant) => Self::Enum(id, variant),
             ConstValue::Option(opt) => Self::Option(opt.map(|v| Box::new((*v).into()))),
+            ConstValue::Result(res) => Self::Result(match res {
+                Ok(v) => Ok(Box::new((*v).into())),
+                Err(v) => Err(Box::new((*v).into())),
+            }),
         }
     }
 }
@@ -180,6 +210,15 @@ impl From<ConstValue> for Value {
 impl<T: Into<Self>> From<Option<T>> for Value {
     fn from(value: Option<T>) -> Self {
         Self::Option(value.map(Into::into).map(Box::new))
+    }
+}
+
+impl<T: Into<Self>, E: Into<Self>> From<Result<T, E>> for Value {
+    fn from(value: Result<T, E>) -> Self {
+        match value {
+            Ok(v) => Self::Result(Ok(Box::new(v.into()))),
+            Err(v) => Self::Result(Err(Box::new(v.into()))),
+        }
     }
 }
 
@@ -448,6 +487,8 @@ impl Display for Value {
             Self::Identifier(name) => write!(f, "{name}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
+            Self::Result(Ok(v)) => write!(f, "Ok({})", v),
+            Self::Result(Err(v)) => write!(f, "Err({})", v),
         }
     }
 }
@@ -479,6 +520,7 @@ impl HashableValue {
             (Self::String(_), TypeKind::String) => true,
             (Self::Id(_), TypeKind::Id) => true,
             (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            // Option and Result are not hashable, so they can never fit a type
             _ => false,
         }
     }

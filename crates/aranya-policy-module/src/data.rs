@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{Ident, Identifier, Span, Text, TypeKind, VType};
+use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, Text, TypeKind, VType};
 use serde::{Deserialize, Serialize};
 
 /// A constant or literal value used in policy.
@@ -42,6 +42,8 @@ pub enum ConstValue {
     Enum(Identifier, i64),
     /// Optional value
     Option(#[rkyv(omit_bounds)] Option<Box<Self>>),
+    /// Result value
+    Result(#[rkyv(omit_bounds)] Result<Box<Self>, Box<Self>>),
 }
 
 impl ConstValue {
@@ -72,6 +74,32 @@ impl ConstValue {
                     span: Span::empty(),
                 }))
             }
+            Self::Result(Ok(ok)) => {
+                let ok_kind = ok.vtype();
+                TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: VType {
+                        kind: ok_kind,
+                        span: Span::empty(),
+                    },
+                    err: VType {
+                        kind: TypeKind::Never,
+                        span: Span::empty(),
+                    },
+                }))
+            }
+            Self::Result(Err(err)) => {
+                let err_kind = err.vtype();
+                TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: VType {
+                        kind: TypeKind::Never,
+                        span: Span::empty(),
+                    },
+                    err: VType {
+                        kind: err_kind,
+                        span: Span::empty(),
+                    },
+                }))
+            }
         }
     }
 
@@ -85,6 +113,8 @@ impl ConstValue {
             Self::Enum(name, _) => format!("Enum {}", name),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
+            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
         }
     }
 }
@@ -99,6 +129,8 @@ impl Display for ConstValue {
             Self::Enum(name, value) => write!(f, "{name}::{value}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
+            Self::Result(Ok(v)) => write!(f, "Ok({})", v),
+            Self::Result(Err(v)) => write!(f, "Err({})", v),
         }
     }
 }
