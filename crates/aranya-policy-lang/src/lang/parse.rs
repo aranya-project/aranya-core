@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Param, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version, ident,
+    NamedStruct, Param, Persistence, ResultPattern, ResultTypeKind, ReturnStatement, Statement,
+    StmtKind, Text, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -205,14 +205,13 @@ impl ChunkParser<'_> {
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
-        self.parse_type_inner(token, TypeStyle::Unknown, true, None)
+        self.parse_type_inner(token, TypeStyle::Unknown, None)
     }
 
     fn parse_type_inner(
         &self,
         token: Pair<'_, Rule>,
-        mut style: TypeStyle,
-        allow_option: bool,
+        style: TypeStyle,
         outer_span: Option<Span<'_>>,
     ) -> Result<VType, ParseError> {
         let pest_span = token.as_span();
@@ -244,23 +243,26 @@ impl ChunkParser<'_> {
                         );
                     }
                 }
-                match (style, is_old) {
-                    (TypeStyle::Unknown, true) => style = TypeStyle::Old,
-                    (TypeStyle::Unknown, false) => style = TypeStyle::New,
-                    (TypeStyle::Old, true) | (TypeStyle::New, false) if allow_option => {}
-                    _ => {
-                        let outer_span = outer_span.assume("outer span was passed in")?;
-                        let outer_ast_span = self.to_ast_span(outer_span)?;
-                        return Err(ParseError::new(
-                            error::InvalidNestedOption {
-                                outer: outer_ast_span,
-                                inner: span,
-                            },
-                            String::from("Unable to use `optional T` for nested optional types."),
-                            Some(self.to_ast_span(outer_span)?),
-                        ));
-                    }
+
+                // Disallow mixing old and new optional syntax.
+                if style == TypeStyle::Old || (is_old && style == TypeStyle::New) {
+                    let outer_span = outer_span.assume("outer span was passed in")?;
+                    let outer_ast_span = self.to_ast_span(outer_span)?;
+                    return Err(ParseError::new(
+                        error::InvalidNestedOption {
+                            outer: outer_ast_span,
+                            inner: span,
+                        },
+                        String::from("Unable to use `optional T` for nested optional types."),
+                        Some(self.to_ast_span(outer_span)?),
+                    ));
                 }
+
+                let style = if is_old {
+                    TypeStyle::Old
+                } else {
+                    TypeStyle::New
+                };
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
                     self.to_ast_span(token.as_span()).map_or_else(
@@ -274,8 +276,63 @@ impl ChunkParser<'_> {
                         },
                     )
                 })?;
-                let inner_type = self.parse_type_inner(token, style, !is_old, Some(pest_span))?;
+                let inner_type = self.parse_type_inner(token, style, Some(pest_span))?;
+
+                // Disallow nested optionals for old syntax
+                if is_old && matches!(inner_type.kind, TypeKind::Optional(_)) {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from("Cannot nest optional types with `optional T` syntax"),
+                        Some(self.to_ast_span(pest_span)?),
+                    ));
+                }
+
                 TypeKind::Optional(Box::new(inner_type))
+            }
+            Rule::result_t => {
+                if style == TypeStyle::Old {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from(
+                            "Replace `optional T` with the new `option[T]` to use complex types",
+                        ),
+                        Some(self.to_ast_span(pest_span)?),
+                    ));
+                }
+
+                let mut pairs = token.clone().into_inner();
+                let ok_token = pairs.next().ok_or_else(|| {
+                    self.to_ast_span(token.as_span()).map_or_else(
+                        |err| err,
+                        |span| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no ok type following result"),
+                                Some(span),
+                            )
+                        },
+                    )
+                })?;
+                let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, Some(pest_span))?;
+
+                let err_token = pairs.next().ok_or_else(|| {
+                    self.to_ast_span(token.as_span()).map_or_else(
+                        |err| err,
+                        |span| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no err type following result"),
+                                Some(span),
+                            )
+                        },
+                    )
+                })?;
+                let err_type = self.parse_type_inner(err_token, TypeStyle::New, Some(pest_span))?;
+
+                TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: ok_type,
+                    err: err_type,
+                }))
             }
             _ => {
                 return Err(ParseError::new(
@@ -411,6 +468,51 @@ impl ChunkParser<'_> {
                 },
             )
         })
+    }
+
+    /// Parse a match pattern from a match_arm_expression token.
+    /// Determines if the pattern is a Result pattern (Ok/Err) or a Values pattern.
+    fn parse_match_pattern(&self, token: Pair<'_, Rule>) -> Result<MatchPattern, ParseError> {
+        assert_eq!(token.as_rule(), Rule::match_arm_expression);
+
+        let pest_span = token.as_span();
+        let values = token
+            .into_inner()
+            .map(|token| self.parse_expression(token.clone()))
+            .collect::<Result<Vec<Expression>, ParseError>>()?;
+
+        // Check if this is a single-value Result pattern: Ok(identifier) or Err(identifier)
+        if values.len() == 1 {
+            match &values[0].kind {
+                ExprKind::Ok(inner) => {
+                    if let ExprKind::Identifier(id) = &inner.kind {
+                        Ok(MatchPattern::ResultPattern(ResultPattern::Ok(id.clone())))
+                    } else {
+                        // TODO (#547): Allow literals in addition to identifiers.
+                        Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("Result pattern Ok() must contain an identifier"),
+                            Some(self.to_ast_span(pest_span)?),
+                        ))
+                    }
+                }
+                ExprKind::Err(inner) => {
+                    if let ExprKind::Identifier(id) = &inner.kind {
+                        Ok(MatchPattern::ResultPattern(ResultPattern::Err(id.clone())))
+                    } else {
+                        // TODO (#547): Allow literals in addition to identifiers.
+                        Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("Result pattern Err() must contain an identifier"),
+                            Some(self.to_ast_span(pest_span)?),
+                        ))
+                    }
+                }
+                _ => Ok(MatchPattern::Values(values)),
+            }
+        } else {
+            Ok(MatchPattern::Values(values))
+        }
     }
 
     fn parse_named_struct_literal(
@@ -554,6 +656,52 @@ impl ChunkParser<'_> {
                         }
                     };
                     Ok(Expression { kind: ExprKind::Optional(opt_expr), span })
+                }
+                Rule::result_literal => {
+                    let token = primary.clone().into_inner().next().ok_or_else(|| {
+                        self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("no token in result literal"),
+                            Some(span),
+                        ))
+                    })?;
+                    match token.as_rule() {
+                        Rule::ok => {
+                            let span = self.to_ast_span(primary.as_span())?;
+                            let v = token.into_inner().next().ok_or_else(|| {
+                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("no value in Ok expression"),
+                                    Some(span),
+                                ))
+                            })?;
+                            let expr = self.parse_expression(v)?;
+                            Ok(Expression {
+                                kind: ExprKind::Ok(Box::new(expr)),
+                                span
+                            })
+                        }
+                        Rule::err => {
+                            let span = self.to_ast_span(primary.as_span())?;
+                            let v = token.into_inner().next().ok_or_else(|| {
+                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("no value in Err expression"),
+                                    Some(span),
+                                ))
+                            })?;
+                            let expr = self.parse_expression(v)?;
+                            Ok(Expression {
+                                kind: ExprKind::Err(Box::new(expr)),
+                                span,
+                            })
+                        }
+                        _ => Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("invalid token in result_literal: {:?}", token.as_rule()),
+                            Some(self.to_ast_span(primary.as_span())?),
+                        ))
+                    }
                 }
                 Rule::named_struct_literal => {
                     let ns = self.parse_named_struct_literal(primary)?;
@@ -813,17 +961,11 @@ impl ChunkParser<'_> {
             let pc = self.descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
+            let pest_span = token.as_span();
+            let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| self.parse_expression(token.clone()))
-                        .collect::<Result<Vec<Expression>, _>>()?;
-
-                    MatchPattern::Values(values)
-                }
+                Rule::match_arm_expression => self.parse_match_pattern(token)?,
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
@@ -1052,20 +1194,11 @@ impl ChunkParser<'_> {
             let pc = self.descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
+            let pest_span = token.as_span();
+            let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| {
-                            let expr = self.parse_expression(token.clone())?;
-                            Ok::<Expression, ParseError>(expr)
-                        })
-                        .collect::<Result<Vec<Expression>, _>>()?;
-
-                    MatchPattern::Values(values)
-                }
+                Rule::match_arm_expression => self.parse_match_pattern(token)?,
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
@@ -1148,14 +1281,6 @@ impl ChunkParser<'_> {
         Ok(expression)
     }
 
-    /// Parse a Rule::return_statementinto a ReturnStatement.
-    fn parse_return_statement(&self, item: Pair<'_, Rule>) -> Result<ReturnStatement, ParseError> {
-        let pc = self.descend(item);
-        let expression = pc.consume_expression(self)?;
-
-        Ok(ReturnStatement { expression })
-    }
-
     /// Parse a Rule::effect_statement into an DebugAssert.
     fn parse_debug_assert_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::debug_assert);
@@ -1186,7 +1311,6 @@ impl ChunkParser<'_> {
                 Rule::check_statement => StmtKind::Check(self.parse_check_statement(statement)?),
                 Rule::match_statement => StmtKind::Match(self.parse_match_statement(statement)?),
                 Rule::if_statement => StmtKind::If(self.parse_if_statement(statement)?),
-                Rule::return_statement => StmtKind::Return(self.parse_return_statement(statement)?),
                 Rule::finish_statement => {
                     let pairs = statement.into_inner();
                     let finish_stmts = self.parse_statement_list(pairs)?;
@@ -1200,6 +1324,12 @@ impl ChunkParser<'_> {
                 Rule::function_call => StmtKind::FunctionCall(self.parse_function_call(statement)?),
                 Rule::debug_assert => {
                     StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
+                }
+                Rule::return_statement => {
+                    let pc = self.descend(statement);
+                    let inner_expr_token = pc.consume()?;
+                    let expression = self.parse_expression(inner_expr_token)?;
+                    StmtKind::Return(ReturnStatement { expression })
                 }
                 s => {
                     return Err(ParseError::new(
@@ -1837,7 +1967,7 @@ fn get_pratt_parser() -> PrattParser<Rule> {
         .op(Op::postfix(Rule::dot))
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 enum TypeStyle {
     Unknown,
     Old,
