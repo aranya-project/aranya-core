@@ -1,0 +1,17 @@
+struct Envelope {
+    payload bytes
+}
+command Foo {
+    fields {}
+    seal {
+        return Envelope {
+            payload: serialize(this),
+        }
+    }
+    open {
+        return deserialize(envelope.payload)
+    }
+    policy {
+        finish {}
+    }
+}

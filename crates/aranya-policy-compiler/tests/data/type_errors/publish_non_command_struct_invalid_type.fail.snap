@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: Struct `Foo` is not a Command struct at line 3 col 5:
+	publish Foo {}

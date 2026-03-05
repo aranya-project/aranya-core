@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: enum UndefinedEnum at line 1 col 1:
+	function bar(x enum UndefinedEnum) bool {
+    return false
+}

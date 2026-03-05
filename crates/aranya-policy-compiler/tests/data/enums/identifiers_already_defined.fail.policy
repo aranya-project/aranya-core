@@ -1,0 +1,7 @@
+enum Drink {
+    Water, Coffee
+}
+
+enum Drink {
+    Coke
+}

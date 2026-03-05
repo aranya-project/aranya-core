@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: match pattern 1 is not a literal expression at line 10 col 5:
+	match x {
+        Foo { x: 10, ...b } => {}
+        _ => {}
+    }

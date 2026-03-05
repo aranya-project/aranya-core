@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: Argument 1 (`x`) in call to `bar` found `option[int]`, expected `int` at line 5 col 5:
+	return bar(Some(3))

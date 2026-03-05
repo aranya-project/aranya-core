@@ -1,0 +1,41 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "f" @ 7..8,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "n" @ 9..10,
+                                    ty: Int @ 11..14,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}

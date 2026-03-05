@@ -1,0 +1,8 @@
+command A {
+    attributes { i: saturating_add(2, 1) }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

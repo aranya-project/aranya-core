@@ -1,0 +1,19 @@
+command Foo {
+    fields {
+        x int,
+        y bool,
+        z string,
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}
+struct Bar {
+    x int,
+    y bool,
+}
+action baz(source struct Bar) {
+    publish source substruct Foo
+}

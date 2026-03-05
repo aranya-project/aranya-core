@@ -1,0 +1,97 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Bar",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Bar",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Bar",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Bar",
+            ltype: CommandOpen,
+        }: 22,
+        Label {
+            name: "convert",
+            ltype: Action,
+        }: 29,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "convert" @ 206..213,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Bar" @ 48..51,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {
+                            ByName(
+                                Field {
+                                    name: "a" @ 75..76,
+                                    ty: Int @ 77..80,
+                                },
+                            ),
+                            ByName(
+                                Field {
+                                    name: "b" @ 90..91,
+                                    ty: String @ 92..98,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "a" @ 75..76,
+                field_type: Int @ 77..80,
+            },
+            FieldDefinition {
+                identifier: "b" @ 90..91,
+                field_type: String @ 92..98,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 17..18,
+                field_type: Int @ 19..22,
+            },
+            FieldDefinition {
+                identifier: "b" @ 28..29,
+                field_type: String @ 30..36,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

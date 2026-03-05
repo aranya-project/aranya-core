@@ -1,0 +1,59 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "divide",
+            ltype: Function,
+        }: 169,
+        Label {
+            name: "divide0",
+            ltype: Function,
+        }: 211,
+        Label {
+            name: "double",
+            ltype: Function,
+        }: 81,
+        Label {
+            name: "is_odd",
+            ltype: Function,
+        }: 65,
+        Label {
+            name: "multiply",
+            ltype: Function,
+        }: 91,
+        Label {
+            name: "pow",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Division": [
+            FieldDefinition {
+                identifier: "d" @ 886..887,
+                field_type: Int @ 888..891,
+            },
+            FieldDefinition {
+                identifier: "q" @ 913..914,
+                field_type: Int @ 915..918,
+            },
+            FieldDefinition {
+                identifier: "r" @ 961..962,
+                field_type: Int @ 963..966,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

@@ -1,0 +1,11 @@
+fact Foo[i int] => {a string}
+command Test {
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            update Foo[i: 1] to {a: "updated"}
+            update Foo[i: 1]=>{a:"apple"} to {a: "orange"}
+        }
+    }
+}

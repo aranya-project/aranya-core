@@ -1,0 +1,3 @@
+function f() bool {
+    return 42 == unwrap Some(42)
+}
