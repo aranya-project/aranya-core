@@ -11,7 +11,6 @@ use aranya_policy_ast::{
 use buggy::BugExt as _;
 use pest::{
     Parser as _, Span,
-    error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
 };
@@ -1648,69 +1647,6 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
     Ok(policy)
 }
 
-/// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
-/// in the source text.
-fn mangle_pest_error(
-    offset: Option<usize>,
-    text: &str,
-    mut e: pest::error::Error<Rule>,
-) -> ParseError {
-    let offset = offset.unwrap_or_default();
-    let pos = match &mut e.location {
-        InputLocation::Pos(p) => {
-            *p = match p.checked_add(offset).assume("p + offset must not wrap") {
-                Ok(n) => n,
-                Err(bug) => {
-                    return ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None);
-                }
-            };
-            *p
-        }
-        InputLocation::Span((s, e)) => {
-            *s = match s.checked_add(offset).assume("s + offset must not wrap") {
-                Ok(n) => n,
-                Err(bug) => {
-                    return ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None);
-                }
-            };
-            *e = match e.checked_add(offset).assume("e + offset must not wrap") {
-                Ok(n) => n,
-                Err(bug) => {
-                    return ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None);
-                }
-            };
-            *s
-        }
-    };
-
-    let line_col = match Span::new(text, pos, pos) {
-        Some(s) => s.start_pos().line_col(),
-        None => {
-            return ParseError::new(
-                ParseErrorKind::Unknown,
-                "error location error".to_string(),
-                None,
-            );
-        }
-    };
-
-    match &mut e.line_col {
-        LineColLocation::Pos(p) => *p = line_col,
-        // FIXME(chip): I'm not sure if any possible pest error uses the Span case here, so
-        // I am not adjusting the endpoint.
-        LineColLocation::Span(p, _) => *p = line_col,
-    }
-
-    // By default the lower-cased rule names are shown in Pest errors. Rules are renamed here to provide better error messages.
-    // See crates/aranya-policy-lang/tests/data/invalid_is.snap
-    e.renamed_rules(|rule| match *rule {
-        Rule::none => "None".to_owned(),
-        Rule::some => "Some".to_owned(),
-        _ => format!("{:?}", rule),
-    })
-    .into()
-}
-
 /// Parse more data into an existing [ast::Policy] object.
 fn parse_policy_chunk(
     data: &str,
@@ -1728,9 +1664,11 @@ fn parse_policy_chunk(
         );
         return Err(err);
     }
-    let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(Some(start.byte), &policy.text, e))
-        .map_err(|e| e.with_source(policy.text.clone()))?;
+    let chunk = PolicyParser::parse(Rule::file, data).map_err(|e| {
+        ParseError::from(e)
+            .with_offset(start.byte)
+            .with_source(policy.text.clone())
+    })?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
     parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.with_source(policy.text.clone()))
@@ -1773,8 +1711,7 @@ fn parse_policy_chunk_inner(
 
 pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
     fn inner(s: &str) -> Result<Expression, ParseError> {
-        let mut pairs =
-            PolicyParser::parse(Rule::expression, s).map_err(|e| mangle_pest_error(None, s, e))?;
+        let mut pairs = PolicyParser::parse(Rule::expression, s)?;
 
         let token = pairs
             .next()
@@ -1795,8 +1732,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
         let pratt = get_pratt_parser();
         let parser = ChunkParser::new(0, &pratt, data.len());
 
-        let mut def = PolicyParser::parse(Rule::ffi_def, data)
-            .map_err(|e| mangle_pest_error(None, data, e))?;
+        let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
         let decl = def.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Unknown,
@@ -1849,8 +1785,7 @@ pub struct FfiTypes {
 /// Parse a series of type definitions for the FFI
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
     fn inner(data: &str) -> Result<FfiTypes, ParseError> {
-        let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)
-            .map_err(|e| mangle_pest_error(None, data, e))?;
+        let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
         let pratt = get_pratt_parser();
         let p = ChunkParser::new(0, &pratt, data.len());
         let mut structs = vec![];

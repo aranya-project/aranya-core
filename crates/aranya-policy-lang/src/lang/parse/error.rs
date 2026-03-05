@@ -147,6 +147,7 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    #[must_use]
     pub(crate) fn new(
         kind: impl Into<ParseErrorKind>,
         message: String,
@@ -168,21 +169,35 @@ impl ParseError {
             ..self
         }
     }
+
+    #[must_use]
+    pub(crate) fn with_offset(self, offset: usize) -> Self {
+        Self {
+            span: self.span.map(|s| s.add(offset).expect("span overflow")),
+            ..self
+        }
+    }
 }
 
 impl From<PestError<Rule>> for ParseError {
     fn from(e: PestError<Rule>) -> Self {
         use pest::error::InputLocation;
-        // Assumes that the error location has already been adjusted in `aranya_policy_lang::lang::parse::mangle_pest_error`
         let span = match e.location {
             InputLocation::Pos(start) => Span::new(start, start.saturating_add(1)),
             InputLocation::Span((start, end)) => Span::new(start, end),
         };
-        Self::new(
-            ParseErrorKind::Syntax,
-            e.variant.message().to_string(),
-            Some(span),
-        )
+        // By default the lower-cased rule names are shown in Pest errors. Rules are renamed here to provide better error messages.
+        // See crates/aranya-policy-lang/tests/data/invalid_is.snap
+        let message = e
+            .renamed_rules(|rule| match *rule {
+                Rule::none => "None".to_owned(),
+                Rule::some => "Some".to_owned(),
+                _ => format!("{:?}", rule),
+            })
+            .variant
+            .message()
+            .into_owned();
+        Self::new(ParseErrorKind::Syntax, message, Some(span))
     }
 }
 
