@@ -73,6 +73,10 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
         self.stack.pop()
     }
 
+    fn pop_value(&mut self) -> Result<Value, MachineErrorType> {
+        self.stack.pop_value()
+    }
+
     fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
@@ -260,6 +264,18 @@ function struct_fn(
         e: TestEnum,
     ) -> Result<TestEnum, MachineError> {
         Ok(e)
+    }
+
+    #[ffi_export(def = r#"function test_result(r result[int, string]) result[int, string]"#)]
+    fn test_result<E: Engine>(
+        _ctx: &CommandContext,
+        _eng: &E,
+        r: Result<i64, Text>,
+    ) -> Result<Result<i64, Text>, MachineError> {
+        Ok(match r {
+            Ok(x) => Ok(x.checked_add(1).ok_or(MachineErrorType::IntegerOverflow)?),
+            Err(s) => Err(s.as_str().to_uppercase().try_into().expect("valid text")),
+        })
     }
 }
 
@@ -452,5 +468,26 @@ fn test_ffi_derive() {
             "`test::test_enum` returned the wrong result"
         );
     }
-    {}
+
+    // test result
+    {
+        state.push(Value::Result(Ok(Box::new(Value::Int(42)))));
+        state.call("test_result").unwrap();
+        let got = state.pop_value().unwrap();
+        let want = Value::Result(Ok(Box::new(Value::Int(43))));
+        assert_eq!(got, want);
+
+        state.push(Value::Result(Err(Box::new(Value::String(text!("hello"))))));
+        state.call("test_result").unwrap();
+        let got = state.pop_value().unwrap();
+        let want = Value::Result(Err(Box::new(Value::String(text!("HELLO")))));
+        assert_eq!(got, want);
+
+        state.push(Value::Result(Ok(Box::new(Value::Int(i64::MAX)))));
+        let err = state.call("test_result").unwrap_err();
+        assert_eq!(
+            err,
+            TestStateError::Module(MachineErrorType::IntegerOverflow.into())
+        );
+    }
 }

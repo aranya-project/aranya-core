@@ -72,3 +72,7 @@ impl<Tag: IdTag> Typed for Id<Tag> {
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
 }
+
+impl<T: Typed, E: Typed> Typed for Result<T, E> {
+    const TYPE: Type<'static> = Type::Result(&T::TYPE, &E::TYPE);
+}
