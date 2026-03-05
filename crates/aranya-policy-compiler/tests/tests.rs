@@ -6,7 +6,7 @@ use aranya_policy_ast::{Version, ident};
 use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Module,
+    Module, ModuleData, ModuleV0,
     ffi::{self, ModuleSchema},
 };
 
@@ -77,6 +77,36 @@ fn compile_fail(text: &str) -> CompileError {
     }
 }
 
+/// Wraps [`aranya_policy_module::Module`] to provide a Debug impl
+/// that only prints data worth viewing.
+struct ModuleSnapshotWrapper(Module);
+
+impl std::fmt::Debug for ModuleSnapshotWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ModuleData::V0(ModuleV0 {
+            ref labels,
+            ref action_defs,
+            ref command_defs,
+            ref fact_defs,
+            ref struct_defs,
+            ref enum_defs,
+            ref globals,
+            ..
+        }) = self.0.data;
+
+        f.debug_struct("Module")
+            .field("version", &"0")
+            .field("labels", labels)
+            .field("action_defs", action_defs)
+            .field("command_defs", command_defs)
+            .field("fact_defs", fact_defs)
+            .field("struct_defs", struct_defs)
+            .field("enum_defs", enum_defs)
+            .field("globals", globals)
+            .finish_non_exhaustive()
+    }
+}
+
 #[rstest::rstest]
 fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
     let base = src.parent().expect("can't get parent");
@@ -88,13 +118,10 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
     let text = std::fs::read_to_string(src.as_path()).expect("could not read source file");
 
     if name.ends_with(".pass") {
-        let module = compile_pass(&text);
+        let module = ModuleSnapshotWrapper(compile_pass(&text));
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-            insta::assert_yaml_snapshot!(name, module, {
-                // Redact the "text" field from the code map to clean up the snapshots a bit
-                ".data.codemap.text" => "[source code]",
-            });
+            insta::assert_debug_snapshot!(name, module);
         });
     } else if name.ends_with(".fail") {
         let error = compile_fail(&text);

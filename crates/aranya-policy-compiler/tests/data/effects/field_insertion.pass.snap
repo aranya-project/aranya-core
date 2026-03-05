@@ -2,80 +2,49 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-  labels: {}
-  action_defs: []
-  command_defs: []
-  fact_defs: {}
-  struct_defs:
-    Bar:
-      - identifier:
-          name: b
-          span:
-            start: 13
-            end: 14
-        field_type:
-          kind: Bool
-          span:
-            start: 15
-            end: 19
-    Baz:
-      - identifier:
-          name: i
-          span:
-            start: 0
-            end: 0
-        field_type:
-          kind: Int
-          span:
-            start: 0
-            end: 0
-      - identifier:
-          name: b
-          span:
-            start: 0
-            end: 0
-        field_type:
-          kind: Bool
-          span:
-            start: 0
-            end: 0
-      - identifier:
-          name: s
-          span:
-            start: 0
-            end: 0
-        field_type:
-          kind: String
-          span:
-            start: 0
-            end: 0
-    Foo:
-      - identifier:
-          name: b
-          span:
-            start: 0
-            end: 0
-        field_type:
-          kind: Bool
-          span:
-            start: 0
-            end: 0
-      - identifier:
-          name: s
-          span:
-            start: 0
-            end: 0
-        field_type:
-          kind: String
-          span:
-            start: 0
-            end: 0
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping: []
-  globals: {}
+Module {
+    version: "0",
+    labels: {},
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "b" @ 13..14,
+                field_type: Bool @ 15..19,
+            },
+        ],
+        "Baz": [
+            FieldDefinition {
+                identifier: "i" @ 0..0,
+                field_type: Int @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "b" @ 0..0,
+                field_type: Bool @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "s" @ 0..0,
+                field_type: String @ 0..0,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "b" @ 0..0,
+                field_type: Bool @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "s" @ 0..0,
+                field_type: String @ 0..0,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

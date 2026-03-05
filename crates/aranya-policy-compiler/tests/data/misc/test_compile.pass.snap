@@ -2,211 +2,93 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Meta:
-        Finish: true
-    - Block
-    - End
-    - Exit: Normal
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Return
-    - Meta:
-        Let: this
-    - Def: this
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - Meta:
-        Let: b
-    - Def: b
-    - Const:
-        Int: 4
-    - Meta:
-        Let: i
-    - Def: i
-    - Meta:
-        Get: b
-    - Get: b
-    - Const:
-        Int: 0
-    - Eq
-    - Branch:
-        Resolved: 43
-    - Block
-    - Const:
-        Int: 3
-    - End
-    - Jump:
-        Resolved: 49
-    - Block
-    - Const:
-        Int: 4
-    - Meta:
-        Get: i
-    - Get: i
-    - SaturatingAdd
-    - End
-    - Meta:
-        Let: x
-    - Def: x
-    - StructNew: Foo
-    - Meta:
-        Get: x
-    - Get: x
-    - StructSet: a
-    - Const:
-        Int: 4
-    - StructSet: b
-    - Meta:
-        Let: y
-    - Def: y
-    - Return
-  labels:
-    ? name: Foo
-      ltype: CommandPolicy
-    : 1
-    ? name: Foo
-      ltype: CommandRecall
-    : 10
-    ? name: Foo
-      ltype: CommandSeal
-    : 15
-    ? name: Foo
-      ltype: CommandOpen
-    : 22
-    ? name: foo
-      ltype: Action
-    : 29
-  action_defs:
-    - name:
-        name: foo
-        span:
-          start: 162
-          end: 165
-      persistence: Persistent
-      params:
-        - name:
-            name: b
-            span:
-              start: 166
-              end: 167
-          ty:
-            kind: Int
-            span:
-              start: 168
-              end: 171
-  command_defs:
-    - name:
-        name: Foo
-        span:
-          start: 8
-          end: 11
-      persistence: Persistent
-      attributes: []
-      fields:
-        - name:
-            name: a
-            span:
-              start: 35
-              end: 36
-          ty:
-            kind: Int
-            span:
-              start: 37
-              end: 40
-        - name:
-            name: b
-            span:
-              start: 50
-              end: 51
-          ty:
-            kind: Int
-            span:
-              start: 52
-              end: 55
-  fact_defs: {}
-  struct_defs:
-    Foo:
-      - identifier:
-          name: a
-          span:
-            start: 35
-            end: 36
-        field_type:
-          kind: Int
-          span:
-            start: 37
-            end: 40
-      - identifier:
-          name: b
-          span:
-            start: 50
-            end: 51
-        field_type:
-          kind: Int
-          span:
-            start: 52
-            end: 55
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 0
-      - - 5
-        - start: 137
-          end: 146
-      - - 10
-        - start: 0
-          end: 0
-      - - 15
-        - start: 0
-          end: 154
-      - - 18
-        - start: 73
-          end: 87
-      - - 22
-        - start: 0
-          end: 154
-      - - 25
-        - start: 100
-          end: 114
-      - - 29
-        - start: 155
-          end: 300
-      - - 31
-        - start: 179
-          end: 193
-      - - 34
-        - start: 193
-          end: 253
-      - - 51
-        - start: 253
-          end: 299
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Foo",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Foo",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Foo",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Foo",
+            ltype: CommandOpen,
+        }: 22,
+        Label {
+            name: "foo",
+            ltype: Action,
+        }: 29,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "foo" @ 162..165,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "b" @ 166..167,
+                                    ty: Int @ 168..171,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Foo" @ 8..11,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {
+                            ByName(
+                                Field {
+                                    name: "a" @ 35..36,
+                                    ty: Int @ 37..40,
+                                },
+                            ),
+                            ByName(
+                                Field {
+                                    name: "b" @ 50..51,
+                                    ty: Int @ 52..55,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 35..36,
+                field_type: Int @ 37..40,
+            },
+            FieldDefinition {
+                identifier: "b" @ 50..51,
+                field_type: Int @ 52..55,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

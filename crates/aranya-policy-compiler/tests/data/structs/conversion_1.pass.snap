@@ -2,80 +2,44 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - SaveSP
-    - StructNew: Foo
-    - Const:
-        Int: 1
-    - StructSet: a
-    - Const:
-        String: test
-    - StructSet: b
-    - Cast: Bar
-    - RestoreSP
-    - Return
-    - Exit: Panic
-  labels:
-    ? name: convert
-      ltype: Function
-    : 1
-  action_defs: []
-  command_defs: []
-  fact_defs: {}
-  struct_defs:
-    Bar:
-      - identifier:
-          name: b
-          span:
-            start: 58
-            end: 59
-        field_type:
-          kind: String
-          span:
-            start: 60
-            end: 66
-      - identifier:
-          name: a
-          span:
-            start: 72
-            end: 73
-        field_type:
-          kind: Int
-          span:
-            start: 74
-            end: 77
-    Foo:
-      - identifier:
-          name: a
-          span:
-            start: 17
-            end: 18
-        field_type:
-          kind: Int
-          span:
-            start: 19
-            end: 22
-      - identifier:
-          name: b
-          span:
-            start: 28
-            end: 29
-        field_type:
-          kind: String
-          span:
-            start: 30
-            end: 36
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 82
-          end: 157
-      - - 2
-        - start: 118
-          end: 156
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "convert",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "b" @ 58..59,
+                field_type: String @ 60..66,
+            },
+            FieldDefinition {
+                identifier: "a" @ 72..73,
+                field_type: Int @ 74..77,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 17..18,
+                field_type: Int @ 19..22,
+            },
+            FieldDefinition {
+                identifier: "b" @ 28..29,
+                field_type: String @ 30..36,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

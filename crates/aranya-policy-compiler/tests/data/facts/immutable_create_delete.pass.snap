@@ -2,169 +2,78 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Meta:
-        Finish: true
-    - Block
-    - FactNew: Foo
-    - Const:
-        Int: 1
-    - FactKeySet: i
-    - Const:
-        String: ""
-    - FactValueSet: a
-    - Create
-    - FactNew: Foo
-    - Const:
-        Int: 1
-    - FactKeySet: i
-    - Const:
-        String: ""
-    - FactValueSet: a
-    - Delete
-    - End
-    - Exit: Normal
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Return
-    - Meta:
-        Let: this
-    - Def: this
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-  labels:
-    ? name: test
-      ltype: CommandPolicy
-    : 1
-    ? name: test
-      ltype: CommandRecall
-    : 22
-    ? name: test
-      ltype: CommandSeal
-    : 27
-    ? name: test
-      ltype: CommandOpen
-    : 34
-  action_defs: []
-  command_defs:
-    - name:
-        name: test
-        span:
-          start: 48
-          end: 52
-      persistence: Persistent
-      attributes: []
-      fields: []
-  fact_defs:
-    Foo:
-      immutable: true
-      identifier:
-        name: Foo
-        span:
-          start: 15
-          end: 18
-      key:
-        - identifier:
-            name: i
-            span:
-              start: 19
-              end: 20
-          field_type:
-            kind: Int
-            span:
-              start: 21
-              end: 24
-      value:
-        - identifier:
-            name: a
-            span:
-              start: 30
-              end: 31
-          field_type:
-            kind: String
-            span:
-              start: 32
-              end: 38
-      span:
-        start: 0
-        end: 39
-  struct_defs:
-    Foo:
-      - identifier:
-          name: i
-          span:
-            start: 19
-            end: 20
-        field_type:
-          kind: Int
-          span:
-            start: 21
-            end: 24
-      - identifier:
-          name: a
-          span:
-            start: 30
-            end: 31
-        field_type:
-          kind: String
-          span:
-            start: 32
-            end: 38
-    test: []
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 0
-      - - 5
-        - start: 144
-          end: 238
-      - - 7
-        - start: 165
-          end: 190
-      - - 13
-        - start: 203
-          end: 228
-      - - 22
-        - start: 0
-          end: 0
-      - - 27
-        - start: 40
-          end: 246
-      - - 30
-        - start: 80
-          end: 94
-      - - 34
-        - start: 40
-          end: 246
-      - - 37
-        - start: 107
-          end: 121
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "test",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "test",
+            ltype: CommandRecall,
+        }: 22,
+        Label {
+            name: "test",
+            ltype: CommandSeal,
+        }: 27,
+        Label {
+            name: "test",
+            ltype: CommandOpen,
+        }: 34,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "test" @ 48..52,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {
+        "Foo": FactDefinition {
+            immutable: true,
+            identifier: "Foo" @ 15..18,
+            key: [
+                FieldDefinition {
+                    identifier: "i" @ 19..20,
+                    field_type: Int @ 21..24,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "a" @ 30..31,
+                    field_type: String @ 32..38,
+                },
+            ],
+            span: 0..39,
+        },
+    },
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "i" @ 19..20,
+                field_type: Int @ 21..24,
+            },
+            FieldDefinition {
+                identifier: "a" @ 30..31,
+                field_type: String @ 32..38,
+            },
+        ],
+        "test": [],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

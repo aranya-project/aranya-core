@@ -2,144 +2,106 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Meta:
-        Finish: true
-    - Block
-    - End
-    - Exit: Normal
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Return
-    - Meta:
-        Let: this
-    - Def: this
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-  labels:
-    ? name: Bar
-      ltype: CommandPolicy
-    : 1
-    ? name: Bar
-      ltype: CommandRecall
-    : 10
-    ? name: Bar
-      ltype: CommandSeal
-    : 15
-    ? name: Bar
-      ltype: CommandOpen
-    : 22
-  action_defs: []
-  command_defs:
-    - name:
-        name: Bar
-        span:
-          start: 112
-          end: 115
-      persistence: Persistent
-      attributes:
-        - name:
-            name: foo_attr
-            span:
-              start: 143
-              end: 151
-          value:
-            Struct:
-              name: Foo
-              fields:
-                x:
-                  Int: 1000
-                y:
-                  Int: 20
-      fields: []
-  fact_defs: {}
-  struct_defs:
-    Bar: []
-    Foo:
-      - identifier:
-          name: x
-          span:
-            start: 17
-            end: 18
-        field_type:
-          kind: Int
-          span:
-            start: 19
-            end: 22
-      - identifier:
-          name: y
-          span:
-            start: 28
-            end: 29
-        field_type:
-          kind: Int
-          span:
-            start: 30
-            end: 33
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 0
-      - - 5
-        - start: 251
-          end: 260
-      - - 10
-        - start: 0
-          end: 0
-      - - 15
-        - start: 104
-          end: 268
-      - - 18
-        - start: 187
-          end: 201
-      - - 22
-        - start: 104
-          end: 268
-      - - 25
-        - start: 214
-          end: 228
-  globals:
-    foo:
-      Struct:
-        name: Foo
-        fields:
-          x:
-            Int: 10
-          y:
-            Int: 20
-    foo2:
-      Struct:
-        name: Foo
-        fields:
-          x:
-            Int: 1000
-          y:
-            Int: 20
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Bar",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Bar",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Bar",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Bar",
+            ltype: CommandOpen,
+        }: 22,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Bar" @ 112..115,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {
+                            ByName(
+                                Attribute {
+                                    name: "foo_attr" @ 143..151,
+                                    value: Struct(
+                                        ConstStruct {
+                                            name: "Foo",
+                                            fields: {
+                                                "x": Int(
+                                                    1000,
+                                                ),
+                                                "y": Int(
+                                                    20,
+                                                ),
+                                            },
+                                        },
+                                    ),
+                                },
+                            ),
+                        },
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [],
+        "Foo": [
+            FieldDefinition {
+                identifier: "x" @ 17..18,
+                field_type: Int @ 19..22,
+            },
+            FieldDefinition {
+                identifier: "y" @ 28..29,
+                field_type: Int @ 30..33,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {
+        "foo": Struct(
+            ConstStruct {
+                name: "Foo",
+                fields: {
+                    "x": Int(
+                        10,
+                    ),
+                    "y": Int(
+                        20,
+                    ),
+                },
+            },
+        ),
+        "foo2": Struct(
+            ConstStruct {
+                name: "Foo",
+                fields: {
+                    "x": Int(
+                        1000,
+                    ),
+                    "y": Int(
+                        20,
+                    ),
+                },
+            },
+        ),
+    },
+    ..
+}

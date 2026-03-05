@@ -2,187 +2,96 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Meta:
-        Finish: true
-    - Block
-    - End
-    - Exit: Normal
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Return
-    - Meta:
-        Let: this
-    - Def: this
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - StructNew: Foo
-    - Const:
-        Int: 1
-    - StructSet: a
-    - Const:
-        String: test
-    - StructSet: b
-    - Cast: Bar
-    - Meta:
-        Let: bar
-    - Def: bar
-    - Meta:
-        Get: bar
-    - Get: bar
-    - Publish
-    - Return
-  labels:
-    ? name: Bar
-      ltype: CommandPolicy
-    : 1
-    ? name: Bar
-      ltype: CommandRecall
-    : 10
-    ? name: Bar
-      ltype: CommandSeal
-    : 15
-    ? name: Bar
-      ltype: CommandOpen
-    : 22
-    ? name: convert
-      ltype: Action
-    : 29
-  action_defs:
-    - name:
-        name: convert
-        span:
-          start: 206
-          end: 213
-      persistence: Persistent
-      params: []
-  command_defs:
-    - name:
-        name: Bar
-        span:
-          start: 48
-          end: 51
-      persistence: Persistent
-      attributes: []
-      fields:
-        - name:
-            name: a
-            span:
-              start: 75
-              end: 76
-          ty:
-            kind: Int
-            span:
-              start: 77
-              end: 80
-        - name:
-            name: b
-            span:
-              start: 90
-              end: 91
-          ty:
-            kind: String
-            span:
-              start: 92
-              end: 98
-  fact_defs: {}
-  struct_defs:
-    Bar:
-      - identifier:
-          name: a
-          span:
-            start: 75
-            end: 76
-        field_type:
-          kind: Int
-          span:
-            start: 77
-            end: 80
-      - identifier:
-          name: b
-          span:
-            start: 90
-            end: 91
-        field_type:
-          kind: String
-          span:
-            start: 92
-            end: 98
-    Foo:
-      - identifier:
-          name: a
-          span:
-            start: 17
-            end: 18
-        field_type:
-          kind: Int
-          span:
-            start: 19
-            end: 22
-      - identifier:
-          name: b
-          span:
-            start: 28
-            end: 29
-        field_type:
-          kind: String
-          span:
-            start: 30
-            end: 36
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 0
-      - - 5
-        - start: 181
-          end: 190
-      - - 10
-        - start: 0
-          end: 0
-      - - 15
-        - start: 40
-          end: 198
-      - - 18
-        - start: 117
-          end: 131
-      - - 22
-        - start: 40
-          end: 198
-      - - 25
-        - start: 144
-          end: 158
-      - - 29
-        - start: 222
-          end: 267
-      - - 37
-        - start: 267
-          end: 279
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Bar",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Bar",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Bar",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Bar",
+            ltype: CommandOpen,
+        }: 22,
+        Label {
+            name: "convert",
+            ltype: Action,
+        }: 29,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "convert" @ 206..213,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Bar" @ 48..51,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {
+                            ByName(
+                                Field {
+                                    name: "a" @ 75..76,
+                                    ty: Int @ 77..80,
+                                },
+                            ),
+                            ByName(
+                                Field {
+                                    name: "b" @ 90..91,
+                                    ty: String @ 92..98,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "a" @ 75..76,
+                field_type: Int @ 77..80,
+            },
+            FieldDefinition {
+                identifier: "b" @ 90..91,
+                field_type: String @ 92..98,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 17..18,
+                field_type: Int @ 19..22,
+            },
+            FieldDefinition {
+                identifier: "b" @ 28..29,
+                field_type: String @ 30..36,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

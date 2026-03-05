@@ -2,77 +2,59 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: s
-    - Def: s
-    - Meta:
-        Let: n
-    - Def: n
-    - Return
-    - Const:
-        Int: 1
-    - Const:
-        String: abc
-    - Call:
-        Resolved: 1
-    - Return
-  labels:
-    ? name: bar
-      ltype: Action
-    : 1
-    ? name: foo
-      ltype: Action
-    : 6
-  action_defs:
-    - name:
-        name: bar
-        span:
-          start: 7
-          end: 10
-      persistence: Persistent
-      params:
-        - name:
-            name: n
-            span:
-              start: 11
-              end: 12
-          ty:
-            kind: Int
-            span:
-              start: 13
-              end: 16
-        - name:
-            name: s
-            span:
-              start: 18
-              end: 19
-          ty:
-            kind: String
-            span:
-              start: 20
-              end: 26
-    - name:
-        name: foo
-        span:
-          start: 38
-          end: 41
-      persistence: Persistent
-      params: []
-  command_defs: []
-  fact_defs: {}
-  struct_defs: {}
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 30
-      - - 6
-        - start: 50
-          end: 70
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "bar",
+            ltype: Action,
+        }: 1,
+        Label {
+            name: "foo",
+            ltype: Action,
+        }: 6,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "bar" @ 7..10,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "n" @ 11..12,
+                                    ty: Int @ 13..16,
+                                },
+                            ),
+                            ByName(
+                                Param {
+                                    name: "s" @ 18..19,
+                                    ty: String @ 20..26,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+            ByName(
+                ActionDef {
+                    name: "foo" @ 38..41,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}

@@ -2,45 +2,23 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - SaveSP
-    - Const:
-        Int: 42
-    - Const:
-        Int: 42
-    - Some
-    - Dup
-    - Const:
-        Option: ~
-    - Eq
-    - Not
-    - Branch:
-        Resolved: 11
-    - Exit: Panic
-    - Unwrap
-    - Eq
-    - RestoreSP
-    - Return
-    - Exit: Panic
-  labels:
-    ? name: f
-      ltype: Function
-    : 1
-  action_defs: []
-  command_defs: []
-  fact_defs: {}
-  struct_defs: {}
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 54
-      - - 2
-        - start: 24
-          end: 53
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}

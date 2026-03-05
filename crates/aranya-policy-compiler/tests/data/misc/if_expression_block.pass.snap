@@ -2,81 +2,40 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: n
-    - Def: n
-    - Meta:
-        Get: n
-    - Get: n
-    - Const:
-        Int: 1
-    - Gt
-    - Branch:
-        Resolved: 12
-    - Block
-    - Const:
-        Int: 0
-    - End
-    - Jump:
-        Resolved: 22
-    - Block
-    - Meta:
-        Get: n
-    - Get: n
-    - Const:
-        Int: 1
-    - SaturatingAdd
-    - Meta:
-        Let: x
-    - Def: x
-    - Meta:
-        Get: x
-    - Get: x
-    - End
-    - Meta:
-        Let: x
-    - Def: x
-    - Return
-  labels:
-    ? name: f
-      ltype: Action
-    : 1
-  action_defs:
-    - name:
-        name: f
-        span:
-          start: 7
-          end: 8
-      persistence: Persistent
-      params:
-        - name:
-            name: n
-            span:
-              start: 9
-              end: 10
-          ty:
-            kind: Int
-            span:
-              start: 11
-              end: 14
-  command_defs: []
-  fact_defs: {}
-  struct_defs: {}
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 108
-      - - 3
-        - start: 22
-          end: 107
-      - - 13
-        - start: 49
-          end: 86
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "f" @ 7..8,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "n" @ 9..10,
+                                    ty: Int @ 11..14,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}

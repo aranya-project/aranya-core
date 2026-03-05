@@ -2,102 +2,62 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - FactNew: Foo
-    - Const:
-        Int: 1
-    - FactKeySet: i
-    - Const:
-        Int: 1
-    - Const:
-        Int: 1
-    - SaturatingAdd
-    - FactValueSet: a
-    - Query
-    - Const:
-        Option: ~
-    - Eq
-    - Not
-    - Branch:
-        Resolved: 14
-    - Exit: Check
-    - Return
-  labels:
-    ? name: test
-      ltype: Action
-    : 1
-  action_defs:
-    - name:
-        name: test
-        span:
-          start: 34
-          end: 38
-      persistence: Persistent
-      params: []
-  command_defs: []
-  fact_defs:
-    Foo:
-      immutable: false
-      identifier:
-        name: Foo
-        span:
-          start: 5
-          end: 8
-      key:
-        - identifier:
-            name: i
-            span:
-              start: 9
-              end: 10
-          field_type:
-            kind: Int
-            span:
-              start: 11
-              end: 14
-      value:
-        - identifier:
-            name: a
-            span:
-              start: 20
-              end: 21
-          field_type:
-            kind: Int
-            span:
-              start: 22
-              end: 25
-      span:
-        start: 0
-        end: 26
-  struct_defs:
-    Foo:
-      - identifier:
-          name: i
-          span:
-            start: 9
-            end: 10
-        field_type:
-          kind: Int
-          span:
-            start: 11
-            end: 14
-      - identifier:
-          name: a
-          span:
-            start: 20
-            end: 21
-        field_type:
-          kind: Int
-          span:
-            start: 22
-            end: 25
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 47
-          end: 99
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "test",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "test" @ 34..38,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {
+        "Foo": FactDefinition {
+            immutable: false,
+            identifier: "Foo" @ 5..8,
+            key: [
+                FieldDefinition {
+                    identifier: "i" @ 9..10,
+                    field_type: Int @ 11..14,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "a" @ 20..21,
+                    field_type: Int @ 22..25,
+                },
+            ],
+            span: 0..26,
+        },
+    },
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "i" @ 9..10,
+                field_type: Int @ 11..14,
+            },
+            FieldDefinition {
+                identifier: "a" @ 20..21,
+                field_type: Int @ 22..25,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

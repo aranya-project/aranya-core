@@ -2,88 +2,42 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: maybe_bool
-    - Def: maybe_bool
-    - Meta:
-        Get: maybe_bool
-    - Get: maybe_bool
-    - Dup
-    - Const:
-        Option: ~
-    - Eq
-    - Branch:
-        Resolved: 19
-    - Dup
-    - Const:
-        Bool: false
-    - Some
-    - Eq
-    - Branch:
-        Resolved: 19
-    - Dup
-    - Const:
-        Bool: true
-    - Some
-    - Eq
-    - Branch:
-        Resolved: 22
-    - Pop
-    - Const:
-        Int: 0
-    - Jump:
-        Resolved: 25
-    - Pop
-    - Const:
-        Int: 1
-    - Jump:
-        Resolved: 25
-    - Meta:
-        Let: x
-    - Def: x
-    - Return
-  labels:
-    ? name: f
-      ltype: Action
-    : 1
-  action_defs:
-    - name:
-        name: f
-        span:
-          start: 7
-          end: 8
-      persistence: Persistent
-      params:
-        - name:
-            name: maybe_bool
-            span:
-              start: 9
-              end: 19
-          ty:
-            kind:
-              Optional:
-                kind: Bool
-                span:
-                  start: 27
-                  end: 31
-            span:
-              start: 20
-              end: 32
-  command_defs: []
-  fact_defs: {}
-  struct_defs: {}
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 130
-      - - 3
-        - start: 40
-          end: 129
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "f" @ 7..8,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "maybe_bool" @ 9..19,
+                                    ty: Optional(
+                                        Bool @ 27..31,
+                                    ) @ 20..32,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}

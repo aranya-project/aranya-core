@@ -2,116 +2,68 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Meta:
-        Finish: true
-    - Block
-    - End
-    - Exit: Normal
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - Meta:
-        Let: this
-    - Def: this
-    - Return
-    - Meta:
-        Let: this
-    - Def: this
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - Meta:
-        Let: envelope
-    - Def: envelope
-    - SaveSP
-    - Exit: Panic
-    - RestoreSP
-    - Return
-    - Exit: Panic
-    - StructNew: Cmd
-    - Publish
-    - Return
-  labels:
-    ? name: Cmd
-      ltype: CommandPolicy
-    : 1
-    ? name: Cmd
-      ltype: CommandRecall
-    : 10
-    ? name: Cmd
-      ltype: CommandSeal
-    : 15
-    ? name: Cmd
-      ltype: CommandOpen
-    : 22
-    ? name: test
-      ltype: Action
-    : 29
-  action_defs:
-    - name:
-        name: test
-        span:
-          start: 148
-          end: 152
-      persistence:
-        Ephemeral:
-          start: 131
-          end: 140
-      params: []
-  command_defs:
-    - name:
-        name: Cmd
-        span:
-          start: 18
-          end: 21
-      persistence:
-        Ephemeral:
-          start: 0
-          end: 9
-      attributes: []
-      fields: []
-  fact_defs: {}
-  struct_defs:
-    Cmd: []
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 0
-      - - 5
-        - start: 113
-          end: 122
-      - - 10
-        - start: 0
-          end: 0
-      - - 15
-        - start: 0
-          end: 130
-      - - 18
-        - start: 49
-          end: 63
-      - - 22
-        - start: 0
-          end: 130
-      - - 25
-        - start: 76
-          end: 90
-      - - 29
-        - start: 161
-          end: 176
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Cmd",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Cmd",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Cmd",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Cmd",
+            ltype: CommandOpen,
+        }: 22,
+        Label {
+            name: "test",
+            ltype: Action,
+        }: 29,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "test" @ 148..152,
+                    persistence: Ephemeral(
+                        131..140,
+                    ),
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Cmd" @ 18..21,
+                    persistence: Ephemeral(
+                        0..9,
+                    ),
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Cmd": [],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

@@ -2,86 +2,23 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-data:
-  version: V0
-  progmem:
-    - Exit: Panic
-    - Meta:
-        Let: y
-    - Def: y
-    - SaveSP
-    - Meta:
-        Get: y
-    - Get: y
-    - Dup
-    - Const:
-        Int: 1
-    - Eq
-    - Branch:
-        Resolved: 15
-    - Dup
-    - Const:
-        Int: 2
-    - Eq
-    - Branch:
-        Resolved: 22
-    - Jump:
-        Resolved: 29
-    - Pop
-    - Block
-    - Const:
-        Int: 3
-    - Meta:
-        Let: x
-    - Def: x
-    - End
-    - Jump:
-        Resolved: 33
-    - Pop
-    - Block
-    - Const:
-        Int: 4
-    - Meta:
-        Let: x
-    - Def: x
-    - End
-    - Jump:
-        Resolved: 33
-    - Pop
-    - Block
-    - End
-    - Jump:
-        Resolved: 33
-    - Const:
-        Bool: false
-    - RestoreSP
-    - Return
-    - Exit: Panic
-  labels:
-    ? name: f
-      ltype: Function
-    : 1
-  action_defs: []
-  command_defs: []
-  fact_defs: {}
-  struct_defs: {}
-  enum_defs: {}
-  codemap:
-    text: "[source code]"
-    mapping:
-      - - 1
-        - start: 0
-          end: 133
-      - - 4
-        - start: 29
-          end: 114
-      - - 17
-        - start: 54
-          end: 64
-      - - 24
-        - start: 81
-          end: 91
-      - - 33
-        - start: 119
-          end: 132
-  globals: {}
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}
