@@ -84,19 +84,19 @@ struct ModuleSnapshotWrapper(Module);
 impl std::fmt::Debug for ModuleSnapshotWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ModuleData::V0(ModuleV0 {
-            ref labels,
-            ref action_defs,
-            ref command_defs,
-            ref fact_defs,
-            ref struct_defs,
-            ref enum_defs,
-            ref globals,
+            labels,
+            action_defs,
+            command_defs,
+            fact_defs,
+            struct_defs,
+            enum_defs,
+            globals,
             ..
-        }) = self.0.data;
+        }) = &self.0.data;
 
         f.debug_struct("Module")
             .field("version", &"0")
-            .field("labels", labels)
+            .field("labels", &labels)
             .field("action_defs", action_defs)
             .field("command_defs", command_defs)
             .field("fact_defs", fact_defs)
