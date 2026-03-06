@@ -1,8 +1,9 @@
-use alloc::vec::Vec;
+use alloc::{collections::BTreeMap, vec::Vec};
 
+use buggy::BugExt as _;
 use tracing::trace;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBuffer};
+use crate::{ClientError, Location, Prior, Segment as _, Storage};
 
 // Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
 impl From<strand_heap::ParallelFinalize> for ClientError {
@@ -78,19 +79,79 @@ pub(super) fn last_common_ancestor<S: Storage>(
     Ok(left)
 }
 
+/// BFS pre-pass that identifies convergence points between two merge parents.
+///
+/// Walks backwards from `left` and `right` toward `lca` using a `BTreeMap`
+/// frontier keyed by `Location` (ordered by `max_cut` first). When multiple
+/// paths reach the same location, its count is incremented — a count >= 2
+/// means convergence. Returns a map of convergence locations to their visit
+/// counts.
+fn compute_convergence<S: Storage>(
+    storage: &mut S,
+    left: Location,
+    right: Location,
+    lca: Location,
+) -> Result<BTreeMap<Location, usize>, ClientError> {
+    let mut convergence = BTreeMap::new();
+    let mut frontier: BTreeMap<Location, usize> = BTreeMap::new();
+
+    increment(&mut frontier, left)?;
+    increment(&mut frontier, right)?;
+
+    while let Some((loc, count)) = frontier.pop_last() {
+        if loc == lca || loc.max_cut < lca.max_cut {
+            continue;
+        }
+
+        if count >= 2 {
+            convergence.insert(loc, count);
+        }
+
+        // Expand priors — one path continues from this location.
+        let segment = storage.get_segment(loc)?;
+        if let Some(previous) = segment.previous(loc) {
+            increment(&mut frontier, previous)?;
+        } else {
+            for prior in segment.prior() {
+                increment(&mut frontier, prior)?;
+            }
+        }
+    }
+
+    Ok(convergence)
+}
+
+/// Increment the visit count for `loc` in the frontier map.
+fn increment(frontier: &mut BTreeMap<Location, usize>, loc: Location) -> Result<(), ClientError> {
+    let count = frontier.entry(loc).or_insert(0);
+    *count = count
+        .checked_add(1)
+        .assume("visit count must not overflow")?;
+    Ok(())
+}
+
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
+///
+/// The `lca` parameter is the last common ancestor of `left` and `right`.
+/// A BFS pre-pass (`compute_convergence`) walks backwards from both merge
+/// parents to identify convergence points — locations reachable from
+/// multiple paths. During braiding, each prior location is checked against
+/// the convergence map for O(1) ancestor detection, replacing the previous
+/// O(k) `is_ancestor` BFS per strand.
 pub(super) fn braid<S: Storage>(
     storage: &mut S,
     left: Location,
     right: Location,
-    buffers: &mut TraversalBuffer,
+    lca: Location,
 ) -> Result<Vec<Location>, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
     let mut braid = Vec::new();
     let mut strands = StrandHeap::new();
 
-    trace!(%left, %right, "braiding");
+    trace!(%left, %right, %lca, "braiding");
+
+    let mut convergence = compute_convergence(storage, left, right, lca)?;
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head, None)?)?;
@@ -106,7 +167,7 @@ pub(super) fn braid<S: Storage>(
                 (strand.segment.prior(), None)
             };
         if matches!(prior, Prior::Merge(..)) {
-            trace!("skipping merge command");
+            trace!("skipping merge command at {}", strand.next);
         } else {
             trace!("adding {}", strand.next);
             braid.push(strand.next);
@@ -114,17 +175,28 @@ pub(super) fn braid<S: Storage>(
 
         // Continue processing prior if not accessible from other strands.
         'location: for location in prior {
+            // O(1) LCA skip: any prior at or below the outermost LCA
+            // is shared by both branches — no need for further checks.
+            if location == lca || location.max_cut < lca.max_cut {
+                trace!("prior {location} at/below LCA {lca}, skipping");
+                continue 'location;
+            }
+
+            // Same-segment check (O(1) per strand).
             for other in strands.iter() {
-                trace!("checking {}", other.next);
-                let same_segment_check =
-                    location.same_segment(other.next) && location.max_cut <= other.next.max_cut;
-                if same_segment_check {
-                    trace!("same segment");
+                if location.same_segment(other.next) && location.max_cut <= other.next.max_cut {
+                    trace!("prior {location} same segment as {}", other.next);
                     continue 'location;
                 }
+            }
 
-                if storage.is_ancestor(location, &other.segment, buffers)? {
-                    trace!("found ancestor");
+            // Convergence count check (O(1)).
+            if let Some(remaining) = convergence.get_mut(&location) {
+                *remaining = remaining
+                    .checked_sub(1)
+                    .assume("convergence count must not underflow")?;
+                if *remaining > 0 {
+                    trace!("prior {location} convergence remaining={remaining}");
                     continue 'location;
                 }
             }
