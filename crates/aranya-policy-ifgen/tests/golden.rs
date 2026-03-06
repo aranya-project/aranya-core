@@ -32,3 +32,8 @@ fn tictactoe() {
 fn structs() {
     dotest("structs");
 }
+
+#[test]
+fn constants() {
+    dotest("constants");
+}

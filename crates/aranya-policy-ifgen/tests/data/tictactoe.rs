@@ -5,12 +5,13 @@
 #![allow(missing_docs)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 #![allow(unused_imports)]
 extern crate alloc;
 use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{action, actions, effect, effects, value},
-    BaseId, ClientError, Value, Text,
+    text, BaseId, ClientError, Value, Text,
 };
 #[derive(Debug)]
 pub enum Persistent {}

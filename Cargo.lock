@@ -430,6 +430,7 @@ dependencies = [
  "aranya-policy-ast",
  "aranya-policy-compiler",
  "aranya-policy-lang",
+ "aranya-policy-module",
  "prettyplease",
  "proc-macro2",
  "quote",
