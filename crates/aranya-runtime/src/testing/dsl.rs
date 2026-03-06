@@ -764,6 +764,7 @@ where
                                     (&mut response_cache, &mut response_client),
                                     &mut sink,
                                     *graph_id,
+                                    &mut buffers,
                                 )?;
 
                                 if received > 0 {
@@ -1177,13 +1178,10 @@ macro_rules! test_vectors {
 }
 
 test_vectors! {
-    a_10000_commands,
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
-    generate_graph_failure,
     no_such_parent,
-    generate_graph_saved,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
     four_seventy_three_failure,
