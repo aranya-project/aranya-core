@@ -19,8 +19,8 @@ use aranya_policy_ast::{
     StructItem, TypeKind, VType, ident, thir,
 };
 use aranya_policy_module::{
-    ActionDef, Attribute, CodeMap, CommandDef, ExitReason, Field, Instruction, Label, LabelType,
-    Meta, Module, Struct, Target, Value,
+    ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
+    Instruction, Label, LabelType, Meta, Module, Target, WrapType,
     ffi::{self, ModuleSchema},
     named::NamedMap,
 };
@@ -324,13 +324,14 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let other =
-                        self.m
-                            .struct_defs
-                            .get(&field_type_ident.name)
-                            .ok_or_else(|| {
-                                self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
-                            })?;
+                    let other = self
+                        .m
+                        .interface
+                        .struct_defs
+                        .get(&field_type_ident.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
+                        })?;
                     for field in other {
                         if field_definitions
                             .iter()
@@ -361,6 +362,7 @@ impl<'a> CompileState<'a> {
             .try_for_each(|f| self.ensure_type_is_defined(&f.field_type))?;
 
         self.m
+            .interface
             .struct_defs
             .insert(identifier.name, field_definitions);
         Ok(())
@@ -372,7 +374,7 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let enum_name = &enum_def.identifier;
         // ensure enum name is unique
-        if self.m.enum_defs.contains_key(&enum_name.name) {
+        if self.m.interface.enum_defs.contains_key(&enum_name.name) {
             return Err(self.err(CompileErrorType::AlreadyDefined(enum_name.name.to_string())));
         }
 
@@ -396,7 +398,10 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m.enum_defs.insert(enum_name.name.clone(), values);
+        self.m
+            .interface
+            .enum_defs
+            .insert(enum_name.name.clone(), values);
 
         Ok(())
     }
@@ -576,21 +581,21 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         match expression.kind {
             thir::ExprKind::Int(n) => {
-                self.append_instruction(Instruction::Const(Value::Int(n)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(n)));
             }
             thir::ExprKind::String(s) => {
-                self.append_instruction(Instruction::Const(Value::String(s)));
+                self.append_instruction(Instruction::Const(ConstValue::String(s)));
             }
             thir::ExprKind::Bool(b) => {
-                self.append_instruction(Instruction::Const(Value::Bool(b)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(b)));
             }
             thir::ExprKind::Optional(o) => match o {
                 None => {
-                    self.append_instruction(Instruction::Const(Value::NONE));
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
                 }
                 Some(v) => {
                     self.compile_typed_expression(*v)?;
-                    self.append_instruction(Instruction::Some);
+                    self.append_instruction(Instruction::Wrap(WrapType::Some));
                 }
             },
             thir::ExprKind::NamedStruct(s) => {
@@ -604,7 +609,7 @@ impl<'a> CompileState<'a> {
                 thir::InternalFunction::Exists(f) => {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
-                    self.append_instruction(Instruction::Const(Value::NONE));
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
@@ -674,7 +679,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Get(i.name));
             }
             thir::ExprKind::EnumReference(e) => {
-                self.append_instruction(Instruction::Const(Value::Enum(
+                self.append_instruction(Instruction::Const(ConstValue::Enum(
                     e.identifier.name,
                     e.value,
                 )));
@@ -684,7 +689,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.name));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.struct_defs.get(&sub.name) else {
+                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.name) else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         sub
@@ -701,7 +706,7 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*lhs)?;
 
                 for field_name in field_names {
-                    self.append_instruction(Instruction::Const(Value::Identifier(field_name)));
+                    self.append_instruction(Instruction::Identifier(field_name));
                 }
 
                 if let Some(field_count) = NonZeroUsize::new(field_count) {
@@ -724,7 +729,7 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::Branch(Target::Unresolved(mid.clone())));
 
-                self.append_instruction(Instruction::Const(Value::Bool(false)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(false)));
                 self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
 
                 self.define_label(mid, self.wp)?;
@@ -745,7 +750,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
 
                 self.define_label(mid, self.wp)?;
-                self.append_instruction(Instruction::Const(Value::Bool(true)));
+                self.append_instruction(Instruction::Const(ConstValue::Bool(true)));
 
                 self.define_label(end, self.wp)?;
             }
@@ -791,18 +796,16 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            thir::ExprKind::Unwrap(e) => self.compile_unwrap(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap(*e, ExitReason::Check)?,
+            thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
+            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap_option(*e, ExitReason::Check)?,
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
 
-                // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::NONE));
-                // Check if the value is equal to None
-                self.append_instruction(Instruction::Eq);
-                if expr_is_some {
-                    // If we're checking for not Some, invert the result of the Eq to None
+                // Check if the value is `Some(_)`.
+                self.append_instruction(Instruction::Is(WrapType::Some));
+                if !expr_is_some {
+                    // For `is None`, invert.
                     self.append_instruction(Instruction::Not);
                 }
             }
@@ -815,6 +818,17 @@ impl<'a> CompileState<'a> {
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
             }
+            thir::ExprKind::Ok(e) => {
+                // Compile the inner expression and wrap it in Ok
+                self.compile_typed_expression(*e)?;
+                // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
+                self.append_instruction(Instruction::Wrap(WrapType::Ok));
+            }
+            thir::ExprKind::Err(e) => {
+                // Compile the inner expression and wrap it in Err
+                self.compile_typed_expression(*e)?;
+                self.append_instruction(Instruction::Wrap(WrapType::Err));
+            }
         }
 
         Ok(())
@@ -822,10 +836,12 @@ impl<'a> CompileState<'a> {
 
     // Get an enum value from an enum reference expression
     fn enum_value(&self, e: &aranya_policy_ast::EnumReference) -> Result<i64, CompileError> {
-        let enum_def =
-            self.m.enum_defs.get(&e.identifier.name).ok_or_else(|| {
-                self.err(CompileErrorType::NotDefined(e.identifier.name.to_string()))
-            })?;
+        let enum_def = self
+            .m
+            .interface
+            .enum_defs
+            .get(&e.identifier.name)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.name.to_string())))?;
         let value = enum_def.get(&e.value.name).ok_or_else(|| {
             self.err(CompileErrorType::NotDefined(format!(
                 "{}::{}",
@@ -866,6 +882,7 @@ impl<'a> CompileState<'a> {
         match statement.kind {
             thir::StmtKind::Let(s) => {
                 self.compile_typed_expression(s.expression)?;
+                // Note: Never type check is done during lowering
                 self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.name.clone())));
                 self.append_instruction(Instruction::Def(s.identifier.name));
             }
@@ -1004,7 +1021,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Struct(name),
                 ..
             } => {
-                if name != "Envelope" && !self.m.struct_defs.contains_key(&name.name) {
+                if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
@@ -1012,7 +1029,7 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Enum(name),
                 ..
             } => {
-                if !self.m.enum_defs.contains_key(&name.name) {
+                if !self.m.interface.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
@@ -1089,6 +1106,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.m
+            .interface
             .action_defs
             .insert(ActionDef {
                 name: action_node.identifier.clone(),
@@ -1129,9 +1147,9 @@ impl<'a> CompileState<'a> {
         let expression = &global_let.expression;
 
         let value = self.expression_value(expression)?;
-        let vt = value.vtype().expect("global let expression has weird type");
+        let vt = value.vtype();
 
-        match self.m.globals.entry(identifier.name.clone()) {
+        match self.m.interface.globals.entry(identifier.name.clone()) {
             Entry::Vacant(e) => {
                 e.insert(value);
             }
@@ -1154,7 +1172,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
-    fn compile_unwrap(
+    fn compile_unwrap_option(
         &mut self,
         e: thir::Expression,
         exit_reason: ExitReason,
@@ -1165,7 +1183,7 @@ impl<'a> CompileState<'a> {
         // Duplicate value for testing
         self.append_instruction(Instruction::Dup);
         // Push a None to compare against
-        self.append_instruction(Instruction::Const(Value::NONE));
+        self.append_instruction(Instruction::Const(ConstValue::NONE));
         // Is the value not equal to None?
         self.append_instruction(Instruction::Eq);
         self.append_instruction(Instruction::Not);
@@ -1175,7 +1193,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(exit_reason));
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
-        self.append_instruction(Instruction::Unwrap);
+        self.append_instruction(Instruction::Unwrap(WrapType::Some));
 
         Ok(())
     }
@@ -1392,9 +1410,14 @@ impl<'a> CompileState<'a> {
                         .assume("duplicates are prevented by compile_struct")?;
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def = self.m.struct_defs.get(&ref_name.name).ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
-                    })?;
+                    let struct_def = self
+                        .m
+                        .interface
+                        .struct_defs
+                        .get(&ref_name.name)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                        })?;
                     for fd in struct_def {
                         // Fields from struct refs always get normalized spans
                         let field_type = VType {
@@ -1445,7 +1468,7 @@ impl<'a> CompileState<'a> {
             FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(limit)),
             FactCountType::AtLeast(_) => {
                 self.append_instruction(Instruction::FactCount(limit));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Lt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1453,7 +1476,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Gt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1461,10 +1484,38 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
                 self.append_instruction(Instruction::Eq);
             }
         }
+        Ok(())
+    }
+
+    fn compile_result_pattern_binding(
+        &mut self,
+        pattern: &thir::ResultPattern,
+    ) -> Result<(), CompileError> {
+        let (ident, wrap_type) = match pattern {
+            thir::ResultPattern::Ok(ident) => (ident, WrapType::Ok),
+            thir::ResultPattern::Err(ident) => (ident, WrapType::Err),
+        };
+
+        // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
+        self.append_instruction(Instruction::Unwrap(wrap_type));
+        self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
+        self.append_instruction(Instruction::Def(ident.name.clone()));
+        // NOTE: We don't call identifier_types.add() here because the pattern variable
+        // was already added during the lowering phase.
+
+        Ok(())
+    }
+
+    /// Exit match arm (exit scope, jump to end)
+    fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
+        self.identifier_types.exit_block();
+        self.append_instruction(Instruction::End);
+        self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
+
         Ok(())
     }
 
@@ -1500,7 +1551,7 @@ impl<'a> CompileState<'a> {
         // 1. Generate branching instructions, and arm-start labels
         let mut arm_labels: Vec<Label> = vec![];
 
-        for pattern in patterns {
+        for pattern in &patterns {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
@@ -1508,7 +1559,7 @@ impl<'a> CompileState<'a> {
                 thir::MatchPattern::Values(values) => {
                     for value in values {
                         self.append_instruction(Instruction::Dup);
-                        self.compile_typed_expression(value)?;
+                        self.compile_typed_expression(value.clone())?;
 
                         // if value == target, jump to start-of-arm
                         self.append_instruction(Instruction::Eq);
@@ -1522,39 +1573,76 @@ impl<'a> CompileState<'a> {
                         arm_label.clone(),
                     )));
                 }
+                thir::MatchPattern::ResultPattern(pattern) => match pattern {
+                    thir::ResultPattern::Ok(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::Is(WrapType::Ok));
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                    thir::ResultPattern::Err(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::Is(WrapType::Err));
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                },
             }
         }
 
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for (arm_start, body) in iter::zip(arm_labels, s) {
+                for ((arm_start, pattern), statements) in
+                    iter::zip(iter::zip(arm_labels, &patterns), s)
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_typed_statements(body, Scope::Layered)?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern)?;
+                        }
+                        _ => {
+                            // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
+                            // Result patterns consume the value during unwrapping, but other patterns don't.
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    self.compile_typed_statements(statements, Scope::Same)?;
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
             LanguageContext::Expression(e) => {
-                for (arm_start, body) in iter::zip(arm_labels, e) {
+                for ((arm_start, pattern), expression) in
+                    iter::zip(iter::zip(arm_labels, &patterns), e)
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_typed_expression(body)?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern)?;
+                        }
+                        _ => {
+                            // Pop the scrutinee value
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    // Note: Type checking is done during lowering
+                    self.compile_typed_expression(expression)?;
+
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
         }
@@ -1632,6 +1720,15 @@ impl<'a> CompileState<'a> {
         }
 
         for ffi_mod in self.ffi_modules {
+            // Only define structs if they were imported.
+            if !self
+                .policy
+                .ffi_imports
+                .iter()
+                .any(|import| import.name == ffi_mod.name)
+            {
+                continue;
+            }
             for ffi_struct_def in ffi_mod.structs {
                 let deps = ffi_struct_def
                     .fields
@@ -1681,7 +1778,10 @@ impl<'a> CompileState<'a> {
                         })
                         .collect();
                     self.define_struct(effect.identifier.clone(), &fields)?;
-                    self.m.effects.insert(effect.identifier.name.clone());
+                    self.m
+                        .interface
+                        .effects
+                        .insert(effect.identifier.name.clone());
                 }
                 UserType::Fact(fact) => {
                     let fields: Vec<StructItem<FieldDefinition>> =
@@ -1720,6 +1820,10 @@ impl<'a> CompileState<'a> {
             self.define_action(action)?;
         }
 
+        for global_let in &self.policy.global_lets {
+            self.compile_global_let(global_let)?;
+        }
+
         debug_assert!(self.m.progmem.is_empty(), "{:?}", self.m.progmem);
 
         Ok(())
@@ -1731,11 +1835,6 @@ impl<'a> CompileState<'a> {
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        // Compile global let statements
-        for global_let in &self.policy.global_lets {
-            self.compile_global_let(global_let)?;
-        }
 
         self.define_builtins()?;
 
@@ -1778,14 +1877,19 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Get expression value, e.g. ExprKind::Int => Value::Int
-    fn expression_value(&self, e: &Expression) -> Result<Value, CompileError> {
+    /// Get expression value, e.g. ExprKind::Int => ConstValue::Int
+    fn expression_value(&self, e: &Expression) -> Result<ConstValue, CompileError> {
         match &e.kind {
-            ExprKind::Int(v) => Ok(Value::Int(*v)),
-            ExprKind::Bool(v) => Ok(Value::Bool(*v)),
-            ExprKind::String(v) => Ok(Value::String(v.clone())),
+            ExprKind::Int(v) => Ok(ConstValue::Int(*v)),
+            ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
+            ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier.name) else {
+                let Some(struct_def) = self
+                    .m
+                    .interface
+                    .struct_defs
+                    .get(&struct_ast.identifier.name)
+                else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{}` not defined",
                         struct_ast.identifier.name,
@@ -1798,7 +1902,7 @@ impl<'a> CompileState<'a> {
                     identifier, fields, ..
                 } = struct_ast.as_ref();
 
-                Ok(Value::Struct(Struct {
+                Ok(ConstValue::Struct(ConstStruct {
                     name: identifier.name.clone(),
                     fields: {
                         let mut value_fields = BTreeMap::new();
@@ -1811,15 +1915,16 @@ impl<'a> CompileState<'a> {
             }
             ExprKind::EnumReference(e) => {
                 let value = self.enum_value(e)?;
-                Ok(Value::Enum(e.identifier.name.clone(), value))
+                Ok(ConstValue::Enum(e.identifier.name.clone(), value))
             }
             ExprKind::Dot(expr, field_ident) => match &expr.kind {
                 ExprKind::Identifier(struct_ident) => self
                     .m
+                    .interface
                     .globals
                     .get(&struct_ident.name)
                     .and_then(|val| match val {
-                        Value::Struct(Struct { fields, .. }) => {
+                        ConstValue::Struct(ConstStruct { fields, .. }) => {
                             fields.get(&field_ident.name).cloned()
                         }
                         _ => None,
@@ -1868,6 +1973,7 @@ impl<'a> CompileState<'a> {
             })?;
             let src_field_defns = self
                 .m
+                .interface
                 .struct_defs
                 .get(&src_struct_type_name.name)
                 .assume("identifier with a struct type has that struct already defined")
@@ -2059,7 +2165,7 @@ impl<'a> Compiler<'a> {
     pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
-        Ok(cs.m.into())
+        Ok(cs.m.interface)
     }
 
     fn set_up_compile_state(&self) -> CompileState<'_> {

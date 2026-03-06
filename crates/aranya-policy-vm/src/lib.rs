@@ -8,9 +8,12 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
+extern crate alloc;
+
 #[cfg(feature = "bench")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bench")))]
 mod bench;
+mod context;
 mod data;
 mod derive;
 mod error;
@@ -27,6 +30,7 @@ pub use aranya_policy_module::*;
 #[cfg(feature = "bench")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bench")))]
 pub use bench::*;
+pub use context::*;
 pub use data::*;
 pub use error::*;
 pub use io::*;

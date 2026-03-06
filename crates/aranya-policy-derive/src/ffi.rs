@@ -159,7 +159,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 }
             }
             #[automatically_derived]
-            impl #vm::Typed for #name {
+            impl #vm::ffi::Typed for #name {
                 const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#vm::ident!(#name_str));
             }
         }
@@ -233,7 +233,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 }
             }
             #[automatically_derived]
-            impl #vm::Typed for #name {
+            impl #vm::ffi::Typed for #name {
                 const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#vm::ident!(#name_str));
             }
         }
@@ -296,7 +296,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     let const_assert = quote_spanned! {rtype.span()=>
                         const {
                             let want = #vm::__type!(#vtype);
-                            let got = <#rtype as #vm::Typed>::TYPE;
+                            let got = <#rtype as #vm::ffi::Typed>::TYPE;
                             if !got.const_eq(&want) {
                                 panic!(#msg);
                             }
@@ -747,6 +747,11 @@ impl ToTokens for VTypeTokens<'_> {
                 quote!(Optional(&#vm::ffi::Type::#vtype))
             }
             TypeKind::Never => unreachable!("cannot use never type in definitions"),
+            TypeKind::Result(result_type) => {
+                let ok = VTypeTokens::new(&result_type.ok, vm);
+                let err = VTypeTokens::new(&result_type.err, vm);
+                quote!(Result(&#vm::ffi::Type::#ok, &#vm::ffi::Type::#err))
+            }
         };
         tokens.extend(item);
     }
@@ -796,6 +801,11 @@ impl ToTokens for TypeTokens<'_> {
                 quote!(::core::option::Option<#vtype>)
             }
             TypeKind::Never => unreachable!("cannot use never type in definitions"),
+            TypeKind::Result(result_type) => {
+                let ok = TypeTokens::new(&result_type.ok, alloc, crypto, vm);
+                let err = TypeTokens::new(&result_type.err, alloc, crypto, vm);
+                quote!(::core::result::Result<#ok, #err>)
+            }
         };
         tokens.extend(item);
     }
