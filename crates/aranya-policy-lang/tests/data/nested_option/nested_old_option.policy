@@ -1,0 +1,5 @@
+struct Foo {}
+
+function maybe_maybe_foo() optional optional struct Foo {
+    return None
+}

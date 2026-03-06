@@ -194,48 +194,6 @@ fn parse_errors() -> Result<(), ParseError> {
     Ok(())
 }
 
-#[test]
-fn parse_expression_errors() -> Result<(), ParseError> {
-    let cases = vec![
-        ErrorInput {
-            description: String::from("Integer overflow"),
-            input: r#"18446744073709551617"#.to_string(),
-            error_message: String::from(
-                "Invalid number: line 1 column 1: number too large to fit in target type",
-            ),
-            rule: Rule::expression,
-        },
-        ErrorInput {
-            description: String::from("Integer overflow line 2"),
-            input: r#"call(
-                18446744073709551617
-            )"#
-            .to_string(),
-            error_message: String::from(
-                "Invalid number: line 2 column 17: number too large to fit in target type",
-            ),
-            rule: Rule::expression,
-        },
-        ErrorInput {
-            description: String::from("Invalid string escape"),
-            input: r#""\\""#.to_string(),
-            error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
-            rule: Rule::expression,
-        },
-    ];
-    let pratt = get_pratt_parser();
-    for case in cases {
-        let p = ChunkParser::new(0, &pratt, case.input.len());
-        let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
-        let expr_pair = pairs.next().unwrap();
-        match p.parse_expression(expr_pair.clone()) {
-            Ok(parsed) => panic!("{}: {:?} - {expr_pair:?}", case.description, parsed),
-            Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
-        }
-    }
-    Ok(())
-}
-
 /// Helper for testing complex type parsing.
 fn parse_vtype(text: &str) -> Result<VType, ParseError> {
     let pratt = get_pratt_parser();

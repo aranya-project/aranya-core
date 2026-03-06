@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid string
+  |
+1 | let x = "\\"
+  |         ^^^^ invalid escape: \
