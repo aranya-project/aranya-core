@@ -1,5 +1,5 @@
 command A {
-    attributes { i: saturating_add(2, 1) }
+    attributes { i: false || true }
     seal { return todo() }
     open { return todo() }
     policy {

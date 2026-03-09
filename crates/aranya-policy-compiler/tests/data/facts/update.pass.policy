@@ -4,8 +4,8 @@ command Test {
     open { return todo() }
     policy {
         finish {
+            // Tests the short form of the update syntax. https://aranya-project.github.io/policy-book/reference/statements/update
             update Foo[i: 1] to {a: "updated"}
-            update Foo[i: 1]=>{a:"apple"} to {a: "orange"}
         }
     }
 }
