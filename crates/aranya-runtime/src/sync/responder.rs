@@ -36,7 +36,7 @@ impl PeerCache {
         storage: &S,
         command: Address,
         cmd_loc: Location,
-        buffers: &mut TraversalBuffer,
+        buffer: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -46,7 +46,7 @@ impl PeerCache {
         let mut retain_head = |request_head: &Address, new_head: Location| {
             let new_head_seg = storage.get_segment(new_head)?;
             let req_head_loc = storage
-                .get_location(*request_head, buffers)?
+                .get_location(*request_head, buffer)?
                 .assume("location must exist")?;
             let req_head_seg = storage.get_segment(req_head_loc)?;
             if request_head.id
@@ -60,11 +60,11 @@ impl PeerCache {
             }
             // If the new head is an ancestor of the request head, don't add it
             if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
-                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
+                || storage.is_ancestor(new_head, &req_head_seg, buffer)?
             {
                 add_command = false;
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
+            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffer)?)
         };
         self.heads
             .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
@@ -153,7 +153,7 @@ enum SyncResponderState {
     Stopped,
 }
 
-pub struct SyncResponder<'a> {
+pub struct SyncResponder {
     session_id: Option<u128>,
     graph_id: Option<GraphId>,
     state: SyncResponderState,
@@ -162,12 +162,17 @@ pub struct SyncResponder<'a> {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
-    buffers: &'a mut TraversalBuffers,
 }
 
-impl<'a> SyncResponder<'a> {
+impl Default for SyncResponder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SyncResponder {
     /// Create a new [`SyncResponder`].
-    pub fn new(buffers: &'a mut TraversalBuffers) -> Self {
+    pub const fn new() -> Self {
         Self {
             session_id: None,
             graph_id: None,
@@ -177,7 +182,6 @@ impl<'a> SyncResponder<'a> {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
-            buffers,
         }
     }
 
@@ -197,6 +201,7 @@ impl<'a> SyncResponder<'a> {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
@@ -221,18 +226,16 @@ impl<'a> SyncResponder<'a> {
                 self.state = S::Send;
                 for command in &self.has {
                     // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) =
-                        storage.get_location(*command, &mut self.buffers.primary)?
-                    {
+                    if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
                         response_cache.add_command(
                             storage,
                             *command,
                             cmd_loc,
-                            &mut self.buffers.primary,
+                            &mut buffers.primary,
                         )?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
 
                 self.get_next(target, provider)?
             }
@@ -459,6 +462,7 @@ impl<'a> SyncResponder<'a> {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(graph_id) = self.graph_id else {
@@ -473,7 +477,7 @@ impl<'a> SyncResponder<'a> {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

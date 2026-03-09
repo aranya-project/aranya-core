@@ -83,7 +83,7 @@ pub(super) fn braid<S: Storage>(
     storage: &mut S,
     left: Location,
     right: Location,
-    buffers: &mut TraversalBuffer,
+    buffer: &mut TraversalBuffer,
 ) -> Result<Vec<Location>, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
@@ -123,7 +123,7 @@ pub(super) fn braid<S: Storage>(
                     continue 'location;
                 }
 
-                if storage.is_ancestor(location, &other.segment, buffers)? {
+                if storage.is_ancestor(location, &other.segment, buffer)? {
                     trace!("found ancestor");
                     continue 'location;
                 }
