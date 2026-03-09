@@ -18,7 +18,11 @@ pub(crate) fn deserialize_struct(
     name: Identifier,
     mut bytes: &[u8],
 ) -> Result<Struct, MachineError> {
-    deserialize_struct_(defs, name, &mut bytes)
+    let v = deserialize_struct_(defs, name, &mut bytes)?;
+    if !bytes.is_empty() {
+        todo!();
+    }
+    Ok(v)
 }
 
 fn serialize_struct_(
