@@ -47,7 +47,6 @@ buggy = { version = "0.1.0", features = ["alloc"] }
 
 postcard-core = "0.1.0"
 heapless = { workspace = true }
-postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 table_formatter = { version = "0.6.1", optional = true }
 thiserror = { workspace = true }
