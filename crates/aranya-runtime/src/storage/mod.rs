@@ -28,8 +28,8 @@ pub const QUEUE_CAPACITY: usize = 512;
 /// accumulating entries across many levels as a FIFO would.
 ///
 /// Entries are partitioned into uncovered (`entries[0..partition]`) and
-/// covered (`entries[partition..len]`). An entry can move from uncovered
-/// to covered but never the reverse.
+/// covered (`entries[partition..len]`). See [`push_covered`](Self::push_covered)
+/// for the rules governing partition transitions.
 #[derive(Debug, Default)]
 pub struct TraversalQueue {
     entries: heapless::Vec<Location, QUEUE_CAPACITY>,
