@@ -926,11 +926,9 @@ where
                         self.machine.codemap.as_ref(),
                     ));
                 }
-                let bytes = postcard::to_allocvec(&command_struct).map_err(|_| {
-                    self.err(MachineErrorType::Unknown(String::from(
-                        "could not serialize command Struct",
-                    )))
-                })?;
+
+                let def = self.machine.struct_defs.get(&name).unwrap();
+                let bytes = serialize_struct(def, &command_struct)?;
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
@@ -944,20 +942,9 @@ where
                 let name = name.clone();
 
                 let bytes: Vec<u8> = self.ipop()?;
-                let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
-                    MachineError::from_position(
-                        MachineErrorType::Unknown(String::from("could not deserialize Struct")),
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    )
-                })?;
-                if name != s.name.as_str() {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                }
+                let def = self.machine.struct_defs.get(&name).unwrap();
+                let s = deserialize_struct(name, def, &bytes)?;
+
                 self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
@@ -1322,6 +1309,29 @@ where
 
         Ok(())
     }
+}
+
+fn serialize_struct(def: &[ast::FieldDefinition], s: &Struct) -> Result<Vec<u8>, MachineError> {
+    let mut out = Vec::new();
+    for d in def {
+        let v = s.fields.get(d.identifier.as_str()).unwrap();
+        out = postcard::to_extend(v, out).unwrap();
+    }
+    Ok(out)
+}
+
+fn deserialize_struct(
+    name: Identifier,
+    def: &[ast::FieldDefinition],
+    mut bytes: &[u8],
+) -> Result<Struct, MachineError> {
+    let mut fields = BTreeMap::new();
+    for d in def {
+        let v: Value;
+        (v, bytes) = postcard::take_from_bytes(bytes).unwrap();
+        fields.insert(d.identifier.name.clone(), v);
+    }
+    Ok(Struct::new(name, fields))
 }
 
 /// An implementation of [`Stack`].
