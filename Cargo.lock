@@ -515,6 +515,7 @@ dependencies = [
  "ciborium",
  "heapless 0.8.0",
  "postcard",
+ "postcard-core",
  "proptest",
  "proptest-derive",
  "serde",
@@ -2269,6 +2270,12 @@ dependencies = [
  "heapless 0.7.17",
  "serde",
 ]
+
+[[package]]
+name = "postcard-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf7737a8bb36950c96cf9ab4b3a1580d348cfc832f923f3d4b294b7427ea28e3"
 
 [[package]]
 name = "powerfmt"

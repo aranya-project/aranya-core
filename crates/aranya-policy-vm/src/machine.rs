@@ -928,7 +928,8 @@ where
                     ));
                 }
 
-                let bytes = serialize_struct(&self.machine.struct_defs, &command_struct)?;
+                let bytes = serialize_struct(&self.machine.struct_defs, &command_struct)
+                    .map_err(|e| self.err(e.into()))?;
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
@@ -942,7 +943,8 @@ where
                 let name = name.clone();
 
                 let bytes: Vec<u8> = self.ipop()?;
-                let s = deserialize_struct(&self.machine.struct_defs, name, &bytes)?;
+                let s = deserialize_struct(&self.machine.struct_defs, name, &bytes)
+                    .map_err(|e| self.err(e.into()))?;
 
                 self.ipush(s)?;
             }

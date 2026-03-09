@@ -45,6 +45,7 @@ aranya-policy-derive = { version = "0.14.0", path = "../aranya-policy-derive" }
 aranya-policy-module = { version = "0.18.1", path = "../aranya-policy-module" }
 buggy = { version = "0.1.0", features = ["alloc"] }
 
+postcard-core = "0.1.0"
 heapless = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
