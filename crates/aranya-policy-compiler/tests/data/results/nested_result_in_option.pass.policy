@@ -1,0 +1,10 @@
+enum Err { Fail }
+function bar(n int) option[result[int, enum Err]] {
+    if n > 0 {
+        return Some(Ok(42))
+    } else if n == 0 {
+        return Some(Err(Err::Fail))
+    } else {
+        return None
+    }
+}
