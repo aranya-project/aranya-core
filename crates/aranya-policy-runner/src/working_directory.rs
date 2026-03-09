@@ -121,6 +121,7 @@ impl WorkingDirectory {
 
     /// Loads the keystore from disk
     pub fn load_keystore(&self) -> Result<fs_keystore::Store, fs_keystore::Error> {
+        tracing::debug!("Loading keystore from {}", self.keystore_dir().display());
         fs_keystore::Store::open(self.keystore_dir())
     }
 
@@ -155,6 +156,7 @@ impl WorkingDirectory {
     /// Loads the file-based storage provider using its configured directory
     pub fn get_storage_provider(&self) -> anyhow::Result<LinearStorageProvider<FileManager>> {
         let storage_path = self.graph_dir();
+        tracing::debug!("Creating storage provider at {}", storage_path.display());
         let fm = FileManager::new(&storage_path)?;
         Ok(LinearStorageProvider::new(fm))
     }

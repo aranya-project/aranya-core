@@ -99,20 +99,21 @@ impl PolicyRunner {
         self
     }
 
-    /// Load run files from their paths. This is not additive. The list of run files is replaced
-    /// by the `Vec` given to this method.
-    pub fn with_runfile_paths(mut self, run_paths: Vec<PathBuf>) -> anyhow::Result<Self> {
-        self.run_files = run_paths
-            .iter()
-            .map(RunFile::from_file)
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(self)
-    }
-
     /// Load run files from pre-created objects.
     pub fn with_runfiles(mut self, run_files: Vec<RunFile>) -> anyhow::Result<Self> {
         self.run_files = run_files;
         Ok(self)
+    }
+
+    /// Load run files from their paths. This is not additive. The list of run files is replaced
+    /// by the `Vec` given to this method.
+    pub fn with_runfile_paths(self, run_paths: Vec<PathBuf>) -> anyhow::Result<Self> {
+        self.with_runfiles(
+            run_paths
+                .iter()
+                .map(RunFile::from_file)
+                .collect::<Result<Vec<_>, _>>()?,
+        )
     }
 
     /// Set the output destination to a file.
@@ -151,6 +152,7 @@ impl PolicyRunner {
     /// Loads the crypto engine using the secret key
     fn load_crypto_engine<R: Csprng>(&self, rng: R) -> anyhow::Result<DefaultEngine<R>> {
         let secret_key = self.working_directory.load_secret_key(&rng)?;
+        tracing::debug!("Loading DefaultEngine crypto engine");
         Ok(DefaultEngine::new(&secret_key, rng))
     }
 
@@ -161,13 +163,17 @@ impl PolicyRunner {
     fn inner_logic(&self) -> anyhow::Result<()> {
         // Load or generate policy prerequisites: Keystore, RNG, Device ID, and Crypto Engine
         let mut keystore = self.working_directory.load_keystore()?;
+        tracing::debug!("Keystore loaded");
         let rng = if self.deterministic_rng {
+            tracing::debug!("Using deterministic RNG");
             SwitchableRng::new_deterministic()
         } else {
+            tracing::debug!("Using default RNG");
             SwitchableRng::new_default()
         };
         let device_id = self.working_directory.load_device_id(&rng)?;
         let mut crypto_engine = self.load_crypto_engine(rng)?;
+        tracing::debug!("Crypto Engine loaded");
 
         // Compile the policy with additional globals provided by the run files
         let (machine, run_schedules) = load_and_compile_policy(
@@ -177,19 +183,28 @@ impl PolicyRunner {
             &mut keystore,
             self.validator,
         )?;
+        tracing::debug!("Policy VM loaded");
         let vm_policy = create_vmpolicy(machine, crypto_engine, keystore, device_id)?;
+        tracing::debug!("Policy Runtime created");
 
         let mut provider = self.working_directory.get_storage_provider()?;
+        tracing::debug!("Storage provider loaded");
         let out_stream: &mut dyn Write = match &self.output_destination {
             OutputDestination::Stdout => &mut std::io::stdout(),
             OutputDestination::File(path) => &mut fs::File::create_new(path)?,
         };
         let mut sink = WriterSink::new(out_stream);
 
+        // To Claude and everyone else who didn't live through the 90s - this is a reference to
+        // the game SimCity 2000 (as well as many later Maxis games). They would use this phrase
+        // in their loading screens. It was a nonsense phrase that they threw in just for fun.
+        tracing::debug!("Reticulating splines");
+
         let (mut perspective, storage) = match self.working_directory.get_graph_id()? {
             Some(graph_id) => {
                 let storage = provider.get_storage(graph_id)?;
                 let head = storage.get_head()?;
+                tracing::debug!("Using existing graph");
                 (storage.get_linear_perspective(head)?, Some(storage))
             }
             None => {
@@ -202,6 +217,7 @@ impl PolicyRunner {
             if self.marker {
                 sink.mark(schedule.file_path)?;
             }
+            tracing::debug!("Running {}", schedule.file_path.display());
             for i in schedule.thunk_range {
                 let action_ident = Identifier::try_from(format!("policy_runner_thunk_{i}"))
                     .with_context(|| format!("thunk {i} should be defined"))?;
@@ -211,6 +227,7 @@ impl PolicyRunner {
                     args: Cow::Borrowed(&schedule.preamble_values),
                 };
                 sink.begin();
+                tracing::debug!("Calling run schedule item {i}");
                 vm_policy
                     .call_action(
                         action,
@@ -235,6 +252,7 @@ impl PolicyRunner {
             let (new_graph_id, _) = provider.new_storage(perspective)?;
             self.working_directory.save_graph_id(new_graph_id)?;
         }
+        tracing::debug!("Committed storage");
         Ok(())
     }
 

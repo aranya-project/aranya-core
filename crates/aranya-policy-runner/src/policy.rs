@@ -55,6 +55,7 @@ pub fn load_and_compile_policy<'a>(
     // Append generated policy thunks to the policy doc
     policy_doc.push_str("\n```policy\n");
     let mut thunk_counter = 0usize;
+    tracing::debug!("Generating Policy Thunks");
     let thunk_schedule: Result<Vec<_>, RunFileError> = run_files
         .iter()
         .map(|run_file| {
@@ -93,7 +94,7 @@ pub fn load_and_compile_policy<'a>(
     let thunk_schedule = thunk_schedule?;
     policy_doc.push_str("\n```\n");
 
-    // compile the policy.
+    tracing::debug!("Compiling Policy");
     let ast = parse_policy_document(&policy_doc)
         .inspect_err(|e| println!("{e}"))
         .context("unable to parse policy document")?;
@@ -101,10 +102,16 @@ pub fn load_and_compile_policy<'a>(
         .ffi_modules(&FFI_MODULES)
         .compile()
         .context("should be able to compile policy")?;
-    if validator && validate(&module) {
-        return Err(anyhow::anyhow!("Could not validate module"));
+    tracing::debug!("Policy compiled successfully");
+    if validator {
+        tracing::debug!("Running validator");
+        if validate(&module) {
+            return Err(anyhow::anyhow!("Could not validate module"));
+        }
+        tracing::debug!("Policy validated");
     }
-    let machine = Machine::from_module(module).context("should be able to create machine")?;
+    tracing::debug!("Creating VM");
+    let machine = Machine::from_module(module).context("should be able to create VM")?;
 
     Ok((machine, thunk_schedule))
 }
@@ -130,5 +137,6 @@ pub fn create_vmpolicy(
     ];
 
     // create an instance of the policy VM.
+    tracing::debug!("Creating Policy Runtime");
     VmPolicy::new(machine, crypto_engine, ffis).context("unable to create `VmPolicy`")
 }
