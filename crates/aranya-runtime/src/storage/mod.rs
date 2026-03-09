@@ -154,12 +154,12 @@ impl TraversalQueue {
                 i = i.wrapping_add(1);
             }
         }
-        // Drain from covered region.
+        // Discard covered entries above the threshold — the peer
+        // already has these, so they don't belong in the result.
         let mut i = self.partition;
         while i < self.entries.len() {
             if self.entries[i].max_cut > threshold {
-                let loc = self.entries.swap_remove(i);
-                let _ = result.push(loc);
+                self.entries.swap_remove(i);
             } else {
                 i = i.wrapping_add(1);
             }

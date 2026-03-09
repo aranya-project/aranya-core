@@ -422,9 +422,12 @@ impl SyncResponder {
             }
         }
 
-        // Flush all remaining pending segments.
-        while let Some(loc) = pending.pop() {
-            let _ = collected.push(loc);
+        // Flush remaining uncovered pending segments. Covered entries
+        // are discarded — the peer already has them.
+        while let Some((loc, covered)) = pending.pop_covered() {
+            if !covered {
+                let _ = collected.push(loc);
+            }
         }
 
         // Sort to ensure causal order (parents before children).
