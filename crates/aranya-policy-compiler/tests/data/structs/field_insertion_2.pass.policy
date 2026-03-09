@@ -1,0 +1,3 @@
+struct Bar { a int }
+struct Baz { c bool }
+struct Foo { +Bar, b string, +Baz }

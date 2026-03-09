@@ -1,0 +1,10 @@
+enum Err { Fail }
+function foo(n int) result[option[int], enum Err] {
+    if n > 0 {
+        return Ok(Some(42))
+    } else if n == 0 {
+        return Ok(None)
+    } else {
+        return Err(Err::Fail)
+    }
+}

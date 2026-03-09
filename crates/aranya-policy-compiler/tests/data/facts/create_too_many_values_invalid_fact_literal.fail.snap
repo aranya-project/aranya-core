@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+fact literal does not match definition: incorrect number of values at line 4 col 5:
+	create Device[device_id:1]=>{name: "bob", email: "bob@email.com"}

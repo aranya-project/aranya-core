@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar` at line 18 col 5:
+	publish source substruct Foo

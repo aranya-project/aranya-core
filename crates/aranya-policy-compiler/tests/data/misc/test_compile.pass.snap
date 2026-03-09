@@ -1,0 +1,94 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Foo",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Foo",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Foo",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Foo",
+            ltype: CommandOpen,
+        }: 22,
+        Label {
+            name: "foo",
+            ltype: Action,
+        }: 29,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "foo" @ 162..165,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "b" @ 166..167,
+                                    ty: Int @ 168..171,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Foo" @ 8..11,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {
+                            ByName(
+                                Field {
+                                    name: "a" @ 35..36,
+                                    ty: Int @ 37..40,
+                                },
+                            ),
+                            ByName(
+                                Field {
+                                    name: "b" @ 50..51,
+                                    ty: Int @ 52..55,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 35..36,
+                field_type: Int @ 37..40,
+            },
+            FieldDefinition {
+                identifier: "b" @ 50..51,
+                field_type: Int @ 52..55,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

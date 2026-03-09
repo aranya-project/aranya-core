@@ -1,0 +1,4 @@
+enum Drink { Water, Coffee }
+action test() {
+    let n = Drink::Tea
+}

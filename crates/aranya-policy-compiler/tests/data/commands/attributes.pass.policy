@@ -1,0 +1,13 @@
+enum Priority { Low, High }
+command A {
+    attributes {
+        i: 5,
+        s: "abc",
+        priority: Priority::High
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

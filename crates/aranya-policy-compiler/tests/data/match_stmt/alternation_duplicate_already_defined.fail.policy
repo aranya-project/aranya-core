@@ -1,0 +1,21 @@
+command Result {
+    fields {
+        x int
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}
+
+action foo(x int) {
+    match x {
+        5 | 6 => {
+            publish Result { x: x }
+        }
+        1 | 5 | 3  => {
+            publish Result { x: x }
+        }
+    }
+}

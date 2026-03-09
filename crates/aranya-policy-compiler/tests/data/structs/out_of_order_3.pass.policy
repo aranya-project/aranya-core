@@ -1,0 +1,8 @@
+function ret_bar() struct Bar {
+    let fum = Fum { b: true }
+    return Bar { s: "s", num: 1, f: fum }
+}
+
+struct Fum { b bool }
+struct Bar { +Foo, num int, f struct Fum }
+struct Foo { s string }

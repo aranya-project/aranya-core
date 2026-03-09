@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: Struct `Bar` not defined at line 6 col 5:
+	let new_struct = x substruct Bar

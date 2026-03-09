@@ -1,0 +1,8 @@
+fact Pet[name string]=>{age int}
+action pets() {
+    let n = 42
+    map Pet[name:?] as p {
+        check p.age > 0
+        check n == 42
+    }
+}

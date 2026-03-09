@@ -1,0 +1,3 @@
+function foo(x int) int {
+    publish Bar{}
+}

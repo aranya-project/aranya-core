@@ -1,0 +1,4 @@
+fact Foo[k int]=>{x int}
+action test() {
+    check exists Foo[k: saturating_add(1, 1)]=>{y: 5}
+}

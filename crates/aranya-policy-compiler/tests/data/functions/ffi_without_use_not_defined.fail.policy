@@ -1,0 +1,3 @@
+function f(x int) bool {
+    return test::doit(x)
+}
