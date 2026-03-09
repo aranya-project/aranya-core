@@ -293,9 +293,9 @@ pub trait Storage {
     fn get_location(
         &self,
         address: Address,
-        buffers: &mut TraversalBuffer,
+        buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address, buffers)
+        self.get_location_from(self.get_head()?, address, buffer)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -305,13 +305,13 @@ pub trait Storage {
         &self,
         start: Location,
         address: Address,
-        buffers: &mut TraversalBuffer,
+        buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
         if start.max_cut < address.max_cut {
             return Ok(None);
         }
 
-        let queue = buffers.get();
+        let queue = buffer.get();
         queue.push(start)?;
 
         while let Some(loc) = queue.pop() {
@@ -410,9 +410,9 @@ pub trait Storage {
         &self,
         search_location: Location,
         segment: &Self::Segment,
-        buffers: &mut TraversalBuffer,
+        buffer: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let queue = buffers.get();
+        let queue = buffer.get();
 
         // Try to use skip list to jump directly backward.
         // Skip list is sorted by max_cut ascending, so first valid skip

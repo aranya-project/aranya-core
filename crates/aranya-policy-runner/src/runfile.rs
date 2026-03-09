@@ -189,7 +189,7 @@ impl RunFile {
                                 }
                                 partial_expression.clear();
                             }
-                            Err(pe) if pe.kind == ParseErrorKind::Syntax => {
+                            Err(pe) if *pe.kind == ParseErrorKind::Syntax => {
                                 // Not valid syntax, add to `partial_expression` and continue on the next line
                                 partial_expression.push_str(l);
                             }

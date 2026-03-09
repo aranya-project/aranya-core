@@ -6,16 +6,18 @@ The stack contains a sequence of values. Values can only be created or destroyed
 
 The stack can hold these types:
 
-| name     | type                  |
-|----------|-----------------------|
-| int      | 64-bit signed integer |
-| bool     | boolean               |
-| string   | A UTF-8 string        |
-| struct   | A named struct (see lang spec) |
-| fact     | A fact (see lang spec) |
-| none     | An empty optional value |
-
-In particular, there is no explicit optional type, as they are elided during compilation.
+| name                    | type                          |
+|-------------------------|-------------------------------|
+| int                     | 64-bit signed integer         |
+| bytes                   | sequence of bytes             |
+| bool                    | boolean                       |
+| id                      | unique identifier             |
+| string                  | UTF-8 string                  |
+| struct                  | named struct (see lang spec)  |
+| fact                    | fact (see lang spec)          |
+| Some(v)                 | optional value                |
+| None                    | empty optional value          |
+| Result(Ok(n) \| Err(n)) | result value with success or error identifier     |
 
 # Control Flow Stack
 
@@ -38,15 +40,25 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`f`       |a fact|
 |`i`       |an id|
 |`z`       |an opaque value|
+|`o`       |an optional value|
+|`r`       |a result value|
 
 ## data/stack
 ||||
 |-|-|-|
-| `const(v)`   | `( -- v )`         | push a value onto the stack
-| `def`        | `( v s -- )`       | define a local value by name
-| `get`        | `( s -- v )`       | get a value by name
-| `dup`        | `( v -- v v )` | duplicate the item at the top of the stack
-| `pop`        | `( v -- )`         | remove a value from the top of the stack
+| `const(v)  `        | `( -- v )`      | push a value onto the stack
+| `def(n)`            | `( v -- )`      | define a local value by name
+| `get(n)`            | `( -- v )`      | get a value by name
+| `dup`               | `( v -- v v )`  | duplicate the item at the top of the stack
+| `pop`               | `( v -- )`      | remove a value from the top of the stack
+| `wrap(wrap_type)`   | `( o\|r -- v )`    | wrap value in `Some`/`Ok`/`Err`
+| `unwrap(wrap_type)` | `( o\|r -- v )`    | get the value from an optional, or none
+| `is(wrap_type)`     | `( o\|r -- v )`    | checks if the value is wrapped in the given type
+
+`wrap_type` indicates the type of value being wrapped:
+- Some - Option(Some)
+- Ok - Result(Ok)
+- Err - Result(Err)
 
 ## control flow
 ||||
@@ -91,16 +103,16 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 ## context-specific
 ||||
 |-|-|-|
-|`publish`      | `( s -- )`           | publish a command struct
-|`create`       | `( f -- )`           | create a fact
-|`delete`       | `( f -- )`           | delete a fact
-|`update`       | `( f f -- )`         | update a fact
-|`emit`         | `( s -- )`           | emit an effect struct
-|`query`        | `( f -- s )`         | execute a fact query
-|`exists`       | `( f -- b )`         | determine whether or not the fact exists
-|`fact_count`   | `( x f -- y )`       | count facts (up to a limit) matching a given query
-|`id`           | `( z -- i )`         | get the `id` of a command
-|`author.id`    | `( z -- i )`         | get the `id` of the author of a command
+|`publish`         | `( s -- )`           | publish a command struct
+|`create`          | `( f -- )`           | create a fact
+|`delete`          | `( f -- )`           | delete a fact
+|`update`          | `( f f -- )`         | update a fact
+|`emit`            | `( s -- )`           | emit an effect struct
+|`query`           | `( f -- s )`         | execute a fact query
+|`exists`          | `( f -- b )`         | determine whether or not the fact exists
+|`fact_count`      | `( x f -- y )`       | count facts (up to a limit) matching a given query
+|`id`              | `( z -- i )`         | get the `id` of a command
+|`author.id`       | `( z -- i )`         | get the `id` of the author of a command
 
 # Examples
 

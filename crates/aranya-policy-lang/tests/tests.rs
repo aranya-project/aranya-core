@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use aranya_policy_ast::Policy;
 use aranya_policy_lang::lang::{
-    self, ParseError, ParseErrorKind, Version, parse_policy_document, parse_policy_str,
+    self, ParseError, Version, error, parse_policy_document, parse_policy_str,
 };
 
 #[test]
@@ -14,13 +14,14 @@ fn accept_only_latest_lang_version() {
     // parse string literal
     let src = "function f() int { return 0 }";
     assert_eq!(
-        parse_policy_str(src, Version::V1)
+        *parse_policy_str(src, Version::V1)
             .expect_err("should not accept V1")
             .kind,
-        ParseErrorKind::InvalidVersion {
+        error::InvalidVersion {
             found: "1".to_string(),
             required: Version::V2
         }
+        .into()
     );
     parse_policy_str(src, Version::V2).expect("should accept V2");
 
@@ -32,11 +33,14 @@ policy-version: 1
 ```policy
 ```
 "#;
-    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| r.kind
-        == ParseErrorKind::InvalidVersion {
-            found: "1".to_string(),
-            required: Version::V2
-        }));
+    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| {
+        *r.kind
+            == error::InvalidVersion {
+                found: "1".to_string(),
+                required: Version::V2,
+            }
+            .into()
+    }));
 
     // parse markdown (v2)
     let policy_v2_md = r#"---
@@ -57,6 +61,13 @@ fn parse_ffi_decl() {
 }
 
 #[test]
+fn parse_ffi_decl_error() {
+    let text = "function foo(x optional optional int, y struct bar) bool";
+    let err = lang::parse_ffi_decl(text).unwrap_err();
+    insta::assert_snapshot!(err);
+}
+
+#[test]
 fn parse_ffi_structs_enums() {
     let text = r#"
         struct A {
@@ -71,6 +82,30 @@ fn parse_ffi_structs_enums() {
     .trim();
     let types = lang::parse_ffi_structs_enums(text).expect("parse");
     insta::assert_debug_snapshot!(types);
+}
+
+#[test]
+fn parse_ffi_structs_enums_error() {
+    let text = r#"
+        struct A {
+            x int,
+            y optional optional bool
+        }
+
+        struct B {}
+
+        enum Color { Red, White, Blue }
+    "#
+    .trim();
+    let err = lang::parse_ffi_structs_enums(text).unwrap_err();
+    insta::assert_snapshot!(err);
+}
+
+#[test]
+fn parse_expression_error() {
+    let text = "3 + 7".trim();
+    let err = lang::parse_expression(text).unwrap_err();
+    insta::assert_snapshot!(err);
 }
 
 #[rstest::rstest]

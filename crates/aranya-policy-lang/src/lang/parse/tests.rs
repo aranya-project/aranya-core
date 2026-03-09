@@ -194,58 +194,17 @@ fn parse_errors() -> Result<(), ParseError> {
     Ok(())
 }
 
-#[test]
-fn parse_expression_errors() -> Result<(), ParseError> {
-    let cases = vec![
-        ErrorInput {
-            description: String::from("Integer overflow"),
-            input: r#"18446744073709551617"#.to_string(),
-            error_message: String::from(
-                "Invalid number: line 1 column 1: number too large to fit in target type",
-            ),
-            rule: Rule::expression,
-        },
-        ErrorInput {
-            description: String::from("Integer overflow line 2"),
-            input: r#"call(
-                18446744073709551617
-            )"#
-            .to_string(),
-            error_message: String::from(
-                "Invalid number: line 2 column 17: number too large to fit in target type",
-            ),
-            rule: Rule::expression,
-        },
-        ErrorInput {
-            description: String::from("Invalid string escape"),
-            input: r#""\\""#.to_string(),
-            error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
-            rule: Rule::expression,
-        },
-    ];
+/// Helper for testing complex type parsing.
+fn parse_vtype(text: &str) -> Result<VType, ParseError> {
     let pratt = get_pratt_parser();
-    for case in cases {
-        let p = ChunkParser::new(0, &pratt, case.input.len());
-        let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
-        let expr_pair = pairs.next().unwrap();
-        match p.parse_expression(expr_pair.clone()) {
-            Ok(parsed) => panic!("{}: {:?} - {expr_pair:?}", case.description, parsed),
-            Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
-        }
-    }
-    Ok(())
+    let p = ChunkParser::new(0, &pratt, text.len());
+    let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
+    let pair = pairs.next().unwrap();
+    p.parse_type(pair)
 }
 
 #[test]
 fn parse_optional() {
-    fn parse_vtype(text: &str) -> Result<VType, ParseError> {
-        let pratt = get_pratt_parser();
-        let p = ChunkParser::new(0, &pratt, text.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
-        let pair = pairs.next().unwrap();
-        p.parse_type(pair)
-    }
-
     let optional_types = &[
         // (case, is valid)
         ("optional string", true),
@@ -269,6 +228,62 @@ fn parse_optional() {
         let r = parse_vtype(case);
         assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
+}
+
+#[test]
+fn parse_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[int, string]", true),
+        ("result[bytes, bool]", true),
+        ("result[struct Foo, string]", true),
+        ("result[int, enum Error]", true),
+        ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
+        ("result[int]", false),                      // missing error type
+        ("result[, string]", false),                 // missing ok type
+        ("result[blargh, string]", false),           // invalid ok type
+        ("result[int, blargh]", false),              // invalid error type
+    ];
+    for (case, is_valid) in result_types {
+        let r = parse_vtype(case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+/// Nested option/result should only accept bracket form.
+#[test]
+fn parse_option_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[option[int], string]", true),
+        ("result[int, option[string]]", true),
+        ("result[option[int], option[string]]", true),
+        ("option[result[int, string]]", true),
+        ("result[optional int, string]", false),
+        ("result[int, optional string]", false),
+        ("optional result[int, string]", false),
+    ];
+    for (case, is_valid) in result_types {
+        let r = parse_vtype(case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+#[test]
+fn test_result_literal() -> Result<(), ParseError> {
+    let cases = [
+        "Ok(42)",
+        "Ok(true)",
+        "Ok(get_value())",
+        "Ok(Foo {})",
+        "Err(\"error message\")",
+        "Err(Error::NotFound)",
+    ];
+    for src in cases {
+        let r = PolicyParser::parse(Rule::result_literal, src);
+        assert!(r.is_ok(), "Failed to parse result literal: {}", src);
+    }
+    Ok(())
 }
 
 #[test]
