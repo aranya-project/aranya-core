@@ -1037,6 +1037,14 @@ impl<'a> CompileState<'a> {
                 kind: TypeKind::Optional(t),
                 ..
             } => return self.ensure_type_is_defined(t),
+            VType {
+                kind: TypeKind::Result(t),
+                ..
+            } => {
+                return self
+                    .ensure_type_is_defined(&t.ok)
+                    .and_then(|_| self.ensure_type_is_defined(&t.err));
+            }
             _ => {}
         }
         Ok(())
