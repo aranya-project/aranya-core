@@ -10,8 +10,8 @@ use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{
-        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
-        TraversalBuffers,
+        GraphId, Location, QUEUE_CAPACITY, Segment as _, Storage, StorageProvider,
+        TraversalBuffer, TraversalBuffers,
     },
 };
 
@@ -330,15 +330,16 @@ impl SyncResponder {
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();
 
-        // Accumulate all needed segments; truncate to SEGMENT_BUFFER_MAX at
-        // the end, keeping the lowest max_cut entries (ancestors first).
-        let mut collected = alloc::vec::Vec::new();
+        // Accumulate needed segments. Bounded by QUEUE_CAPACITY since each
+        // entry comes from pending (itself a TraversalQueue). Truncated to
+        // SEGMENT_BUFFER_MAX at the end, keeping ancestors first.
+        let mut collected: Vec<Location, QUEUE_CAPACITY> = Vec::new();
 
         while let Some((head, covered)) = heads.pop_covered() {
             // Flush pending entries whose shortest_max_cut (stored as max_cut)
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
-            pending.drain_to_vec_above(head.max_cut, &mut collected);
+            pending.drain_above(head.max_cut, &mut collected);
 
             let segment = storage.get_segment(head)?;
 
@@ -423,7 +424,7 @@ impl SyncResponder {
 
         // Flush all remaining pending segments.
         while let Some(loc) = pending.pop() {
-            collected.push(loc);
+            let _ = collected.push(loc);
         }
 
         // Sort to ensure causal order (parents before children).
@@ -434,8 +435,8 @@ impl SyncResponder {
         collected.truncate(SEGMENT_BUFFER_MAX);
 
         let mut result: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        for loc in collected {
-            let _ = result.push(loc);
+        for loc in &collected {
+            let _ = result.push(*loc);
         }
 
         Ok(result)

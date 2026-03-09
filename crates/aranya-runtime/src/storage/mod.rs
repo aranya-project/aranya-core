@@ -107,17 +107,19 @@ impl TraversalQueue {
     }
 
 
-    /// Move entries with `max_cut > threshold` into result vec, removing them from the queue.
-    pub fn drain_to_vec_above(
+    /// Move entries with `max_cut > threshold` into `result`, removing them from the queue.
+    ///
+    /// Entries that don't fit in `result` are silently dropped.
+    pub fn drain_above<const N: usize>(
         &mut self,
         threshold: MaxCut,
-        result: &mut Vec<Location>,
+        result: &mut heapless::Vec<Location, N>,
     ) {
         let mut i = 0;
         while i < self.entries.len() {
             if self.entries[i].0.max_cut > threshold {
                 let (loc, _) = self.entries.swap_remove(i);
-                result.push(loc);
+                let _ = result.push(loc);
             } else {
                 i = i.wrapping_add(1);
             }
