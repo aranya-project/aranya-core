@@ -1038,7 +1038,7 @@ impl<'a> CompileState<'a> {
             TypeKind::Result(t) => {
                 return self
                     .ensure_type_is_defined(&t.ok)
-                    .and_then(|_| self.ensure_type_is_defined(&t.err));
+                    .and_then(|()| self.ensure_type_is_defined(&t.err));
             }
         }
         Ok(())
