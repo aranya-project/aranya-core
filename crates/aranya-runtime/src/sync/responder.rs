@@ -10,8 +10,8 @@ use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{
-        GraphId, Location, QUEUE_CAPACITY, Segment as _, Storage, StorageProvider,
-        TraversalBuffer, TraversalBuffers,
+        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
+        TraversalBuffers,
     },
 };
 
@@ -165,6 +165,23 @@ pub struct SyncResponder {
 impl Default for SyncResponder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Insert `loc` into a bounded vec that keeps the lowest `max_cut`
+/// entries. If full, replaces the highest `max_cut` entry when the
+/// new one is lower.
+fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
+    if v.push(loc).is_err() {
+        // Full — find the entry with the highest max_cut.
+        let (max_idx, _) = v
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, l)| l.max_cut)
+            .expect("non-empty");
+        if loc.max_cut < v[max_idx].max_cut {
+            v[max_idx] = loc;
+        }
     }
 }
 
@@ -330,16 +347,16 @@ impl SyncResponder {
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();
 
-        // Accumulate needed segments. Bounded by QUEUE_CAPACITY since each
-        // entry comes from pending (itself a TraversalQueue). Truncated to
-        // SEGMENT_BUFFER_MAX at the end, keeping ancestors first.
-        let mut collected: Vec<Location, QUEUE_CAPACITY> = Vec::new();
+        // Accumulate needed segments, keeping only the SEGMENT_BUFFER_MAX
+        // entries with the lowest max_cut (ancestors first). When full,
+        // the highest max_cut entry is replaced if the new one is lower.
+        let mut collected: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
 
         while let Some((head, covered)) = heads.pop_covered() {
             // Flush pending entries whose shortest_max_cut (stored as max_cut)
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
-            pending.drain_above(head.max_cut, &mut collected);
+            pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc));
 
             let segment = storage.get_segment(head)?;
 
@@ -426,23 +443,14 @@ impl SyncResponder {
         // are discarded — the peer already has them.
         while let Some((loc, covered)) = pending.pop_covered() {
             if !covered {
-                let _ = collected.push(loc);
+                push_bounded(&mut collected, loc);
             }
         }
 
         // Sort to ensure causal order (parents before children).
         collected.sort();
 
-        // Keep only the lowest max_cut entries (ancestors first) when
-        // there are more needed segments than fit in the buffer.
-        collected.truncate(SEGMENT_BUFFER_MAX);
-
-        let mut result: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        for loc in &collected {
-            let _ = result.push(*loc);
-        }
-
-        Ok(result)
+        Ok(collected)
     }
 
     fn get_next(

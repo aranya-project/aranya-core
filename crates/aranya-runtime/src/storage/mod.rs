@@ -134,14 +134,11 @@ impl TraversalQueue {
         self.partition == 0
     }
 
-    /// Move entries with `max_cut > threshold` into `result`, removing them from the queue.
+    /// Remove all entries with `max_cut > threshold` from the queue.
     ///
-    /// Entries that don't fit in `result` are silently dropped.
-    pub fn drain_above<const N: usize>(
-        &mut self,
-        threshold: MaxCut,
-        result: &mut heapless::Vec<Location, N>,
-    ) {
+    /// Uncovered entries are passed to `f`. Covered entries are discarded
+    /// (the peer already has them).
+    pub fn drain_above(&mut self, threshold: MaxCut, mut f: impl FnMut(Location)) {
         // Drain from uncovered region.
         let mut i = 0;
         while i < self.partition {
@@ -149,7 +146,7 @@ impl TraversalQueue {
                 self.partition = self.partition.wrapping_sub(1);
                 self.entries.swap(i, self.partition);
                 let loc = self.entries.swap_remove(self.partition);
-                let _ = result.push(loc);
+                f(loc);
             } else {
                 i = i.wrapping_add(1);
             }
@@ -937,7 +934,9 @@ mod queue_tests {
         queue.push(loc(2, 5)).unwrap();
 
         let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
-        queue.drain_above(MaxCut(4), &mut result);
+        queue.drain_above(MaxCut(4), |loc| {
+            let _ = result.push(loc);
+        });
 
         // Entries with max_cut > 4 should be drained.
         assert_eq!(result.len(), 2);
