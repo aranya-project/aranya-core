@@ -60,7 +60,7 @@ impl TraversalQueue {
     /// Enqueues a location as uncovered.
     ///
     /// If an entry with the same segment exists, its max cut will be updated
-    /// to the max of the two. Its covered status is unchanged.
+    /// to the max of the two.
     pub fn push(&mut self, loc: Location) -> Result<(), StorageError> {
         self.push_covered(loc, false)
     }
@@ -68,61 +68,33 @@ impl TraversalQueue {
     /// Enqueues a location with the given covered flag.
     ///
     /// If an entry with the same segment already exists, max cut is updated
-    /// to the max. When a higher max_cut changes the head:
-    /// - Higher max_cut: adopts the new push's covered status (old coverage
-    ///   was below the new head and doesn't imply coverage of the new head).
-    /// - Same max_cut: OR's covered flags.
-    /// - Lower max_cut: no change.
+    /// to the max. When a higher max_cut changes the head, the new push's
+    /// covered status is adopted (old coverage was below the new head).
+    /// At the same max_cut, covered flags are OR'd. Lower max_cut is ignored.
     pub fn push_covered(&mut self, loc: Location, covered: bool) -> Result<(), StorageError> {
-        // Search uncovered region first, then covered.
-        if let Some(i) = self.entries[..self.partition]
-            .iter()
-            .position(|x| x.same_segment(loc))
-        {
-            if loc.max_cut > self.entries[i].max_cut {
+        if let Some(i) = self.entries.iter().position(|x| x.same_segment(loc)) {
+            let was_covered = i >= self.partition;
+            let new_covered = if loc.max_cut > self.entries[i].max_cut {
                 self.entries[i].max_cut = loc.max_cut;
-                if covered {
-                    // Move uncovered → covered.
-                    self.partition = self.partition.wrapping_sub(1);
-                    self.entries.swap(i, self.partition);
-                }
-                // else: stays uncovered (higher head, new push says uncovered).
-            } else if loc.max_cut == self.entries[i].max_cut && covered {
-                // Same head, OR the flag: move uncovered → covered.
+                covered
+            } else if loc.max_cut == self.entries[i].max_cut {
+                was_covered || covered
+            } else {
+                return Ok(());
+            };
+            if !was_covered && new_covered {
                 self.partition = self.partition.wrapping_sub(1);
                 self.entries.swap(i, self.partition);
+            } else if was_covered && !new_covered {
+                self.entries.swap(i, self.partition);
+                self.partition = self.partition.wrapping_add(1);
             }
-            // else: lower or same max_cut without covered — no change.
             return Ok(());
         }
-        if let Some(j) = self.entries[self.partition..]
-            .iter()
-            .position(|x| x.same_segment(loc))
-        {
-            let idx = self.partition.wrapping_add(j);
-            if loc.max_cut > self.entries[idx].max_cut {
-                self.entries[idx].max_cut = loc.max_cut;
-                if !covered {
-                    // Higher head pushed uncovered: move covered → uncovered.
-                    self.entries.swap(idx, self.partition);
-                    self.partition = self.partition.wrapping_add(1);
-                }
-                // else: stays covered (higher head, new push says covered).
-            }
-            // Same or lower max_cut on already-covered entry: no change.
-            return Ok(());
-        }
-        // New entry.
-        if covered {
-            self.entries
-                .push(loc)
-                .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
-        } else {
-            self.entries
-                .push(loc)
-                .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
-            // Place new uncovered entry into the uncovered region by
-            // swapping it with the first covered entry.
+        self.entries
+            .push(loc)
+            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        if !covered {
             let last = self.entries.len().wrapping_sub(1);
             self.entries.swap(self.partition, last);
             self.partition = self.partition.wrapping_add(1);
