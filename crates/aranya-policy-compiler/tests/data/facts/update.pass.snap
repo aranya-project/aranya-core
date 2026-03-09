@@ -12,15 +12,15 @@ Module {
         Label {
             name: "Test",
             ltype: CommandRecall,
-        }: 26,
+        }: 17,
         Label {
             name: "Test",
             ltype: CommandSeal,
-        }: 31,
+        }: 22,
         Label {
             name: "Test",
             ltype: CommandOpen,
-        }: 38,
+        }: 29,
     },
     action_defs: NamedMap {
         set: {},
