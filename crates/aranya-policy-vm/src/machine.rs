@@ -24,6 +24,7 @@ use crate::{
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
+    serialize::{deserialize_struct, serialize_struct},
     stack::Stack,
 };
 
@@ -927,8 +928,7 @@ where
                     ));
                 }
 
-                let def = self.machine.struct_defs.get(&name).unwrap();
-                let bytes = serialize_struct(def, &command_struct)?;
+                let bytes = serialize_struct(&self.machine.struct_defs, &command_struct)?;
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
@@ -942,8 +942,7 @@ where
                 let name = name.clone();
 
                 let bytes: Vec<u8> = self.ipop()?;
-                let def = self.machine.struct_defs.get(&name).unwrap();
-                let s = deserialize_struct(name, def, &bytes)?;
+                let s = deserialize_struct(&self.machine.struct_defs, name, &bytes)?;
 
                 self.ipush(s)?;
             }
@@ -1309,29 +1308,6 @@ where
 
         Ok(())
     }
-}
-
-fn serialize_struct(def: &[ast::FieldDefinition], s: &Struct) -> Result<Vec<u8>, MachineError> {
-    let mut out = Vec::new();
-    for d in def {
-        let v = s.fields.get(d.identifier.as_str()).unwrap();
-        out = postcard::to_extend(v, out).unwrap();
-    }
-    Ok(out)
-}
-
-fn deserialize_struct(
-    name: Identifier,
-    def: &[ast::FieldDefinition],
-    mut bytes: &[u8],
-) -> Result<Struct, MachineError> {
-    let mut fields = BTreeMap::new();
-    for d in def {
-        let v: Value;
-        (v, bytes) = postcard::take_from_bytes(bytes).unwrap();
-        fields.insert(d.identifier.name.clone(), v);
-    }
-    Ok(Struct::new(name, fields))
 }
 
 /// An implementation of [`Stack`].
