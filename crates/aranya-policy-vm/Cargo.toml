@@ -64,6 +64,7 @@ aranya-policy-vm = { path = ".", features = ["derive"] }
 
 anyhow = { workspace = true }
 ciborium = { version = "0.2" }
+postcard = { workspace = true, features = ["alloc"] }
 
 [package.metadata.docs.rs]
 all-features = true

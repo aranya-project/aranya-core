@@ -257,3 +257,94 @@ impl From<Infallible> for DeserializeError {
         match err {}
     }
 }
+
+#[cfg(test)]
+mod test {
+    use aranya_policy_ast::{Text, Version, ident, text};
+    use aranya_policy_compiler::Compiler;
+    use aranya_policy_lang::lang::parse_policy_str;
+    use aranya_policy_module::ModuleData;
+
+    use super::*;
+
+    #[test]
+    fn test_round_trip_with_rust_type() {
+        let src = r#"
+            enum Answer {
+                Yes,
+                No,
+            }
+
+            struct Complex {
+                m_int int,
+                m_bool bool,
+                m_string string,
+                m_id id,
+                m_some option[int],
+                m_none option[int],
+                m_ok result[int, string],
+                m_err result[int, string],
+                m_enum enum Answer,
+                m_struct struct Simple,
+            }
+
+            struct Simple {
+                m_int int,
+            }
+        "#;
+
+        #[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        enum Answer {
+            Yes,
+            No,
+        }
+
+        #[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        struct Complex {
+            m_int: i64,
+            m_bool: bool,
+            m_string: Text,
+            m_id: BaseId,
+            m_some: Option<i64>,
+            m_none: Option<i64>,
+            m_ok: Result<i64, Text>,
+            m_err: Result<i64, Text>,
+            m_enum: Answer,
+            m_struct: Simple,
+        }
+
+        #[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        struct Simple {
+            m_int: i64,
+        }
+
+        let defs = {
+            let policy = parse_policy_str(src, Version::V2).unwrap();
+            let ModuleData::V0(m) = Compiler::new(&policy).compile().unwrap().data;
+            m.struct_defs
+        };
+
+        let id = BaseId::from_bytes(core::array::from_fn(|i| u8::MAX - i as u8));
+
+        let rust_in = Complex {
+            m_int: 1,
+            m_bool: false,
+            m_string: text!("hello"),
+            m_id: id,
+            m_some: Some(2),
+            m_none: None,
+            m_ok: Ok(4),
+            m_err: Err(text!("uh oh")),
+            m_enum: Answer::Yes,
+            m_struct: Simple { m_int: 3 },
+        };
+
+        let rust_ser = postcard::to_allocvec(&rust_in).unwrap();
+        let value_de = deserialize_struct(&defs, ident!("Complex"), &rust_ser).unwrap();
+        let value_ser = serialize_struct(&defs, &value_de).unwrap();
+        let rust_de: Complex = postcard::from_bytes(&value_ser).unwrap();
+
+        assert_eq!(rust_in, rust_de);
+        assert_eq!(rust_ser, value_ser);
+    }
+}

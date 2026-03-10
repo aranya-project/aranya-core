@@ -514,6 +514,7 @@ dependencies = [
  "buggy",
  "ciborium",
  "heapless",
+ "postcard",
  "postcard-core",
  "proptest",
  "proptest-derive",
