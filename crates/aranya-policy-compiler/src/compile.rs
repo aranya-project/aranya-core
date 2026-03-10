@@ -1036,8 +1036,8 @@ impl<'a> CompileState<'a> {
             }
             TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
             TypeKind::Result(t) => {
-               self.ensure_type_is_defined(&t.ok)?;
-               self.ensure_type_is_defined(&t.err)?;
+                self.ensure_type_is_defined(&t.ok)?;
+                self.ensure_type_is_defined(&t.err)?;
             }
         }
         Ok(())
