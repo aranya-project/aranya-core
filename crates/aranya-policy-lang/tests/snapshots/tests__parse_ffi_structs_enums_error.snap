@@ -1,0 +1,14 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid nested option
+  |
+3 |             y optional optional bool
+  |               ^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you should use `option[T]`
+  |
+3 -             y optional optional bool
+3 +             y option[option[bool]]
+  |

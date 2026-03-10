@@ -24,3 +24,11 @@ fn postcard_roundtrip() {
     let got: MyId = postcard::from_bytes(&ser).unwrap();
     assert_eq!(id, got);
 }
+
+#[test]
+fn test_debug_impl() {
+    let id = make_id();
+    let got = format!("{id:?}");
+    let want = format!("MyId({id})");
+    assert_eq!(got, want);
+}
