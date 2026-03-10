@@ -44,7 +44,7 @@ aranya-crypto = { version = "0.13.0", path = "../aranya-crypto", default-feature
 aranya-fast-channels = { version = "0.18.0", path = "../aranya-fast-channels", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.19.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
 buggy = { version = "0.1.0", default-features = false }
-postcard = { workspace = true, default-features = false, features = ["heapless"] }
+postcard = { workspace = true, default-features = false, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 spin = { workspace = true, default-features = false, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
