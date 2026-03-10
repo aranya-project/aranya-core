@@ -48,11 +48,10 @@ pub enum DeserializeError {
     BadInput,
 }
 
+type StructDefs = BTreeMap<Identifier, Vec<FieldDefinition>>;
+
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
-pub(crate) fn serialize_struct(
-    defs: &BTreeMap<Identifier, Vec<FieldDefinition>>,
-    s: &Struct,
-) -> Result<Vec<u8>, SerializeError> {
+pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
     let mut ctx = SerializeCtx {
         defs,
         out: Vec::new(),
@@ -63,7 +62,7 @@ pub(crate) fn serialize_struct(
 
 /// Deserialize a [`Struct`] which was serialized with [`deserialize_struct`].
 pub(crate) fn deserialize_struct(
-    defs: &BTreeMap<Identifier, Vec<FieldDefinition>>,
+    defs: &StructDefs,
     name: Identifier,
     bytes: &[u8],
 ) -> Result<Struct, DeserializeError> {
@@ -76,7 +75,7 @@ pub(crate) fn deserialize_struct(
 }
 
 struct SerializeCtx<'a> {
-    defs: &'a BTreeMap<Identifier, Vec<FieldDefinition>>,
+    defs: &'a StructDefs,
     out: Vec<u8>,
 }
 
@@ -157,7 +156,7 @@ impl postcard_core::ser::Flavor for SerializeCtx<'_> {
 }
 
 struct DeserializeCtx<'a> {
-    defs: &'a BTreeMap<Identifier, Vec<FieldDefinition>>,
+    defs: &'a StructDefs,
     bytes: &'a [u8],
 }
 
