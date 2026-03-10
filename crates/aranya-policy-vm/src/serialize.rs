@@ -1,4 +1,8 @@
 //! Type driven serialization and deserialization.
+//!
+//! Since we know the exact type of policy values, we can greatly reduce the serialized size by serializing only the underlying values in schema order.
+//!
+//! This should match the postcard serialization of the corresponding rust type.
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::convert::Infallible;
@@ -87,7 +91,10 @@ impl SerializeCtx<'_> {
             Value::String(x) => postcard_core::ser::try_push_str(self, x)?,
             Value::Bytes(x) => postcard_core::ser::try_push_bytes(self, x)?,
             Value::Struct(x) => self.serialize_struct(x)?,
-            Value::Id(x) => self.out.extend_from_slice(x.as_bytes()),
+            Value::Id(x) => {
+                self.out.push(32);
+                self.out.extend_from_slice(x.as_bytes());
+            }
             Value::Enum(_, x) => postcard_core::ser::try_push_i64(self, *x)?,
             Value::Option(x) => match x {
                 None => {
@@ -99,11 +106,11 @@ impl SerializeCtx<'_> {
                 }
             },
             Value::Result(x) => match x {
-                Err(x) => {
+                Ok(x) => {
                     self.out.push(0);
                     self.serialize_value(x)?;
                 }
-                Ok(x) => {
+                Err(x) => {
                     self.out.push(1);
                     self.serialize_value(x)?;
                 }
@@ -170,6 +177,10 @@ impl DeserializeCtx<'_> {
                 Value::Bool(x)
             }
             TypeKind::Id => {
+                let len = self.pop()?;
+                if len != 32 {
+                    return Err(Bad);
+                }
                 let x = self.take_exact()?;
                 Value::Id(BaseId::from_bytes(*x))
             }
@@ -192,8 +203,8 @@ impl DeserializeCtx<'_> {
             TypeKind::Result(res) => {
                 let tag = self.pop()?;
                 Value::Result(match tag {
-                    0 => Err(Box::new(self.deserialize_value(&res.err.kind)?)),
-                    1 => Ok(Box::new(self.deserialize_value(&res.ok.kind)?)),
+                    0 => Ok(Box::new(self.deserialize_value(&res.ok.kind)?)),
+                    1 => Err(Box::new(self.deserialize_value(&res.err.kind)?)),
                     _ => return Err(Bad),
                 })
             }
