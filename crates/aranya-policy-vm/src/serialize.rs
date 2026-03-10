@@ -1,8 +1,9 @@
 //! Type driven serialization and deserialization.
 //!
-//! Since we know the exact type of policy values, we can greatly reduce the serialized size by serializing only the underlying values in schema order.
+//! Since we know the exact type of policy values, we can greatly reduce the serialized size by
+//! serializing only the underlying values in schema order.
 //!
-//! This should match the postcard serialization of the corresponding rust type.
+//! This uses the same format as if we serialized the corresponding rust types with postcard.
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::convert::Infallible;
@@ -13,28 +14,41 @@ use postcard_core::de::Flavor as _;
 
 use crate::{Struct, Value};
 
+/// Serialize error.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum SerializeError {
-    #[error("unknown struct {0}")]
+    /// Cannot find definition for this struct.
+    #[error("cannot find definition for `struct {0}`")]
     UnknownStruct(Identifier),
-    #[error("missing field {0}")]
+    /// Struct value was missing field from definition.
+    #[error("struct value was missing field `{0}`")]
     MissingField(Identifier),
-    #[error("field length mismatch")]
+    /// Struct value and definition have a different number of fields.
+    #[error("struct value and definition have a different number of fields")]
     FieldLengthMismatch,
+    /// Cannot serialize internal value.
+    #[error("cannot serialize internal value")]
+    InternalValue,
 }
 
+/// Deserialize error.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DeserializeError {
-    #[error("unexpected end")]
+    /// Cannot find definition for this struct.
+    #[error("cannot find definition for `struct {0}`")]
+    UnknownStruct(Identifier),
+    /// Expected more bytes at end of input.
+    #[error("expected more bytes at end of input")]
     UnexpectedEnd,
-    #[error("trailing data")]
+    /// Input has extra data after deserialization has finished.
+    #[error("input has extra data after deserialization has finished")]
     TrailingData,
-    #[error("bad input")]
+    /// The contents of the input data are invalid for the schema.
+    #[error("the contents of the input data are invalid for the schema")]
     BadInput,
 }
 
-use DeserializeError::BadInput as Bad;
-
+/// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
 pub(crate) fn serialize_struct(
     defs: &BTreeMap<Identifier, Vec<FieldDefinition>>,
     s: &Struct,
@@ -47,6 +61,7 @@ pub(crate) fn serialize_struct(
     Ok(ctx.out)
 }
 
+/// Deserialize a [`Struct`] which was serialized with [`deserialize_struct`].
 pub(crate) fn deserialize_struct(
     defs: &BTreeMap<Identifier, Vec<FieldDefinition>>,
     name: Identifier,
@@ -115,7 +130,7 @@ impl SerializeCtx<'_> {
                     self.serialize_value(x)?;
                 }
             },
-            Value::Identifier(_) | Value::Fact(_) => unreachable!(),
+            Value::Identifier(_) | Value::Fact(_) => return Err(SerializeError::InternalValue),
         }
         Ok(())
     }
@@ -148,7 +163,10 @@ struct DeserializeCtx<'a> {
 
 impl DeserializeCtx<'_> {
     fn deserialize_struct(&mut self, name: Identifier) -> Result<Struct, DeserializeError> {
-        let def = self.defs.get(&name).ok_or(Bad)?;
+        let def = self
+            .defs
+            .get(&name)
+            .ok_or_else(|| DeserializeError::UnknownStruct(name.clone()))?;
         let mut fields = BTreeMap::new();
         for d in def {
             let v = self.deserialize_value(&d.field_type.kind)?;
@@ -158,6 +176,8 @@ impl DeserializeCtx<'_> {
     }
 
     fn deserialize_value(&mut self, kind: &TypeKind) -> Result<Value, DeserializeError> {
+        use DeserializeError::BadInput as Bad;
+
         Ok(match kind {
             TypeKind::String => {
                 let x = postcard_core::de::try_take_str_temp(self)?.ok_or(Bad)?;
