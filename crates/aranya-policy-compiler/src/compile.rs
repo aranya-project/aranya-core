@@ -1034,11 +1034,10 @@ impl<'a> CompileState<'a> {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
-            TypeKind::Optional(t) => return self.ensure_type_is_defined(t),
+            TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
             TypeKind::Result(t) => {
-                return self
-                    .ensure_type_is_defined(&t.ok)
-                    .and_then(|()| self.ensure_type_is_defined(&t.err));
+               self.ensure_type_is_defined(&t.ok)?;
+               self.ensure_type_is_defined(&t.err)?;
             }
         }
         Ok(())
