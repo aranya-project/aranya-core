@@ -1016,28 +1016,29 @@ impl<'a> CompileState<'a> {
 
     /// Checks if the given type is defined. E.g. check struct/enum definitions.
     fn ensure_type_is_defined(&self, vtype: &VType) -> Result<(), CompileError> {
-        match &vtype {
-            VType {
-                kind: TypeKind::Struct(name),
-                ..
-            } => {
+        match &vtype.kind {
+            // primitives
+            TypeKind::Bool
+            | TypeKind::Id
+            | TypeKind::Bytes
+            | TypeKind::Int
+            | TypeKind::Never
+            | TypeKind::String => {}
+            TypeKind::Struct(name) => {
                 if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
-            VType {
-                kind: TypeKind::Enum(name),
-                ..
-            } => {
+            TypeKind::Enum(name) => {
                 if !self.m.interface.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
-            VType {
-                kind: TypeKind::Optional(t),
-                ..
-            } => return self.ensure_type_is_defined(t),
-            _ => {}
+            TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
+            TypeKind::Result(t) => {
+                self.ensure_type_is_defined(&t.ok)?;
+                self.ensure_type_is_defined(&t.err)?;
+            }
         }
         Ok(())
     }

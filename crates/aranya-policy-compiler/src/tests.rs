@@ -3009,6 +3009,22 @@ fn test_return_type_not_defined() {
             "#,
             CompileErrorType::NotDefined("struct Foo".to_string()),
         ),
+        (
+            r#"
+            function f() result[struct Nonexistent, int] {
+                return Err(1)
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
+        ),
+        (
+            r#"
+            function f() result[int, struct Nonexistent] {
+                return Ok(1)
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
+        ),
     ];
 
     for (text, expected) in cases {
