@@ -13,9 +13,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt as _, bug};
-use serde::{Deserialize, Serialize};
-use tracing::warn;
+use buggy::{Bug, bug};
 use yoke::{Yoke, Yokeable};
 
 use crate::{
@@ -29,8 +27,6 @@ type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, PS> {
-    /// The ID of the associated graph.
-    graph_id: GraphId,
     /// The policy ID for the session.
     policy_id: PolicyId,
 
@@ -61,7 +57,6 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
         let base_facts = seg.facts()?;
 
         let result = Self {
-            graph_id,
             policy_id: seg.policy(),
             base_facts,
             fact_log: Vec::new(),
@@ -130,13 +125,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
-        let command: SessionCommand<'_> =
-            postcard::from_bytes(command_bytes).map_err(ClientError::SessionDeserialize)?;
-
-        if command.graph_id != self.graph_id {
-            warn!(%command.graph_id, %self.graph_id, "ephemeral commands must be run on the same graph");
-            return Err(ClientError::NotAuthorized);
-        }
+        let command = SessionCommand {
+            data: command_bytes,
+        };
 
         let policy = client.policy_store.get_policy(self.policy_id)?;
 
@@ -162,11 +153,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-/// Used for serializing session commands
 struct SessionCommand<'a> {
-    graph_id: GraphId,
-    #[serde(borrow)]
     data: &'a [u8],
 }
 
@@ -197,7 +184,7 @@ impl Command for SessionCommand<'_> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
+    fn from_cmd(command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy");
         }
@@ -208,7 +195,6 @@ impl<'sc> SessionCommand<'sc> {
             bug!("wrong command type");
         }
         Ok(SessionCommand {
-            graph_id,
             data: command.bytes(),
         })
     }
@@ -410,10 +396,9 @@ where
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
+        let command = SessionCommand::from_cmd(command)?;
         self.session.head = command.address()?;
-        let bytes = postcard::to_allocvec(&command).assume("serialize session command")?;
-        self.message_sink.consume(&bytes);
+        self.message_sink.consume(command.data);
 
         Ok(0)
     }
