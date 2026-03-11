@@ -74,6 +74,8 @@ pub(crate) fn deserialize_struct(
     Ok(s)
 }
 
+const ID_SIZE: u8 = size_of::<BaseId>() as u8;
+
 struct SerializeCtx<'a> {
     defs: &'a StructDefs,
     out: Vec<u8>,
@@ -106,7 +108,7 @@ impl SerializeCtx<'_> {
             Value::Bytes(x) => postcard_core::ser::try_push_bytes(self, x)?,
             Value::Struct(x) => self.serialize_struct(x)?,
             Value::Id(x) => {
-                self.out.push(32);
+                self.out.push(ID_SIZE);
                 self.out.extend_from_slice(x.as_bytes());
             }
             Value::Enum(_, x) => postcard_core::ser::try_push_i64(self, *x)?,
@@ -197,7 +199,7 @@ impl DeserializeCtx<'_> {
             }
             TypeKind::Id => {
                 let len = self.pop()?;
-                if len != 32 {
+                if len != ID_SIZE {
                     return Err(Bad);
                 }
                 let x = self.take_exact()?;
