@@ -230,4 +230,34 @@ function new(
             Err(WrongContext("`envelope::new` called outside of a `seal` block").into())
         }
     }
+
+    /// Creates a new envelope for an ephemeral command.
+    #[ffi_export(def = r#"
+function new_ephemeral(
+    author_id id,
+    signature bytes,
+    payload bytes,
+) struct Envelope
+"#)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_ephemeral<E: Engine>(
+        &self,
+        ctx: &CommandContext,
+        _eng: &E,
+        author_id: DeviceId,
+        signature: Vec<u8>,
+        payload: Vec<u8>,
+    ) -> Result<Envelope, Error> {
+        if matches!(ctx, CommandContext::Seal(_)) {
+            Ok(Envelope {
+                parent_id: BaseId::default(),
+                command_id: BaseId::default(),
+                author_id: author_id.as_base(),
+                signature,
+                payload,
+            })
+        } else {
+            Err(WrongContext("`envelope::new` called outside of a `seal` block").into())
+        }
+    }
 }

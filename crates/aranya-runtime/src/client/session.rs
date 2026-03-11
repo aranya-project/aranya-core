@@ -13,15 +13,13 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt as _, bug};
-use serde::{Deserialize, Serialize};
-use tracing::warn;
+use buggy::{Bug, bug};
 use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective, GraphId,
-    Keys, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority, Query, QueryMut,
-    Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority, Query,
+    QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
     policy::{ActionPlacement, CommandPlacement},
 };
 
@@ -29,8 +27,6 @@ type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, PS> {
-    /// The ID of the associated graph.
-    graph_id: GraphId,
     /// The policy ID for the session.
     policy_id: PolicyId,
 
@@ -44,6 +40,10 @@ pub struct Session<SP: StorageProvider, PS> {
     /// Tag for associated policy store.
     _policy_store: PhantomData<PS>,
 
+    /// Graph head this session is based off of.
+    base_head: Address,
+
+    /// Current session head.
     head: Address,
 }
 
@@ -60,17 +60,26 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
 
         let base_facts = seg.facts()?;
 
+        let head = storage.get_head_address()?;
+
         let result = Self {
-            graph_id,
             policy_id: seg.policy(),
             base_facts,
             fact_log: Vec::new(),
             current_facts: Arc::default(),
             _policy_store: PhantomData,
-            head: storage.get_head_address()?,
+            base_head: head,
+            head,
         };
 
         Ok(result)
+    }
+
+    /// The graph head from which this session was started.
+    ///
+    /// This could be sent to a peer to hint when syncing is needed.
+    pub fn base_head(&self) -> Address {
+        self.base_head
     }
 }
 
@@ -130,13 +139,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
-        let command: SessionCommand<'_> =
-            postcard::from_bytes(command_bytes).map_err(ClientError::SessionDeserialize)?;
-
-        if command.graph_id != self.graph_id {
-            warn!(%command.graph_id, %self.graph_id, "ephemeral commands must be run on the same graph");
-            return Err(ClientError::NotAuthorized);
-        }
+        let command = SessionCommand {
+            data: command_bytes,
+        };
 
         let policy = client.policy_store.get_policy(self.policy_id)?;
 
@@ -162,28 +167,24 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-/// Used for serializing session commands
 struct SessionCommand<'a> {
-    graph_id: GraphId,
-    priority: u32, // Priority::Basic
-    id: CmdId,
-    parent: Address, // Prior::Single
-    #[serde(borrow)]
     data: &'a [u8],
 }
 
 impl Command for SessionCommand<'_> {
     fn priority(&self) -> Priority {
-        Priority::Basic(self.priority)
+        Priority::Basic(0)
     }
 
     fn id(&self) -> CmdId {
-        self.id
+        CmdId::default()
     }
 
     fn parent(&self) -> Prior<Address> {
-        Prior::Single(self.parent)
+        Prior::Single(Address {
+            id: CmdId::default(),
+            max_cut: MaxCut(0),
+        })
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -197,21 +198,17 @@ impl Command for SessionCommand<'_> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
+    fn from_cmd(command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
-            bug!("session command should have no policy")
+            bug!("session command should have no policy");
+        }
+        if !matches!(command.priority(), Priority::Basic(_)) {
+            bug!("wrong command type");
+        }
+        if !matches!(command.parent(), Prior::Single(_)) {
+            bug!("wrong command type");
         }
         Ok(SessionCommand {
-            graph_id,
-            priority: match command.priority() {
-                Priority::Basic(p) => p,
-                _ => bug!("wrong command type"),
-            },
-            id: command.id(),
-            parent: match command.parent() {
-                Prior::Single(p) => p,
-                _ => bug!("wrong command type"),
-            },
             data: command.bytes(),
         })
     }
@@ -413,10 +410,9 @@ where
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
+        let command = SessionCommand::from_cmd(command)?;
         self.session.head = command.address()?;
-        let bytes = postcard::to_allocvec(&command).assume("serialize session command")?;
-        self.message_sink.consume(&bytes);
+        self.message_sink.consume(command.data);
 
         Ok(0)
     }

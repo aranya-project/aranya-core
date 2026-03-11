@@ -179,4 +179,74 @@ function verify(
             Err(InvalidCmdId(()).into())
         }
     }
+
+    /// Signs `command`.
+    #[ffi_export(def = r#"
+function sign_ephemeral(
+    our_sign_sk_id id,
+    command_bytes bytes,
+) bytes
+"#)]
+    pub(crate) fn sign_ephemeral<E: Engine>(
+        &self,
+        ctx: &CommandContext,
+        eng: &E,
+        our_sign_sk_id: SigningKeyId,
+        command_bytes: Vec<u8>,
+    ) -> Result<Vec<u8>, Error> {
+        let CommandContext::Seal(ctx) = ctx else {
+            return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
+        };
+
+        let sk: SigningKey<E::CS> = self
+            .store
+            .get_key(eng, our_sign_sk_id)
+            .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
+            .ok_or(KeyNotFound(our_sign_sk_id.as_base()))?;
+        debug_assert_eq!(sk.id()?, our_sign_sk_id);
+
+        let head = CmdId::default();
+
+        let (sig, _id) = sk.sign_cmd(Cmd {
+            data: &command_bytes,
+            name: ctx.name.as_str(),
+            parent_id: &head,
+        })?;
+        Ok(sig.to_bytes().borrow().to_vec())
+    }
+
+    /// Verifies the signature created over `command` by
+    /// `author_sign_pk`.
+    #[ffi_export(def = r#"
+function verify_ephemeral(
+    author_sign_pk bytes,
+    command_bytes bytes,
+    signature bytes,
+) bytes
+"#)]
+    pub(crate) fn verify_ephemeral<E: Engine>(
+        &self,
+        ctx: &CommandContext,
+        _eng: &E,
+        author_sign_pk: Vec<u8>,
+        command_bytes: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Result<Vec<u8>, Error> {
+        let CommandContext::Open(ctx) = ctx else {
+            return Err(WrongContext("`crypto::verify` used outside of an `open` block").into());
+        };
+
+        let pk: VerifyingKey<E::CS> = postcard::from_bytes(&author_sign_pk)?;
+        let signature = Signature::<E::CS>::from_bytes(&signature)?;
+
+        let parent = CmdId::default();
+
+        let cmd = Cmd {
+            data: &command_bytes,
+            name: ctx.name.as_str(),
+            parent_id: &parent,
+        };
+        let _id = pk.verify_cmd(cmd, &signature)?;
+        Ok(command_bytes)
+    }
 }
