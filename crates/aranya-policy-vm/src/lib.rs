@@ -21,6 +21,7 @@ pub mod ffi;
 mod io;
 mod machine;
 mod scope;
+pub(crate) mod serialize;
 mod stack;
 mod tests;
 
