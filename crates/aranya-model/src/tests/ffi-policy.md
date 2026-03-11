@@ -124,6 +124,33 @@ function open_basic_command(envelope_input struct Envelope) bytes {
     return crypto_command
 }
 
+function seal_ephemeral_command(payload bytes) struct Envelope {
+    let author_id = device::current_device_id()
+    let author_sign_sk_id = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let signature = crypto::sign_ephemeral(
+        author_sign_sk_id.key_id,
+        payload,
+    )
+
+    return envelope::new_ephemeral(
+        author_id,
+        signature,
+        payload,
+    )
+}
+
+function open_ephemeral_command(envelope_input struct Envelope) bytes {
+    let author_id = envelope::author_id(envelope_input)
+    let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+
+    let crypto_command = crypto::verify_ephemeral(
+        author_sign_pk.key,
+        envelope::payload(envelope_input),
+        envelope::signature(envelope_input),
+    )
+    return crypto_command
+}
+
 action init(nonce int, sign_pk bytes) {
     publish Init {
         nonce: nonce,
@@ -370,8 +397,8 @@ ephemeral command CreateGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_ephemeral_command(serialize(this)) }
+    open { return deserialize(open_ephemeral_command(envelope)) }
 
     policy {
         finish {
@@ -402,8 +429,8 @@ ephemeral command VerifyGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_ephemeral_command(serialize(this)) }
+    open { return deserialize(open_ephemeral_command(envelope)) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something

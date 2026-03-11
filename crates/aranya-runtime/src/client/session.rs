@@ -20,8 +20,8 @@ use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective, GraphId,
-    Keys, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority, Query, QueryMut,
-    Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority, Query,
+    QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
     policy::{ActionPlacement, CommandPlacement},
 };
 
@@ -166,24 +166,24 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
 /// Used for serializing session commands
 struct SessionCommand<'a> {
     graph_id: GraphId,
-    priority: u32, // Priority::Basic
-    id: CmdId,
-    parent: Address, // Prior::Single
     #[serde(borrow)]
     data: &'a [u8],
 }
 
 impl Command for SessionCommand<'_> {
     fn priority(&self) -> Priority {
-        Priority::Basic(self.priority)
+        Priority::Basic(0)
     }
 
     fn id(&self) -> CmdId {
-        self.id
+        CmdId::default()
     }
 
     fn parent(&self) -> Prior<Address> {
-        Prior::Single(self.parent)
+        Prior::Single(Address {
+            id: CmdId::default(),
+            max_cut: MaxCut(0),
+        })
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -199,19 +199,16 @@ impl Command for SessionCommand<'_> {
 impl<'sc> SessionCommand<'sc> {
     fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
-            bug!("session command should have no policy")
+            bug!("session command should have no policy");
+        }
+        if !matches!(command.priority(), Priority::Basic(_)) {
+            bug!("wrong command type");
+        }
+        if !matches!(command.parent(), Prior::Single(_)) {
+            bug!("wrong command type");
         }
         Ok(SessionCommand {
             graph_id,
-            priority: match command.priority() {
-                Priority::Basic(p) => p,
-                _ => bug!("wrong command type"),
-            },
-            id: command.id(),
-            parent: match command.parent() {
-                Prior::Single(p) => p,
-                _ => bug!("wrong command type"),
-            },
             data: command.bytes(),
         })
     }
