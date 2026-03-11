@@ -40,6 +40,10 @@ pub struct Session<SP: StorageProvider, PS> {
     /// Tag for associated policy store.
     _policy_store: PhantomData<PS>,
 
+    /// Graph head this session is based off of.
+    base_head: Address,
+
+    /// Current session head.
     head: Address,
 }
 
@@ -56,16 +60,26 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
 
         let base_facts = seg.facts()?;
 
+        let head = storage.get_head_address()?;
+
         let result = Self {
             policy_id: seg.policy(),
             base_facts,
             fact_log: Vec::new(),
             current_facts: Arc::default(),
             _policy_store: PhantomData,
-            head: storage.get_head_address()?,
+            base_head: head,
+            head,
         };
 
         Ok(result)
+    }
+
+    /// The graph head from which this session was started.
+    ///
+    /// This could be sent to a peer to hint when syncing is needed.
+    pub fn base_head(&self) -> Address {
+        self.base_head
     }
 }
 
