@@ -932,6 +932,38 @@ fn test_result_exact_value_match() {
             }"#,
             CompileErrorType::MissingDefaultPattern,
         ),
+        (
+            r#"
+            function g() bool {
+                return true
+            }
+
+            function non_literal_ok_inner(r result[bool, bool]) int {
+                return match r {
+                    Ok(g()) => 1
+                    Err(e) => 0
+                }
+            }"#,
+            CompileErrorType::InvalidType(
+                "Result pattern value must be a literal or an identifier".to_string(),
+            ),
+        ),
+        (
+            r#"
+            struct S {
+                x bool,
+            }
+
+            function non_literal_ok_property(r result[bool, bool], s struct S) int {
+                return match r {
+                    Ok(s.x) => 1
+                    Err(e) => 0
+                }
+            }"#,
+            CompileErrorType::InvalidType(
+                "Result pattern value must be a literal or an identifier".to_string(),
+            ),
+        ),
     ];
     for (src, expected) in invalid {
         let err_type = compile_fail(src);

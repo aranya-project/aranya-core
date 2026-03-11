@@ -1088,13 +1088,11 @@ impl CompileState<'_> {
 
         // Check for duplicate arm values
         for (i, (v1, v1_span)) in all_values.iter().enumerate() {
-            for (v2, _) in &all_values[..i] {
-                if v1.matches(v2) {
-                    return Err(self.err_loc(
-                        CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-                        *v1_span,
-                    ));
-                }
+            if all_values[..i].iter().any(|(v2, _)| v1.matches(v2)) {
+                return Err(self.err_loc(
+                    CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
+                    *v1_span,
+                ));
             }
         }
         // find duplicate default arms
@@ -1114,7 +1112,7 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => &e.scrutinee,
         };
         let scrutinee = self.lower_expression(scrutinee)?;
-        let mut scrutinee_t = scrutinee.vtype.clone();
+        let mut scrutinee_type = scrutinee.vtype.clone();
 
         let mut n: usize = 0;
         let mut patterns_out = Vec::new();
@@ -1124,63 +1122,64 @@ impl CompileState<'_> {
                     let mut values_out = Vec::new();
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
-                        match &value.kind {
-                            ExprKind::Ok(inner) | ExprKind::Err(inner) if !value.is_literal() => {
-                                // Binding pattern: Ok(x) or Err(e) where x/e are unbound
-                                // identifiers that will be bound in the arm body.
-                                let is_ok = matches!(&value.kind, ExprKind::Ok(_));
-                                if !matches!(scrutinee_t.kind, TypeKind::Result { .. }) {
-                                    return Err(self.err(CompileErrorType::InvalidType(
-                                        "Result pattern requires scrutinee to be a Result type"
-                                            .to_string(),
-                                    )));
-                                }
-                                let TypeKind::Result(result_type) = &scrutinee_t.kind else {
-                                    bug!("checked above")
-                                };
-                                let inner_type = if is_ok {
-                                    result_type.ok.clone()
-                                } else {
-                                    result_type.err.clone()
-                                };
-                                let ExprKind::Identifier(ident) = &inner.kind else {
-                                    return Err(self.err(CompileErrorType::InvalidType(
-                                        "Result pattern binding must be an identifier".to_string(),
-                                    )));
-                                };
-                                let inner_lowered = thir::Expression {
-                                    kind: thir::ExprKind::Identifier(ident.clone()),
-                                    vtype: inner_type,
-                                    span: inner.span(),
-                                };
-                                let outer = thir::Expression {
-                                    kind: if is_ok {
-                                        thir::ExprKind::Ok(Box::new(inner_lowered))
+                        if value.is_literal() {
+                            // Literal pattern (including Result patterns with literal inner values)
+                            let arm_t = self.lower_expression(value)?;
+                            scrutinee_type = types::unify_pair(scrutinee_type, arm_t.vtype.clone())
+                                .map_err(|err| {
+                                    CompileErrorType::InvalidType(format!(
+                                        "match pattern {n} has type {}, expected type {}",
+                                        err.right, err.left
+                                    ))
+                                })
+                                .map_err(|err| self.err(err))?;
+                            values_out.push(arm_t);
+                        } else {
+                            match &value.kind {
+                                ExprKind::Ok(inner) | ExprKind::Err(inner) => {
+                                    // Binding pattern: Ok(x) or Err(e) where x/e are identifiers
+                                    let is_ok = matches!(&value.kind, ExprKind::Ok(_));
+                                    let TypeKind::Result(result_type) = &scrutinee_type.kind else {
+                                        return Err(self.err(CompileErrorType::InvalidType(
+                                            "Result pattern requires scrutinee to be a Result type"
+                                                .to_string(),
+                                        )));
+                                    };
+                                    let inner_type = if is_ok {
+                                        result_type.ok.clone()
                                     } else {
-                                        thir::ExprKind::Err(Box::new(inner_lowered))
-                                    },
-                                    vtype: scrutinee_t.clone(),
-                                    span: value.span(),
-                                };
-                                values_out.push(outer);
-                            }
-                            _ => {
-                                // Literal pattern: Ok(5), Ok(true), 0, true, etc.
-                                if !value.is_literal() {
+                                        result_type.err.clone()
+                                    };
+                                    let ExprKind::Identifier(ident) = &inner.kind else {
+                                        return Err(self.err(CompileErrorType::InvalidType(
+                                            "Result pattern value must be a literal or an identifier"
+                                                .to_string(),
+                                        )));
+                                    };
+                                    let inner = thir::Expression {
+                                        kind: thir::ExprKind::Identifier(ident.clone()),
+                                        vtype: inner_type,
+                                        span: inner.span(),
+                                    };
+                                    let outer = thir::Expression {
+                                        kind: if is_ok {
+                                            thir::ExprKind::Ok(Box::new(inner))
+                                        } else {
+                                            thir::ExprKind::Err(Box::new(inner))
+                                        },
+                                        vtype: scrutinee_type.clone(),
+                                        span: value.span(),
+                                    };
+                                    values_out.push(outer);
+                                }
+                                _ => {
+                                    // Anything else is not a valid pattern. For example, an
+                                    // identifier without Ok/Err, function call, property access,
+                                    // or other non-literal expression.
                                     return Err(self.err(CompileErrorType::InvalidType(format!(
-                                        "match pattern {n} is not a literal expression",
+                                        "match pattern {n} is not a valid expression",
                                     ))));
                                 }
-                                let arm_t = self.lower_expression(value)?;
-                                scrutinee_t = types::unify_pair(scrutinee_t, arm_t.vtype.clone())
-                                    .map_err(|err| {
-                                        CompileErrorType::InvalidType(format!(
-                                            "match pattern {n} has type {}, expected type {}",
-                                            err.right, err.left
-                                        ))
-                                    })
-                                    .map_err(|err| self.err(err))?;
-                                values_out.push(arm_t);
                             }
                         }
                     }
@@ -1203,24 +1202,26 @@ impl CompileState<'_> {
         // patterns that cover all Ok values (Ok(x)) and all Err values (Err(e)).
         // Exact-value patterns like Ok(true) only cover specific values, so they
         // contribute to cardinality-based exhaustiveness but not this shortcut.
-        let has_ok_binding = all_values
-            .iter()
-            .any(|(v, _)| matches!(v, MatchPatternKey::ResultOk));
-        let has_err_binding = all_values
-            .iter()
-            .any(|(v, _)| matches!(v, MatchPatternKey::ResultErr));
-        let result_exhaustive = matches!(scrutinee_t.kind, TypeKind::Result { .. })
+        let (has_ok_binding, has_err_binding) =
+            all_values
+                .iter()
+                .fold((false, false), |(has_ok, has_err), (v, _)| match v {
+                    MatchPatternKey::ResultOk => (true, has_err),
+                    MatchPatternKey::ResultErr => (has_ok, true),
+                    MatchPatternKey::Expr(_) => (has_ok, has_err),
+                });
+        let result_exhaustive = matches!(scrutinee_type.kind, TypeKind::Result { .. })
             && has_ok_binding
             && has_err_binding;
 
-        let need_default = default_count == 0
+        let missing_default = default_count == 0
             && !result_exhaustive
             && self
                 .m
-                .cardinality(&scrutinee_t.kind)
+                .cardinality(&scrutinee_type.kind)
                 .is_none_or(|c| c > all_values.len() as u64);
 
-        if need_default {
+        if missing_default {
             return Err(self.err_loc(CompileErrorType::MissingDefaultPattern, span));
         }
 
