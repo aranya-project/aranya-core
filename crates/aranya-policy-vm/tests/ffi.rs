@@ -51,6 +51,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
             name: ident!("SomeCommand"),
             id: CmdId::default(),
             author: DeviceId::default(),
+            parent_id: CmdId::default(),
             version: BaseId::default(),
         });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;

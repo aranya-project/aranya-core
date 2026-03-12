@@ -29,17 +29,20 @@ fn test_current_device_id() {
         }),
         CommandContext::Open(OpenContext {
             name: ident!("open"),
+            parent_id: CmdId::default(),
         }),
         CommandContext::Policy(PolicyContext {
             name: ident!("policy"),
             id: CmdId::default(),
             author: DeviceId::default(),
+            parent_id: CmdId::default(),
             version: BaseId::default(),
         }),
         CommandContext::Recall(PolicyContext {
             name: ident!("recall"),
             id: CmdId::default(),
             author: DeviceId::default(),
+            parent_id: CmdId::default(),
             version: BaseId::default(),
         }),
     ];
