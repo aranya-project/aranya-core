@@ -688,6 +688,18 @@ pub enum ExprKind {
     Match(Box<MatchExpression>),
 }
 
+impl ExprKind {
+    /// Compare two expression kinds for equality, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Ok(a), Self::Ok(b)) => a.kind.matches(&b.kind),
+            (Self::Err(a), Self::Err(b)) => a.kind.matches(&b.kind),
+            (Self::Optional(Some(a)), Self::Optional(Some(b))) => a.kind.matches(&b.kind),
+            _ => self == other,
+        }
+    }
+}
+
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
@@ -722,32 +734,14 @@ pub struct CheckStatement {
 }
 }
 
-/// Result pattern for matching Ok(x) or Err(e)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResultPattern {
-    /// Match Ok(identifier)
-    Ok(Ident),
-    /// Match Err(identifier)
-    Err(Ident),
-}
-
-impl Spanned for ResultPattern {
-    fn span(&self) -> Span {
-        match self {
-            Self::Ok(ident) | Self::Err(ident) => ident.span(),
-        }
-    }
-}
-
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
-    /// List of values to match
+    /// List of values to match. E.g. `0 | 1 | 2 => ...`
+    /// Can include Ok(x) and Err(e) for Result matching.
     Values(Vec<Expression>),
-    /// Result pattern for matching Ok(x) and Err(e)
-    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -755,7 +749,6 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
-            Self::ResultPattern(result_pattern) => result_pattern.span(),
         }
     }
 }
