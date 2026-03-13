@@ -3625,7 +3625,7 @@ fn test_result_values() {
 }
 
 #[test]
-fn test_result_match() {
+fn test_match_result_duplicate_arms() {
     let policy_str = r#"
         function may_fail(x int) result[int, string] {
             if x > 0 {
@@ -3657,17 +3657,40 @@ fn test_result_match() {
 
     compile_pass(policy_str);
 
-    let invalid = [(
-        r#"
-        function match_duplicate_arms(r result[int, string]) int {
-            return match r {
-                Ok(v) => v
-                Ok(v) => v
-                _ => 0
-            }
-        }"#,
-        CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
-    )];
+    let invalid = [
+        (
+            r#"
+            function match_duplicate_arms(r result[int, string]) int {
+                return match r {
+                    Ok(v) => v
+                    Ok(v) => v
+                    _ => 0
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+            function match_result_alternation_duplicate(r result[int, string]) int {
+                match r {
+                    Ok(1) | Ok(1) => { return 1 }
+                    _ => { return -1 }
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+        (
+            r#"
+            function match_result_alternation_duplicate(r result[int, string]) int {
+                match r {
+                    Ok(1) | Ok(2) => { return 1 }
+                    Ok(2) => { return 2 } // duplicate
+                    _ => { return -1 }
+                }
+            }"#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+        ),
+    ];
     for (src, expected) in invalid {
         let err_type = compile_fail(src);
         assert_eq!(err_type, expected);
@@ -3682,8 +3705,7 @@ fn test_result_exact_value_match() {
         r#"
         function f(r result[bool, bool]) int {
             match r {
-                Ok(true) => { return 1 }
-                Ok(false) => { return 0 }
+                Ok(true) | Ok(false) => { return 1 }
                 Err(true) => { return -1 }
                 Err(false) => { return -2 }
             }
