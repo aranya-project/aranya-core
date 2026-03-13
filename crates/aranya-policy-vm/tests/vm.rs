@@ -2556,3 +2556,79 @@ fn test_result() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_match_patterns() -> anyhow::Result<()> {
+    let text = r#"
+        enum Err {
+            Fail
+        }
+
+        effect Result {
+            n int
+        }
+
+        command DoMatch {
+            fields {
+                n int
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                let r = Ok(this.n)
+                let out = match r {
+                    Ok(5) => Result { n: 5 }
+                    Ok(6) => Result { n: 6 }
+                    Err(e) => Result { n: -1 }
+                    _ => Result { n: 0 }
+                }
+                finish {
+                    emit out
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    // n=5 should take the Ok(5) branch.
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(5))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[0],
+            (
+                ident!("Result"),
+                vec![KVPair::new(ident!("n"), Value::Int(5))]
+            )
+        );
+    }
+
+    // n=6 should take the Ok(6) branch.
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(6))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[1],
+            (
+                ident!("Result"),
+                vec![KVPair::new(ident!("n"), Value::Int(6))]
+            )
+        );
+    }
+
+    Ok(())
+}
