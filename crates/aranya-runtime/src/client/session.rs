@@ -13,8 +13,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt as _, bug};
-use serde::{Deserialize, Serialize};
+use buggy::{Bug, bug};
 use yoke::{Yoke, Yokeable};
 
 use crate::{
@@ -123,8 +122,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
-        let command: SessionCommand<'_> =
-            postcard::from_bytes(command_bytes).map_err(ClientError::SessionDeserialize)?;
+        let command =
+            SessionCommand::deserialize(command_bytes).ok_or(ClientError::SessionDeserialize)?;
 
         let policy = client.policy_store.get_policy(self.policy_id)?;
 
@@ -162,11 +161,9 @@ const SESSION_PARENT: Prior<Address> = Prior::Single(Address {
     max_cut: MaxCut(usize::MAX),
 });
 
-#[derive(Serialize, Deserialize)]
 /// Used for serializing session commands
 struct SessionCommand<'a> {
     id: CmdId,
-    #[serde(borrow)]
     data: &'a [u8],
 }
 
@@ -207,6 +204,18 @@ impl<'sc> SessionCommand<'sc> {
         Ok(SessionCommand {
             id: command.id(),
             data: command.bytes(),
+        })
+    }
+
+    fn serialize(&self) -> Vec<u8> {
+        [self.id.as_bytes(), self.data].concat()
+    }
+
+    fn deserialize(bytes: &'sc [u8]) -> Option<Self> {
+        let (id, data) = bytes.split_first_chunk()?;
+        Some(Self {
+            id: CmdId::from_bytes(*id),
+            data,
         })
     }
 }
@@ -408,8 +417,7 @@ where
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         let command = SessionCommand::from_cmd(command)?;
-        let bytes = postcard::to_allocvec(&command).assume("serialize session command")?;
-        self.message_sink.consume(&bytes);
+        self.message_sink.consume(&command.serialize());
 
         Ok(0)
     }
