@@ -152,7 +152,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
 /// Fake session parent value.
 ///
 /// Since we don't track the parent for session commands, we pretend that they all have this same
-/// parent. This makes the existingi sign/verify work as expected without supplying a true value.
+/// parent. This makes the existing sign/verify work as expected without supplying a true value.
 ///
 /// The specific id and max cut values are not important, but just need to be consistent across the
 /// locations where we use `SESSION_PARENT`.
