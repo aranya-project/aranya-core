@@ -1139,8 +1139,9 @@ fn test_session_bound_to_graph() {
             Device::A,
             Graph::X,
             [
-                vm_action!(create_greeting(text!("hello"))),
-                vm_action!(verify_hello()),
+                vm_action!(create_greeting(text!("greeting1"), text!("hello1"))),
+                vm_action!(create_greeting(text!("greeting2"), text!("hello2"))),
+                vm_action!(verify_hellos()),
             ],
         )
         .expect("Should return effect");
@@ -1152,8 +1153,14 @@ fn test_session_bound_to_graph() {
 
     let expected = [
         vm_effect!(Greeting {
-            msg: text!("hello")
+            key: text!("greeting1"),
+            value: text!("hello1")
         }),
+        vm_effect!(Greeting {
+            key: text!("greeting2"),
+            value: text!("hello2")
+        }),
+        vm_effect!(Success { value: true }),
         vm_effect!(Success { value: true }),
     ];
     assert_eq!(effects, expected);
