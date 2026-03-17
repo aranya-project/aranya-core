@@ -27,6 +27,8 @@ type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, PS> {
+    /// The ID of the associated graph.
+    graph_id: GraphId,
     /// The policy ID for the session.
     policy_id: PolicyId,
 
@@ -55,6 +57,7 @@ impl<SP: StorageProvider, PS> Session<SP, PS> {
         let base_facts = seg.facts()?;
 
         let result = Self {
+            graph_id,
             policy_id: seg.policy(),
             base_facts,
             fact_log: Vec::new(),
@@ -122,8 +125,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
-        let command =
-            SessionCommand::deserialize(command_bytes).ok_or(ClientError::SessionDeserialize)?;
+        let command = SessionCommand::deserialize(self.graph_id, command_bytes)
+            .ok_or(ClientError::SessionDeserialize)?;
 
         let policy = client.policy_store.get_policy(self.policy_id)?;
 
@@ -154,15 +157,18 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
 /// Since we don't track the parent for session commands, we pretend that they all have this same
 /// parent. This makes the existing sign/verify work as expected without supplying a true value.
 ///
-/// The specific id and max cut values are not important, but just need to be consistent across the
-/// locations where we use `SESSION_PARENT`.
-const SESSION_PARENT: Prior<Address> = Prior::Single(Address {
-    id: CmdId::from_bytes([0xA5; 32]),
-    max_cut: MaxCut(usize::MAX),
-});
+/// By using the graph ID as the parent, the command signature will include it, binding this
+/// command to that graph.
+fn session_parent(graph_id: GraphId) -> Prior<Address> {
+    Prior::Single(Address {
+        id: CmdId::transmute(graph_id),
+        max_cut: MaxCut(0),
+    })
+}
 
 /// Used for serializing session commands
 struct SessionCommand<'a> {
+    graph_id: GraphId,
     id: CmdId,
     data: &'a [u8],
 }
@@ -177,7 +183,7 @@ impl Command for SessionCommand<'_> {
     }
 
     fn parent(&self) -> Prior<Address> {
-        SESSION_PARENT
+        session_parent(self.graph_id)
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -191,17 +197,18 @@ impl Command for SessionCommand<'_> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd(command: &'sc impl Command) -> Result<Self, Bug> {
+    fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy");
         }
         if !matches!(command.priority(), Priority::Basic(_)) {
             bug!("session command has bad priority");
         }
-        if command.parent() != SESSION_PARENT {
+        if command.parent() != session_parent(graph_id) {
             bug!("session command has bad parent");
         }
         Ok(SessionCommand {
+            graph_id,
             id: command.id(),
             data: command.bytes(),
         })
@@ -211,9 +218,10 @@ impl<'sc> SessionCommand<'sc> {
         [self.id.as_bytes(), self.data].concat()
     }
 
-    fn deserialize(bytes: &'sc [u8]) -> Option<Self> {
+    fn deserialize(graph_id: GraphId, bytes: &'sc [u8]) -> Option<Self> {
         let (id, data) = bytes.split_first_chunk()?;
         Some(Self {
+            graph_id,
             id: CmdId::from_bytes(*id),
             data,
         })
@@ -416,7 +424,7 @@ where
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        let command = SessionCommand::from_cmd(command)?;
+        let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
         self.message_sink.consume(&command.serialize());
 
         Ok(0)
@@ -429,7 +437,7 @@ where
     }
 
     fn head_address(&self) -> Result<Prior<Address>, Bug> {
-        Ok(SESSION_PARENT)
+        Ok(session_parent(self.session.graph_id))
     }
 }
 
