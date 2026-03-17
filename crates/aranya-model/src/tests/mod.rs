@@ -985,10 +985,29 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
         )
         .expect("should add device");
 
-    // Sync the graph with client B. Currently, ephemeral commands must be run on
-    // the same graph.
+    let client_public_keys = test_model
+        .get_public_keys(Device::B)
+        .expect("could not get public keys");
+
+    let client_ident_pk =
+        postcard::to_allocvec(&client_public_keys.ident_pk).expect("should get ident pk");
+    let client_sign_pk =
+        postcard::to_allocvec(&client_public_keys.sign_pk).expect("should get sign pk");
+
     test_model
         .sync(Graph::X, Device::A, Device::B)
+        .expect("Should sync clients");
+
+    test_model
+        .action(
+            Device::B,
+            Graph::X,
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
+        )
+        .expect("should add device");
+
+    test_model
+        .sync(Graph::X, Device::B, Device::A)
         .expect("Should sync clients");
 
     // The session actions will create ephemeral commands that will only be
@@ -1004,8 +1023,9 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
             Device::A,
             Graph::X,
             [
-                vm_action!(create_greeting(text!("hello"))),
-                vm_action!(verify_hello()),
+                vm_action!(create_greeting(text!("greeting1"), text!("hello1"))),
+                vm_action!(create_greeting(text!("greeting2"), text!("hello2"))),
+                vm_action!(verify_hellos()),
             ],
         )
         .expect("Should return effect");
@@ -1022,8 +1042,14 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // both succeeded.
     let expected = [
         vm_effect!(Greeting {
-            msg: text!("hello")
+            key: text!("greeting1"),
+            value: text!("hello1")
         }),
+        vm_effect!(Greeting {
+            key: text!("greeting2"),
+            value: text!("hello2")
+        }),
+        vm_effect!(Success { value: true }),
         vm_effect!(Success { value: true }),
     ];
     assert_eq!(effects, expected);
@@ -1031,12 +1057,12 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // Now we check the graphs and verify that our ephemeral command has not
     // been persisted to either of our client graphs.
     test_model
-        .action(Device::A, Graph::X, vm_action!(verify_hello()))
-        .expect_err("should not persist fact to the graph");
+        .action(Device::A, Graph::X, vm_action!(verify_no_hello()))
+        .expect("should not persist fact to the graph");
 
     test_model
-        .action(Device::B, Graph::X, vm_action!(verify_hello()))
-        .expect_err("should not persist fact to the graph");
+        .action(Device::B, Graph::X, vm_action!(verify_no_hello()))
+        .expect("should not persist fact to the graph");
 }
 
 // We want to test that we can read the on-graph FactDB from a ephemeral
