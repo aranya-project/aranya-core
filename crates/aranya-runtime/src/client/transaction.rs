@@ -143,24 +143,21 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
                 let segment = storage.write(perspective)?;
                 heads.push_back((segment.head_id(), segment.head_location()?));
-            } else {
+            } else if storage.is_ancestor(storage.get_head()?, left_loc, buffer)? {
                 let segment = storage.get_segment(left_loc)?;
-
-                if storage.is_ancestor(storage.get_head()?, &segment, buffer)? {
-                    storage.commit(segment)?;
-                    debug_assert!(heads.is_empty());
-                } else {
-                    if merging_head {
-                        bug!("merging with graph head again, would loop");
-                    }
-                    merging_head = true;
-
-                    heads.push_back((left_id, left_loc));
-
-                    let head_loc = storage.get_head()?;
-                    let segment = storage.get_segment(head_loc)?;
-                    heads.push_back((segment.head_id(), segment.head_location()?));
+                storage.commit(segment)?;
+                debug_assert!(heads.is_empty());
+            } else {
+                if merging_head {
+                    bug!("merging with graph head again, would loop");
                 }
+                merging_head = true;
+
+                heads.push_back((left_id, left_loc));
+
+                let head_loc = storage.get_head()?;
+                let segment = storage.get_segment(head_loc)?;
+                heads.push_back((segment.head_id(), segment.head_location()?));
             }
         }
 
