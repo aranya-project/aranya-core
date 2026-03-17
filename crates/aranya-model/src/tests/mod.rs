@@ -1065,6 +1065,105 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
         .expect("should not persist fact to the graph");
 }
 
+#[test]
+fn test_session_bound_to_graph() {
+    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let mut test_model = RuntimeModel::new(ffi_clients);
+
+    test_model
+        .add_client(Device::A)
+        .expect("Should create a client");
+    test_model
+        .add_client(Device::B)
+        .expect("Should create a client");
+
+    let client_public_keys = test_model
+        .get_public_keys(Device::A)
+        .expect("could not get public keys");
+
+    let client_ident_pk =
+        postcard::to_allocvec(&client_public_keys.ident_pk).expect("should get ident pk");
+    let client_sign_pk =
+        postcard::to_allocvec(&client_public_keys.sign_pk).expect("should get sign pk");
+
+    // Setup graph X.
+    let nonce = 1;
+    test_model
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, client_sign_pk.clone())),
+        )
+        .expect("Should create a graph");
+
+    test_model
+        .action(
+            Device::A,
+            Graph::X,
+            vm_action!(add_device_keys(
+                client_ident_pk.clone(),
+                client_sign_pk.clone()
+            )),
+        )
+        .expect("should add device");
+
+    test_model
+        .sync(Graph::X, Device::A, Device::B)
+        .expect("Should sync clients");
+
+    // Setup graph Y.
+    let nonce = 2;
+    test_model
+        .new_graph(
+            Graph::Y,
+            Device::A,
+            vm_action!(init(nonce, client_sign_pk.clone())),
+        )
+        .expect("Should create a graph");
+
+    test_model
+        .action(
+            Device::A,
+            Graph::Y,
+            vm_action!(add_device_keys(client_ident_pk, client_sign_pk)),
+        )
+        .expect("should add device");
+
+    test_model
+        .sync(Graph::Y, Device::A, Device::B)
+        .expect("Should sync clients");
+
+    // Create session on graph X.
+    let (commands, _effects) = test_model
+        .session_actions(
+            Device::A,
+            Graph::X,
+            [
+                vm_action!(create_greeting(text!("hello"))),
+                vm_action!(verify_hello()),
+            ],
+        )
+        .expect("Should return effect");
+
+    // Run session on graph X successfully.
+    let effects = test_model
+        .session_receive(Device::B, Graph::X, commands.clone())
+        .expect("can run commands on graph X");
+
+    let expected = [
+        vm_effect!(Greeting {
+            msg: text!("hello")
+        }),
+        vm_effect!(Success { value: true }),
+    ];
+    assert_eq!(effects, expected);
+
+    // Run session on graph Y unsuccessfully.
+    test_model
+        .session_receive(Device::B, Graph::Y, commands)
+        .expect_err("cannot run commands on graph Y");
+}
+
 // We want to test that we can read the on-graph FactDB from a ephemeral
 // command. To do this we will create a Fact, sync our graph and send a
 // ephemeral command to a second client that will use that command to read from
