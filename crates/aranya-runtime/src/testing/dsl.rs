@@ -1181,6 +1181,7 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    generate_graph_expanded,
     no_such_parent,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
