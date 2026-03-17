@@ -89,6 +89,12 @@ pub enum MachineErrorType {
     /// Context mismatch
     #[error("Attempted call with invalid context")]
     ContextMismatch,
+    /// Serialize error
+    #[error("failed to serialize value")]
+    Serialize(#[from] crate::serialize::SerializeError),
+    /// Deserialize error
+    #[error("failed to deserialize value")]
+    Deserialize(#[from] crate::serialize::DeserializeError),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(Bug),

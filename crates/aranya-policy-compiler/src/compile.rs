@@ -1016,28 +1016,29 @@ impl<'a> CompileState<'a> {
 
     /// Checks if the given type is defined. E.g. check struct/enum definitions.
     fn ensure_type_is_defined(&self, vtype: &VType) -> Result<(), CompileError> {
-        match &vtype {
-            VType {
-                kind: TypeKind::Struct(name),
-                ..
-            } => {
+        match &vtype.kind {
+            // primitives
+            TypeKind::Bool
+            | TypeKind::Id
+            | TypeKind::Bytes
+            | TypeKind::Int
+            | TypeKind::Never
+            | TypeKind::String => {}
+            TypeKind::Struct(name) => {
                 if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
-            VType {
-                kind: TypeKind::Enum(name),
-                ..
-            } => {
+            TypeKind::Enum(name) => {
                 if !self.m.interface.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
-            VType {
-                kind: TypeKind::Optional(t),
-                ..
-            } => return self.ensure_type_is_defined(t),
-            _ => {}
+            TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
+            TypeKind::Result(t) => {
+                self.ensure_type_is_defined(&t.ok)?;
+                self.ensure_type_is_defined(&t.err)?;
+            }
         }
         Ok(())
     }
@@ -1932,6 +1933,12 @@ impl<'a> CompileState<'a> {
                     .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(e.clone()))),
                 _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
             },
+            ExprKind::Optional(opt) => Ok(ConstValue::Option(match opt {
+                Some(e) => Some(Box::new(self.expression_value(e)?)),
+                None => None,
+            })),
+            ExprKind::Ok(e) => Ok(ConstValue::Result(Ok(Box::new(self.expression_value(e)?)))),
+            ExprKind::Err(e) => Ok(ConstValue::Result(Err(Box::new(self.expression_value(e)?)))),
             _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
         }
     }
