@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.13.0...aranya-crypto-v0.14.0) - 2026-03-17
+
+### Other
+
+- remove bearssl re-export and feature ([#595](https://github.com/aranya-project/aranya-core/pull/595))
+
 ## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.12.1...aranya-crypto-v0.13.0) - 2026-02-17
 
 ### Other

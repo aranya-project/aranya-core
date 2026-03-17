@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.21.0...aranya-afc-util-v0.22.0) - 2026-03-17
+
+### Other
+
+- serialize only command values ([#606](https://github.com/aranya-project/aranya-core/pull/606))
+
 ## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.20.0...aranya-afc-util-v0.21.0) - 2026-02-17
 
 ### Other
