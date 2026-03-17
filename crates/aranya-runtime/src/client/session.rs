@@ -125,8 +125,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
-        let command = SessionCommand::deserialize(self.graph_id, command_bytes)
-            .ok_or(ClientError::SessionDeserialize)?;
+        let command = SessionCommand::new(self.graph_id, command_bytes);
 
         let policy = client.policy_store.get_policy(self.policy_id)?;
 
@@ -166,10 +165,9 @@ fn session_parent(graph_id: GraphId) -> Prior<Address> {
     })
 }
 
-/// Used for serializing session commands
+/// Stubbed out session command.
 struct SessionCommand<'a> {
     graph_id: GraphId,
-    id: CmdId,
     data: &'a [u8],
 }
 
@@ -179,7 +177,7 @@ impl Command for SessionCommand<'_> {
     }
 
     fn id(&self) -> CmdId {
-        self.id
+        CmdId::default()
     }
 
     fn parent(&self) -> Prior<Address> {
@@ -209,22 +207,12 @@ impl<'sc> SessionCommand<'sc> {
         }
         Ok(SessionCommand {
             graph_id,
-            id: command.id(),
             data: command.bytes(),
         })
     }
 
-    fn serialize(&self) -> Vec<u8> {
-        [self.id.as_bytes(), self.data].concat()
-    }
-
-    fn deserialize(graph_id: GraphId, bytes: &'sc [u8]) -> Option<Self> {
-        let (id, data) = bytes.split_first_chunk()?;
-        Some(Self {
-            graph_id,
-            id: CmdId::from_bytes(*id),
-            data,
-        })
+    fn new(graph_id: GraphId, data: &'sc [u8]) -> Self {
+        Self { graph_id, data }
     }
 }
 
@@ -425,7 +413,7 @@ where
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
-        self.message_sink.consume(&command.serialize());
+        self.message_sink.consume(command.data);
 
         Ok(0)
     }
