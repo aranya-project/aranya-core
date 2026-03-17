@@ -352,11 +352,11 @@ impl SyncResponder {
         // the highest max_cut entry is replaced if the new one is lower.
         let mut collected: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
 
-        while let Some((head, covered)) = heads.pop_covered() {
+        while let Some((head, covered)) = heads.pop_covered()? {
             // Flush pending entries whose shortest_max_cut (stored as max_cut)
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
-            pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc));
+            pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
 
             let segment = storage.get_segment(head)?;
 
@@ -376,7 +376,9 @@ impl SyncResponder {
                     if have_locations[have_cursor].max_cut <= longest {
                         break;
                     }
-                    have_cursor = have_cursor.wrapping_add(1);
+                    have_cursor = have_cursor
+                        .checked_add(1)
+                        .assume("index must not overflow")?;
                 }
 
                 // Look for a have_location in this segment: same SegmentIndex
@@ -395,7 +397,7 @@ impl SyncResponder {
                             best_have = Some((scan, hloc));
                         }
                     }
-                    scan = scan.wrapping_add(1);
+                    scan = scan.checked_add(1).assume("index must not overflow")?;
                 }
 
                 if let Some((_idx, hloc)) = best_have {
@@ -441,7 +443,7 @@ impl SyncResponder {
 
         // Flush remaining uncovered pending segments. Covered entries
         // are discarded — the peer already has them.
-        while let Some((loc, covered)) = pending.pop_covered() {
+        while let Some((loc, covered)) = pending.pop_covered()? {
             if !covered {
                 push_bounded(&mut collected, loc);
             }

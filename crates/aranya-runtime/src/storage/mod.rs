@@ -8,7 +8,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::Bug;
+use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
@@ -83,11 +83,17 @@ impl TraversalQueue {
                 return Ok(());
             };
             if !was_covered && new_covered {
-                self.partition = self.partition.wrapping_sub(1);
+                self.partition = self
+                    .partition
+                    .checked_sub(1)
+                    .assume("partition must be >= 1 when uncovered entry exists")?;
                 self.entries.swap(i, self.partition);
             } else if was_covered && !new_covered {
                 self.entries.swap(i, self.partition);
-                self.partition = self.partition.wrapping_add(1);
+                self.partition = self
+                    .partition
+                    .checked_add(1)
+                    .assume("partition must not overflow")?;
             }
             return Ok(());
         }
@@ -95,37 +101,50 @@ impl TraversalQueue {
             .push(loc)
             .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
         if !covered {
-            let last = self.entries.len().wrapping_sub(1);
+            let last = self
+                .entries
+                .len()
+                .checked_sub(1)
+                .assume("just pushed, len must be >= 1")?;
             self.entries.swap(self.partition, last);
-            self.partition = self.partition.wrapping_add(1);
+            self.partition = self
+                .partition
+                .checked_add(1)
+                .assume("partition must not overflow")?;
         }
         Ok(())
     }
 
     /// Pop the location with the highest max cut, discarding the covered flag.
-    pub fn pop(&mut self) -> Option<Location> {
-        self.pop_covered().map(|(loc, _)| loc)
+    pub fn pop(&mut self) -> Result<Option<Location>, StorageError> {
+        Ok(self.pop_covered()?.map(|(loc, _)| loc))
     }
 
     /// Pop the location with the highest max cut, including its covered flag.
-    pub fn pop_covered(&mut self) -> Option<(Location, bool)> {
-        let (i, _) = self
+    pub fn pop_covered(&mut self) -> Result<Option<(Location, bool)>, StorageError> {
+        let Some((i, _)) = self
             .entries
             .iter()
             .enumerate()
-            .max_by_key(|&(_, loc)| *loc)?;
+            .max_by_key(|&(_, loc)| *loc)
+        else {
+            return Ok(None);
+        };
         // Remove the entry, maintaining the partition invariant.
         if i < self.partition {
             // Removing from uncovered region: swap with last uncovered,
             // then swap_remove from the partition boundary.
-            self.partition = self.partition.wrapping_sub(1);
+            self.partition = self
+                .partition
+                .checked_sub(1)
+                .assume("partition must be >= 1 when uncovered entry exists")?;
             self.entries.swap(i, self.partition);
             let loc = self.entries.swap_remove(self.partition);
-            Some((loc, false))
+            Ok(Some((loc, false)))
         } else {
             // Removing from covered region: swap_remove is fine.
             let loc = self.entries.swap_remove(i);
-            Some((loc, true))
+            Ok(Some((loc, true)))
         }
     }
 
@@ -138,17 +157,24 @@ impl TraversalQueue {
     ///
     /// Uncovered entries are passed to `f`. Covered entries are discarded
     /// (the peer already has them).
-    pub fn drain_above(&mut self, threshold: MaxCut, mut f: impl FnMut(Location)) {
+    pub fn drain_above(
+        &mut self,
+        threshold: MaxCut,
+        mut f: impl FnMut(Location),
+    ) -> Result<(), StorageError> {
         // Drain from uncovered region.
         let mut i = 0;
         while i < self.partition {
             if self.entries[i].max_cut > threshold {
-                self.partition = self.partition.wrapping_sub(1);
+                self.partition = self
+                    .partition
+                    .checked_sub(1)
+                    .assume("partition must be >= 1 when draining uncovered")?;
                 self.entries.swap(i, self.partition);
                 let loc = self.entries.swap_remove(self.partition);
                 f(loc);
             } else {
-                i = i.wrapping_add(1);
+                i = i.checked_add(1).assume("index must not overflow")?;
             }
         }
         // Discard covered entries above the threshold — the peer
@@ -158,9 +184,10 @@ impl TraversalQueue {
             if self.entries[i].max_cut > threshold {
                 self.entries.swap_remove(i);
             } else {
-                i = i.wrapping_add(1);
+                i = i.checked_add(1).assume("index must not overflow")?;
             }
         }
+        Ok(())
     }
 }
 
@@ -409,7 +436,7 @@ pub trait Storage {
         let queue = buffer.get();
         queue.push(start)?;
 
-        while let Some(loc) = queue.pop() {
+        while let Some(loc) = queue.pop()? {
             debug_assert!(
                 loc.max_cut >= address.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
@@ -527,7 +554,7 @@ pub trait Storage {
             }
         }
 
-        while let Some(loc) = queue.pop() {
+        while let Some(loc) = queue.pop()? {
             debug_assert!(
                 loc.max_cut >= search_location.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
@@ -832,7 +859,7 @@ mod queue_tests {
     fn test_push_defaults_covered_false() {
         let mut queue = TraversalQueue::new();
         queue.push(loc(0, 5)).unwrap();
-        let (_, covered) = queue.pop_covered().unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(!covered);
     }
 
@@ -840,7 +867,7 @@ mod queue_tests {
     fn test_push_covered_preserves_flag() {
         let mut queue = TraversalQueue::new();
         queue.push_covered(loc(0, 5), true).unwrap();
-        let (_, covered) = queue.pop_covered().unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(covered);
     }
 
@@ -849,17 +876,7 @@ mod queue_tests {
         let mut queue = TraversalQueue::new();
         queue.push_covered(loc(0, 5), false).unwrap();
         queue.push_covered(loc(0, 5), true).unwrap();
-        let (_, covered) = queue.pop_covered().unwrap();
-        assert!(covered);
-    }
-
-    #[test]
-    fn test_push_covered_same_max_cut_stays_covered() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 5), true).unwrap();
-        // Pushing uncovered at the same max_cut should not clear covered.
-        queue.push_covered(loc(0, 5), false).unwrap();
-        let (_, covered) = queue.pop_covered().unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(covered);
     }
 
@@ -869,7 +886,7 @@ mod queue_tests {
         queue.push_covered(loc(0, 5), true).unwrap();
         // Pushing uncovered at the same max_cut must not clear covered.
         queue.push_covered(loc(0, 5), false).unwrap();
-        let (_, covered) = queue.pop_covered().unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(covered);
     }
 
@@ -878,7 +895,7 @@ mod queue_tests {
         let mut queue = TraversalQueue::new();
         queue.push(loc(0, 5)).unwrap();
         queue.push(loc(0, 8)).unwrap();
-        let l = queue.pop().unwrap();
+        let l = queue.pop().unwrap().unwrap();
         assert_eq!(l.max_cut, MaxCut(8));
         assert!(queue.is_empty());
     }
@@ -889,7 +906,7 @@ mod queue_tests {
         queue.push_covered(loc(0, 5), true).unwrap();
         // Higher max_cut uncovered: segment head moved beyond covered point.
         queue.push_covered(loc(0, 8), false).unwrap();
-        let (l, covered) = queue.pop_covered().unwrap();
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
         assert_eq!(l.max_cut, MaxCut(8));
         assert!(!covered);
     }
@@ -900,7 +917,7 @@ mod queue_tests {
         queue.push_covered(loc(0, 8), false).unwrap();
         // Lower max_cut should not change anything.
         queue.push_covered(loc(0, 3), true).unwrap();
-        let (l, covered) = queue.pop_covered().unwrap();
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
         assert_eq!(l.max_cut, MaxCut(8));
         assert!(!covered);
     }
@@ -910,7 +927,7 @@ mod queue_tests {
         let mut queue = TraversalQueue::new();
         queue.push_covered(loc(0, 5), true).unwrap();
         // pop() should return only the location.
-        let l = queue.pop().unwrap();
+        let l = queue.pop().unwrap().unwrap();
         assert_eq!(l.max_cut, MaxCut(5));
         assert!(queue.is_empty());
     }
@@ -934,9 +951,11 @@ mod queue_tests {
         queue.push(loc(2, 5)).unwrap();
 
         let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
-        queue.drain_above(MaxCut(4), |loc| {
-            let _ = result.push(loc);
-        });
+        queue
+            .drain_above(MaxCut(4), |loc| {
+                let _ = result.push(loc);
+            })
+            .unwrap();
 
         // Entries with max_cut > 4 should be drained.
         assert_eq!(result.len(), 2);
@@ -944,7 +963,7 @@ mod queue_tests {
         assert!(result.iter().any(|l| l.max_cut == MaxCut(5)));
 
         // Only max_cut=3 should remain in the queue.
-        let remaining = queue.pop().unwrap();
+        let remaining = queue.pop().unwrap().unwrap();
         assert_eq!(remaining.max_cut, MaxCut(3));
         assert!(queue.is_empty());
     }
