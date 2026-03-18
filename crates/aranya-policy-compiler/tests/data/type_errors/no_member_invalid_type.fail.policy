@@ -1,0 +1,4 @@
+struct Foo {}
+function g(x struct Foo) bool {
+    return x.y
+}

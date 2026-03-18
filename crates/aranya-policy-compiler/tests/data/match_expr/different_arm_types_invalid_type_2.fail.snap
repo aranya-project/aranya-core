@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: match arm expression 3 has type bool, expected int at line 2 col 5:
+	let x = match n {
+        0 => todo()
+        1 => 1
+        _ => false
+    }

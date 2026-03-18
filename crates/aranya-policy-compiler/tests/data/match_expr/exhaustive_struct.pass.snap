@@ -1,0 +1,62 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "f" @ 108..109,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "traffic" @ 110..117,
+                                    ty: Struct(
+                                        "Light" @ 125..130,
+                                    ) @ 118..130,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Light": [
+            FieldDefinition {
+                identifier: "color" @ 63..68,
+                field_type: Enum(
+                    "LightColor" @ 74..84,
+                ) @ 69..84,
+            },
+            FieldDefinition {
+                identifier: "go" @ 90..92,
+                field_type: Bool @ 93..97,
+            },
+        ],
+    },
+    enum_defs: {
+        "LightColor": {
+            "Green": 2,
+            "Red": 0,
+            "Yellow": 1,
+        },
+    },
+    globals: {},
+    ..
+}

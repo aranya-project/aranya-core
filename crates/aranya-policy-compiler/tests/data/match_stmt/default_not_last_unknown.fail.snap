@@ -1,0 +1,16 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+unknown error: Default match case must be last. at line 11 col 5:
+	match x {
+        5 => {
+            publish Result { x: x }
+        }
+        _ => {
+            publish Result { x: 0 }
+        }
+        6 => {
+            publish Result { x: x }
+        }
+    }

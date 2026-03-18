@@ -1,0 +1,23 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {},
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {
+        "x": Option(
+            None,
+        ),
+    },
+    ..
+}

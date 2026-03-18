@@ -1,0 +1,11 @@
+command Foo {
+    fields {
+        +Bar, // Bar is not defined
+        b string
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

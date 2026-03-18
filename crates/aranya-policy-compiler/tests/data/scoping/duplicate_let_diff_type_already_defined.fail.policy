@@ -1,0 +1,5 @@
+function f() bool {
+    let x = 3
+    let x = "foo"
+    return false
+}

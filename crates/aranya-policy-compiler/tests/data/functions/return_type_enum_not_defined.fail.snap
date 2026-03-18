@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: enum Blah at line 1 col 1:
+	function f() enum Blah {
+    return Blah::Foo
+}

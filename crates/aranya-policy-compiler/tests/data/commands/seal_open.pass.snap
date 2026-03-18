@@ -1,0 +1,51 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Foo",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Foo",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Foo",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Foo",
+            ltype: CommandOpen,
+        }: 22,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Foo" @ 8..11,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Foo": [],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

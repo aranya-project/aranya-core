@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+already defined: x at line 5 col 5:
+	return S {
+        x: 1,
+        x: 2,
+    }

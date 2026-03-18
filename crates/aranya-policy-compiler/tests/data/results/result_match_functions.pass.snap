@@ -1,0 +1,32 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "match_expr_with_return",
+            ltype: Function,
+        }: 56,
+        Label {
+            name: "match_statement",
+            ltype: Function,
+        }: 25,
+        Label {
+            name: "may_fail",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}

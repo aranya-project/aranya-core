@@ -1,0 +1,4 @@
+function f(x int) int {
+    let y = saturating_add(x, 1)
+    // no return value
+}

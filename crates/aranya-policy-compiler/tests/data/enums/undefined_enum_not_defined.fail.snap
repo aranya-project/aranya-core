@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: Drink at line 2 col 5:
+	let n = Drink::Coffee

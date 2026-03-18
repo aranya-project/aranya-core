@@ -1,0 +1,22 @@
+effect Result {
+    x int
+}
+
+finish function f(x int) {
+    emit Result { x: x }
+}
+
+command Foo {
+    fields {
+        x int,
+    }
+
+    seal { return todo() }
+    open { return todo() }
+
+    policy {
+        finish {
+            f()
+        }
+    }
+}

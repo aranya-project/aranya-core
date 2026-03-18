@@ -1,0 +1,3 @@
+function f() bool {
+    return (Some(42)) is Some
+}

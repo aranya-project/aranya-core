@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid expression: InternalFunction(Serialize(NamedStruct(NamedStruct { identifier: "Bar" @ 46..49, fields: [("a" @ 52..53, Bool(true) @ 55..59)], sources: [] }) @ 46..62)) @ 35..64 at line 1 col 1:

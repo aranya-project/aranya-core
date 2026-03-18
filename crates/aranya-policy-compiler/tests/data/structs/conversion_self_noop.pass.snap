@@ -1,0 +1,35 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "convert",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
+            },
+            FieldDefinition {
+                identifier: "b" @ 20..21,
+                field_type: String @ 22..28,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}

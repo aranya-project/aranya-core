@@ -1,0 +1,4 @@
+struct Foo {}
+function get_foo() struct Nonexistent {
+    return Foo {}
+}

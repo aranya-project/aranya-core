@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: struct UndefinedStruct at line 1 col 1:
+	function foo(x struct UndefinedStruct) int {
+    return 0
+}

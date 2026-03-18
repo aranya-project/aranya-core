@@ -1,0 +1,82 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "A",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "A",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "A",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "A",
+            ltype: CommandOpen,
+        }: 22,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "A" @ 36..37,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {
+                            ByName(
+                                Attribute {
+                                    name: "i" @ 65..66,
+                                    value: Int(
+                                        5,
+                                    ),
+                                },
+                            ),
+                            ByName(
+                                Attribute {
+                                    name: "s" @ 79..80,
+                                    value: String(
+                                        "abc",
+                                    ),
+                                },
+                            ),
+                            ByName(
+                                Attribute {
+                                    name: "priority" @ 97..105,
+                                    value: Enum(
+                                        "Priority",
+                                        1,
+                                    ),
+                                },
+                            ),
+                        },
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "A": [],
+    },
+    enum_defs: {
+        "Priority": {
+            "High": 1,
+            "Low": 0,
+        },
+    },
+    globals: {},
+    ..
+}
