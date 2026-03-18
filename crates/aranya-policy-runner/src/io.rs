@@ -2,7 +2,10 @@ pub mod testing_ffi;
 
 use std::{cell::RefCell, ops::DerefMut as _};
 
-use aranya_crypto::KeyStore;
+use aranya_crypto::{
+    KeyStore,
+    buggy::{BugExt as _, bug},
+};
 use aranya_policy_vm::{
     FactKey, FactValue, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack,
 };
@@ -52,8 +55,7 @@ where
         _key: impl IntoIterator<Item = FactKey>,
         _value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
-        error!("Cannot use facts in preamble");
-        Err(MachineIOError::Internal)
+        bug!("Should not be possible to use facts in preamble")
     }
 
     fn fact_delete(
@@ -61,8 +63,7 @@ where
         _name: aranya_policy_vm::Identifier,
         _key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
-        error!("Cannot use facts in preamble");
-        Err(MachineIOError::Internal)
+        bug!("Should not be possible to use facts in preamble")
     }
 
     fn fact_query(
@@ -70,8 +71,7 @@ where
         _name: aranya_policy_vm::Identifier,
         _key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
-        error!("Cannot use facts in preamble");
-        Err(MachineIOError::Internal)
+        bug!("Should not be possible to use facts in preamble")
     }
 
     fn effect(
@@ -81,7 +81,7 @@ where
         _command: aranya_crypto::CmdId,
         _recalled: bool,
     ) {
-        error!("Cannot use effects in preamble");
+        error!("Should not be possible to use effects in preamble");
     }
 
     fn call(
@@ -91,10 +91,10 @@ where
         stack: &mut MachineStack,
         ctx: &aranya_policy_vm::CommandContext,
     ) -> Result<(), MachineError> {
-        let mut eng = self.engine.try_borrow_mut().map_err(|e| {
-            tracing::error!("{e}");
-            MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
-        })?;
+        let mut eng = self
+            .engine
+            .try_borrow_mut()
+            .assume("Cannot borrow engine")?;
         let eng = eng.deref_mut();
         match module {
             0 => self.testing_ffi.call(procedure, stack, ctx, *eng),
