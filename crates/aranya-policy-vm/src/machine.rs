@@ -24,6 +24,7 @@ use crate::{
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
+    serialize::{deserialize_struct, serialize_struct},
     stack::Stack,
 };
 
@@ -926,11 +927,9 @@ where
                         self.machine.codemap.as_ref(),
                     ));
                 }
-                let bytes = postcard::to_allocvec(&command_struct).map_err(|_| {
-                    self.err(MachineErrorType::Unknown(String::from(
-                        "could not serialize command Struct",
-                    )))
-                })?;
+
+                let bytes = serialize_struct(&self.machine.struct_defs, &command_struct)
+                    .map_err(|e| self.err(e.into()))?;
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
@@ -944,20 +943,9 @@ where
                 let name = name.clone();
 
                 let bytes: Vec<u8> = self.ipop()?;
-                let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
-                    MachineError::from_position(
-                        MachineErrorType::Unknown(String::from("could not deserialize Struct")),
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    )
-                })?;
-                if name != s.name.as_str() {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                }
+                let s = deserialize_struct(&self.machine.struct_defs, name, &bytes)
+                    .map_err(|e| self.err(e.into()))?;
+
                 self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
