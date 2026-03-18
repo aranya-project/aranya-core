@@ -63,6 +63,7 @@ impl Spanned for Ident {
 
 impl Spanned for Text {
     fn span(&self) -> Span {
+        // TODO: we should add spans for text literals
         Span::empty()
     }
 }

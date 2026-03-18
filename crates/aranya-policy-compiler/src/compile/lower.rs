@@ -1689,12 +1689,10 @@ impl CompileState<'_> {
                     thir::StmtKind::DebugAssert(e)
                 }
                 (_, _) => {
-                    return Err(
-                        self.err_loc(
-                            CompileErrorType::InvalidStatement(context.clone()),
-                            statement.span,
-                        )
-                    );
+                    return Err(self.err_loc(
+                        CompileErrorType::InvalidStatement(context.clone()),
+                        statement.span,
+                    ));
                 }
             };
             output.push(thir::Statement {
