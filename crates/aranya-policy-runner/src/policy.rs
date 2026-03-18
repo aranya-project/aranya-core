@@ -1,33 +1,18 @@
-use std::{ops::Range, path::Path};
-
 use anyhow::Context as _;
 use aranya_afc_util::Ffi as AfcFfi;
-use aranya_crypto::{DeviceId, default::DefaultEngine, keystore::fs_keystore};
+use aranya_crypto::{DeviceId, keystore::fs_keystore};
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
-use aranya_policy_compiler::{Compiler, validate::validate};
-use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
-    Machine, Value,
+    Machine,
     ffi::{FfiModule as _, ModuleSchema},
 };
 use aranya_runtime::{FfiCallable, VmPolicy};
 
-use crate::{PolicyRunnable, RunFile, SwitchableRng, runfile::RunFileError};
-
-type CE = DefaultEngine<SwitchableRng>;
 type KS = fs_keystore::Store;
-
-/// A `RunSchedule` keeps track of which action thunks are associated
-/// with which file, so they can be run in sequence.
-pub struct RunSchedule<'a> {
-    pub file_path: &'a Path,
-    pub preamble_values: Vec<Value>,
-    pub thunk_range: Range<usize>,
-}
 
 // NOTE(chip): It is important that these are the same FFIs in the same
 // order as `create_vmpolicy()` below. Failure to uphold this invariant
@@ -41,84 +26,9 @@ pub const FFI_MODULES: [ModuleSchema<'static>; 6] = [
     PerspectiveFfi::SCHEMA,
 ];
 
-/// Utility function for loading the policy and injecting the run file
-/// action thunks and global values into it. Returns a `Vec` of
-/// [`RunSchedule`]s.
-pub fn load_and_compile_policy<'a>(
-    policy_doc: &str,
-    run_files: &'a [RunFile],
-    crypto_engine: &mut CE,
-    keystore: &mut KS,
-    validator: bool,
-) -> anyhow::Result<(Machine, Vec<RunSchedule<'a>>)> {
-    let mut policy_doc = policy_doc.to_string();
-    // Append generated policy thunks to the policy doc
-    policy_doc.push_str("\n```policy\n");
-    let mut thunk_counter = 0usize;
-    tracing::debug!("Generating Policy Thunks");
-    let thunk_schedule: Result<Vec<_>, RunFileError> = run_files
-        .iter()
-        .map(|run_file| {
-            let preamble_vars = run_file.get_preamble_values(crypto_engine, keystore)?;
-            // Prepare the action argument signatures
-            let action_args: String = preamble_vars
-                .iter()
-                .map(|(i, v)| format!("{i} {}, ", v.type_name().to_lowercase()))
-                .collect();
-            let thunk_start = thunk_counter;
-            for policy_runnable in &run_file.do_things {
-                // Each thunk calls another action or publishes a command,
-                let action_body = match policy_runnable {
-                    PolicyRunnable::Action(call) => format!("action {call}"),
-                    PolicyRunnable::Command(cmd) => format!("publish {cmd}"),
-                };
-                policy_doc.push_str(&format!(
-                    r#"
-    action policy_runner_thunk_{thunk_counter}({action_args}) {{
-        {action_body}
-    }}"#
-                ));
-                // and they are sequentially numbered.
-                thunk_counter = thunk_counter
-                    .checked_add(1)
-                    .expect("should not overflow thunk counter");
-            }
-            // Each "schedule" captures a range of thunks for a given run file.
-            Ok(RunSchedule {
-                file_path: &run_file.file_path,
-                preamble_values: preamble_vars.into_iter().map(|(_, v)| v).collect(),
-                thunk_range: thunk_start..thunk_counter,
-            })
-        })
-        .collect();
-    let thunk_schedule = thunk_schedule?;
-    policy_doc.push_str("\n```\n");
-
-    tracing::debug!("Compiling Policy");
-    let ast = parse_policy_document(&policy_doc)
-        .inspect_err(|e| println!("{e}"))
-        .context("unable to parse policy document")?;
-    let module = Compiler::new(&ast)
-        .ffi_modules(&FFI_MODULES)
-        .compile()
-        .context("should be able to compile policy")?;
-    tracing::debug!("Policy compiled successfully");
-    if validator {
-        tracing::debug!("Running validator");
-        if validate(&module) {
-            return Err(anyhow::anyhow!("Could not validate module"));
-        }
-        tracing::debug!("Policy validated");
-    }
-    tracing::debug!("Creating VM");
-    let machine = Machine::from_module(module).context("should be able to create VM")?;
-
-    Ok((machine, thunk_schedule))
-}
-
 /// Takes an instantiated machine, crypto engine, keystore, and device
 /// ID; and creates a [`VmPolicy`] instance.
-pub fn create_vmpolicy(
+pub fn create_vmpolicy<CE: aranya_crypto::Engine>(
     machine: Machine,
     crypto_engine: CE,
     keystore: KS,

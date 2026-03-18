@@ -14,22 +14,27 @@ use std::{
     borrow::Cow,
     fs,
     io::Write,
+    ops::Range,
     path::{Path, PathBuf},
 };
 
 use anyhow::Context as _;
-use aranya_crypto::{Csprng, default::DefaultEngine};
-use aranya_policy_vm::Identifier;
+use aranya_crypto::{Csprng, Engine, KeyStore, default::DefaultEngine};
+use aranya_policy_compiler::{Compiler, validate::validate};
+use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
     ActionPlacement, Policy as _, PolicyId, Sink as _, Storage as _, StorageProvider as _, VmAction,
 };
 pub use io::testing_ffi;
-use policy::{create_vmpolicy, load_and_compile_policy};
+use policy::create_vmpolicy;
 use rng::SwitchableRng;
 use runfile::PolicyRunnable;
 pub use runfile::RunFile;
 use sink::WriterSink;
 use working_directory::WorkingDirectory;
+
+use crate::{policy::FFI_MODULES, runfile::RunFileError};
 
 #[derive(Debug)]
 enum OutputDestination {
@@ -46,9 +51,17 @@ impl Clone for OutputDestination {
                 // underlying FD (e.g. you've hit the ulimit). So assuming this will succeed seems
                 // more or less on the same level as assuming a memory allocation will succeed.
                 Self::File(f.try_clone().expect("cannot clone file"))
-            },
+            }
         }
     }
+}
+
+/// A `RunSchedule` keeps track of which action thunks are associated
+/// with which file, so they can be run in sequence.
+struct RunSchedule<'a> {
+    pub file_path: &'a Path,
+    pub preamble_values: Vec<Value>,
+    pub thunk_range: Range<usize>,
 }
 
 /// The core Policy Runner object
@@ -177,6 +190,84 @@ impl PolicyRunner {
         Ok(DefaultEngine::new(&secret_key, rng))
     }
 
+    /// Utility function for loading the policy and injecting the run file
+    /// action thunks and global values into it. Returns a `Vec` of
+    /// [`RunSchedule`]s.
+    fn load_and_compile_policy<'a, CE, KS>(
+        &self,
+        run_files: &'a [RunFile], // explicit argument so as to not borrow self
+        crypto_engine: &mut CE,
+        keystore: &mut KS,
+    ) -> anyhow::Result<(Machine, Vec<RunSchedule<'a>>)>
+    where
+        CE: Engine,
+        KS: KeyStore,
+    {
+        let mut policy_doc = self.policy.to_string();
+        // Append generated policy thunks to the policy doc
+        policy_doc.push_str("\n```policy\n");
+        let mut thunk_counter = 0usize;
+        tracing::debug!("Generating Policy Thunks");
+        let thunk_schedule: Result<Vec<_>, RunFileError> = run_files
+            .iter()
+            .map(|run_file| {
+                let preamble_vars = run_file.get_preamble_values(crypto_engine, keystore)?;
+                // Prepare the action argument signatures
+                let action_args: String = preamble_vars
+                    .iter()
+                    .map(|(i, v)| format!("{i} {}, ", v.type_name().to_lowercase()))
+                    .collect();
+                let thunk_start = thunk_counter;
+                for policy_runnable in &run_file.do_things {
+                    // Each thunk calls another action or publishes a command,
+                    let action_body = match policy_runnable {
+                        PolicyRunnable::Action(call) => format!("action {call}"),
+                        PolicyRunnable::Command(cmd) => format!("publish {cmd}"),
+                    };
+                    policy_doc.push_str(&format!(
+                        r#"
+        action policy_runner_thunk_{thunk_counter}({action_args}) {{
+            {action_body}
+        }}"#
+                    ));
+                    // and they are sequentially numbered.
+                    thunk_counter = thunk_counter
+                        .checked_add(1)
+                        .expect("should not overflow thunk counter");
+                }
+                // Each "schedule" captures a range of thunks for a given run file.
+                Ok(RunSchedule {
+                    file_path: &run_file.file_path,
+                    preamble_values: preamble_vars.into_iter().map(|(_, v)| v).collect(),
+                    thunk_range: thunk_start..thunk_counter,
+                })
+            })
+            .collect();
+        let thunk_schedule = thunk_schedule?;
+        policy_doc.push_str("\n```\n");
+
+        tracing::debug!("Compiling Policy");
+        let ast = parse_policy_document(&policy_doc)
+            .inspect_err(|e| println!("{e}"))
+            .context("unable to parse policy document")?;
+        let module = Compiler::new(&ast)
+            .ffi_modules(&FFI_MODULES)
+            .compile()
+            .context("should be able to compile policy")?;
+        tracing::debug!("Policy compiled successfully");
+        if self.validator {
+            tracing::debug!("Running validator");
+            if validate(&module) {
+                return Err(anyhow::anyhow!("Could not validate module"));
+            }
+            tracing::debug!("Policy validated");
+        }
+        tracing::debug!("Creating VM");
+        let machine = Machine::from_module(module).context("should be able to create VM")?;
+
+        Ok((machine, thunk_schedule))
+    }
+
     // This function mainly serves as a boundary for the main run file and
     // policy execution logic, so that its errors can be handled
     // independently of things like logging or setting up and tearing down
@@ -197,13 +288,8 @@ impl PolicyRunner {
         tracing::debug!("Crypto Engine loaded");
 
         // Compile the policy with additional globals provided by the run files
-        let (machine, run_schedules) = load_and_compile_policy(
-            &self.policy,
-            &self.run_files,
-            &mut crypto_engine,
-            &mut keystore,
-            self.validator,
-        )?;
+        let (machine, run_schedules) =
+            self.load_and_compile_policy(&self.run_files, &mut crypto_engine, &mut keystore)?;
         tracing::debug!("Policy VM loaded");
         let vm_policy = create_vmpolicy(machine, crypto_engine, keystore, device_id)?;
         tracing::debug!("Policy Runtime created");
