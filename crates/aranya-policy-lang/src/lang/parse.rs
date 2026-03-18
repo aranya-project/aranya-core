@@ -1145,14 +1145,11 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        let call = pc
+        let recall = pc
             .consume_optional(Rule::function_call)
             .map(|call| self.parse_function_call(call))
             .transpose()?;
-        Ok(CheckStatement {
-            expression,
-            recall: call,
-        })
+        Ok(CheckStatement { expression, recall })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
@@ -1590,46 +1587,49 @@ impl ChunkParser<'_> {
         let policy = self.parse_statement_list(token.into_inner())?;
 
         // 6. Optional recall blocks (zero or more)
-        let mut recalls = vec![];
-        for token in pc.into_inner() {
-            if token.as_rule() != Rule::recall_block {
-                return Err(ParseError::new(
-                    ParseErrorKind::Unknown,
-                    format!("expected recall block, found `{:?}`", token.as_rule()),
-                    Some(self.to_ast_span(token.as_span())?),
-                ));
-            }
+        let recalls = pc
+            .into_inner()
+            .map(|token| {
+                if token.as_rule() != Rule::recall_block {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("expected recall block, found `{:?}`", token.as_rule()),
+                        Some(self.to_ast_span(token.as_span())?),
+                    ));
+                }
 
-            let recall_span = self.to_ast_span(token.as_span())?;
-            let recall_pc = self.descend(token);
+                let recall_span = self.to_ast_span(token.as_span())?;
+                let recall_pc = self.descend(token);
 
-            // Parse optional identifier.
-            let recall_identifier = recall_pc
-                .consume_optional(Rule::identifier)
-                .map(|p| self.parse_ident(p))
-                .transpose()?;
+                // Parse optional identifier.
+                let recall_identifier = recall_pc
+                    .consume_optional(Rule::identifier)
+                    .map(|p| self.parse_ident(p))
+                    .transpose()?;
 
-            // Parse optional arguments.
-            let recall_arguments = recall_pc
-                .consume_optional(Rule::function_arguments)
-                .map(|p| -> Result<Vec<FieldDefinition>, ParseError> {
-                    let mut args = vec![];
-                    for field in p.into_inner() {
-                        args.push(self.parse_field_definition(field)?);
-                    }
-                    Ok(args)
+                // Parse optional arguments.
+                let recall_arguments = recall_pc
+                    .consume_optional(Rule::function_arguments)
+                    .map(|p| -> Result<Vec<FieldDefinition>, ParseError> {
+                        let args = p
+                            .into_inner()
+                            .map(|field| self.parse_field_definition(field))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        Ok(args)
+                    })
+                    .transpose()?;
+
+                // Parse recall block statements
+                let statements = self.parse_statement_list(recall_pc.into_inner())?;
+
+                Ok(ast::RecallBlockDefinition {
+                    identifier: recall_identifier,
+                    arguments: recall_arguments,
+                    statements,
+                    span: recall_span,
                 })
-                .transpose()?;
-
-            let statements = self.parse_statement_list(recall_pc.into_inner())?;
-
-            recalls.push(ast::RecallBlockDefinition {
-                identifier: recall_identifier,
-                arguments: recall_arguments,
-                statements,
-                span: recall_span,
-            });
-        }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ast::CommandDefinition {
             persistence,

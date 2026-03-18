@@ -210,7 +210,9 @@ impl<'a> CompileState<'a> {
 
     /// End parsing statements in this context and return to the previous context
     fn exit_statement_context(&mut self) {
-        self.statement_context.pop();
+        self.statement_context
+            .pop()
+            .expect("attempted to exit statement context when none was active");
     }
 
     /// Get the current statement context.
@@ -1952,13 +1954,11 @@ impl<'a> CompileState<'a> {
 
         for function_def in &self.policy.functions {
             self.compile_function(function_def)?;
-            self.exit_statement_context();
         }
 
         for function_def in &self.policy.finish_functions {
             self.compile_finish_function(function_def)?;
         }
-        self.exit_statement_context();
 
         // Commands have several sub-contexts, so `compile_command` handles those.
         for command in &self.policy.commands {
@@ -1967,7 +1967,6 @@ impl<'a> CompileState<'a> {
 
         for action in &self.policy.actions {
             self.compile_action(action)?;
-            self.exit_statement_context();
         }
 
         self.resolve_targets()?;
