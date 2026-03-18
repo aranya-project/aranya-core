@@ -29,7 +29,7 @@ postcard = { workspace = true }
 rand = { workspace = true, features = ["std_rng"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["fmt"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [build-dependencies]
 aranya-policy-ifgen-build = { version = "0.13.0", path = "../aranya-policy-ifgen-build" }

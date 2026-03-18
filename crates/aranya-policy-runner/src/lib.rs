@@ -31,10 +31,24 @@ pub use runfile::RunFile;
 use sink::WriterSink;
 use working_directory::WorkingDirectory;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum OutputDestination {
     Stdout,
-    File(PathBuf),
+    File(fs::File),
+}
+
+impl Clone for OutputDestination {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Stdout => Self::Stdout,
+            Self::File(f) => {
+                // As far as I can tell, this can only fail if the OS refuses to duplicate the
+                // underlying FD (e.g. you've hit the ulimit). So assuming this will succeed seems
+                // more or less on the same level as assuming a memory allocation will succeed.
+                Self::File(f.try_clone().expect("cannot clone file"))
+            },
+        }
+    }
 }
 
 /// The core Policy Runner object
@@ -116,9 +130,16 @@ impl PolicyRunner {
         )
     }
 
-    /// Set the output destination to a file.
-    pub fn with_output_file(mut self, path: impl AsRef<Path>) -> Self {
-        self.output_destination = OutputDestination::File(path.as_ref().to_path_buf());
+    /// Set the output destination to a file specified by path.
+    pub fn with_output_path(mut self, path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
+        let file = fs::File::create(path.as_ref())?;
+        self.output_destination = OutputDestination::File(file);
+        Ok(self)
+    }
+
+    /// Set the output destination to a file specified directly.
+    pub fn with_output_file(mut self, file: fs::File) -> Self {
+        self.output_destination = OutputDestination::File(file);
         self
     }
 
@@ -160,7 +181,7 @@ impl PolicyRunner {
     // policy execution logic, so that its errors can be handled
     // independently of things like logging or setting up and tearing down
     // the working directory.
-    fn inner_logic(&self) -> anyhow::Result<()> {
+    fn inner_logic(&mut self) -> anyhow::Result<()> {
         // Load or generate policy prerequisites: Keystore, RNG, Device ID, and Crypto Engine
         let mut keystore = self.working_directory.load_keystore()?;
         tracing::debug!("Keystore loaded");
@@ -189,9 +210,9 @@ impl PolicyRunner {
 
         let mut provider = self.working_directory.get_storage_provider()?;
         tracing::debug!("Storage provider loaded");
-        let out_stream: &mut dyn Write = match &self.output_destination {
+        let out_stream: &mut dyn Write = match &mut self.output_destination {
             OutputDestination::Stdout => &mut std::io::stdout(),
-            OutputDestination::File(path) => &mut fs::File::create_new(path)?,
+            OutputDestination::File(w) => w,
         };
         let mut sink = WriterSink::new(out_stream);
 
@@ -261,7 +282,7 @@ impl PolicyRunner {
     /// Note: This consumes `self` not because it really needs to - all internal state is
     /// unchanged during execution. It serves as a brake against concurrent runs
     /// manipulating the same underlying filesystem state.
-    pub fn run(self) -> anyhow::Result<WorkingDirectory> {
+    pub fn run(mut self) -> anyhow::Result<WorkingDirectory> {
         if self.working_directory.is_temporary {
             tracing::info!(
                 "Using temporary directory `{}`",

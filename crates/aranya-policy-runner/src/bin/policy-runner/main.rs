@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::{fs::File, io, path::PathBuf};
 
 use anyhow::anyhow;
 use aranya_policy_runner::PolicyRunner;
 use clap::Parser;
+use tracing_subscriber::EnvFilter;
 
 /// The Aranya Policy Runner runs sequences of actions on policy files.
 #[derive(Parser, Debug)]
@@ -30,12 +31,12 @@ struct Args {
     /// The marker includes the run file path.
     #[arg(long)]
     marker: bool,
-    /// Suppress trace output and other diagnostics.
+    /// Enable trace output and other diagnostics.
     ///
-    /// This just turns off the default `tracing` subscriber. Fatal
-    /// errors will still be printed.
+    /// Trace information will be printed to stderr. If --output is
+    /// specified, trace output will be logged to the output file.
     #[arg(long, short)]
-    quiet: bool,
+    trace: bool,
     /// Run the validator on the policy compilation.
     #[arg(long)]
     validator: bool,
@@ -48,8 +49,25 @@ fn main() -> anyhow::Result<()> {
         return Err(anyhow!("Please specify one or more run files"));
     }
 
-    if !args.quiet {
-        tracing_subscriber::fmt::init();
+    // if output is specified, open the file here.
+    let output_file = args.output.as_ref().map(File::create).transpose()?;
+
+    if args.trace {
+        let env_filter = EnvFilter::from_default_env();
+        if let Some(output_file) = &output_file {
+            // Clone the handle for the tracing output.
+            let tracing_file = output_file.try_clone()?;
+            tracing_subscriber::fmt()
+                .with_writer(tracing_file)
+                .with_env_filter(env_filter)
+                .init();
+        } else {
+            // Configure trace output to use stderr.
+            tracing_subscriber::fmt()
+                .with_writer(io::stderr)
+                .with_env_filter(env_filter)
+                .init();
+        }
     }
 
     let runner = PolicyRunner::new_from_path(args.policy)?
@@ -58,9 +76,11 @@ fn main() -> anyhow::Result<()> {
         .with_marker(args.marker)
         .with_validator(args.validator)
         .with_runfile_paths(args.runs)?;
-    let runner = if let Some(path) = args.output {
-        runner.with_output_file(path)
+    let runner = if let Some(file) = output_file {
+        // Use the output file.
+        runner.with_output_file(file)
     } else {
+        // Continue to use the default stdout.
         runner
     };
 
