@@ -47,11 +47,15 @@ pub trait Analyzer: AnalyzerClone {
     ) -> Result<AnalyzerStatus, TraceError>;
 
     /// Optionally post-analyze any produced failures using branch information.
+    /// Returns additional failures discovered during post-analysis.
     fn post_analyze(
         &mut self,
         _failures: &mut [TraceFailure],
         _successful_branches: &[Vec<usize>],
-    ) {
+        _successful_instruction_paths: &[Vec<usize>],
+        _m: &ModuleV0,
+    ) -> Vec<TraceFailure> {
+        vec![]
     }
 }
 
