@@ -130,22 +130,24 @@ impl TraversalQueue {
         else {
             return Ok(None);
         };
-        // Remove the entry, maintaining the partition invariant.
         if i < self.partition {
-            // Removing from uncovered region: swap with last uncovered,
-            // then swap_remove from the partition boundary.
-            self.partition = self
-                .partition
-                .checked_sub(1)
-                .assume("partition must be >= 1 when uncovered entry exists")?;
-            self.entries.swap(i, self.partition);
-            let loc = self.entries.swap_remove(self.partition);
-            Ok(Some((loc, false)))
+            Ok(Some((self.remove_uncovered(i)?, false)))
         } else {
             // Removing from covered region: swap_remove is fine.
             let loc = self.entries.swap_remove(i);
             Ok(Some((loc, true)))
         }
+    }
+
+    /// Remove an entry from the uncovered region at index `i`,
+    /// maintaining the partition invariant.
+    fn remove_uncovered(&mut self, i: usize) -> Result<Location, StorageError> {
+        self.partition = self
+            .partition
+            .checked_sub(1)
+            .assume("partition must be >= 1 when uncovered entry exists")?;
+        self.entries.swap(i, self.partition);
+        Ok(self.entries.swap_remove(self.partition))
     }
 
     /// Returns true if all entries are covered (uncovered partition is empty).
@@ -166,13 +168,7 @@ impl TraversalQueue {
         let mut i = 0;
         while i < self.partition {
             if self.entries[i].max_cut > threshold {
-                self.partition = self
-                    .partition
-                    .checked_sub(1)
-                    .assume("partition must be >= 1 when draining uncovered")?;
-                self.entries.swap(i, self.partition);
-                let loc = self.entries.swap_remove(self.partition);
-                f(loc);
+                f(self.remove_uncovered(i)?);
             } else {
                 i = i.checked_add(1).assume("index must not overflow")?;
             }

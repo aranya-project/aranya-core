@@ -325,6 +325,9 @@ impl SyncResponder {
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         // Resolve command addresses to locations. Use buffers.primary as
         // scratch for each get_location call (it gets cleared before main loop).
+        if commands.len() > COMMAND_SAMPLE_MAX {
+            bug!("commands length {} exceeds COMMAND_SAMPLE_MAX", commands.len());
+        }
         let mut have_locations: Vec<Location, COMMAND_SAMPLE_MAX> = Vec::new();
         for &addr in commands {
             if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
