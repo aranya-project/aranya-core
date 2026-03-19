@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.18.1...aranya-policy-module-v0.19.0) - 2026-03-17
+
+### Other
+
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+- make `ConstValue::vtype` infallible ([#602](https://github.com/aranya-project/aranya-core/pull/602))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+
 ## [0.18.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.18.0...aranya-policy-module-v0.18.1) - 2026-02-17
 
 ### Other

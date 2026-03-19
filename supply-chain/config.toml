@@ -138,10 +138,6 @@ notes = "This crate is under the rust-lang Github organization"
 version = "1.0.94"
 criteria = "safe-to-deploy"
 
-[[exemptions.atomic-polyfill]]
-version = "1.0.3"
-criteria = "safe-to-deploy"
-
 [[exemptions.aws-lc-rs]]
 version = "1.12.0"
 criteria = "safe-to-deploy"
@@ -164,10 +160,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.bimap]]
 version = "0.6.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.bindgen]]
-version = "0.70.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.bytecheck]]
@@ -241,10 +233,6 @@ criteria = "safe-to-run"
 [[exemptions.criterion-plot]]
 version = "0.5.0"
 criteria = "safe-to-run"
-
-[[exemptions.critical-section]]
-version = "1.2.0"
-criteria = "safe-to-deploy"
 
 [[exemptions.crossbeam-channel]]
 version = "0.5.14"
@@ -371,10 +359,6 @@ version = "2.4.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.hash32]]
-version = "0.2.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.hash32]]
 version = "0.3.1"
 criteria = "safe-to-deploy"
 
@@ -384,10 +368,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.hashbrown]]
 version = "0.15.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.heapless]]
-version = "0.7.17"
 criteria = "safe-to-deploy"
 
 [[exemptions.heapless]]
@@ -422,10 +402,6 @@ criteria = "safe-to-deploy"
 version = "0.3.76"
 criteria = "safe-to-run"
 
-[[exemptions.keccak]]
-version = "0.1.5"
-criteria = "safe-to-deploy"
-
 [[exemptions.lazycell]]
 version = "1.3.0"
 criteria = "safe-to-deploy"
@@ -452,7 +428,7 @@ criteria = "safe-to-deploy"
 
 [[exemptions.lock_api]]
 version = "0.4.12"
-criteria = "safe-to-deploy"
+criteria = "safe-to-run"
 
 [[exemptions.markdown]]
 version = "1.0.0-alpha.17"
@@ -710,10 +686,6 @@ criteria = "safe-to-deploy"
 version = "2.2.6"
 criteria = "safe-to-run"
 
-[[exemptions.scopeguard]]
-version = "1.2.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.sdd]]
 version = "3.0.5"
 criteria = "safe-to-run"
@@ -804,14 +776,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.thiserror-impl]]
 version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.time]]
-version = "0.3.37"
-criteria = "safe-to-deploy"
-
-[[exemptions.time-macros]]
-version = "0.2.19"
 criteria = "safe-to-deploy"
 
 [[exemptions.tokio]]
