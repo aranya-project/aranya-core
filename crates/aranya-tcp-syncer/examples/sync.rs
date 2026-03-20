@@ -3,27 +3,32 @@
 //! It creates two peers, a new graph, and Peer B syncs with Peer A and outputs the effects.
 //!
 //! Peer 1
-//! cargo run --example quic_syncer -- --new --listen 127.0.0.1:5001 --peer 127.0.0.1:5002
+//! cargo run --example sync -- --new --listen 127.0.0.1:5001 --peer 127.0.0.1:5002
 //!
 //! Peer 1 will print the new graph id. You will need this id for peer 2.
 //!
 //! Peer 2
-//! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --graph $graph_id
+//! cargo run --example sync -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --graph $GRAPH_ID
 
-use std::{fs, io, net::SocketAddr, ops::DerefMut as _, sync::Arc, thread, time};
+#![allow(clippy::unwrap_used)]
+
+use std::{
+    net::{SocketAddr, TcpListener},
+    ops::DerefMut as _,
+    sync::{Arc, Mutex, mpsc},
+    thread, time,
+};
 
 use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
-use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
     policy::Sink,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
+use aranya_tcp_syncer::{Syncer, run_syncer};
 use clap::Parser;
-use s2n_quic::Server;
-use tokio::sync::{Mutex as TMutex, mpsc};
 
 #[derive(Parser, Debug)]
 #[clap(name = "server")]
@@ -55,7 +60,7 @@ fn main() {
     std::process::exit(code);
 }
 
-async fn sync_peer<PS, SP, S>(
+fn sync_peer<PS, SP, S>(
     client: &mut ClientState<PS, SP>,
     syncer: &mut Syncer<PS, SP, S>,
     sink: &mut S,
@@ -67,56 +72,25 @@ async fn sync_peer<PS, SP, S>(
     S: Sink<<PS as PolicyStore>::Effect>,
 {
     let sync_requester = SyncRequester::new(graph_id, Rng);
-    let fut = syncer.sync(client, peer_addr, sync_requester, sink, graph_id);
-    match fut.await {
+    match syncer.sync(client, peer_addr, sync_requester, sink, graph_id) {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
     }
 }
 
-fn get_server(cert: String, key: String, addr: SocketAddr) -> Result<Server> {
-    let server = Server::builder()
-        .with_tls((&cert[..], &key[..]))?
-        .with_io(addr)?
-        .start()?;
-    Ok(server)
+fn get_server(addr: SocketAddr) -> Result<TcpListener> {
+    Ok(TcpListener::bind(addr)?)
 }
 
-#[tokio::main]
-async fn run(options: Opt) -> Result<()> {
-    let dirs = directories_next::ProjectDirs::from("org", "spideroak", "aranya")
-        .expect("unable to load directory");
-    let path = dirs.data_local_dir();
-    let cert_path = path.join("cert.pem");
-    let key_path = path.join("key.pem");
-    let (cert, key) = match fs::read_to_string(&cert_path)
-        .and_then(|cert| fs::read_to_string(&key_path).map(|key| (cert, key)))
-    {
-        Ok(x) => x,
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-            let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])
-                .expect("error generating cert");
-            let key = ck.key_pair.serialize_pem();
-            let cert = ck.cert.pem();
-            fs::create_dir_all(path).context("failed to create certificate directory")?;
-            fs::write(&cert_path, &cert).context("failed to write certificate")?;
-            fs::write(&key_path, &key).context("failed to write private key")?;
-            (cert, key)
-        }
-        Err(e) => {
-            bail!("failed to read certificate: {}", e);
-        }
-    };
-
-    let policy_store = TestPolicyStore::new();
+fn run(options: Opt) -> Result<()> {
+    let engine = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
 
-    let client = Arc::new(TMutex::new(ClientState::new(policy_store, storage)));
-    let sink = Arc::new(TMutex::new(PrintSink {}));
-    let server = get_server(cert.clone(), key, options.listen)?;
-    let (tx1, _) = mpsc::unbounded_channel();
-    let syncer = Arc::new(TMutex::new(Syncer::new(
-        &cert[..],
+    let client = Arc::new(Mutex::new(ClientState::new(engine, storage)));
+    let sink = Arc::new(Mutex::new(PrintSink {}));
+    let server = get_server(options.listen)?;
+    let (tx1, _) = mpsc::channel();
+    let syncer = Arc::new(Mutex::new(Syncer::new(
         Arc::clone(&client),
         Arc::clone(&sink),
         tx1,
@@ -128,11 +102,11 @@ async fn run(options: Opt) -> Result<()> {
         let policy_data = 0_u64.to_be_bytes();
         graph_id = client
             .lock()
-            .await
+            .unwrap()
             .new_graph(
                 policy_data.as_slice(),
                 TestActions::Init(0),
-                sink.lock().await.deref_mut(),
+                sink.lock().unwrap().deref_mut(),
             )
             .context("sync error")?;
         println!("Graph id: {}", graph_id);
@@ -142,18 +116,20 @@ async fn run(options: Opt) -> Result<()> {
         bail!("graph id is missing");
     }
 
-    let (_, rx1) = mpsc::unbounded_channel();
-    let task = tokio::spawn(run_syncer(Arc::clone(&syncer), server, rx1));
+    let (_, rx1) = mpsc::channel();
+    thread::spawn({
+        let syncer = Arc::clone(&syncer);
+        || run_syncer(syncer, server, rx1)
+    });
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(
-            client.lock().await.deref_mut(),
-            syncer.lock().await.deref_mut(),
-            sink.lock().await.deref_mut(),
+            client.lock().unwrap().deref_mut(),
+            syncer.lock().unwrap().deref_mut(),
+            sink.lock().unwrap().deref_mut(),
             graph_id,
             options.peer,
-        )
-        .await;
+        );
     }
 
     for i in 1..6 {
@@ -162,23 +138,21 @@ async fn run(options: Opt) -> Result<()> {
             let action = TestActions::SetValue(i, i);
             client
                 .lock()
-                .await
-                .action(graph_id, sink.lock().await.deref_mut(), action)
+                .unwrap()
+                .action(graph_id, sink.lock().unwrap().deref_mut(), action)
                 .context("sync error")?;
         } else {
             sync_peer(
-                client.lock().await.deref_mut(),
-                syncer.lock().await.deref_mut(),
-                sink.lock().await.deref_mut(),
+                client.lock().unwrap().deref_mut(),
+                syncer.lock().unwrap().deref_mut(),
+                sink.lock().unwrap().deref_mut(),
                 graph_id,
                 options.peer,
-            )
-            .await;
+            );
         }
         thread::sleep(time::Duration::from_secs(1));
     }
     thread::sleep(time::Duration::from_secs(5));
-    task.abort();
     println!("done");
     Ok(())
 }

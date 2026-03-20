@@ -1,172 +1,97 @@
-#![warn(missing_docs)]
+//! An implementation of the syncer using TCP.
 
-//! An implementation of the syncer using QUIC.
+#![warn(missing_docs)]
 
 use std::{
     collections::BTreeMap,
-    net::SocketAddr,
+    io::{Read as _, Write as _},
+    net::{Shutdown, SocketAddr, TcpListener, TcpStream},
     ops::DerefMut as _,
-    sync::Arc,
+    sync::{Arc, Mutex, mpsc},
     time::{Duration, SystemTime},
 };
 
+use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientError, ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageError,
-    SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
-    TraversalBuffers,
+    ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, SubscribeResult, SyncError,
+    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
-use buggy::{Bug, BugExt as _, bug};
-use bytes::Bytes;
+use buggy::{BugExt as _, bug};
 use heapless::{FnvIndexMap, Vec};
-use s2n_quic::{
-    Client, Connection, Server,
-    client::Connect,
-    connection, provider,
-    stream::{self, BidirectionalStream},
-};
-use tokio::{
-    select,
-    sync::{Mutex as TMutex, mpsc},
-};
 use tracing::error;
 
 /// FNVIndexMap requires that the size be a power of 2.
 const MAXIMUM_SUBSCRIPTIONS: usize = 32;
 
-/// An error running the quic sync client or server.
-#[derive(Debug, thiserror::Error)]
-pub enum QuicSyncError {
-    /// A sync protocol error.
-    #[error("sync error: {0}")]
-    Sync(#[from] SyncError),
-    /// An error interacting with the runtime client.
-    #[error("client error: {0}")]
-    Client(#[from] ClientError),
-    /// An error writing to the quic stream
-    #[error("connect error: {0}")]
-    Connect(#[from] connection::Error),
-    /// An error using a stream
-    #[error("stream error: {0}")]
-    Stream(#[from] stream::Error),
-    /// An error using a provider
-    #[error("provider start error: {0}")]
-    ProviderStart(#[from] provider::StartError),
-    /// An IO error binding the socket
-    #[error("io error: {0}")]
-    Io(#[from] std::io::Error),
-    /// An error using the storage
-    #[error("storage error")]
-    Storage(#[from] StorageError),
-    /// A PostCard error
-    #[error("postcard error")]
-    PostCard(#[from] postcard::Error),
-    /// An unexpected bug
-    #[error(transparent)]
-    Bug(#[from] Bug),
-}
-
-impl From<core::convert::Infallible> for QuicSyncError {
-    fn from(value: core::convert::Infallible) -> Self {
-        match value {}
-    }
-}
-
 /// Runs a server listening for sync requests from other peers.
-pub async fn run_syncer<PS, SP, S>(
-    syncer: Arc<TMutex<Syncer<PS, SP, S>>>,
-    mut server: Server,
-    mut receiver: mpsc::UnboundedReceiver<GraphId>,
+pub fn run_syncer<PS, SP, S>(
+    syncer: Arc<Mutex<Syncer<PS, SP, S>>>,
+    server: TcpListener,
+    receiver: mpsc::Receiver<GraphId>,
 ) where
     PS: PolicyStore,
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
+    Syncer<PS, SP, S>: Send,
 {
-    loop {
-        select! {
-            Some(conn) = server.accept() => {
-                if let Err(e) = handle_connection(conn, Arc::clone(&syncer)).await {
-                    error!(cause = ?e, "sync error");
-                }
-            },
-            Some(graph_id) = receiver.recv() => {
-                if let Err(e) = syncer.lock().await.send_push(graph_id).await {
+    std::thread::scope(|s| {
+        let syncer = &syncer;
+        s.spawn(move || {
+            while let Ok(graph_id) = receiver.recv() {
+                if let Err(e) = syncer.lock().expect("poisoned").send_push(graph_id) {
                     error!(cause = ?e, "send push error");
                 }
-
+            }
+        });
+        while let Ok((stream, addr)) = server.accept() {
+            if let Err(e) = handle_request(stream, addr, Arc::clone(syncer)) {
+                error!(cause = ?e, "sync error");
             }
         }
-    }
+    });
 }
 
-async fn handle_connection<PS, SP, S>(
-    mut conn: Connection,
-    dispatcher: Arc<TMutex<Syncer<PS, SP, S>>>,
-) -> Result<(), QuicSyncError>
+fn handle_request<PS, SP, S>(
+    mut stream: TcpStream,
+    _addr: SocketAddr,
+    syncer: Arc<Mutex<Syncer<PS, SP, S>>>,
+) -> Result<()>
 where
     PS: PolicyStore,
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let stream = conn.accept_bidirectional_stream().await;
-    let stream = match stream {
-        Err(connection::Error::EndpointClosing { .. }) => {
-            return Ok(());
-        }
-        Err(e) => {
-            return Err(e.into());
-        }
-        Ok(None) => {
-            return Ok(());
-        }
-        Ok(Some(s)) => s,
-    };
-    handle_request(stream, dispatcher).await?;
-    Ok(())
-}
-
-async fn handle_request<PS, SP, S>(
-    mut stream: BidirectionalStream,
-    syncer: Arc<TMutex<Syncer<PS, SP, S>>>,
-) -> Result<(), QuicSyncError>
-where
-    PS: PolicyStore,
-    SP: StorageProvider,
-    S: Sink<<PS as PolicyStore>::Effect>,
-{
-    if let Ok(Some(req)) = stream.receive().await {
-        let (peer_address, req) = postcard::take_from_bytes::<SocketAddr>(&req)?;
-        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = syncer
-            .lock()
-            .await
-            .dispatch(peer_address, req, &mut buffer)
-            .await?;
-        buffer.truncate(len);
-
-        if len > 0 {
-            stream.send(buffer.into()).await?;
-        }
+    let mut req = std::vec::Vec::new();
+    stream.read_to_end(&mut req)?;
+    let (peer_address, req) = postcard::take_from_bytes::<SocketAddr>(&req)?;
+    let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+    let len = syncer
+        .lock()
+        .expect("poisoned")
+        .dispatch(peer_address, req, &mut buffer)?;
+    buffer.truncate(len);
+    if len > 0 {
+        stream.write_all(&buffer)?;
     }
     Ok(())
 }
 
-/// A QUIC syncer client
+/// A TCP syncer client
 pub struct Syncer<PS, SP, S>
 where
     PS: PolicyStore,
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    quic_client: Client,
     remote_heads: BTreeMap<SocketAddr, PeerCache>,
-    sender: mpsc::UnboundedSender<GraphId>,
+    sender: mpsc::Sender<GraphId>,
     subscriptions: FnvIndexMap<(SocketAddr, GraphId), Subscription, MAXIMUM_SUBSCRIPTIONS>,
-    client_state: Arc<TMutex<ClientState<PS, SP>>>,
-    sink: Arc<TMutex<S>>,
-    return_address: Bytes,
+    client_state: Arc<Mutex<ClientState<PS, SP>>>,
+    sink: Arc<Mutex<S>>,
+    return_address: std::vec::Vec<u8>,
     buffers: TraversalBuffers,
 }
 
@@ -177,20 +102,14 @@ where
     S: Sink<<PS as PolicyStore>::Effect>,
 {
     /// Create a sync client with the given certificate chain.
-    pub fn new<T: provider::tls::Provider>(
-        cert: T,
-        client_state: Arc<TMutex<ClientState<PS, SP>>>,
-        sink: Arc<TMutex<S>>,
-        sender: mpsc::UnboundedSender<GraphId>,
+    pub fn new(
+        client_state: Arc<Mutex<ClientState<PS, SP>>>,
+        sink: Arc<Mutex<S>>,
+        sender: mpsc::Sender<GraphId>,
         return_address: SocketAddr,
-    ) -> Result<Self, QuicSyncError> {
-        let client = Client::builder()
-            .with_tls(cert)?
-            .with_io("0.0.0.0:0")?
-            .start()?;
-        let return_address = Bytes::from(postcard::to_allocvec(&return_address)?);
+    ) -> Result<Self> {
+        let return_address = postcard::to_allocvec(&return_address)?;
         Ok(Self {
-            quic_client: client,
             remote_heads: BTreeMap::new(),
             sender,
             subscriptions: FnvIndexMap::new(),
@@ -204,14 +123,14 @@ where
     /// Sync the specified graph with a peer at the given address.
     ///
     /// The sync will update your storage, not the peer's.
-    pub async fn sync(
+    pub fn sync(
         &mut self,
         client: &mut ClientState<PS, SP>,
         peer_address: SocketAddr,
         mut syncer: SyncRequester,
         sink: &mut S,
         graph_id: GraphId,
-    ) -> Result<usize, QuicSyncError> {
+    ) -> Result<usize> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
@@ -225,24 +144,15 @@ where
             bug!("length should fit in buffer");
         }
 
-        let mut conn = self
-            .quic_client
-            .connect(Connect::new(peer_address).with_server_name("localhost"))
-            .await?;
-        conn.keep_alive(true)?;
-        let mut stream = conn.open_bidirectional_stream().await?;
+        let mut stream = TcpStream::connect(peer_address)?;
 
         buffer.truncate(len);
         buffer.shrink_to_fit();
-        stream
-            .send_vectored(&mut [self.return_address.clone(), buffer.into()])
-            .await?;
-        let mut received_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
-        while let Some(chunk) = stream.receive().await? {
-            received_data
-                .extend_from_slice(&chunk)
-                .expect("Failed to extend received data from slice");
-        }
+        stream.write_all(&self.return_address)?;
+        stream.write_all(&buffer)?;
+        stream.shutdown(Shutdown::Write)?;
+        let mut received_data = std::vec::Vec::new();
+        stream.read_to_end(&mut received_data)?;
         // An empty response means we're up to date and there's nothing to sync.
         if !received_data.is_empty()
             && let Some(cmds) = syncer.receive(&received_data)?
@@ -259,21 +169,20 @@ where
             )?;
             self.push(graph_id)?;
         }
-        conn.close(0u32.into());
         Ok(received)
     }
 
     /// Subscribe the specified graph to a peer at the given address.
     ///
     /// This will tell the peer to send new commands to us.
-    pub async fn subscribe(
+    pub fn subscribe(
         &mut self,
         client: &mut ClientState<PS, SP>,
         mut sync_requester: SyncRequester,
         remain_open: u64,
         max_bytes: u64,
         peer_addr: SocketAddr,
-    ) -> Result<(), QuicSyncError> {
+    ) -> Result<()> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let heads = self.remote_heads.entry(peer_addr).or_default();
         let len = sync_requester.subscribe(
@@ -285,66 +194,55 @@ where
             &mut self.buffers.primary,
         )?;
 
-        let mut conn = self
-            .quic_client
-            .connect(Connect::new(peer_addr).with_server_name("localhost"))
-            .await?;
-        conn.keep_alive(true)?;
-        let mut stream = conn.open_bidirectional_stream().await?;
+        let mut stream = TcpStream::connect(peer_addr)?;
 
         buffer.truncate(len);
-        buffer.shrink_to_fit();
-        stream
-            .send_vectored(&mut [self.return_address.clone(), buffer.into()])
-            .await?;
-        if let Some(resp) = stream.receive().await? {
-            let result: SubscribeResult = postcard::from_bytes(&resp)?;
-            match result {
-                SubscribeResult::Success => Ok(()),
-                SubscribeResult::TooManySubscriptions => bug!("TooManySubscriptions"),
-            }
-        } else {
-            Ok(())
+        stream.write_all(&self.return_address)?;
+        stream.write_all(&buffer)?;
+        stream.shutdown(Shutdown::Write)?;
+
+        buffer.clear();
+        stream.read_to_end(&mut buffer)?;
+        if buffer.is_empty() {
+            return Ok(());
+        }
+        let result: SubscribeResult = postcard::from_bytes(&buffer)?;
+        match result {
+            SubscribeResult::Success => Ok(()),
+            SubscribeResult::TooManySubscriptions => bug!("TooManySubscriptions"),
         }
     }
 
     /// Unsubscribe the specified graph to a peer at the given address.
-    pub async fn unsubscribe(
+    pub fn unsubscribe(
         &mut self,
         mut sync_requester: SyncRequester,
         peer_addr: SocketAddr,
-    ) -> Result<(), QuicSyncError> {
+    ) -> Result<()> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = sync_requester.unsubscribe(&mut buffer)?;
 
-        let mut conn = self
-            .quic_client
-            .connect(Connect::new(peer_addr).with_server_name("localhost"))
-            .await?;
-        conn.keep_alive(true)?;
-        let mut stream = conn.open_bidirectional_stream().await?;
+        let mut stream = TcpStream::connect(peer_addr)?;
 
         buffer.truncate(len);
-        buffer.shrink_to_fit();
-        stream
-            .send_vectored(&mut [self.return_address.clone(), buffer.into()])
-            .await?;
+        stream.write_all(&self.return_address)?;
+        stream.write_all(&buffer)?;
         Ok(())
     }
 
     /// Dispatch handles the sync request based on the sync type of the request
     /// and write the response to target.
-    pub async fn dispatch(
+    pub fn dispatch(
         &mut self,
         peer_address: SocketAddr,
         data: &[u8],
         target: &mut [u8],
-    ) -> Result<usize, QuicSyncError> {
-        let (sync_type, remaining) = postcard::take_from_bytes::<SyncType>(data)?;
+    ) -> Result<usize> {
+        let (sync_type, remaining): (SyncType, &[u8]) = postcard::take_from_bytes(data)?;
         let len = match sync_type {
             SyncType::Poll { request } => {
                 let response_cache = self.remote_heads.entry(peer_address).or_default();
-                let mut client = self.client_state.lock().await;
+                let mut client = self.client_state.lock().expect("poisoned");
                 let mut response_syncer = SyncResponder::new();
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
@@ -374,7 +272,7 @@ where
                 ) {
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(peer_address).or_default();
-                        let mut client = self.client_state.lock().await;
+                        let mut client = self.client_state.lock().expect("poisoned");
                         client.update_heads(
                             graph_id,
                             commands.as_slice().iter().copied(),
@@ -400,9 +298,9 @@ where
                 {
                     {
                         let response_cache = self.remote_heads.entry(peer_address).or_default();
-                        let mut client = self.client_state.lock().await;
+                        let mut client = self.client_state.lock().expect("poisoned");
                         let mut trx = client.transaction(graph_id);
-                        let mut sink_guard = self.sink.lock().await;
+                        let mut sink_guard = self.sink.lock().expect("poisoned");
                         let sink = sink_guard.deref_mut();
                         client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
                         client.commit(trx, sink, &mut self.buffers.primary)?;
@@ -426,7 +324,7 @@ where
     }
 
     /// Pushes commands to all subscribed peers.
-    async fn send_push(&mut self, graph_id: GraphId) -> Result<(), QuicSyncError> {
+    fn send_push(&mut self, graph_id: GraphId) -> Result<()> {
         // Remove all expired subscriptions
         self.subscriptions.retain(|_, s| !s.expired());
         for (&(addr, sub_graph_id), subscription) in &mut self.subscriptions {
@@ -452,7 +350,7 @@ where
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(
                 &mut target,
-                self.client_state.lock().await.provider(),
+                self.client_state.lock().expect("poisoned").provider(),
                 &mut self.buffers,
             )?;
             if len > 0 {
@@ -461,16 +359,9 @@ where
                 } else {
                     target.truncate(len);
 
-                    let mut conn = self
-                        .quic_client
-                        .connect(Connect::new(addr).with_server_name("localhost"))
-                        .await?;
-                    conn.keep_alive(true)?;
-                    let mut stream = conn.open_bidirectional_stream().await?;
-
-                    stream
-                        .send_vectored(&mut [self.return_address.clone(), target.into()])
-                        .await?;
+                    let mut stream = TcpStream::connect(addr)?;
+                    stream.write_all(&self.return_address)?;
+                    stream.write_all(&target)?;
                     subscription.remaining_bytes = subscription
                         .remaining_bytes
                         .checked_sub(len as u64)

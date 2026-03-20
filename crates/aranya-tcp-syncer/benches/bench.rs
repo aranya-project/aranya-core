@@ -1,4 +1,4 @@
-//! This is a benchmark for syncing using the quic syncer. It benchmarks the amounts of time
+//! This is a benchmark for syncing using the tcp syncer. It benchmarks the amounts of time
 //! to sync a command.
 
 #![allow(clippy::arithmetic_side_effects)]
@@ -6,25 +6,22 @@
 #![allow(clippy::unwrap_used)]
 
 use std::{
+    net::{Ipv4Addr, TcpListener},
     ops::DerefMut as _,
-    sync::Arc,
+    sync::{Arc, Mutex, mpsc},
+    thread,
     time::{Duration, Instant},
 };
 
 use anyhow::Result;
 use aranya_crypto::Rng;
-use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, Sink, SyncRequester,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
+use aranya_tcp_syncer::{Syncer, run_syncer};
 use criterion::{Criterion, criterion_group, criterion_main};
-use s2n_quic::Server;
-use tokio::{
-    runtime::Runtime,
-    sync::{Mutex as TMutex, mpsc},
-};
 
 #[derive(Debug, Clone)]
 /// Counts the number of effects which are consumed. Used to track the
@@ -90,32 +87,21 @@ fn add_commands(
     }
 }
 
-fn get_server(cert: String, key: String) -> Result<Server> {
-    let server = Server::builder()
-        .with_tls((&cert[..], &key[..]))?
-        .with_io("127.0.0.1:0")?
-        .start()?;
-    Ok(server)
+fn get_server() -> Result<TcpListener> {
+    Ok(TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?)
 }
 
 // benchmark the time to sync a command.
 fn sync_bench(c: &mut Criterion) {
-    let rt = Runtime::new().expect("error creating runtime");
-
-    c.bench_function("quic sync", |b| {
-        b.to_async(&rt).iter_custom(|iters| async move {
+    c.bench_function("tcp sync", |b| {
+        b.iter_custom(|iters| {
             // setup
-            let request_sink = Arc::new(TMutex::new(CountSink::new()));
-            let request_client = Arc::new(TMutex::new(create_client()));
-            let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])
-                .expect("error generating cert");
-            let key = ck.key_pair.serialize_pem();
-            let cert = ck.cert.pem();
-            let server1 = get_server(cert.clone(), key.clone()).expect("error getting server");
-            let (tx1, _) = mpsc::unbounded_channel();
-            let syncer1 = Arc::new(TMutex::new(
+            let request_sink = Arc::new(Mutex::new(CountSink::new()));
+            let request_client = Arc::new(Mutex::new(create_client()));
+            let server1 = get_server().expect("error getting server");
+            let (tx1, _) = mpsc::channel();
+            let syncer1 = Arc::new(Mutex::new(
                 Syncer::new(
-                    &*cert.clone(),
                     Arc::clone(&request_client),
                     Arc::clone(&request_sink),
                     tx1,
@@ -124,14 +110,13 @@ fn sync_bench(c: &mut Criterion) {
                 .expect("Syncer creation must succeed"),
             ));
 
-            let response_sink = Arc::new(TMutex::new(CountSink::new()));
-            let response_client = Arc::new(TMutex::new(create_client()));
-            let server2 = get_server(cert.clone(), key.clone()).expect("error getting server");
+            let response_sink = Arc::new(Mutex::new(CountSink::new()));
+            let response_client = Arc::new(Mutex::new(create_client()));
+            let server2 = get_server().expect("error getting server");
             let server2_addr = server2.local_addr().expect("error getting local addr");
-            let (tx2, rx2) = mpsc::unbounded_channel();
-            let syncer2 = Arc::new(TMutex::new(
+            let (tx2, rx2) = mpsc::channel();
+            let syncer2 = Arc::new(Mutex::new(
                 Syncer::new(
-                    &*cert,
                     Arc::clone(&response_client),
                     Arc::clone(&response_sink),
                     tx2,
@@ -141,41 +126,41 @@ fn sync_bench(c: &mut Criterion) {
             ));
 
             let graph_id = new_graph(
-                response_client.lock().await.deref_mut(),
-                response_sink.lock().await.deref_mut(),
+                response_client.lock().unwrap().deref_mut(),
+                response_sink.lock().unwrap().deref_mut(),
             )
             .expect("creating graph failed");
 
-            let task = tokio::spawn(run_syncer(Arc::clone(&syncer2), server2, rx2));
+            let _task = thread::spawn(|| run_syncer(syncer2, server2, rx2));
             add_commands(
-                response_client.lock().await.deref_mut(),
+                response_client.lock().unwrap().deref_mut(),
                 graph_id,
-                response_sink.lock().await.deref_mut(),
+                response_sink.lock().unwrap().deref_mut(),
                 iters,
             );
 
             // Start timing for benchmark
             let start = Instant::now();
-            while request_sink.lock().await.count() < iters.try_into().unwrap() {
+            while request_sink.lock().unwrap().count() < iters.try_into().unwrap() {
                 let sync_requester = SyncRequester::new(graph_id, Rng);
-                if let Err(e) = syncer1
+                syncer1
                     .lock()
-                    .await
+                    .unwrap()
                     .sync(
-                        request_client.lock().await.deref_mut(),
+                        request_client.lock().unwrap().deref_mut(),
                         server2_addr,
                         sync_requester,
-                        request_sink.lock().await.deref_mut(),
+                        request_sink.lock().unwrap().deref_mut(),
                         graph_id,
                     )
-                    .await
-                {
-                    println!("err: {:?}", e);
-                }
+                    .expect("sync failed");
             }
-            let elapsed = start.elapsed();
-            task.abort();
-            elapsed
+            start.elapsed()
+            // TODO(jdygert): We can't kill the thread and we can't close the socket to make the
+            // thread exit normally. One fix might be exposing a way to accept only one connection.
+            // It seems like this doesn't really affect the benchmark though so it's fine for now.
+            // If we had a larger sample size there could be exhaustion issues.
+            // task.abort();
         });
     });
 }
