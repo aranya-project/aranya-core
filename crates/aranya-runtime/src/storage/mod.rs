@@ -122,12 +122,7 @@ impl TraversalQueue {
 
     /// Pop the location with the highest max cut, including its covered flag.
     pub fn pop_covered(&mut self) -> Result<Option<(Location, bool)>, StorageError> {
-        let Some((i, _)) = self
-            .entries
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, loc)| *loc)
-        else {
+        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
             return Ok(None);
         };
         if i < self.partition {
