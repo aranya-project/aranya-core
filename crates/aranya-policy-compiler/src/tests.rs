@@ -907,30 +907,6 @@ fn test_match_result_duplicate_arms() {
             }"#,
             CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
         ),
-    ];
-    for (src, expected) in invalid {
-        let err_type = compile_fail(src);
-        assert_eq!(err_type, expected);
-    }
-}
-
-#[test]
-fn test_result_exact_value_match() {
-    // Ok(true) and Ok(false) are not duplicates: they match different exact values.
-    // result[bool, bool] has cardinality 4 (2 ok + 2 err), so all four arms are exhaustive.
-    compile_pass(
-        r#"
-        function f(r result[bool, bool]) int {
-            match r {
-                Ok(true) | Ok(false) => { return 1 }
-                Err(true) => { return -1 }
-                Err(false) => { return -2 }
-            }
-        }
-    "#,
-    );
-
-    let invalid = [
         (
             r#"
             function dup(r result[bool, bool]) int {
@@ -943,13 +919,59 @@ fn test_result_exact_value_match() {
             }"#,
             CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
         ),
+    ];
+    for (src, expected) in invalid {
+        let err_type = compile_fail(src);
+        assert_eq!(err_type, expected);
+    }
+}
+
+#[test]
+fn test_result_default() {
+    let valid = vec![
+        r#"
+        function f(r result[bool, bool]) int {
+            match r {
+                Ok(true) | Ok(false) => { return 1 }
+                Err(true) => { return -1 }
+                Err(false) => { return -2 }
+            }
+        }
+        "#,
+        r#"
+        function f(r result[bool, bool]) int {
+            match r {
+                Ok(a) => { return 1 } // this accounts for both Ok(true) and Ok(false)
+                Err(true) => { return -1 }
+                Err(false) => { return -2 }
+            }
+        }
+        "#,
+    ];
+
+    for src in valid {
+        compile_pass(src);
+    }
+
+    let invalid = [
         (
             r#"
-            function missing_default(r result[bool, string]) int {
+            function missing_err_default(r result[bool, string]) int {
                 return match r {
                     Ok(true) => 1
                     Ok(false) => 0
                     // missing Err(_) arm, so not exhaustive
+                }
+            }"#,
+            CompileErrorType::MissingDefaultPattern,
+        ),
+        (
+            r#"
+            function missing_err_default(r result[bool, bool]) int {
+                return match r {
+                    Ok(n) => 1
+                    Err(true) => 0
+                    // missing Err(false) arm, so not exhaustive
                 }
             }"#,
             CompileErrorType::MissingDefaultPattern,
@@ -986,10 +1008,127 @@ fn test_result_exact_value_match() {
                 "Result pattern value must be a literal or an identifier".to_string(),
             ),
         ),
+        (
+            r#"
+            function f(r result[bool, bool]) int {
+                match r {
+                    Ok(true) => { return 0 }
+                    Err(e) => { return 0 }
+                    Err(true) => { return -1 }  // previous arm already catches all Err cases, so these are unreachable
+                    Err(false) => { return -2 }
+                }
+            }
+            "#,
+            CompileErrorType::UnreachableMatchArm,
+        ),
+        (
+            r#"
+            function f(r result[bool, bool]) int {
+                match r {
+                    Ok(n) => { return 0 }
+                    Ok(true) => { return 1 } // unreachable: Ok(n) already covers all Ok values
+                    Err(e) => { return -1 }
+                }
+            }
+            "#,
+            CompileErrorType::UnreachableMatchArm,
+        ),
     ];
     for (src, expected) in invalid {
         let err_type = compile_fail(src);
         assert_eq!(err_type, expected);
+    }
+}
+
+#[test]
+fn test_result_match_matrix() {
+    let valid = [
+        (
+            r#"
+            function v3(r result[int, bool]) int {
+                return match r {
+                    Ok(1) => 1
+                    Ok(n) => n
+                    Err(true) => -1
+                    Err(false) => -2
+                }
+            }
+            "#,
+            "literal before binding for same variant is allowed",
+        ),
+        (
+            r#"
+            function v5(r result[bool, string]) int {
+                return match r {
+                    Ok(true) => 1
+                    _ => 0
+                }
+            }
+            "#,
+            "default handles open Err domain",
+        ),
+        (
+            r#"
+            function v6(r result[bool, bool]) int {
+                return match r {
+                    Err(true) => -1
+                    Err(false) => -2
+                    Ok(b) => 1
+                }
+            }
+            "#,
+            "variant order should not matter for exhaustiveness",
+        ),
+    ];
+
+    for (src, msg) in valid {
+        let result = compile(src);
+        assert!(result.is_ok(), "{msg}: {src}");
+    }
+
+    let invalid = [
+        (
+            r#"
+            function i2(r result[bool, bool]) int {
+                return match r {
+                    Err(e) => 0
+                    Err(x) => 1
+                    Ok(v) => 2
+                }
+            }
+            "#,
+            CompileErrorType::AlreadyDefined("duplicate match arm value".to_string()),
+            "duplicate Err bindings",
+        ),
+        (
+            r#"
+            function i9(r result[bool, bool]) int {
+                return match r {
+                    _ => 0
+                    Ok(true) => 1
+                }
+            }
+            "#,
+            CompileErrorType::Unknown("Default match case must be last.".to_string()),
+            "default not last",
+        ),
+        (
+            r#"
+            function i10(r result[bool, bool]) int {
+                return match r {
+                    _ => 0
+                    _ => 1
+                }
+            }
+            "#,
+            CompileErrorType::AlreadyDefined("duplicate match arm default value".to_string()),
+            "duplicate default arm",
+        ),
+    ];
+
+    for (src, expected, msg) in invalid {
+        let err = compile_fail(src);
+        assert_eq!(err, expected, "{msg}: {src}");
     }
 }
 

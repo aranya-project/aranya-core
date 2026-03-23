@@ -13,30 +13,6 @@ use super::{
     types::{self, DisplayType},
 };
 
-/// Key used for match-arm duplicate detection.
-///
-/// Binding patterns like `Ok(x)` and `Ok(y)` are represented by their respective
-/// variants so that they compare equal regardless of the bound identifier.
-/// Exact-value patterns like `Ok(true)` are wrapped in `Expr` and compared via
-/// [`ExprKind::matches`].
-#[derive(Clone)]
-enum MatchPatternKey {
-    ResultOk,
-    ResultErr,
-    Expr(ExprKind),
-}
-
-impl MatchPatternKey {
-    fn matches(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::ResultOk, Self::ResultOk) => true,
-            (Self::ResultErr, Self::ResultErr) => true,
-            (Self::Expr(a), Self::Expr(b)) => a.matches(b),
-            _ => false,
-        }
-    }
-}
-
 impl CompileState<'_> {
     /// Get the statement context
     fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
@@ -57,6 +33,17 @@ impl CompileState<'_> {
             .fact_defs
             .get(name)
             .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
+    }
+
+    fn duplicate_match_arm_value_error(&self, span: Span) -> CompileError {
+        self.err_loc(
+            CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
+            span,
+        )
+    }
+
+    fn unreachable_match_arm_error(&self, span: Span) -> CompileError {
+        self.err_loc(CompileErrorType::UnreachableMatchArm, span)
     }
 
     /// Lower a struct literal, ensuring it matches its definition.
@@ -1064,7 +1051,7 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
         };
 
-        // Ensure there are no duplicate arm values.
+        // Collect all value-pattern expressions (excluding default arms) with their spans.
         // NOTE We don't check for zero arms, because that's enforced by the parser.
         let all_values = patterns
             .iter()
@@ -1072,29 +1059,49 @@ impl CompileState<'_> {
                 MatchPattern::Values(values) => values.as_slice(),
                 MatchPattern::Default(_) => &[],
             })
-            .map(|v| {
-                let key = match &v.kind {
-                    // Binding patterns Ok(x)/Err(e) compare equal regardless of the
-                    // bound identifier name, since both catch all Ok/Err values.
-                    ExprKind::Ok(_) if !v.is_literal() => MatchPatternKey::ResultOk,
-                    ExprKind::Err(_) if !v.is_literal() => MatchPatternKey::ResultErr,
-                    // Exact-value patterns are compared via ExprKind::matches, which
-                    // ignores spans, so Ok(true) in two arms is a duplicate.
-                    _ => MatchPatternKey::Expr(v.kind.clone()),
-                };
-                (key, v.span())
-            })
-            .collect::<Vec<(MatchPatternKey, Span)>>();
+            .map(|v| (v.kind.clone(), v.span()))
+            .collect::<Vec<(ExprKind, Span)>>();
 
-        // Check for duplicate arm values
-        for (i, (v1, v1_span)) in all_values.iter().enumerate() {
-            if all_values[..i].iter().any(|(v2, _)| v1.matches(v2)) {
-                return Err(self.err_loc(
-                    CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-                    *v1_span,
-                ));
+        // Check for duplicate/unreachable arms
+        // For Result patterns, ordering is significant: literals can be followed by a binding, e.g. Ok(5), Ok(n),
+        // but a literal following a binding is unreachable
+        let mut seen_result_binding_ok = false;
+        let mut seen_result_binding_err = false;
+        for (i, (value, v1_span)) in all_values.iter().enumerate() {
+            // Two Ok/Err patterns are duplicate if both are bindings, or both are literals
+            // with equal inner expression types. A binding and a literal are *not* duplicates,
+            // but we need to check the order, below.
+            let is_duplicate = |(v2, _): &(ExprKind, Span)| match (value, v2) {
+                (ExprKind::Ok(ai), ExprKind::Ok(bi)) | (ExprKind::Err(ai), ExprKind::Err(bi)) => {
+                    let a_binding = matches!(ai.kind, ExprKind::Identifier(_));
+                    let b_binding = matches!(bi.kind, ExprKind::Identifier(_));
+                    (a_binding && b_binding)
+                        || (!a_binding && !b_binding && ai.kind.matches(&bi.kind))
+                }
+                _ => value.matches(v2),
+            };
+            if all_values[..i].iter().any(is_duplicate) {
+                return Err(self.duplicate_match_arm_value_error(*v1_span));
+            }
+
+            // Check for unreachable arms
+            match value {
+                ExprKind::Ok(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
+                    seen_result_binding_ok = true;
+                }
+                ExprKind::Ok(_) if seen_result_binding_ok => {
+                    return Err(self.unreachable_match_arm_error(*v1_span));
+                }
+                ExprKind::Err(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
+                    seen_result_binding_err = true;
+                }
+                ExprKind::Err(_) if seen_result_binding_err => {
+                    return Err(self.unreachable_match_arm_error(*v1_span));
+                }
+                _ => {}
             }
         }
+
         // find duplicate default arms
         let default_count = patterns
             .iter()
@@ -1114,6 +1121,7 @@ impl CompileState<'_> {
         let scrutinee = self.lower_expression(scrutinee)?;
         let mut scrutinee_type = scrutinee.vtype.clone();
 
+        // Lower match patterns. Verify that their types are consistent with the scrutinee type.
         let mut n: usize = 0;
         let mut patterns_out = Vec::new();
         for pattern in &patterns {
@@ -1198,21 +1206,46 @@ impl CompileState<'_> {
             patterns_out.push(pattern);
         }
 
-        // A Result match is exhaustive without a default arm if there are binding-style
-        // patterns that cover all Ok values (Ok(x)) and all Err values (Err(e)).
-        // Exact-value patterns like Ok(true) only cover specific values, so they
-        // contribute to cardinality-based exhaustiveness but not this shortcut.
-        let (has_ok_binding, has_err_binding) =
-            all_values
-                .iter()
-                .fold((false, false), |(has_ok, has_err), (v, _)| match v {
-                    MatchPatternKey::ResultOk => (true, has_err),
-                    MatchPatternKey::ResultErr => (has_ok, true),
-                    MatchPatternKey::Expr(_) => (has_ok, has_err),
-                });
-        let result_exhaustive = matches!(scrutinee_type.kind, TypeKind::Result { .. })
-            && has_ok_binding
-            && has_err_binding;
+        // Result-pattern exhaustiveness is tracked per variant:
+        // - Ok(x)/Err(e) binding patterns cover all values for that variant
+        // - literal patterns cover only specific values, so we compare against
+        //   variant cardinality when finite.
+        let result_exhaustive = if let TypeKind::Result(result_type) = &scrutinee_type.kind {
+            let mut has_ok_binding = false;
+            let mut has_err_binding = false;
+            // Can't use sets because ExprKind doesn't impl Hash/Eq
+            let mut ok_literals: Vec<ExprKind> = Vec::new();
+            let mut err_literals: Vec<ExprKind> = Vec::new();
+
+            for (v, _) in &all_values {
+                match v {
+                    ExprKind::Ok(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
+                        has_ok_binding = true;
+                    }
+                    ExprKind::Err(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
+                        has_err_binding = true;
+                    }
+                    ExprKind::Ok(inner) => ok_literals.push(inner.kind.clone()),
+                    ExprKind::Err(inner) => err_literals.push(inner.kind.clone()),
+                    _ => {}
+                }
+            }
+
+            let ok_exhaustive = has_ok_binding
+                || self
+                    .m
+                    .cardinality(&result_type.ok.kind)
+                    .is_some_and(|c| c == ok_literals.len() as u64);
+            let err_exhaustive = has_err_binding
+                || self
+                    .m
+                    .cardinality(&result_type.err.kind)
+                    .is_some_and(|c| c == err_literals.len() as u64);
+
+            ok_exhaustive && err_exhaustive
+        } else {
+            false
+        };
 
         let missing_default = default_count == 0
             && !result_exhaustive

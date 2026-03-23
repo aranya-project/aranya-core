@@ -1620,7 +1620,7 @@ impl<'a> CompileState<'a> {
                                 self.append_instruction(Instruction::Pop);
                             }
                         }
-                        _ => {
+                        thir::MatchPattern::Default(_) => {
                             // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
                             // Result patterns consume the value during unwrapping, but other patterns don't.
                             self.append_instruction(Instruction::Pop);
@@ -1670,7 +1670,7 @@ impl<'a> CompileState<'a> {
                                 self.append_instruction(Instruction::Pop);
                             }
                         }
-                        _ => {
+                        thir::MatchPattern::Default(_) => {
                             // Pop the scrutinee value
                             self.append_instruction(Instruction::Pop);
                         }
