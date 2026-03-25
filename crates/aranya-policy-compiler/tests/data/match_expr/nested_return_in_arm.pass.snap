@@ -20,147 +20,55 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "m",
-            ),
-        ),
-        Def(
-            "m",
-        ),
-        Meta(
-            Let(
-                "n",
-            ),
-        ),
-        Def(
-            "n",
-        ),
-        SaveSP,
-        Meta(
-            Get(
-                "n",
-            ),
-        ),
-        Get(
-            "n",
-        ),
-        Dup,
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                13,
-            ),
-        ),
-        Jump(
-            Resolved(
-                36,
-            ),
-        ),
-        Block,
-        Pop,
-        Meta(
-            Get(
-                "m",
-            ),
-        ),
-        Get(
-            "m",
-        ),
-        Dup,
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                22,
-            ),
-        ),
-        Jump(
-            Resolved(
-                27,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                34,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                2,
-            ),
-        ),
-        RestoreSP,
-        Return,
-        End,
-        Jump(
-            Resolved(
-                34,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                41,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                3,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                41,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `m`
+    	def m
+    	meta: Set `n`
+    	def n
+    	save SP
+    	meta: Get `n`
+    	get n
+    	dup
+    	const 0
+    	eq
+    	branch 13
+    	jump 36
+    	block
+    	pop
+    	meta: Get `m`
+    	get m
+    	dup
+    	const 0
+    	eq
+    	branch 22
+    	jump 27
+    	block
+    	pop
+    	const 1
+    	end
+    	jump 34
+    	block
+    	pop
+    	const 2
+    	restore SP
+    	return
+    	end
+    	jump 34
+    	end
+    	jump 41
+    	block
+    	pop
+    	const 3
+    	end
+    	jump 41
+    	meta: Set `x`
+    	def x
+    	meta: Get `x`
+    	get x
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

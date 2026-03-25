@@ -45,63 +45,25 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "foo",
-            ),
-        ),
-        Def(
-            "foo",
-        ),
-        SaveSP,
-        StructNew(
-            "Bar",
-        ),
-        Const(
-            String(
-                "z",
-            ),
-        ),
-        StructSet(
-            "z",
-        ),
-        Meta(
-            Get(
-                "foo",
-            ),
-        ),
-        Get(
-            "foo",
-        ),
-        StructGet(
-            "x",
-        ),
-        StructSet(
-            "x",
-        ),
-        Meta(
-            Get(
-                "foo",
-            ),
-        ),
-        Get(
-            "foo",
-        ),
-        StructGet(
-            "y",
-        ),
-        StructSet(
-            "y",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `foo`
+    	def foo
+    	save SP
+    	struct.new Bar
+    	const "z"
+    	struct.set z
+    	meta: Get `foo`
+    	get foo
+    	struct.get x
+    	struct.set x
+    	meta: Get `foo`
+    	get foo
+    	struct.get y
+    	struct.set y
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

@@ -59,38 +59,18 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        FactNew(
-            "Foo",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        FactKeySet(
-            "i",
-        ),
-        Query,
-        Const(
-            Option(
-                None,
-            ),
-        ),
-        Eq,
-        Not,
-        Branch(
-            Resolved(
-                10,
-            ),
-        ),
-        Exit(
-            Check,
-        ),
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	fact.new Foo
+    	const 1
+    	fact.kset i
+    	query
+    	const None
+    	eq
+    	not
+    	branch 10
+    	exit check
+    	return
+    ,
     ..
 }

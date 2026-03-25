@@ -56,43 +56,17 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "s",
-            ),
-        ),
-        Def(
-            "s",
-        ),
-        Meta(
-            Let(
-                "n",
-            ),
-        ),
-        Def(
-            "n",
-        ),
-        Return,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        Const(
-            String(
-                "abc",
-            ),
-        ),
-        Call(
-            Resolved(
-                1,
-            ),
-        ),
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `s`
+    	def s
+    	meta: Set `n`
+    	def n
+    	return
+    	const 1
+    	const "abc"
+    	call 1
+    	return
+    ,
     ..
 }

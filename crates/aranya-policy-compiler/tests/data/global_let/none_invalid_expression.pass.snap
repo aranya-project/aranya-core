@@ -19,10 +19,8 @@ Module {
             None,
         ),
     },
-    program memory: [
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    ,
     ..
 }

@@ -53,111 +53,43 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Meta(
-            Finish(
-                true,
-            ),
-        ),
-        Block,
-        End,
-        Exit(
-            Normal,
-        ),
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Return,
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        SaveSP,
-        StructNew(
-            "Envelope",
-        ),
-        Meta(
-            Get(
-                "this",
-            ),
-        ),
-        Get(
-            "this",
-        ),
-        Serialize,
-        StructSet(
-            "payload",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        SaveSP,
-        Meta(
-            Get(
-                "envelope",
-            ),
-        ),
-        Get(
-            "envelope",
-        ),
-        StructGet(
-            "payload",
-        ),
-        Deserialize,
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	meta: finish enabled
+    	block
+    	end
+    	exit normal
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	return
+    	meta: Set `this`
+    	def this
+    	save SP
+    	struct.new Envelope
+    	meta: Get `this`
+    	get this
+    	serialize
+    	struct.set payload
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	save SP
+    	meta: Get `envelope`
+    	get envelope
+    	struct.get payload
+    	deserialize
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

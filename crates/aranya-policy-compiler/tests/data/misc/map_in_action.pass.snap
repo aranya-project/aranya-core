@@ -59,50 +59,22 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        FactNew(
-            "Pet",
-        ),
-        QueryStart,
-        Block,
-        QueryNext(
-            "p",
-        ),
-        Branch(
-            Resolved(
-                13,
-            ),
-        ),
-        Meta(
-            Get(
-                "p",
-            ),
-        ),
-        Get(
-            "p",
-        ),
-        StructGet(
-            "age",
-        ),
-        Meta(
-            Let(
-                "age",
-            ),
-        ),
-        Def(
-            "age",
-        ),
-        End,
-        Jump(
-            Resolved(
-                3,
-            ),
-        ),
-        End,
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	fact.new Pet
+    	query.start
+    	block
+    	query.next p
+    	branch 13
+    	meta: Get `p`
+    	get p
+    	struct.get age
+    	meta: Set `age`
+    	def age
+    	end
+    	jump 3
+    	end
+    	return
+    ,
     ..
 }

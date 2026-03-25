@@ -49,65 +49,25 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        SaveSP,
-        StructNew(
-            "Fum",
-        ),
-        Const(
-            Bool(
-                true,
-            ),
-        ),
-        StructSet(
-            "b",
-        ),
-        Meta(
-            Let(
-                "fum",
-            ),
-        ),
-        Def(
-            "fum",
-        ),
-        StructNew(
-            "Bar",
-        ),
-        Const(
-            String(
-                "s",
-            ),
-        ),
-        StructSet(
-            "s",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        StructSet(
-            "num",
-        ),
-        Meta(
-            Get(
-                "fum",
-            ),
-        ),
-        Get(
-            "fum",
-        ),
-        StructSet(
-            "f",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	save SP
+    	struct.new Fum
+    	const true
+    	struct.set b
+    	meta: Set `fum`
+    	def fum
+    	struct.new Bar
+    	const "s"
+    	struct.set s
+    	const 1
+    	struct.set num
+    	meta: Get `fum`
+    	get fum
+    	struct.set f
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

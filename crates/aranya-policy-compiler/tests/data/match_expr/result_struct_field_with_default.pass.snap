@@ -32,118 +32,46 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "b",
-            ),
-        ),
-        Def(
-            "b",
-        ),
-        SaveSP,
-        Meta(
-            Get(
-                "b",
-            ),
-        ),
-        Get(
-            "b",
-        ),
-        Dup,
-        StructNew(
-            "Bar",
-        ),
-        Const(
-            Int(
-                42,
-            ),
-        ),
-        Wrap(
-            Ok,
-        ),
-        StructSet(
-            "r",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                21,
-            ),
-        ),
-        Dup,
-        StructNew(
-            "Bar",
-        ),
-        Const(
-            Int(
-                16,
-            ),
-        ),
-        Wrap(
-            Ok,
-        ),
-        StructSet(
-            "r",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                26,
-            ),
-        ),
-        Jump(
-            Resolved(
-                31,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                36,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                2,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                36,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                36,
-            ),
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `b`
+    	def b
+    	save SP
+    	meta: Get `b`
+    	get b
+    	dup
+    	struct.new Bar
+    	const 42
+    	wrap ok
+    	struct.set r
+    	eq
+    	branch 21
+    	dup
+    	struct.new Bar
+    	const 16
+    	wrap ok
+    	struct.set r
+    	eq
+    	branch 26
+    	jump 31
+    	block
+    	pop
+    	const 1
+    	end
+    	jump 36
+    	block
+    	pop
+    	const 2
+    	end
+    	jump 36
+    	block
+    	pop
+    	const 0
+    	end
+    	jump 36
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

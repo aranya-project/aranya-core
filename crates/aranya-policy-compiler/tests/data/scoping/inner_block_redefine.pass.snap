@@ -20,55 +20,23 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        SaveSP,
-        Block,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        End,
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	save SP
+    	block
+    	const 1
+    	meta: Set `x`
+    	def x
+    	meta: Get `x`
+    	get x
+    	end
+    	meta: Set `x`
+    	def x
+    	meta: Get `x`
+    	get x
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

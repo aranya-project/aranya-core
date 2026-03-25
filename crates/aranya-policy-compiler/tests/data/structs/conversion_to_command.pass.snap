@@ -93,130 +93,48 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Meta(
-            Finish(
-                true,
-            ),
-        ),
-        Block,
-        End,
-        Exit(
-            Normal,
-        ),
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Return,
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        StructNew(
-            "Foo",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        StructSet(
-            "a",
-        ),
-        Const(
-            String(
-                "test",
-            ),
-        ),
-        StructSet(
-            "b",
-        ),
-        Cast(
-            "Bar",
-        ),
-        Meta(
-            Let(
-                "bar",
-            ),
-        ),
-        Def(
-            "bar",
-        ),
-        Meta(
-            Get(
-                "bar",
-            ),
-        ),
-        Get(
-            "bar",
-        ),
-        Publish,
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	meta: finish enabled
+    	block
+    	end
+    	exit normal
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	return
+    	meta: Set `this`
+    	def this
+    	save SP
+    	exit panic
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	save SP
+    	exit panic
+    	restore SP
+    	return
+    	exit panic
+    	struct.new Foo
+    	const 1
+    	struct.set a
+    	const "test"
+    	struct.set b
+    	cast Bar
+    	meta: Set `bar`
+    	def bar
+    	meta: Get `bar`
+    	get bar
+    	publish
+    	return
+    ,
     ..
 }

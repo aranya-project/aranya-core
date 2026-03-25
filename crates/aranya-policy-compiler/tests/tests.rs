@@ -1,12 +1,12 @@
 #![allow(clippy::panic)]
 
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 use aranya_policy_ast::{Version, ident};
 use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Module, ModuleData, ModuleV0,
+    Instruction, Module, ModuleData, ModuleV0,
     ffi::{self, ModuleSchema},
 };
 
@@ -81,8 +81,10 @@ fn compile_fail(text: &str) -> CompileError {
 /// that only prints data worth viewing.
 struct ModuleSnapshotWrapper(Module);
 
-impl std::fmt::Debug for ModuleSnapshotWrapper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+struct InstructionsWrapper<'a>(&'a [Instruction]);
+
+impl fmt::Debug for ModuleSnapshotWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ModuleData::V0(ModuleV0 {
             labels,
             action_defs,
@@ -94,6 +96,7 @@ impl std::fmt::Debug for ModuleSnapshotWrapper {
             progmem,
             ..
         }) = &self.0.data;
+        let progmem = InstructionsWrapper(progmem);
 
         f.debug_struct("Module")
             .field("version", &"0")
@@ -104,8 +107,19 @@ impl std::fmt::Debug for ModuleSnapshotWrapper {
             .field("struct_defs", struct_defs)
             .field("enum_defs", enum_defs)
             .field("globals", globals)
-            .field("program memory", progmem)
+            .field("program memory", &progmem)
             .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for InstructionsWrapper<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f)?;
+        for instr in self.0.iter() {
+            writeln!(f, "\t{instr}")?;
+        }
+
+        Ok(())
     }
 }
 

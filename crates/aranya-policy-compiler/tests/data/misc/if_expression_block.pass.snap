@@ -37,90 +37,32 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "n",
-            ),
-        ),
-        Def(
-            "n",
-        ),
-        Meta(
-            Get(
-                "n",
-            ),
-        ),
-        Get(
-            "n",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        Gt,
-        Branch(
-            Resolved(
-                12,
-            ),
-        ),
-        Block,
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                22,
-            ),
-        ),
-        Block,
-        Meta(
-            Get(
-                "n",
-            ),
-        ),
-        Get(
-            "n",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        SaturatingAdd,
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        End,
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `n`
+    	def n
+    	meta: Get `n`
+    	get n
+    	const 1
+    	gt
+    	branch 12
+    	block
+    	const 0
+    	end
+    	jump 22
+    	block
+    	meta: Get `n`
+    	get n
+    	const 1
+    	saturating_add
+    	meta: Set `x`
+    	def x
+    	meta: Get `x`
+    	get x
+    	end
+    	meta: Set `x`
+    	def x
+    	return
+    ,
     ..
 }

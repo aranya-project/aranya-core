@@ -58,275 +58,93 @@ Module {
         },
     },
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "traffic",
-            ),
-        ),
-        Def(
-            "traffic",
-        ),
-        Meta(
-            Get(
-                "traffic",
-            ),
-        ),
-        Get(
-            "traffic",
-        ),
-        Dup,
-        StructNew(
-            "Light",
-        ),
-        Const(
-            Enum(
-                "LightColor",
-                0,
-            ),
-        ),
-        StructSet(
-            "color",
-        ),
-        Const(
-            Bool(
-                false,
-            ),
-        ),
-        StructSet(
-            "go",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                53,
-            ),
-        ),
-        Dup,
-        StructNew(
-            "Light",
-        ),
-        Const(
-            Enum(
-                "LightColor",
-                0,
-            ),
-        ),
-        StructSet(
-            "color",
-        ),
-        Const(
-            Bool(
-                true,
-            ),
-        ),
-        StructSet(
-            "go",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                58,
-            ),
-        ),
-        Dup,
-        StructNew(
-            "Light",
-        ),
-        Const(
-            Enum(
-                "LightColor",
-                1,
-            ),
-        ),
-        StructSet(
-            "color",
-        ),
-        Const(
-            Bool(
-                false,
-            ),
-        ),
-        StructSet(
-            "go",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                63,
-            ),
-        ),
-        Dup,
-        StructNew(
-            "Light",
-        ),
-        Const(
-            Enum(
-                "LightColor",
-                1,
-            ),
-        ),
-        StructSet(
-            "color",
-        ),
-        Const(
-            Bool(
-                true,
-            ),
-        ),
-        StructSet(
-            "go",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                68,
-            ),
-        ),
-        Dup,
-        StructNew(
-            "Light",
-        ),
-        Const(
-            Enum(
-                "LightColor",
-                2,
-            ),
-        ),
-        StructSet(
-            "color",
-        ),
-        Const(
-            Bool(
-                false,
-            ),
-        ),
-        StructSet(
-            "go",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                73,
-            ),
-        ),
-        Dup,
-        StructNew(
-            "Light",
-        ),
-        Const(
-            Enum(
-                "LightColor",
-                2,
-            ),
-        ),
-        StructSet(
-            "color",
-        ),
-        Const(
-            Bool(
-                true,
-            ),
-        ),
-        StructSet(
-            "go",
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                78,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                83,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                83,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                2,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                83,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                3,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                83,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                4,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                83,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                5,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                83,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `traffic`
+    	def traffic
+    	meta: Get `traffic`
+    	get traffic
+    	dup
+    	struct.new Light
+    	const LightColor::0
+    	struct.set color
+    	const false
+    	struct.set go
+    	eq
+    	branch 53
+    	dup
+    	struct.new Light
+    	const LightColor::0
+    	struct.set color
+    	const true
+    	struct.set go
+    	eq
+    	branch 58
+    	dup
+    	struct.new Light
+    	const LightColor::1
+    	struct.set color
+    	const false
+    	struct.set go
+    	eq
+    	branch 63
+    	dup
+    	struct.new Light
+    	const LightColor::1
+    	struct.set color
+    	const true
+    	struct.set go
+    	eq
+    	branch 68
+    	dup
+    	struct.new Light
+    	const LightColor::2
+    	struct.set color
+    	const false
+    	struct.set go
+    	eq
+    	branch 73
+    	dup
+    	struct.new Light
+    	const LightColor::2
+    	struct.set color
+    	const true
+    	struct.set go
+    	eq
+    	branch 78
+    	block
+    	pop
+    	const 0
+    	end
+    	jump 83
+    	block
+    	pop
+    	const 1
+    	end
+    	jump 83
+    	block
+    	pop
+    	const 2
+    	end
+    	jump 83
+    	block
+    	pop
+    	const 3
+    	end
+    	jump 83
+    	block
+    	pop
+    	const 4
+    	end
+    	jump 83
+    	block
+    	pop
+    	const 5
+    	end
+    	jump 83
+    	meta: Set `x`
+    	def x
+    	return
+    ,
     ..
 }

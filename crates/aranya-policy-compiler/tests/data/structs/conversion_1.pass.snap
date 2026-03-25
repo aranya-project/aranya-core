@@ -41,38 +41,18 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        SaveSP,
-        StructNew(
-            "Foo",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        StructSet(
-            "a",
-        ),
-        Const(
-            String(
-                "test",
-            ),
-        ),
-        StructSet(
-            "b",
-        ),
-        Cast(
-            "Bar",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	save SP
+    	struct.new Foo
+    	const 1
+    	struct.set a
+    	const "test"
+    	struct.set b
+    	cast Bar
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

@@ -49,74 +49,30 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "a",
-            ),
-        ),
-        Def(
-            "a",
-        ),
-        SaveSP,
-        FactNew(
-            "Foo",
-        ),
-        Meta(
-            Get(
-                "a",
-            ),
-        ),
-        Get(
-            "a",
-        ),
-        FactKeySet(
-            "a",
-        ),
-        Query,
-        Dup,
-        Const(
-            Option(
-                None,
-            ),
-        ),
-        Eq,
-        Not,
-        Branch(
-            Resolved(
-                15,
-            ),
-        ),
-        Exit(
-            Panic,
-        ),
-        Unwrap(
-            Some,
-        ),
-        Meta(
-            Let(
-                "foo",
-            ),
-        ),
-        Def(
-            "foo",
-        ),
-        Meta(
-            Get(
-                "foo",
-            ),
-        ),
-        Get(
-            "foo",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `a`
+    	def a
+    	save SP
+    	fact.new Foo
+    	meta: Get `a`
+    	get a
+    	fact.kset a
+    	query
+    	dup
+    	const None
+    	eq
+    	not
+    	branch 15
+    	exit panic
+    	unwrap some
+    	meta: Set `foo`
+    	def foo
+    	meta: Get `foo`
+    	get foo
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }

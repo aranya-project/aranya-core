@@ -35,122 +35,43 @@ Module {
         },
     },
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Const(
-            Enum(
-                "Result",
-                0,
-            ),
-        ),
-        Meta(
-            Let(
-                "ok",
-            ),
-        ),
-        Def(
-            "ok",
-        ),
-        Meta(
-            Get(
-                "ok",
-            ),
-        ),
-        Get(
-            "ok",
-        ),
-        Const(
-            Enum(
-                "Result",
-                0,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                10,
-            ),
-        ),
-        Exit(
-            Check,
-        ),
-        Meta(
-            Get(
-                "ok",
-            ),
-        ),
-        Get(
-            "ok",
-        ),
-        Const(
-            Enum(
-                "Result",
-                1,
-            ),
-        ),
-        Eq,
-        Not,
-        Branch(
-            Resolved(
-                17,
-            ),
-        ),
-        Exit(
-            Check,
-        ),
-        Meta(
-            Get(
-                "ok",
-            ),
-        ),
-        Get(
-            "ok",
-        ),
-        Dup,
-        Const(
-            Enum(
-                "Result",
-                0,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                27,
-            ),
-        ),
-        Dup,
-        Const(
-            Enum(
-                "Result",
-                1,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                31,
-            ),
-        ),
-        Block,
-        Pop,
-        End,
-        Jump(
-            Resolved(
-                35,
-            ),
-        ),
-        Block,
-        Pop,
-        End,
-        Jump(
-            Resolved(
-                35,
-            ),
-        ),
-        Return,
-    ],
+    program memory: 
+    	exit panic
+    	const Result::0
+    	meta: Set `ok`
+    	def ok
+    	meta: Get `ok`
+    	get ok
+    	const Result::0
+    	eq
+    	branch 10
+    	exit check
+    	meta: Get `ok`
+    	get ok
+    	const Result::1
+    	eq
+    	not
+    	branch 17
+    	exit check
+    	meta: Get `ok`
+    	get ok
+    	dup
+    	const Result::0
+    	eq
+    	branch 27
+    	dup
+    	const Result::1
+    	eq
+    	branch 31
+    	block
+    	pop
+    	end
+    	jump 35
+    	block
+    	pop
+    	end
+    	jump 35
+    	return
+    ,
     ..
 }

@@ -47,90 +47,36 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Meta(
-            Finish(
-                true,
-            ),
-        ),
-        Block,
-        End,
-        Exit(
-            Normal,
-        ),
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Return,
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
+    program memory: 
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	meta: finish enabled
+    	block
+    	end
+    	exit normal
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	return
+    	meta: Set `this`
+    	def this
+    	save SP
+    	exit panic
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	save SP
+    	exit panic
+    	restore SP
+    	return
+    	exit panic
+    ,
     ..
 }
