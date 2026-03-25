@@ -59,5 +59,52 @@ Module {
     },
     enum_defs: {},
     globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        FactNew(
+            "Foo",
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        FactKeySet(
+            "i",
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        SaturatingAdd,
+        FactValueSet(
+            "a",
+        ),
+        Query,
+        Const(
+            Option(
+                None,
+            ),
+        ),
+        Eq,
+        Not,
+        Branch(
+            Resolved(
+                14,
+            ),
+        ),
+        Exit(
+            Check,
+        ),
+        Return,
+    ],
     ..
 }

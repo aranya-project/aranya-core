@@ -59,5 +59,50 @@ Module {
     },
     enum_defs: {},
     globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        FactNew(
+            "Pet",
+        ),
+        QueryStart,
+        Block,
+        QueryNext(
+            "p",
+        ),
+        Branch(
+            Resolved(
+                13,
+            ),
+        ),
+        Meta(
+            Get(
+                "p",
+            ),
+        ),
+        Get(
+            "p",
+        ),
+        StructGet(
+            "age",
+        ),
+        Meta(
+            Let(
+                "age",
+            ),
+        ),
+        Def(
+            "age",
+        ),
+        End,
+        Jump(
+            Resolved(
+                3,
+            ),
+        ),
+        End,
+        Return,
+    ],
     ..
 }

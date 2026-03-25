@@ -91,6 +91,7 @@ impl std::fmt::Debug for ModuleSnapshotWrapper {
             struct_defs,
             enum_defs,
             globals,
+            progmem,
             ..
         }) = &self.0.data;
 
@@ -103,6 +104,7 @@ impl std::fmt::Debug for ModuleSnapshotWrapper {
             .field("struct_defs", struct_defs)
             .field("enum_defs", enum_defs)
             .field("globals", globals)
+            .field("program memory", progmem)
             .finish_non_exhaustive()
     }
 }

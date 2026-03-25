@@ -20,5 +20,40 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        SaveSP,
+        Const(
+            Option(
+                None,
+            ),
+        ),
+        Dup,
+        Const(
+            Option(
+                None,
+            ),
+        ),
+        Eq,
+        Not,
+        Branch(
+            Resolved(
+                9,
+            ),
+        ),
+        Exit(
+            Panic,
+        ),
+        Unwrap(
+            Some,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
     ..
 }

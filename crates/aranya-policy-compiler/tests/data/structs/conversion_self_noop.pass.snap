@@ -31,5 +31,38 @@ Module {
     },
     enum_defs: {},
     globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        SaveSP,
+        StructNew(
+            "Foo",
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        StructSet(
+            "a",
+        ),
+        Const(
+            String(
+                "test",
+            ),
+        ),
+        StructSet(
+            "b",
+        ),
+        Cast(
+            "Foo",
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
     ..
 }

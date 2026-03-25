@@ -32,5 +32,10 @@ Module {
     },
     enum_defs: {},
     globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+    ],
     ..
 }
