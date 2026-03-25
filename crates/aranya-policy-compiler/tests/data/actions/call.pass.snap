@@ -2,97 +2,40 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "bar",
-            ltype: Action,
-        }: 1,
-        Label {
-            name: "foo",
-            ltype: Action,
-        }: 6,
-    },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "bar" @ 7..10,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "n" @ 11..12,
-                                    ty: Int @ 13..16,
-                                },
-                            ),
-                            ByName(
-                                Param {
-                                    name: "s" @ 18..19,
-                                    ty: String @ 20..26,
-                                },
-                            ),
-                        },
-                    },
-                },
-            ),
-            ByName(
-                ActionDef {
-                    name: "foo" @ 38..41,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
-        },
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
-    globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "s",
-            ),
-        ),
-        Def(
-            "s",
-        ),
-        Meta(
-            Let(
-                "n",
-            ),
-        ),
-        Def(
-            "n",
-        ),
-        Return,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        Const(
-            String(
-                "abc",
-            ),
-        ),
-        Call(
-            Resolved(
-                1,
-            ),
-        ),
-        Return,
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	action:bar -> 1
+	action:foo -> 6
+
+action_defs:
+	bar:
+		persistence: persistent
+		params:
+			n: int
+			s: string
+	foo:
+		persistence: persistent
+		params:
+
+command_defs:
+
+fact_defs:
+
+struct_defs:
+
+enum_defs:
+
+globals:
+
+program memory:
+	exit panic
+	meta: Set `s`
+	def s
+	meta: Set `n`
+	def n
+	return
+	const 1
+	const "abc"
+	call 1
+	return

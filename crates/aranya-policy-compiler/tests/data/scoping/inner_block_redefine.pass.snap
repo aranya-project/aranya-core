@@ -2,73 +2,37 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "f",
-            ltype: Function,
-        }: 1,
-    },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
-    globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        SaveSP,
-        Block,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        End,
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	fn:f -> 1
+
+action_defs:
+
+command_defs:
+
+fact_defs:
+
+struct_defs:
+
+enum_defs:
+
+globals:
+
+program memory:
+	exit panic
+	save SP
+	block
+	const 1
+	meta: Set `x`
+	def x
+	meta: Get `x`
+	get x
+	end
+	meta: Set `x`
+	def x
+	meta: Get `x`
+	get x
+	restore SP
+	return
+	exit panic

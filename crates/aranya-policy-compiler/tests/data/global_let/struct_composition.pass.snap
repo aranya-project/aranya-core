@@ -2,191 +2,64 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "Bar",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "Bar",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "Bar",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "Bar",
-            ltype: CommandOpen,
-        }: 22,
-    },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Bar" @ 112..115,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {
-                            ByName(
-                                Attribute {
-                                    name: "foo_attr" @ 143..151,
-                                    value: Struct(
-                                        ConstStruct {
-                                            name: "Foo",
-                                            fields: {
-                                                "x": Int(
-                                                    1000,
-                                                ),
-                                                "y": Int(
-                                                    20,
-                                                ),
-                                            },
-                                        },
-                                    ),
-                                },
-                            ),
-                        },
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
-        },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [],
-        "Foo": [
-            FieldDefinition {
-                identifier: "x" @ 17..18,
-                field_type: Int @ 19..22,
-            },
-            FieldDefinition {
-                identifier: "y" @ 28..29,
-                field_type: Int @ 30..33,
-            },
-        ],
-    },
-    enum_defs: {},
-    globals: {
-        "foo": Struct(
-            ConstStruct {
-                name: "Foo",
-                fields: {
-                    "x": Int(
-                        10,
-                    ),
-                    "y": Int(
-                        20,
-                    ),
-                },
-            },
-        ),
-        "foo2": Struct(
-            ConstStruct {
-                name: "Foo",
-                fields: {
-                    "x": Int(
-                        1000,
-                    ),
-                    "y": Int(
-                        20,
-                    ),
-                },
-            },
-        ),
-    },
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Meta(
-            Finish(
-                true,
-            ),
-        ),
-        Block,
-        End,
-        Exit(
-            Normal,
-        ),
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Return,
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	policy:Bar -> 1
+	recall:Bar -> 10
+	seal:Bar -> 15
+	open:Bar -> 22
+
+action_defs:
+
+command_defs:
+	Bar:
+		persistence: persistent
+		attributes:
+			foo_attr: Foo{x: 1000, y: 20}
+		fields:
+
+fact_defs:
+
+struct_defs:
+	Bar:
+	Foo:
+		x: int
+		y: int
+
+enum_defs:
+
+globals:
+	foo = Foo{x: 10, y: 20}
+	foo2 = Foo{x: 1000, y: 20}
+
+program memory:
+	exit panic
+	meta: Set `envelope`
+	def envelope
+	meta: Set `this`
+	def this
+	meta: finish enabled
+	block
+	end
+	exit normal
+	exit panic
+	meta: Set `envelope`
+	def envelope
+	meta: Set `this`
+	def this
+	return
+	meta: Set `this`
+	def this
+	save SP
+	exit panic
+	restore SP
+	return
+	exit panic
+	meta: Set `envelope`
+	def envelope
+	save SP
+	exit panic
+	restore SP
+	return
+	exit panic

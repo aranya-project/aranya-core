@@ -2,134 +2,58 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "f",
-            ltype: Function,
-        }: 1,
-    },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
-    globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "y",
-            ),
-        ),
-        Def(
-            "y",
-        ),
-        SaveSP,
-        Meta(
-            Get(
-                "y",
-            ),
-        ),
-        Get(
-            "y",
-        ),
-        Dup,
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                15,
-            ),
-        ),
-        Dup,
-        Const(
-            Int(
-                2,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                22,
-            ),
-        ),
-        Jump(
-            Resolved(
-                29,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                3,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        End,
-        Jump(
-            Resolved(
-                33,
-            ),
-        ),
-        Block,
-        Pop,
-        Const(
-            Int(
-                4,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        End,
-        Jump(
-            Resolved(
-                33,
-            ),
-        ),
-        Block,
-        Pop,
-        End,
-        Jump(
-            Resolved(
-                33,
-            ),
-        ),
-        Const(
-            Bool(
-                false,
-            ),
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	fn:f -> 1
+
+action_defs:
+
+command_defs:
+
+fact_defs:
+
+struct_defs:
+
+enum_defs:
+
+globals:
+
+program memory:
+	exit panic
+	meta: Set `y`
+	def y
+	save SP
+	meta: Get `y`
+	get y
+	dup
+	const 1
+	eq
+	branch 15
+	dup
+	const 2
+	eq
+	branch 22
+	jump 29
+	block
+	pop
+	const 3
+	meta: Set `x`
+	def x
+	end
+	jump 33
+	block
+	pop
+	const 4
+	meta: Set `x`
+	def x
+	end
+	jump 33
+	block
+	pop
+	end
+	jump 33
+	const false
+	restore SP
+	return
+	exit panic

@@ -2,77 +2,38 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "convert",
-            ltype: Function,
-        }: 1,
-    },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "b" @ 58..59,
-                field_type: String @ 60..66,
-            },
-            FieldDefinition {
-                identifier: "a" @ 72..73,
-                field_type: Int @ 74..77,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "a" @ 17..18,
-                field_type: Int @ 19..22,
-            },
-            FieldDefinition {
-                identifier: "b" @ 28..29,
-                field_type: String @ 30..36,
-            },
-        ],
-    },
-    enum_defs: {},
-    globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        SaveSP,
-        StructNew(
-            "Foo",
-        ),
-        Const(
-            Int(
-                1,
-            ),
-        ),
-        StructSet(
-            "a",
-        ),
-        Const(
-            String(
-                "test",
-            ),
-        ),
-        StructSet(
-            "b",
-        ),
-        Cast(
-            "Bar",
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	fn:convert -> 1
+
+action_defs:
+
+command_defs:
+
+fact_defs:
+
+struct_defs:
+	Bar:
+		b: string
+		a: int
+	Foo:
+		a: int
+		b: string
+
+enum_defs:
+
+globals:
+
+program memory:
+	exit panic
+	save SP
+	struct.new Foo
+	const 1
+	struct.set a
+	const "test"
+	struct.set b
+	cast Bar
+	restore SP
+	return
+	exit panic

@@ -2,285 +2,98 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "Foo",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "Foo",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "Foo",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "Foo",
-            ltype: CommandOpen,
-        }: 22,
-        Label {
-            name: "foo",
-            ltype: Action,
-        }: 29,
-    },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "foo" @ 162..165,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "b" @ 166..167,
-                                    ty: Int @ 168..171,
-                                },
-                            ),
-                        },
-                    },
-                },
-            ),
-        },
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Foo" @ 8..11,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {
-                            ByName(
-                                Field {
-                                    name: "a" @ 35..36,
-                                    ty: Int @ 37..40,
-                                },
-                            ),
-                            ByName(
-                                Field {
-                                    name: "b" @ 50..51,
-                                    ty: Int @ 52..55,
-                                },
-                            ),
-                        },
-                    },
-                },
-            ),
-        },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Foo": [
-            FieldDefinition {
-                identifier: "a" @ 35..36,
-                field_type: Int @ 37..40,
-            },
-            FieldDefinition {
-                identifier: "b" @ 50..51,
-                field_type: Int @ 52..55,
-            },
-        ],
-    },
-    enum_defs: {},
-    globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Meta(
-            Finish(
-                true,
-            ),
-        ),
-        Block,
-        End,
-        Exit(
-            Normal,
-        ),
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        Return,
-        Meta(
-            Let(
-                "this",
-            ),
-        ),
-        Def(
-            "this",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "envelope",
-            ),
-        ),
-        Def(
-            "envelope",
-        ),
-        SaveSP,
-        Exit(
-            Panic,
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "b",
-            ),
-        ),
-        Def(
-            "b",
-        ),
-        Const(
-            Int(
-                4,
-            ),
-        ),
-        Meta(
-            Let(
-                "i",
-            ),
-        ),
-        Def(
-            "i",
-        ),
-        Meta(
-            Get(
-                "b",
-            ),
-        ),
-        Get(
-            "b",
-        ),
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        Eq,
-        Branch(
-            Resolved(
-                43,
-            ),
-        ),
-        Block,
-        Const(
-            Int(
-                3,
-            ),
-        ),
-        End,
-        Jump(
-            Resolved(
-                49,
-            ),
-        ),
-        Block,
-        Const(
-            Int(
-                4,
-            ),
-        ),
-        Meta(
-            Get(
-                "i",
-            ),
-        ),
-        Get(
-            "i",
-        ),
-        SaturatingAdd,
-        End,
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        StructNew(
-            "Foo",
-        ),
-        Meta(
-            Get(
-                "x",
-            ),
-        ),
-        Get(
-            "x",
-        ),
-        StructSet(
-            "a",
-        ),
-        Const(
-            Int(
-                4,
-            ),
-        ),
-        StructSet(
-            "b",
-        ),
-        Meta(
-            Let(
-                "y",
-            ),
-        ),
-        Def(
-            "y",
-        ),
-        Return,
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	policy:Foo -> 1
+	recall:Foo -> 10
+	seal:Foo -> 15
+	open:Foo -> 22
+	action:foo -> 29
+
+action_defs:
+	foo:
+		persistence: persistent
+		params:
+			b: int
+
+command_defs:
+	Foo:
+		persistence: persistent
+		attributes:
+		fields:
+			a: int
+			b: int
+
+fact_defs:
+
+struct_defs:
+	Foo:
+		a: int
+		b: int
+
+enum_defs:
+
+globals:
+
+program memory:
+	exit panic
+	meta: Set `envelope`
+	def envelope
+	meta: Set `this`
+	def this
+	meta: finish enabled
+	block
+	end
+	exit normal
+	exit panic
+	meta: Set `envelope`
+	def envelope
+	meta: Set `this`
+	def this
+	return
+	meta: Set `this`
+	def this
+	save SP
+	exit panic
+	restore SP
+	return
+	exit panic
+	meta: Set `envelope`
+	def envelope
+	save SP
+	exit panic
+	restore SP
+	return
+	exit panic
+	meta: Set `b`
+	def b
+	const 4
+	meta: Set `i`
+	def i
+	meta: Get `b`
+	get b
+	const 0
+	eq
+	branch 43
+	block
+	const 3
+	end
+	jump 49
+	block
+	const 4
+	meta: Get `i`
+	get i
+	saturating_add
+	end
+	meta: Set `x`
+	def x
+	struct.new Foo
+	meta: Get `x`
+	get x
+	struct.set a
+	const 4
+	struct.set b
+	meta: Set `y`
+	def y
+	return

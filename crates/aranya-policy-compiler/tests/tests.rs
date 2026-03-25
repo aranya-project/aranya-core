@@ -77,11 +77,11 @@ fn compile_fail(text: &str) -> CompileError {
     }
 }
 
-/// Wraps [`aranya_policy_module::Module`] to provide a Debug impl
+/// Wraps [`aranya_policy_module::Module`] to provide a Display impl
 /// that only prints data worth viewing.
 struct ModuleSnapshotWrapper(Module);
 
-impl std::fmt::Debug for ModuleSnapshotWrapper {
+impl std::fmt::Display for ModuleSnapshotWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ModuleData::V0(ModuleV0 {
             labels,
@@ -95,17 +95,82 @@ impl std::fmt::Debug for ModuleSnapshotWrapper {
             ..
         }) = &self.0.data;
 
-        f.debug_struct("Module")
-            .field("version", &"0")
-            .field("labels", &labels)
-            .field("action_defs", action_defs)
-            .field("command_defs", command_defs)
-            .field("fact_defs", fact_defs)
-            .field("struct_defs", struct_defs)
-            .field("enum_defs", enum_defs)
-            .field("globals", globals)
-            .field("program memory", progmem)
-            .finish_non_exhaustive()
+        writeln!(f, "Module (version 0)")?;
+
+        writeln!(f, "\nlabels:")?;
+        for (label, offset) in labels {
+            writeln!(f, "\t{label} -> {offset}")?;
+        }
+
+        writeln!(f, "\naction_defs:")?;
+        for action in action_defs.iter() {
+            writeln!(f, "\t{}:", action.name)?;
+            writeln!(f, "\t\tpersistence: {}", action.persistence)?;
+            writeln!(f, "\t\tparams:")?;
+            for param in action.params.iter() {
+                writeln!(f, "\t\t\t{}: {}", param.name, param.ty)?;
+            }
+        }
+
+        writeln!(f, "\ncommand_defs:")?;
+        for cmd in command_defs.iter() {
+            writeln!(f, "\t{}:", cmd.name)?;
+            writeln!(f, "\t\tpersistence: {}", cmd.persistence)?;
+            writeln!(f, "\t\tattributes:")?;
+            for attr in cmd.attributes.iter() {
+                writeln!(f, "\t\t\t{}: {}", attr.name, attr.value)?;
+            }
+            writeln!(f, "\t\tfields:")?;
+            for field in cmd.fields.iter() {
+                writeln!(f, "\t\t\t{}: {}", field.name, field.ty)?;
+            }
+        }
+
+        writeln!(f, "\nfact_defs:")?;
+        for (name, fact) in fact_defs {
+            let mutability = if fact.immutable {
+                "immutable"
+            } else {
+                "mutable"
+            };
+            writeln!(f, "\t{name} ({mutability})")?;
+            writeln!(f, "\t\tkey:")?;
+            for field in &fact.key {
+                writeln!(f, "\t\t\t{}: {}", field.identifier, field.field_type)?;
+            }
+            writeln!(f, "\t\tvalue:")?;
+            for field in &fact.value {
+                writeln!(f, "\t\t\t{}: {}", field.identifier, field.field_type)?;
+            }
+        }
+
+        writeln!(f, "\nstruct_defs:")?;
+        for (name, fields) in struct_defs {
+            writeln!(f, "\t{name}:")?;
+            for field in fields {
+                writeln!(f, "\t\t{}: {}", field.identifier, field.field_type)?;
+            }
+        }
+
+        writeln!(f, "\nenum_defs:")?;
+        for (name, variants) in enum_defs {
+            writeln!(f, "\t{name}:")?;
+            for (variant, value) in variants {
+                writeln!(f, "\t\t{variant} = {value}")?;
+            }
+        }
+
+        writeln!(f, "\nglobals:")?;
+        for (name, value) in globals {
+            writeln!(f, "\t{name} = {value}")?;
+        }
+
+        writeln!(f, "\nprogram memory:")?;
+        for instr in progmem.iter() {
+            writeln!(f, "\t{instr}")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -123,7 +188,7 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
         let module = ModuleSnapshotWrapper(compile_pass(&text));
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-            insta::assert_debug_snapshot!(name, module);
+            insta::assert_snapshot!(name, module);
         });
     } else if name.ends_with(".fail") {
         let error = compile_fail(&text);

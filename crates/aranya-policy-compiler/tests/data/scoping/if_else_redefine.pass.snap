@@ -2,102 +2,46 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module {
-    version: "0",
-    labels: {
-        Label {
-            name: "f",
-            ltype: Function,
-        }: 1,
-    },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
-    globals: {},
-    program memory: [
-        Exit(
-            Panic,
-        ),
-        Meta(
-            Let(
-                "y",
-            ),
-        ),
-        Def(
-            "y",
-        ),
-        SaveSP,
-        Meta(
-            Get(
-                "y",
-            ),
-        ),
-        Get(
-            "y",
-        ),
-        Const(
-            Int(
-                0,
-            ),
-        ),
-        Eq,
-        Not,
-        Branch(
-            Resolved(
-                16,
-            ),
-        ),
-        Block,
-        Const(
-            Int(
-                3,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        End,
-        Jump(
-            Resolved(
-                21,
-            ),
-        ),
-        Block,
-        Const(
-            Int(
-                4,
-            ),
-        ),
-        Meta(
-            Let(
-                "x",
-            ),
-        ),
-        Def(
-            "x",
-        ),
-        End,
-        Const(
-            Bool(
-                false,
-            ),
-        ),
-        RestoreSP,
-        Return,
-        Exit(
-            Panic,
-        ),
-    ],
-    ..
-}
+Module (version 0)
+
+labels:
+	fn:f -> 1
+
+action_defs:
+
+command_defs:
+
+fact_defs:
+
+struct_defs:
+
+enum_defs:
+
+globals:
+
+program memory:
+	exit panic
+	meta: Set `y`
+	def y
+	save SP
+	meta: Get `y`
+	get y
+	const 0
+	eq
+	not
+	branch 16
+	block
+	const 3
+	meta: Set `x`
+	def x
+	end
+	jump 21
+	block
+	const 4
+	meta: Set `x`
+	def x
+	end
+	const false
+	restore SP
+	return
+	exit panic
