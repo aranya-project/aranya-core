@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.18.0...aranya-fast-channels-v0.19.0) - 2026-03-17
+
+### Other
+
+- updated the following local packages: aranya-crypto
+
 ## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.17.2...aranya-fast-channels-v0.18.0) - 2026-02-17
 
 ### Other

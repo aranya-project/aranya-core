@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.20.0...aranya-policy-compiler-v0.21.0) - 2026-03-17
+
+### Other
+
+- Handle result type in `CompileState::ensure_type_is_defined` ([#604](https://github.com/aranya-project/aranya-core/pull/604))
+- generate constants for globals ([#593](https://github.com/aranya-project/aranya-core/pull/593))
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+- make `ConstValue::vtype` infallible ([#602](https://github.com/aranya-project/aranya-core/pull/602))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+- only compile ffi structs when imported ([#561](https://github.com/aranya-project/aranya-core/pull/561))
+- add globals to policy interface ([#588](https://github.com/aranya-project/aranya-core/pull/588))
+
 ## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.19.0...aranya-policy-compiler-v0.20.0) - 2026-02-17
 
 ### Other
