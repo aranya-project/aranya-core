@@ -130,9 +130,8 @@ proc-macro2 = "1.0.80"
 syn = "2.0.59"
 quote = "1.0"
 
-insta = { version = "1", features = ["redactions", "yaml"] }
+insta = { version = "1" }
 rstest = { version = "0.26" }
-serde_json = { version = "1" }
 
 [profile.dev.package]
 aranya-quic-syncer.opt-level = 1
