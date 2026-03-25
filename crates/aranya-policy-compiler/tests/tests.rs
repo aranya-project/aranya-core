@@ -115,7 +115,7 @@ impl fmt::Debug for ModuleSnapshotWrapper {
 impl fmt::Debug for InstructionsWrapper<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f)?;
-        for instr in self.0.iter() {
+        for instr in self.0 {
             writeln!(f, "\t{instr}")?;
         }
 
