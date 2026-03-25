@@ -32,5 +32,5 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
-rstest = { version = "0.26" }
+rstest = { version = "0.26", default-features = false }
 serde_json = { version = "1" }
