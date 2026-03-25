@@ -2,50 +2,125 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	action:f -> 1
-
-action_defs:
-	f:
-		persistence: persistent
-		params:
-			n: int
-
-command_defs:
-
-fact_defs:
-
-struct_defs:
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `n`
-	def n
-	meta: Get `n`
-	get n
-	const 1
-	gt
-	branch 12
-	block
-	const 0
-	end
-	jump 22
-	block
-	meta: Get `n`
-	get n
-	const 1
-	saturating_add
-	meta: Set `x`
-	def x
-	meta: Get `x`
-	get x
-	end
-	meta: Set `x`
-	def x
-	return
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "f" @ 7..8,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "n" @ 9..10,
+                                    ty: Int @ 11..14,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "n",
+            ),
+        ),
+        Def(
+            "n",
+        ),
+        Meta(
+            Get(
+                "n",
+            ),
+        ),
+        Get(
+            "n",
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        Gt,
+        Branch(
+            Resolved(
+                12,
+            ),
+        ),
+        Block,
+        Const(
+            Int(
+                0,
+            ),
+        ),
+        End,
+        Jump(
+            Resolved(
+                22,
+            ),
+        ),
+        Block,
+        Meta(
+            Get(
+                "n",
+            ),
+        ),
+        Get(
+            "n",
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        SaturatingAdd,
+        Meta(
+            Let(
+                "x",
+            ),
+        ),
+        Def(
+            "x",
+        ),
+        Meta(
+            Get(
+                "x",
+            ),
+        ),
+        Get(
+            "x",
+        ),
+        End,
+        Meta(
+            Let(
+                "x",
+            ),
+        ),
+        Def(
+            "x",
+        ),
+        Return,
+    ],
+    ..
+}

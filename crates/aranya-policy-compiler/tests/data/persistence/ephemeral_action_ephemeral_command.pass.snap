@@ -2,65 +2,158 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	policy:Cmd -> 1
-	recall:Cmd -> 10
-	seal:Cmd -> 15
-	open:Cmd -> 22
-	action:test -> 29
-
-action_defs:
-	test:
-		persistence: ephemeral
-		params:
-
-command_defs:
-	Cmd:
-		persistence: ephemeral
-		attributes:
-		fields:
-
-fact_defs:
-
-struct_defs:
-	Cmd:
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	meta: Set `this`
-	def this
-	meta: finish enabled
-	block
-	end
-	exit normal
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	meta: Set `this`
-	def this
-	return
-	meta: Set `this`
-	def this
-	save SP
-	exit panic
-	restore SP
-	return
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	save SP
-	exit panic
-	restore SP
-	return
-	exit panic
-	struct.new Cmd
-	publish
-	return
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Cmd",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Cmd",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Cmd",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Cmd",
+            ltype: CommandOpen,
+        }: 22,
+        Label {
+            name: "test",
+            ltype: Action,
+        }: 29,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "test" @ 148..152,
+                    persistence: Ephemeral(
+                        131..140,
+                    ),
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Cmd" @ 18..21,
+                    persistence: Ephemeral(
+                        0..9,
+                    ),
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Cmd": [],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        Meta(
+            Finish(
+                true,
+            ),
+        ),
+        Block,
+        End,
+        Exit(
+            Normal,
+        ),
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        Return,
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        SaveSP,
+        Exit(
+            Panic,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        SaveSP,
+        Exit(
+            Panic,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+        StructNew(
+            "Cmd",
+        ),
+        Publish,
+        Return,
+    ],
+    ..
+}

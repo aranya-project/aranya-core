@@ -2,52 +2,121 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	fn:get_foo -> 1
-
-action_defs:
-
-command_defs:
-
-fact_defs:
-	Foo (mutable)
-		key:
-			a: int
-		value:
-			b: int
-
-struct_defs:
-	Foo:
-		a: int
-		b: int
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `a`
-	def a
-	save SP
-	fact.new Foo
-	meta: Get `a`
-	get a
-	fact.kset a
-	query
-	dup
-	const None
-	eq
-	not
-	branch 15
-	exit panic
-	unwrap some
-	meta: Set `foo`
-	def foo
-	meta: Get `foo`
-	get foo
-	restore SP
-	return
-	exit panic
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "get_foo",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {
+        "Foo": FactDefinition {
+            immutable: false,
+            identifier: "Foo" @ 5..8,
+            key: [
+                FieldDefinition {
+                    identifier: "a" @ 9..10,
+                    field_type: Int @ 11..14,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "b" @ 18..19,
+                    field_type: Int @ 20..23,
+                },
+            ],
+            span: 0..24,
+        },
+    },
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 9..10,
+                field_type: Int @ 11..14,
+            },
+            FieldDefinition {
+                identifier: "b" @ 18..19,
+                field_type: Int @ 20..23,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "a",
+            ),
+        ),
+        Def(
+            "a",
+        ),
+        SaveSP,
+        FactNew(
+            "Foo",
+        ),
+        Meta(
+            Get(
+                "a",
+            ),
+        ),
+        Get(
+            "a",
+        ),
+        FactKeySet(
+            "a",
+        ),
+        Query,
+        Dup,
+        Const(
+            Option(
+                None,
+            ),
+        ),
+        Eq,
+        Not,
+        Branch(
+            Resolved(
+                15,
+            ),
+        ),
+        Exit(
+            Panic,
+        ),
+        Unwrap(
+            Some,
+        ),
+        Meta(
+            Let(
+                "foo",
+            ),
+        ),
+        Def(
+            "foo",
+        ),
+        Meta(
+            Get(
+                "foo",
+            ),
+        ),
+        Get(
+            "foo",
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
+    ..
+}

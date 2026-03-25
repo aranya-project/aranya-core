@@ -2,51 +2,111 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	fn:f -> 1
-
-action_defs:
-
-command_defs:
-
-fact_defs:
-
-struct_defs:
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `n`
-	def n
-	save SP
-	meta: Get `n`
-	get n
-	dup
-	const 0
-	eq
-	branch 11
-	jump 16
-	block
-	pop
-	const 1
-	end
-	jump 23
-	block
-	pop
-	const 2
-	restore SP
-	return
-	end
-	jump 23
-	meta: Set `x`
-	def x
-	meta: Get `x`
-	get x
-	restore SP
-	return
-	exit panic
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "n",
+            ),
+        ),
+        Def(
+            "n",
+        ),
+        SaveSP,
+        Meta(
+            Get(
+                "n",
+            ),
+        ),
+        Get(
+            "n",
+        ),
+        Dup,
+        Const(
+            Int(
+                0,
+            ),
+        ),
+        Eq,
+        Branch(
+            Resolved(
+                11,
+            ),
+        ),
+        Jump(
+            Resolved(
+                16,
+            ),
+        ),
+        Block,
+        Pop,
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        End,
+        Jump(
+            Resolved(
+                23,
+            ),
+        ),
+        Block,
+        Pop,
+        Const(
+            Int(
+                2,
+            ),
+        ),
+        RestoreSP,
+        Return,
+        End,
+        Jump(
+            Resolved(
+                23,
+            ),
+        ),
+        Meta(
+            Let(
+                "x",
+            ),
+        ),
+        Def(
+            "x",
+        ),
+        Meta(
+            Get(
+                "x",
+            ),
+        ),
+        Get(
+            "x",
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
+    ..
+}

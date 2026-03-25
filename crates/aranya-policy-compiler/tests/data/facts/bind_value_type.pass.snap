@@ -2,43 +2,95 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	action:test -> 1
-
-action_defs:
-	test:
-		persistence: persistent
-		params:
-
-command_defs:
-
-fact_defs:
-	Foo (mutable)
-		key:
-			i: int
-		value:
-			a: string
-
-struct_defs:
-	Foo:
-		i: int
-		a: string
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	fact.new Foo
-	const 1
-	fact.kset i
-	query
-	const None
-	eq
-	not
-	branch 10
-	exit check
-	return
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "test",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "test" @ 37..41,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {
+        "Foo": FactDefinition {
+            immutable: false,
+            identifier: "Foo" @ 5..8,
+            key: [
+                FieldDefinition {
+                    identifier: "i" @ 9..10,
+                    field_type: Int @ 11..14,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "a" @ 20..21,
+                    field_type: String @ 22..28,
+                },
+            ],
+            span: 0..29,
+        },
+    },
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "i" @ 9..10,
+                field_type: Int @ 11..14,
+            },
+            FieldDefinition {
+                identifier: "a" @ 20..21,
+                field_type: String @ 22..28,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        FactNew(
+            "Foo",
+        ),
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        FactKeySet(
+            "i",
+        ),
+        Query,
+        Const(
+            Option(
+                None,
+            ),
+        ),
+        Eq,
+        Not,
+        Branch(
+            Resolved(
+                10,
+            ),
+        ),
+        Exit(
+            Check,
+        ),
+        Return,
+    ],
+    ..
+}

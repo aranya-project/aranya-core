@@ -2,64 +2,166 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	policy:A -> 1
-	recall:A -> 10
-	seal:A -> 15
-	open:A -> 22
-
-action_defs:
-
-command_defs:
-	A:
-		persistence: persistent
-		attributes:
-			i: 5
-			s: "abc"
-			priority: Priority::1
-		fields:
-
-fact_defs:
-
-struct_defs:
-	A:
-
-enum_defs:
-	Priority:
-		High = 1
-		Low = 0
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	meta: Set `this`
-	def this
-	meta: finish enabled
-	block
-	end
-	exit normal
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	meta: Set `this`
-	def this
-	return
-	meta: Set `this`
-	def this
-	save SP
-	exit panic
-	restore SP
-	return
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	save SP
-	exit panic
-	restore SP
-	return
-	exit panic
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "A",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "A",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "A",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "A",
+            ltype: CommandOpen,
+        }: 22,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "A" @ 36..37,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {
+                            ByName(
+                                Attribute {
+                                    name: "i" @ 65..66,
+                                    value: Int(
+                                        5,
+                                    ),
+                                },
+                            ),
+                            ByName(
+                                Attribute {
+                                    name: "s" @ 79..80,
+                                    value: String(
+                                        "abc",
+                                    ),
+                                },
+                            ),
+                            ByName(
+                                Attribute {
+                                    name: "priority" @ 97..105,
+                                    value: Enum(
+                                        "Priority",
+                                        1,
+                                    ),
+                                },
+                            ),
+                        },
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "A": [],
+    },
+    enum_defs: {
+        "Priority": {
+            "High": 1,
+            "Low": 0,
+        },
+    },
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        Meta(
+            Finish(
+                true,
+            ),
+        ),
+        Block,
+        End,
+        Exit(
+            Normal,
+        ),
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        Return,
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        SaveSP,
+        Exit(
+            Panic,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        SaveSP,
+        Exit(
+            Panic,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
+    ..
+}

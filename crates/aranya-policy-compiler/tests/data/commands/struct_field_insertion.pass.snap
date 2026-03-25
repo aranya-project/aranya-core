@@ -2,69 +2,183 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	policy:Foo -> 1
-	recall:Foo -> 10
-	seal:Foo -> 15
-	open:Foo -> 22
-
-action_defs:
-
-command_defs:
-	Foo:
-		persistence: persistent
-		attributes:
-		fields:
-			a: int
-			b: string
-			c: bool
-
-fact_defs:
-
-struct_defs:
-	Bar:
-		a: int
-	Baz:
-		a: int
-		b: string
-	Foo:
-		a: int
-		b: string
-		c: bool
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	meta: Set `this`
-	def this
-	meta: finish enabled
-	block
-	end
-	exit normal
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	meta: Set `this`
-	def this
-	return
-	meta: Set `this`
-	def this
-	save SP
-	exit panic
-	restore SP
-	return
-	exit panic
-	meta: Set `envelope`
-	def envelope
-	save SP
-	exit panic
-	restore SP
-	return
-	exit panic
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Foo",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Foo",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Foo",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Foo",
+            ltype: CommandOpen,
+        }: 22,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Foo" @ 59..62,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {
+                            ByName(
+                                Field {
+                                    name: "a" @ 0..0,
+                                    ty: Int @ 0..0,
+                                },
+                            ),
+                            ByName(
+                                Field {
+                                    name: "b" @ 0..0,
+                                    ty: String @ 0..0,
+                                },
+                            ),
+                            ByName(
+                                Field {
+                                    name: "c" @ 100..101,
+                                    ty: Bool @ 0..0,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
+            },
+        ],
+        "Baz": [
+            FieldDefinition {
+                identifier: "a" @ 0..0,
+                field_type: Int @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "b" @ 0..0,
+                field_type: String @ 0..0,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 0..0,
+                field_type: Int @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "b" @ 0..0,
+                field_type: String @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "c" @ 0..0,
+                field_type: Bool @ 0..0,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        Meta(
+            Finish(
+                true,
+            ),
+        ),
+        Block,
+        End,
+        Exit(
+            Normal,
+        ),
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        Return,
+        Meta(
+            Let(
+                "this",
+            ),
+        ),
+        Def(
+            "this",
+        ),
+        SaveSP,
+        Exit(
+            Panic,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "envelope",
+            ),
+        ),
+        Def(
+            "envelope",
+        ),
+        SaveSP,
+        Exit(
+            Panic,
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
+    ..
+}

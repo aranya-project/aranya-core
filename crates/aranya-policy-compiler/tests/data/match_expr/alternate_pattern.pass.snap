@@ -2,57 +2,140 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	action:f -> 1
-
-action_defs:
-	f:
-		persistence: persistent
-		params:
-			maybe_bool: option[bool]
-
-command_defs:
-
-fact_defs:
-
-struct_defs:
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `maybe_bool`
-	def maybe_bool
-	meta: Get `maybe_bool`
-	get maybe_bool
-	dup
-	const None
-	eq
-	branch 19
-	dup
-	const false
-	wrap some
-	eq
-	branch 19
-	dup
-	const true
-	wrap some
-	eq
-	branch 24
-	block
-	pop
-	const 0
-	end
-	jump 29
-	block
-	pop
-	const 1
-	end
-	jump 29
-	meta: Set `x`
-	def x
-	return
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "f",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "f" @ 7..8,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {
+                            ByName(
+                                Param {
+                                    name: "maybe_bool" @ 9..19,
+                                    ty: Optional(
+                                        Bool @ 27..31,
+                                    ) @ 20..32,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "maybe_bool",
+            ),
+        ),
+        Def(
+            "maybe_bool",
+        ),
+        Meta(
+            Get(
+                "maybe_bool",
+            ),
+        ),
+        Get(
+            "maybe_bool",
+        ),
+        Dup,
+        Const(
+            Option(
+                None,
+            ),
+        ),
+        Eq,
+        Branch(
+            Resolved(
+                19,
+            ),
+        ),
+        Dup,
+        Const(
+            Bool(
+                false,
+            ),
+        ),
+        Wrap(
+            Some,
+        ),
+        Eq,
+        Branch(
+            Resolved(
+                19,
+            ),
+        ),
+        Dup,
+        Const(
+            Bool(
+                true,
+            ),
+        ),
+        Wrap(
+            Some,
+        ),
+        Eq,
+        Branch(
+            Resolved(
+                24,
+            ),
+        ),
+        Block,
+        Pop,
+        Const(
+            Int(
+                0,
+            ),
+        ),
+        End,
+        Jump(
+            Resolved(
+                29,
+            ),
+        ),
+        Block,
+        Pop,
+        Const(
+            Int(
+                1,
+            ),
+        ),
+        End,
+        Jump(
+            Resolved(
+                29,
+            ),
+        ),
+        Meta(
+            Let(
+                "x",
+            ),
+        ),
+        Def(
+            "x",
+        ),
+        Return,
+    ],
+    ..
+}

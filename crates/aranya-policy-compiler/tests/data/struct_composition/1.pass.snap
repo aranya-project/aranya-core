@@ -2,46 +2,106 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
-Module (version 0)
-
-labels:
-	fn:baz -> 1
-
-action_defs:
-
-command_defs:
-
-fact_defs:
-
-struct_defs:
-	Bar:
-		x: int
-		y: bool
-		z: string
-	Foo:
-		x: int
-		y: bool
-
-enum_defs:
-
-globals:
-
-program memory:
-	exit panic
-	meta: Set `foo`
-	def foo
-	save SP
-	struct.new Bar
-	const "z"
-	struct.set z
-	meta: Get `foo`
-	get foo
-	struct.get x
-	struct.set x
-	meta: Get `foo`
-	get foo
-	struct.get y
-	struct.set y
-	restore SP
-	return
-	exit panic
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "baz",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "x" @ 42..43,
+                field_type: Int @ 44..47,
+            },
+            FieldDefinition {
+                identifier: "y" @ 49..50,
+                field_type: Bool @ 51..55,
+            },
+            FieldDefinition {
+                identifier: "z" @ 57..58,
+                field_type: String @ 59..65,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "x" @ 13..14,
+                field_type: Int @ 15..18,
+            },
+            FieldDefinition {
+                identifier: "y" @ 20..21,
+                field_type: Bool @ 22..26,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: [
+        Exit(
+            Panic,
+        ),
+        Meta(
+            Let(
+                "foo",
+            ),
+        ),
+        Def(
+            "foo",
+        ),
+        SaveSP,
+        StructNew(
+            "Bar",
+        ),
+        Const(
+            String(
+                "z",
+            ),
+        ),
+        StructSet(
+            "z",
+        ),
+        Meta(
+            Get(
+                "foo",
+            ),
+        ),
+        Get(
+            "foo",
+        ),
+        StructGet(
+            "x",
+        ),
+        StructSet(
+            "x",
+        ),
+        Meta(
+            Get(
+                "foo",
+            ),
+        ),
+        Get(
+            "foo",
+        ),
+        StructGet(
+            "y",
+        ),
+        StructSet(
+            "y",
+        ),
+        RestoreSP,
+        Return,
+        Exit(
+            Panic,
+        ),
+    ],
+    ..
+}
