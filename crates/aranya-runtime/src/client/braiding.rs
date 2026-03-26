@@ -133,9 +133,7 @@ impl BraidResult {
     fn push(&mut self, loc: Location) -> Result<(), ClientError> {
         self.mem
             .push(loc)
-            .map_err(|_| {
-                ClientError::from(StorageError::Bug(Bug::new("braid result overflow")))
-            })
+            .map_err(|_| ClientError::from(StorageError::Bug(Bug::new("braid result overflow"))))
     }
 
     fn reverse(&mut self) {
@@ -197,7 +195,10 @@ pub(super) fn braid<S: Storage>(
             // O(1) LCA skip: any prior at or below the outermost LCA
             // is shared by both branches — no need for further checks.
             if location.max_cut <= lca.max_cut {
-                trace!("prior {location} at/below LCA (max_cut <= {}) skipping", lca.max_cut);
+                trace!(
+                    "prior {location} at/below LCA (max_cut <= {}) skipping",
+                    lca.max_cut
+                );
                 continue 'location;
             }
 
@@ -273,16 +274,10 @@ mod convergence_map {
         ///
         /// Returns an error if the map is full. When disk-backed
         /// chunking is added, this will flush to disk instead.
-        pub fn insert(
-            &mut self,
-            location: Location,
-            count: usize,
-        ) -> Result<(), StorageError> {
+        pub fn insert(&mut self, location: Location, count: usize) -> Result<(), StorageError> {
             self.entries
                 .push(Entry { location, count })
-                .map_err(|_| StorageError::Bug(Bug::new(
-                    "convergence map overflow"
-                )))
+                .map_err(|_| StorageError::Bug(Bug::new("convergence map overflow")))
         }
 
         /// Check whether a strand at `location` should continue.
@@ -293,7 +288,10 @@ mod convergence_map {
         pub fn should_continue(&mut self, location: Location) -> bool {
             if let Some(i) = self.entries.iter().position(|e| e.location == location) {
                 if self.entries[i].count > 1 {
-                    self.entries[i].count -= 1;
+                    #[allow(clippy::arithmetic_side_effects)] // safe: count > 1
+                    {
+                        self.entries[i].count -= 1;
+                    }
                     false
                 } else {
                     self.entries.swap_remove(i);
@@ -344,8 +342,8 @@ mod strand_heap {
     use heapless::binary_heap::Max;
 
     use crate::{
-        storage::QUEUE_CAPACITY, ClientError, CmdId, Command as _, Location, Priority, Segment,
-        Storage, StorageError,
+        ClientError, CmdId, Command as _, Location, Priority, Segment, Storage, StorageError,
+        storage::QUEUE_CAPACITY,
     };
 
     /// Maximum number of active strands. Equal to `QUEUE_CAPACITY` since
