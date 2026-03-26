@@ -3,7 +3,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use buggy::BugExt as _;
 use tracing::trace;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage};
+use crate::{ClientError, Location, Prior, Segment as _, Storage, TraversalBuffer};
 
 // Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
 impl From<strand_heap::ParallelFinalize> for ClientError {
@@ -81,25 +81,24 @@ pub(super) fn last_common_ancestor<S: Storage>(
 
 /// BFS pre-pass that identifies convergence points between two merge parents.
 ///
-/// Walks backwards from `left` and `right` toward `lca` using a `BTreeMap`
-/// frontier keyed by `Location` (ordered by `max_cut` first). When multiple
-/// paths reach the same location, its count is incremented — a count >= 2
-/// means convergence. Returns a map of convergence locations to their visit
-/// counts.
+/// Walks backwards from `left` and `right` toward `lca` using the
+/// `TraversalQueue` with `push_duplicate`/`pop_duplicates`. When multiple
+/// paths reach the same location, its count indicates convergence.
 fn compute_convergence<S: Storage>(
     storage: &mut S,
     left: Location,
     right: Location,
     lca: Location,
+    buffer: &mut TraversalBuffer,
 ) -> Result<BTreeMap<Location, usize>, ClientError> {
     let mut convergence = BTreeMap::new();
-    let mut frontier: BTreeMap<Location, usize> = BTreeMap::new();
+    let queue = buffer.get();
 
-    increment(&mut frontier, left)?;
-    increment(&mut frontier, right)?;
+    queue.push_duplicate(left)?;
+    queue.push_duplicate(right)?;
 
-    while let Some((loc, count)) = frontier.pop_last() {
-        if loc == lca || loc.max_cut < lca.max_cut {
+    while let Some((loc, count)) = queue.pop_duplicates() {
+        if loc.max_cut <= lca.max_cut {
             continue;
         }
 
@@ -107,27 +106,18 @@ fn compute_convergence<S: Storage>(
             convergence.insert(loc, count);
         }
 
-        // Expand priors — one path continues from this location.
+        // Expand priors — once per location regardless of count.
         let segment = storage.get_segment(loc)?;
         if let Some(previous) = segment.previous(loc) {
-            increment(&mut frontier, previous)?;
+            queue.push_duplicate(previous)?;
         } else {
             for prior in segment.prior() {
-                increment(&mut frontier, prior)?;
+                queue.push_duplicate(prior)?;
             }
         }
     }
 
     Ok(convergence)
-}
-
-/// Increment the visit count for `loc` in the frontier map.
-fn increment(frontier: &mut BTreeMap<Location, usize>, loc: Location) -> Result<(), ClientError> {
-    let count = frontier.entry(loc).or_insert(0);
-    *count = count
-        .checked_add(1)
-        .assume("visit count must not overflow")?;
-    Ok(())
 }
 
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
@@ -143,6 +133,7 @@ pub(super) fn braid<S: Storage>(
     left: Location,
     right: Location,
     lca: Location,
+    buffer: &mut TraversalBuffer,
 ) -> Result<Vec<Location>, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
@@ -151,7 +142,7 @@ pub(super) fn braid<S: Storage>(
 
     trace!(%left, %right, %lca, "braiding");
 
-    let mut convergence = compute_convergence(storage, left, right, lca)?;
+    let mut convergence = compute_convergence(storage, left, right, lca, buffer)?;
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head, None)?)?;
@@ -177,8 +168,8 @@ pub(super) fn braid<S: Storage>(
         'location: for location in prior {
             // O(1) LCA skip: any prior at or below the outermost LCA
             // is shared by both branches — no need for further checks.
-            if location == lca || location.max_cut < lca.max_cut {
-                trace!("prior {location} at/below LCA {lca}, skipping");
+            if location.max_cut <= lca.max_cut {
+                trace!("prior {location} at/below LCA (max_cut <= {}) skipping", lca.max_cut);
                 continue 'location;
             }
 
