@@ -437,6 +437,8 @@ pub enum StorageError {
     EmptyPerspective,
     #[error("traversal queue overflow (capacity {0})")]
     TraversalQueueOverflow(usize),
+    #[error("strand heap overflow (capacity {0})")]
+    StrandHeapOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
