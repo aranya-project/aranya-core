@@ -5,13 +5,6 @@ use tracing::trace;
 
 use crate::{ClientError, Location, Prior, Segment as _, Storage, TraversalBuffer};
 
-// Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
-impl From<strand_heap::ParallelFinalize> for ClientError {
-    fn from(_: strand_heap::ParallelFinalize) -> Self {
-        Self::ParallelFinalize
-    }
-}
-
 /// Returns the last common ancestor of two Locations.
 ///
 /// This walks the graph backwards until the two locations meet. This
@@ -216,11 +209,17 @@ pub(super) fn braid<S: Storage>(
 }
 
 mod strand_heap {
-    use alloc::collections::BinaryHeap;
+    use heapless::binary_heap::Max;
 
     use crate::{
-        ClientError, CmdId, Command as _, Location, Priority, Segment, Storage, StorageError,
+        storage::QUEUE_CAPACITY, ClientError, CmdId, Command as _, Location, Priority, Segment,
+        Storage, StorageError,
     };
+
+    /// Maximum number of active strands. Equal to `QUEUE_CAPACITY` since
+    /// strand count is bounded by graph width, the same bound as the
+    /// traversal queue.
+    pub const STRAND_CAPACITY: usize = QUEUE_CAPACITY;
 
     pub struct Strand<S> {
         key: (Priority, CmdId),
@@ -270,32 +269,32 @@ mod strand_heap {
 
     /// A wrapper around a binary heap which is limited to one finalize command.
     pub struct StrandHeap<S> {
-        heap: BinaryHeap<Strand<S>>,
+        heap: heapless::BinaryHeap<Strand<S>, Max, STRAND_CAPACITY>,
         /// Tracks whether there is a finalize command in `self.heap`.
         has_finalize: bool,
     }
 
-    pub struct ParallelFinalize;
-
     impl<S> StrandHeap<S> {
         pub const fn new() -> Self {
             Self {
-                heap: BinaryHeap::new(),
+                heap: heapless::BinaryHeap::new(),
                 has_finalize: false,
             }
         }
 
         /// Adds another strand to the heap.
         ///
-        /// Errors if it would add a second finalize command.
-        pub fn push(&mut self, strand: Strand<S>) -> Result<(), ParallelFinalize> {
+        /// Errors if it would add a second finalize command or the heap is full.
+        pub fn push(&mut self, strand: Strand<S>) -> Result<(), ClientError> {
             if matches!(strand.key.0, Priority::Finalize) {
                 if self.has_finalize {
-                    return Err(ParallelFinalize);
+                    return Err(ClientError::ParallelFinalize);
                 }
                 self.has_finalize = true;
             }
-            self.heap.push(strand);
+            self.heap
+                .push(strand)
+                .map_err(|_| StorageError::StrandHeapOverflow(STRAND_CAPACITY))?;
             Ok(())
         }
 
