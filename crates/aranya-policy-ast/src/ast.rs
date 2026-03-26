@@ -712,11 +712,15 @@ impl ExprKind {
             (Self::NamedStruct(a), Self::NamedStruct(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.fields.len() == b.fields.len()
-                    && a.fields.iter().zip(&b.fields).all(|((k1, v1), (k2, v2))| {
-                        k1.matches(k2) && v1.kind.matches(&v2.kind)
-                    })
+                    && a.fields
+                        .iter()
+                        .zip(&b.fields)
+                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && v1.kind.matches(&v2.kind))
                     && a.sources.len() == b.sources.len()
-                    && a.sources.iter().zip(&b.sources).all(|(s1, s2)| s1.matches(s2))
+                    && a.sources
+                        .iter()
+                        .zip(&b.sources)
+                        .all(|(s1, s2)| s1.matches(s2))
             }
 
             // Enum reference
@@ -746,63 +750,61 @@ impl ExprKind {
             }
 
             // Internal functions
-            (Self::InternalFunction(a), Self::InternalFunction(b)) => match (a, b) {
-                (InternalFunction::Query(f1), InternalFunction::Query(f2))
-                | (InternalFunction::Exists(f1), InternalFunction::Exists(f2)) => {
-                    f1.identifier.matches(&f2.identifier)
-                        && f1.key_fields.len() == f2.key_fields.len()
-                        && f1.key_fields.iter().zip(&f2.key_fields).all(
-                            |((k1, v1), (k2, v2))| {
-                                k1.matches(k2) && matches_fact_field(v1, v2)
-                            },
-                        )
-                        && match (&f1.value_fields, &f2.value_fields) {
-                            (None, None) => true,
-                            (Some(vf1), Some(vf2)) => {
-                                vf1.len() == vf2.len()
-                                    && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
-                                        k1.matches(k2) && matches_fact_field(v1, v2)
-                                    })
+            (Self::InternalFunction(a), Self::InternalFunction(b)) => {
+                match (a, b) {
+                    (InternalFunction::Query(f1), InternalFunction::Query(f2))
+                    | (InternalFunction::Exists(f1), InternalFunction::Exists(f2)) => {
+                        f1.identifier.matches(&f2.identifier)
+                            && f1.key_fields.len() == f2.key_fields.len()
+                            && f1.key_fields.iter().zip(&f2.key_fields).all(
+                                |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
+                            )
+                            && match (&f1.value_fields, &f2.value_fields) {
+                                (None, None) => true,
+                                (Some(vf1), Some(vf2)) => {
+                                    vf1.len() == vf2.len()
+                                        && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
+                                            k1.matches(k2) && matches_fact_field(v1, v2)
+                                        })
+                                }
+                                _ => false,
                             }
-                            _ => false,
-                        }
-                }
-                (
-                    InternalFunction::FactCount(t1, n1, f1),
-                    InternalFunction::FactCount(t2, n2, f2),
-                ) => {
-                    t1 == t2
-                        && n1 == n2
-                        && f1.identifier.matches(&f2.identifier)
-                        && f1.key_fields.len() == f2.key_fields.len()
-                        && f1.key_fields.iter().zip(&f2.key_fields).all(
-                            |((k1, v1), (k2, v2))| {
-                                k1.matches(k2) && matches_fact_field(v1, v2)
-                            },
-                        )
-                        && match (&f1.value_fields, &f2.value_fields) {
-                            (None, None) => true,
-                            (Some(vf1), Some(vf2)) => {
-                                vf1.len() == vf2.len()
-                                    && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
-                                        k1.matches(k2) && matches_fact_field(v1, v2)
-                                    })
+                    }
+                    (
+                        InternalFunction::FactCount(t1, n1, f1),
+                        InternalFunction::FactCount(t2, n2, f2),
+                    ) => {
+                        t1 == t2
+                            && n1 == n2
+                            && f1.identifier.matches(&f2.identifier)
+                            && f1.key_fields.len() == f2.key_fields.len()
+                            && f1.key_fields.iter().zip(&f2.key_fields).all(
+                                |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
+                            )
+                            && match (&f1.value_fields, &f2.value_fields) {
+                                (None, None) => true,
+                                (Some(vf1), Some(vf2)) => {
+                                    vf1.len() == vf2.len()
+                                        && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
+                                            k1.matches(k2) && matches_fact_field(v1, v2)
+                                        })
+                                }
+                                _ => false,
                             }
-                            _ => false,
-                        }
+                    }
+                    (InternalFunction::If(c1, t1, e1), InternalFunction::If(c2, t2, e2)) => {
+                        c1.kind.matches(&c2.kind)
+                            && t1.kind.matches(&t2.kind)
+                            && e1.kind.matches(&e2.kind)
+                    }
+                    (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
+                    | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
+                        e1.kind.matches(&e2.kind)
+                    }
+                    (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
+                    _ => false,
                 }
-                (InternalFunction::If(c1, t1, e1), InternalFunction::If(c2, t2, e2)) => {
-                    c1.kind.matches(&c2.kind)
-                        && t1.kind.matches(&t2.kind)
-                        && e1.kind.matches(&e2.kind)
-                }
-                (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
-                | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
-                    e1.kind.matches(&e2.kind)
-                }
-                (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
-                _ => false,
-            },
+            }
 
             // Single expression variants
             (Self::Return(a), Self::Return(b))
@@ -830,9 +832,7 @@ impl ExprKind {
             }
 
             // Is expression
-            (Self::Is(e1, b1), Self::Is(e2, b2)) => {
-                e1.kind.matches(&e2.kind) && b1 == b2
-            }
+            (Self::Is(e1, b1), Self::Is(e2, b2)) => e1.kind.matches(&e2.kind) && b1 == b2,
 
             // Block expression
             (Self::Block(stmts1, expr1), Self::Block(stmts2, expr2)) => {
@@ -885,34 +885,29 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
         }
         (If(i1), If(i2)) => {
             i1.branches.len() == i2.branches.len()
-                && i1.branches.iter().zip(&i2.branches).all(
-                    |((cond1, stmts1), (cond2, stmts2))| {
+                && i1
+                    .branches
+                    .iter()
+                    .zip(&i2.branches)
+                    .all(|((cond1, stmts1), (cond2, stmts2))| {
                         cond1.kind.matches(&cond2.kind)
                             && stmts1.len() == stmts2.len()
                             && stmts1
                                 .iter()
                                 .zip(stmts2)
                                 .all(|(s1, s2)| matches_statement(s1, s2))
-                    },
-                )
+                    })
                 && match (&i1.fallback, &i2.fallback) {
                     (None, None) => true,
                     (Some(f1), Some(f2)) => {
                         f1.len() == f2.len()
-                            && f1
-                                .iter()
-                                .zip(f2)
-                                .all(|(s1, s2)| matches_statement(s1, s2))
+                            && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
                     }
                     _ => false,
                 }
         }
         (Finish(f1), Finish(f2)) => {
-            f1.len() == f2.len()
-                && f1
-                    .iter()
-                    .zip(f2)
-                    .all(|(s1, s2)| matches_statement(s1, s2))
+            f1.len() == f2.len() && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
         }
         (Map(m1), Map(m2)) => {
             matches_fact_literal(&m1.fact, &m2.fact)
@@ -978,11 +973,7 @@ fn matches_match_pattern(a: &MatchPattern, b: &MatchPattern) -> bool {
     match (a, b) {
         (MatchPattern::Default(_), MatchPattern::Default(_)) => true,
         (MatchPattern::Values(v1), MatchPattern::Values(v2)) => {
-            v1.len() == v2.len()
-                && v1
-                    .iter()
-                    .zip(v2)
-                    .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+            v1.len() == v2.len() && v1.iter().zip(v2).all(|(e1, e2)| e1.kind.matches(&e2.kind))
         }
         _ => false,
     }
