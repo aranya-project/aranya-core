@@ -1,12 +1,10 @@
-use alloc::vec;
-
 use buggy::{BugExt as _, bug};
-use heapless::{Deque, Vec};
+use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
-    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
+    SEGMENT_BUFFER_MAX, SyncError, diff, requester::SyncRequestMessage,
 };
 use crate::{
     StorageError, SyncType,
@@ -18,11 +16,11 @@ use crate::{
 };
 
 #[derive(Default, Debug)]
-pub struct PeerCache {
-    heads: Vec<Address, { PEER_HEAD_MAX }>,
+pub struct PeerCache<const HEAD_MAX: usize = PEER_HEAD_MAX> {
+    heads: Vec<Address, HEAD_MAX>,
 }
 
-impl PeerCache {
+impl<const HEAD_MAX: usize> PeerCache<HEAD_MAX> {
     pub const fn new() -> Self {
         Self { heads: Vec::new() }
     }
@@ -235,7 +233,9 @@ impl SyncResponder {
                         )?;
                     }
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+                self.to_send = diff::find_missing_segments::<COMMAND_SAMPLE_MAX, SEGMENT_BUFFER_MAX>(
+                    &self.has, storage, buffers,
+                )?;
 
                 self.get_next(target, provider)?
             }
@@ -296,124 +296,6 @@ impl SyncResponder {
 
     fn write(target: &mut [u8], msg: SyncResponseMessage) -> Result<usize, SyncError> {
         Ok(postcard::to_slice(&msg, target)?.len())
-    }
-
-    /// This (probably) returns a Vec of segment addresses where the head of each segment is
-    /// not the ancestor of any samples we have been sent. If that is longer than
-    /// SEGMENT_BUFFER_MAX, it contains the oldest segment heads where that holds.
-    fn find_needed_segments(
-        commands: &[Address],
-        storage: &impl Storage,
-        buffers: &mut TraversalBuffers,
-    ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        let mut have_locations = vec::Vec::new(); //BUG: not constant size
-        for &addr in commands {
-            // Note: We could use things we don't have as a hint to
-            // know we should perform a sync request.
-            if let Some(location) = storage.get_location(addr, &mut buffers.secondary)? {
-                have_locations.push(location);
-            }
-        }
-
-        // Filter out locations that are ancestors of other locations in the list.
-        // If location A is an ancestor of location B, we only need to keep B since
-        // having B implies having A and all its ancestors.
-        // Iterate backwards so we can safely remove items
-        for i in (0..have_locations.len()).rev() {
-            let location_a = have_locations[i];
-            let mut is_ancestor_of_other = false;
-            for &location_b in &have_locations {
-                if location_a != location_b {
-                    let segment_b = storage.get_segment(location_b)?;
-                    if location_a.same_segment(location_b)
-                        && location_a.max_cut <= location_b.max_cut
-                        || storage.is_ancestor(location_a, &segment_b, &mut buffers.secondary)?
-                    {
-                        is_ancestor_of_other = true;
-                        break;
-                    }
-                }
-            }
-            if is_ancestor_of_other {
-                have_locations.remove(i);
-            }
-        }
-
-        let queue = buffers.primary.get();
-        queue.push(storage.get_head()?)?;
-
-        let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
-
-        while let Some(head) = queue.pop() {
-            // Check if the current segment head is an ancestor of any location in have_locations.
-            // If so, stop traversing backward from this point since the requester already has
-            // this command and all its ancestors.
-            let mut is_have_ancestor = false;
-            for &have_location in &have_locations {
-                let have_segment = storage.get_segment(have_location)?;
-                if storage.is_ancestor(head, &have_segment, &mut buffers.secondary)? {
-                    is_have_ancestor = true;
-                    break;
-                }
-            }
-            if is_have_ancestor {
-                continue;
-            }
-
-            let segment = storage.get_segment(head)?;
-
-            // If the requester has any commands in this segment, send from the next command
-            if let Some(latest_loc) = have_locations
-                .iter()
-                .filter(|&&location| location.same_segment(head))
-                .max_by_key(|&&location| location.max_cut)
-            {
-                let next_max_cut = latest_loc
-                    .max_cut
-                    .checked_add(1)
-                    .assume("command + 1 mustn't overflow")?;
-                let next_location = Location {
-                    max_cut: next_max_cut,
-                    segment: head.segment,
-                };
-
-                let head_loc = segment.head_location()?;
-                if next_location.max_cut > head_loc.max_cut {
-                    continue;
-                }
-                if result.is_full() {
-                    result.pop_back();
-                }
-                result
-                    .push_front(next_location)
-                    .ok()
-                    .assume("too many segments")?;
-                continue;
-            }
-
-            if result.is_full() {
-                result.pop_back();
-            }
-
-            for prior in segment.prior() {
-                queue.push(prior)?;
-            }
-
-            let location = segment.first_location();
-            result
-                .push_front(location)
-                .ok()
-                .assume("too many segments")?;
-        }
-        let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        for l in result {
-            r.push(l).ok().assume("too many segments")?;
-        }
-        // Order segments to ensure that a segment isn't received before its
-        // ancestor segments.
-        r.sort();
-
-        Ok(r)
     }
 
     fn get_next(
@@ -477,7 +359,9 @@ impl SyncResponder {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+        self.to_send = diff::find_missing_segments::<COMMAND_SAMPLE_MAX, SEGMENT_BUFFER_MAX>(
+            &self.has, storage, buffers,
+        )?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

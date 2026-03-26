@@ -520,7 +520,7 @@ where
                     &mut buffer,
                     request_state.provider(),
                     &mut request_cache,
-                    &mut self.buffers.primary,
+                    &mut self.buffers,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];

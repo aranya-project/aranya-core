@@ -948,7 +948,7 @@ fn sync<SP: StorageProvider>(
         &mut buffer,
         request_state.provider(),
         request_cache,
-        &mut buffers.primary,
+        buffers,
     )?;
 
     let mut received = 0;

@@ -137,12 +137,7 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(
-            &mut buffer,
-            client.provider(),
-            heads,
-            &mut self.buffers.primary,
-        )?;
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads, &mut self.buffers)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -194,7 +189,7 @@ where
             heads,
             remain_open,
             max_bytes,
-            &mut self.buffers.primary,
+            &mut self.buffers,
         )?;
 
         let mut stream = TcpStream::connect(peer_addr)?;

@@ -10,6 +10,7 @@ use crate::{
     storage::{MAX_COMMAND_LENGTH, StorageError},
 };
 
+mod diff;
 mod dispatcher;
 mod requester;
 mod responder;

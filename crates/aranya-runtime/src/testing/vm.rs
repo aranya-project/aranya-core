@@ -593,12 +593,7 @@ fn test_sync<PS, P, S>(
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = sync_requester
-            .poll(
-                &mut buffer,
-                cs2.provider(),
-                &mut PeerCache::new(),
-                &mut buffers.primary,
-            )
+            .poll(&mut buffer, cs2.provider(), &mut PeerCache::new(), buffers)
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
