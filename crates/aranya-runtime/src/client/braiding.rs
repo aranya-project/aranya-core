@@ -1,6 +1,5 @@
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 
-use buggy::BugExt as _;
 use tracing::trace;
 
 use crate::{ClientError, Location, Prior, Segment as _, Storage, TraversalBuffer};
@@ -83,8 +82,8 @@ fn compute_convergence<S: Storage>(
     right: Location,
     lca: Location,
     buffer: &mut TraversalBuffer,
-) -> Result<BTreeMap<Location, usize>, ClientError> {
-    let mut convergence = BTreeMap::new();
+) -> Result<convergence_map::ConvergenceMap, ClientError> {
+    let mut convergence = convergence_map::ConvergenceMap::new();
     let queue = buffer.get();
 
     queue.push_duplicate(left)?;
@@ -96,7 +95,7 @@ fn compute_convergence<S: Storage>(
         }
 
         if count >= 2 {
-            convergence.insert(loc, count);
+            convergence.insert(loc, count)?;
         }
 
         // Expand priors — once per location regardless of count.
@@ -175,14 +174,9 @@ pub(super) fn braid<S: Storage>(
             }
 
             // Convergence count check (O(1)).
-            if let Some(remaining) = convergence.get_mut(&location) {
-                *remaining = remaining
-                    .checked_sub(1)
-                    .assume("convergence count must not underflow")?;
-                if *remaining > 0 {
-                    trace!("prior {location} convergence remaining={remaining}");
-                    continue 'location;
-                }
+            if !convergence.should_continue(location) {
+                trace!("prior {location} convergence drop");
+                continue 'location;
             }
 
             trace!("strand at {location}");
@@ -206,6 +200,108 @@ pub(super) fn braid<S: Storage>(
     braid.reverse();
 
     Ok(braid)
+}
+
+mod convergence_map {
+    use buggy::Bug;
+
+    use crate::{Location, StorageError};
+
+    /// Maximum entries per convergence chunk.
+    pub const CHUNK_SIZE: usize = 256;
+
+    /// A convergence point: location and remaining arrival count.
+    #[derive(Clone)]
+    struct Entry {
+        location: Location,
+        count: usize,
+    }
+
+    /// Bounded convergence map backed by fixed-size chunks.
+    ///
+    /// Entries are sorted by `max_cut` descending within each chunk
+    /// (matching the BFS insertion order). Lookup is O(n) within a
+    /// chunk, which is bounded by `CHUNK_SIZE`.
+    pub struct ConvergenceMap {
+        entries: heapless::Vec<Entry, CHUNK_SIZE>,
+    }
+
+    impl ConvergenceMap {
+        pub fn new() -> Self {
+            Self {
+                entries: heapless::Vec::new(),
+            }
+        }
+
+        /// Record a convergence point with the given count.
+        ///
+        /// Returns an error if the map is full. When disk-backed
+        /// chunking is added, this will flush to disk instead.
+        pub fn insert(
+            &mut self,
+            location: Location,
+            count: usize,
+        ) -> Result<(), StorageError> {
+            self.entries
+                .push(Entry { location, count })
+                .map_err(|_| StorageError::Bug(Bug::new(
+                    "convergence map overflow"
+                )))
+        }
+
+        /// Check whether a strand at `location` should continue.
+        ///
+        /// - Not in map: returns `true` (not a convergence point).
+        /// - In map with count > 1: decrements count, returns `false` (drop strand).
+        /// - In map with count == 1: removes entry, returns `true` (last arrival).
+        pub fn should_continue(&mut self, location: Location) -> bool {
+            if let Some(i) = self.entries.iter().position(|e| e.location == location) {
+                if self.entries[i].count > 1 {
+                    self.entries[i].count -= 1;
+                    false
+                } else {
+                    self.entries.swap_remove(i);
+                    true
+                }
+            } else {
+                true
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod convergence_map_tests {
+    use super::convergence_map::ConvergenceMap;
+    use crate::{Location, MaxCut, SegmentIndex};
+
+    fn loc(seg: usize, mc: usize) -> Location {
+        Location::new(SegmentIndex(seg), MaxCut(mc))
+    }
+
+    #[test]
+    fn test_not_convergence_returns_true() {
+        let mut map = ConvergenceMap::new();
+        assert!(map.should_continue(loc(0, 5)));
+    }
+
+    #[test]
+    fn test_convergence_count_2() {
+        let mut map = ConvergenceMap::new();
+        map.insert(loc(0, 5), 2).unwrap();
+        assert!(!map.should_continue(loc(0, 5)));
+        assert!(map.should_continue(loc(0, 5)));
+        assert!(map.should_continue(loc(0, 5)));
+    }
+
+    #[test]
+    fn test_convergence_count_3() {
+        let mut map = ConvergenceMap::new();
+        map.insert(loc(0, 5), 3).unwrap();
+        assert!(!map.should_continue(loc(0, 5)));
+        assert!(!map.should_continue(loc(0, 5)));
+        assert!(map.should_continue(loc(0, 5)));
+    }
 }
 
 mod strand_heap {
