@@ -1,8 +1,7 @@
-use alloc::vec::Vec;
-
+use buggy::Bug;
 use tracing::trace;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage, TraversalBuffer};
+use crate::{ClientError, Location, Prior, Segment as _, Storage, StorageError, TraversalBuffer};
 
 /// Returns the last common ancestor of two Locations.
 ///
@@ -112,6 +111,43 @@ fn compute_convergence<S: Storage>(
     Ok(convergence)
 }
 
+/// Chunk size for the braid result buffer.
+const BRAID_CHUNK_SIZE: usize = 512;
+
+/// Result of the braid algorithm, providing iteration over locations.
+///
+/// For small braids (the common case), all locations fit in the
+/// in-memory buffer with no I/O. Disk-backed chunking for large
+/// braids is a future extension.
+pub(super) struct BraidResult {
+    mem: heapless::Vec<Location, BRAID_CHUNK_SIZE>,
+}
+
+impl BraidResult {
+    fn new() -> Self {
+        Self {
+            mem: heapless::Vec::new(),
+        }
+    }
+
+    fn push(&mut self, loc: Location) -> Result<(), ClientError> {
+        self.mem
+            .push(loc)
+            .map_err(|_| {
+                ClientError::from(StorageError::Bug(Bug::new("braid result overflow")))
+            })
+    }
+
+    fn reverse(&mut self) {
+        self.mem.as_mut_slice().reverse();
+    }
+
+    /// Splits the result into first and rest, like `Vec::split_first`.
+    pub fn split_first(&self) -> Option<(&Location, &[Location])> {
+        self.mem.split_first()
+    }
+}
+
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
 ///
 /// The `lca` parameter is the last common ancestor of `left` and `right`.
@@ -126,10 +162,10 @@ pub(super) fn braid<S: Storage>(
     right: Location,
     lca: Location,
     buffer: &mut TraversalBuffer,
-) -> Result<Vec<Location>, ClientError> {
+) -> Result<BraidResult, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
-    let mut braid = Vec::new();
+    let mut braid = BraidResult::new();
     let mut strands = StrandHeap::new();
 
     trace!(%left, %right, %lca, "braiding");
@@ -153,7 +189,7 @@ pub(super) fn braid<S: Storage>(
             trace!("skipping merge command at {}", strand.next);
         } else {
             trace!("adding {}", strand.next);
-            braid.push(strand.next);
+            braid.push(strand.next)?;
         }
 
         // Continue processing prior if not accessible from other strands.
@@ -192,7 +228,7 @@ pub(super) fn braid<S: Storage>(
             // No concurrency left, done.
             let next = strand.next;
             trace!("adding {next}");
-            braid.push(next);
+            braid.push(next)?;
             break;
         }
     }
