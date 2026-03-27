@@ -42,26 +42,27 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'a'
-    	save SP
-    	fact.new 'Foo'
-    	get 'a'
-    	fact.kset 'a'
-    	query
-    	dup
-    	const None
-    	eq
-    	not
-    	branch 13
-    	exit panic
-    	unwrap some
-    	def 'foo'
-    	get 'foo'
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'get_foo'>:
+    def 'a'
+    save SP
+    fact.new 'Foo'
+    get 'a'
+    fact.kset 'a'
+    query
+    dup
+    const None
+    eq
+    not
+    branch 13
+    exit panic
+<13>:
+    unwrap some
+    def 'foo'
+    get 'foo'
+    restore SP
+    return
+    exit panic

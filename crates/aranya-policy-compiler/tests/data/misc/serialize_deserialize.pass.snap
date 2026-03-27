@@ -31,35 +31,38 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	return
-    	def 'this'
-    	save SP
-    	struct.new 'Envelope'
-    	get 'this'
-    	serialize
-    	struct.set 'payload'
-    	restore SP
-    	return
-    	exit panic
-    	def 'envelope'
-    	save SP
-    	get 'envelope'
-    	struct.get 'payload'
-    	deserialize
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Foo'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Foo'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Foo'>:
+    def 'this'
+    save SP
+    struct.new 'Envelope'
+    get 'this'
+    serialize
+    struct.set 'payload'
+    restore SP
+    return
+    exit panic
+<open 'Foo'>:
+    def 'envelope'
+    save SP
+    get 'envelope'
+    struct.get 'payload'
+    deserialize
+    restore SP
+    return
+    exit panic

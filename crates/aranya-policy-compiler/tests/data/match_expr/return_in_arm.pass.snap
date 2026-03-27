@@ -13,33 +13,36 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'n'
-    	save SP
-    	get 'n'
-    	dup
-    	const 0
-    	eq
-    	branch 9
-    	jump 14
-    	block
-    	pop
-    	const 1
-    	end
-    	jump 21
-    	block
-    	pop
-    	const 2
-    	restore SP
-    	return
-    	end
-    	jump 21
-    	def 'x'
-    	get 'x'
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'f'>:
+    def 'n'
+    save SP
+    get 'n'
+    dup
+    const 0
+    eq
+    branch 9
+    jump 14
+<9>:
+    block
+    pop
+    const 1
+    end
+    jump 21
+<14>:
+    block
+    pop
+    const 2
+    restore SP
+    return
+    end
+    jump 21
+<21>:
+    def 'x'
+    get 'x'
+    restore SP
+    return
+    exit panic

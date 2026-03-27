@@ -32,33 +32,37 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	return
-    	def 'this'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	def 'envelope'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	struct.new 'Cmd'
-    	publish
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Cmd'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Cmd'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Cmd'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Cmd'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<action 'test'>:
+    struct.new 'Cmd'
+    publish
+    return

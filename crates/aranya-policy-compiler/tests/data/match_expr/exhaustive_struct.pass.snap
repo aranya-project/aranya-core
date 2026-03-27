@@ -45,90 +45,97 @@ Module {
         },
     },
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'traffic'
-    	get 'traffic'
-    	dup
-    	struct.new 'Light'
-    	const LightColor::0
-    	struct.set 'color'
-    	const false
-    	struct.set 'go'
-    	eq
-    	branch 51
-    	dup
-    	struct.new 'Light'
-    	const LightColor::0
-    	struct.set 'color'
-    	const true
-    	struct.set 'go'
-    	eq
-    	branch 56
-    	dup
-    	struct.new 'Light'
-    	const LightColor::1
-    	struct.set 'color'
-    	const false
-    	struct.set 'go'
-    	eq
-    	branch 61
-    	dup
-    	struct.new 'Light'
-    	const LightColor::1
-    	struct.set 'color'
-    	const true
-    	struct.set 'go'
-    	eq
-    	branch 66
-    	dup
-    	struct.new 'Light'
-    	const LightColor::2
-    	struct.set 'color'
-    	const false
-    	struct.set 'go'
-    	eq
-    	branch 71
-    	dup
-    	struct.new 'Light'
-    	const LightColor::2
-    	struct.set 'color'
-    	const true
-    	struct.set 'go'
-    	eq
-    	branch 76
-    	block
-    	pop
-    	const 0
-    	end
-    	jump 81
-    	block
-    	pop
-    	const 1
-    	end
-    	jump 81
-    	block
-    	pop
-    	const 2
-    	end
-    	jump 81
-    	block
-    	pop
-    	const 3
-    	end
-    	jump 81
-    	block
-    	pop
-    	const 4
-    	end
-    	jump 81
-    	block
-    	pop
-    	const 5
-    	end
-    	jump 81
-    	def 'x'
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'f'>:
+    def 'traffic'
+    get 'traffic'
+    dup
+    struct.new 'Light'
+    const LightColor::0
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 51
+    dup
+    struct.new 'Light'
+    const LightColor::0
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 56
+    dup
+    struct.new 'Light'
+    const LightColor::1
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 61
+    dup
+    struct.new 'Light'
+    const LightColor::1
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 66
+    dup
+    struct.new 'Light'
+    const LightColor::2
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 71
+    dup
+    struct.new 'Light'
+    const LightColor::2
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 76
+<51>:
+    block
+    pop
+    const 0
+    end
+    jump 81
+<56>:
+    block
+    pop
+    const 1
+    end
+    jump 81
+<61>:
+    block
+    pop
+    const 2
+    end
+    jump 81
+<66>:
+    block
+    pop
+    const 3
+    end
+    jump 81
+<71>:
+    block
+    pop
+    const 4
+    end
+    jump 81
+<76>:
+    block
+    pop
+    const 5
+    end
+    jump 81
+<81>:
+    def 'x'
+    return

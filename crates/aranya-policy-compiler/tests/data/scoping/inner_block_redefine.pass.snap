@@ -13,19 +13,19 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	block
-    	const 1
-    	def 'x'
-    	get 'x'
-    	end
-    	def 'x'
-    	get 'x'
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'f'>:
+    save SP
+    block
+    const 1
+    def 'x'
+    get 'x'
+    end
+    def 'x'
+    get 'x'
+    restore SP
+    return
+    exit panic

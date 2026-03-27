@@ -13,23 +13,24 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	const 42
-    	const 42
-    	wrap some
-    	dup
-    	const None
-    	eq
-    	not
-    	branch 11
-    	exit panic
-    	unwrap some
-    	eq
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'f'>:
+    save SP
+    const 42
+    const 42
+    wrap some
+    dup
+    const None
+    eq
+    not
+    branch 11
+    exit panic
+<11>:
+    unwrap some
+    eq
+    restore SP
+    return
+    exit panic

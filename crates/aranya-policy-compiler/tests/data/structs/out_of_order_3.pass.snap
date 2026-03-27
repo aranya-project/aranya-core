@@ -42,23 +42,23 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	struct.new 'Fum'
-    	const true
-    	struct.set 'b'
-    	def 'fum'
-    	struct.new 'Bar'
-    	const "s"
-    	struct.set 's'
-    	const 1
-    	struct.set 'num'
-    	get 'fum'
-    	struct.set 'f'
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'ret_bar'>:
+    save SP
+    struct.new 'Fum'
+    const true
+    struct.set 'b'
+    def 'fum'
+    struct.new 'Bar'
+    const "s"
+    struct.set 's'
+    const 1
+    struct.set 'num'
+    get 'fum'
+    struct.set 'f'
+    restore SP
+    return
+    exit panic

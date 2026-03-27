@@ -48,18 +48,19 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	fact.new 'Foo'
-    	const 1
-    	fact.kset 'i'
-    	query
-    	const None
-    	eq
-    	not
-    	branch 10
-    	exit check
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'test'>:
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    query
+    const None
+    eq
+    not
+    branch 10
+    exit check
+<10>:
+    return

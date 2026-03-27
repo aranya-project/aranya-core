@@ -34,18 +34,18 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	struct.new 'Foo'
-    	const 1
-    	struct.set 'a'
-    	const "test"
-    	struct.set 'b'
-    	cast 'Bar'
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'convert'>:
+    save SP
+    struct.new 'Foo'
+    const 1
+    struct.set 'a'
+    const "test"
+    struct.set 'b'
+    cast 'Bar'
+    restore SP
+    return
+    exit panic

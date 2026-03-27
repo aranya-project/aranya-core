@@ -24,28 +24,31 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'n'
-    	get 'n'
-    	dup
-    	const 0
-    	eq
-    	branch 8
-    	jump 13
-    	block
-    	pop
-    	const None
-    	end
-    	jump 19
-    	block
-    	pop
-    	const 0
-    	wrap some
-    	end
-    	jump 19
-    	def 'x'
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'f'>:
+    def 'n'
+    get 'n'
+    dup
+    const 0
+    eq
+    branch 8
+    jump 13
+<8>:
+    block
+    pop
+    const None
+    end
+    jump 19
+<13>:
+    block
+    pop
+    const 0
+    wrap some
+    end
+    jump 19
+<19>:
+    def 'x'
+    return

@@ -25,44 +25,48 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'b'
-    	save SP
-    	get 'b'
-    	dup
-    	struct.new 'Bar'
-    	const 42
-    	wrap ok
-    	struct.set 'r'
-    	eq
-    	branch 19
-    	dup
-    	struct.new 'Bar'
-    	const 16
-    	wrap ok
-    	struct.set 'r'
-    	eq
-    	branch 24
-    	jump 29
-    	block
-    	pop
-    	const 1
-    	end
-    	jump 34
-    	block
-    	pop
-    	const 2
-    	end
-    	jump 34
-    	block
-    	pop
-    	const 0
-    	end
-    	jump 34
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'foo'>:
+    def 'b'
+    save SP
+    get 'b'
+    dup
+    struct.new 'Bar'
+    const 42
+    wrap ok
+    struct.set 'r'
+    eq
+    branch 19
+    dup
+    struct.new 'Bar'
+    const 16
+    wrap ok
+    struct.set 'r'
+    eq
+    branch 24
+    jump 29
+<19>:
+    block
+    pop
+    const 1
+    end
+    jump 34
+<24>:
+    block
+    pop
+    const 2
+    end
+    jump 34
+<29>:
+    block
+    pop
+    const 0
+    end
+    jump 34
+<34>:
+    restore SP
+    return
+    exit panic

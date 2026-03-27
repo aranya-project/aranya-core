@@ -26,41 +26,45 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'maybe_bool'
-    	get 'maybe_bool'
-    	dup
-    	const None
-    	eq
-    	branch 17
-    	dup
-    	const true
-    	wrap some
-    	eq
-    	branch 22
-    	dup
-    	const false
-    	wrap some
-    	eq
-    	branch 27
-    	block
-    	pop
-    	const 0
-    	end
-    	jump 32
-    	block
-    	pop
-    	const 1
-    	end
-    	jump 32
-    	block
-    	pop
-    	const 2
-    	end
-    	jump 32
-    	def 'x'
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'f'>:
+    def 'maybe_bool'
+    get 'maybe_bool'
+    dup
+    const None
+    eq
+    branch 17
+    dup
+    const true
+    wrap some
+    eq
+    branch 22
+    dup
+    const false
+    wrap some
+    eq
+    branch 27
+<17>:
+    block
+    pop
+    const 0
+    end
+    jump 32
+<22>:
+    block
+    pop
+    const 1
+    end
+    jump 32
+<27>:
+    block
+    pop
+    const 2
+    end
+    jump 32
+<32>:
+    def 'x'
+    return

@@ -79,30 +79,33 @@ Module {
             },
         ),
     },
-    program memory: 
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	return
-    	def 'this'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	def 'envelope'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Bar'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Bar'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Bar'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Bar'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

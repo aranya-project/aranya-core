@@ -53,37 +53,40 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	meta: finish enabled
-    	block
-    	fact.new 'Foo'
-    	const 1
-    	fact.kset 'i'
-    	dup
-    	const "updated"
-    	fact.vset 'a'
-    	update
-    	end
-    	exit normal
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	return
-    	def 'this'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	def 'envelope'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Test'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    dup
+    const "updated"
+    fact.vset 'a'
+    update
+    end
+    exit normal
+    exit panic
+<recall 'Test'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Test'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Test'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

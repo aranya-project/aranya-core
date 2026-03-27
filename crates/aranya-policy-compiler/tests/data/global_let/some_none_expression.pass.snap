@@ -19,8 +19,7 @@ Module {
             ),
         ),
     },
-    program memory: 
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic

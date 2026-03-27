@@ -48,30 +48,34 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	const 42
-    	def 'n'
-    	fact.new 'Pet'
-    	query.start
-    	block
-    	query.next 'p'
-    	branch 21
-    	get 'p'
-    	struct.get 'age'
-    	const 0
-    	gt
-    	branch 14
-    	exit check
-    	get 'n'
-    	const 42
-    	eq
-    	branch 19
-    	exit check
-    	end
-    	jump 5
-    	end
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'pets'>:
+    const 42
+    def 'n'
+    fact.new 'Pet'
+    query.start
+<5>:
+    block
+    query.next 'p'
+    branch 21
+    get 'p'
+    struct.get 'age'
+    const 0
+    gt
+    branch 14
+    exit check
+<14>:
+    get 'n'
+    const 42
+    eq
+    branch 19
+    exit check
+<19>:
+    end
+    jump 5
+<21>:
+    end
+    return

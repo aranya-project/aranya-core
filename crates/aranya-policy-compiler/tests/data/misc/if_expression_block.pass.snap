@@ -24,26 +24,28 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'n'
-    	get 'n'
-    	const 1
-    	gt
-    	branch 10
-    	block
-    	const 0
-    	end
-    	jump 17
-    	block
-    	get 'n'
-    	const 1
-    	saturating_add
-    	def 'x'
-    	get 'x'
-    	end
-    	def 'x'
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'f'>:
+    def 'n'
+    get 'n'
+    const 1
+    gt
+    branch 10
+    block
+    const 0
+    end
+    jump 17
+<10>:
+    block
+    get 'n'
+    const 1
+    saturating_add
+    def 'x'
+    get 'x'
+    end
+<17>:
+    def 'x'
+    return

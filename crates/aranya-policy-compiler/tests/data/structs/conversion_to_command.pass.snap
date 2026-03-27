@@ -60,40 +60,44 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	def 'envelope'
-    	def 'this'
-    	return
-    	def 'this'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	def 'envelope'
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	struct.new 'Foo'
-    	const 1
-    	struct.set 'a'
-    	const "test"
-    	struct.set 'b'
-    	cast 'Bar'
-    	def 'bar'
-    	get 'bar'
-    	publish
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Bar'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Bar'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Bar'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Bar'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<action 'convert'>:
+    struct.new 'Foo'
+    const 1
+    struct.set 'a'
+    const "test"
+    struct.set 'b'
+    cast 'Bar'
+    def 'bar'
+    get 'bar'
+    publish
+    return

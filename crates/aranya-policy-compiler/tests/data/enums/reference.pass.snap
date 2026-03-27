@@ -24,39 +24,44 @@ Module {
         },
     },
     globals: {},
-    program memory: 
-    	exit panic
-    	const Result::0
-    	def 'ok'
-    	get 'ok'
-    	const Result::0
-    	eq
-    	branch 8
-    	exit check
-    	get 'ok'
-    	const Result::1
-    	eq
-    	not
-    	branch 14
-    	exit check
-    	get 'ok'
-    	dup
-    	const Result::0
-    	eq
-    	branch 23
-    	dup
-    	const Result::1
-    	eq
-    	branch 27
-    	block
-    	pop
-    	end
-    	jump 31
-    	block
-    	pop
-    	end
-    	jump 31
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'test'>:
+    const Result::0
+    def 'ok'
+    get 'ok'
+    const Result::0
+    eq
+    branch 8
+    exit check
+<8>:
+    get 'ok'
+    const Result::1
+    eq
+    not
+    branch 14
+    exit check
+<14>:
+    get 'ok'
+    dup
+    const Result::0
+    eq
+    branch 23
+    dup
+    const Result::1
+    eq
+    branch 27
+<23>:
+    block
+    pop
+    end
+    jump 31
+<27>:
+    block
+    pop
+    end
+    jump 31
+<31>:
+    return

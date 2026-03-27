@@ -34,15 +34,16 @@ Module {
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 's'
-    	def 'n'
-    	return
-    	const 1
-    	const "abc"
-    	call 1
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'bar'>:
+    def 's'
+    def 'n'
+    return
+<action 'foo'>:
+    const 1
+    const "abc"
+    call 1
+    return

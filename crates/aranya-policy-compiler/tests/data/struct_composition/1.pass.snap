@@ -38,22 +38,22 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'foo'
-    	save SP
-    	struct.new 'Bar'
-    	const "z"
-    	struct.set 'z'
-    	get 'foo'
-    	struct.get 'x'
-    	struct.set 'x'
-    	get 'foo'
-    	struct.get 'y'
-    	struct.set 'y'
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'baz'>:
+    def 'foo'
+    save SP
+    struct.new 'Bar'
+    const "z"
+    struct.set 'z'
+    get 'foo'
+    struct.get 'x'
+    struct.set 'x'
+    get 'foo'
+    struct.get 'y'
+    struct.set 'y'
+    restore SP
+    return
+    exit panic

@@ -33,229 +33,246 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	def 'n'
-    	def 'x'
-    	save SP
-    	get 'n'
-    	const 0
-    	eq
-    	not
-    	branch 15
-    	block
-    	const 1
-    	restore SP
-    	return
-    	end
-    	jump 15
-    	get 'n'
-    	const 1
-    	eq
-    	not
-    	branch 26
-    	block
-    	get 'x'
-    	restore SP
-    	return
-    	end
-    	jump 26
-    	get 'n'
-    	call 54
-    	not
-    	branch 45
-    	block
-    	get 'x'
-    	get 'x'
-    	call 67
-    	get 'n'
-    	const 1
-    	saturating_sub
-    	const 2
-    	call 141
-    	call 1
-    	call 75
-    	restore SP
-    	return
-    	end
-    	jump 45
-    	get 'x'
-    	call 67
-    	get 'n'
-    	const 2
-    	call 141
-    	call 1
-    	restore SP
-    	return
-    	exit panic
-    	def 'x'
-    	save SP
-    	get 'x'
-    	const 2
-    	call 141
-    	const 2
-    	call 75
-    	get 'x'
-    	eq
-    	not
-    	restore SP
-    	return
-    	exit panic
-    	def 'x'
-    	save SP
-    	get 'x'
-    	const 2
-    	call 75
-    	restore SP
-    	return
-    	exit panic
-    	def 'y'
-    	def 'x'
-    	save SP
-    	get 'x'
-    	const 0
-    	eq
-    	not
-    	branch 89
-    	block
-    	const 0
-    	restore SP
-    	return
-    	end
-    	jump 89
-    	get 'y'
-    	const 0
-    	eq
-    	not
-    	branch 100
-    	block
-    	const 0
-    	restore SP
-    	return
-    	end
-    	jump 100
-    	get 'x'
-    	const 1
-    	eq
-    	not
-    	branch 111
-    	block
-    	get 'y'
-    	restore SP
-    	return
-    	end
-    	jump 111
-    	get 'y'
-    	const 1
-    	eq
-    	not
-    	branch 122
-    	block
-    	get 'x'
-    	restore SP
-    	return
-    	end
-    	jump 122
-    	get 'x'
-    	get 'y'
-    	add
-    	dup
-    	const None
-    	eq
-    	not
-    	branch 131
-    	exit panic
-    	unwrap some
-    	get 'x'
-    	get 'y'
-    	const 1
-    	saturating_sub
-    	call 75
-    	saturating_add
-    	restore SP
-    	return
-    	exit panic
-    	def 'y'
-    	def 'x'
-    	save SP
-    	get 'y'
-    	const 0
-    	gt
-    	branch 149
-    	exit check
-    	get 'x'
-    	get 'y'
-    	lt
-    	not
-    	branch 160
-    	block
-    	const 0
-    	restore SP
-    	return
-    	end
-    	jump 160
-    	struct.new 'Division'
-    	get 'y'
-    	struct.set 'd'
-    	const 0
-    	struct.set 'q'
-    	get 'x'
-    	struct.set 'r'
-    	call 174
-    	def 'got'
-    	get 'got'
-    	struct.get 'q'
-    	restore SP
-    	return
-    	exit panic
-    	def 'args'
-    	save SP
-    	get 'args'
-    	struct.get 'd'
-    	def 'd'
-    	get 'args'
-    	struct.get 'q'
-    	def 'q'
-    	get 'args'
-    	struct.get 'r'
-    	def 'r'
-    	get 'd'
-    	const 0
-    	gt
-    	branch 190
-    	exit check
-    	get 'r'
-    	get 'd'
-    	lt
-    	not
-    	branch 207
-    	block
-    	struct.new 'Division'
-    	get 'd'
-    	struct.set 'd'
-    	get 'q'
-    	struct.set 'q'
-    	get 'r'
-    	struct.set 'r'
-    	restore SP
-    	return
-    	end
-    	jump 207
-    	struct.new 'Division'
-    	get 'd'
-    	struct.set 'd'
-    	get 'q'
-    	const 1
-    	saturating_add
-    	struct.set 'q'
-    	get 'r'
-    	get 'd'
-    	saturating_sub
-    	struct.set 'r'
-    	call 174
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'pow'>:
+    def 'n'
+    def 'x'
+    save SP
+    get 'n'
+    const 0
+    eq
+    not
+    branch 15
+    block
+    const 1
+    restore SP
+    return
+    end
+    jump 15
+<15>:
+    get 'n'
+    const 1
+    eq
+    not
+    branch 26
+    block
+    get 'x'
+    restore SP
+    return
+    end
+    jump 26
+<26>:
+    get 'n'
+    call 54
+    not
+    branch 45
+    block
+    get 'x'
+    get 'x'
+    call 67
+    get 'n'
+    const 1
+    saturating_sub
+    const 2
+    call 141
+    call 1
+    call 75
+    restore SP
+    return
+    end
+    jump 45
+<45>:
+    get 'x'
+    call 67
+    get 'n'
+    const 2
+    call 141
+    call 1
+    restore SP
+    return
+    exit panic
+<fn 'is_odd'>:
+    def 'x'
+    save SP
+    get 'x'
+    const 2
+    call 141
+    const 2
+    call 75
+    get 'x'
+    eq
+    not
+    restore SP
+    return
+    exit panic
+<fn 'double'>:
+    def 'x'
+    save SP
+    get 'x'
+    const 2
+    call 75
+    restore SP
+    return
+    exit panic
+<fn 'multiply'>:
+    def 'y'
+    def 'x'
+    save SP
+    get 'x'
+    const 0
+    eq
+    not
+    branch 89
+    block
+    const 0
+    restore SP
+    return
+    end
+    jump 89
+<89>:
+    get 'y'
+    const 0
+    eq
+    not
+    branch 100
+    block
+    const 0
+    restore SP
+    return
+    end
+    jump 100
+<100>:
+    get 'x'
+    const 1
+    eq
+    not
+    branch 111
+    block
+    get 'y'
+    restore SP
+    return
+    end
+    jump 111
+<111>:
+    get 'y'
+    const 1
+    eq
+    not
+    branch 122
+    block
+    get 'x'
+    restore SP
+    return
+    end
+    jump 122
+<122>:
+    get 'x'
+    get 'y'
+    add
+    dup
+    const None
+    eq
+    not
+    branch 131
+    exit panic
+<131>:
+    unwrap some
+    get 'x'
+    get 'y'
+    const 1
+    saturating_sub
+    call 75
+    saturating_add
+    restore SP
+    return
+    exit panic
+<fn 'divide'>:
+    def 'y'
+    def 'x'
+    save SP
+    get 'y'
+    const 0
+    gt
+    branch 149
+    exit check
+<149>:
+    get 'x'
+    get 'y'
+    lt
+    not
+    branch 160
+    block
+    const 0
+    restore SP
+    return
+    end
+    jump 160
+<160>:
+    struct.new 'Division'
+    get 'y'
+    struct.set 'd'
+    const 0
+    struct.set 'q'
+    get 'x'
+    struct.set 'r'
+    call 174
+    def 'got'
+    get 'got'
+    struct.get 'q'
+    restore SP
+    return
+    exit panic
+<fn 'divide0'>:
+    def 'args'
+    save SP
+    get 'args'
+    struct.get 'd'
+    def 'd'
+    get 'args'
+    struct.get 'q'
+    def 'q'
+    get 'args'
+    struct.get 'r'
+    def 'r'
+    get 'd'
+    const 0
+    gt
+    branch 190
+    exit check
+<190>:
+    get 'r'
+    get 'd'
+    lt
+    not
+    branch 207
+    block
+    struct.new 'Division'
+    get 'd'
+    struct.set 'd'
+    get 'q'
+    struct.set 'q'
+    get 'r'
+    struct.set 'r'
+    restore SP
+    return
+    end
+    jump 207
+<207>:
+    struct.new 'Division'
+    get 'd'
+    struct.set 'd'
+    get 'q'
+    const 1
+    saturating_add
+    struct.set 'q'
+    get 'r'
+    get 'd'
+    saturating_sub
+    struct.set 'r'
+    call 174
+    restore SP
+    return
+    exit panic
