@@ -947,6 +947,17 @@ fn test_result_default() {
             }
         }
         "#,
+        r#"
+            struct Bar { r result[int, string] }
+
+            function foo(b struct Bar) int {
+                return match b {
+                    Bar { r: Ok(42) } => 1
+                    Bar { r: Ok(16) } => 2
+                    _ => 0
+                }
+            }
+        "#,
     ];
 
     for src in valid {
@@ -1007,6 +1018,19 @@ fn test_result_default() {
             CompileErrorType::InvalidType(
                 "Result pattern value must be a literal or an identifier".to_string(),
             ),
+        ),
+        (
+            r#"
+            struct Bar { r result[int, string] }
+
+            function foo(b struct Bar) int {
+                return match b {
+                    Bar { r: Ok(42) } => 1
+                    Bar { r: Ok(16) } => 2
+                }
+            }
+            "#,
+            CompileErrorType::MissingDefaultPattern,
         ),
         (
             r#"
