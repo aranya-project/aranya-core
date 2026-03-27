@@ -1,0 +1,53 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {},
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "b" @ 13..14,
+                field_type: Bool @ 15..19,
+            },
+        ],
+        "Baz": [
+            FieldDefinition {
+                identifier: "i" @ 0..0,
+                field_type: Int @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "b" @ 0..0,
+                field_type: Bool @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "s" @ 0..0,
+                field_type: String @ 0..0,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "b" @ 0..0,
+                field_type: Bool @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "s" @ 0..0,
+                field_type: String @ 0..0,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    ,
+    ..
+}

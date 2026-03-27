@@ -1,0 +1,3 @@
+function foo(x struct UndefinedStruct) int {
+    return 0
+}

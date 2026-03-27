@@ -1,0 +1,3 @@
+finish function foo() {
+    let x = 3
+}

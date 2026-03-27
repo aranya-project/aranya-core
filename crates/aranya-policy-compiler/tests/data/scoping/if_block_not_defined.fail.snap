@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: Unknown identifier `x` at line 3 col 5:
+	return x // x should not exist in the outer scope

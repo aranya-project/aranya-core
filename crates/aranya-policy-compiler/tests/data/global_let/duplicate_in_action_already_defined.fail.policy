@@ -1,0 +1,4 @@
+let x = 10
+action foo() {
+    let x = saturating_add(x, 15)
+}

@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+unknown error: Found cyclic dependencies when compiling structs:
+- [Foo, Fum] at line 1 col 1:

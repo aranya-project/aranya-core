@@ -1,0 +1,11 @@
+fact Foo[i int] => {a string}
+command test {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            update Foo[i: 1]=>{a: 1} to {a: 0}
+        }
+    }
+}

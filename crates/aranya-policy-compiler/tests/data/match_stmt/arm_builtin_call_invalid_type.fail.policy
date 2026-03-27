@@ -1,0 +1,6 @@
+action foo(x int) {
+    match x {
+        saturating_add(0, 1)=> {}
+        _ => {}
+    }
+}

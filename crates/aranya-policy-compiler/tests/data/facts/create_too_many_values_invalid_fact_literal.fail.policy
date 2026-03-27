@@ -1,0 +1,5 @@
+fact Device[device_id int]=>{name string}
+
+finish function too_many() {
+    create Device[device_id:1]=>{name: "bob", email: "bob@email.com"}
+}

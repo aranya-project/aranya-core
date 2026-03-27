@@ -1,0 +1,91 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "pets",
+            ltype: Action,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {
+            ByName(
+                ActionDef {
+                    name: "pets" @ 40..44,
+                    persistence: Persistent,
+                    params: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {
+        "Pet": FactDefinition {
+            immutable: false,
+            identifier: "Pet" @ 5..8,
+            key: [
+                FieldDefinition {
+                    identifier: "name" @ 9..13,
+                    field_type: String @ 14..20,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "age" @ 24..27,
+                    field_type: Int @ 28..31,
+                },
+            ],
+            span: 0..32,
+        },
+    },
+    struct_defs: {
+        "Pet": [
+            FieldDefinition {
+                identifier: "name" @ 9..13,
+                field_type: String @ 14..20,
+            },
+            FieldDefinition {
+                identifier: "age" @ 24..27,
+                field_type: Int @ 28..31,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    	const 42
+    	meta: Set `n`
+    	def n
+    	fact.new Pet
+    	query.start
+    	block
+    	query.next p
+    	branch 24
+    	meta: Get `p`
+    	get p
+    	struct.get age
+    	const 0
+    	gt
+    	branch 16
+    	exit check
+    	meta: Get `n`
+    	get n
+    	const 42
+    	eq
+    	branch 22
+    	exit check
+    	end
+    	jump 6
+    	end
+    	return
+    ,
+    ..
+}

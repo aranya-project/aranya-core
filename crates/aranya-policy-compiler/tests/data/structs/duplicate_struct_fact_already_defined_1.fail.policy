@@ -1,0 +1,3 @@
+// Should give an "already defined" error.
+struct Foo {}
+fact Foo[]=>{}

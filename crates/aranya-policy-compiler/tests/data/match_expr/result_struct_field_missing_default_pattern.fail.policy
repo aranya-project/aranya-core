@@ -1,0 +1,8 @@
+struct Bar { r result[int, string] }
+
+function foo(b struct Bar) int {
+    return match b {
+        Bar { r: Ok(42) } => 1
+        Bar { r: Ok(16) } => 2
+    }
+}
