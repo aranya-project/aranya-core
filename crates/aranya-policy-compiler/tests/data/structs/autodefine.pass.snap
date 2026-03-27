@@ -5,10 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "get_foo",
-            ltype: Function,
-        }: 1,
+        <fn "get_foo">: 1,
     },
     action_defs: {},
     command_defs: {},

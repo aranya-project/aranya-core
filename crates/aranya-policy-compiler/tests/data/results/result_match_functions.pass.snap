@@ -5,18 +5,9 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "match_expr_with_return",
-            ltype: Function,
-        }: 56,
-        Label {
-            name: "match_statement",
-            ltype: Function,
-        }: 25,
-        Label {
-            name: "may_fail",
-            ltype: Function,
-        }: 1,
+        <fn "match_expr_with_return">: 56,
+        <fn "match_statement">: 25,
+        <fn "may_fail">: 1,
     },
     action_defs: {},
     command_defs: {},

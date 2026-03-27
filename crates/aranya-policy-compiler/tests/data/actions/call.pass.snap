@@ -5,14 +5,8 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "bar",
-            ltype: Action,
-        }: 1,
-        Label {
-            name: "foo",
-            ltype: Action,
-        }: 6,
+        <action "bar">: 1,
+        <action "foo">: 6,
     },
     action_defs: {
         ActionDef {

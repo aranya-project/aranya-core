@@ -52,7 +52,6 @@ impl Display for LabelType {
 
 /// Labels are branch targets and execution entry points.
 #[derive(
-    Debug,
     Clone,
     PartialOrd,
     Ord,
@@ -71,6 +70,12 @@ pub struct Label {
     pub name: Identifier,
     /// The type of the label
     pub ltype: LabelType,
+}
+
+impl fmt::Debug for Label {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<{} {:?}>", self.ltype, self.name)
+    }
 }
 
 impl Label {

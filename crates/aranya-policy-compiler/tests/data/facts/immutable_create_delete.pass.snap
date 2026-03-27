@@ -5,22 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "test",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "test",
-            ltype: CommandRecall,
-        }: 22,
-        Label {
-            name: "test",
-            ltype: CommandSeal,
-        }: 27,
-        Label {
-            name: "test",
-            ltype: CommandOpen,
-        }: 34,
+        <policy "test">: 1,
+        <recall "test">: 22,
+        <seal "test">: 27,
+        <open "test">: 34,
     },
     action_defs: {},
     command_defs: {

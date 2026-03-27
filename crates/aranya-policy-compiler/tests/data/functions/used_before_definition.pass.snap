@@ -5,30 +5,12 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "divide",
-            ltype: Function,
-        }: 169,
-        Label {
-            name: "divide0",
-            ltype: Function,
-        }: 211,
-        Label {
-            name: "double",
-            ltype: Function,
-        }: 81,
-        Label {
-            name: "is_odd",
-            ltype: Function,
-        }: 65,
-        Label {
-            name: "multiply",
-            ltype: Function,
-        }: 91,
-        Label {
-            name: "pow",
-            ltype: Function,
-        }: 1,
+        <fn "divide">: 169,
+        <fn "divide0">: 211,
+        <fn "double">: 81,
+        <fn "is_odd">: 65,
+        <fn "multiply">: 91,
+        <fn "pow">: 1,
     },
     action_defs: {},
     command_defs: {},
