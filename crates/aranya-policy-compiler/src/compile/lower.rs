@@ -35,13 +35,6 @@ impl CompileState<'_> {
             .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
     }
 
-    fn duplicate_match_arm_value_error(&self, span: Span) -> CompileError {
-        self.err_loc(
-            CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-            span,
-        )
-    }
-
     fn unreachable_match_arm_error(&self, span: Span) -> CompileError {
         self.err_loc(CompileErrorType::UnreachableMatchArm, span)
     }
@@ -1068,20 +1061,14 @@ impl CompileState<'_> {
         let mut seen_result_binding_ok = false;
         let mut seen_result_binding_err = false;
         for (i, (value, v1_span)) in all_values.iter().enumerate() {
-            // Two Ok/Err patterns are duplicate if both are bindings, or both are literals
-            // with equal inner expression types. A binding and a literal are *not* duplicates,
-            // but we need to check the order, below.
-            let is_duplicate = |(v2, _): &(ExprKind, Span)| match (value, v2) {
-                (ExprKind::Ok(ai), ExprKind::Ok(bi)) | (ExprKind::Err(ai), ExprKind::Err(bi)) => {
-                    let a_binding = matches!(ai.kind, ExprKind::Identifier(_));
-                    let b_binding = matches!(bi.kind, ExprKind::Identifier(_));
-                    (a_binding && b_binding)
-                        || (!a_binding && !b_binding && ai.kind.matches(&bi.kind))
-                }
-                _ => value.matches(v2),
-            };
-            if all_values[..i].iter().any(is_duplicate) {
-                return Err(self.duplicate_match_arm_value_error(*v1_span));
+            if all_values[..i]
+                .iter()
+                .any(|(v2, _): &(ExprKind, Span)| value.matches(v2))
+            {
+                return Err(self.err_loc(
+                    CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
+                    *v1_span,
+                ));
             }
 
             // Check for unreachable arms
