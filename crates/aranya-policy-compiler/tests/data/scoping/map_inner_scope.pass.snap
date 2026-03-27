@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "pets">: 1,
+        <action 'pets'>: 1,
     },
     action_defs: {
         ActionDef {
@@ -51,19 +51,19 @@ Module {
     program memory: 
     	exit panic
     	const 42
-    	def n
-    	fact.new Pet
+    	def 'n'
+    	fact.new 'Pet'
     	query.start
     	block
-    	query.next p
+    	query.next 'p'
     	branch 21
-    	get p
-    	struct.get age
+    	get 'p'
+    	struct.get 'age'
     	const 0
     	gt
     	branch 14
     	exit check
-    	get n
+    	get 'n'
     	const 42
     	eq
     	branch 19

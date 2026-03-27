@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "f">: 1,
+        <action 'f'>: 1,
     },
     action_defs: {
         ActionDef {
@@ -28,8 +28,8 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def maybe_bool
-    	get maybe_bool
+    	def 'maybe_bool'
+    	get 'maybe_bool'
     	dup
     	const None
     	eq
@@ -59,7 +59,7 @@ Module {
     	const 2
     	end
     	jump 32
-    	def x
+    	def 'x'
     	return
     ,
     ..

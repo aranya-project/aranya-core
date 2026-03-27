@@ -5,10 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <policy "Foo">: 1,
-        <recall "Foo">: 8,
-        <seal "Foo">: 11,
-        <open "Foo">: 20,
+        <policy 'Foo'>: 1,
+        <recall 'Foo'>: 8,
+        <seal 'Foo'>: 11,
+        <open 'Foo'>: 20,
     },
     action_defs: {},
     command_defs: {
@@ -33,29 +33,29 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	return
-    	def this
+    	def 'this'
     	save SP
-    	struct.new Envelope
-    	get this
+    	struct.new 'Envelope'
+    	get 'this'
     	serialize
-    	struct.set payload
+    	struct.set 'payload'
     	restore SP
     	return
     	exit panic
-    	def envelope
+    	def 'envelope'
     	save SP
-    	get envelope
-    	struct.get payload
+    	get 'envelope'
+    	struct.get 'payload'
     	deserialize
     	restore SP
     	return

@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "test">: 1,
+        <action 'test'>: 1,
     },
     action_defs: {
         ActionDef {
@@ -50,9 +50,9 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	fact.new Foo
+    	fact.new 'Foo'
     	const 1
-    	fact.kset i
+    	fact.kset 'i'
     	query
     	const None
     	eq

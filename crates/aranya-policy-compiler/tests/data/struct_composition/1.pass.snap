@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "baz">: 1,
+        <fn 'baz'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -40,17 +40,17 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def foo
+    	def 'foo'
     	save SP
-    	struct.new Bar
+    	struct.new 'Bar'
     	const "z"
-    	struct.set z
-    	get foo
-    	struct.get x
-    	struct.set x
-    	get foo
-    	struct.get y
-    	struct.set y
+    	struct.set 'z'
+    	get 'foo'
+    	struct.get 'x'
+    	struct.set 'x'
+    	get 'foo'
+    	struct.get 'y'
+    	struct.set 'y'
     	restore SP
     	return
     	exit panic

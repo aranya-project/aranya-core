@@ -5,11 +5,11 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <policy "Cmd">: 1,
-        <recall "Cmd">: 8,
-        <seal "Cmd">: 11,
-        <open "Cmd">: 17,
-        <action "test">: 23,
+        <policy 'Cmd'>: 1,
+        <recall 'Cmd'>: 8,
+        <seal 'Cmd'>: 11,
+        <open 'Cmd'>: 17,
+        <action 'test'>: 23,
     },
     action_defs: {
         ActionDef {
@@ -38,29 +38,29 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	return
-    	def this
+    	def 'this'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	def envelope
+    	def 'envelope'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	struct.new Cmd
+    	struct.new 'Cmd'
     	publish
     	return
     ,

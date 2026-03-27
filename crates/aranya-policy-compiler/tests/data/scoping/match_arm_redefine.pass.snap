@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "f">: 1,
+        <fn 'f'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -15,9 +15,9 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def y
+    	def 'y'
     	save SP
-    	get y
+    	get 'y'
     	dup
     	const 1
     	eq
@@ -30,13 +30,13 @@ Module {
     	block
     	pop
     	const 3
-    	def x
+    	def 'x'
     	end
     	jump 29
     	block
     	pop
     	const 4
-    	def x
+    	def 'x'
     	end
     	jump 29
     	block

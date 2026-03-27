@@ -5,9 +5,9 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "match_expr_with_return">: 48,
-        <fn "match_statement">: 22,
-        <fn "may_fail">: 1,
+        <fn 'match_expr_with_return'>: 48,
+        <fn 'match_statement'>: 22,
+        <fn 'may_fail'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -17,15 +17,15 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def x
+    	def 'x'
     	save SP
-    	get x
+    	get 'x'
     	const 0
     	gt
     	not
     	branch 15
     	block
-    	get x
+    	get 'x'
     	wrap ok
     	restore SP
     	return
@@ -38,9 +38,9 @@ Module {
     	return
     	end
     	exit panic
-    	def r
+    	def 'r'
     	save SP
-    	get r
+    	get 'r'
     	dup
     	is ok
     	branch 31
@@ -49,24 +49,24 @@ Module {
     	branch 39
     	block
     	unwrap ok
-    	def v
-    	get v
+    	def 'v'
+    	get 'v'
     	restore SP
     	return
     	end
     	jump 47
     	block
     	unwrap err
-    	def e
+    	def 'e'
     	const 0
     	restore SP
     	return
     	end
     	jump 47
     	exit panic
-    	def x
+    	def 'x'
     	save SP
-    	get x
+    	get 'x'
     	call 1
     	dup
     	is ok
@@ -76,21 +76,21 @@ Module {
     	branch 64
     	block
     	unwrap ok
-    	def n
-    	get n
+    	def 'n'
+    	get 'n'
     	end
     	jump 73
     	block
     	unwrap err
-    	def e
-    	get e
+    	def 'e'
+    	get 'e'
     	wrap err
     	restore SP
     	return
     	end
     	jump 73
-    	def n
-    	get n
+    	def 'n'
+    	get 'n'
     	wrap ok
     	restore SP
     	return

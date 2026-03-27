@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "foo">: 1,
+        <fn 'foo'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -27,21 +27,21 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def b
+    	def 'b'
     	save SP
-    	get b
+    	get 'b'
     	dup
-    	struct.new Bar
+    	struct.new 'Bar'
     	const 42
     	wrap ok
-    	struct.set r
+    	struct.set 'r'
     	eq
     	branch 19
     	dup
-    	struct.new Bar
+    	struct.new 'Bar'
     	const 16
     	wrap ok
-    	struct.set r
+    	struct.set 'r'
     	eq
     	branch 24
     	jump 29

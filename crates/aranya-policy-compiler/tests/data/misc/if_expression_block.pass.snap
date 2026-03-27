@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "f">: 1,
+        <action 'f'>: 1,
     },
     action_defs: {
         ActionDef {
@@ -26,8 +26,8 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def n
-    	get n
+    	def 'n'
+    	get 'n'
     	const 1
     	gt
     	branch 10
@@ -36,13 +36,13 @@ Module {
     	end
     	jump 17
     	block
-    	get n
+    	get 'n'
     	const 1
     	saturating_add
-    	def x
-    	get x
+    	def 'x'
+    	get 'x'
     	end
-    	def x
+    	def 'x'
     	return
     ,
     ..

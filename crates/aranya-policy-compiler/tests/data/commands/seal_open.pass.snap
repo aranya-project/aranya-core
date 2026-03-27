@@ -5,10 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <policy "Foo">: 1,
-        <recall "Foo">: 8,
-        <seal "Foo">: 11,
-        <open "Foo">: 17,
+        <policy 'Foo'>: 1,
+        <recall 'Foo'>: 8,
+        <seal 'Foo'>: 11,
+        <open 'Foo'>: 17,
     },
     action_defs: {},
     command_defs: {
@@ -27,23 +27,23 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	return
-    	def this
+    	def 'this'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	def envelope
+    	def 'envelope'
     	save SP
     	exit panic
     	restore SP

@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "test">: 1,
+        <action 'test'>: 1,
     },
     action_defs: {
         ActionDef {
@@ -27,19 +27,19 @@ Module {
     program memory: 
     	exit panic
     	const Result::0
-    	def ok
-    	get ok
+    	def 'ok'
+    	get 'ok'
     	const Result::0
     	eq
     	branch 8
     	exit check
-    	get ok
+    	get 'ok'
     	const Result::1
     	eq
     	not
     	branch 14
     	exit check
-    	get ok
+    	get 'ok'
     	dup
     	const Result::0
     	eq

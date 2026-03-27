@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "f">: 1,
+        <action 'f'>: 1,
     },
     action_defs: {
         ActionDef {
@@ -26,8 +26,8 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def n
-    	get n
+    	def 'n'
+    	get 'n'
     	dup
     	const 0
     	eq
@@ -44,7 +44,7 @@ Module {
     	wrap some
     	end
     	jump 19
-    	def x
+    	def 'x'
     	return
     ,
     ..

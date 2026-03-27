@@ -5,11 +5,11 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <policy "Foo">: 1,
-        <recall "Foo">: 8,
-        <seal "Foo">: 11,
-        <open "Foo">: 17,
-        <action "foo">: 23,
+        <policy 'Foo'>: 1,
+        <recall 'Foo'>: 8,
+        <seal 'Foo'>: 11,
+        <open 'Foo'>: 17,
+        <action 'foo'>: 23,
     },
     action_defs: {
         ActionDef {
@@ -57,32 +57,32 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	return
-    	def this
+    	def 'this'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	def envelope
+    	def 'envelope'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	def b
+    	def 'b'
     	const 4
-    	def i
-    	get b
+    	def 'i'
+    	get 'b'
     	const 0
     	eq
     	branch 34
@@ -92,16 +92,16 @@ Module {
     	jump 39
     	block
     	const 4
-    	get i
+    	get 'i'
     	saturating_add
     	end
-    	def x
-    	struct.new Foo
-    	get x
-    	struct.set a
+    	def 'x'
+    	struct.new 'Foo'
+    	get 'x'
+    	struct.set 'a'
     	const 4
-    	struct.set b
-    	def y
+    	struct.set 'b'
+    	def 'y'
     	return
     ,
     ..

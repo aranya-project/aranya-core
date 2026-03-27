@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "get_foo">: 1,
+        <fn 'get_foo'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -44,11 +44,11 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def a
+    	def 'a'
     	save SP
-    	fact.new Foo
-    	get a
-    	fact.kset a
+    	fact.new 'Foo'
+    	get 'a'
+    	fact.kset 'a'
     	query
     	dup
     	const None
@@ -57,8 +57,8 @@ Module {
     	branch 13
     	exit panic
     	unwrap some
-    	def foo
-    	get foo
+    	def 'foo'
+    	get 'foo'
     	restore SP
     	return
     	exit panic

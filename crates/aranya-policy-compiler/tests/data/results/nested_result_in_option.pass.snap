@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "bar">: 1,
+        <fn 'bar'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -19,9 +19,9 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def n
+    	def 'n'
     	save SP
-    	get n
+    	get 'n'
     	const 0
     	gt
     	not
@@ -34,7 +34,7 @@ Module {
     	return
     	end
     	jump 34
-    	get n
+    	get 'n'
     	const 0
     	eq
     	not

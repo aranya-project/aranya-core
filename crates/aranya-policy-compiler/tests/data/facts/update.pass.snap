@@ -5,10 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <policy "Test">: 1,
-        <recall "Test">: 15,
-        <seal "Test">: 18,
-        <open "Test">: 24,
+        <policy 'Test'>: 1,
+        <recall 'Test'>: 15,
+        <seal 'Test'>: 18,
+        <open 'Test'>: 24,
     },
     action_defs: {},
     command_defs: {
@@ -55,30 +55,30 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	meta: finish enabled
     	block
-    	fact.new Foo
+    	fact.new 'Foo'
     	const 1
-    	fact.kset i
+    	fact.kset 'i'
     	dup
     	const "updated"
-    	fact.vset a
+    	fact.vset 'a'
     	update
     	end
     	exit normal
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	return
-    	def this
+    	def 'this'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	def envelope
+    	def 'envelope'
     	save SP
     	exit panic
     	restore SP

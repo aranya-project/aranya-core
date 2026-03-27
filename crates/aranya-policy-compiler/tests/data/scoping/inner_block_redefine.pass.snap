@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "f">: 1,
+        <fn 'f'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -18,11 +18,11 @@ Module {
     	save SP
     	block
     	const 1
-    	def x
-    	get x
+    	def 'x'
+    	get 'x'
     	end
-    	def x
-    	get x
+    	def 'x'
+    	get 'x'
     	restore SP
     	return
     	exit panic

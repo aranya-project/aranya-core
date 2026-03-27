@@ -5,8 +5,8 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <action "bar">: 1,
-        <action "foo">: 4,
+        <action 'bar'>: 1,
+        <action 'foo'>: 4,
     },
     action_defs: {
         ActionDef {
@@ -36,8 +36,8 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def s
-    	def n
+    	def 's'
+    	def 'n'
     	return
     	const 1
     	const "abc"

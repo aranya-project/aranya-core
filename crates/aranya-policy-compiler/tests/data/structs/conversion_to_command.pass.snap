@@ -5,11 +5,11 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <policy "Bar">: 1,
-        <recall "Bar">: 8,
-        <seal "Bar">: 11,
-        <open "Bar">: 17,
-        <action "convert">: 23,
+        <policy 'Bar'>: 1,
+        <recall 'Bar'>: 8,
+        <seal 'Bar'>: 11,
+        <open 'Bar'>: 17,
+        <action 'convert'>: 23,
     },
     action_defs: {
         ActionDef {
@@ -62,36 +62,36 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	def envelope
-    	def this
+    	def 'envelope'
+    	def 'this'
     	return
-    	def this
+    	def 'this'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	def envelope
+    	def 'envelope'
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	struct.new Foo
+    	struct.new 'Foo'
     	const 1
-    	struct.set a
+    	struct.set 'a'
     	const "test"
-    	struct.set b
-    	cast Bar
-    	def bar
-    	get bar
+    	struct.set 'b'
+    	cast 'Bar'
+    	def 'bar'
+    	get 'bar'
     	publish
     	return
     ,

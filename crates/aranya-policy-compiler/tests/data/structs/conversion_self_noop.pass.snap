@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "convert">: 1,
+        <fn 'convert'>: 1,
     },
     action_defs: {},
     command_defs: {},
@@ -27,12 +27,12 @@ Module {
     program memory: 
     	exit panic
     	save SP
-    	struct.new Foo
+    	struct.new 'Foo'
     	const 1
-    	struct.set a
+    	struct.set 'a'
     	const "test"
-    	struct.set b
-    	cast Foo
+    	struct.set 'b'
+    	cast 'Foo'
     	restore SP
     	return
     	exit panic

@@ -74,7 +74,7 @@ pub struct Label {
 
 impl fmt::Debug for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<{} {:?}>", self.ltype, self.name)
+        write!(f, "<{} '{}'>", self.ltype, self.name)
     }
 }
 
