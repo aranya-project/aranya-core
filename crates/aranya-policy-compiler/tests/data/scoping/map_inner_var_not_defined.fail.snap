@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: Unknown identifier `n` at line 6 col 5:
+	check n == 42 // should not be accessible outside the block

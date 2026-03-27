@@ -1,0 +1,12 @@
+fact F[] => {s string}
+
+command CreateBindValue {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            update F[] => {s: ""} to {s: ?}
+        }
+    }
+}

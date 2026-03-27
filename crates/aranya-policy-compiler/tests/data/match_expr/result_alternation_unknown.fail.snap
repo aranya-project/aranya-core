@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+unknown error: Result patterns cannot be used in alternation. at line 3 col 9:
+	Ok(true) | Ok(false)

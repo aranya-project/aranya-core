@@ -1,0 +1,10 @@
+function f(n int, m int) int {
+    let x = match n {
+        0 => match m {
+            0 => 1
+            _ => return 2
+        }
+        _ => 3
+    }
+    return x
+}

@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+A struct literal has all its fields explicitly specified while also having 1 or more struct compositions at line 3 col 5:
+	let new_foo = Foo {
+        x: 3,
+        y: true,
+        ...f
+    }

@@ -1,0 +1,16 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+already defined: duplicate match arm value at line 13 col 5:
+	match x {
+        5 => {
+            publish Result { x: x }
+        }
+        6 => {
+            publish Result { x: x }
+        }
+        5 => {
+            publish Result { x: x }
+        }
+    }

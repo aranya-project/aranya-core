@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid statement in action context at line 2 col 5:
+	create Foo[]=>{}
