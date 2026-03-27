@@ -26,37 +26,23 @@ Module {
             ltype: Action,
         }: 29,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "test" @ 148..152,
-                    persistence: Ephemeral(
-                        131..140,
-                    ),
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
+    action_defs: {
+        ActionDef {
+            name: "test" @ 148..152,
+            persistence: Ephemeral(
+                131..140,
             ),
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Cmd" @ 18..21,
-                    persistence: Ephemeral(
-                        0..9,
-                    ),
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
+    command_defs: {
+        CommandDef {
+            name: "Cmd" @ 18..21,
+            persistence: Ephemeral(
+                0..9,
             ),
+            attributes: {},
+            fields: {},
         },
     },
     fact_defs: {},

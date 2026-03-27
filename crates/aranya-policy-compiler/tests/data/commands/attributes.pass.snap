@@ -22,49 +22,33 @@ Module {
             ltype: CommandOpen,
         }: 22,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "A" @ 36..37,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {
-                            ByName(
-                                Attribute {
-                                    name: "i" @ 65..66,
-                                    value: Int(
-                                        5,
-                                    ),
-                                },
-                            ),
-                            ByName(
-                                Attribute {
-                                    name: "s" @ 79..80,
-                                    value: String(
-                                        "abc",
-                                    ),
-                                },
-                            ),
-                            ByName(
-                                Attribute {
-                                    name: "priority" @ 97..105,
-                                    value: Enum(
-                                        "Priority",
-                                        1,
-                                    ),
-                                },
-                            ),
-                        },
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "A" @ 36..37,
+            persistence: Persistent,
+            attributes: {
+                Attribute {
+                    name: "i" @ 65..66,
+                    value: Int(
+                        5,
+                    ),
                 },
-            ),
+                Attribute {
+                    name: "s" @ 79..80,
+                    value: String(
+                        "abc",
+                    ),
+                },
+                Attribute {
+                    name: "priority" @ 97..105,
+                    value: Enum(
+                        "Priority",
+                        1,
+                    ),
+                },
+            },
+            fields: {},
         },
     },
     fact_defs: {},

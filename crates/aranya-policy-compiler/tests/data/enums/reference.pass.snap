@@ -10,22 +10,14 @@ Module {
             ltype: Action,
         }: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "test" @ 31..35,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "test" @ 31..35,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {

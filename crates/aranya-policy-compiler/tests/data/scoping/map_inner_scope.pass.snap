@@ -10,22 +10,14 @@ Module {
             ltype: Action,
         }: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "pets" @ 40..44,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "pets" @ 40..44,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {
         "Pet": FactDefinition {
             immutable: false,

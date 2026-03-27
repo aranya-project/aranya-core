@@ -10,31 +10,21 @@ Module {
             ltype: Action,
         }: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "f" @ 108..109,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "traffic" @ 110..117,
-                                    ty: Struct(
-                                        "Light" @ 125..130,
-                                    ) @ 118..130,
-                                },
-                            ),
-                        },
-                    },
+    action_defs: {
+        ActionDef {
+            name: "f" @ 108..109,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "traffic" @ 110..117,
+                    ty: Struct(
+                        "Light" @ 125..130,
+                    ) @ 118..130,
                 },
-            ),
+            },
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {},
     struct_defs: {
         "Light": [

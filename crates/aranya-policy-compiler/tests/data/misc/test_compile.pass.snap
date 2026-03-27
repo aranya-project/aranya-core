@@ -26,53 +26,33 @@ Module {
             ltype: Action,
         }: 29,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "foo" @ 162..165,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "b" @ 166..167,
-                                    ty: Int @ 168..171,
-                                },
-                            ),
-                        },
-                    },
+    action_defs: {
+        ActionDef {
+            name: "foo" @ 162..165,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "b" @ 166..167,
+                    ty: Int @ 168..171,
                 },
-            ),
+            },
         },
     },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Foo" @ 8..11,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {
-                            ByName(
-                                Field {
-                                    name: "a" @ 35..36,
-                                    ty: Int @ 37..40,
-                                },
-                            ),
-                            ByName(
-                                Field {
-                                    name: "b" @ 50..51,
-                                    ty: Int @ 52..55,
-                                },
-                            ),
-                        },
-                    },
+    command_defs: {
+        CommandDef {
+            name: "Foo" @ 8..11,
+            persistence: Persistent,
+            attributes: {},
+            fields: {
+                Field {
+                    name: "a" @ 35..36,
+                    ty: Int @ 37..40,
                 },
-            ),
+                Field {
+                    name: "b" @ 50..51,
+                    ty: Int @ 52..55,
+                },
+            },
         },
     },
     fact_defs: {},

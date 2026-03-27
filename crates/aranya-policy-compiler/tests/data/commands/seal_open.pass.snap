@@ -22,23 +22,13 @@ Module {
             ltype: CommandOpen,
         }: 22,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Foo" @ 8..11,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "Foo" @ 8..11,
+            persistence: Persistent,
+            attributes: {},
+            fields: {},
         },
     },
     fact_defs: {},

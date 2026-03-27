@@ -26,33 +26,19 @@ Module {
             ltype: Action,
         }: 29,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "test" @ 128..132,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "test" @ 128..132,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Cmd" @ 8..11,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    command_defs: {
+        CommandDef {
+            name: "Cmd" @ 8..11,
+            persistence: Persistent,
+            attributes: {},
+            fields: {},
         },
     },
     fact_defs: {},

@@ -26,46 +26,28 @@ Module {
             ltype: Action,
         }: 29,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "convert" @ 206..213,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "convert" @ 206..213,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Bar" @ 48..51,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {
-                            ByName(
-                                Field {
-                                    name: "a" @ 75..76,
-                                    ty: Int @ 77..80,
-                                },
-                            ),
-                            ByName(
-                                Field {
-                                    name: "b" @ 90..91,
-                                    ty: String @ 92..98,
-                                },
-                            ),
-                        },
-                    },
+    command_defs: {
+        CommandDef {
+            name: "Bar" @ 48..51,
+            persistence: Persistent,
+            attributes: {},
+            fields: {
+                Field {
+                    name: "a" @ 75..76,
+                    ty: Int @ 77..80,
                 },
-            ),
+                Field {
+                    name: "b" @ 90..91,
+                    ty: String @ 92..98,
+                },
+            },
         },
     },
     fact_defs: {},

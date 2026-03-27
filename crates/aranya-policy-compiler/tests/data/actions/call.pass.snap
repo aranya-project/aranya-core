@@ -14,44 +14,28 @@ Module {
             ltype: Action,
         }: 6,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "bar" @ 7..10,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "n" @ 11..12,
-                                    ty: Int @ 13..16,
-                                },
-                            ),
-                            ByName(
-                                Param {
-                                    name: "s" @ 18..19,
-                                    ty: String @ 20..26,
-                                },
-                            ),
-                        },
-                    },
+    action_defs: {
+        ActionDef {
+            name: "bar" @ 7..10,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "n" @ 11..12,
+                    ty: Int @ 13..16,
                 },
-            ),
-            ByName(
-                ActionDef {
-                    name: "foo" @ 38..41,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
+                Param {
+                    name: "s" @ 18..19,
+                    ty: String @ 20..26,
                 },
-            ),
+            },
+        },
+        ActionDef {
+            name: "foo" @ 38..41,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},

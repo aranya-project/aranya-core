@@ -10,31 +10,21 @@ Module {
             ltype: Action,
         }: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "f" @ 7..8,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "maybe_bool" @ 9..19,
-                                    ty: Optional(
-                                        Bool @ 27..31,
-                                    ) @ 20..32,
-                                },
-                            ),
-                        },
-                    },
+    action_defs: {
+        ActionDef {
+            name: "f" @ 7..8,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "maybe_bool" @ 9..19,
+                    ty: Optional(
+                        Bool @ 27..31,
+                    ) @ 20..32,
                 },
-            ),
+            },
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},

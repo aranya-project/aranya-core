@@ -22,42 +22,30 @@ Module {
             ltype: CommandOpen,
         }: 22,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Bar" @ 112..115,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {
-                            ByName(
-                                Attribute {
-                                    name: "foo_attr" @ 143..151,
-                                    value: Struct(
-                                        ConstStruct {
-                                            name: "Foo",
-                                            fields: {
-                                                "x": Int(
-                                                    1000,
-                                                ),
-                                                "y": Int(
-                                                    20,
-                                                ),
-                                            },
-                                        },
-                                    ),
-                                },
-                            ),
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "Bar" @ 112..115,
+            persistence: Persistent,
+            attributes: {
+                Attribute {
+                    name: "foo_attr" @ 143..151,
+                    value: Struct(
+                        ConstStruct {
+                            name: "Foo",
+                            fields: {
+                                "x": Int(
+                                    1000,
+                                ),
+                                "y": Int(
+                                    20,
+                                ),
+                            },
                         },
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
+                    ),
                 },
-            ),
+            },
+            fields: {},
         },
     },
     fact_defs: {},

@@ -1,5 +1,7 @@
 //! [`NamedMap`] and associated traits and types.
 
+use core::fmt;
+
 use aranya_policy_ast::{Identifier, Param};
 
 macro_rules! named {
@@ -27,13 +29,7 @@ named!(Param);
 ///
 /// `V` must implement [`Named`].
 #[derive(
-    Clone,
-    Debug,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
+    Clone, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[serde(transparent)]
 #[serde(bound(
@@ -117,10 +113,15 @@ impl<V: Named + PartialEq> PartialEq for NamedMap<V> {
 }
 impl<V: Named + Eq> Eq for NamedMap<V> {}
 
+impl<V: fmt::Debug> fmt::Debug for NamedMap<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.set, f)
+    }
+}
+
 #[derive(
     Copy,
     Clone,
-    Debug,
     serde::Serialize,
     serde::Deserialize,
     rkyv::Archive,
@@ -146,5 +147,11 @@ impl<V: Named> core::hash::Hash for ByName<V> {
 impl<V: Named> core::borrow::Borrow<str> for ByName<V> {
     fn borrow(&self) -> &str {
         self.0.name().as_str()
+    }
+}
+
+impl<V: fmt::Debug> fmt::Debug for ByName<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
     }
 }
