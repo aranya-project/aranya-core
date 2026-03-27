@@ -6,10 +6,10 @@ Module {
     version: "0",
     labels: {
         <policy "Bar">: 1,
-        <recall "Bar">: 10,
-        <seal "Bar">: 15,
-        <open "Bar">: 22,
-        <action "convert">: 29,
+        <recall "Bar">: 8,
+        <seal "Bar">: 11,
+        <open "Bar">: 17,
+        <action "convert">: 23,
     },
     action_defs: {
         ActionDef {
@@ -62,28 +62,22 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `envelope`
     	def envelope
-    	meta: Set `this`
     	def this
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	meta: Set `envelope`
     	def envelope
-    	meta: Set `this`
     	def this
     	return
-    	meta: Set `this`
     	def this
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	meta: Set `envelope`
     	def envelope
     	save SP
     	exit panic
@@ -96,9 +90,7 @@ Module {
     	const "test"
     	struct.set b
     	cast Bar
-    	meta: Set `bar`
     	def bar
-    	meta: Get `bar`
     	get bar
     	publish
     	return

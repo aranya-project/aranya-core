@@ -26,28 +26,22 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `n`
     	def n
-    	meta: Get `n`
     	get n
     	const 1
     	gt
-    	branch 12
+    	branch 10
     	block
     	const 0
     	end
-    	jump 22
+    	jump 17
     	block
-    	meta: Get `n`
     	get n
     	const 1
     	saturating_add
-    	meta: Set `x`
     	def x
-    	meta: Get `x`
     	get x
     	end
-    	meta: Set `x`
     	def x
     	return
     ,

@@ -27,10 +27,8 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `b`
     	def b
     	save SP
-    	meta: Get `b`
     	get b
     	dup
     	struct.new Bar
@@ -38,30 +36,30 @@ Module {
     	wrap ok
     	struct.set r
     	eq
-    	branch 21
+    	branch 19
     	dup
     	struct.new Bar
     	const 16
     	wrap ok
     	struct.set r
     	eq
-    	branch 26
-    	jump 31
+    	branch 24
+    	jump 29
     	block
     	pop
     	const 1
     	end
-    	jump 36
+    	jump 34
     	block
     	pop
     	const 2
     	end
-    	jump 36
+    	jump 34
     	block
     	pop
     	const 0
     	end
-    	jump 36
+    	jump 34
     	restore SP
     	return
     	exit panic

@@ -6,9 +6,9 @@ Module {
     version: "0",
     labels: {
         <policy "Test">: 1,
-        <recall "Test">: 17,
-        <seal "Test">: 22,
-        <open "Test">: 29,
+        <recall "Test">: 15,
+        <seal "Test">: 18,
+        <open "Test">: 24,
     },
     action_defs: {},
     command_defs: {
@@ -55,9 +55,7 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `envelope`
     	def envelope
-    	meta: Set `this`
     	def this
     	meta: finish enabled
     	block
@@ -71,19 +69,15 @@ Module {
     	end
     	exit normal
     	exit panic
-    	meta: Set `envelope`
     	def envelope
-    	meta: Set `this`
     	def this
     	return
-    	meta: Set `this`
     	def this
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	meta: Set `envelope`
     	def envelope
     	save SP
     	exit panic

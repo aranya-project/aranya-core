@@ -19,15 +19,13 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `n`
     	def n
     	save SP
-    	meta: Get `n`
     	get n
     	const 0
     	gt
     	not
-    	branch 18
+    	branch 16
     	block
     	const 42
     	wrap ok
@@ -35,13 +33,12 @@ Module {
     	restore SP
     	return
     	end
-    	jump 37
-    	meta: Get `n`
+    	jump 34
     	get n
     	const 0
     	eq
     	not
-    	branch 32
+    	branch 29
     	block
     	const Err::0
     	wrap err
@@ -49,7 +46,7 @@ Module {
     	restore SP
     	return
     	end
-    	jump 37
+    	jump 34
     	block
     	const None
     	restore SP

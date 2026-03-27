@@ -44,11 +44,9 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `a`
     	def a
     	save SP
     	fact.new Foo
-    	meta: Get `a`
     	get a
     	fact.kset a
     	query
@@ -56,12 +54,10 @@ Module {
     	const None
     	eq
     	not
-    	branch 15
+    	branch 13
     	exit panic
     	unwrap some
-    	meta: Set `foo`
     	def foo
-    	meta: Get `foo`
     	get foo
     	restore SP
     	return

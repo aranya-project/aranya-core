@@ -6,10 +6,10 @@ Module {
     version: "0",
     labels: {
         <policy "Foo">: 1,
-        <recall "Foo">: 10,
-        <seal "Foo">: 15,
-        <open "Foo">: 22,
-        <action "foo">: 29,
+        <recall "Foo">: 8,
+        <seal "Foo">: 11,
+        <open "Foo">: 17,
+        <action "foo">: 23,
     },
     action_defs: {
         ActionDef {
@@ -57,63 +57,50 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `envelope`
     	def envelope
-    	meta: Set `this`
     	def this
     	meta: finish enabled
     	block
     	end
     	exit normal
     	exit panic
-    	meta: Set `envelope`
     	def envelope
-    	meta: Set `this`
     	def this
     	return
-    	meta: Set `this`
     	def this
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	meta: Set `envelope`
     	def envelope
     	save SP
     	exit panic
     	restore SP
     	return
     	exit panic
-    	meta: Set `b`
     	def b
     	const 4
-    	meta: Set `i`
     	def i
-    	meta: Get `b`
     	get b
     	const 0
     	eq
-    	branch 43
+    	branch 34
     	block
     	const 3
     	end
-    	jump 49
+    	jump 39
     	block
     	const 4
-    	meta: Get `i`
     	get i
     	saturating_add
     	end
-    	meta: Set `x`
     	def x
     	struct.new Foo
-    	meta: Get `x`
     	get x
     	struct.set a
     	const 4
     	struct.set b
-    	meta: Set `y`
     	def y
     	return
     ,

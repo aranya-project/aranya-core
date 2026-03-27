@@ -26,30 +26,26 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `n`
     	def n
-    	meta: Get `n`
     	get n
     	dup
     	const 0
     	eq
-    	branch 10
-    	jump 15
+    	branch 8
+    	jump 13
     	block
     	pop
     	const false
     	end
-    	jump 20
+    	jump 18
     	block
     	pop
     	const true
     	end
-    	jump 20
-    	meta: Set `b`
+    	jump 18
     	def b
-    	meta: Get `b`
     	get b
-    	branch 26
+    	branch 22
     	exit check
     	return
     ,

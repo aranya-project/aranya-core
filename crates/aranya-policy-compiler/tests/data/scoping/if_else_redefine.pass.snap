@@ -15,24 +15,20 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `y`
     	def y
     	save SP
-    	meta: Get `y`
     	get y
     	const 0
     	eq
     	not
-    	branch 16
+    	branch 13
     	block
     	const 3
-    	meta: Set `x`
     	def x
     	end
-    	jump 21
+    	jump 17
     	block
     	const 4
-    	meta: Set `x`
     	def x
     	end
     	const false

@@ -6,7 +6,7 @@ Module {
     version: "0",
     labels: {
         <action "bar">: 1,
-        <action "foo">: 6,
+        <action "foo">: 4,
     },
     action_defs: {
         ActionDef {
@@ -36,9 +36,7 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `s`
     	def s
-    	meta: Set `n`
     	def n
     	return
     	const 1

@@ -5,8 +5,8 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "match_expr_with_return">: 56,
-        <fn "match_statement">: 25,
+        <fn "match_expr_with_return">: 48,
+        <fn "match_statement">: 22,
         <fn "may_fail">: 1,
     },
     action_defs: {},
@@ -17,23 +17,20 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `x`
     	get x
     	const 0
     	gt
     	not
-    	branch 18
+    	branch 15
     	block
-    	meta: Get `x`
     	get x
     	wrap ok
     	restore SP
     	return
     	end
-    	jump 24
+    	jump 21
     	block
     	const "negative input"
     	wrap err
@@ -41,71 +38,58 @@ Module {
     	return
     	end
     	exit panic
-    	meta: Set `r`
     	def r
     	save SP
-    	meta: Get `r`
     	get r
     	dup
     	is ok
-    	branch 36
+    	branch 31
     	dup
     	is err
-    	branch 46
+    	branch 39
     	block
     	unwrap ok
-    	meta: Set `v`
     	def v
-    	meta: Get `v`
     	get v
     	restore SP
     	return
     	end
-    	jump 55
+    	jump 47
     	block
     	unwrap err
-    	meta: Set `e`
     	def e
     	const 0
     	restore SP
     	return
     	end
-    	jump 55
+    	jump 47
     	exit panic
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `x`
     	get x
     	call 1
     	dup
     	is ok
-    	branch 68
+    	branch 58
     	dup
     	is err
-    	branch 76
+    	branch 64
     	block
     	unwrap ok
-    	meta: Set `n`
     	def n
-    	meta: Get `n`
     	get n
     	end
-    	jump 87
+    	jump 73
     	block
     	unwrap err
-    	meta: Set `e`
     	def e
-    	meta: Get `e`
     	get e
     	wrap err
     	restore SP
     	return
     	end
-    	jump 87
-    	meta: Set `n`
+    	jump 73
     	def n
-    	meta: Get `n`
     	get n
     	wrap ok
     	restore SP

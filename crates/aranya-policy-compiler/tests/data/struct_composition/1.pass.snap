@@ -40,17 +40,14 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `foo`
     	def foo
     	save SP
     	struct.new Bar
     	const "z"
     	struct.set z
-    	meta: Get `foo`
     	get foo
     	struct.get x
     	struct.set x
-    	meta: Get `foo`
     	get foo
     	struct.get y
     	struct.set y

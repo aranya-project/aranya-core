@@ -27,39 +27,35 @@ Module {
     program memory: 
     	exit panic
     	const Result::0
-    	meta: Set `ok`
     	def ok
-    	meta: Get `ok`
     	get ok
     	const Result::0
     	eq
-    	branch 10
+    	branch 8
     	exit check
-    	meta: Get `ok`
     	get ok
     	const Result::1
     	eq
     	not
-    	branch 17
+    	branch 14
     	exit check
-    	meta: Get `ok`
     	get ok
     	dup
     	const Result::0
     	eq
-    	branch 27
+    	branch 23
     	dup
     	const Result::1
     	eq
-    	branch 31
+    	branch 27
     	block
     	pop
     	end
-    	jump 35
+    	jump 31
     	block
     	pop
     	end
-    	jump 35
+    	jump 31
     	return
     ,
     ..

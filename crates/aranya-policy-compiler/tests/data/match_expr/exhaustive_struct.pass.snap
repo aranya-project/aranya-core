@@ -47,9 +47,7 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `traffic`
     	def traffic
-    	meta: Get `traffic`
     	get traffic
     	dup
     	struct.new Light
@@ -58,7 +56,7 @@ Module {
     	const false
     	struct.set go
     	eq
-    	branch 53
+    	branch 51
     	dup
     	struct.new Light
     	const LightColor::0
@@ -66,7 +64,7 @@ Module {
     	const true
     	struct.set go
     	eq
-    	branch 58
+    	branch 56
     	dup
     	struct.new Light
     	const LightColor::1
@@ -74,7 +72,7 @@ Module {
     	const false
     	struct.set go
     	eq
-    	branch 63
+    	branch 61
     	dup
     	struct.new Light
     	const LightColor::1
@@ -82,7 +80,7 @@ Module {
     	const true
     	struct.set go
     	eq
-    	branch 68
+    	branch 66
     	dup
     	struct.new Light
     	const LightColor::2
@@ -90,7 +88,7 @@ Module {
     	const false
     	struct.set go
     	eq
-    	branch 73
+    	branch 71
     	dup
     	struct.new Light
     	const LightColor::2
@@ -98,38 +96,37 @@ Module {
     	const true
     	struct.set go
     	eq
-    	branch 78
+    	branch 76
     	block
     	pop
     	const 0
     	end
-    	jump 83
+    	jump 81
     	block
     	pop
     	const 1
     	end
-    	jump 83
+    	jump 81
     	block
     	pop
     	const 2
     	end
-    	jump 83
+    	jump 81
     	block
     	pop
     	const 3
     	end
-    	jump 83
+    	jump 81
     	block
     	pop
     	const 4
     	end
-    	jump 83
+    	jump 81
     	block
     	pop
     	const 5
     	end
-    	jump 83
-    	meta: Set `x`
+    	jump 81
     	def x
     	return
     ,

@@ -15,31 +15,27 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `n`
     	def n
     	save SP
-    	meta: Get `n`
     	get n
     	dup
     	const 0
     	eq
-    	branch 11
-    	jump 16
+    	branch 9
+    	jump 14
     	block
     	pop
     	const 1
     	end
-    	jump 23
+    	jump 21
     	block
     	pop
     	const 2
     	restore SP
     	return
     	end
-    	jump 23
-    	meta: Set `x`
+    	jump 21
     	def x
-    	meta: Get `x`
     	get x
     	restore SP
     	return

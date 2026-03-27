@@ -48,14 +48,12 @@ Module {
     	struct.new Fum
     	const true
     	struct.set b
-    	meta: Set `fum`
     	def fum
     	struct.new Bar
     	const "s"
     	struct.set s
     	const 1
     	struct.set num
-    	meta: Get `fum`
     	get fum
     	struct.set f
     	restore SP

@@ -18,14 +18,10 @@ Module {
     	save SP
     	block
     	const 1
-    	meta: Set `x`
     	def x
-    	meta: Get `x`
     	get x
     	end
-    	meta: Set `x`
     	def x
-    	meta: Get `x`
     	get x
     	restore SP
     	return

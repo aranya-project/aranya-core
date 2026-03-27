@@ -54,11 +54,9 @@ Module {
     	query.start
     	block
     	query.next p
-    	branch 13
-    	meta: Get `p`
+    	branch 11
     	get p
     	struct.get age
-    	meta: Set `age`
     	def age
     	end
     	jump 3

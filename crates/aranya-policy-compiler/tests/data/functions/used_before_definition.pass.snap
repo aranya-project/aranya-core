@@ -5,11 +5,11 @@ expression: module
 Module {
     version: "0",
     labels: {
-        <fn "divide">: 169,
-        <fn "divide0">: 211,
-        <fn "double">: 81,
-        <fn "is_odd">: 65,
-        <fn "multiply">: 91,
+        <fn "divide">: 141,
+        <fn "divide0">: 174,
+        <fn "double">: 67,
+        <fn "is_odd">: 54,
+        <fn "multiply">: 75,
         <fn "pow">: 1,
     },
     action_defs: {},
@@ -35,278 +35,224 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `n`
     	def n
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `n`
     	get n
     	const 0
     	eq
     	not
-    	branch 18
+    	branch 15
     	block
     	const 1
     	restore SP
     	return
     	end
-    	jump 18
-    	meta: Get `n`
+    	jump 15
     	get n
     	const 1
     	eq
     	not
-    	branch 31
+    	branch 26
     	block
-    	meta: Get `x`
     	get x
     	restore SP
     	return
     	end
-    	jump 31
-    	meta: Get `n`
+    	jump 26
     	get n
-    	call 65
+    	call 54
     	not
-    	branch 54
+    	branch 45
     	block
-    	meta: Get `x`
     	get x
-    	meta: Get `x`
     	get x
-    	call 81
-    	meta: Get `n`
+    	call 67
     	get n
     	const 1
     	saturating_sub
     	const 2
-    	call 169
+    	call 141
     	call 1
-    	call 91
+    	call 75
     	restore SP
     	return
     	end
-    	jump 54
-    	meta: Get `x`
+    	jump 45
     	get x
-    	call 81
-    	meta: Get `n`
+    	call 67
     	get n
     	const 2
-    	call 169
+    	call 141
     	call 1
     	restore SP
     	return
     	exit panic
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `x`
     	get x
     	const 2
-    	call 169
+    	call 141
     	const 2
-    	call 91
-    	meta: Get `x`
+    	call 75
     	get x
     	eq
     	not
     	restore SP
     	return
     	exit panic
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `x`
     	get x
     	const 2
-    	call 91
+    	call 75
     	restore SP
     	return
     	exit panic
-    	meta: Set `y`
     	def y
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `x`
     	get x
     	const 0
     	eq
     	not
-    	branch 108
+    	branch 89
     	block
     	const 0
     	restore SP
     	return
     	end
-    	jump 108
-    	meta: Get `y`
+    	jump 89
     	get y
     	const 0
     	eq
     	not
-    	branch 120
+    	branch 100
     	block
     	const 0
     	restore SP
     	return
     	end
-    	jump 120
-    	meta: Get `x`
+    	jump 100
     	get x
     	const 1
     	eq
     	not
-    	branch 133
+    	branch 111
     	block
-    	meta: Get `y`
     	get y
     	restore SP
     	return
     	end
-    	jump 133
-    	meta: Get `y`
+    	jump 111
     	get y
     	const 1
     	eq
     	not
-    	branch 146
+    	branch 122
     	block
-    	meta: Get `x`
     	get x
     	restore SP
     	return
     	end
-    	jump 146
-    	meta: Get `x`
+    	jump 122
     	get x
-    	meta: Get `y`
     	get y
     	add
     	dup
     	const None
     	eq
     	not
-    	branch 157
+    	branch 131
     	exit panic
     	unwrap some
-    	meta: Get `x`
     	get x
-    	meta: Get `y`
     	get y
     	const 1
     	saturating_sub
-    	call 91
+    	call 75
     	saturating_add
     	restore SP
     	return
     	exit panic
-    	meta: Set `y`
     	def y
-    	meta: Set `x`
     	def x
     	save SP
-    	meta: Get `y`
     	get y
     	const 0
     	gt
-    	branch 180
+    	branch 149
     	exit check
-    	meta: Get `x`
     	get x
-    	meta: Get `y`
     	get y
     	lt
     	not
-    	branch 193
+    	branch 160
     	block
     	const 0
     	restore SP
     	return
     	end
-    	jump 193
+    	jump 160
     	struct.new Division
-    	meta: Get `y`
     	get y
     	struct.set d
     	const 0
     	struct.set q
-    	meta: Get `x`
     	get x
     	struct.set r
-    	call 211
-    	meta: Set `got`
+    	call 174
     	def got
-    	meta: Get `got`
     	get got
     	struct.get q
     	restore SP
     	return
     	exit panic
-    	meta: Set `args`
     	def args
     	save SP
-    	meta: Get `args`
     	get args
     	struct.get d
-    	meta: Set `d`
     	def d
-    	meta: Get `args`
     	get args
     	struct.get q
-    	meta: Set `q`
     	def q
-    	meta: Get `args`
     	get args
     	struct.get r
-    	meta: Set `r`
     	def r
-    	meta: Get `d`
     	get d
     	const 0
     	gt
-    	branch 235
+    	branch 190
     	exit check
-    	meta: Get `r`
     	get r
-    	meta: Get `d`
     	get d
     	lt
     	not
-    	branch 257
+    	branch 207
     	block
     	struct.new Division
-    	meta: Get `d`
     	get d
     	struct.set d
-    	meta: Get `q`
     	get q
     	struct.set q
-    	meta: Get `r`
     	get r
     	struct.set r
     	restore SP
     	return
     	end
-    	jump 257
+    	jump 207
     	struct.new Division
-    	meta: Get `d`
     	get d
     	struct.set d
-    	meta: Get `q`
     	get q
     	const 1
     	saturating_add
     	struct.set q
-    	meta: Get `r`
     	get r
-    	meta: Get `d`
     	get d
     	saturating_sub
     	struct.set r
-    	call 211
+    	call 174
     	restore SP
     	return
     	exit panic

@@ -28,40 +28,37 @@ Module {
     globals: {},
     program memory: 
     	exit panic
-    	meta: Set `maybe_bool`
     	def maybe_bool
-    	meta: Get `maybe_bool`
     	get maybe_bool
     	dup
     	const None
     	eq
-    	branch 19
+    	branch 17
     	dup
     	const true
     	wrap some
     	eq
-    	branch 24
+    	branch 22
     	dup
     	const false
     	wrap some
     	eq
-    	branch 29
+    	branch 27
     	block
     	pop
     	const 0
     	end
-    	jump 34
+    	jump 32
     	block
     	pop
     	const 1
     	end
-    	jump 34
+    	jump 32
     	block
     	pop
     	const 2
     	end
-    	jump 34
-    	meta: Set `x`
+    	jump 32
     	def x
     	return
     ,
