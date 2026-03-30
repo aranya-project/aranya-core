@@ -1,0 +1,13 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+function has no return statement at line 1 col 1:
+	command Foo {
+    fields {}
+    seal { let x = 3 }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

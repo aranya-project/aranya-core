@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+Missing default pattern in `match` statement/expression at line 2 col 13:
+	match maybe_bool {
+        None => 0
+        Some(false) => 2
+    }

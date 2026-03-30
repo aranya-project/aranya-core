@@ -1,7 +1,7 @@
 [package]
 name = "aranya-crypto"
 description = "The Aranya Cryptography Engine"
-version = "0.13.0"
+version = "0.14.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -35,9 +35,6 @@ alloc = [
 	"sha3-utils/alloc",
 	"spideroak-crypto/alloc",
 ]
-
-# Enable BearSSL.
-bearssl = ["spideroak-crypto/bearssl"]
 
 # Enable committing AEAD implementations.
 committing-aead = ["spideroak-crypto/committing-aead"]
@@ -139,7 +136,7 @@ tls = []
 trng = ["spideroak-crypto/trng"]
 
 [dependencies]
-aranya-id = { version = "0.2.1", path = "../aranya-id", default-features = false }
+aranya-id = { version = "0.2.2", path = "../aranya-id", default-features = false }
 
 buggy = { version = "0.1.0", default-features = false }
 spideroak-base58 = { workspace = true, default-features = false }
@@ -194,7 +191,6 @@ always_include_features = [
 	"afc",
 	"alloc",
 	"apq",
-	"bearssl",
 	"clone-aead",
 	"committing-aead",
 	"ed25519_batch",

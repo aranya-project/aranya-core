@@ -1,0 +1,11 @@
+enum Result { OK, Err }
+action test() {
+    let ok = Result::OK
+    check ok == Result::OK
+    check ok != Result::Err
+
+    match ok {
+        Result::OK => {}
+        Result::Err => {}
+    }
+}

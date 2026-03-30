@@ -1,0 +1,12 @@
+struct Bar { a int }
+command Foo {
+    fields {
+        +Bar,
+        a bool // Duplicate field `a`
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

@@ -75,6 +75,15 @@ impl Span {
     pub fn is_empty(&self) -> bool {
         self.start >= self.end
     }
+
+    /// Offset a span by a given amount.
+    #[must_use]
+    pub fn add(&self, amount: usize) -> Option<Self> {
+        Some(Self::new(
+            self.start.checked_add(amount)?,
+            self.end.checked_add(amount)?,
+        ))
+    }
 }
 
 impl Default for Span {

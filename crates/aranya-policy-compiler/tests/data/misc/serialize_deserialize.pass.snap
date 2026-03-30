@@ -1,0 +1,95 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Foo",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Foo",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Foo",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Foo",
+            ltype: CommandOpen,
+        }: 26,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Foo" @ 46..49,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {},
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Envelope": [
+            FieldDefinition {
+                identifier: "payload" @ 22..29,
+                field_type: Bytes @ 30..35,
+            },
+        ],
+        "Foo": [],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	meta: finish enabled
+    	block
+    	end
+    	exit normal
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	return
+    	meta: Set `this`
+    	def this
+    	save SP
+    	struct.new Envelope
+    	meta: Get `this`
+    	get this
+    	serialize
+    	struct.set payload
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	save SP
+    	meta: Get `envelope`
+    	get envelope
+    	struct.get payload
+    	deserialize
+    	restore SP
+    	return
+    	exit panic
+    ,
+    ..
+}

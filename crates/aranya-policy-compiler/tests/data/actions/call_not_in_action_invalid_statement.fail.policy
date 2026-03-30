@@ -1,0 +1,5 @@
+action bar() {}
+function foo() int {
+    action bar()
+    return 0
+}

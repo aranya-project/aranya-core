@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+finish function not allowed in expression at line 6 col 5:
+	return f()

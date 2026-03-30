@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.12.1...aranya-policy-ast-v0.13.0) - 2026-03-17
+
+### Other
+
+- Improve parser error rendering ([#524](https://github.com/aranya-project/aranya-core/pull/524))
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+
 ## [0.12.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ast-v0.12.0...aranya-policy-ast-v0.12.1) - 2026-02-17
 
 ### Other

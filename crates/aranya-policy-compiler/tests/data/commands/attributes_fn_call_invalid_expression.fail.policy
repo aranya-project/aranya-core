@@ -1,0 +1,9 @@
+function f() int { return 3 }
+command A {
+    attributes { i: f() }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

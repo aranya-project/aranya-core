@@ -12,7 +12,7 @@
 //! # Usage
 //!
 //! Refer to provided demo/quickstart code for an example of how to use the runtime crate.
-//! The `quic_syncer.rs` module provides a good example of syncing via QUIC.
+//! The `aranya-tcp-syncer` crate provides a good example of syncing via TCP.
 //!
 //! # Example
 //!

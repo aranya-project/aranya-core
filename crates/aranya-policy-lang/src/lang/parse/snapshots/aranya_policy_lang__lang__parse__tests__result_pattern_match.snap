@@ -1,0 +1,57 @@
+---
+source: crates/aranya-policy-lang/src/lang/parse/tests.rs
+expression: parsed
+---
+FunctionDefinition {
+    identifier: "foo" @ 9..12,
+    arguments: [
+        Param {
+            name: "r" @ 13..14,
+            ty: Result(
+                ResultTypeKind {
+                    ok: Int @ 22..25,
+                    err: String @ 27..33,
+                },
+            ) @ 15..34,
+        },
+    ],
+    return_type: Int @ 36..39,
+    statements: [
+        Return(
+            ReturnStatement {
+                expression: Match(
+                    MatchExpression {
+                        scrutinee: Identifier(
+                            "r" @ 67..68,
+                        ) @ 67..68,
+                        arms: [
+                            MatchExpressionArm {
+                                pattern: ResultPattern(
+                                    Ok(
+                                        "v" @ 90..91,
+                                    ),
+                                ),
+                                expression: Identifier(
+                                    "v" @ 96..97,
+                                ) @ 96..97,
+                                span: 87..114,
+                            },
+                            MatchExpressionArm {
+                                pattern: ResultPattern(
+                                    Err(
+                                        "e" @ 118..119,
+                                    ),
+                                ),
+                                expression: Int(
+                                    0,
+                                ) @ 124..125,
+                                span: 114..138,
+                            },
+                        ],
+                    },
+                ) @ 61..139,
+            },
+        ) @ 54..148,
+    ],
+    span: 0..149,
+}

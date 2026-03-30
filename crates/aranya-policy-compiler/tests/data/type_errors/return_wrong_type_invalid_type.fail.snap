@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: Return value of `f()` must be bool at line 2 col 5:
+	return 0

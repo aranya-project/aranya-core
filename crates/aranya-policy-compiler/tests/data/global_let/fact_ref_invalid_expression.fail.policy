@@ -1,0 +1,2 @@
+fact Foo[]=>{x int}
+let x = Foo
