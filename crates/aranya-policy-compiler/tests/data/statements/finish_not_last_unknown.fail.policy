@@ -1,0 +1,16 @@
+fact Blah[] => {}
+command Foo {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        check true
+        finish {
+            delete Blah[]
+        } // finish must be the last statement in policy
+        finish {
+            delete Blah[]
+        }
+        let a = 5
+    }
+}

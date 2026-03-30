@@ -1,0 +1,7 @@
+function f() int {
+    return match None {
+        None => 0
+        Some(true) => 1
+        Some(false) => 2
+    }
+}

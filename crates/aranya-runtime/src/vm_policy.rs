@@ -121,7 +121,7 @@ use core::fmt;
 
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
+    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
     ast::{Identifier, Persistence},
 };
@@ -260,7 +260,7 @@ impl PriorityAttrs {
         let init = attrs
             .get("init")
             .map(|attr| match attr.value {
-                Value::Bool(b) => Ok(b),
+                ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name,
                     "finalize",
@@ -273,7 +273,7 @@ impl PriorityAttrs {
         let finalize = attrs
             .get("finalize")
             .map(|attr| match attr.value {
-                Value::Bool(b) => Ok(b),
+                ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name,
                     "finalize",
@@ -286,7 +286,7 @@ impl PriorityAttrs {
         let priority: Option<u32> = attrs
             .get("priority")
             .map(|attr| match attr.value {
-                Value::Int(b) => b.try_into().map_err(|_| {
+                ConstValue::Int(b) => b.try_into().map_err(|_| {
                     AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
                 }),
                 _ => Err(AttributeError::type_mismatch(
@@ -779,7 +779,11 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        rs.update_context_with_new_head(new_command.id())?;
+                        let new_head = match rs.io.facts.head_address()? {
+                            Prior::Single(addr) => addr.id,
+                            _ => bug!("expected single head after adding command"),
+                        };
+                        rs.update_context_with_new_head(new_head)?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {

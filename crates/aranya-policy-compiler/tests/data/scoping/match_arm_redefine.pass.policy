@@ -1,0 +1,8 @@
+function f(y int) bool {
+    match y {
+        1 => { let x = 3 }
+        2 => { let x = 4 }
+        _ => {}
+    }
+    return false
+}

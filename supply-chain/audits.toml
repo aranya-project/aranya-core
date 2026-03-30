@@ -77,6 +77,12 @@ This update is mainly for the removal of items (traits and macros).
 Cargo.toml changes.
 """
 
+[[audits.postcard-core]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.1.0"
+notes = "No unsafe or IO. Just simple serialization helpers."
+
 [[audits.proc-macro-crate]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
@@ -246,12 +252,6 @@ end = "2026-11-19"
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2024-10-16"
-end = "2025-12-19"
-
-[[trusted.aranya-bearssl-sys]]
-criteria = "safe-to-deploy"
-user-id = 293722 # aranya-project-bot
-start = "2024-10-15"
 end = "2025-12-19"
 
 [[trusted.aranya-capi-codegen]]

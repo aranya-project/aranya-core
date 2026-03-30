@@ -1,0 +1,7 @@
+fact Foo[a int]=>{b int}
+
+function get_foo(a int) struct Foo {
+    let foo = unwrap query Foo[a: a]=>{b: ?}
+
+    return foo
+}

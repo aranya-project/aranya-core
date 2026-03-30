@@ -1,11 +1,10 @@
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 use buggy::Bug;
 
 use super::Stack;
 use crate::{
-    CommandContext,
+    CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair,
     error::{MachineError, MachineErrorType},
 };
 

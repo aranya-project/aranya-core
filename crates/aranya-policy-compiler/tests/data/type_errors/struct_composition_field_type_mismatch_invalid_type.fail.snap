@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: Expected field `x` of `b` to be a `int` at line 4 col 5:
+	let new_foo = Foo {
+        y: true,
+        ...b
+    }

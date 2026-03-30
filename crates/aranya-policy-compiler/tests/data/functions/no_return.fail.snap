@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+function has no return statement at line 1 col 1:
+	function f(x int) int {
+    let y = saturating_add(x, 1)
+    // no return value
+}

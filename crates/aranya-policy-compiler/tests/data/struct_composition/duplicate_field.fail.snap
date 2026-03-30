@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+Struct Thud and Struct Bar have at least 1 field with the same name at line 5 col 5:
+	let new_foo = Foo {
+        y: true,
+        ...b,
+        ...t
+    }

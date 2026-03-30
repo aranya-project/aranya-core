@@ -1,0 +1,7 @@
+function f() int { return 0 }
+action foo(x int) {
+    match x {
+        f() => {}
+        _ => {}
+    }
+}

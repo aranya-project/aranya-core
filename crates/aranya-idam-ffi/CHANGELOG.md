@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.19.0...aranya-idam-ffi-v0.20.0) - 2026-03-17
+
+### Other
+
+- serialize only command values ([#606](https://github.com/aranya-project/aranya-core/pull/606))
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.18.0...aranya-idam-ffi-v0.19.0) - 2026-02-17
 
 ### Other
