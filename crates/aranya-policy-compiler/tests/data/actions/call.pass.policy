@@ -1,0 +1,4 @@
+action bar(n int, s string) {}
+action foo() {
+    action bar(1, "abc")
+}

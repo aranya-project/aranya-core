@@ -1,0 +1,11 @@
+command F {
+    attributes {
+        a: 5,
+        a: "five"
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

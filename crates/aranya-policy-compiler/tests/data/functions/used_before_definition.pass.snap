@@ -1,0 +1,337 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "divide",
+            ltype: Function,
+        }: 169,
+        Label {
+            name: "divide0",
+            ltype: Function,
+        }: 211,
+        Label {
+            name: "double",
+            ltype: Function,
+        }: 81,
+        Label {
+            name: "is_odd",
+            ltype: Function,
+        }: 65,
+        Label {
+            name: "multiply",
+            ltype: Function,
+        }: 91,
+        Label {
+            name: "pow",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Division": [
+            FieldDefinition {
+                identifier: "d" @ 886..887,
+                field_type: Int @ 888..891,
+            },
+            FieldDefinition {
+                identifier: "q" @ 913..914,
+                field_type: Int @ 915..918,
+            },
+            FieldDefinition {
+                identifier: "r" @ 961..962,
+                field_type: Int @ 963..966,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    	meta: Set `n`
+    	def n
+    	meta: Set `x`
+    	def x
+    	save SP
+    	meta: Get `n`
+    	get n
+    	const 0
+    	eq
+    	not
+    	branch 18
+    	block
+    	const 1
+    	restore SP
+    	return
+    	end
+    	jump 18
+    	meta: Get `n`
+    	get n
+    	const 1
+    	eq
+    	not
+    	branch 31
+    	block
+    	meta: Get `x`
+    	get x
+    	restore SP
+    	return
+    	end
+    	jump 31
+    	meta: Get `n`
+    	get n
+    	call 65
+    	not
+    	branch 54
+    	block
+    	meta: Get `x`
+    	get x
+    	meta: Get `x`
+    	get x
+    	call 81
+    	meta: Get `n`
+    	get n
+    	const 1
+    	saturating_sub
+    	const 2
+    	call 169
+    	call 1
+    	call 91
+    	restore SP
+    	return
+    	end
+    	jump 54
+    	meta: Get `x`
+    	get x
+    	call 81
+    	meta: Get `n`
+    	get n
+    	const 2
+    	call 169
+    	call 1
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `x`
+    	def x
+    	save SP
+    	meta: Get `x`
+    	get x
+    	const 2
+    	call 169
+    	const 2
+    	call 91
+    	meta: Get `x`
+    	get x
+    	eq
+    	not
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `x`
+    	def x
+    	save SP
+    	meta: Get `x`
+    	get x
+    	const 2
+    	call 91
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `y`
+    	def y
+    	meta: Set `x`
+    	def x
+    	save SP
+    	meta: Get `x`
+    	get x
+    	const 0
+    	eq
+    	not
+    	branch 108
+    	block
+    	const 0
+    	restore SP
+    	return
+    	end
+    	jump 108
+    	meta: Get `y`
+    	get y
+    	const 0
+    	eq
+    	not
+    	branch 120
+    	block
+    	const 0
+    	restore SP
+    	return
+    	end
+    	jump 120
+    	meta: Get `x`
+    	get x
+    	const 1
+    	eq
+    	not
+    	branch 133
+    	block
+    	meta: Get `y`
+    	get y
+    	restore SP
+    	return
+    	end
+    	jump 133
+    	meta: Get `y`
+    	get y
+    	const 1
+    	eq
+    	not
+    	branch 146
+    	block
+    	meta: Get `x`
+    	get x
+    	restore SP
+    	return
+    	end
+    	jump 146
+    	meta: Get `x`
+    	get x
+    	meta: Get `y`
+    	get y
+    	add
+    	dup
+    	const None
+    	eq
+    	not
+    	branch 157
+    	exit panic
+    	unwrap some
+    	meta: Get `x`
+    	get x
+    	meta: Get `y`
+    	get y
+    	const 1
+    	saturating_sub
+    	call 91
+    	saturating_add
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `y`
+    	def y
+    	meta: Set `x`
+    	def x
+    	save SP
+    	meta: Get `y`
+    	get y
+    	const 0
+    	gt
+    	branch 180
+    	exit check
+    	meta: Get `x`
+    	get x
+    	meta: Get `y`
+    	get y
+    	lt
+    	not
+    	branch 193
+    	block
+    	const 0
+    	restore SP
+    	return
+    	end
+    	jump 193
+    	struct.new Division
+    	meta: Get `y`
+    	get y
+    	struct.set d
+    	const 0
+    	struct.set q
+    	meta: Get `x`
+    	get x
+    	struct.set r
+    	call 211
+    	meta: Set `got`
+    	def got
+    	meta: Get `got`
+    	get got
+    	struct.get q
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `args`
+    	def args
+    	save SP
+    	meta: Get `args`
+    	get args
+    	struct.get d
+    	meta: Set `d`
+    	def d
+    	meta: Get `args`
+    	get args
+    	struct.get q
+    	meta: Set `q`
+    	def q
+    	meta: Get `args`
+    	get args
+    	struct.get r
+    	meta: Set `r`
+    	def r
+    	meta: Get `d`
+    	get d
+    	const 0
+    	gt
+    	branch 235
+    	exit check
+    	meta: Get `r`
+    	get r
+    	meta: Get `d`
+    	get d
+    	lt
+    	not
+    	branch 257
+    	block
+    	struct.new Division
+    	meta: Get `d`
+    	get d
+    	struct.set d
+    	meta: Get `q`
+    	get q
+    	struct.set q
+    	meta: Get `r`
+    	get r
+    	struct.set r
+    	restore SP
+    	return
+    	end
+    	jump 257
+    	struct.new Division
+    	meta: Get `d`
+    	get d
+    	struct.set d
+    	meta: Get `q`
+    	get q
+    	const 1
+    	saturating_add
+    	struct.set q
+    	meta: Get `r`
+    	get r
+    	meta: Get `d`
+    	get d
+    	saturating_sub
+    	struct.set r
+    	call 211
+    	restore SP
+    	return
+    	exit panic
+    ,
+    ..
+}

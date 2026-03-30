@@ -1,0 +1,102 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "Foo",
+            ltype: CommandPolicy,
+        }: 1,
+        Label {
+            name: "Foo",
+            ltype: CommandRecall,
+        }: 10,
+        Label {
+            name: "Foo",
+            ltype: CommandSeal,
+        }: 15,
+        Label {
+            name: "Foo",
+            ltype: CommandOpen,
+        }: 22,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {
+            ByName(
+                CommandDef {
+                    name: "Foo" @ 35..38,
+                    persistence: Persistent,
+                    attributes: NamedMap {
+                        set: {},
+                    },
+                    fields: NamedMap {
+                        set: {
+                            ByName(
+                                Field {
+                                    name: "i" @ 62..63,
+                                    ty: Int @ 64..67,
+                                },
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Fi": [
+            FieldDefinition {
+                identifier: "s" @ 12..13,
+                field_type: Struct(
+                    "Foo" @ 21..24,
+                ) @ 14..24,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "i" @ 62..63,
+                field_type: Int @ 64..67,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	meta: finish enabled
+    	block
+    	end
+    	exit normal
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	meta: Set `this`
+    	def this
+    	return
+    	meta: Set `this`
+    	def this
+    	save SP
+    	exit panic
+    	restore SP
+    	return
+    	exit panic
+    	meta: Set `envelope`
+    	def envelope
+    	save SP
+    	exit panic
+    	restore SP
+    	return
+    	exit panic
+    ,
+    ..
+}

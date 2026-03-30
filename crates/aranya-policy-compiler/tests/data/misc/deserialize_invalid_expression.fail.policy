@@ -1,0 +1,11 @@
+struct Foo {
+    f string
+}
+
+function get_bytes() bytes {
+    return todo()
+}
+
+function err() struct Foo {
+    return deserialize(get_bytes())
+}

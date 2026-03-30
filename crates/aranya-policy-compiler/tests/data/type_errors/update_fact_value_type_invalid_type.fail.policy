@@ -1,0 +1,10 @@
+fact Foo[x int]=>{y bool}
+command MangleFoo {
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            update Foo[x: 0]=>{y: ?} to {y: 3}
+        }
+    }
+}

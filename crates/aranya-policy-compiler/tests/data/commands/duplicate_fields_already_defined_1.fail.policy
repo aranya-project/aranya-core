@@ -1,0 +1,11 @@
+command Foo {
+    fields {
+        a int,
+        a string
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

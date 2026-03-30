@@ -1,0 +1,3 @@
+struct Bar { f int }
+fact Foo[]=>{ s struct Unknown, b struct Bar, fi struct Fi }
+struct Fi { s string }

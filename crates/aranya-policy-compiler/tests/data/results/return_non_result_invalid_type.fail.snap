@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid type: Return value of `f()` must be result[int, string] at line 1 col 36:
+	return 0

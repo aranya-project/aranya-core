@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: struct Nonexistent at line 1 col 1:
+	function f() result[int, struct Nonexistent] {
+    return Ok(1)
+}

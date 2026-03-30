@@ -1,0 +1,11 @@
+ephemeral command Cmd {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}
+ephemeral action test() {
+    publish Cmd {}
+}

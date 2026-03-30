@@ -1,0 +1,7 @@
+function foo(x int) bool {
+    match x {
+        "foo" => {
+        }
+        _ => {}
+    }
+}
