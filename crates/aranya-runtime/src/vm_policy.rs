@@ -783,7 +783,11 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        rs.update_context_with_new_head(new_command.id())?;
+                        let new_head = match rs.io.facts.head_address()? {
+                            Prior::Single(addr) => addr.id,
+                            _ => bug!("expected single head after adding command"),
+                        };
+                        rs.update_context_with_new_head(new_head)?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {

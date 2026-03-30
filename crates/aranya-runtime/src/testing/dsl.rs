@@ -92,15 +92,15 @@ pub fn dispatch(
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
+    buffers: &mut TraversalBuffers,
 ) -> Result<usize, SyncError> {
     let sync_type: SyncType = postcard::from_bytes(data)?;
     let len = match sync_type {
         SyncType::Poll { request } => {
-            let mut buffers = TraversalBuffers::new();
-            let mut response_syncer = SyncResponder::new(&mut buffers);
+            let mut response_syncer = SyncResponder::new();
             response_syncer.receive(request)?;
             assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache)?
+            response_syncer.poll(target, provider, response_cache, buffers)?
         }
         SyncType::Subscribe { .. } => unimplemented!(),
         SyncType::Unsubscribe { .. } => unimplemented!(),
@@ -625,6 +625,7 @@ where
                         (&mut response_cache, &mut response_client),
                         &mut sink,
                         *graph_id,
+                        &mut buffers,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -935,15 +936,20 @@ fn sync<SP: StorageProvider>(
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
     graph_id: GraphId,
+    buffers: &mut TraversalBuffers,
 ) -> Result<(usize, usize), TestError> {
-    let mut buffers = TraversalBuffers::new();
-    let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
+    let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(graph_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
+    let (len, sent) = request_syncer.poll(
+        &mut buffer,
+        request_state.provider(),
+        request_cache,
+        &mut buffers.primary,
+    )?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -952,6 +958,7 @@ fn sync<SP: StorageProvider>(
         &mut target,
         response_state.provider(),
         response_cache,
+        buffers,
     )?;
 
     if len == 0 {
@@ -959,12 +966,14 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        request_state.commit(request_trx, sink)?;
+        received =
+            request_state.add_commands(&mut request_trx, sink, &cmds, &mut buffers.primary)?;
+        request_state.commit(request_trx, sink, &mut buffers.primary)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
+            &mut buffers.primary,
         )?;
     }
 
@@ -988,7 +997,7 @@ impl Display for Parent {
 pub fn print_graph<S>(
     storage: &S,
     location: Location,
-    buffers: &mut TraversalBuffer,
+    buffer: &mut TraversalBuffer,
 ) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
@@ -1011,7 +1020,7 @@ where
                 "id: {} location {:?} max_cut: {} parent: {}",
                 short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?, buffers)?
+                    .get_location(command.address()?, buffer)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())

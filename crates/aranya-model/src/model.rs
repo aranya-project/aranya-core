@@ -308,6 +308,7 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     /// Each client holds a `PeerCache` for each client and graph combination.
     pub client_graph_peer_cache: ClientGraphPeerCache,
     client_factory: CF,
+    buffers: TraversalBuffers,
     _ph: PhantomData<(CID, GID)>,
 }
 
@@ -322,6 +323,7 @@ where
             graph_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),
             client_factory,
+            buffers: TraversalBuffers::new(),
             _ph: PhantomData,
         }
     }
@@ -506,8 +508,7 @@ where
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut buffers = TraversalBuffers::new();
-        let mut request_syncer = SyncRequester::new(*graph_id, Rng, &mut buffers);
+        let mut request_syncer = SyncRequester::new(*graph_id, Rng);
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
@@ -519,6 +520,7 @@ where
                     &mut buffer,
                     request_state.provider(),
                     &mut request_cache,
+                    &mut self.buffers.primary,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -527,18 +529,24 @@ where
                     &mut target,
                     response_state.provider(),
                     &mut response_cache,
+                    &mut self.buffers,
                 )?;
                 if len == 0 {
                     break;
                 }
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
-                    request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
+                    request_state.add_commands(
+                        &mut request_trx,
+                        &mut sink,
+                        &cmds,
+                        &mut self.buffers.primary,
+                    )?;
                 }
             }
         }
 
-        request_state.commit(request_trx, &mut sink)?;
+        request_state.commit(request_trx, &mut sink, &mut self.buffers.primary)?;
 
         Ok(())
     }

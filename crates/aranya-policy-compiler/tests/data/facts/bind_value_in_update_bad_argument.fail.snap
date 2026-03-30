@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+bad argument: Cannot update fact to a bind value at line 9 col 42:
+	?

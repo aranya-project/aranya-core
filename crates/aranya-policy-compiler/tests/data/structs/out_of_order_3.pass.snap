@@ -1,0 +1,73 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "ret_bar",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "s" @ 0..0,
+                field_type: String @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "num" @ 0..0,
+                field_type: Int @ 0..0,
+            },
+            FieldDefinition {
+                identifier: "f" @ 0..0,
+                field_type: Struct(
+                    "Fum" @ 166..169,
+                ) @ 0..0,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "s" @ 185..186,
+                field_type: String @ 187..193,
+            },
+        ],
+        "Fum": [
+            FieldDefinition {
+                identifier: "b" @ 120..121,
+                field_type: Bool @ 122..126,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    	save SP
+    	struct.new Fum
+    	const true
+    	struct.set b
+    	meta: Set `fum`
+    	def fum
+    	struct.new Bar
+    	const "s"
+    	struct.set s
+    	const 1
+    	struct.set num
+    	meta: Get `fum`
+    	get fum
+    	struct.set f
+    	restore SP
+    	return
+    	exit panic
+    ,
+    ..
+}

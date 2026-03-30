@@ -1,0 +1,13 @@
+struct Bar { a int }
+struct Baz { +Bar, b string }
+command Foo {
+    fields {
+        +Baz,
+        c bool
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

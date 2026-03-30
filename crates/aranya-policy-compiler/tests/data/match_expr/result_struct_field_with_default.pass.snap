@@ -1,0 +1,77 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        Label {
+            name: "foo",
+            ltype: Function,
+        }: 1,
+    },
+    action_defs: NamedMap {
+        set: {},
+    },
+    command_defs: NamedMap {
+        set: {},
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "r" @ 13..14,
+                field_type: Result(
+                    ResultTypeKind {
+                        ok: Int @ 22..25,
+                        err: String @ 27..33,
+                    },
+                ) @ 15..34,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    program memory: 
+    	exit panic
+    	meta: Set `b`
+    	def b
+    	save SP
+    	meta: Get `b`
+    	get b
+    	dup
+    	struct.new Bar
+    	const 42
+    	wrap ok
+    	struct.set r
+    	eq
+    	branch 21
+    	dup
+    	struct.new Bar
+    	const 16
+    	wrap ok
+    	struct.set r
+    	eq
+    	branch 26
+    	jump 31
+    	block
+    	pop
+    	const 1
+    	end
+    	jump 36
+    	block
+    	pop
+    	const 2
+    	end
+    	jump 36
+    	block
+    	pop
+    	const 0
+    	end
+    	jump 36
+    	restore SP
+    	return
+    	exit panic
+    ,
+    ..
+}

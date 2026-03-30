@@ -2,9 +2,7 @@
 source: crates/aranya-policy-lang/tests/tests.rs
 expression: err
 ---
-Syntax error: line 1 column 21:  --> 1:21
+error: Syntax error
   |
 1 | let x = y substruct 4
-  |                     ^---
-  |
-  = expected identifier
+  |                     ^ expected identifier

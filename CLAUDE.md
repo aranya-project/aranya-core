@@ -120,7 +120,7 @@ client-daemon model with shared memory backend.
 
 - **Storage**: Linear storage implementation with DAG support.
 - **Sync**: Bidirectional synchronization between peers using
-  QUIC transport.
+  TCP transport.
 - **Memory management**: Shared memory implementations for
   high-performance scenarios.
 

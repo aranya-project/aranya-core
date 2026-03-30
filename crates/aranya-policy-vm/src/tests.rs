@@ -11,7 +11,7 @@ use io::TestIO;
 
 use crate::{
     ActionContext, CodeMap, CommandContext, ExitReason, Fact, Instruction, Label, LabelType,
-    MachineError, PolicyContext, Struct, Target, Value,
+    MachineError, PolicyContext, Struct, Target, Value, WrapType,
     error::MachineErrorType,
     io::{MachineIO as _, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
@@ -79,6 +79,35 @@ fn test_add() {
         assert!(rs.step().unwrap() == MachineStatus::Executing);
         assert!(rs.stack.len() == 1);
         assert_eq!(rs.stack.0[0], Value::from(Some(t.2)));
+    }
+}
+
+#[test]
+fn test_is_consumes_value_and_pushes_bool() {
+    let ok = |i| Value::Result(Ok(Box::new(Value::Int(i))));
+    let err = |i| Value::Result(Err(Box::new(Value::Int(i))));
+    let some = |i| Value::Option(Some(Box::new(Value::Int(i))));
+
+    let cases = [
+        (WrapType::Ok, ok(7), true),
+        (WrapType::Ok, err(7), false),
+        (WrapType::Err, err(7), true),
+        (WrapType::Err, ok(7), false),
+        (WrapType::Some, some(7), true),
+        (WrapType::Some, Value::Option(None), false),
+    ];
+
+    for (wrap_type, input, expected) in cases {
+        let mut io = TestIO::new();
+        let ctx = dummy_ctx_policy(ident!("test"));
+        let machine = Machine::new([Instruction::Is(wrap_type)]);
+        let mut rs = machine.create_run_state(&mut io, ctx);
+
+        rs.stack.push_value(input).unwrap();
+
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert_eq!(rs.stack.len(), 1, "Is should replace top-of-stack value");
+        assert_eq!(rs.stack.0[0], Value::Bool(expected));
     }
 }
 

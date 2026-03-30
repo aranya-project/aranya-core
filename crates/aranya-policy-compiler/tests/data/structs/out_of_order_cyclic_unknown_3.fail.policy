@@ -1,0 +1,12 @@
+effect Bar { s struct Co }
+command Co {
+    fields {
+        fi struct Bar, // cycle
+        i int
+    }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}

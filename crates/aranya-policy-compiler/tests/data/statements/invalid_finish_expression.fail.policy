@@ -1,0 +1,10 @@
+fact Foo[]=>{x int}
+command Test {
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            create Foo[]=>{x: saturating_add(1, 2)}
+        }
+    }
+}

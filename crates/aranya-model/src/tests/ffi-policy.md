@@ -34,7 +34,8 @@ fact Message[msg string]=>{value string}
 
 // `Greeting` is an effect we will emit from the `CreateGreeting` command.
 effect Greeting {
-    msg string,
+    key string,
+    value string,
 }
 
 // `Success` is a simple effect we can emit to our test to indicate that a command
@@ -344,12 +345,11 @@ command Decrement {
     }
 }
 
-// The `create_greeting` action calls the command `CreateGreeting`. Passing in
-// the hardcoded greeting key and the message value.
-ephemeral action create_greeting(v string) {
+// The `create_greeting` action calls the command `CreateGreeting`.
+ephemeral action create_greeting(key string, value string) {
     publish CreateGreeting {
-        key: "greeting",
-        value: v,
+        key: key,
+        value: value,
     }
 }
 
@@ -369,17 +369,21 @@ ephemeral command CreateGreeting {
             // Write the Message fact to the session factDB
             create Message[msg: this.key]=>{value: this.value}
             // Return our value
-            emit Greeting{msg: this.value}
+            emit Greeting { key: this.key, value: this.value }
         }
     }
 }
 
-// The `verify_hello` action calls the command `VerifyGreeting` that will verify
-// the Message fact contains "hello".
-ephemeral action verify_hello() {
+// The `verify_hellos` action calls the command `VerifyGreeting` twice to verify
+// the messages.
+ephemeral action verify_hellos() {
     publish VerifyGreeting {
-        key: "greeting",
-        value: "hello",
+        key: "greeting1",
+        value: "hello1",
+    }
+    publish VerifyGreeting {
+        key: "greeting2",
+        value: "hello2",
     }
 }
 
@@ -409,4 +413,30 @@ ephemeral command VerifyGreeting {
         }
     }
 }
+
+action verify_no_hello() {
+    publish VerifyNoHello {}
+}
+
+// `VerifyNoHello` is a command that verifies that there are no greetings in
+// the factDB persisted to the graph.
+command VerifyNoHello {
+    attributes {
+        priority: 0,
+    }
+
+    fields {}
+
+    seal { return seal_basic_command(serialize(this)) }
+    open { return deserialize(open_basic_command(envelope)) }
+
+    policy {
+        check !exists Message[msg: ?]=>{value: ?}
+        finish {
+            emit Success{value: true}
+        }
+    }
+}
+```
+
 ```

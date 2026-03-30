@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid expression: FunctionCall(FunctionCall { identifier: "f" @ 62..63, arguments: [] }) @ 62..65 at line 5 col 12:
+	return todo()

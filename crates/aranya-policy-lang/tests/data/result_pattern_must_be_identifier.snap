@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Unknown error
+  |
+3 |         Ok(5) => 5
+  |         ^^^^^^ Result pattern Ok() must contain an identifier

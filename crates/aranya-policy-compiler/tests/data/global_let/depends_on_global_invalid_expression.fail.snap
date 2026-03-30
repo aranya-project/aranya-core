@@ -1,0 +1,5 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+invalid expression: Identifier("x" @ 111..112) @ 111..112 at line 1 col 1:

@@ -20,7 +20,7 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
-    Instruction, Label, LabelType, Meta, Module, Target,
+    Instruction, Label, LabelType, Meta, Module, Target, WrapType,
     ffi::{self, ModuleSchema},
     named::NamedMap,
 };
@@ -595,7 +595,7 @@ impl<'a> CompileState<'a> {
                 }
                 Some(v) => {
                     self.compile_typed_expression(*v)?;
-                    self.append_instruction(Instruction::Some);
+                    self.append_instruction(Instruction::Wrap(WrapType::Some));
                 }
             },
             thir::ExprKind::NamedStruct(s) => {
@@ -796,18 +796,16 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            thir::ExprKind::Unwrap(e) => self.compile_unwrap(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap(*e, ExitReason::Check)?,
+            thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
+            thir::ExprKind::CheckUnwrap(e) => self.compile_unwrap_option(*e, ExitReason::Check)?,
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
 
-                // Push a None to compare against
-                self.append_instruction(Instruction::Const(ConstValue::NONE));
-                // Check if the value is equal to None
-                self.append_instruction(Instruction::Eq);
-                if expr_is_some {
-                    // If we're checking for not Some, invert the result of the Eq to None
+                // Check if the value is `Some(_)`.
+                self.append_instruction(Instruction::Is(WrapType::Some));
+                if !expr_is_some {
+                    // For `is None`, invert.
                     self.append_instruction(Instruction::Not);
                 }
             }
@@ -819,6 +817,17 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Match(e) => {
                 self.compile_match_statement_or_expression(LanguageContext::Expression(*e))?;
+            }
+            thir::ExprKind::Ok(e) => {
+                // Compile the inner expression and wrap it in Ok
+                self.compile_typed_expression(*e)?;
+                // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
+                self.append_instruction(Instruction::Wrap(WrapType::Ok));
+            }
+            thir::ExprKind::Err(e) => {
+                // Compile the inner expression and wrap it in Err
+                self.compile_typed_expression(*e)?;
+                self.append_instruction(Instruction::Wrap(WrapType::Err));
             }
         }
 
@@ -873,6 +882,7 @@ impl<'a> CompileState<'a> {
         match statement.kind {
             thir::StmtKind::Let(s) => {
                 self.compile_typed_expression(s.expression)?;
+                // Note: Never type check is done during lowering
                 self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.name.clone())));
                 self.append_instruction(Instruction::Def(s.identifier.name));
             }
@@ -1006,28 +1016,29 @@ impl<'a> CompileState<'a> {
 
     /// Checks if the given type is defined. E.g. check struct/enum definitions.
     fn ensure_type_is_defined(&self, vtype: &VType) -> Result<(), CompileError> {
-        match &vtype {
-            VType {
-                kind: TypeKind::Struct(name),
-                ..
-            } => {
+        match &vtype.kind {
+            // primitives
+            TypeKind::Bool
+            | TypeKind::Id
+            | TypeKind::Bytes
+            | TypeKind::Int
+            | TypeKind::Never
+            | TypeKind::String => {}
+            TypeKind::Struct(name) => {
                 if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
-            VType {
-                kind: TypeKind::Enum(name),
-                ..
-            } => {
+            TypeKind::Enum(name) => {
                 if !self.m.interface.enum_defs.contains_key(&name.name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
-            VType {
-                kind: TypeKind::Optional(t),
-                ..
-            } => return self.ensure_type_is_defined(t),
-            _ => {}
+            TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
+            TypeKind::Result(t) => {
+                self.ensure_type_is_defined(&t.ok)?;
+                self.ensure_type_is_defined(&t.err)?;
+            }
         }
         Ok(())
     }
@@ -1137,7 +1148,7 @@ impl<'a> CompileState<'a> {
         let expression = &global_let.expression;
 
         let value = self.expression_value(expression)?;
-        let vt = value.vtype().expect("global let expression has weird type");
+        let vt = value.vtype();
 
         match self.m.interface.globals.entry(identifier.name.clone()) {
             Entry::Vacant(e) => {
@@ -1162,7 +1173,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
-    fn compile_unwrap(
+    fn compile_unwrap_option(
         &mut self,
         e: thir::Expression,
         exit_reason: ExitReason,
@@ -1183,7 +1194,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(exit_reason));
         // Define the target of the branch as the instruction after the Panic
         self.define_label(not_none, self.wp)?;
-        self.append_instruction(Instruction::Unwrap);
+        self.append_instruction(Instruction::Unwrap(WrapType::Some));
 
         Ok(())
     }
@@ -1481,6 +1492,34 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_result_pattern_binding(
+        &mut self,
+        pattern: &thir::ResultPattern,
+    ) -> Result<(), CompileError> {
+        let (ident, wrap_type) = match pattern {
+            thir::ResultPattern::Ok(ident) => (ident, WrapType::Ok),
+            thir::ResultPattern::Err(ident) => (ident, WrapType::Err),
+        };
+
+        // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
+        self.append_instruction(Instruction::Unwrap(wrap_type));
+        self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
+        self.append_instruction(Instruction::Def(ident.name.clone()));
+        // NOTE: We don't call identifier_types.add() here because the pattern variable
+        // was already added during the lowering phase.
+
+        Ok(())
+    }
+
+    /// Exit match arm (exit scope, jump to end)
+    fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
+        self.identifier_types.exit_block();
+        self.append_instruction(Instruction::End);
+        self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
+
+        Ok(())
+    }
+
     /// Compile a match statement or expression
     /// Returns the type of the `match` is an expression, or `None` if it's a statement.
     fn compile_match_statement_or_expression(
@@ -1513,7 +1552,7 @@ impl<'a> CompileState<'a> {
         // 1. Generate branching instructions, and arm-start labels
         let mut arm_labels: Vec<Label> = vec![];
 
-        for pattern in patterns {
+        for pattern in &patterns {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
@@ -1521,7 +1560,7 @@ impl<'a> CompileState<'a> {
                 thir::MatchPattern::Values(values) => {
                     for value in values {
                         self.append_instruction(Instruction::Dup);
-                        self.compile_typed_expression(value)?;
+                        self.compile_typed_expression(value.clone())?;
 
                         // if value == target, jump to start-of-arm
                         self.append_instruction(Instruction::Eq);
@@ -1535,39 +1574,76 @@ impl<'a> CompileState<'a> {
                         arm_label.clone(),
                     )));
                 }
+                thir::MatchPattern::ResultPattern(pattern) => match pattern {
+                    thir::ResultPattern::Ok(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::Is(WrapType::Ok));
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                    thir::ResultPattern::Err(_) => {
+                        self.append_instruction(Instruction::Dup);
+                        self.append_instruction(Instruction::Is(WrapType::Err));
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                },
             }
         }
 
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for (arm_start, body) in iter::zip(arm_labels, s) {
+                for ((arm_start, pattern), statements) in
+                    iter::zip(iter::zip(arm_labels, &patterns), s)
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_typed_statements(body, Scope::Layered)?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern)?;
+                        }
+                        _ => {
+                            // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
+                            // Result patterns consume the value during unwrapping, but other patterns don't.
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    self.compile_typed_statements(statements, Scope::Same)?;
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
             LanguageContext::Expression(e) => {
-                for (arm_start, body) in iter::zip(arm_labels, e) {
+                for ((arm_start, pattern), expression) in
+                    iter::zip(iter::zip(arm_labels, &patterns), e)
+                {
                     self.define_label(arm_start, self.wp)?;
 
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
+                    // Enter a new scope for this match arm
+                    self.identifier_types.enter_block();
+                    self.append_instruction(Instruction::Block);
 
-                    self.compile_typed_expression(body)?;
+                    match pattern {
+                        thir::MatchPattern::ResultPattern(pattern) => {
+                            self.compile_result_pattern_binding(pattern)?;
+                        }
+                        _ => {
+                            // Pop the scrutinee value
+                            self.append_instruction(Instruction::Pop);
+                        }
+                    }
 
-                    // break out of match
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        end_label.clone(),
-                    )));
+                    // Note: Type checking is done during lowering
+                    self.compile_typed_expression(expression)?;
+
+                    self.compile_match_arm_epilogue(&end_label)?;
                 }
             }
         }
@@ -1857,6 +1933,12 @@ impl<'a> CompileState<'a> {
                     .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(e.clone()))),
                 _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
             },
+            ExprKind::Optional(opt) => Ok(ConstValue::Option(match opt {
+                Some(e) => Some(Box::new(self.expression_value(e)?)),
+                None => None,
+            })),
+            ExprKind::Ok(e) => Ok(ConstValue::Result(Ok(Box::new(self.expression_value(e)?)))),
+            ExprKind::Err(e) => Ok(ConstValue::Result(Err(Box::new(self.expression_value(e)?)))),
             _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
         }
     }
