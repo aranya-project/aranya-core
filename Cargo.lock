@@ -532,6 +532,7 @@ dependencies = [
  "heapless",
  "postcard",
  "proptest",
+ "rand",
  "serde",
  "serde_json",
  "spideroak-base58",

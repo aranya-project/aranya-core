@@ -150,5 +150,10 @@ strip = "debuginfo"
 inherits = "release"
 panic = "unwind"
 
+[profile.test-release]
+inherits = "release"
+panic = "unwind"
+debug-assertions = true
+
 [profile.bench]
 inherits = "release"
