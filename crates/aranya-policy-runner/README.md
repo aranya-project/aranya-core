@@ -9,19 +9,16 @@ repeatable feedback.
 
 ```text
 policy-runner [OPTIONS] <POLICY> [RUNS]...
-
-Arguments:
-  <POLICY>   The policy file
-  [RUNS]...  One or more run files
-
-Options:
-  -w, --working-directory <WORKING_DIRECTORY>  The working directory for all data stored
-      --deterministic-rng                      Use a deterministic RNG
-      --marker                                 Add a marker to the output between run files
-  -q, --quiet                                  Suppress trace output and other diagnostics
-      --validator                              Run the validator on the policy compilation
-  -h, --help                                   Print help (see more with '--help')
 ```
+
+At its most basic, you must specify a policy document and one or more
+["run files"](#run-files). The run files specify the actions and command
+that are run on the policy. As effects are committed, they are printed
+to the output.
+
+### Run Files
+
+
 
 ## Examples
 
