@@ -539,7 +539,7 @@ where
                     request_state.add_commands(
                         &mut request_trx,
                         &mut sink,
-                        &cmds,
+                        cmds,
                         &mut self.buffers.primary,
                     )?;
                 }

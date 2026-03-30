@@ -23,7 +23,7 @@ use aranya_runtime::{
     storage::{GraphId, StorageProvider},
 };
 use buggy::{BugExt as _, bug};
-use heapless::{FnvIndexMap, Vec};
+use heapless::{Vec, index_map::FnvIndexMap};
 use tracing::error;
 
 /// FNVIndexMap requires that the size be a power of 2.
@@ -162,7 +162,7 @@ where
         {
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
-            client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
+            client.add_commands(&mut trx, sink, cmds, &mut self.buffers.primary)?;
             client.commit(trx, sink, &mut self.buffers.primary)?;
             client.update_heads(
                 graph_id,
@@ -305,7 +305,7 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().expect("poisoned");
                         let sink = sink_guard.deref_mut();
-                        client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
+                        client.add_commands(&mut trx, sink, cmds, &mut self.buffers.primary)?;
                         client.commit(trx, sink, &mut self.buffers.primary)?;
                         client.update_heads(
                             graph_id,

@@ -144,7 +144,7 @@ where
         &mut self,
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
-        commands: &[impl Command],
+        commands: impl IntoIterator<Item: Command>,
         buffer: &mut TraversalBuffer,
     ) -> Result<usize, ClientError> {
         trx.add_commands(

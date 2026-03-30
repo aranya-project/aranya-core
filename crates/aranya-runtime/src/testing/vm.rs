@@ -612,7 +612,7 @@ fn test_sync<PS, P, S>(
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds, &mut buffers.primary)
+            cs2.add_commands(&mut req_transaction, sink, cmds, &mut buffers.primary)
                 .expect("add commands");
         }
     }
