@@ -10,7 +10,7 @@ use crate::{
     StorageError, SyncType,
     command::{Address, CmdId, Command as _},
     storage::{
-        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
+        GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers,
     },
 };
@@ -340,7 +340,7 @@ impl SyncResponder {
 
         // Sort descending by max_cut so we can discard from the front as we
         // descend through the graph.
-        have_locations.sort_by(|a, b| b.max_cut.cmp(&a.max_cut));
+        have_locations.sort_by_key(|loc| core::cmp::Reverse(loc.max_cut));
 
         // Index into have_locations: everything before this has max_cut above
         // the current segment's longest_max_cut and can be skipped.
@@ -357,12 +357,16 @@ impl SyncResponder {
         // entries with the lowest max_cut (ancestors first). When full,
         // the highest max_cut entry is replaced if the new one is lower.
         let mut collected: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
+        let mut prev_max_cut: Option<MaxCut> = None;
 
         while let Some((head, covered)) = heads.pop_covered()? {
             // Flush pending entries whose shortest_max_cut (stored as max_cut)
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
-            pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
+            if prev_max_cut != Some(head.max_cut) {
+                pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
+                prev_max_cut = Some(head.max_cut);
+            }
 
             let segment = storage.get_segment(head)?;
 
