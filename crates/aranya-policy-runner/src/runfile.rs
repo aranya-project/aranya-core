@@ -22,7 +22,10 @@
 //!
 //! The preamble allows the definition of global variables that can be
 //! used in any run file. In the example above, the variable `my_id` is
-//! created.
+//! created. The [`testing` FFI](crate::io::testing_ffi) is available
+//! within this section, and it contains several functions you might
+//! find useful for creating values that are useful in the "do" section
+//! below.
 //!
 //! The `preamble` section is optional.
 //!

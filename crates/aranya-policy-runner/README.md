@@ -14,11 +14,19 @@ policy-runner [OPTIONS] <POLICY> [RUNS]...
 At its most basic, you must specify a policy document and one or more
 ["run files"](#run-files). The run files specify the actions and command
 that are run on the policy. As effects are committed, they are printed
-to the output.
+to the output. For more information, see the command's help output
+(`policy-runner --help`).
 
 ### Run Files
 
+A run file has two parts, a "preamble" which allows the definition of
+values, and a "do" section which lists the actions and raw command
+structs to run against the policy. As the actions and commands are
+executed, effects are printed to the configured output (`stdout` by
+default, or the file specified by `-o`).
 
+For more information on how run files work, see the `runfile` module
+documentation.
 
 ## Examples
 
@@ -42,8 +50,8 @@ UserAdded { dev: AY5b9qh2sKpdD55L242RR4CCpVoEDJ6NhUA73dw4x19q }
 
 ### Run a command on an initialized graph
 
-This and the following example require the graph to be initialized by
-the prior [Initialize a graph](#initialize-a-graph) section. This
+This and the following two examples require the graph to be initialized
+by the prior [Initialize a graph](#initialize-a-graph) section. This
 example just creates a simple command that contains a message.
 
 ```text
@@ -53,8 +61,7 @@ Message { msg: "Hello from test runner" }
 
 ### Set a fact value and retrieve it
 
-These two examples set a Device fact and then retrieve it. They cannot
-be run together since they define the same global data in the preamble.
+These two examples set a Device fact and then retrieve it.
 
 ```text
 $ policy-runner -w wd examples/policy.md examples/add_raw_device.run
@@ -64,6 +71,17 @@ UserAdded { dev: 111thX6LZfHDZZKUs92fh1cxwDCA3ZJ3RGvuRPy5sAQN }
 ```text
 $ policy-runner -w wd examples/policy.md examples/get_raw_device.run
 DeviceInfo { device_id: 111thX6LZfHDZZKUs92fh1cxwDCA3ZJ3RGvuRPy5sAQN, device_key: b:AA55AA55AA55AA55 }
+```
+
+### Fail to retrieve a device
+
+This example tries to retrieve a device with a random ID. Unless you're
+exceedingly lucky, this device shouldn't be found and it produces an
+error effect.
+
+```text
+$ policy-runner -w wd examples/policy.md examples/get_raw_device_not_found.run
+DeviceNotFound { device_id: BRJpYqJh3ZSdCtmB4XkXQvPCwQdANmDaeASvgGtTxk9X }
 ```
 
 ### Execute multiple run files with separation marker
