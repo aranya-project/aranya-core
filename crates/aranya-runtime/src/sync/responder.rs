@@ -449,11 +449,7 @@ impl SyncResponder {
 
         // Flush remaining uncovered pending segments. Covered entries
         // are discarded — the peer already has them.
-        while let Some((loc, covered)) = pending.pop_covered()? {
-            if !covered {
-                push_bounded(&mut collected, loc);
-            }
-        }
+        pending.drain_all(|loc| push_bounded(&mut collected, loc));
 
         // Sort to ensure causal order (parents before children).
         collected.sort();

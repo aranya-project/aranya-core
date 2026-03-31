@@ -180,6 +180,16 @@ impl TraversalQueue {
         }
         Ok(())
     }
+
+    /// Drain all entries. Uncovered entries are passed to `f`.
+    /// Covered entries are discarded. O(n) single pass.
+    pub fn drain_all(&mut self, mut f: impl FnMut(Location)) {
+        for i in 0..self.partition {
+            f(self.entries[i]);
+        }
+        self.entries.clear();
+        self.partition = 0;
+    }
 }
 
 /// A queue buffer for a single graph traversal operation.
