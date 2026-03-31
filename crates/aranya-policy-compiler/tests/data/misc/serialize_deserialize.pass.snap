@@ -5,40 +5,18 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "Foo",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "Foo",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "Foo",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "Foo",
-            ltype: CommandOpen,
-        }: 26,
+        <policy 'Foo'>: 1,
+        <recall 'Foo'>: 8,
+        <seal 'Foo'>: 11,
+        <open 'Foo'>: 20,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Foo" @ 46..49,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "Foo" @ 46..49,
+            persistence: Persistent,
+            attributes: {},
+            fields: {},
         },
     },
     fact_defs: {},
@@ -53,43 +31,38 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	return
-    	meta: Set `this`
-    	def this
-    	save SP
-    	struct.new Envelope
-    	meta: Get `this`
-    	get this
-    	serialize
-    	struct.set payload
-    	restore SP
-    	return
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	save SP
-    	meta: Get `envelope`
-    	get envelope
-    	struct.get payload
-    	deserialize
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Foo'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Foo'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Foo'>:
+    def 'this'
+    save SP
+    struct.new 'Envelope'
+    get 'this'
+    serialize
+    struct.set 'payload'
+    restore SP
+    return
+    exit panic
+<open 'Foo'>:
+    def 'envelope'
+    save SP
+    get 'envelope'
+    struct.get 'payload'
+    deserialize
+    restore SP
+    return
+    exit panic

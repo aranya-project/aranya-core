@@ -5,73 +5,60 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "f",
-            ltype: Action,
-        }: 1,
+        <action 'f'>: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "f" @ 7..8,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "maybe_bool" @ 9..19,
-                                    ty: Optional(
-                                        Bool @ 27..31,
-                                    ) @ 20..32,
-                                },
-                            ),
-                        },
-                    },
+    action_defs: {
+        ActionDef {
+            name: "f" @ 7..8,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "maybe_bool" @ 9..19,
+                    ty: Optional(
+                        Bool @ 27..31,
+                    ) @ 20..32,
                 },
-            ),
+            },
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `maybe_bool`
-    	def maybe_bool
-    	meta: Get `maybe_bool`
-    	get maybe_bool
-    	dup
-    	const None
-    	eq
-    	branch 19
-    	dup
-    	const false
-    	wrap some
-    	eq
-    	branch 19
-    	dup
-    	const true
-    	wrap some
-    	eq
-    	branch 24
-    	block
-    	pop
-    	const 0
-    	end
-    	jump 29
-    	block
-    	pop
-    	const 1
-    	end
-    	jump 29
-    	meta: Set `x`
-    	def x
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'f'>:
+    def 'maybe_bool'
+    get 'maybe_bool'
+    dup
+    const None
+    eq
+    branch 17
+    dup
+    const false
+    wrap some
+    eq
+    branch 17
+    dup
+    const true
+    wrap some
+    eq
+    branch 22
+<17>:
+    block
+    pop
+    const 0
+    end
+    jump 27
+<22>:
+    block
+    pop
+    const 1
+    end
+    jump 27
+<27>:
+    def 'x'
+    return

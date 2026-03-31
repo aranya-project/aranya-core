@@ -5,27 +5,16 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "pets",
-            ltype: Action,
-        }: 1,
+        <action 'pets'>: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "pets" @ 40..44,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "pets" @ 40..44,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {
         "Pet": FactDefinition {
             immutable: false,
@@ -59,22 +48,22 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	fact.new Pet
-    	query.start
-    	block
-    	query.next p
-    	branch 13
-    	meta: Get `p`
-    	get p
-    	struct.get age
-    	meta: Set `age`
-    	def age
-    	end
-    	jump 3
-    	end
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'pets'>:
+    fact.new 'Pet'
+    query.start
+<3>:
+    block
+    query.next 'p'
+    branch 11
+    get 'p'
+    struct.get 'age'
+    def 'age'
+    end
+    jump 3
+<11>:
+    end
+    return

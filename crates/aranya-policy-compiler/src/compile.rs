@@ -236,7 +236,6 @@ impl<'a> CompileState<'a> {
     }
 
     fn append_var(&mut self, identifier: Identifier, vtype: VType) -> Result<(), CompileError> {
-        self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
             .add(identifier, vtype)
@@ -675,7 +674,6 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Return);
             }
             thir::ExprKind::Identifier(i) => {
-                self.append_instruction(Instruction::Meta(Meta::Get(i.name.clone())));
                 self.append_instruction(Instruction::Get(i.name));
             }
             thir::ExprKind::EnumReference(e) => {
@@ -883,7 +881,6 @@ impl<'a> CompileState<'a> {
             thir::StmtKind::Let(s) => {
                 self.compile_typed_expression(s.expression)?;
                 // Note: Never type check is done during lowering
-                self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.name.clone())));
                 self.append_instruction(Instruction::Def(s.identifier.name));
             }
             thir::StmtKind::Check(s) => {
@@ -1503,7 +1500,6 @@ impl<'a> CompileState<'a> {
 
         // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
         self.append_instruction(Instruction::Unwrap(wrap_type));
-        self.append_instruction(Instruction::Meta(Meta::Let(ident.name.clone())));
         self.append_instruction(Instruction::Def(ident.name.clone()));
         // NOTE: We don't call identifier_types.add() here because the pattern variable
         // was already added during the lowering phase.

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::{Instruction, Meta, ModuleV0};
+use aranya_policy_module::{Instruction, ModuleV0};
 
 use super::{Analyzer, AnalyzerStatus};
 use crate::tracer::TraceError;
@@ -48,12 +48,12 @@ impl Analyzer for ValueAnalyzer {
             Instruction::Return => {
                 self.value_sets.pop();
             }
-            Instruction::Meta(Meta::Let(s)) => {
+            Instruction::Def(s) => {
                 if !self.insert(s.clone()) {
                     return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
                 }
             }
-            Instruction::Meta(Meta::Get(s)) => {
+            Instruction::Get(s) => {
                 if !self.contains(s) {
                     return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
                 }

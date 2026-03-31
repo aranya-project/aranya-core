@@ -5,17 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "get_foo",
-            ltype: Function,
-        }: 1,
+        <fn 'get_foo'>: 1,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {
         "Foo": FactDefinition {
             immutable: false,
@@ -49,30 +42,27 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `a`
-    	def a
-    	save SP
-    	fact.new Foo
-    	meta: Get `a`
-    	get a
-    	fact.kset a
-    	query
-    	dup
-    	const None
-    	eq
-    	not
-    	branch 15
-    	exit panic
-    	unwrap some
-    	meta: Set `foo`
-    	def foo
-    	meta: Get `foo`
-    	get foo
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'get_foo'>:
+    def 'a'
+    save SP
+    fact.new 'Foo'
+    get 'a'
+    fact.kset 'a'
+    query
+    dup
+    const None
+    eq
+    not
+    branch 13
+    exit panic
+<13>:
+    unwrap some
+    def 'foo'
+    get 'foo'
+    restore SP
+    return
+    exit panic
