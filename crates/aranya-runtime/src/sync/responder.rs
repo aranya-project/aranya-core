@@ -367,9 +367,13 @@ impl SyncResponder {
             let segment = storage.get_segment(head)?;
 
             if covered {
-                // Case 1: Covered — peer already has this. Propagate coverage
-                // to priors so they'll be processed as covered if not yet
-                // visited.
+                // Case 1: Covered — the peer has this segment up to
+                // head.max_cut. Update pending to reflect partial or full
+                // coverage so we don't send what the peer already has.
+                let longest = segment.longest_max_cut()?;
+                pending.cover_up_to(head.segment, head.max_cut, longest)?;
+                // Propagate coverage to priors so they'll be processed as
+                // covered if not yet visited.
                 for prior in segment.prior() {
                     heads.push_covered(prior, true)?;
                 }

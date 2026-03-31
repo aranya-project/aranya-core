@@ -181,6 +181,43 @@ impl TraversalQueue {
         Ok(())
     }
 
+    /// Mark a segment as covered up to `coverage_mc`. If the segment
+    /// exists in the queue:
+    /// - If `coverage_mc >= longest_mc`: the segment is fully covered.
+    /// - If `coverage_mc >= entry.max_cut`: the entry is updated to
+    ///   `coverage_mc + 1` (still uncovered — the peer needs the rest).
+    /// - If `coverage_mc < entry.max_cut`: no-op (already sending from
+    ///   above the coverage point).
+    pub fn cover_up_to(
+        &mut self,
+        segment: SegmentIndex,
+        coverage_mc: MaxCut,
+        longest_mc: MaxCut,
+    ) -> Result<(), StorageError> {
+        let Some(i) = self.entries.iter().position(|x| x.segment == segment) else {
+            return Ok(());
+        };
+        let was_covered = i >= self.partition;
+        if was_covered {
+            return Ok(());
+        }
+        if coverage_mc >= longest_mc {
+            // Fully covered — move to covered partition.
+            self.partition = self
+                .partition
+                .checked_sub(1)
+                .assume("partition must be >= 1 when uncovered entry exists")?;
+            self.entries.swap(i, self.partition);
+        } else if coverage_mc >= self.entries[i].max_cut {
+            // Partially covered — advance start past the covered portion.
+            self.entries[i].max_cut = coverage_mc
+                .checked_add(1)
+                .assume("coverage_mc + 1 must not overflow")?;
+        }
+        // else: coverage is below our start, nothing to do.
+        Ok(())
+    }
+
     /// Drain all entries. Uncovered entries are passed to `f`.
     /// Covered entries are discarded. O(n) single pass.
     pub fn drain_all(&mut self, mut f: impl FnMut(Location)) {
