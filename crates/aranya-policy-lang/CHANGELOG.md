@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.0...aranya-policy-lang-v0.14.1) - 2026-03-31
+
+### Other
+
+- Improve compiler error testing ([#599](https://github.com/aranya-project/aranya-core/pull/599))
+- Change QUIC syncer to TCP syncer ([#629](https://github.com/aranya-project/aranya-core/pull/629))
+
 ## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.13.0...aranya-policy-lang-v0.14.0) - 2026-03-17
 
 ### Other
