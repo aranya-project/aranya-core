@@ -374,69 +374,73 @@ impl SyncResponder {
                 for prior in segment.prior() {
                     heads.push_covered(prior, true)?;
                 }
-            } else {
-                // Advance have_cursor past locations with max_cut above this
-                // segment's longest_max_cut — they've already been passed.
-                let longest = segment.longest_max_cut()?;
-                while have_cursor < have_locations.len() {
-                    if have_locations[have_cursor].max_cut <= longest {
-                        break;
-                    }
-                    have_cursor = have_cursor
+                // Early termination: if all remaining heads are covered, stop.
+                // Every remaining path leads to segments the peer already has.
+                if heads.all_covered() && !heads.is_empty() {
+                    break;
+                }
+                continue;
+            }
+
+            // Advance have_cursor past locations with max_cut above this
+            // segment's longest_max_cut — they've already been passed.
+            let longest = segment.longest_max_cut()?;
+            while have_cursor < have_locations.len() {
+                if have_locations[have_cursor].max_cut <= longest {
+                    break;
+                }
+                have_cursor = have_cursor
+                    .checked_add(1)
+                    .assume("index must not overflow")?;
+            }
+
+            // Look for a have_location in this segment: same SegmentIndex
+            // with max_cut within shortest_max_cut..=longest_max_cut.
+            let shortest = segment.shortest_max_cut();
+            let mut best_have: Option<(usize, Location)> = None;
+            let mut scan = have_cursor;
+            while scan < have_locations.len() {
+                let hloc = have_locations[scan];
+                if hloc.max_cut < shortest {
+                    break; // rest are even lower, can't be in this segment
+                }
+                if hloc.segment == head.segment {
+                    best_have = Some((scan, hloc));
+                    break; // sorted in descending order, so first match is the highest max_cut
+                }
+                scan = scan.checked_add(1).assume("index must not overflow")?;
+            }
+
+            if let Some((_idx, hloc)) = best_have {
+                // Case 2: Contains a have_location. Push priors as
+                // covered. Don't remove from pending: a prior may have
+                // been added through a different uncovered path and
+                // still be needed.
+                for prior in segment.prior() {
+                    heads.push_covered(prior, true)?;
+                }
+
+                // If the peer doesn't have the whole segment (have_location
+                // is not at the segment head), add a partial entry to pending
+                // starting from the command after the highest have_location.
+                if hloc.max_cut < longest {
+                    let next_max_cut = hloc
+                        .max_cut
                         .checked_add(1)
-                        .assume("index must not overflow")?;
+                        .assume("command + 1 mustn't overflow")?;
+                    let partial_loc = Location {
+                        max_cut: next_max_cut,
+                        segment: head.segment,
+                    };
+                    pending.push(partial_loc)?;
                 }
-
-                // Look for a have_location in this segment: same SegmentIndex
-                // with max_cut within shortest_max_cut..=longest_max_cut.
-                let shortest = segment.shortest_max_cut();
-                let mut best_have: Option<(usize, Location)> = None;
-                let mut scan = have_cursor;
-                while scan < have_locations.len() {
-                    let hloc = have_locations[scan];
-                    if hloc.max_cut < shortest {
-                        break; // rest are even lower, can't be in this segment
-                    }
-                    if hloc.segment == head.segment {
-                        // Take the highest max_cut match (first found, since sorted desc)
-                        if best_have.is_none() {
-                            best_have = Some((scan, hloc));
-                        }
-                    }
-                    scan = scan.checked_add(1).assume("index must not overflow")?;
-                }
-
-                if let Some((_idx, hloc)) = best_have {
-                    // Case 2: Contains a have_location. Push priors as
-                    // covered. Don't remove from pending: a prior may have
-                    // been added through a different uncovered path and
-                    // still be needed.
-                    for prior in segment.prior() {
-                        heads.push_covered(prior, true)?;
-                    }
-
-                    // If the peer doesn't have the whole segment (have_location
-                    // is not at the segment head), add a partial entry to pending
-                    // starting from the command after the highest have_location.
-                    if hloc.max_cut < longest {
-                        let next_max_cut = hloc
-                            .max_cut
-                            .checked_add(1)
-                            .assume("command + 1 mustn't overflow")?;
-                        let partial_loc = Location {
-                            max_cut: next_max_cut,
-                            segment: head.segment,
-                        };
-                        pending.push(partial_loc)?;
-                    }
-                    // else: peer has the entire segment, nothing to send.
-                } else {
-                    // Case 3: Uncovered, no have_location. Add to pending and
-                    // continue traversal through priors.
-                    pending.push(segment.first_location())?;
-                    for prior in segment.prior() {
-                        heads.push(prior)?;
-                    }
+                // else: peer has the entire segment, nothing to send.
+            } else {
+                // Case 3: Uncovered, no have_location. Add to pending and
+                // continue traversal through priors.
+                pending.push(segment.first_location())?;
+                for prior in segment.prior() {
+                    heads.push(prior)?;
                 }
             }
 
