@@ -392,10 +392,7 @@ impl SyncResponder {
             // Advance have_cursor past locations with max_cut above this
             // segment's longest_max_cut — they've already been passed.
             let longest = segment.longest_max_cut()?;
-            while have_cursor < have_locations.len() {
-                if have_locations[have_cursor].max_cut <= longest {
-                    break;
-                }
+            while have_locations.get(have_cursor).is_some_and(|h| h.max_cut > longest) {
                 have_cursor = have_cursor
                     .checked_add(1)
                     .assume("index must not overflow")?;
