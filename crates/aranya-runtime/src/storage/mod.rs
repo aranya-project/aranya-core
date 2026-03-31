@@ -1005,4 +1005,37 @@ mod queue_tests {
         assert_eq!(remaining.max_cut, MaxCut(3));
         assert!(queue.is_empty());
     }
+
+    #[test]
+    fn test_drain_above_with_covered_entries() {
+        let mut queue = TraversalQueue::new();
+        // Mix of uncovered and covered entries above and below threshold.
+        queue.push(loc(0, 3)).unwrap(); // uncovered, below
+        queue.push(loc(1, 7)).unwrap(); // uncovered, above
+        queue.push_covered(loc(2, 6), true).unwrap(); // covered, above
+        queue.push_covered(loc(3, 2), true).unwrap(); // covered, below
+        queue.push(loc(4, 5)).unwrap(); // uncovered, above
+
+        let mut drained: heapless::Vec<Location, 8> = heapless::Vec::new();
+        queue
+            .drain_above(MaxCut(4), |loc| {
+                let _ = drained.push(loc);
+            })
+            .unwrap();
+
+        // Only uncovered entries above threshold should be passed to f.
+        assert_eq!(drained.len(), 2);
+        assert!(drained.iter().any(|l| l.segment == SegmentIndex(1)));
+        assert!(drained.iter().any(|l| l.segment == SegmentIndex(4)));
+
+        // Covered entry above threshold (seg=2) should be discarded.
+        // Entries below threshold should remain: seg=0 (uncovered), seg=3 (covered).
+        let mut remaining = std::vec::Vec::new();
+        while let Some((l, covered)) = queue.pop_covered().unwrap() {
+            remaining.push((l.segment, covered));
+        }
+        assert_eq!(remaining.len(), 2);
+        assert!(remaining.contains(&(SegmentIndex(0), false)));
+        assert!(remaining.contains(&(SegmentIndex(3), true)));
+    }
 }
