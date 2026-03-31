@@ -255,7 +255,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.20.0"
+version = "0.19.1"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.16.0"
+version = "0.15.1"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",

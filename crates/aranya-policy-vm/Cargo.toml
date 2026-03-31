@@ -41,7 +41,7 @@ bench = ["dep:table_formatter", "std"]
 aranya-crypto = { version = "0.14.0", path = "../aranya-crypto", default-features = false }
 aranya-id = { version = "0.2.2", path = "../aranya-id", default-features = false }
 aranya-policy-ast = { version = "0.13.0", path = "../aranya-policy-ast" }
-aranya-policy-derive = { version = "0.16.0", path = "../aranya-policy-derive" }
+aranya-policy-derive = { version = "0.15.1", path = "../aranya-policy-derive" }
 aranya-policy-module = { version = "0.20.0", path = "../aranya-policy-module" }
 buggy = { version = "0.1.0", features = ["alloc"] }
 
