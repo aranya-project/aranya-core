@@ -1,0 +1,19 @@
+//! Stable public API for the Aranya runtime.
+//!
+//! This crate provides a curated, stable interface to the Aranya runtime.
+//! Types exported from this crate follow semver and will not introduce
+//! breaking changes without a major version bump.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
+
+mod client;
+
+pub use aranya_runtime::{
+    ClientError, Session, Transaction,
+    storage::linear::{IoManager, LinearStorage, LinearStorageProvider, Read, Write},
+    vm_policy::{FfiCallable, VmAction, VmEffect, VmEffectData, VmPolicy, VmPolicyError},
+};
+pub use client::{Client, ClientSession, ClientTransaction, VmPolicyStore};
+
+pub mod sync;

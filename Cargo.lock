@@ -517,6 +517,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-public-core"
+version = "0.1.0"
+dependencies = [
+ "aranya-crypto",
+ "aranya-runtime",
+]
+
+[[package]]
 name = "aranya-runtime"
 version = "0.21.0"
 dependencies = [

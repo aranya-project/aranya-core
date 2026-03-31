@@ -1,0 +1,30 @@
+[package]
+name = "aranya-public-core"
+description = "Stable public API for the Aranya runtime"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aranya-crypto = { version = "0.14.0", path = "../aranya-crypto", default-features = false }
+aranya-runtime = { version = "0.21.0", path = "../aranya-runtime", default-features = false }
+
+[features]
+default = []
+
+libc = ["aranya-runtime/libc"]
+
+std = [
+	"aranya-crypto/std",
+	"aranya-runtime/std",
+]
+
+testing = ["aranya-runtime/testing"]
+
+low-mem-usage = ["aranya-runtime/low-mem-usage"]
