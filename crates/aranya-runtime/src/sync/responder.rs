@@ -369,8 +369,7 @@ impl SyncResponder {
             if covered {
                 // Case 1: Covered — peer already has this. Propagate coverage
                 // to priors so they'll be processed as covered if not yet
-                // visited. Don't remove from pending: a prior may have been
-                // added through an uncovered path that still needs it.
+                // visited.
                 for prior in segment.prior() {
                     heads.push_covered(prior, true)?;
                 }
@@ -398,8 +397,7 @@ impl SyncResponder {
             // with max_cut within shortest_max_cut..=longest_max_cut.
             let shortest = segment.shortest_max_cut();
             let mut best_have: Option<(usize, Location)> = None;
-            let mut scan = have_cursor;
-            while scan < have_locations.len() {
+            for scan in have_cursor..have_locations.len() {
                 let hloc = have_locations[scan];
                 if hloc.max_cut < shortest {
                     break; // rest are even lower, can't be in this segment
@@ -408,14 +406,12 @@ impl SyncResponder {
                     best_have = Some((scan, hloc));
                     break; // sorted in descending order, so first match is the highest max_cut
                 }
-                scan = scan.checked_add(1).assume("index must not overflow")?;
             }
 
             if let Some((_idx, hloc)) = best_have {
                 // Case 2: Contains a have_location. Push priors as
-                // covered. Don't remove from pending: a prior may have
-                // been added through a different uncovered path and
-                // still be needed.
+                // covered — the peer has at least part of this segment,
+                // so its priors are reachable.
                 for prior in segment.prior() {
                     heads.push_covered(prior, true)?;
                 }
