@@ -1030,7 +1030,7 @@ mod queue_tests {
 
         // Covered entry above threshold (seg=2) should be discarded.
         // Entries below threshold should remain: seg=0 (uncovered), seg=3 (covered).
-        let mut remaining = std::vec::Vec::new();
+        let mut remaining = Vec::new();
         while let Some((l, covered)) = queue.pop_covered().unwrap() {
             remaining.push((l.segment, covered));
         }
