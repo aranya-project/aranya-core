@@ -5,59 +5,35 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "Bar",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "Bar",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "Bar",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "Bar",
-            ltype: CommandOpen,
-        }: 22,
+        <policy 'Bar'>: 1,
+        <recall 'Bar'>: 8,
+        <seal 'Bar'>: 11,
+        <open 'Bar'>: 17,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Bar" @ 112..115,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {
-                            ByName(
-                                Attribute {
-                                    name: "foo_attr" @ 143..151,
-                                    value: Struct(
-                                        ConstStruct {
-                                            name: "Foo",
-                                            fields: {
-                                                "x": Int(
-                                                    1000,
-                                                ),
-                                                "y": Int(
-                                                    20,
-                                                ),
-                                            },
-                                        },
-                                    ),
-                                },
-                            ),
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "Bar" @ 112..115,
+            persistence: Persistent,
+            attributes: {
+                Attribute {
+                    name: "foo_attr" @ 143..151,
+                    value: Struct(
+                        ConstStruct {
+                            name: "Foo",
+                            fields: {
+                                "x": Int(
+                                    1000,
+                                ),
+                                "y": Int(
+                                    20,
+                                ),
+                            },
                         },
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
+                    ),
                 },
-            ),
+            },
+            fields: {},
         },
     },
     fact_defs: {},
@@ -103,36 +79,33 @@ Module {
             },
         ),
     },
-    program memory: 
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	return
-    	meta: Set `this`
-    	def this
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Bar'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Bar'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Bar'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Bar'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

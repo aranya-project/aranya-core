@@ -5,29 +5,22 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "f",
-            ltype: Function,
-        }: 1,
+        <fn 'f'>: 1,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	const None
-    	is some
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'f'>:
+    save SP
+    const None
+    is some
+    restore SP
+    return
+    exit panic

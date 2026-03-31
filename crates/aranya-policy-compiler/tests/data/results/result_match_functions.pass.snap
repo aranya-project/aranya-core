@@ -5,125 +5,106 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "match_expr_with_return",
-            ltype: Function,
-        }: 56,
-        Label {
-            name: "match_statement",
-            ltype: Function,
-        }: 25,
-        Label {
-            name: "may_fail",
-            ltype: Function,
-        }: 1,
+        <fn 'match_expr_with_return'>: 48,
+        <fn 'match_statement'>: 22,
+        <fn 'may_fail'>: 1,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `x`
-    	def x
-    	save SP
-    	meta: Get `x`
-    	get x
-    	const 0
-    	gt
-    	not
-    	branch 18
-    	block
-    	meta: Get `x`
-    	get x
-    	wrap ok
-    	restore SP
-    	return
-    	end
-    	jump 24
-    	block
-    	const "negative input"
-    	wrap err
-    	restore SP
-    	return
-    	end
-    	exit panic
-    	meta: Set `r`
-    	def r
-    	save SP
-    	meta: Get `r`
-    	get r
-    	dup
-    	is ok
-    	branch 36
-    	dup
-    	is err
-    	branch 46
-    	block
-    	unwrap ok
-    	meta: Set `v`
-    	def v
-    	meta: Get `v`
-    	get v
-    	restore SP
-    	return
-    	end
-    	jump 55
-    	block
-    	unwrap err
-    	meta: Set `e`
-    	def e
-    	const 0
-    	restore SP
-    	return
-    	end
-    	jump 55
-    	exit panic
-    	meta: Set `x`
-    	def x
-    	save SP
-    	meta: Get `x`
-    	get x
-    	call 1
-    	dup
-    	is ok
-    	branch 68
-    	dup
-    	is err
-    	branch 76
-    	block
-    	unwrap ok
-    	meta: Set `n`
-    	def n
-    	meta: Get `n`
-    	get n
-    	end
-    	jump 87
-    	block
-    	unwrap err
-    	meta: Set `e`
-    	def e
-    	meta: Get `e`
-    	get e
-    	wrap err
-    	restore SP
-    	return
-    	end
-    	jump 87
-    	meta: Set `n`
-    	def n
-    	meta: Get `n`
-    	get n
-    	wrap ok
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'may_fail'>:
+    def 'x'
+    save SP
+    get 'x'
+    const 0
+    gt
+    not
+    branch 15
+    block
+    get 'x'
+    wrap ok
+    restore SP
+    return
+    end
+    jump 21
+<15>:
+    block
+    const "negative input"
+    wrap err
+    restore SP
+    return
+    end
+<21>:
+    exit panic
+<fn 'match_statement'>:
+    def 'r'
+    save SP
+    get 'r'
+    dup
+    is ok
+    branch 31
+    dup
+    is err
+    branch 39
+<31>:
+    block
+    unwrap ok
+    def 'v'
+    get 'v'
+    restore SP
+    return
+    end
+    jump 47
+<39>:
+    block
+    unwrap err
+    def 'e'
+    const 0
+    restore SP
+    return
+    end
+    jump 47
+<47>:
+    exit panic
+<fn 'match_expr_with_return'>:
+    def 'x'
+    save SP
+    get 'x'
+    call <fn 'may_fail'>
+    dup
+    is ok
+    branch 58
+    dup
+    is err
+    branch 64
+<58>:
+    block
+    unwrap ok
+    def 'n'
+    get 'n'
+    end
+    jump 73
+<64>:
+    block
+    unwrap err
+    def 'e'
+    get 'e'
+    wrap err
+    restore SP
+    return
+    end
+    jump 73
+<73>:
+    def 'n'
+    get 'n'
+    wrap ok
+    restore SP
+    return
+    exit panic

@@ -5,57 +5,54 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "f",
-            ltype: Function,
-        }: 1,
+        <fn 'f'>: 1,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	const None
-    	dup
-    	const None
-    	eq
-    	branch 17
-    	dup
-    	const true
-    	wrap some
-    	eq
-    	branch 22
-    	dup
-    	const false
-    	wrap some
-    	eq
-    	branch 27
-    	block
-    	pop
-    	const 0
-    	end
-    	jump 32
-    	block
-    	pop
-    	const 1
-    	end
-    	jump 32
-    	block
-    	pop
-    	const 2
-    	end
-    	jump 32
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'f'>:
+    save SP
+    const None
+    dup
+    const None
+    eq
+    branch 17
+    dup
+    const true
+    wrap some
+    eq
+    branch 22
+    dup
+    const false
+    wrap some
+    eq
+    branch 27
+<17>:
+    block
+    pop
+    const 0
+    end
+    jump 32
+<22>:
+    block
+    pop
+    const 1
+    end
+    jump 32
+<27>:
+    block
+    pop
+    const 2
+    end
+    jump 32
+<32>:
+    restore SP
+    return
+    exit panic

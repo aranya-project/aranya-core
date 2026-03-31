@@ -5,67 +5,34 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "Bar",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "Bar",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "Bar",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "Bar",
-            ltype: CommandOpen,
-        }: 22,
-        Label {
-            name: "convert",
-            ltype: Action,
-        }: 29,
+        <policy 'Bar'>: 1,
+        <recall 'Bar'>: 8,
+        <seal 'Bar'>: 11,
+        <open 'Bar'>: 17,
+        <action 'convert'>: 23,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "convert" @ 206..213,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "convert" @ 206..213,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Bar" @ 48..51,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {
-                            ByName(
-                                Field {
-                                    name: "a" @ 75..76,
-                                    ty: Int @ 77..80,
-                                },
-                            ),
-                            ByName(
-                                Field {
-                                    name: "b" @ 90..91,
-                                    ty: String @ 92..98,
-                                },
-                            ),
-                        },
-                    },
+    command_defs: {
+        CommandDef {
+            name: "Bar" @ 48..51,
+            persistence: Persistent,
+            attributes: {},
+            fields: {
+                Field {
+                    name: "a" @ 75..76,
+                    ty: Int @ 77..80,
                 },
-            ),
+                Field {
+                    name: "b" @ 90..91,
+                    ty: String @ 92..98,
+                },
+            },
         },
     },
     fact_defs: {},
@@ -93,48 +60,44 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	return
-    	meta: Set `this`
-    	def this
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	struct.new Foo
-    	const 1
-    	struct.set a
-    	const "test"
-    	struct.set b
-    	cast Bar
-    	meta: Set `bar`
-    	def bar
-    	meta: Get `bar`
-    	get bar
-    	publish
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Bar'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Bar'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Bar'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Bar'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<action 'convert'>:
+    struct.new 'Foo'
+    const 1
+    struct.set 'a'
+    const "test"
+    struct.set 'b'
+    cast 'Bar'
+    def 'bar'
+    get 'bar'
+    publish
+    return
