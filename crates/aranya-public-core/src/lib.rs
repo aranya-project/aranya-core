@@ -9,11 +9,13 @@
 
 mod client;
 
+#[doc(inline)]
 pub use aranya_runtime::{
     ClientError, Session, Transaction,
     storage::linear::{IoManager, LinearStorage, LinearStorageProvider, Read, Write},
     vm_policy::{FfiCallable, VmAction, VmEffect, VmEffectData, VmPolicy, VmPolicyError},
 };
+#[doc(inline)]
 pub use client::{Client, ClientSession, ClientTransaction, VmPolicyStore};
 
 pub mod sync;
