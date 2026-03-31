@@ -66,31 +66,31 @@ Module {
     jump 26
 <26>:
     get 'n'
-    call 54
+    call <fn 'is_odd'>
     not
     branch 45
     block
     get 'x'
     get 'x'
-    call 67
+    call <fn 'double'>
     get 'n'
     const 1
     saturating_sub
     const 2
-    call 141
-    call 1
-    call 75
+    call <fn 'divide'>
+    call <fn 'pow'>
+    call <fn 'multiply'>
     restore SP
     return
     end
     jump 45
 <45>:
     get 'x'
-    call 67
+    call <fn 'double'>
     get 'n'
     const 2
-    call 141
-    call 1
+    call <fn 'divide'>
+    call <fn 'pow'>
     restore SP
     return
     exit panic
@@ -99,9 +99,9 @@ Module {
     save SP
     get 'x'
     const 2
-    call 141
+    call <fn 'divide'>
     const 2
-    call 75
+    call <fn 'multiply'>
     get 'x'
     eq
     not
@@ -113,7 +113,7 @@ Module {
     save SP
     get 'x'
     const 2
-    call 75
+    call <fn 'multiply'>
     restore SP
     return
     exit panic
@@ -184,7 +184,7 @@ Module {
     get 'y'
     const 1
     saturating_sub
-    call 75
+    call <fn 'multiply'>
     saturating_add
     restore SP
     return
@@ -218,7 +218,7 @@ Module {
     struct.set 'q'
     get 'x'
     struct.set 'r'
-    call 174
+    call <fn 'divide0'>
     def 'got'
     get 'got'
     struct.get 'q'
@@ -272,7 +272,7 @@ Module {
     get 'd'
     saturating_sub
     struct.set 'r'
-    call 174
+    call <fn 'divide0'>
     restore SP
     return
     exit panic

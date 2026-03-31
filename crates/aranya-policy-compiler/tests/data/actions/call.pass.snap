@@ -45,5 +45,5 @@ Module {
 <action 'foo'>:
     const 1
     const "abc"
-    call 1
+    call <action 'bar'>
     return

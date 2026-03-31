@@ -77,7 +77,7 @@ Module {
     def 'x'
     save SP
     get 'x'
-    call 1
+    call <fn 'may_fail'>
     dup
     is ok
     branch 58
