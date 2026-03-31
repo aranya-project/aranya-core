@@ -1611,9 +1611,6 @@ impl<'a> CompileState<'a> {
                                     bug!("checked above");
                                 };
                                 self.append_instruction(Instruction::Unwrap(wrap_type));
-                                self.append_instruction(Instruction::Meta(Meta::Let(
-                                    ident.name.clone(),
-                                )));
                                 self.append_instruction(Instruction::Def(ident.name.clone()));
                             } else {
                                 // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
@@ -1661,9 +1658,6 @@ impl<'a> CompileState<'a> {
                                     bug!("checked above");
                                 };
                                 self.append_instruction(Instruction::Unwrap(wrap_type));
-                                self.append_instruction(Instruction::Meta(Meta::Let(
-                                    ident.name.clone(),
-                                )));
                                 self.append_instruction(Instruction::Def(ident.name.clone()));
                             } else {
                                 // Pop the scrutinee value
