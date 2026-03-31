@@ -1,5 +1,5 @@
 [package]
-name = "aranya-public-core"
+name = "aranya-core"
 description = "Stable public API for the Aranya runtime"
 version = "0.1.0"
 authors.workspace = true
