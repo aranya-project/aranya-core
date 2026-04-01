@@ -354,7 +354,12 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check(recall_block) => {
-                    info!("Check {recall_block}: {}", self.source_location(&rs));
+                    info!("Check {recall_block:?}: {}", self.source_location(&rs));
+
+                    let Some(recall_block) = recall_block else {
+                        // No recall block specified — immediate failure.
+                        return Err(PolicyError::Check);
+                    };
 
                     match placement {
                         CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
@@ -406,7 +411,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
             Ok(ExitReason::Yield) => bug!("unexpected yield"),
             Ok(ExitReason::Check(recall_block)) => {
                 info!(
-                    "Recall failed: {}: {}",
+                    "Recall failed: {}: {:?}",
                     self.source_location(rs),
                     recall_block
                 );
@@ -448,7 +453,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check(recall) => {
-                    info!("Check {}: {}", self.source_location(&rs), recall);
+                    info!("Check {}: {:?}", self.source_location(&rs), recall);
                     Err(PolicyError::Check)
                 }
                 ExitReason::Panic => {
@@ -797,8 +802,9 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             PolicyError::InternalError
                         })?;
                     }
-                    ExitReason::Check(recall) => {
-                        info!("Check {recall}: {}", self.source_location(&rs));
+                    ExitReason::Check(_) => {
+                        // Can't recall outside a command context
+                        info!("Check {}", self.source_location(&rs));
                         return Err(PolicyError::Check);
                     }
                     ExitReason::Panic => {
