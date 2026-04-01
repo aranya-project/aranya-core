@@ -932,7 +932,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check(ident!("default")));
+    assert_eq!(result, ExitReason::Check(None));
 
     Ok(())
 }
@@ -1439,7 +1439,7 @@ fn test_check_errors() -> anyhow::Result<()> {
 
     for (input, expected) in cases {
         let policy = parse_policy_str(input, Version::V2)?;
-        let io = RefCell::new(TestIO::new());
+        let mut io = TestIO::new();
         let module = Compiler::new(&policy).compile()?;
         let machine = Machine::from_module(module)?;
         let name = ident!("Foo");
@@ -1448,7 +1448,7 @@ fn test_check_errors() -> anyhow::Result<()> {
         let self_struct = Struct::new(name.clone(), &[]);
         let result = rs.call_command_policy(self_struct, dummy_envelope())?;
 
-        assert_eq!(result, ExitReason::Check(expected));
+        assert_eq!(result, ExitReason::Check(Some(expected)));
     }
     Ok(())
 }
@@ -1515,7 +1515,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check(ident!("default")));
+        assert_eq!(status, ExitReason::Check(None));
     }
 
     Ok(())
@@ -2400,7 +2400,7 @@ fn test_boolean_short_circuit() {
     }
 
     assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check(ident!("default")));
+    assert_eq!(run("false && todo()"), ExitReason::Check(None));
     assert_eq!(run("true || todo()"), ExitReason::Normal);
     assert_eq!(run("false || todo()"), ExitReason::Panic);
 }
@@ -2516,7 +2516,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check(ident!("default")));
+    assert_eq!(result, ExitReason::Check(None));
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
@@ -2794,7 +2794,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V2)?;
-    let io = RefCell::new(TestIO::new());
+    let mut io = TestIO::new();
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
 
@@ -2821,7 +2821,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
 
     // Should exit with Check, and args should be on stack
     let recall_name = ident!("Foo_recall_test");
-    assert_eq!(result, ExitReason::Check(recall_name.clone()));
+    assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
     let stack_values = rs.stack.as_slice();
     assert_eq!(stack_values.get(0), Some(&Value::Int(1)));
     assert_eq!(stack_values.get(1), Some(&Value::String(text!("oops"))));
@@ -2835,7 +2835,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
 
     // Check that the effect was emitted with correct args
     assert_eq!(
-        io.borrow().effect_stack[0],
+        io.effect_stack[0],
         (
             ident!("Err"),
             vec![

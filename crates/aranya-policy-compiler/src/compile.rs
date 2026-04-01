@@ -816,8 +816,8 @@ impl<'a> CompileState<'a> {
                         )));
                     }
                 };
-                let name = self.command_recall_name(&cmd, None)?;
-                self.compile_unwrap_option(*e, ExitReason::Check(name))?
+                let name = self.command_recall_name(cmd, None)?;
+                self.compile_unwrap_option(*e, ExitReason::Check(Some(name)))?;
             }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -910,27 +910,16 @@ impl<'a> CompileState<'a> {
             }
             thir::StmtKind::Check(s) => {
                 self.compile_typed_expression(s.expression)?;
-                // The current instruction is the branch. The next instruction is the following
-                // panic you arrive at if the expression is false. The instruction you branch to
-                // if the check succeeds is the instruction after that - current instruction + 2.
-                let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
-                self.append_instruction(Instruction::Branch(Target::Resolved(next)));
 
-                // push args for command recall
-                let context = self.get_statement_context()?.clone();
-                let n = match &context {
-                    StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
-                        if let Some(fc) = s.recall.as_ref() {
-                            for arg_e in &fc.arguments {
-                                self.compile_typed_expression(arg_e.clone())?;
-                            }
-                        }
-                        let recall_name = s.recall.as_ref().map(|fc| fc.identifier.clone());
-                        self.command_recall_name(cmd, recall_name)?
-                    }
-                    _ => ident!("default"),
-                };
-                self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
+                // Reserve space for the branch instruction. We'll go back and update its target
+                // after we know where the success path begins.
+                let branch_wp = self.wp;
+                self.append_instruction(Instruction::Branch(Target::Resolved(0)));
+
+                self.compile_check_recall(s.recall)?;
+
+                // Now that we know where the success path begins, patch the branch to jump there.
+                self.m.progmem[branch_wp] = Instruction::Branch(Target::Resolved(self.wp));
             }
             thir::StmtKind::Match(s) => {
                 self.compile_match_statement_or_expression(LanguageContext::Statement(s))?;
@@ -1228,6 +1217,28 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_check_recall(
+        &mut self,
+        recall: Option<thir::FunctionCall>,
+    ) -> Result<(), CompileError> {
+        // Compile args for command recall
+        let context = self.get_statement_context()?.clone();
+        let n = match &context {
+            StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
+                if let Some(fc) = recall.as_ref() {
+                    for arg_e in &fc.arguments {
+                        self.compile_typed_expression(arg_e.clone())?;
+                    }
+                }
+                let recall_name = recall.as_ref().map(|fc| fc.identifier.clone());
+                Some(self.command_recall_name(cmd, recall_name)?)
+            }
+            _ => None,
+        };
+        self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
+        Ok(())
+    }
+
     fn compile_command_policy(
         &mut self,
         command: &ast::CommandDefinition,
@@ -1278,7 +1289,7 @@ impl<'a> CompileState<'a> {
 
         // Compile each recall block
         for recall_block in &command.recalls {
-            let full_name = self.command_recall_name(&command, recall_block.identifier.clone())?;
+            let full_name = self.command_recall_name(command, recall_block.identifier.clone())?;
             if !named_blocks.insert(full_name.clone()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                     "recall block '{}' for command '{}' defined more than once",
