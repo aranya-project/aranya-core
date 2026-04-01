@@ -5,54 +5,25 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "Cmd",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "Cmd",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "Cmd",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "Cmd",
-            ltype: CommandOpen,
-        }: 22,
-        Label {
-            name: "test",
-            ltype: Action,
-        }: 29,
+        <policy 'Cmd'>: 1,
+        <recall 'Cmd'>: 8,
+        <seal 'Cmd'>: 11,
+        <open 'Cmd'>: 17,
+        <action 'test'>: 23,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "test" @ 128..132,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "test" @ 128..132,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "Cmd" @ 8..11,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    command_defs: {
+        CommandDef {
+            name: "Cmd" @ 8..11,
+            persistence: Persistent,
+            attributes: {},
+            fields: {},
         },
     },
     fact_defs: {},
@@ -61,39 +32,37 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	return
-    	meta: Set `this`
-    	def this
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	struct.new Cmd
-    	publish
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<policy 'Cmd'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Cmd'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Cmd'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Cmd'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<action 'test'>:
+    struct.new 'Cmd'
+    publish
+    return

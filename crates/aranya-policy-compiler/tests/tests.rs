@@ -1,12 +1,16 @@
 #![allow(clippy::panic)]
 
-use std::{fmt, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    path::PathBuf,
+};
 
 use aranya_policy_ast::{Version, ident};
 use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Instruction, Module, ModuleData, ModuleV0,
+    Instruction, Label, Module, ModuleData, ModuleV0,
     ffi::{self, ModuleSchema},
 };
 
@@ -81,8 +85,6 @@ fn compile_fail(text: &str) -> CompileError {
 /// that only prints data worth viewing.
 struct ModuleSnapshotWrapper(Module);
 
-struct InstructionsWrapper<'a>(&'a [Instruction]);
-
 impl fmt::Debug for ModuleSnapshotWrapper {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ModuleData::V0(ModuleV0 {
@@ -93,10 +95,8 @@ impl fmt::Debug for ModuleSnapshotWrapper {
             struct_defs,
             enum_defs,
             globals,
-            progmem,
             ..
         }) = &self.0.data;
-        let progmem = InstructionsWrapper(progmem);
 
         f.debug_struct("Module")
             .field("version", &"0")
@@ -107,20 +107,79 @@ impl fmt::Debug for ModuleSnapshotWrapper {
             .field("struct_defs", struct_defs)
             .field("enum_defs", enum_defs)
             .field("globals", globals)
-            .field("program memory", &progmem)
-            .finish_non_exhaustive()
-    }
-}
+            .finish_non_exhaustive()?;
 
-impl fmt::Debug for InstructionsWrapper<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f)?;
-        for instr in self.0 {
-            writeln!(f, "\t{instr}")?;
-        }
+        writeln!(f, "\n---")?;
+
+        write_instructions(&self.0, f)?;
 
         Ok(())
     }
+}
+
+fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    let ModuleData::V0(m) = &m.data;
+
+    let mut labels: HashMap<usize, &Label> = HashMap::new();
+    let mut targets: HashSet<usize> = HashSet::new();
+
+    for (label, &addr) in &m.labels {
+        let old = labels.insert(addr, label);
+        assert!(old.is_none(), "labels shouldn't point to same place");
+    }
+
+    for ins in &m.progmem {
+        if let Instruction::Branch(t) | Instruction::Jump(t) = ins {
+            let addr = t.resolved().expect("unresolved target");
+            targets.insert(addr);
+        }
+    }
+
+    for (i, ins) in m.progmem.iter().enumerate() {
+        if let Some(label) = labels.get(&i) {
+            writeln!(f, "{label:?}:")?;
+        }
+        if targets.contains(&i) {
+            writeln!(f, "<{i}>:")?;
+        }
+
+        writeln!(
+            f,
+            "    {}",
+            fmt_fn(|f| {
+                match ins {
+                    // Show target label for calls.
+                    Instruction::Call(t) => {
+                        let label = labels
+                            .get(&t.resolved().expect("unresolved target"))
+                            .expect("missing target label");
+                        write!(f, "call {label:?}")
+                    }
+                    // Fall back to display impl.
+                    _ => write!(f, "{ins}"),
+                }
+            })
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Display based on supplied function.
+///
+/// Adapted from [`core::fmt::from_fn`] (1.93+).
+fn fmt_fn(f: impl Fn(&mut fmt::Formatter<'_>) -> fmt::Result) -> impl fmt::Display {
+    struct FmtFn<F>(F);
+    impl<F> fmt::Display for FmtFn<F>
+    where
+        F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
+    {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            (self.0)(f)
+        }
+    }
+
+    FmtFn(f)
 }
 
 #[rstest::rstest]

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.19.0...aranya-policy-module-v0.20.0) - 2026-03-31
+
+### Other
+
+- clean up snapshot formatting ([#635](https://github.com/aranya-project/aranya-core/pull/635))
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.18.1...aranya-policy-module-v0.19.0) - 2026-03-17
 
 ### Other

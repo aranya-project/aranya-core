@@ -5,17 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "foo",
-            ltype: Function,
-        }: 1,
+        <fn 'foo'>: 1,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {
@@ -24,32 +17,32 @@ Module {
         },
     },
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `n`
-    	def n
-    	save SP
-    	meta: Get `n`
-    	get n
-    	const 0
-    	gt
-    	not
-    	branch 18
-    	block
-    	const 42
-    	wrap ok
-    	wrap ok
-    	restore SP
-    	return
-    	end
-    	jump 24
-    	block
-    	const Err::0
-    	wrap err
-    	restore SP
-    	return
-    	end
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'foo'>:
+    def 'n'
+    save SP
+    get 'n'
+    const 0
+    gt
+    not
+    branch 16
+    block
+    const 42
+    wrap ok
+    wrap ok
+    restore SP
+    return
+    end
+    jump 22
+<16>:
+    block
+    const Err::0
+    wrap err
+    restore SP
+    return
+    end
+<22>:
+    exit panic

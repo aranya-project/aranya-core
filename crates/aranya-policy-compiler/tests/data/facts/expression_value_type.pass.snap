@@ -5,27 +5,16 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "test",
-            ltype: Action,
-        }: 1,
+        <action 'test'>: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "test" @ 34..38,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {
+        ActionDef {
+            name: "test" @ 34..38,
+            persistence: Persistent,
+            params: {},
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {
         "Foo": FactDefinition {
             immutable: false,
@@ -59,22 +48,23 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	fact.new Foo
-    	const 1
-    	fact.kset i
-    	const 1
-    	const 1
-    	saturating_add
-    	fact.vset a
-    	query
-    	const None
-    	eq
-    	not
-    	branch 14
-    	exit check
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'test'>:
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    const 1
+    const 1
+    saturating_add
+    fact.vset 'a'
+    query
+    const None
+    eq
+    not
+    branch 14
+    exit check
+<14>:
+    return

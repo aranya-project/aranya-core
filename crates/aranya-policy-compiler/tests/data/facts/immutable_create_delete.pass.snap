@@ -5,40 +5,18 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "test",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "test",
-            ltype: CommandRecall,
-        }: 22,
-        Label {
-            name: "test",
-            ltype: CommandSeal,
-        }: 27,
-        Label {
-            name: "test",
-            ltype: CommandOpen,
-        }: 34,
+        <policy 'test'>: 1,
+        <recall 'test'>: 20,
+        <seal 'test'>: 23,
+        <open 'test'>: 29,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "test" @ 48..52,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {},
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
-                },
-            ),
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "test" @ 48..52,
+            persistence: Persistent,
+            attributes: {},
+            fields: {},
         },
     },
     fact_defs: {
@@ -75,48 +53,45 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	meta: finish enabled
-    	block
-    	fact.new Foo
-    	const 1
-    	fact.kset i
-    	const ""
-    	fact.vset a
-    	create
-    	fact.new Foo
-    	const 1
-    	fact.kset i
-    	const ""
-    	fact.vset a
-    	delete
-    	end
-    	exit normal
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	return
-    	meta: Set `this`
-    	def this
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'test'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    const ""
+    fact.vset 'a'
+    create
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    const ""
+    fact.vset 'a'
+    delete
+    end
+    exit normal
+    exit panic
+<recall 'test'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'test'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'test'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

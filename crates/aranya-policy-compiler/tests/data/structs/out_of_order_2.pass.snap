@@ -5,12 +5,8 @@ expression: module
 Module {
     version: "0",
     labels: {},
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {
         "Foo": FactDefinition {
             immutable: false,
@@ -64,8 +60,7 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic

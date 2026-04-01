@@ -5,66 +5,38 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "A",
-            ltype: CommandPolicy,
-        }: 1,
-        Label {
-            name: "A",
-            ltype: CommandRecall,
-        }: 10,
-        Label {
-            name: "A",
-            ltype: CommandSeal,
-        }: 15,
-        Label {
-            name: "A",
-            ltype: CommandOpen,
-        }: 22,
+        <policy 'A'>: 1,
+        <recall 'A'>: 8,
+        <seal 'A'>: 11,
+        <open 'A'>: 17,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {
-            ByName(
-                CommandDef {
-                    name: "A" @ 36..37,
-                    persistence: Persistent,
-                    attributes: NamedMap {
-                        set: {
-                            ByName(
-                                Attribute {
-                                    name: "i" @ 65..66,
-                                    value: Int(
-                                        5,
-                                    ),
-                                },
-                            ),
-                            ByName(
-                                Attribute {
-                                    name: "s" @ 79..80,
-                                    value: String(
-                                        "abc",
-                                    ),
-                                },
-                            ),
-                            ByName(
-                                Attribute {
-                                    name: "priority" @ 97..105,
-                                    value: Enum(
-                                        "Priority",
-                                        1,
-                                    ),
-                                },
-                            ),
-                        },
-                    },
-                    fields: NamedMap {
-                        set: {},
-                    },
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "A" @ 36..37,
+            persistence: Persistent,
+            attributes: {
+                Attribute {
+                    name: "i" @ 65..66,
+                    value: Int(
+                        5,
+                    ),
                 },
-            ),
+                Attribute {
+                    name: "s" @ 79..80,
+                    value: String(
+                        "abc",
+                    ),
+                },
+                Attribute {
+                    name: "priority" @ 97..105,
+                    value: Enum(
+                        "Priority",
+                        1,
+                    ),
+                },
+            },
+            fields: {},
         },
     },
     fact_defs: {},
@@ -78,36 +50,33 @@ Module {
         },
     },
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	meta: finish enabled
-    	block
-    	end
-    	exit normal
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	meta: Set `this`
-    	def this
-    	return
-    	meta: Set `this`
-    	def this
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    	meta: Set `envelope`
-    	def envelope
-    	save SP
-    	exit panic
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<policy 'A'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'A'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'A'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'A'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

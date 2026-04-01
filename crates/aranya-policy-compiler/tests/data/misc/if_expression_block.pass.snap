@@ -5,64 +5,47 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "f",
-            ltype: Action,
-        }: 1,
+        <action 'f'>: 1,
     },
-    action_defs: NamedMap {
-        set: {
-            ByName(
-                ActionDef {
-                    name: "f" @ 7..8,
-                    persistence: Persistent,
-                    params: NamedMap {
-                        set: {
-                            ByName(
-                                Param {
-                                    name: "n" @ 9..10,
-                                    ty: Int @ 11..14,
-                                },
-                            ),
-                        },
-                    },
+    action_defs: {
+        ActionDef {
+            name: "f" @ 7..8,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "n" @ 9..10,
+                    ty: Int @ 11..14,
                 },
-            ),
+            },
         },
     },
-    command_defs: NamedMap {
-        set: {},
-    },
+    command_defs: {},
     fact_defs: {},
     struct_defs: {},
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	meta: Set `n`
-    	def n
-    	meta: Get `n`
-    	get n
-    	const 1
-    	gt
-    	branch 12
-    	block
-    	const 0
-    	end
-    	jump 22
-    	block
-    	meta: Get `n`
-    	get n
-    	const 1
-    	saturating_add
-    	meta: Set `x`
-    	def x
-    	meta: Get `x`
-    	get x
-    	end
-    	meta: Set `x`
-    	def x
-    	return
-    ,
     ..
 }
+---
+    exit panic
+<action 'f'>:
+    def 'n'
+    get 'n'
+    const 1
+    gt
+    branch 10
+    block
+    const 0
+    end
+    jump 17
+<10>:
+    block
+    get 'n'
+    const 1
+    saturating_add
+    def 'x'
+    get 'x'
+    end
+<17>:
+    def 'x'
+    return

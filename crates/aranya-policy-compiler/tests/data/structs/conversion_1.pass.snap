@@ -5,17 +5,10 @@ expression: module
 Module {
     version: "0",
     labels: {
-        Label {
-            name: "convert",
-            ltype: Function,
-        }: 1,
+        <fn 'convert'>: 1,
     },
-    action_defs: NamedMap {
-        set: {},
-    },
-    command_defs: NamedMap {
-        set: {},
-    },
+    action_defs: {},
+    command_defs: {},
     fact_defs: {},
     struct_defs: {
         "Bar": [
@@ -41,18 +34,18 @@ Module {
     },
     enum_defs: {},
     globals: {},
-    program memory: 
-    	exit panic
-    	save SP
-    	struct.new Foo
-    	const 1
-    	struct.set a
-    	const "test"
-    	struct.set b
-    	cast Bar
-    	restore SP
-    	return
-    	exit panic
-    ,
     ..
 }
+---
+    exit panic
+<fn 'convert'>:
+    save SP
+    struct.new 'Foo'
+    const 1
+    struct.set 'a'
+    const "test"
+    struct.set 'b'
+    cast 'Bar'
+    restore SP
+    return
+    exit panic
