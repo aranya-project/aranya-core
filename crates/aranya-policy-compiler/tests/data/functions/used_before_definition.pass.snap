@@ -197,7 +197,7 @@ Module {
     const 0
     gt
     branch 149
-    exit check: default
+    exit check
 <149>:
     get 'x'
     get 'y'
@@ -241,7 +241,7 @@ Module {
     const 0
     gt
     branch 190
-    exit check: default
+    exit check
 <190>:
     get 'r'
     get 'd'

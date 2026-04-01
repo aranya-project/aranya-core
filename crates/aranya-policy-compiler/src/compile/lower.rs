@@ -1550,6 +1550,17 @@ impl CompileState<'_> {
                     | StatementContext::CommandPolicy(_)
                     | StatementContext::CommandRecall(_),
                 ) => {
+                    // The recall clause is only valid in command policies.
+                    if s.recall.is_some() && !matches!(context, StatementContext::CommandPolicy(_))
+                    {
+                        return Err(self.err(UnknownError(
+                            String::from(
+                                "The `or recall` clause is only valid in command `policy`.",
+                            ),
+                            Some(statement.span),
+                        )));
+                    }
+
                     let et = self.lower_expression(&s.expression)?;
                     if !et.vtype.fits_type(&VType {
                         inner: TypeKind::Bool,
@@ -1563,6 +1574,7 @@ impl CompileState<'_> {
                         );
                         return Err(self.err(err));
                     }
+
                     let recall = s
                         .recall
                         .as_ref()
