@@ -2,21 +2,23 @@
 
 use buggy::Bug;
 use postcard::Error as PostcardError;
+use responder::PeerCache;
 use serde::{Deserialize, Serialize};
+use wire::ResponseMessage;
 
+use super::GraphId;
 use crate::{
-    Address, MaxCut, Prior,
+    Address, Location, MaxCut, Prior, Segment, Storage, TraversalBuffers,
     command::{CmdId, Command, Priority},
     storage::{MAX_COMMAND_LENGTH, StorageError},
+    sync::hello::{HelloParams, HelloRequest},
 };
 
-mod dispatcher;
+mod diff;
+mod hello;
 mod requester;
 mod responder;
-
-pub use dispatcher::{SubscribeResult, SyncHelloType, SyncType};
-pub use requester::{SyncRequestMessage, SyncRequester};
-pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
+mod wire;
 
 // TODO: These should all be compile time parameters
 
@@ -73,27 +75,6 @@ impl CommandMeta {
     }
 }
 
-/// An error returned by the syncer.
-#[derive(Debug, thiserror::Error)]
-pub enum SyncError {
-    #[error("sync session ID does not match")]
-    SessionMismatch,
-    #[error("missing sync response")]
-    MissingSyncResponse,
-    #[error("syncer state not valid for this message")]
-    SessionState,
-    #[error("syncer not ready for operation")]
-    NotReady,
-    #[error("too many commands sent")]
-    CommandOverflow,
-    #[error("storage error: {0}")]
-    Storage(#[from] StorageError),
-    #[error("serialize error: {0}")]
-    Serialize(#[from] PostcardError),
-    #[error(transparent)]
-    Bug(#[from] Bug),
-}
-
 /// Sync command to be committed to graph.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
@@ -129,4 +110,107 @@ impl<'a> Command for SyncCommand<'a> {
     fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
     }
+}
+
+/// An opaque parsed sync request. Produced by [`dispatch`], consumed by
+/// [`SyncResponder::receive`].
+///
+/// All internal fields are `pub(crate)` — the only way to obtain a
+/// `SyncRequest` is through [`dispatch`], and the only way to use it is
+/// by passing it to [`SyncResponder::receive`]. The type system enforces
+/// correct routing.
+#[derive(Debug)]
+pub struct SyncRequest {
+    pub(crate) session_id: u128,
+    pub(crate) graph_id: GraphId,
+    pub(crate) samples: heapless::Vec<Address, COMMAND_SAMPLE_MAX>,
+}
+
+impl SyncRequest {
+    /// The graph this request targets. Use for authentication before
+    /// passing the request to the responder.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+}
+
+/// Routing result from [`dispatch`]. The wire format is not exposed.
+#[derive(Debug)]
+pub enum IncomingRequest {
+    /// A poll-sync request. Validate `graph_id` via
+    /// [`SyncRequest::graph_id`], then pass to
+    /// [`SyncResponder::receive`].
+    Sync(SyncRequest),
+    /// A hello protocol message, fully parsed.
+    Hello(HelloRequest),
+}
+
+/// Route an incoming message without exposing wire types.
+///
+/// Deserializes the message once and produces either a [`SyncRequest`]
+/// (for the responder) or a fully-parsed [`HelloRequest`] (for direct
+/// handling). No double deserialization — the responder consumes the
+/// already-parsed `SyncRequest`.
+pub fn dispatch(data: &[u8]) -> Result<IncomingRequest, SyncError> {
+    let msg: wire::RequestMessage = postcard::from_bytes(data)?;
+    match msg {
+        wire::RequestMessage::Sync {
+            session_id,
+            graph_id,
+            samples,
+            ..
+        } => Ok(IncomingRequest::Sync(SyncRequest {
+            session_id,
+            graph_id,
+            samples,
+        })),
+
+        wire::RequestMessage::HelloSubscribe {
+            graph_id,
+            graph_change_delay,
+            duration,
+            schedule_delay,
+        } => Ok(IncomingRequest::Hello(HelloRequest::Subscribe {
+            graph_id,
+            params: HelloParams {
+                graph_change_delay,
+                duration,
+                schedule_delay,
+            },
+        })),
+
+        wire::RequestMessage::HelloUnsubscribe { graph_id } => {
+            Ok(IncomingRequest::Hello(HelloRequest::Unsubscribe {
+                graph_id,
+            }))
+        }
+
+        wire::RequestMessage::HelloNotification { graph_id, head } => {
+            Ok(IncomingRequest::Hello(HelloRequest::Notification {
+                graph_id,
+                head,
+            }))
+        }
+    }
+}
+
+/// An error returned by the syncer.
+#[derive(Debug, thiserror::Error)]
+pub enum SyncError {
+    #[error("sync session ID does not match")]
+    SessionMismatch,
+    #[error("missing sync response")]
+    MissingSyncResponse,
+    #[error("syncer state not valid for this message")]
+    SessionState,
+    #[error("syncer not ready for operation")]
+    NotReady,
+    #[error("too many commands sent")]
+    CommandOverflow,
+    #[error("storage error: {0}")]
+    Storage(#[from] StorageError),
+    #[error("serialize error: {0}")]
+    Serialize(#[from] PostcardError),
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
