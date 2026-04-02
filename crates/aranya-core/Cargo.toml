@@ -31,14 +31,14 @@ low-mem-usage = ["aranya-runtime/low-mem-usage"]
 anyhow = "1"
 aranya-core = { path = ".", features = ["std", "libc"] }
 aranya-crypto = { version = "0.14.0", features = ["std", "alloc", "getrandom", "memstore"] }
-aranya-crypto-ffi = "0.21.0"
-aranya-device-ffi = "0.21.0"
-aranya-envelope-ffi = "0.21.0"
-aranya-idam-ffi = "0.21.0"
-aranya-perspective-ffi = "0.21.0"
-aranya-policy-compiler = "0.22.0"
-aranya-policy-lang = "0.14.1"
-aranya-policy-vm = "0.21.0"
+aranya-crypto-ffi = "*"
+aranya-device-ffi = "*"
+aranya-envelope-ffi = "*"
+aranya-idam-ffi = "*"
+aranya-perspective-ffi = "*"
+aranya-policy-compiler = "*"
+aranya-policy-lang = "*"
+aranya-policy-vm = "*"
 postcard = { workspace = true, features = ["alloc"] }
 
 [[example]]
