@@ -4,6 +4,8 @@
 //! aranya daemon uses), so there is zero custom storage code. This is the
 //! simplest path to a working `Client`.
 
+use std::fs;
+
 use anyhow::{Context, Result};
 use aranya_core::{
     Client, Command as _, FfiCallable, FileManager, GraphId, LinearStorageProvider, Sink,
@@ -11,9 +13,9 @@ use aranya_core::{
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequester, SyncResponder, SyncType},
 };
 use aranya_crypto::{
-    default::{DefaultCipherSuite, DefaultEngine},
-    keystore::{memstore::MemStore, KeyStoreExt},
     DeviceId, EncryptionKey, IdentityKey, Rng, SigningKey,
+    default::{DefaultCipherSuite, DefaultEngine},
+    keystore::{KeyStoreExt, memstore::MemStore},
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -22,8 +24,7 @@ use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::{ffi::FfiModule, ident, Machine, Struct, Value};
-use std::fs;
+use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule, ident};
 
 // ---------------------------------------------------------------------------
 // Type Aliases
