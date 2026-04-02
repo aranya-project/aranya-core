@@ -803,21 +803,7 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
             thir::ExprKind::CheckUnwrap(e) => {
-                let cmd = match self.get_statement_context()? {
-                    StatementContext::CommandPolicy(cmd) => cmd,
-                    StatementContext::CommandRecall(_) => {
-                        return Err(self.err(CompileErrorType::Unknown(
-                            "cannot check unwrap expression in command recall block".to_string(),
-                        )));
-                    }
-                    _ => {
-                        return Err(self.err(CompileErrorType::Unknown(
-                            "check unwrap is only allowed in command policy blocks".to_string(),
-                        )));
-                    }
-                };
-                let name = self.command_recall_name(cmd, None)?;
-                self.compile_unwrap_option(*e, ExitReason::Check(Some(name)))?;
+                self.compile_unwrap_option(*e, ExitReason::Check(None))?
             }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression

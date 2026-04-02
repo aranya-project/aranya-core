@@ -1284,7 +1284,7 @@ impl<T: Spanned> Spanned for StructItem<T> {
 /// A recall block definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecallBlockDefinition {
-    /// The name of the recall block (defaults to "default" if not explicitly named)
+    /// The name of the recall block, or None for the default unnamed block
     pub identifier: Option<Ident>,
     /// The arguments to the recall block, if any
     pub arguments: Option<Vec<FieldDefinition>>,
