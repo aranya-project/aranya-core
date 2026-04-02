@@ -130,17 +130,29 @@ impl<'a, S: Storage> CommandSampler<'a, S> {
 ///
 /// Returns locations ordered so that ancestor segments come before descendants, so the requester
 /// can apply commands in a valid order.
-pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS: usize>(
-    samples: &Vec<Address, MAX_SAMPLES>,
+///
+/// # Arguments
+/// * `MAX_LOCATIONS` - Used to create a buffer to house resolved [`Location`]s. Must be
+///   sufficiently large to be able to hold up to the number of addresses in `samples`.
+/// * `MAX_SEGMENTS` - Sets the upper bound on the number of segments that can be found by the
+///   algorithm. Must be sufficiently large to allow for an accurate list of segments to be found.
+/// * `samples` - A list of sample commands a peer sent us that they already have.
+/// * `storage` - Graph storage used to resolve addresses and do ancestor checks.
+/// * `buffers` - [`TraversalBuffers`] used in the algorithm to perform the search.
+pub(super) fn find_needed_segments<const MAX_LOCATIONS: usize, const MAX_SEGMENTS: usize>(
+    samples: &[Address],
     storage: &impl Storage,
     buffers: &mut TraversalBuffers,
 ) -> Result<Vec<Location, MAX_SEGMENTS>, super::SyncError> {
-    // Resolve sample addresses to locations.
+    // Resolve sample addresses to locations. When the buffer is full, the entry with the highest
+    // `max_cut` is replaced with a lower one. The algorithm processes from highest `max_cut` down,
+    // so high entries are encountered first (improving the performance of covered segments).
+    //
     // NB: It's safe to use `primary` here, `primary.get()` clears it afterwards.
-    let mut have_locations: Vec<Location, MAX_SAMPLES> = Vec::new();
+    let mut have_locations: Vec<Location, MAX_LOCATIONS> = Vec::new();
     for &addr in samples {
         if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
-            let _ = have_locations.push(location);
+            insert_keep_highest(&mut have_locations, location);
         }
     }
 
@@ -169,7 +181,7 @@ pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS:
         // entry's `longest_max_cut`. No future `have_location` can reach them since we process in
         // descending order.
         if prev_max_cut != Some(head.max_cut) {
-            pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
+            pending.drain_above(head.max_cut, |loc| insert_keep_lowest(&mut collected, loc))?;
             prev_max_cut = Some(head.max_cut);
         }
 
@@ -210,19 +222,11 @@ pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS:
         // Look for a `have_location` in this segment (i.e. same `SegmentIndex` with a `max_cut`
         // inside this segment's `shortest_max_cut..=longest_max_cut`).
         let shortest = segment.shortest_max_cut();
-        let mut best_have: Option<Location> = None;
-        for &hloc in &have_locations[have_cursor..] {
-            // If we hit a location below the segment's `shortest_max_cut`, we ran out of options.
-            if hloc.max_cut < shortest {
-                break;
-            }
-
-            // `have_locations` is sorted descending, so the first match is the highest `max_cut`.
-            if hloc.segment == head.segment {
-                best_have = Some(hloc);
-                break;
-            }
-        }
+        let best_have = have_locations[have_cursor..]
+            .iter()
+            .take_while(|h| h.max_cut >= shortest)
+            .find(|h| h.segment == head.segment)
+            .copied();
 
         // Case 2: the current segment contains a location the peer already has (partial coverage).
         if let Some(hloc) = best_have {
@@ -238,12 +242,12 @@ pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS:
                 let next_max_cut = hloc
                     .max_cut
                     .checked_add(1)
-                    .assume("command + 1 mustn't overflow")?;
-                let partial_loc = Location {
+                    .assume("max_cut + 1 mustn't overflow")?;
+
+                pending.push(Location {
                     max_cut: next_max_cut,
                     segment: head.segment,
-                };
-                pending.push(partial_loc)?;
+                })?;
             }
         }
         // Case 3: The peer doesn't have any locations in this segment, so add it to `pending` and
@@ -263,7 +267,7 @@ pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS:
     }
 
     // Flush any remaining uncovered segments. The peer has all covered entries, so discard them.
-    pending.drain_all(|loc| push_bounded(&mut collected, loc));
+    pending.drain_all(|loc| insert_keep_lowest(&mut collected, loc));
 
     // Sort to ensure causal order (parents before children).
     collected.sort();
@@ -271,24 +275,28 @@ pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS:
     Ok(collected)
 }
 
-/// Insert a location into a bounded vec, keeping the lowest `max_cut` entries. If the vec is full,
-/// replaces the highest `max_cut` entry if the new one is lower which prioritizes ancestors the
-/// peer is most likely to need.
-fn push_bounded<const SEGMENT_MAX: usize>(
-    collected: &mut Vec<Location, SEGMENT_MAX>,
-    loc: Location,
-) {
-    // Try to push the new location to the end of the vec. If it errors, it's full so we need to
-    // overwrite the entry with the highest `max_cut`.
-    if collected.push(loc).is_err() {
-        let (max_idx, max_loc) = collected
-            .iter()
-            .enumerate()
-            .max_by_key(|(_, l)| l.max_cut)
-            .expect("non-empty");
+/// Insert into a bounded vec, keeping the highest `max_cut` entries.
+///
+/// When full, replaces the entry with the lowest `max_cut` if the new entry's `max_cut` is higher.
+fn insert_keep_highest<const N: usize>(v: &mut Vec<Location, N>, loc: Location) {
+    if v.push(loc).is_err() {
+        if let Some((min_idx, min_loc)) = v.iter().enumerate().min_by_key(|(_, l)| l.max_cut) {
+            if loc.max_cut > min_loc.max_cut {
+                v[min_idx] = loc;
+            }
+        }
+    }
+}
 
-        if loc.max_cut < max_loc.max_cut {
-            collected[max_idx] = loc;
+/// Insert into a bounded vec, keeping the lowest `max_cut` entries.
+///
+/// When full, replaces the entry with the highest `max_cut` if the new entry's `max_cut` is lower.
+fn insert_keep_lowest<const N: usize>(v: &mut Vec<Location, N>, loc: Location) {
+    if v.push(loc).is_err() {
+        if let Some((max_idx, max_loc)) = v.iter().enumerate().max_by_key(|(_, l)| l.max_cut) {
+            if loc.max_cut < max_loc.max_cut {
+                v[max_idx] = loc;
+            }
         }
     }
 }
