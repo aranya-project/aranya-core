@@ -6,7 +6,7 @@
 
 use std::fs;
 
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use aranya_core::{
     Client, Command as _, FfiCallable, FileManager, GraphId, LinearStorageProvider, Sink,
     TraversalBuffer, TraversalBuffers, VmEffect, VmPolicy, VmPolicyStore,
@@ -15,7 +15,7 @@ use aranya_core::{
 use aranya_crypto::{
     DeviceId, EncryptionKey, IdentityKey, Rng, SigningKey,
     default::{DefaultCipherSuite, DefaultEngine},
-    keystore::{KeyStoreExt, memstore::MemStore},
+    keystore::{KeyStoreExt as _, memstore::MemStore},
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -24,7 +24,7 @@ use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule, ident};
+use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule as _, ident};
 
 // ---------------------------------------------------------------------------
 // Type Aliases
@@ -169,9 +169,9 @@ fn make_public_keys(ident: &[u8], sign: &[u8], enc: &[u8]) -> Value {
     Value::Struct(Struct::new(
         ident!("PublicKeys"),
         [
-            (ident!("ident_key"), Value::Bytes(ident.to_vec().into())),
-            (ident!("sign_key"), Value::Bytes(sign.to_vec().into())),
-            (ident!("enc_key"), Value::Bytes(enc.to_vec().into())),
+            (ident!("ident_key"), Value::Bytes(ident.to_vec())),
+            (ident!("sign_key"), Value::Bytes(sign.to_vec())),
+            (ident!("enc_key"), Value::Bytes(enc.to_vec())),
         ],
     ))
 }
@@ -227,24 +227,23 @@ fn sync_graphs(
     )
     .context("sync dispatch failed")?;
 
-    if resp_len > 0 {
-        if let Some(cmds) = syncer
+    if resp_len > 0
+        && let Some(cmds) = syncer
             .receive(&target[..resp_len])
             .context("sync receive failed")?
-        {
-            let _received = dest
-                .add_commands(&mut trx, sink, &cmds, &mut buffer)
-                .context("add_commands failed")?;
-            dest.commit(trx, sink, &mut buffer)
-                .context("commit failed")?;
-            dest.update_heads(
-                graph_id,
-                cmds.iter().filter_map(|cmd| cmd.address().ok()),
-                &mut request_cache,
-                &mut buffer,
-            )
-            .context("update_heads failed")?;
-        }
+    {
+        let _received = dest
+            .add_commands(&mut trx, sink, &cmds, &mut buffer)
+            .context("add_commands failed")?;
+        dest.commit(trx, sink, &mut buffer)
+            .context("commit failed")?;
+        dest.update_heads(
+            graph_id,
+            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            &mut request_cache,
+            &mut buffer,
+        )
+        .context("update_heads failed")?;
     }
 
     Ok(())
