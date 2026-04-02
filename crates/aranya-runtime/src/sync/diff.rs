@@ -5,8 +5,9 @@
 use buggy::BugExt as _;
 use heapless::Vec;
 
-use super::{
-    Address, Location, MaxCut, PeerCache, Segment as _, Storage, SyncError, TraversalBuffers,
+use crate::{
+    command::Address,
+    storage::{Location, MaxCut, Segment as _, Storage, TraversalBuffer, TraversalBuffers},
 };
 
 /// Sample commands from the local graph to include in a sync request.
@@ -26,79 +27,100 @@ use super::{
 ///
 /// A more sophisticated strategy (e.g. exponential backoff through history, or sampling at multiple
 /// depths) would help the responder produce tighter diffs.
-pub(super) fn sample_commands<const MAX_SAMPLES: usize, const MAX_HEADS: usize>(
-    storage: &impl Storage,
-    peer_cache: &PeerCache<MAX_HEADS>,
-    buffers: &mut TraversalBuffers,
-) -> Result<Vec<Address, MAX_SAMPLES>, SyncError> {
-    let mut commands: Vec<Address, MAX_SAMPLES> = Vec::new();
+pub(super) struct CommandSampler<'a, S: Storage> {
+    /// The storage used to resolve addresses and do ancestor checks.
+    storage: &'a S,
+    /// The traversal buffers needed to track the BFS data.
+    buffers: &'a mut TraversalBuffers,
+    /// All peer cache locations we were able to resolve on our graph.
+    cache_locs: &'a mut [Location],
+}
 
-    // Resolve peer cache heads to locations.
-    // NB: It's safe to use `primary` here, `primary.get()` clears it before starting the BFS.
-    let mut cache_locations: Vec<Location, MAX_HEADS> = Vec::new();
-    for address in peer_cache.heads() {
-        // If we're able to resolve a location, add it to the list.
-        if let Some(loc) = storage.get_location(*address, &mut buffers.primary)? {
-            cache_locations
-                .push(loc)
-                .ok()
-                .assume("cache_locations should not be full")?;
+impl<'a, S: Storage> CommandSampler<'a, S> {
+    /// Create a new `CommandSampler`.
+    ///
+    /// # Arguments
+    ///
+    /// * `storage` - Graph storage used to resolve addresses and do ancestor checks.
+    /// * `buffers` - [`TraversalBuffers`] used to perform the BFS.
+    /// * `peer_cache` - The raw list of [`Address`]es from a [`PeerCache`](super::PeerCache).
+    /// * `cache_buf` - A scratch area used to hold resolved [`Location`]s. Must be sufficiently
+    ///   large to be able to hold up to the number of addresses in `peer_cache`.
+    pub(super) fn new(
+        storage: &'a S,
+        buffers: &'a mut TraversalBuffers,
+        peer_cache: &'a [Address],
+        cache_buf: &'a mut [Location],
+    ) -> Result<Self, super::SyncError> {
+        // Resolve as many peer heads to locations as we can.
+        let mut n = 0;
+        for &address in peer_cache.iter().take(cache_buf.len()) {
+            if let Some(loc) = storage.get_location(address, &mut buffers.primary)? {
+                cache_buf[n] = loc;
+                n += 1;
+            }
         }
 
-        // Include peer cache heads in the sample, the peer knows about these, and including them
-        // helps in the responder's diff algorithm.
-        if commands.len() < MAX_SAMPLES {
-            commands
-                .push(*address)
-                .ok()
-                .assume("already checked length")?;
+        // Clear the primary buffer and add the initial entry for BFS traversal.
+        buffers.primary.get().push(storage.get_head()?)?;
+
+        Ok(Self {
+            storage,
+            buffers,
+            cache_locs: &mut cache_buf[..n],
+        })
+    }
+
+    /// Yields the next segment head address, or `Ok(None)` when exhausted.
+    ///
+    /// # Algorithm
+    ///
+    /// BFS backward from graph head, collecting segment head addresses. The [`TraversalBuffer`]
+    /// pops by highest max_cut (newest first) and deduplicates by segment, which gives us a
+    /// breadth-first, newest-first walk without revisiting segments.
+    pub(super) fn next(&mut self) -> Result<Option<Address>, super::SyncError> {
+        let TraversalBuffers { primary, secondary } = &mut *self.buffers;
+        loop {
+            let loc = match primary.queue_mut().pop()? {
+                Some(loc) => loc,
+                None => return Ok(None),
+            };
+
+            if Self::is_dominated(loc, self.cache_locs, self.storage, secondary)? {
+                continue;
+            }
+
+            let segment = self.storage.get_segment(loc)?;
+
+            for prior in segment.prior() {
+                primary.queue_mut().push(prior)?;
+            }
+
+            return Ok(Some(segment.head_address()?));
         }
     }
 
-    // BFS backward from graph head, collecting segment head addresses. The TraversalQueue pops by
-    // highest max_cut (newest first) and deduplicates by segment, which gives us a breadth-first,
-    // newest-first walk without revisiting segments.
-    let head = storage.get_head()?;
-    // NB: `primary` now holds the BFS frontier, so all inner traversal calls must use `secondary`.
-    let queue = buffers.primary.get();
-    queue.push(head)?;
-
-    while commands.len() < MAX_SAMPLES {
-        let Some(loc) = queue.pop()? else { break };
-
-        // If this location is dominated by a peer cache head, the peer already has this command and
-        // all its ancestors, so prune it.
-        let mut dominated = false;
-        for &cache_loc in &cache_locations {
+    /// Checks whether this location is already covered by a previously cached location.
+    fn is_dominated(
+        loc: Location,
+        cache_locs: &[Location],
+        storage: &impl Storage,
+        buffer: &mut TraversalBuffer,
+    ) -> Result<bool, super::SyncError> {
+        for &cache_loc in cache_locs {
             // If `loc` is in the same segment at an earlier point, it's dominated.
             if cache_loc.same_segment(loc) && loc.max_cut <= cache_loc.max_cut {
-                dominated = true;
-                break;
+                return Ok(true);
             }
 
             // Full check to see if `loc` is an ancestor of a peer cache head.
-            let cache_seg = storage.get_segment(cache_loc)?;
-            if storage.is_ancestor(loc, &cache_seg, &mut buffers.secondary)? {
-                dominated = true;
-                break;
+            let segment = storage.get_segment(cache_loc)?;
+            if storage.is_ancestor(loc, &segment, buffer)? {
+                return Ok(true);
             }
         }
-        if dominated {
-            continue;
-        }
-
-        let segment = storage.get_segment(loc)?;
-        commands
-            .push(segment.head_address()?)
-            .ok()
-            .assume("loop condition checks length")?;
-
-        for prior in segment.prior() {
-            queue.push(prior)?;
-        }
+        Ok(false)
     }
-
-    Ok(commands)
 }
 
 /// Returns (partial) segments that a peer likely doesn't have.
@@ -112,7 +134,7 @@ pub(super) fn find_needed_segments<const MAX_SAMPLES: usize, const MAX_SEGMENTS:
     samples: &Vec<Address, MAX_SAMPLES>,
     storage: &impl Storage,
     buffers: &mut TraversalBuffers,
-) -> Result<Vec<Location, MAX_SEGMENTS>, SyncError> {
+) -> Result<Vec<Location, MAX_SEGMENTS>, super::SyncError> {
     // Resolve sample addresses to locations.
     // NB: It's safe to use `primary` here, `primary.get()` clears it afterwards.
     let mut have_locations: Vec<Location, MAX_SAMPLES> = Vec::new();

@@ -8,7 +8,7 @@ use wire::ResponseMessage;
 
 use super::GraphId;
 use crate::{
-    Address, Location, MaxCut, Prior, Segment, Storage, TraversalBuffers,
+    Address, MaxCut, Prior,
     command::{CmdId, Command, Priority},
     storage::{MAX_COMMAND_LENGTH, StorageError},
     sync::hello::{HelloParams, HelloRequest},
