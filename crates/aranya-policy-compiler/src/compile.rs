@@ -808,19 +808,7 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
             thir::ExprKind::CheckUnwrap(e) => {
-                let name = match self.get_statement_context()? {
-                    StatementContext::CommandPolicy(cmd) => {
-                        Some(self.command_recall_name(&cmd.clone(), None)?)
-                    }
-                    StatementContext::CommandRecall(_) => {
-                        return Err(self.err(UnknownError(
-                            "cannot check unwrap expression in command recall block".to_string(),
-                            None,
-                        )));
-                    }
-                    _ => None,
-                };
-                self.compile_unwrap_option(*e, ExitReason::Check(name))?;
+                self.compile_unwrap_option(*e, ExitReason::Check(None))?
             }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression

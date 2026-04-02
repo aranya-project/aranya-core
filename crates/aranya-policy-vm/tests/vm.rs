@@ -1445,7 +1445,10 @@ fn test_check_errors() -> anyhow::Result<()> {
         let name = ident!("Foo");
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
-        let self_struct = Struct::new(name.clone(), []);
+        let self_struct = Struct {
+            name: name.clone(),
+            fields: BTreeMap::new(),
+        };
         let result = rs.call_command_policy(self_struct, dummy_envelope())?;
 
         assert_eq!(result, ExitReason::Check(Some(expected)));
