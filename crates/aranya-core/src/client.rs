@@ -26,6 +26,7 @@ impl<CE> VmPolicyStore<CE> {
     }
 }
 
+#[doc(hidden)]
 impl<CE: Engine> PolicyStore for VmPolicyStore<CE> {
     type Policy = VmPolicy<CE>;
     type Effect = VmEffect;
