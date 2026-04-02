@@ -25,8 +25,6 @@ std = [
 	"aranya-runtime/std",
 ]
 
-testing = ["aranya-runtime/testing"]
-
 low-mem-usage = ["aranya-runtime/low-mem-usage"]
 
 [dev-dependencies]
