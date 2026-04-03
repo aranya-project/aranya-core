@@ -25,6 +25,7 @@ Policy {
                                             expression: Int(
                                                 1,
                                             ) @ 41..42,
+                                            recall: None,
                                         },
                                     ) @ 35..47,
                                 ],
@@ -46,6 +47,7 @@ Policy {
                                             expression: Int(
                                                 1,
                                             ) @ 75..76,
+                                            recall: None,
                                         },
                                     ) @ 69..81,
                                 ],
@@ -58,6 +60,7 @@ Policy {
                                         expression: Int(
                                             2,
                                         ) @ 104..105,
+                                        recall: None,
                                     },
                                 ) @ 98..110,
                             ],
@@ -77,6 +80,7 @@ Policy {
                                             expression: Int(
                                                 1,
                                             ) @ 138..139,
+                                            recall: None,
                                         },
                                     ) @ 132..148,
                                     Let(
@@ -109,6 +113,7 @@ Policy {
                                             expression: Int(
                                                 3,
                                             ) @ 198..199,
+                                            recall: None,
                                         },
                                     ) @ 192..204,
                                 ],
@@ -123,6 +128,7 @@ Policy {
                                             expression: Int(
                                                 5,
                                             ) @ 232..233,
+                                            recall: None,
                                         },
                                     ) @ 226..238,
                                 ],
@@ -135,6 +141,7 @@ Policy {
                                         expression: Int(
                                             6,
                                         ) @ 261..262,
+                                        recall: None,
                                     },
                                 ) @ 255..267,
                             ],

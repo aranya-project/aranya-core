@@ -803,7 +803,7 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
             thir::ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap_option(*e, ExitReason::Check(None))?
+                self.compile_unwrap_option(*e, ExitReason::Check(None))?;
             }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -1275,6 +1275,15 @@ impl<'a> CompileState<'a> {
 
         // Compile each recall block
         for recall_block in &command.recalls {
+            if recall_block
+                .identifier
+                .as_ref()
+                .is_some_and(|id| id.as_str() == "default")
+            {
+                return Err(self.err(CompileErrorType::AlreadyDefined(String::from(
+                    "\"default\" is a reserved recall block name",
+                ))));
+            }
             let full_name = self.command_recall_name(command, recall_block.identifier.clone())?;
             if !named_blocks.insert(full_name.clone()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
@@ -1311,6 +1320,7 @@ impl<'a> CompileState<'a> {
                 )
                 .map_err(|e| self.err(e))?;
             self.append_instruction(Instruction::Def(ident!("envelope")));
+            self.append_instruction(Instruction::Def(ident!("this")));
 
             // define args, like compile_function
             if let Some(args) = &recall_block.arguments {

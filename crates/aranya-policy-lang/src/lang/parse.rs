@@ -1146,7 +1146,11 @@ impl ChunkParser<'_> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
         let recall = pc
-            .consume_optional(Rule::function_call)
+            .consume_optional(Rule::recall_clause)
+            .and_then(|clause| {
+                let pc = self.descend(clause);
+                pc.consume_optional(Rule::function_call)
+            })
             .map(|call| self.parse_function_call(call))
             .transpose()?;
         Ok(CheckStatement { expression, recall })
@@ -1610,10 +1614,10 @@ impl ChunkParser<'_> {
                 // Parse optional arguments.
                 let recall_arguments = recall_pc
                     .consume_optional(Rule::function_arguments)
-                    .map(|p| -> Result<Vec<FieldDefinition>, ParseError> {
+                    .map(|p| -> Result<Vec<Param>, ParseError> {
                         let args = p
                             .into_inner()
-                            .map(|field| self.parse_field_definition(field))
+                            .map(|field| self.parse_parameter(field))
                             .collect::<Result<Vec<_>, _>>()?;
                         Ok(args)
                     })

@@ -6,25 +6,16 @@ Module {
     version: "0",
     labels: {
         <policy 'Cmd'>: 1,
-        <seal 'Cmd'>: 8,
-        <open 'Cmd'>: 14,
-        <action 'test'>: 20,
+        <seal 'Cmd'>: 14,
+        <open 'Cmd'>: 20,
+        <recall 'Cmd_recall_default'>: 8,
+        <recall 'Cmd_recall_foo'>: 11,
     },
-    action_defs: {
-        ActionDef {
-            name: "test" @ 148..152,
-            persistence: Ephemeral(
-                131..140,
-            ),
-            params: {},
-        },
-    },
+    action_defs: {},
     command_defs: {
         CommandDef {
-            name: "Cmd" @ 18..21,
-            persistence: Ephemeral(
-                0..9,
-            ),
+            name: "Cmd" @ 8..11,
+            persistence: Persistent,
             attributes: {},
             fields: {},
         },
@@ -47,6 +38,14 @@ Module {
     end
     exit normal
     exit panic
+<recall 'Cmd_recall_default'>:
+    def 'envelope'
+    def 'this'
+    exit normal
+<recall 'Cmd_recall_foo'>:
+    def 'envelope'
+    def 'this'
+    exit normal
 <seal 'Cmd'>:
     def 'this'
     save SP
@@ -61,7 +60,3 @@ Module {
     restore SP
     return
     exit panic
-<action 'test'>:
-    struct.new 'Cmd'
-    publish
-    return
