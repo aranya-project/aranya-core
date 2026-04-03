@@ -1,7 +1,7 @@
 //! Hello protocol types and server-side helpers.
 use core::time::Duration;
 
-use super::{Address, GraphId, ResponseMessage, SyncError};
+use crate::{command::Address, storage::GraphId};
 
 /// The parameters needed for subscribing to hello notifications from a peer.
 ///
@@ -10,6 +10,7 @@ use super::{Address, GraphId, ResponseMessage, SyncError};
 /// the graph changed. Both of these operations are rate-limited by how often we specify that the
 /// peer can notify us.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub(super) struct HelloParams {
     /// How long to wait before sending another notification (i.e. rate limiting).
     pub graph_change_delay: Duration,
@@ -19,8 +20,23 @@ pub(super) struct HelloParams {
     pub duration: Duration,
 }
 
-/// A parsed incoming hello message, returned by [`dispatch`](super::dispatch).
+impl HelloParams {
+    pub(super) fn new(
+        graph_change_delay: Duration,
+        schedule_delay: Duration,
+        duration: Duration,
+    ) -> Self {
+        Self {
+            graph_change_delay,
+            schedule_delay,
+            duration,
+        }
+    }
+}
+
+/// A parsed incoming hello message.
 #[derive(Debug)]
+#[non_exhaustive]
 pub(super) enum HelloRequest {
     /// Peer wants to subscribe to hello (head-change) notifications.
     Subscribe {
@@ -43,11 +59,13 @@ pub(super) enum HelloRequest {
     },
 }
 
-/// Serialize a hello acknowledgement into `target`.
-///
-/// Used by the server to respond to subscribe/unsubscribe requests.
-/// Returns the number of bytes written.
-pub fn create_ack(target: &mut [u8]) -> Result<usize, SyncError> {
-    let value: ResponseMessage = ResponseMessage::HelloAck;
-    Ok(postcard::to_slice(&value, target)?.len())
+impl HelloRequest {
+    /// The graph this request pertains to.
+    pub(super) fn graph_id(&self) -> GraphId {
+        match self {
+            Self::Subscribe { graph_id, .. }
+            | Self::Unsubscribe { graph_id, .. }
+            | Self::Notification { graph_id, .. } => *graph_id,
+        }
+    }
 }

@@ -1,127 +1,85 @@
-use buggy::{BugExt as _, bug};
+use buggy::BugExt as _;
 use heapless::Vec;
 
 use super::{
-    COMMAND_RESPONSE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, SEGMENT_BUFFER_MAX,
     SyncError, diff,
-    wire::{RequestMessage, ResponseMessage},
+    hello::{HelloParams, HelloRequest},
+    message::{
+        CommandMeta, HelloNotifyData, HelloSubscribeData, HelloUnsubscribeData, SyncHeader, Tag,
+    },
+    types::{PeerCache, Received, SEGMENT_BUFFER_MAX, SyncRequest},
 };
 use crate::{
-    command::{Address, Command as _},
+    command::{Address, Command},
     storage::{
-        GraphId, Location, Segment as _, Storage, StorageError, StorageProvider, TraversalBuffer,
-        TraversalBuffers,
+        GraphId, Location, Segment, Storage, StorageError, StorageProvider, TraversalBuffers,
     },
 };
 
-/// Tracks the set of graph heads a remote peer is known to have.
-///
-/// Used by both [`SyncExchange`](super::SyncExchange) (to produce tighter samples) and
-/// [`SyncResponder`] (to avoid sending segments the peer already has).
-#[derive(Default, Debug)]
-pub(super) struct PeerCache<const MAX_HEADS: usize = PEER_HEAD_MAX> {
-    heads: Vec<Address, MAX_HEADS>,
-}
-
-impl<const MAX_HEADS: usize> PeerCache<MAX_HEADS> {
-    /// Create a new `PeerCache`.
-    const fn new() -> Self {
-        Self { heads: Vec::new() }
-    }
-
-    /// Returns the currently stored heads.
-    pub(super) fn heads(&self) -> &[Address] {
-        &self.heads
-    }
-
-    /// Add a new head command to the cache, pruning any heads that are now dominated by it.
-    fn add_command<S: Storage>(
-        &mut self,
-        storage: &S,
-        command: Address,
-        cmd_loc: Location,
-        buffer: &mut TraversalBuffer,
-    ) -> Result<(), StorageError> {
-        let mut add_command = true;
-
-        let mut retain = |existing: &Address, new_loc: Location| {
-            let new_seg = storage.get_segment(new_loc)?;
-            let ex_loc = storage.get_location(*existing, buffer)?.assume("exists")?;
-            let ex_seg = storage.get_segment(ex_loc)?;
-            if existing.id == new_seg.get_command(new_loc).assume("exists")?.address()?.id {
-                add_command = false;
-            }
-            // If the new head is an ancestor of the request head, don't add it.
-            if (new_loc.same_segment(ex_loc) && new_loc.max_cut <= ex_loc.max_cut)
-                || storage.is_ancestor(new_loc, &ex_seg, buffer)?
-            {
-                add_command = false;
-            }
-            Ok::<bool, StorageError>(!storage.is_ancestor(ex_loc, &new_seg, buffer)?)
-        };
-
-        self.heads
-            .retain(|head| retain(head, cmd_loc).unwrap_or(false));
-
-        if add_command && !self.heads.is_full() {
-            self.heads.push(command).ok().assume("checked capacity")?;
-        }
-
-        Ok(())
-    }
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    #[default]
+    Idle,
+    Sync,
+    HelloAck,
 }
 
 #[derive(Default)]
-struct SyncResponder<const MAX_SEGMENTS: usize = SEGMENT_BUFFER_MAX> {
+pub struct SyncResponder<const MAX_SEGMENTS: usize = SEGMENT_BUFFER_MAX> {
     session_id: Option<u128>,
     graph_id: Option<GraphId>,
     to_send: Vec<Location, MAX_SEGMENTS>,
     next_send: usize,
+    mode: Mode,
 }
 
 impl<const MAX_SEGMENTS: usize> SyncResponder<MAX_SEGMENTS> {
+    /// Creates a new `SyncResponder`.
     const fn new() -> Self {
         Self {
             session_id: None,
             graph_id: None,
             to_send: Vec::new(),
             next_send: 0,
+            mode: Mode::Idle,
         }
     }
 
-    fn receive(
-        &mut self,
-        request: &[u8],
-        provider: &mut impl StorageProvider,
-        response_cache: &mut PeerCache,
-        traversal: &mut TraversalBuffers,
-    ) -> Result<(), SyncError> {
-        let msg: RequestMessage = postcard::from_bytes(request)?;
-
-        // TODO(nikki): this is fragile, we need to re-think this approach in the broader system.
-        let RequestMessage::Sync {
-            session_id,
-            graph_id,
-            samples,
-            ..
-        } = msg
-        else {
-            bug!("SyncResponder::receive called with non-sync message");
-        };
-
-        self.session_id = Some(session_id);
-        self.graph_id = Some(graph_id);
+    /// Resets the `SyncResponder` to set up for a new request.
+    fn reset(&mut self) {
+        self.mode = Mode::Idle;
+        self.to_send.clear();
         self.next_send = 0;
+    }
 
-        let storage = provider.get_storage(graph_id)?;
-        for &addr in &samples {
-            if let Some(loc) = storage.get_location(addr, &mut traversal.primary)? {
-                response_cache.add_command(storage, addr, loc, &mut traversal.primary)?;
+    fn receive<const MAX_SAMPLES: usize>(
+        &mut self,
+        data: &[u8],
+        provider: &mut impl StorageProvider,
+        cache: &mut PeerCache,
+        traversal: &mut TraversalBuffers,
+    ) -> Result<Received, SyncError> {
+        // Assume we're starting a brand new request.
+        self.reset();
+
+        let (tag, rest): (Tag, &[u8]) = postcard::take_from_bytes(data)?;
+
+        match tag {
+            Tag::SyncRequest => self.receive_sync::<MAX_SAMPLES>(rest, provider, cache, traversal),
+            Tag::HelloSubscribe => {
+                self.mode = Mode::HelloAck;
+                Self::parse_hello_subscribe(rest)
             }
+            Tag::HelloUnsubscribe => {
+                self.mode = Mode::HelloAck;
+                Self::parse_hello_unsubscribe(rest)
+            }
+            Tag::HelloNotify => {
+                self.mode = Mode::HelloAck;
+                Self::parse_hello_notify(rest)
+            }
+            _ => Err(SyncError::UnexpectedMessage),
         }
-
-        self.to_send = diff::find_needed_segments(&samples, storage, traversal)?;
-        Ok(())
     }
 
     fn respond(
@@ -129,102 +87,189 @@ impl<const MAX_SEGMENTS: usize> SyncResponder<MAX_SEGMENTS> {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
     ) -> Result<Option<usize>, SyncError> {
-        if self.next_send >= self.to_send.len() {
-            return Ok(None);
+        match self.mode {
+            Mode::Idle => Ok(None),
+            Mode::HelloAck => {
+                self.mode = Mode::Idle;
+                let n = postcard::to_slice(&Tag::HelloAck, target)?.len();
+                Ok(Some(n))
+            }
+            Mode::Sync => self.respond_sync(target, provider),
         }
-
-        let (metas, cmd_data, new_next) = self.collect_commands_from(provider)?;
-        self.next_send = new_next;
-
-        if metas.is_empty() {
-            return Ok(None);
-        }
-
-        let resp = ResponseMessage::Sync {
-            session_id: self.session_id()?,
-            commands: metas,
-        };
-        let header_len = postcard::to_slice(&resp, target)?.len();
-
-        // Append raw command bytes after the header.
-        let total = header_len
-            .checked_add(cmd_data.len())
-            .assume("response fits in target")?;
-        target
-            .get_mut(header_len..total)
-            .assume("target large enough")?
-            .copy_from_slice(&cmd_data);
-
-        Ok(Some(total))
     }
 
-    fn collect_commands_from(
-        &self,
+    fn receive_sync<const MAX_SAMPLES: usize>(
+        &mut self,
+        rest: &[u8],
         provider: &mut impl StorageProvider,
-    ) -> Result<
-        (
-            Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
-            usize,
-        ),
-        SyncError,
-    > {
+        cache: &mut PeerCache,
+        traversal: &mut TraversalBuffers,
+    ) -> Result<Received, SyncError> {
+        let (hdr, mut body): (SyncHeader, &[u8]) = postcard::take_from_bytes(rest)?;
+
+        self.session_id = Some(hdr.session_id);
+        self.graph_id = Some(hdr.graph_id);
+        self.mode = Mode::Sync;
+
+        let storage = match provider.get_storage(hdr.graph_id) {
+            Ok(s) => s,
+            Err(StorageError::NoSuchStorage) => {
+                return Ok(Received::Sync(SyncRequest {
+                    graph_id: hdr.graph_id,
+                }));
+            }
+            Err(e) => return Err(SyncError::Storage(e)),
+        };
+
+        let mut samples: Vec<Address, MAX_SAMPLES> = Vec::new();
+        while !body.is_empty() {
+            let (addr, tail): (Address, &[u8]) = postcard::take_from_bytes(body)?;
+            body = tail;
+
+            if let Some(loc) = storage.get_location(addr, &mut traversal.primary)? {
+                cache.add_command(storage, addr, loc, &mut traversal.primary)?;
+            }
+            insert_keep_highest_addr(&mut samples, addr);
+        }
+
+        self.to_send =
+            diff::find_needed_segments::<MAX_SAMPLES, MAX_SEGMENTS>(&samples, storage, traversal)?;
+
+        Ok(Received::Sync(SyncRequest {
+            graph_id: hdr.graph_id,
+        }))
+    }
+
+    fn respond_sync(
+        &mut self,
+        target: &mut [u8],
+        provider: &mut impl StorageProvider,
+    ) -> Result<Option<usize>, SyncError> {
+        if self.next_send >= self.to_send.len() {
+            self.mode = Mode::Idle;
+            return Ok(None);
+        }
+
+        // Write tag + header.
+        let mut cursor = postcard::to_slice(&Tag::SyncResponse, target)?.len();
         let graph_id = self.graph_id.assume("graph_id must be set")?;
+        let hdr = SyncHeader {
+            session_id: self.session_id()?,
+            graph_id,
+        };
+        cursor += postcard::to_slice(&hdr, &mut target[cursor..])?.len();
+        let header_end = cursor;
+
         let storage = provider.get_storage(graph_id)?;
 
-        let mut metas: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
-        let mut data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
-        let mut index = self.next_send;
+        while self.next_send < self.to_send.len() {
+            let loc = self.to_send[self.next_send];
+            let segment = storage.get_segment(loc)?;
+            let seg_idx = loc.segment;
+            let mut max_cut = loc.max_cut;
+            let mut finished_segment = true;
 
-        for i in self.next_send..self.to_send.len() {
-            if metas.is_full() {
-                break;
-            }
+            loop {
+                let cmd_loc = Location::new(seg_idx, max_cut);
+                let Some(command) = segment.get_command(cmd_loc) else {
+                    break;
+                };
 
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
+                let policy = command.policy().unwrap_or(&[]);
+                let data = command.bytes();
+                let meta = CommandMeta {
+                    id: command.id(),
+                    priority: command.priority(),
+                    parent: command.parent(),
+                    policy_length: policy.len() as u32,
+                    length: data.len() as u32,
+                    max_cut: command.max_cut()?,
+                };
 
-            let &location = self.to_send.get(i).assume("send index in bounds")?;
+                let meta_size = postcard::experimental::serialized_size(&meta)?;
+                let needed = meta_size + policy.len() + data.len();
 
-            let segment = storage.get_segment(location)?;
-            let found = segment.get_from(location);
-
-            for command in &found {
-                let mut policy_length = 0u32;
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len() as u32;
-                    data.extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data fits")?;
-                }
-
-                let bytes = command.bytes();
-                data.extend_from_slice(bytes)
-                    .ok()
-                    .assume("command_data fits")?;
-
-                let max_cut = command.max_cut()?;
-                metas
-                    .push(CommandMeta {
-                        id: command.id(),
-                        priority: command.priority(),
-                        parent: command.parent(),
-                        policy_length,
-                        length: bytes.len() as u32,
-                        max_cut,
-                    })
-                    .ok()
-                    .assume("checked capacity at loop top")?;
-
-                if metas.is_full() {
+                if cursor + needed > target.len() {
+                    // Buffer full. Update the plan so we resume from here.
+                    self.to_send[self.next_send] = cmd_loc;
+                    finished_segment = false;
                     break;
                 }
+
+                cursor += postcard::to_slice(&meta, &mut target[cursor..])?.len();
+
+                target[cursor..cursor + policy.len()].copy_from_slice(policy);
+                cursor += policy.len();
+
+                target[cursor..cursor + data.len()].copy_from_slice(data);
+                cursor += data.len();
+
+                max_cut = match max_cut.checked_add(1) {
+                    Some(next) => next,
+                    None => break,
+                };
+            }
+
+            if finished_segment {
+                self.next_send = self
+                    .next_send
+                    .checked_add(1)
+                    .assume("next_send + 1 mustn't overflow")?;
+            } else {
+                break;
             }
         }
 
-        Ok((metas, data, index))
+        // If we only wrote the header and the buffer is too small to even send one command, error.
+        if cursor == header_end && self.next_send < self.to_send.len() {
+            return Err(SyncError::BufferTooSmall);
+        }
+
+        // If we finished sending everything, we're done on this sync.
+        if self.next_send >= self.to_send.len() {
+            self.mode = Mode::Idle;
+        }
+
+        Ok(Some(cursor))
+    }
+
+    fn parse_hello_subscribe(rest: &[u8]) -> Result<Received, SyncError> {
+        let (data, _): (HelloSubscribeData, _) = postcard::take_from_bytes(rest)?;
+        Ok(Received::Hello(HelloRequest::Subscribe {
+            graph_id: data.graph_id,
+            params: HelloParams::new(data.graph_change_delay, data.schedule_delay, data.duration),
+        }))
+    }
+
+    fn parse_hello_unsubscribe(rest: &[u8]) -> Result<Received, SyncError> {
+        let (data, _): (HelloUnsubscribeData, _) = postcard::take_from_bytes(rest)?;
+        Ok(Received::Hello(HelloRequest::Unsubscribe {
+            graph_id: data.graph_id,
+        }))
+    }
+
+    fn parse_hello_notify(rest: &[u8]) -> Result<Received, SyncError> {
+        let (data, _): (HelloNotifyData, _) = postcard::take_from_bytes(rest)?;
+        Ok(Received::Hello(HelloRequest::Notification {
+            graph_id: data.graph_id,
+            head: data.head,
+        }))
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
         Ok(self.session_id.assume("session_id is set")?)
+    }
+}
+
+/// Insert into a bounded vec, keeping the highest `max_cut` entries.
+///
+/// When full, replaces the entry with the lowest `max_cut` if the new entry's `max_cut` is higher.
+fn insert_keep_highest_addr<const N: usize>(v: &mut Vec<Address, N>, addr: Address) {
+    if v.push(addr).is_err() {
+        if let Some((min_idx, min_loc)) = v.iter().enumerate().min_by_key(|(_, l)| l.max_cut) {
+            if addr.max_cut > min_loc.max_cut {
+                v[min_idx] = addr;
+            }
+        }
     }
 }
