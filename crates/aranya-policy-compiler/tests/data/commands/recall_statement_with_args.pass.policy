@@ -1,12 +1,10 @@
 command Cmd {
-    fields {}
+    fields { x int }
     seal { return todo() }
     open { return todo() }
     policy {
-        finish {}
+        recall handle(this.x)
     }
-    recall {
-    }
-    recall foo() {
+    recall handle(x int) {
     }
 }

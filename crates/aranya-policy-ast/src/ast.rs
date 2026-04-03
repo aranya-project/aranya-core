@@ -608,6 +608,8 @@ pub enum ExprKind {
     ForeignFunctionCall(ForeignFunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
+    /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
+    Recall(FunctionCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -691,7 +693,8 @@ impl ExprKind {
             }
 
             // Function call
-            (Self::FunctionCall(a), Self::FunctionCall(b)) => {
+            (Self::FunctionCall(a), Self::FunctionCall(b))
+            | (Self::Recall(a), Self::Recall(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
@@ -988,7 +991,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The recall block to execute if the check fails
+    /// The named recall block to execute if the check fails.
+    /// - `None` — triggers the default unnamed recall block.
+    /// - `Some(fc)` — triggers a named recall block.
     pub recall: Option<FunctionCall>,
 }
 }
@@ -1192,6 +1197,8 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// A `recall name(args)` statement. Valid only in `policy` blocks.
+    Recall(FunctionCall),
 }
 
 /// A schema definition for a fact
@@ -1319,10 +1326,10 @@ impl<T: Spanned> Spanned for StructItem<T> {
 /// A recall block definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecallBlockDefinition {
-    /// The name of the recall block, or None for the default unnamed block
-    pub identifier: Option<Ident>,
-    /// The arguments to the recall block, if any
-    pub arguments: Option<Vec<FieldDefinition>>,
+    /// The name of the recall block
+    pub identifier: Ident,
+    /// The arguments to the recall block
+    pub arguments: Vec<Param>,
     /// The recall rule statements for this block
     pub statements: Vec<Statement>,
     /// The source location of this definition

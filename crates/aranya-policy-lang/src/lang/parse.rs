@@ -516,6 +516,14 @@ impl ChunkParser<'_> {
         })
     }
 
+    /// Parses the inner `function_call` out of a `recall_statement` or
+    /// `recall_expression` rule. The body of both rules is identical.
+    fn parse_recall_call(&self, recall: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
+        let pc = self.descend(recall);
+        let fc_token = pc.consume_of_type(Rule::function_call)?;
+        self.parse_function_call(fc_token)
+    }
+
     fn parse_foreign_function_call(
         &self,
         call: Pair<'_, Rule>,
@@ -688,6 +696,10 @@ impl ChunkParser<'_> {
                     let pc = self.descend(primary);
                     let expression = pc.consume_expression(self)?;
                     Ok(Expression{inner:ExprKind::Return(Box::new(expression)),span})
+                }
+                Rule::recall_expression => {
+                    let fc = self.parse_recall_call(primary)?;
+                    Ok(Expression { inner: ExprKind::Recall(fc), span })
                 }
                 Rule::enum_reference => {
                     let er = self.parse_enum_reference(primary)?;
@@ -1153,7 +1165,11 @@ impl ChunkParser<'_> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
         let recall = pc
-            .consume_optional(Rule::function_call)
+            .consume_optional(Rule::recall_clause)
+            .and_then(|clause| {
+                let pc = self.descend(clause);
+                pc.consume_optional(Rule::function_call)
+            })
             .map(|call| self.parse_function_call(call))
             .transpose()?;
         Ok(CheckStatement { expression, recall })
@@ -1308,6 +1324,7 @@ impl ChunkParser<'_> {
                     let expression = self.parse_expression(inner_expr_token)?;
                     StmtKind::Return(ReturnStatement { expression })
                 }
+                Rule::recall_statement => StmtKind::Recall(self.parse_recall_call(statement)?),
                 s => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
@@ -1608,23 +1625,16 @@ impl ChunkParser<'_> {
                 let recall_span = self.to_ast_span(token.as_span())?;
                 let recall_pc = self.descend(token);
 
-                // Parse optional identifier.
-                let recall_identifier = recall_pc
-                    .consume_optional(Rule::identifier)
-                    .map(|p| self.parse_ident(p))
-                    .transpose()?;
+                // Parse identifier
+                let recall_identifier =
+                    self.parse_ident(recall_pc.consume_of_type(Rule::identifier)?)?;
 
-                // Parse optional arguments.
+                // Parse arguments
                 let recall_arguments = recall_pc
-                    .consume_optional(Rule::function_arguments)
-                    .map(|p| -> Result<Vec<FieldDefinition>, ParseError> {
-                        let args = p
-                            .into_inner()
-                            .map(|field| self.parse_field_definition(field))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        Ok(args)
-                    })
-                    .transpose()?;
+                    .consume_of_type(Rule::function_arguments)?
+                    .into_inner()
+                    .map(|field| self.parse_parameter(field))
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 // Parse recall block statements
                 let statements = self.parse_statement_list(recall_pc.into_inner())?;

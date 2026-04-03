@@ -113,7 +113,7 @@ fn test_validate_publish() {
                 policy {
                     finish {}
                 }
-                recall {
+                recall default() {
                     finish {}
                 }
             }
@@ -224,7 +224,7 @@ fn test_recall_blocks() {
                 finish {}
             }
         }"#,
-        // Command with one unnamed recall block
+        // Command with the default recall block
         r#"
         command Cmd {
             fields {}
@@ -233,7 +233,7 @@ fn test_recall_blocks() {
             policy {
                 finish {}
             }
-            recall {
+            recall default() {
             }
         }"#,
         // Command with one named recall block
@@ -248,7 +248,7 @@ fn test_recall_blocks() {
             recall foo() {
             }
         }"#,
-        // Command with one unnamed and one named recall block
+        // Command with default plus a named recall block
         r#"
         command Cmd {
             fields {}
@@ -257,7 +257,7 @@ fn test_recall_blocks() {
             policy {
                 finish {}
             }
-            recall {
+            recall default() {
             }
             recall foo() {
             }
@@ -303,7 +303,7 @@ fn test_recall_blocks() {
             }"#,
             "recall block 'foo'",
         ),
-        // Command with two unnamed recall blocks
+        // Command with two default recall blocks
         (
             r#"
             command Cmd {
@@ -313,9 +313,9 @@ fn test_recall_blocks() {
                 policy {
                     finish {}
                 }
-                recall {
+                recall default() {
                 }
-                recall {
+                recall default() {
                 }
             }"#,
             "recall block 'default'",

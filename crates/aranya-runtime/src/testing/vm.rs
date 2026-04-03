@@ -104,7 +104,7 @@ command Increment {
         }
     }
 
-    recall {
+    recall default() {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         finish {
             emit OutOfRange {
@@ -139,7 +139,7 @@ ephemeral command IncrementEphemeral {
         }
     }
 
-    recall {
+    recall default() {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         finish {
             emit OutOfRange {

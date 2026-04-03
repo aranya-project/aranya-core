@@ -1,0 +1,9 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unknown error
+   |
+10 | /     recall {
+11 | |     }
+   | |_____^ recall block 'default' for command 'Cmd' defined more than once

@@ -668,6 +668,11 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::RestoreSP);
                 self.append_instruction(Instruction::Return);
             }
+            thir::ExprKind::Recall(fc) => {
+                // Recall expression compiles identically to the recall statement.
+                // No value is left on the stack; the type is `Never`.
+                self.compile_recall(fc)?;
+            }
             thir::ExprKind::Identifier(i) => {
                 self.append_instruction(Instruction::Get(i.inner));
             }
@@ -808,7 +813,7 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
             thir::ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap_option(*e, ExitReason::Check(None))?
+                self.compile_unwrap_option(*e, ExitReason::Check(None))?;
             }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -906,7 +911,10 @@ impl<'a> CompileState<'a> {
                 let branch_wp = self.wp;
                 self.append_instruction(Instruction::Branch(Target::Resolved(0)));
 
-                self.compile_check_recall(s.recall)?;
+                match s.recall {
+                    Some(fc) => self.compile_recall(fc)?,
+                    None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
+                }
 
                 // Now that we know where the success path begins, patch the branch to jump there.
                 self.m.progmem[branch_wp] = Instruction::Branch(Target::Resolved(self.wp));
@@ -1016,6 +1024,9 @@ impl<'a> CompileState<'a> {
                     // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
+            }
+            thir::StmtKind::Recall(fc) => {
+                self.compile_recall(fc)?;
             }
         }
         Ok(())
@@ -1210,21 +1221,15 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn compile_check_recall(
-        &mut self,
-        recall: Option<thir::FunctionCall>,
-    ) -> Result<(), CompileError> {
+    fn compile_recall(&mut self, recall: thir::FunctionCall) -> Result<(), CompileError> {
         // Compile args for command recall
+        for arg_e in recall.arguments {
+            self.compile_typed_expression(arg_e)?;
+        }
         let context = self.get_statement_context()?.clone();
         let n = match &context {
             StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
-                if let Some(fc) = recall.as_ref() {
-                    for arg_e in &fc.arguments {
-                        self.compile_typed_expression(arg_e.clone())?;
-                    }
-                }
-                let recall_name = recall.as_ref().map(|fc| fc.identifier.clone());
-                Some(self.command_recall_name(cmd, recall_name)?)
+                Some(self.command_recall_name(cmd, &recall.identifier)?)
             }
             _ => None,
         };
@@ -1250,20 +1255,17 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Returns a unique recall block name for the given command and optional name.
-    /// The name follows the format: `<command>_recall_<name>`, where `<name>` is "default" for the default recall block.
+    /// Returns a unique recall block name for the given command and recall name.
+    /// The name follows the format: `<command>_recall_<name>`.
     fn command_recall_name(
         &self,
         command: &ast::CommandDefinition,
-        recall_name: Option<Ident>,
+        recall_name: &Ident,
     ) -> Result<Identifier, CompileError> {
         format!(
             "{}_recall_{}",
             command.identifier.as_str(),
-            recall_name
-                .as_ref()
-                .map(|n| n.as_str())
-                .unwrap_or("default")
+            recall_name.as_str()
         )
         .try_into()
         .map_err(|_| {
@@ -1285,7 +1287,7 @@ impl<'a> CompileState<'a> {
 
         // Compile each recall block
         for recall_block in &command.recalls {
-            let full_name = self.command_recall_name(command, recall_block.identifier.clone())?;
+            let full_name = self.command_recall_name(command, &recall_block.identifier)?;
             if !named_blocks.insert(full_name.clone()) {
                 return Err(self.err(UnknownError(
                     format!(
@@ -1308,14 +1310,7 @@ impl<'a> CompileState<'a> {
                 param::this(command.identifier.clone()),
                 param::envelope(),
             ];
-            if let Some(args) = &recall_block.arguments {
-                for arg in args {
-                    params.push(Param {
-                        name: arg.identifier.clone(),
-                        ty: arg.field_type.clone(),
-                    });
-                }
-            }
+            params.extend(recall_block.arguments.iter().cloned());
             self.compile_function_like(
                 &params,
                 None,

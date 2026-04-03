@@ -705,6 +705,26 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
+            ExprKind::Recall(fc) => {
+                let cmd = match self.get_statement_context()? {
+                    StatementContext::CommandPolicy(cmd) => cmd.clone(),
+                    _ => {
+                        return Err(self.err(UnknownError(
+                            String::from("`recall` is only valid in command `policy` blocks"),
+                            Some(expression.span),
+                        )));
+                    }
+                };
+                let fc_thir = self.lower_recall_call(fc, &cmd)?;
+                thir::Expression {
+                    kind: thir::ExprKind::Recall(fc_thir),
+                    vtype: VType {
+                        inner: TypeKind::Never,
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
             ExprKind::Identifier(i) => {
                 let ty = self.identifier_types.get(i).map_err(|_| {
                     let note = format!("'{}' not in scope", i);
@@ -1095,6 +1115,46 @@ impl CompileState<'_> {
             if !arg_te.vtype.fits_type(&param.ty) {
                 let err = InvalidType::new(
                     param.ty.to_string(),
+                    Some(param.ty.span),
+                    arg_te.vtype.to_string(),
+                    arg_e.span,
+                );
+                return Err(self.err(err));
+            }
+            arguments.push(arg_te);
+        }
+
+        Ok(thir::FunctionCall {
+            identifier: fc.identifier.clone(),
+            arguments,
+        })
+    }
+
+    /// Lowers a recall invocation (`check ... or recall foo(args)`).
+    fn lower_recall_call(
+        &mut self,
+        fc: &FunctionCall,
+        cmd: &aranya_policy_ast::CommandDefinition,
+    ) -> Result<thir::FunctionCall, CompileError> {
+        // Find the matching recall block in the command definition
+        let recall_block = cmd
+            .recalls
+            .iter()
+            .find(|rb| rb.identifier.as_str() == fc.identifier.as_str())
+            .ok_or_else(|| {
+                let note = format!("recall block `{}`", fc.identifier);
+                self.err(NotDefined(note, fc.identifier.span))
+            })?;
+
+        let arg_defs = recall_block.arguments.as_slice();
+
+        let mut arguments = Vec::new();
+        for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+            let arg_te = self.lower_expression(arg_e)?;
+            if !arg_te.vtype.fits_type(&param.ty) {
+                let _ = i; // index unused beyond optional context
+                let err = InvalidType::new(
+                    DisplayType(&param.ty).to_string(),
                     Some(param.ty.span),
                     arg_te.vtype.to_string(),
                     arg_e.span,
@@ -1575,11 +1635,19 @@ impl CompileState<'_> {
                         return Err(self.err(err));
                     }
 
-                    let recall = s
-                        .recall
-                        .as_ref()
-                        .map(|r| self.lower_function_call(r))
-                        .transpose()?;
+                    let recall = if let Some(r) = s.recall.as_ref() {
+                        let StatementContext::CommandPolicy(cmd) = &context else {
+                            return Err(self.err(UnknownError(
+                                String::from(
+                                    "The `or recall` clause is only valid in command `policy`.",
+                                ),
+                                Some(statement.span),
+                            )));
+                        };
+                        Some(self.lower_recall_call(r, cmd)?)
+                    } else {
+                        None
+                    };
                     thir::StmtKind::Check(thir::CheckStatement {
                         expression: et,
                         recall,
@@ -1877,6 +1945,16 @@ impl CompileState<'_> {
                         identifier: fc.identifier.clone(),
                         arguments: args,
                     })
+                }
+                (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
+                    let fc_thir = self.lower_recall_call(fc, cmd)?;
+                    thir::StmtKind::Recall(fc_thir)
+                }
+                (StmtKind::Recall(_), _) => {
+                    return Err(self.err(UnknownError(
+                        String::from("`recall` is only valid in command `policy` blocks"),
+                        Some(statement.span),
+                    )));
                 }
                 (StmtKind::DebugAssert(e), _) => {
                     let e = self.lower_expression(e)?;
