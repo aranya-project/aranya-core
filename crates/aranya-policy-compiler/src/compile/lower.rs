@@ -1003,7 +1003,6 @@ impl CompileState<'_> {
             .clone();
 
         let mut arguments = Vec::new();
-
         for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.ty) {
@@ -1012,6 +1011,55 @@ impl CompileState<'_> {
                     .assume("function argument count overflow")?;
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "Argument {} (`{}`) in call to `{}` found `{}`, expected `{}`",
+                    arg_n,
+                    param.name,
+                    fc.identifier,
+                    arg_te.vtype,
+                    DisplayType(&param.ty)
+                ))));
+            }
+            arguments.push(arg_te);
+        }
+
+        Ok(thir::FunctionCall {
+            identifier: fc.identifier.clone(),
+            arguments,
+        })
+    }
+
+    /// Lowers a recall invocation (`check ... or recall foo(args)`).
+    fn lower_recall_call(
+        &mut self,
+        fc: &FunctionCall,
+        cmd: &aranya_policy_ast::CommandDefinition,
+    ) -> Result<thir::FunctionCall, CompileError> {
+        // Find the matching recall block in the command definition
+        let recall_block = cmd
+            .recalls
+            .iter()
+            .find(|rb| {
+                rb.identifier
+                    .as_ref()
+                    .is_some_and(|id| id.as_str() == fc.identifier.name.as_str())
+            })
+            .ok_or_else(|| {
+                self.err(CompileErrorType::NotDefined(format!(
+                    "recall block `{}`",
+                    fc.identifier
+                )))
+            })?;
+
+        let arg_defs = recall_block.arguments.as_deref().unwrap_or(&[]);
+
+        let mut arguments = Vec::new();
+        for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+            let arg_te = self.lower_expression(arg_e)?;
+            if !arg_te.vtype.fits_type(&param.ty) {
+                let arg_n = i
+                    .checked_add(1)
+                    .assume("function argument count overflow")?;
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Argument {} (`{}`) in recall `{}` found `{}`, expected `{}`",
                     arg_n,
                     param.name,
                     fc.identifier,
@@ -1452,17 +1500,6 @@ impl CompileState<'_> {
                     | StatementContext::CommandPolicy(_)
                     | StatementContext::CommandRecall(_),
                 ) => {
-                    // The recall clause is only valid in command policies.
-                    if s.recall.is_some() && !matches!(context, StatementContext::CommandPolicy(_))
-                    {
-                        return Err(self.err_loc(
-                            CompileErrorType::Unknown(String::from(
-                                "The `or recall` clause is only valid in command `policy`.",
-                            )),
-                            statement.span,
-                        ));
-                    }
-
                     let et = self.lower_expression(&s.expression)?;
                     if !et.vtype.fits_type(&VType {
                         inner: TypeKind::Bool,
@@ -1473,11 +1510,19 @@ impl CompileState<'_> {
                         ))));
                     }
 
-                    let recall = s
-                        .recall
-                        .as_ref()
-                        .map(|r| self.lower_function_call(r))
-                        .transpose()?;
+                    let recall = if let Some(r) = s.recall.as_ref() {
+                        let StatementContext::CommandPolicy(cmd) = &context else {
+                            return Err(self.err_loc(
+                                CompileErrorType::Unknown(String::from(
+                                    "The `or recall` clause is only valid in command `policy`.",
+                                )),
+                                statement.span,
+                            ));
+                        };
+                        Some(self.lower_recall_call(r, cmd)?)
+                    } else {
+                        None
+                    };
                     thir::StmtKind::Check(thir::CheckStatement {
                         expression: et,
                         recall,

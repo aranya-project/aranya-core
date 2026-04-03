@@ -1673,7 +1673,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 ident!("Envelope"),
                 [KVPair::new(ident!("payload"), test_data.into())],
             ),
-            ident!("default"),
+            ident!("Foo_recall_default"),
         )?
         .success();
     }
@@ -2770,7 +2770,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
 #[test]
 fn test_recall_with_args() -> anyhow::Result<()> {
     let text = r#"
-        effect Err {
+        effect MyError {
             x int,
             y string
         }
@@ -2787,7 +2787,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             }
             recall test(a int, b string) {
                 finish {
-                    emit Err { x: a, y: b }
+                    emit MyError { x: a, y: b }
                 }
             }
         }
@@ -2823,7 +2823,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
     let recall_name = ident!("Foo_recall_test");
     assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
     let stack_values = rs.stack.as_slice();
-    assert_eq!(stack_values.get(0), Some(&Value::Int(1)));
+    assert_eq!(stack_values.first(), Some(&Value::Int(1)));
     assert_eq!(stack_values.get(1), Some(&Value::String(text!("oops"))));
 
     // Exec recall
@@ -2837,7 +2837,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
     assert_eq!(
         io.effect_stack[0],
         (
-            ident!("Err"),
+            ident!("MyError"),
             vec![
                 KVPair::new(ident!("x"), Value::Int(1)),
                 KVPair::new(ident!("y"), Value::String(text!("oops"))),

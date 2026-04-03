@@ -953,7 +953,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The recall block to execute if the check fails
+    /// The named recall block to execute if the check fails.
+    /// - `None` — triggers the default unnamed recall block.
+    /// - `Some(fc)` — triggers a named recall block.
     pub recall: Option<FunctionCall>,
 }
 }
@@ -1287,7 +1289,7 @@ pub struct RecallBlockDefinition {
     /// The name of the recall block, or None for the default unnamed block
     pub identifier: Option<Ident>,
     /// The arguments to the recall block, if any
-    pub arguments: Option<Vec<FieldDefinition>>,
+    pub arguments: Option<Vec<Param>>,
     /// The recall rule statements for this block
     pub statements: Vec<Statement>,
     /// The source location of this definition

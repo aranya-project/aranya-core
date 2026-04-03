@@ -295,7 +295,8 @@ publish_statement = { "publish" ~ expression }
 // only be assigned once.
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
 // The check statement evaluates an expression and fails if it is false
-check_statement = { "check" ~ expression ~ ("or recall" ~ function_call)? }
+recall_clause = { "or" ~ "recall" ~ function_call? }
+check_statement = { "check" ~ expression ~ recall_clause? }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
@@ -376,7 +377,7 @@ command_blocks = _{
     ~ seal_block
     ~ open_block
     ~ policy_block
-    ~ recall_block?
+    ~ recall_block*
 }
 
 // # Top-level Statements
