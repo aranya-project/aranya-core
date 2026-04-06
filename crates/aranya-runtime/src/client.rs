@@ -10,6 +10,7 @@ use crate::{
 };
 
 mod braiding;
+mod convergence_map;
 mod session;
 mod transaction;
 
