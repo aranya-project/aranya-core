@@ -728,7 +728,10 @@ impl CompileState<'_> {
                 if !sub_field_defns.iter().all(|field_def| {
                     lhs_field_defns.iter().any(|lhs_field| {
                         lhs_field.identifier.name == field_def.identifier.name
-                            && lhs_field.field_type.kind == field_def.field_type.kind
+                            && lhs_field
+                                .field_type
+                                .kind
+                                .matches(&field_def.field_type.kind)
                     })
                 }) {
                     return Err(self.err(CompileErrorType::InvalidSubstruct(
