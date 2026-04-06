@@ -1159,7 +1159,7 @@ impl CompileState<'_> {
                 }
                 MatchPattern::Default(span) => {
                     // Ensure this is the last case, and also that it's not the only case.
-                    if pattern != patterns.last().expect("last arm") {
+                    if !core::ptr::eq(pattern, patterns.last().expect("patterns is not empty")) {
                         return Err(self.err(CompileErrorType::Unknown(String::from(
                             "Default match case must be last.",
                         ))));
@@ -1480,7 +1480,10 @@ impl CompileState<'_> {
                     self.exit_statement_context();
 
                     // Ensure `finish` is the last statement in the block. This also guarantees we can't have more than one finish block.
-                    if statement != statements.last().expect("expected statement") {
+                    if !core::ptr::eq(
+                        statement,
+                        statements.last().expect("statements is not empty"),
+                    ) {
                         return Err(self.err_loc(
                             CompileErrorType::Unknown(
                                 "`finish` must be the last statement in the block".to_owned(),
