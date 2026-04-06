@@ -25,7 +25,7 @@ use aranya_policy_module::{
     named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
-use buggy::BugExt as _;
+use buggy::{BugExt as _, bug};
 use indexmap::IndexMap;
 use tracing::warn;
 
@@ -1489,24 +1489,6 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn compile_result_pattern_binding(
-        &mut self,
-        pattern: &thir::ResultPattern,
-    ) -> Result<(), CompileError> {
-        let (ident, wrap_type) = match pattern {
-            thir::ResultPattern::Ok(ident) => (ident, WrapType::Ok),
-            thir::ResultPattern::Err(ident) => (ident, WrapType::Err),
-        };
-
-        // Unwrap the Result value and bind it to the identifier in the pattern, e.g. Ok(value) or Err(err)
-        self.append_instruction(Instruction::Unwrap(wrap_type));
-        self.append_instruction(Instruction::Def(ident.name.clone()));
-        // NOTE: We don't call identifier_types.add() here because the pattern variable
-        // was already added during the lowering phase.
-
-        Ok(())
-    }
-
     /// Exit match arm (exit scope, jump to end)
     fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
         self.identifier_types.exit_block();
@@ -1555,14 +1537,37 @@ impl<'a> CompileState<'a> {
             match pattern {
                 thir::MatchPattern::Values(values) => {
                     for value in values {
-                        self.append_instruction(Instruction::Dup);
-                        self.compile_typed_expression(value.clone())?;
-
-                        // if value == target, jump to start-of-arm
-                        self.append_instruction(Instruction::Eq);
-                        self.append_instruction(Instruction::Branch(Target::Unresolved(
-                            arm_label.clone(),
-                        )));
+                        match &value.kind {
+                            thir::ExprKind::Ok(inner)
+                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            {
+                                // Binding pattern Ok(x): branch if scrutinee is Ok variant
+                                self.append_instruction(Instruction::Dup);
+                                self.append_instruction(Instruction::Is(WrapType::Ok));
+                                self.append_instruction(Instruction::Branch(Target::Unresolved(
+                                    arm_label.clone(),
+                                )));
+                            }
+                            thir::ExprKind::Err(inner)
+                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            {
+                                // Binding pattern Err(e): branch if scrutinee is Err variant
+                                self.append_instruction(Instruction::Dup);
+                                self.append_instruction(Instruction::Is(WrapType::Err));
+                                self.append_instruction(Instruction::Branch(Target::Unresolved(
+                                    arm_label.clone(),
+                                )));
+                            }
+                            _ => {
+                                // Literal pattern (including Ok(5), Ok(true), int, bool, etc.)
+                                self.append_instruction(Instruction::Dup);
+                                self.compile_typed_expression(value.clone())?;
+                                self.append_instruction(Instruction::Eq);
+                                self.append_instruction(Instruction::Branch(Target::Unresolved(
+                                    arm_label.clone(),
+                                )));
+                            }
+                        }
                     }
                 }
                 thir::MatchPattern::Default(_) => {
@@ -1570,22 +1575,6 @@ impl<'a> CompileState<'a> {
                         arm_label.clone(),
                     )));
                 }
-                thir::MatchPattern::ResultPattern(pattern) => match pattern {
-                    thir::ResultPattern::Ok(_) => {
-                        self.append_instruction(Instruction::Dup);
-                        self.append_instruction(Instruction::Is(WrapType::Ok));
-                        self.append_instruction(Instruction::Branch(Target::Unresolved(
-                            arm_label.clone(),
-                        )));
-                    }
-                    thir::ResultPattern::Err(_) => {
-                        self.append_instruction(Instruction::Dup);
-                        self.append_instruction(Instruction::Is(WrapType::Err));
-                        self.append_instruction(Instruction::Branch(Target::Unresolved(
-                            arm_label.clone(),
-                        )));
-                    }
-                },
             }
         }
 
@@ -1602,16 +1591,38 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Block);
 
                     match pattern {
-                        thir::MatchPattern::ResultPattern(pattern) => {
-                            self.compile_result_pattern_binding(pattern)?;
+                        thir::MatchPattern::Values(values) => {
+                            // Look for a Result binding pattern (Ok(x) or Err(e) with identifier inner)
+                            let result_binding = values.iter().find_map(|v| match &v.kind {
+                                thir::ExprKind::Ok(inner)
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Ok, inner))
+                                }
+                                thir::ExprKind::Err(inner)
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Err, inner))
+                                }
+                                _ => None,
+                            });
+                            if let Some((wrap_type, inner)) = result_binding {
+                                let thir::ExprKind::Identifier(ident) = &inner.kind else {
+                                    bug!("checked above");
+                                };
+                                self.append_instruction(Instruction::Unwrap(wrap_type));
+                                self.append_instruction(Instruction::Def(ident.name.clone()));
+                            } else {
+                                // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
+                                self.append_instruction(Instruction::Pop);
+                            }
                         }
-                        _ => {
+                        thir::MatchPattern::Default(_) => {
                             // Pop the scrutinee value that was duplicated for the branch test (see Dup above)
                             // Result patterns consume the value during unwrapping, but other patterns don't.
                             self.append_instruction(Instruction::Pop);
                         }
                     }
-
                     self.compile_typed_statements(statements, Scope::Same)?;
                     self.compile_match_arm_epilogue(&end_label)?;
                 }
@@ -1627,10 +1638,33 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Block);
 
                     match pattern {
-                        thir::MatchPattern::ResultPattern(pattern) => {
-                            self.compile_result_pattern_binding(pattern)?;
+                        thir::MatchPattern::Values(values) => {
+                            // Look for a Result binding pattern (Ok(x) or Err(e) with identifier inner)
+                            let result_binding = values.iter().find_map(|v| match &v.kind {
+                                thir::ExprKind::Ok(inner)
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Ok, inner))
+                                }
+                                thir::ExprKind::Err(inner)
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Err, inner))
+                                }
+                                _ => None,
+                            });
+                            if let Some((wrap_type, inner)) = result_binding {
+                                let thir::ExprKind::Identifier(ident) = &inner.kind else {
+                                    bug!("checked above");
+                                };
+                                self.append_instruction(Instruction::Unwrap(wrap_type));
+                                self.append_instruction(Instruction::Def(ident.name.clone()));
+                            } else {
+                                // Pop the scrutinee value
+                                self.append_instruction(Instruction::Pop);
+                            }
                         }
-                        _ => {
+                        thir::MatchPattern::Default(_) => {
                             // Pop the scrutinee value
                             self.append_instruction(Instruction::Pop);
                         }
