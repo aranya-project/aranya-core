@@ -166,6 +166,11 @@ impl TraversalQueue {
     ///
     /// Used by the convergence pre-pass. Entries are matched by full
     /// `Location` equality (segment + max_cut), not just max_cut.
+    /// Returns the entry with the highest `max_cut` without removing it.
+    pub fn peek(&self) -> Option<&Location> {
+        self.entries.iter().max_by_key(|loc| *loc)
+    }
+
     pub fn pop_duplicates(&mut self) -> Option<(Location, usize)> {
         // Find the entry with the highest max_cut.
         let (i, _) = self
@@ -1098,9 +1103,9 @@ mod queue_tests {
         let mut queue = TraversalQueue::new();
         queue.push_duplicate(loc(0, 5)).unwrap();
         queue.push_duplicate(loc(0, 5)).unwrap();
-        let first = queue.pop();
+        let first = queue.pop().unwrap();
         assert!(first.is_some());
-        let second = queue.pop();
+        let second = queue.pop().unwrap();
         assert!(second.is_some());
         assert!(queue.is_empty());
     }
