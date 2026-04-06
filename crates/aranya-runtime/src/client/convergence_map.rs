@@ -453,7 +453,7 @@ impl ConvergenceMap {
 
 /// Create a temporary file for spilling convergence data.
 #[cfg(any(test, feature = "std"))]
-fn tempfile_create() -> std::io::Result<std::fs::File> {
+pub(super) fn tempfile_create() -> std::io::Result<std::fs::File> {
     use std::env;
     use std::fs;
 

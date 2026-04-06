@@ -414,15 +414,16 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
     buffer: &mut TraversalBuffer,
 ) -> Result<(S::FactIndex, Location), ClientError> {
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
-    let order = braiding::braid(storage, left, right, last_common_ancestor, buffer)?;
+    let mut order = braiding::braid(storage, left, right, last_common_ancestor, buffer)?;
 
-    let (&first, rest) = order.split_first().assume("braid is non-empty")?;
+    let mut iter = order.iter()?;
+    let first = iter.next()?.assume("braid is non-empty")?;
 
     let mut braid_perspective = storage.get_fact_perspective(first)?;
 
     sink.begin();
 
-    for &location in rest {
+    while let Some(location) = iter.next()? {
         let segment = storage.get_segment(location)?;
         let command = segment
             .get_command(location)

@@ -72,38 +72,192 @@ pub(super) fn last_common_ancestor<S: Storage>(
     Ok(left)
 }
 
-/// Chunk size for the braid result buffer.
-const BRAID_CHUNK_SIZE: usize = 512;
+/// Number of Location entries per braid buffer block.
+/// Location is 16 bytes, so 256 entries = 4096 bytes = one 4KB page.
+const BRAID_BLOCK_ENTRIES: usize = 256;
 
-/// Result of the braid algorithm, providing iteration over locations.
+/// Size of one Location on disk: 2 × u64 = 16 bytes.
+#[cfg(any(test, feature = "std"))]
+const LOCATION_BYTES: usize = 16;
+
+/// Result of the braid algorithm, providing reverse iteration over locations.
 ///
-/// For small braids (the common case), all locations fit in the
-/// in-memory buffer with no I/O. Disk-backed chunking for large
-/// braids is a future extension.
+/// Entries are pushed in reverse order (highest priority first). The
+/// iterator yields them in forward order (lowest priority first) by
+/// reading backwards through the in-memory buffer, then backwards
+/// through any spilled blocks on disk.
 pub(super) struct BraidResult {
-    mem: heapless::Vec<Location, BRAID_CHUNK_SIZE>,
+    mem: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
+    #[cfg(any(test, feature = "std"))]
+    spill_file: Option<std::fs::File>,
+    #[cfg(any(test, feature = "std"))]
+    spill_len: usize, // total locations written to disk
+    #[cfg(not(any(test, feature = "std")))]
+    overflowed: bool,
 }
 
 impl BraidResult {
     fn new() -> Self {
         Self {
             mem: heapless::Vec::new(),
+            #[cfg(any(test, feature = "std"))]
+            spill_file: None,
+            #[cfg(any(test, feature = "std"))]
+            spill_len: 0,
+            #[cfg(not(any(test, feature = "std")))]
+            overflowed: false,
         }
     }
 
     fn push(&mut self, loc: Location) -> Result<(), ClientError> {
+        if self.mem.is_full() {
+            self.flush_to_disk()?;
+        }
         self.mem
             .push(loc)
             .map_err(|_| ClientError::from(StorageError::Bug(Bug::new("braid result overflow"))))
     }
 
-    fn reverse(&mut self) {
-        self.mem.as_mut_slice().reverse();
+    #[cfg(any(test, feature = "std"))]
+    fn flush_to_disk(&mut self) -> Result<(), ClientError> {
+        use std::io::{Seek, SeekFrom, Write};
+
+        let file = self.spill_file.get_or_insert_with(|| {
+            convergence_map::tempfile_create()
+                .expect("failed to create braid spill file")
+        });
+
+        let offset = self.spill_len.wrapping_mul(LOCATION_BYTES);
+        file.seek(SeekFrom::Start(offset as u64))
+            .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+
+        for loc in self.mem.iter() {
+            let mut buf = [0u8; LOCATION_BYTES];
+            buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_le_bytes());
+            buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_le_bytes());
+            file.write_all(&buf)
+                .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+        }
+
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            self.spill_len += self.mem.len();
+        }
+        self.mem.clear();
+        Ok(())
     }
 
-    /// Splits the result into first and rest, like `Vec::split_first`.
-    pub fn split_first(&self) -> Option<(&Location, &[Location])> {
-        self.mem.split_first()
+    #[cfg(not(any(test, feature = "std")))]
+    fn flush_to_disk(&mut self) -> Result<(), ClientError> {
+        self.overflowed = true;
+        Err(StorageError::Bug(Bug::new("braid result overflow (no_std)")).into())
+    }
+
+    /// Returns an iterator that yields locations in forward braid order
+    /// (reversed from push order).
+    pub fn iter(&mut self) -> Result<BraidIter<'_>, ClientError> {
+        BraidIter::new(self)
+    }
+}
+
+/// Iterator over braid results in forward order (reversed from push order).
+///
+/// Reads the in-memory buffer backwards first, then reads spilled
+/// blocks from disk in reverse.
+pub(super) struct BraidIter<'a> {
+    /// In-memory entries, reversed for forward iteration.
+    mem: &'a [Location],
+    mem_pos: usize,
+    #[cfg(any(test, feature = "std"))]
+    file: Option<&'a mut std::fs::File>,
+    #[cfg(any(test, feature = "std"))]
+    disk_remaining: usize,
+    #[cfg(any(test, feature = "std"))]
+    disk_buf: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
+    #[cfg(any(test, feature = "std"))]
+    disk_buf_pos: usize,
+}
+
+impl<'a> BraidIter<'a> {
+    fn new(result: &'a mut BraidResult) -> Result<Self, ClientError> {
+        Ok(Self {
+            mem: result.mem.as_slice(),
+            mem_pos: result.mem.len(),
+            #[cfg(any(test, feature = "std"))]
+            file: result.spill_file.as_mut(),
+            #[cfg(any(test, feature = "std"))]
+            disk_remaining: result.spill_len,
+            #[cfg(any(test, feature = "std"))]
+            disk_buf: heapless::Vec::new(),
+            #[cfg(any(test, feature = "std"))]
+            disk_buf_pos: 0,
+        })
+    }
+
+    /// Get the next location in forward braid order.
+    pub fn next(&mut self) -> Result<Option<Location>, ClientError> {
+        // First yield from in-memory buffer (backwards).
+        if self.mem_pos > 0 {
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                self.mem_pos -= 1;
+            }
+            return Ok(Some(self.mem[self.mem_pos]));
+        }
+
+        // Then yield from disk (backwards).
+        #[cfg(any(test, feature = "std"))]
+        {
+            if self.disk_buf_pos > 0 {
+                #[allow(clippy::arithmetic_side_effects)]
+                {
+                    self.disk_buf_pos -= 1;
+                }
+                return Ok(Some(self.disk_buf[self.disk_buf_pos]));
+            }
+
+            if self.disk_remaining > 0 {
+                self.load_prev_block()?;
+                if self.disk_buf_pos > 0 {
+                    #[allow(clippy::arithmetic_side_effects)]
+                    {
+                        self.disk_buf_pos -= 1;
+                    }
+                    return Ok(Some(self.disk_buf[self.disk_buf_pos]));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    #[cfg(any(test, feature = "std"))]
+    fn load_prev_block(&mut self) -> Result<(), ClientError> {
+        use std::io::{Read, Seek, SeekFrom};
+
+        let count = self.disk_remaining.min(BRAID_BLOCK_ENTRIES);
+        #[allow(clippy::arithmetic_side_effects)]
+        let start = self.disk_remaining - count;
+
+        let file = self.file.as_mut().expect("spill file must exist");
+        file.seek(SeekFrom::Start((start.wrapping_mul(LOCATION_BYTES)) as u64))
+            .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+
+        self.disk_buf.clear();
+        for _ in 0..count {
+            let mut buf = [0u8; LOCATION_BYTES];
+            file.read_exact(&mut buf)
+                .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+            let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
+            let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
+            let _ = self.disk_buf.push(Location::new(
+                crate::SegmentIndex(segment),
+                crate::MaxCut(max_cut),
+            ));
+        }
+        self.disk_buf_pos = self.disk_buf.len();
+        self.disk_remaining = start;
+        Ok(())
     }
 }
 
@@ -215,8 +369,6 @@ pub(super) fn braid<S: Storage>(
             break;
         }
     }
-
-    braid.reverse();
 
     Ok(braid)
 }
