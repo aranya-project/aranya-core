@@ -340,9 +340,7 @@ where
             let session_id = u128::from_le_bytes(dst);
             let mut response_syncer = SyncResponder::new();
             let mut commands = Vec::new();
-            commands
-                .extend_from_slice(response_cache.heads())
-                .expect("infallible error");
+            commands.extend(response_cache.heads().iter().map(|h| h.address()));
             response_syncer.receive(SyncRequestMessage::SyncRequest {
                 session_id,
                 graph_id,
