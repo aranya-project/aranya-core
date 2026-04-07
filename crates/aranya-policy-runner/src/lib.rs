@@ -367,7 +367,8 @@ impl PolicyRunner {
     ///
     /// Note: This consumes `self` not because it really needs to - all internal state is
     /// unchanged during execution. It serves as a brake against concurrent runs
-    /// manipulating the same underlying filesystem state.
+    /// manipulating the same underlying filesystem state (although since it's cloneable, you could
+    /// still do so if you tried).
     pub fn run(mut self) -> anyhow::Result<WorkingDirectory> {
         if self.working_directory.is_temporary {
             tracing::info!(
@@ -379,9 +380,10 @@ impl PolicyRunner {
             .make_dirs()
             .context("Could not set up working directory")?;
 
-        self.inner_logic()
-            .inspect_err(|e| eprintln!("Execution failed: {e}"))
-            .ok();
+        let inner_err = self
+            .inner_logic()
+            .inspect_err(|e| tracing::error!("Execution failed: {e}"))
+            .err();
 
         if self.working_directory.is_temporary {
             // Clean up temporary working directory
@@ -391,6 +393,11 @@ impl PolicyRunner {
             );
             self.working_directory.delete()?;
         }
-        Ok(self.working_directory)
+
+        if let Some(err) = inner_err {
+            Err(err)
+        } else {
+            Ok(self.working_directory)
+        }
     }
 }
