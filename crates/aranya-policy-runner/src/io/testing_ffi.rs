@@ -27,7 +27,7 @@
 //! exactly 64 hex digits.
 use std::{cell::RefCell, ops::DerefMut as _};
 
-use aranya_crypto::{BaseId, Engine, KeyStore, KeyStoreExt as _, SigningKey};
+use aranya_crypto::{BaseId, Engine, KeyStore, KeyStoreExt as _, SigningKey, id::IdExt as _};
 use aranya_policy_vm::{
     CommandContext, MachineError, MachineErrorType, MachineIOError, Text, ffi::ffi,
 };
@@ -86,18 +86,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         _ctx: &CommandContext,
         eng: &E,
     ) -> Result<BaseId, MachineError> {
-        let bytes = self.random_bytes(
-            _ctx,
-            eng,
-            size_of::<BaseId>()
-                .try_into()
-                .expect("size_of::<BaseId>() is abnormal"),
-        )?;
-        let array_bytes = bytes.try_into().map_err(|_| {
-            tracing::error!("could not convert {} bytes to array", size_of::<BaseId>());
-            MachineError::new(MachineErrorType::IO(MachineIOError::Internal))
-        })?;
-        Ok(BaseId::from_bytes(array_bytes))
+        Ok(BaseId::random(eng))
     }
 
     #[ffi_export(def = "function random_key() bytes")]
@@ -153,21 +142,18 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         Ok(bytes)
     }
 
-    #[ffi_export(def = "function id_from_hex(hex_str string) id")]
-    pub fn id_from_hex<E: Engine>(
+    #[ffi_export(def = "function id_from_base58(b58_str string) id")]
+    pub fn id_from_base58<E: Engine>(
         &self,
         _ctx: &CommandContext,
         _eng: &E,
-        hex_str: Text,
+        b58_str: Text,
     ) -> Result<BaseId, MachineError> {
-        let bytes = self.bytes_from_hex(_ctx, _eng, hex_str)?;
-        let array_bytes = bytes.try_into().map_err(|_| {
-            MachineError::new(MachineErrorType::Unknown(format!(
-                "Not exactly {} bytes",
-                size_of::<BaseId>()
-            )))
-        })?;
-        Ok(BaseId::from_bytes(array_bytes))
+        BaseId::decode(b58_str).map_err(|_| {
+            MachineError::new(MachineErrorType::Unknown(
+                "Could not decode base58".to_string(),
+            ))
+        })
     }
 
     /// This exists purely to unit test the `PolicyVm` error variant in
