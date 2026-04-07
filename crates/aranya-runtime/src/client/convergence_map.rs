@@ -36,15 +36,13 @@ impl Entry {
         buf
     }
 
+    #[allow(clippy::unwrap_used)] // infallible: slices are exactly 8 bytes
     fn from_bytes(buf: &[u8; ENTRY_BYTES]) -> Self {
         let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
         let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
         let count = u64::from_le_bytes(buf[16..24].try_into().unwrap()) as usize;
         Self {
-            location: Location::new(
-                crate::SegmentIndex(segment),
-                MaxCut(max_cut),
-            ),
+            location: Location::new(crate::SegmentIndex(segment), MaxCut(max_cut)),
             count,
         }
     }
@@ -110,18 +108,19 @@ impl Block {
         let mut buf = [0u8; BLOCK_BYTES];
         for (i, entry) in self.entries.iter().enumerate() {
             let offset = i.wrapping_mul(ENTRY_BYTES);
-            buf[offset..offset.wrapping_add(ENTRY_BYTES)]
-                .copy_from_slice(&entry.to_bytes());
+            buf[offset..offset.wrapping_add(ENTRY_BYTES)].copy_from_slice(&entry.to_bytes());
         }
         buf
     }
 
+    #[allow(clippy::unwrap_used)] // infallible: slice is exactly ENTRY_BYTES
     fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Self {
-        let mut block = Block::new();
+        let mut block = Self::new();
         for i in 0..num_entries {
             let offset = i.wrapping_mul(ENTRY_BYTES);
-            let entry_bytes: &[u8; ENTRY_BYTES] =
-                buf[offset..offset.wrapping_add(ENTRY_BYTES)].try_into().unwrap();
+            let entry_bytes: &[u8; ENTRY_BYTES] = buf[offset..offset.wrapping_add(ENTRY_BYTES)]
+                .try_into()
+                .unwrap();
             let entry = Entry::from_bytes(entry_bytes);
             block.insert(entry);
         }
@@ -148,11 +147,7 @@ pub struct ConvergenceMap {
 
 impl ConvergenceMap {
     /// Create a new convergence map with BFS seeded from `left` and `right`.
-    pub fn new(
-        left: Location,
-        right: Location,
-        lca: Location,
-    ) -> Result<Self, ClientError> {
+    pub fn new(left: Location, right: Location, lca: Location) -> Result<Self, ClientError> {
         let mut queue = TraversalQueue::new();
         queue.push_duplicate(left)?;
         queue.push_duplicate(right)?;
@@ -217,10 +212,9 @@ impl ConvergenceMap {
         if self.root.is_full() {
             // Root overflow — for now treat as error.
             // This requires > 28,900 convergence points.
-            return Err(StorageError::Bug(buggy::Bug::new(
-                "convergence root index overflow",
-            ))
-            .into());
+            return Err(
+                StorageError::Bug(buggy::Bug::new("convergence root index overflow")).into(),
+            );
         }
         let _ = self.root.push(NodeEntry {
             min_max_cut: block.min_max_cut,
@@ -229,9 +223,7 @@ impl ConvergenceMap {
             num_entries,
         });
 
-        self.next_file_offset = offset.wrapping_add(
-            num_entries.wrapping_mul(ENTRY_BYTES),
-        );
+        self.next_file_offset = offset.wrapping_add(num_entries.wrapping_mul(ENTRY_BYTES));
 
         // Clear and reuse.
         self.blocks[lru].clear();
@@ -241,10 +233,7 @@ impl ConvergenceMap {
     }
 
     /// Read a spilled block from disk.
-    fn read_block_from_disk(
-        &self,
-        root_idx: usize,
-    ) -> Result<Block, ClientError> {
+    fn read_block_from_disk(&self, root_idx: usize) -> Result<Block, ClientError> {
         let node = self.root[root_idx];
         let file = self
             .spill_file
@@ -262,10 +251,7 @@ impl ConvergenceMap {
     }
 
     /// Load a spilled block into memory, evicting the LRU block.
-    fn load_block_from_disk(
-        &mut self,
-        root_idx: usize,
-    ) -> Result<usize, ClientError> {
+    fn load_block_from_disk(&mut self, root_idx: usize) -> Result<usize, ClientError> {
         let loaded = self.read_block_from_disk(root_idx)?;
 
         // Remove from root index — data is now in memory.
@@ -378,9 +364,7 @@ impl ConvergenceMap {
             let mut ri = 0;
             while ri < self.root.len() {
                 let node = self.root[ri];
-                if location.max_cut >= node.min_max_cut
-                    && location.max_cut <= node.max_max_cut
-                {
+                if location.max_cut >= node.min_max_cut && location.max_cut <= node.max_max_cut {
                     // Load block into memory (removes root[ri] via swap_remove).
                     let bi = self.load_block_from_disk(ri)?;
                     if let Some(ei) = self.blocks[bi].find(location) {

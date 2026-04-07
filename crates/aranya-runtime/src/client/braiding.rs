@@ -111,17 +111,16 @@ impl BraidResult {
         let file = match self.spill_file.as_ref() {
             Some(f) => f,
             None => {
-                self.spill_file = Some(
-                    crate::storage::TempFile::new()
-                        .map_err(|_| StorageError::Bug(Bug::new("failed to create braid spill file")))?,
-                );
+                self.spill_file = Some(crate::storage::TempFile::new().map_err(|_| {
+                    StorageError::Bug(Bug::new("failed to create braid spill file"))
+                })?);
                 self.spill_file.as_ref().expect("just inserted")
             }
         };
 
         let mut offset = self.spill_len.wrapping_mul(LOCATION_BYTES);
 
-        for loc in self.mem.iter() {
+        for loc in &self.mem {
             let mut buf = [0u8; LOCATION_BYTES];
             buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_le_bytes());
             buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_le_bytes());
@@ -218,7 +217,10 @@ impl<'a> BraidIter<'a> {
             let mut buf = [0u8; LOCATION_BYTES];
             file.read_at(offset, &mut buf)
                 .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+            // buf is [u8; 16], slices are exactly 8 bytes — infallible.
+            #[allow(clippy::unwrap_used)]
             let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
+            #[allow(clippy::unwrap_used)]
             let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
             let _ = self.disk_buf.push(Location::new(
                 crate::SegmentIndex(segment),
