@@ -54,7 +54,10 @@ impl WorkingDirectory {
 
     /// Delete the working directory and all of its contents.
     pub fn delete(&self) -> Result<(), io::Error> {
-        fs::remove_dir_all(&self.base)
+        if self.base.exists() {
+            fs::remove_dir_all(&self.base)?;
+        }
+        Ok(())
     }
 
     /// The path to the keystore directory
@@ -188,5 +191,13 @@ impl WorkingDirectory {
         fs::write(&id_path, graph_id)?;
         tracing::debug!("Graph ID saved to '{}'", id_path.display());
         Ok(())
+    }
+}
+
+impl Drop for WorkingDirectory {
+    fn drop(&mut self) {
+        if self.is_temporary {
+            self.delete().expect("could not destroy working directory on drop");
+        }
     }
 }
