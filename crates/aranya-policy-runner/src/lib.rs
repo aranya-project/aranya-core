@@ -117,7 +117,7 @@ impl PolicyRunner {
     }
 
     /// Explicitly set the working directory. If `path` is `Some`, the
-    /// path is used as the working direcotry. If `path` is `None`, a
+    /// path is used as the working directory. If `path` is `None`, a
     /// temporary working directory is used.
     pub fn with_working_directory(mut self, path: Option<PathBuf>) -> Self {
         self.working_directory = path
