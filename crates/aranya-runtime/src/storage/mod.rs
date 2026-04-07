@@ -15,6 +15,11 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 
+#[cfg(any(feature = "libc", feature = "testing"))]
+mod temp_file;
+#[cfg(any(feature = "libc", feature = "testing"))]
+pub use temp_file::TempFile;
+
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"
