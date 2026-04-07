@@ -124,10 +124,14 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         hex_str: Text,
     ) -> Result<Vec<u8>, MachineError> {
         let s = hex_str.as_str();
-        let hex_str: String = s.chars().filter(char::is_ascii_hexdigit).collect();
-        if !hex_str.len().is_multiple_of(2) {
+        if !s.chars().count().is_multiple_of(2) {
             return Err(MachineError::new(MachineErrorType::Unknown(
-                "hex string must be an even number of hex digits".to_string(),
+                "string does not contain an even number of digits".to_string(),
+            )));
+        }
+        if !s.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(MachineError::new(MachineErrorType::Unknown(
+                "string does not contain entirely hex digits".to_string(),
             )));
         }
         let bytes: Vec<u8> = hex_str
