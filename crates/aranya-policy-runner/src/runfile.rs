@@ -16,7 +16,9 @@
 //! A run file consists of two sections, the `preamble` section, and the
 //! `do` section. The `preamble:` and `do:` tokens must appear at the
 //! beginning of the line. All other lines can be indented however you
-//! like.
+//! like. The file can contain as many `preamble` and `do` sections as
+//! you'd like, but all of the contents are combined for each type.
+//! All `preamble` sections are executed before the `do` sections.
 //!
 //! ### `preamble`
 //!
