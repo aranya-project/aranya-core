@@ -91,7 +91,7 @@ working directory, so this runs independently in a temporary directory
 that is removed after execution.
 
 ```text
-$ policy-runner --marker examples/policy.md examples/{init,hello,add_raw_device, get_raw_device}.run
+$ policy-runner --marker examples/policy.md examples/{init,hello,add_raw_device,get_raw_device}.run
 --- examples/init.run
 TeamCreated { owner_dev: 6V1zpGgX16S3UkzHZ1QYfWak9XpkxVg12DaYUwZTWB9M }
 UserAdded { dev: 54MPYg3vo9seBBpaQw6rwP6dU4SnkFkaw7fy8t8eurvE }

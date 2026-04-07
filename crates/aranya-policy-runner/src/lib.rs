@@ -101,7 +101,8 @@ impl PolicyRunner {
         Self::new_from_reader(fs::File::open(policy_path)?)
     }
 
-    /// Create a new policy runner with a policy from the given string. For usage
+    /// Create a new policy runner with a policy read from an abstract [`Read`](std::io::Read)
+    /// impl.
     pub fn new_from_reader<R: std::io::Read>(policy: R) -> anyhow::Result<Self> {
         let working_directory = WorkingDirectory::new_temporary();
         let policy: String = std::io::read_to_string(policy)?;
