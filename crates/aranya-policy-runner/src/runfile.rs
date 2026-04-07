@@ -241,7 +241,18 @@ impl RunFile {
         keystore: &mut KS,
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
-            "use testing\nfunction preamble() bool {{\n{}\n  return false\n}}",
+            r#"use testing
+            struct Envelope {{ }}
+            command CaptureVariables {{
+                fields {{ }}
+                seal {{ return Envelope {{ }} }}
+                open {{ return CaptureVariables {{ }} }}
+                policy {{ }}
+            }}
+            action preamble() {{
+                {}
+                publish CaptureVariables {{}}
+            }}"#,
             self.preamble
         );
         let ast = parse_policy_str(&func_str, aranya_policy_lang::ast::Version::V2)?;
@@ -262,14 +273,14 @@ impl RunFile {
                 version: Id::default(),
             }),
         );
-        rs.set_pc_by_label(&Label::new(ident!("preamble"), LabelType::Function))?;
+        rs.set_pc_by_label(&Label::new(ident!("preamble"), LabelType::Action))?;
         match rs.run() {
-            Ok(ExitReason::Normal) => {}
-            Ok(ExitReason::Check) => {
-                return Err(RunFileError::PolicyVmCheck);
+            Ok(ExitReason::Normal) => {
+                unreachable!("should not be able to reach a normal exit in an action")
             }
+            Ok(ExitReason::Check) => return Err(RunFileError::PolicyVmCheck),
             Ok(ExitReason::Panic) => return Err(RunFileError::PolicyVmPanic),
-            Ok(ExitReason::Yield) => unreachable!("Cannot yield in functions"),
+            Ok(ExitReason::Yield) => {}
             Err(err) => {
                 return Err(err.into());
             }
