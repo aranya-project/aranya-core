@@ -1,9 +1,7 @@
 use buggy::Bug;
 use tracing::trace;
 
-use crate::{
-    ClientError, Location, Prior, Segment as _, Storage, StorageError, TraversalBuffer,
-};
+use crate::{ClientError, Location, Prior, Segment as _, Storage, StorageError};
 
 /// Returns the last common ancestor of two Locations.
 ///
@@ -77,7 +75,6 @@ pub(super) fn last_common_ancestor<S: Storage>(
 const BRAID_BLOCK_ENTRIES: usize = 256;
 
 /// Size of one Location on disk: 2 × u64 = 16 bytes.
-#[cfg(any(test, feature = "std"))]
 const LOCATION_BYTES: usize = 16;
 
 /// Result of the braid algorithm, providing reverse iteration over locations.
@@ -88,24 +85,16 @@ const LOCATION_BYTES: usize = 16;
 /// through any spilled blocks on disk.
 pub(super) struct BraidResult {
     mem: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
-    #[cfg(any(test, feature = "std"))]
-    spill_file: Option<std::fs::File>,
-    #[cfg(any(test, feature = "std"))]
+    spill_file: Option<crate::storage::TempFile>,
     spill_len: usize, // total locations written to disk
-    #[cfg(not(any(test, feature = "std")))]
-    overflowed: bool,
 }
 
 impl BraidResult {
     fn new() -> Self {
         Self {
             mem: heapless::Vec::new(),
-            #[cfg(any(test, feature = "std"))]
             spill_file: None,
-            #[cfg(any(test, feature = "std"))]
             spill_len: 0,
-            #[cfg(not(any(test, feature = "std")))]
-            overflowed: false,
         }
     }
 
@@ -118,25 +107,27 @@ impl BraidResult {
             .map_err(|_| ClientError::from(StorageError::Bug(Bug::new("braid result overflow"))))
     }
 
-    #[cfg(any(test, feature = "std"))]
     fn flush_to_disk(&mut self) -> Result<(), ClientError> {
-        use std::io::{Seek, SeekFrom, Write};
+        let file = match self.spill_file.as_ref() {
+            Some(f) => f,
+            None => {
+                self.spill_file = Some(
+                    crate::storage::TempFile::new()
+                        .map_err(|_| StorageError::Bug(Bug::new("failed to create braid spill file")))?,
+                );
+                self.spill_file.as_ref().expect("just inserted")
+            }
+        };
 
-        let file = self.spill_file.get_or_insert_with(|| {
-            convergence_map::tempfile_create()
-                .expect("failed to create braid spill file")
-        });
-
-        let offset = self.spill_len.wrapping_mul(LOCATION_BYTES);
-        file.seek(SeekFrom::Start(offset as u64))
-            .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+        let mut offset = self.spill_len.wrapping_mul(LOCATION_BYTES);
 
         for loc in self.mem.iter() {
             let mut buf = [0u8; LOCATION_BYTES];
             buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_le_bytes());
             buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_le_bytes());
-            file.write_all(&buf)
+            file.write_at(offset, &buf)
                 .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+            offset = offset.wrapping_add(LOCATION_BYTES);
         }
 
         #[allow(clippy::arithmetic_side_effects)]
@@ -145,12 +136,6 @@ impl BraidResult {
         }
         self.mem.clear();
         Ok(())
-    }
-
-    #[cfg(not(any(test, feature = "std")))]
-    fn flush_to_disk(&mut self) -> Result<(), ClientError> {
-        self.overflowed = true;
-        Err(StorageError::Bug(Bug::new("braid result overflow (no_std)")).into())
     }
 
     /// Returns an iterator that yields locations in forward braid order
@@ -168,13 +153,9 @@ pub(super) struct BraidIter<'a> {
     /// In-memory entries, reversed for forward iteration.
     mem: &'a [Location],
     mem_pos: usize,
-    #[cfg(any(test, feature = "std"))]
-    file: Option<&'a mut std::fs::File>,
-    #[cfg(any(test, feature = "std"))]
+    file: Option<&'a crate::storage::TempFile>,
     disk_remaining: usize,
-    #[cfg(any(test, feature = "std"))]
     disk_buf: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
-    #[cfg(any(test, feature = "std"))]
     disk_buf_pos: usize,
 }
 
@@ -183,13 +164,9 @@ impl<'a> BraidIter<'a> {
         Ok(Self {
             mem: result.mem.as_slice(),
             mem_pos: result.mem.len(),
-            #[cfg(any(test, feature = "std"))]
-            file: result.spill_file.as_mut(),
-            #[cfg(any(test, feature = "std"))]
+            file: result.spill_file.as_ref(),
             disk_remaining: result.spill_len,
-            #[cfg(any(test, feature = "std"))]
             disk_buf: heapless::Vec::new(),
-            #[cfg(any(test, feature = "std"))]
             disk_buf_pos: 0,
         })
     }
@@ -206,8 +183,16 @@ impl<'a> BraidIter<'a> {
         }
 
         // Then yield from disk (backwards).
-        #[cfg(any(test, feature = "std"))]
-        {
+        if self.disk_buf_pos > 0 {
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                self.disk_buf_pos -= 1;
+            }
+            return Ok(Some(self.disk_buf[self.disk_buf_pos]));
+        }
+
+        if self.disk_remaining > 0 {
+            self.load_prev_block()?;
             if self.disk_buf_pos > 0 {
                 #[allow(clippy::arithmetic_side_effects)]
                 {
@@ -215,38 +200,23 @@ impl<'a> BraidIter<'a> {
                 }
                 return Ok(Some(self.disk_buf[self.disk_buf_pos]));
             }
-
-            if self.disk_remaining > 0 {
-                self.load_prev_block()?;
-                if self.disk_buf_pos > 0 {
-                    #[allow(clippy::arithmetic_side_effects)]
-                    {
-                        self.disk_buf_pos -= 1;
-                    }
-                    return Ok(Some(self.disk_buf[self.disk_buf_pos]));
-                }
-            }
         }
 
         Ok(None)
     }
 
-    #[cfg(any(test, feature = "std"))]
     fn load_prev_block(&mut self) -> Result<(), ClientError> {
-        use std::io::{Read, Seek, SeekFrom};
-
         let count = self.disk_remaining.min(BRAID_BLOCK_ENTRIES);
         #[allow(clippy::arithmetic_side_effects)]
         let start = self.disk_remaining - count;
 
-        let file = self.file.as_mut().expect("spill file must exist");
-        file.seek(SeekFrom::Start((start.wrapping_mul(LOCATION_BYTES)) as u64))
-            .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+        let file = self.file.as_ref().expect("spill file must exist");
 
         self.disk_buf.clear();
+        let mut offset = start.wrapping_mul(LOCATION_BYTES);
         for _ in 0..count {
             let mut buf = [0u8; LOCATION_BYTES];
-            file.read_exact(&mut buf)
+            file.read_at(offset, &mut buf)
                 .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
             let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
             let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
@@ -254,6 +224,7 @@ impl<'a> BraidIter<'a> {
                 crate::SegmentIndex(segment),
                 crate::MaxCut(max_cut),
             ));
+            offset = offset.wrapping_add(LOCATION_BYTES);
         }
         self.disk_buf_pos = self.disk_buf.len();
         self.disk_remaining = start;
@@ -274,7 +245,6 @@ pub(super) fn braid<S: Storage>(
     left: Location,
     right: Location,
     lca: Location,
-    buffer: &mut TraversalBuffer,
 ) -> Result<BraidResult, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
@@ -330,24 +300,6 @@ pub(super) fn braid<S: Storage>(
                 convergence_map::Convergence::Drop => {
                     trace!("prior {location} convergence drop");
                     continue 'location;
-                }
-                convergence_map::Convergence::Unknown => {
-                    // Convergence map overflowed — fall back to is_ancestor.
-                    let mut is_ancestor = false;
-                    for other in strands.iter() {
-                        let other_seg = storage.get_segment(other.next)?;
-                        if (location.same_segment(other.next)
-                            && location.max_cut <= other.next.max_cut)
-                            || storage.is_ancestor(location, &other_seg, buffer)?
-                        {
-                            is_ancestor = true;
-                            break;
-                        }
-                    }
-                    if is_ancestor {
-                        trace!("prior {location} is_ancestor fallback drop");
-                        continue 'location;
-                    }
                 }
                 convergence_map::Convergence::Continue => {}
             }

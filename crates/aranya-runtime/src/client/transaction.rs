@@ -129,7 +129,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 let command = policy.merge(&mut buf, merge_ids)?;
 
                 let (braid, last_common_ancestor) = make_braid_segment::<_, PS>(
-                    storage, left_loc, right_loc, sink, policy, buffer,
+                    storage, left_loc, right_loc, sink, policy,
                 )?;
 
                 let mut perspective = storage.new_merge_perspective(
@@ -294,7 +294,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) =
-            make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy, buffer)?;
+            make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy)?;
 
         let mut perspective = storage.new_merge_perspective(
             left_loc,
@@ -411,10 +411,9 @@ fn make_braid_segment<S: Storage, PS: PolicyStore>(
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
-    buffer: &mut TraversalBuffer,
 ) -> Result<(S::FactIndex, Location), ClientError> {
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
-    let mut order = braiding::braid(storage, left, right, last_common_ancestor, buffer)?;
+    let mut order = braiding::braid(storage, left, right, last_common_ancestor)?;
 
     let mut iter = order.iter()?;
     let first = iter.next()?.assume("braid is non-empty")?;

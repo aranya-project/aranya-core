@@ -1,30 +1,23 @@
 use crate::{
-    ClientError, Location, MaxCut, Segment as _, Storage,
+    ClientError, Location, MaxCut, Segment as _, Storage, StorageError, TempFile,
     storage::TraversalQueue,
 };
-#[cfg(any(test, feature = "std"))]
-use crate::StorageError;
 
 /// Maximum entries per block.
 const BLOCK_ENTRIES: usize = 170;
 /// Number of in-memory blocks.
 const NUM_BLOCKS: usize = 3;
 /// Size of one entry on disk: 3 × u64 = 24 bytes.
-#[cfg(any(test, feature = "std"))]
 const ENTRY_BYTES: usize = 24;
 /// Size of one block on disk.
-#[cfg(any(test, feature = "std"))]
 const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 
 /// Result of a convergence check.
-#[allow(dead_code)] // Unknown only used in no_std builds
 pub enum Convergence {
     /// Not a convergence point, or last arrival — strand continues.
     Continue,
     /// Convergence point, not last arrival — drop strand.
     Drop,
-    /// Map overflowed (no_std only), caller must fall back to `is_ancestor`.
-    Unknown,
 }
 
 /// A convergence point: location and remaining arrival count.
@@ -35,7 +28,6 @@ struct Entry {
 }
 
 impl Entry {
-    #[cfg(any(test, feature = "std"))]
     fn to_bytes(self) -> [u8; ENTRY_BYTES] {
         let mut buf = [0u8; ENTRY_BYTES];
         buf[0..8].copy_from_slice(&(self.location.segment.0 as u64).to_le_bytes());
@@ -44,7 +36,6 @@ impl Entry {
         buf
     }
 
-    #[cfg(any(test, feature = "std"))]
     fn from_bytes(buf: &[u8; ENTRY_BYTES]) -> Self {
         let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
         let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
@@ -60,7 +51,6 @@ impl Entry {
 }
 
 /// Index entry in the root node pointing to a block on disk.
-#[cfg(any(test, feature = "std"))]
 #[derive(Clone, Copy)]
 struct NodeEntry {
     min_max_cut: MaxCut,
@@ -91,7 +81,6 @@ impl Block {
         self.entries.is_full()
     }
 
-    #[cfg(any(test, feature = "std"))]
     fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -117,7 +106,6 @@ impl Block {
         self.max_max_cut = MaxCut(0);
     }
 
-    #[cfg(any(test, feature = "std"))]
     fn to_bytes(&self) -> [u8; BLOCK_BYTES] {
         let mut buf = [0u8; BLOCK_BYTES];
         for (i, entry) in self.entries.iter().enumerate() {
@@ -128,7 +116,6 @@ impl Block {
         buf
     }
 
-    #[cfg(any(test, feature = "std"))]
     fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Self {
         let mut block = Block::new();
         for i in 0..num_entries {
@@ -151,18 +138,12 @@ impl Block {
 pub struct ConvergenceMap {
     blocks: [Block; NUM_BLOCKS],
     active_block: usize,
-    #[cfg(any(test, feature = "std"))]
     root: heapless::Vec<NodeEntry, BLOCK_ENTRIES>,
     queue: TraversalQueue,
     lca: Location,
     access_counter: u32,
-    #[cfg(any(test, feature = "std"))]
-    spill_file: Option<std::fs::File>,
-    #[cfg(any(test, feature = "std"))]
+    spill_file: Option<TempFile>,
     next_file_offset: usize,
-    /// Tracks overflow in no_std mode (no disk spill available).
-    #[cfg(not(any(test, feature = "std")))]
-    overflowed: bool,
 }
 
 impl ConvergenceMap {
@@ -178,17 +159,12 @@ impl ConvergenceMap {
         Ok(Self {
             blocks: [Block::new(), Block::new(), Block::new()],
             active_block: 0,
-            #[cfg(any(test, feature = "std"))]
             root: heapless::Vec::new(),
             queue,
             lca,
             access_counter: 0,
-            #[cfg(any(test, feature = "std"))]
             spill_file: None,
-            #[cfg(any(test, feature = "std"))]
             next_file_offset: 0,
-            #[cfg(not(any(test, feature = "std")))]
-            overflowed: false,
         })
     }
 
@@ -213,10 +189,7 @@ impl ConvergenceMap {
     }
 
     /// Spill the LRU block to disk and make it the new active block.
-    #[cfg(any(test, feature = "std"))]
     fn spill_lru(&mut self) -> Result<(), ClientError> {
-        use std::io::{Seek, SeekFrom, Write};
-
         let lru = self.lru_block();
         let block = &self.blocks[lru];
 
@@ -225,17 +198,19 @@ impl ConvergenceMap {
             return Ok(());
         }
 
-        let file = self.spill_file.get_or_insert_with(|| {
-            tempfile_create().expect("failed to create convergence spill file")
-        });
+        let file = match &self.spill_file {
+            Some(_) => self.spill_file.as_ref().expect("just checked"),
+            None => {
+                self.spill_file = Some(TempFile::new()?);
+                self.spill_file.as_ref().expect("just created")
+            }
+        };
 
         let data = block.to_bytes();
         let num_entries = block.entries.len();
         let offset = self.next_file_offset;
 
-        file.seek(SeekFrom::Start(offset as u64))
-            .map_err(|_| StorageError::Bug(buggy::Bug::new("convergence spill file I/O error")))?;
-        file.write_all(&data[..num_entries.wrapping_mul(ENTRY_BYTES)])
+        file.write_at(offset, &data[..num_entries.wrapping_mul(ENTRY_BYTES)])
             .map_err(|_| StorageError::Bug(buggy::Bug::new("convergence spill file I/O error")))?;
 
         // Add to root index.
@@ -265,47 +240,28 @@ impl ConvergenceMap {
         Ok(())
     }
 
-    #[cfg(not(any(test, feature = "std")))]
-    fn spill_lru(&mut self) -> Result<(), ClientError> {
-        // No disk available — mark overflow.
-        self.overflowed = true;
-        // Reuse the LRU block anyway (losing its entries).
-        let lru = self.lru_block();
-        self.blocks[lru].clear();
-        self.blocks[lru].last_accessed = 0;
-        self.active_block = lru;
-        Ok(())
-    }
-
     /// Read a spilled block from disk.
-    #[cfg(any(test, feature = "std"))]
     fn read_block_from_disk(
-        &mut self,
+        &self,
         root_idx: usize,
     ) -> Result<Block, ClientError> {
-        use std::io::{Read, Seek, SeekFrom};
-
         let node = self.root[root_idx];
         let file = self
             .spill_file
-            .as_mut()
+            .as_ref()
             .expect("spill file must exist if root has entries");
 
         let num_entries = node.num_entries;
         let byte_len = num_entries.wrapping_mul(ENTRY_BYTES);
 
-        file.seek(SeekFrom::Start(node.file_offset as u64))
-            .map_err(|_| StorageError::Bug(buggy::Bug::new("convergence spill file I/O error")))?;
-
         let mut buf = [0u8; BLOCK_BYTES];
-        file.read_exact(&mut buf[..byte_len])
+        file.read_at(node.file_offset, &mut buf[..byte_len])
             .map_err(|_| StorageError::Bug(buggy::Bug::new("convergence spill file I/O error")))?;
 
         Ok(Block::load_from_bytes(&buf, num_entries))
     }
 
     /// Load a spilled block into memory, evicting the LRU block.
-    #[cfg(any(test, feature = "std"))]
     fn load_block_from_disk(
         &mut self,
         root_idx: usize,
@@ -399,7 +355,6 @@ impl ConvergenceMap {
     /// Returns:
     /// - `Continue`: not a convergence point, or last arrival.
     /// - `Drop`: convergence point, not last arrival.
-    /// - `Unknown`: no_std overflow, caller must fall back to `is_ancestor`.
     pub fn should_continue<S: Storage>(
         &mut self,
         storage: &mut S,
@@ -419,7 +374,6 @@ impl ConvergenceMap {
         }
 
         // Check spilled blocks on disk.
-        #[cfg(any(test, feature = "std"))]
         {
             let mut ri = 0;
             while ri < self.root.len() {
@@ -442,36 +396,6 @@ impl ConvergenceMap {
             }
         }
 
-        #[cfg(not(any(test, feature = "std")))]
-        if self.overflowed {
-            return Ok(Convergence::Unknown);
-        }
-
         Ok(Convergence::Continue)
     }
-}
-
-/// Create a temporary file for spilling convergence data.
-#[cfg(any(test, feature = "std"))]
-pub(super) fn tempfile_create() -> std::io::Result<std::fs::File> {
-    use std::env;
-    use std::fs;
-
-    let dir = env::var("TMPDIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| env::temp_dir());
-
-    // Create and immediately unlink so the file is cleaned up on close.
-    let path = dir.join(format!(
-        ".convergence_spill_{}",
-        std::process::id()
-    ));
-    let file = fs::File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&path)?;
-    let _ = fs::remove_file(&path);
-    Ok(file)
 }
