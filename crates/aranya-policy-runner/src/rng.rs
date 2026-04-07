@@ -3,6 +3,8 @@ use std::cell::RefCell;
 use aranya_crypto::Csprng;
 use rand::{Rng as _, SeedableRng as _, rngs::StdRng};
 
+const DEFAULT_SEED: [u8; 32] = [0u8; 32];
+
 /// A RNG that can be configured to use either the default or
 /// deterministic RNGs at runtime.
 #[allow(clippy::large_enum_variant)]
@@ -20,7 +22,7 @@ impl SwitchableRng {
     /// Create a new RNG using `rand`'s [`StdRng`] implementation (which
     /// is based on ChaCha12).
     pub fn new_deterministic() -> Self {
-        Self::Deterministic(RefCell::new(StdRng::from_seed([0u8; 32])))
+        Self::Deterministic(RefCell::new(StdRng::from_seed(DEFAULT_SEED)))
     }
 }
 
