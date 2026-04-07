@@ -39,6 +39,10 @@ impl CompileState<'_> {
         self.err_loc(CompileErrorType::UnreachableMatchArm, span)
     }
 
+    fn redundant_match_arm_error(&self, span: Span) -> CompileError {
+        self.err_loc(CompileErrorType::RedundantMatchArm, span)
+    }
+
     /// Lower a struct literal, ensuring it matches its definition.
     ///
     /// Checks:
@@ -1044,48 +1048,71 @@ impl CompileState<'_> {
             LanguageContext::Expression(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
         };
 
-        // Collect all value-pattern expressions (excluding default arms) with their spans.
+        // Check for duplicate/unreachable arms.
         // NOTE We don't check for zero arms, because that's enforced by the parser.
-        let all_values = patterns
-            .iter()
-            .flat_map(|pattern| match pattern {
-                MatchPattern::Values(values) => values.as_slice(),
-                MatchPattern::Default(_) => &[],
-            })
-            .map(|v| (v.kind.clone(), v.span()))
-            .collect::<Vec<(ExprKind, Span)>>();
+        //
+        // Across separate arms: literals before bindings is fine (e.g. `Ok(5) => ..`
+        // then `Ok(n) => ..`), but a literal following a binding is unreachable.
+        //
+        // Within a single arm (alternation): mixing literals and bindings for the
+        // same result variant is not allowed — the binding subsumes the literal, so
+        // e.g. `Ok(5) | Ok(n)` should just be `Ok(n)`.
 
-        // Check for duplicate/unreachable arms
-        // For Result patterns, ordering is significant: literals can be followed by a binding, e.g. Ok(5), Ok(n),
-        // but a literal following a binding is unreachable
-        let mut seen_result_binding_ok = false;
-        let mut seen_result_binding_err = false;
-        for (i, (value, v1_span)) in all_values.iter().enumerate() {
-            if all_values[..i]
-                .iter()
-                .any(|(v2, _): &(ExprKind, Span)| value.matches(v2))
-            {
-                return Err(self.err_loc(
-                    CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
-                    *v1_span,
-                ));
-            }
+        let mut all_values: Vec<(ExprKind, Span)> = Vec::new();
+        let mut seen_ok_binding = false;
+        let mut seen_err_binding = false;
+        for pattern in &patterns {
+            let MatchPattern::Values(values) = pattern else {
+                continue;
+            };
+            let mut seen_ok_literal = false;
+            let mut seen_err_literal = false;
+            for v in values {
+                let value = &v.kind;
+                let v_span = v.span();
 
-            // Check for unreachable arms
-            match value {
-                ExprKind::Ok(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
-                    seen_result_binding_ok = true;
+                // Check for duplicate values across all prior values.
+                if all_values
+                    .iter()
+                    .any(|(v2, _): &(ExprKind, Span)| value.matches(v2))
+                {
+                    return Err(self.err_loc(
+                        CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
+                        v_span,
+                    ));
                 }
-                ExprKind::Ok(_) if seen_result_binding_ok => {
-                    return Err(self.unreachable_match_arm_error(*v1_span));
+
+                // Check for unreachable arms (binding before literal across arms)
+                // and subsumed patterns (literal mixed with binding in same arm).
+                match value {
+                    ExprKind::Ok(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
+                        if seen_ok_literal {
+                            return Err(self.redundant_match_arm_error(v_span));
+                        }
+                        seen_ok_binding = true;
+                    }
+                    ExprKind::Ok(_) if seen_ok_binding => {
+                        return Err(self.unreachable_match_arm_error(v_span));
+                    }
+                    ExprKind::Ok(_) => {
+                        seen_ok_literal = true;
+                    }
+                    ExprKind::Err(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
+                        if seen_err_literal {
+                            return Err(self.redundant_match_arm_error(v_span));
+                        }
+                        seen_err_binding = true;
+                    }
+                    ExprKind::Err(_) if seen_err_binding => {
+                        return Err(self.unreachable_match_arm_error(v_span));
+                    }
+                    ExprKind::Err(_) => {
+                        seen_err_literal = true;
+                    }
+                    _ => {}
                 }
-                ExprKind::Err(inner) if matches!(inner.kind, ExprKind::Identifier(_)) => {
-                    seen_result_binding_err = true;
-                }
-                ExprKind::Err(_) if seen_result_binding_err => {
-                    return Err(self.unreachable_match_arm_error(*v1_span));
-                }
-                _ => {}
+
+                all_values.push((value.clone(), v_span));
             }
         }
 
