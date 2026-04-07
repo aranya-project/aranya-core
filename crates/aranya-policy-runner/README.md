@@ -30,9 +30,9 @@ documentation.
 
 ## Examples
 
-A simple policy is included under `examples` alongside several run
-files which initialize and manipulate the graph. If you are in the
-`aranya-policy-runner` directory, you can use `cargo run --` isntead of
+A simple policy is included under `examples` alongside several run files
+which initialize and manipulate the graph. If you are in the
+`aranya-policy-runner` directory, you can use `cargo run --` instead of
 `policy-runner` in the following examples.
 
 ### Initialize a graph
