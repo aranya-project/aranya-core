@@ -128,20 +128,20 @@ impl PolicyRunner {
     }
 
     /// Load run files from pre-created objects.
-    pub fn with_runfiles(mut self, run_files: Vec<RunFile>) -> anyhow::Result<Self> {
+    pub fn with_runfiles(mut self, run_files: Vec<RunFile>) -> Self {
         self.run_files = run_files;
-        Ok(self)
+        self
     }
 
     /// Load run files from their paths. This is not additive. The list of run files is replaced
     /// by the `Vec` given to this method.
     pub fn with_runfile_paths(self, run_paths: Vec<PathBuf>) -> anyhow::Result<Self> {
-        self.with_runfiles(
+        Ok(self.with_runfiles(
             run_paths
                 .iter()
                 .map(RunFile::from_file)
                 .collect::<Result<Vec<_>, _>>()?,
-        )
+        ))
     }
 
     /// Set the output destination to a file specified by path.
