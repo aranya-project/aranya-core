@@ -5,7 +5,7 @@ use aranya_policy_runner::PolicyRunner;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-/// The Aranya Policy Runner runs sequences of actions on policy files.
+/// The Aranya Policy Runner runs sequences of actions and command structs on policy files.
 #[derive(Parser, Debug)]
 struct Args {
     /// The policy file.
