@@ -197,7 +197,8 @@ impl WorkingDirectory {
 impl Drop for WorkingDirectory {
     fn drop(&mut self) {
         if self.is_temporary {
-            self.delete().expect("could not destroy working directory on drop");
+            self.delete()
+                .expect("could not destroy working directory on drop");
         }
     }
 }
