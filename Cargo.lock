@@ -477,7 +477,7 @@ dependencies = [
  "aranya-runtime",
  "clap",
  "postcard",
- "rand 0.8.5",
+ "rand",
  "thiserror 2.0.7",
  "tracing",
  "tracing-subscriber",
