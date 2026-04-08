@@ -1,0 +1,70 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <action 'test'>: 1,
+    },
+    action_defs: {
+        ActionDef {
+            name: "test" @ 34..38,
+            persistence: Persistent,
+            params: {},
+        },
+    },
+    command_defs: {},
+    fact_defs: {
+        "Foo": FactDefinition {
+            immutable: false,
+            identifier: "Foo" @ 5..8,
+            key: [
+                FieldDefinition {
+                    identifier: "i" @ 9..10,
+                    field_type: Int @ 11..14,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "a" @ 20..21,
+                    field_type: Int @ 22..25,
+                },
+            ],
+            span: 0..26,
+        },
+    },
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "i" @ 9..10,
+                field_type: Int @ 11..14,
+            },
+            FieldDefinition {
+                identifier: "a" @ 20..21,
+                field_type: Int @ 22..25,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'test'>:
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    const 1
+    const 1
+    saturating_add
+    fact.vset 'a'
+    query
+    const None
+    eq
+    not
+    branch 14
+    exit check
+<14>:
+    return

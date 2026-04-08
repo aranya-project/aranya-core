@@ -1,0 +1,12 @@
+fact F[i int] => {s string}
+
+command CreateBindKey {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {
+            create F[i:?] => {s: "abc"}
+        }
+    }
+}

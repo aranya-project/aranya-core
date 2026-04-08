@@ -1,0 +1,82 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <policy 'A'>: 1,
+        <recall 'A'>: 8,
+        <seal 'A'>: 11,
+        <open 'A'>: 17,
+    },
+    action_defs: {},
+    command_defs: {
+        CommandDef {
+            name: "A" @ 36..37,
+            persistence: Persistent,
+            attributes: {
+                Attribute {
+                    name: "i" @ 65..66,
+                    value: Int(
+                        5,
+                    ),
+                },
+                Attribute {
+                    name: "s" @ 79..80,
+                    value: String(
+                        "abc",
+                    ),
+                },
+                Attribute {
+                    name: "priority" @ 97..105,
+                    value: Enum(
+                        "Priority",
+                        1,
+                    ),
+                },
+            },
+            fields: {},
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "A": [],
+    },
+    enum_defs: {
+        "Priority": {
+            "High": 1,
+            "Low": 0,
+        },
+    },
+    globals: {},
+    ..
+}
+---
+    exit panic
+<policy 'A'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'A'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'A'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'A'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

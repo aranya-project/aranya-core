@@ -1,0 +1,141 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <action 'f'>: 1,
+    },
+    action_defs: {
+        ActionDef {
+            name: "f" @ 108..109,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "traffic" @ 110..117,
+                    ty: Struct(
+                        "Light" @ 125..130,
+                    ) @ 118..130,
+                },
+            },
+        },
+    },
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {
+        "Light": [
+            FieldDefinition {
+                identifier: "color" @ 63..68,
+                field_type: Enum(
+                    "LightColor" @ 74..84,
+                ) @ 69..84,
+            },
+            FieldDefinition {
+                identifier: "go" @ 90..92,
+                field_type: Bool @ 93..97,
+            },
+        ],
+    },
+    enum_defs: {
+        "LightColor": {
+            "Green": 2,
+            "Red": 0,
+            "Yellow": 1,
+        },
+    },
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'f'>:
+    def 'traffic'
+    get 'traffic'
+    dup
+    struct.new 'Light'
+    const LightColor::0
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 51
+    dup
+    struct.new 'Light'
+    const LightColor::0
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 56
+    dup
+    struct.new 'Light'
+    const LightColor::1
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 61
+    dup
+    struct.new 'Light'
+    const LightColor::1
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 66
+    dup
+    struct.new 'Light'
+    const LightColor::2
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 71
+    dup
+    struct.new 'Light'
+    const LightColor::2
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 76
+<51>:
+    block
+    pop
+    const 0
+    end
+    jump 81
+<56>:
+    block
+    pop
+    const 1
+    end
+    jump 81
+<61>:
+    block
+    pop
+    const 2
+    end
+    jump 81
+<66>:
+    block
+    pop
+    const 3
+    end
+    jump 81
+<71>:
+    block
+    pop
+    const 4
+    end
+    jump 81
+<76>:
+    block
+    pop
+    const 5
+    end
+    jump 81
+<81>:
+    def 'x'
+    return

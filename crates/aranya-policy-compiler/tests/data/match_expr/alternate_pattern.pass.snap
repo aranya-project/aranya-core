@@ -1,0 +1,64 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <action 'f'>: 1,
+    },
+    action_defs: {
+        ActionDef {
+            name: "f" @ 7..8,
+            persistence: Persistent,
+            params: {
+                Param {
+                    name: "maybe_bool" @ 9..19,
+                    ty: Optional(
+                        Bool @ 27..31,
+                    ) @ 20..32,
+                },
+            },
+        },
+    },
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'f'>:
+    def 'maybe_bool'
+    get 'maybe_bool'
+    dup
+    const None
+    eq
+    branch 17
+    dup
+    const false
+    wrap some
+    eq
+    branch 17
+    dup
+    const true
+    wrap some
+    eq
+    branch 22
+<17>:
+    block
+    pop
+    const 0
+    end
+    jump 27
+<22>:
+    block
+    pop
+    const 1
+    end
+    jump 27
+<27>:
+    def 'x'
+    return

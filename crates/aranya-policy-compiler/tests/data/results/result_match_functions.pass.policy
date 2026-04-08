@@ -1,0 +1,26 @@
+function may_fail(x int) result[int, string] {
+    if x > 0 {
+        return Ok(x)
+    } else {
+        return Err("negative input")
+    }
+}
+
+function match_statement(r result[int, string]) int {
+    match r {
+        Ok(v) => {
+            return v
+        }
+        Err(e) => {
+            return 0
+        }
+    }
+}
+
+function match_expr_with_return(x int) result[int, string] {
+    let n = match may_fail(x) {
+        Ok(n) => n
+        Err(e) => return Err(e)
+    }
+    return Ok(n)
+}

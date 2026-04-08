@@ -688,6 +688,307 @@ pub enum ExprKind {
     Match(Box<MatchExpression>),
 }
 
+impl ExprKind {
+    /// Compare two expression kinds for equality, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            // Simple types without spans - can use ==
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::String(a), Self::String(b)) => a == b,
+            (Self::Bool(a), Self::Bool(b)) => a == b,
+
+            // Optional types
+            (Self::Optional(None), Self::Optional(None)) => true,
+            (Self::Optional(Some(a)), Self::Optional(Some(b))) => a.kind.matches(&b.kind),
+
+            // Result types
+            (Self::Ok(a), Self::Ok(b)) => a.kind.matches(&b.kind),
+            (Self::Err(a), Self::Err(b)) => a.kind.matches(&b.kind),
+
+            // Identifier
+            (Self::Identifier(a), Self::Identifier(b)) => a.matches(b),
+
+            // Named struct
+            (Self::NamedStruct(a), Self::NamedStruct(b)) => {
+                a.identifier.matches(&b.identifier)
+                    && a.fields.len() == b.fields.len()
+                    && a.fields
+                        .iter()
+                        .zip(&b.fields)
+                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && v1.kind.matches(&v2.kind))
+                    && a.sources.len() == b.sources.len()
+                    && a.sources
+                        .iter()
+                        .zip(&b.sources)
+                        .all(|(s1, s2)| s1.matches(s2))
+            }
+
+            // Enum reference
+            (Self::EnumReference(a), Self::EnumReference(b)) => {
+                a.identifier.matches(&b.identifier) && a.value.matches(&b.value)
+            }
+
+            // Function call
+            (Self::FunctionCall(a), Self::FunctionCall(b)) => {
+                a.identifier.matches(&b.identifier)
+                    && a.arguments.len() == b.arguments.len()
+                    && a.arguments
+                        .iter()
+                        .zip(&b.arguments)
+                        .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+            }
+
+            // Foreign function call
+            (Self::ForeignFunctionCall(a), Self::ForeignFunctionCall(b)) => {
+                a.module.matches(&b.module)
+                    && a.identifier.matches(&b.identifier)
+                    && a.arguments.len() == b.arguments.len()
+                    && a.arguments
+                        .iter()
+                        .zip(&b.arguments)
+                        .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+            }
+
+            // Internal functions
+            (Self::InternalFunction(a), Self::InternalFunction(b)) => {
+                match (a, b) {
+                    (InternalFunction::Query(f1), InternalFunction::Query(f2))
+                    | (InternalFunction::Exists(f1), InternalFunction::Exists(f2)) => {
+                        f1.identifier.matches(&f2.identifier)
+                            && f1.key_fields.len() == f2.key_fields.len()
+                            && f1.key_fields.iter().zip(&f2.key_fields).all(
+                                |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
+                            )
+                            && match (&f1.value_fields, &f2.value_fields) {
+                                (None, None) => true,
+                                (Some(vf1), Some(vf2)) => {
+                                    vf1.len() == vf2.len()
+                                        && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
+                                            k1.matches(k2) && matches_fact_field(v1, v2)
+                                        })
+                                }
+                                _ => false,
+                            }
+                    }
+                    (
+                        InternalFunction::FactCount(t1, n1, f1),
+                        InternalFunction::FactCount(t2, n2, f2),
+                    ) => {
+                        t1 == t2
+                            && n1 == n2
+                            && f1.identifier.matches(&f2.identifier)
+                            && f1.key_fields.len() == f2.key_fields.len()
+                            && f1.key_fields.iter().zip(&f2.key_fields).all(
+                                |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
+                            )
+                            && match (&f1.value_fields, &f2.value_fields) {
+                                (None, None) => true,
+                                (Some(vf1), Some(vf2)) => {
+                                    vf1.len() == vf2.len()
+                                        && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
+                                            k1.matches(k2) && matches_fact_field(v1, v2)
+                                        })
+                                }
+                                _ => false,
+                            }
+                    }
+                    (InternalFunction::If(c1, t1, e1), InternalFunction::If(c2, t2, e2)) => {
+                        c1.kind.matches(&c2.kind)
+                            && t1.kind.matches(&t2.kind)
+                            && e1.kind.matches(&e2.kind)
+                    }
+                    (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
+                    | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
+                        e1.kind.matches(&e2.kind)
+                    }
+                    (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
+                    _ => false,
+                }
+            }
+
+            // Single expression variants
+            (Self::Return(a), Self::Return(b))
+            | (Self::Not(a), Self::Not(b))
+            | (Self::Unwrap(a), Self::Unwrap(b))
+            | (Self::CheckUnwrap(a), Self::CheckUnwrap(b)) => a.kind.matches(&b.kind),
+
+            // Two expression variants
+            (Self::And(a1, a2), Self::And(b1, b2))
+            | (Self::Or(a1, a2), Self::Or(b1, b2))
+            | (Self::Equal(a1, a2), Self::Equal(b1, b2))
+            | (Self::NotEqual(a1, a2), Self::NotEqual(b1, b2))
+            | (Self::GreaterThan(a1, a2), Self::GreaterThan(b1, b2))
+            | (Self::LessThan(a1, a2), Self::LessThan(b1, b2))
+            | (Self::GreaterThanOrEqual(a1, a2), Self::GreaterThanOrEqual(b1, b2))
+            | (Self::LessThanOrEqual(a1, a2), Self::LessThanOrEqual(b1, b2)) => {
+                a1.kind.matches(&b1.kind) && a2.kind.matches(&b2.kind)
+            }
+
+            // Expression with Ident
+            (Self::Dot(e1, i1), Self::Dot(e2, i2))
+            | (Self::Cast(e1, i1), Self::Cast(e2, i2))
+            | (Self::Substruct(e1, i1), Self::Substruct(e2, i2)) => {
+                e1.kind.matches(&e2.kind) && i1.matches(i2)
+            }
+
+            // Is expression
+            (Self::Is(e1, b1), Self::Is(e2, b2)) => e1.kind.matches(&e2.kind) && b1 == b2,
+
+            // Block expression
+            (Self::Block(stmts1, expr1), Self::Block(stmts2, expr2)) => {
+                stmts1.len() == stmts2.len()
+                    && stmts1
+                        .iter()
+                        .zip(stmts2)
+                        .all(|(s1, s2)| matches_statement(s1, s2))
+                    && expr1.kind.matches(&expr2.kind)
+            }
+
+            // Match expression
+            (Self::Match(m1), Self::Match(m2)) => matches_match_expression(m1, m2),
+
+            // Different variants don't match
+            _ => false,
+        }
+    }
+}
+
+/// Helper function to compare FactField instances, ignoring spans.
+fn matches_fact_field(a: &FactField, b: &FactField) -> bool {
+    match (a, b) {
+        (FactField::Expression(e1), FactField::Expression(e2)) => e1.kind.matches(&e2.kind),
+        (FactField::Bind(_), FactField::Bind(_)) => true,
+        _ => false,
+    }
+}
+
+/// Helper function to compare Statement instances, ignoring spans.
+fn matches_statement(a: &Statement, b: &Statement) -> bool {
+    use StmtKind::*;
+    match (&a.kind, &b.kind) {
+        (Let(l1), Let(l2)) => {
+            l1.identifier.matches(&l2.identifier) && l1.expression.kind.matches(&l2.expression.kind)
+        }
+        (Check(c1), Check(c2)) => c1.expression.kind.matches(&c2.expression.kind),
+        (Match(m1), Match(m2)) => {
+            m1.expression.kind.matches(&m2.expression.kind)
+                && m1.arms.len() == m2.arms.len()
+                && m1.arms.iter().zip(&m2.arms).all(|(a1, a2)| {
+                    matches_match_pattern(&a1.pattern, &a2.pattern)
+                        && a1.statements.len() == a2.statements.len()
+                        && a1
+                            .statements
+                            .iter()
+                            .zip(&a2.statements)
+                            .all(|(s1, s2)| matches_statement(s1, s2))
+                })
+        }
+        (If(i1), If(i2)) => {
+            i1.branches.len() == i2.branches.len()
+                && i1
+                    .branches
+                    .iter()
+                    .zip(&i2.branches)
+                    .all(|((cond1, stmts1), (cond2, stmts2))| {
+                        cond1.kind.matches(&cond2.kind)
+                            && stmts1.len() == stmts2.len()
+                            && stmts1
+                                .iter()
+                                .zip(stmts2)
+                                .all(|(s1, s2)| matches_statement(s1, s2))
+                    })
+                && match (&i1.fallback, &i2.fallback) {
+                    (None, None) => true,
+                    (Some(f1), Some(f2)) => {
+                        f1.len() == f2.len()
+                            && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
+                    }
+                    _ => false,
+                }
+        }
+        (Finish(f1), Finish(f2)) => {
+            f1.len() == f2.len() && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
+        }
+        (Map(m1), Map(m2)) => {
+            matches_fact_literal(&m1.fact, &m2.fact)
+                && m1.identifier.matches(&m2.identifier)
+                && m1.statements.len() == m2.statements.len()
+                && m1
+                    .statements
+                    .iter()
+                    .zip(&m2.statements)
+                    .all(|(s1, s2)| matches_statement(s1, s2))
+        }
+        (Return(r1), Return(r2)) => r1.expression.kind.matches(&r2.expression.kind),
+        (ActionCall(c1), ActionCall(c2)) | (FunctionCall(c1), FunctionCall(c2)) => {
+            c1.identifier.matches(&c2.identifier)
+                && c1.arguments.len() == c2.arguments.len()
+                && c1
+                    .arguments
+                    .iter()
+                    .zip(&c2.arguments)
+                    .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+        }
+        (Publish(e1), Publish(e2)) | (Emit(e1), Emit(e2)) | (DebugAssert(e1), DebugAssert(e2)) => {
+            e1.kind.matches(&e2.kind)
+        }
+        (Create(c1), Create(c2)) => matches_fact_literal(&c1.fact, &c2.fact),
+        (Delete(d1), Delete(d2)) => matches_fact_literal(&d1.fact, &d2.fact),
+        (Update(u1), Update(u2)) => {
+            matches_fact_literal(&u1.fact, &u2.fact)
+                && u1.to.len() == u2.to.len()
+                && u1
+                    .to
+                    .iter()
+                    .zip(&u2.to)
+                    .all(|((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2))
+        }
+        _ => false,
+    }
+}
+
+/// Helper function to compare FactLiteral instances, ignoring spans.
+fn matches_fact_literal(a: &FactLiteral, b: &FactLiteral) -> bool {
+    a.identifier.matches(&b.identifier)
+        && a.key_fields.len() == b.key_fields.len()
+        && a.key_fields
+            .iter()
+            .zip(&b.key_fields)
+            .all(|((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2))
+        && match (&a.value_fields, &b.value_fields) {
+            (None, None) => true,
+            (Some(vf1), Some(vf2)) => {
+                vf1.len() == vf2.len()
+                    && vf1
+                        .iter()
+                        .zip(vf2)
+                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2))
+            }
+            _ => false,
+        }
+}
+
+/// Helper function to compare MatchPattern instances, ignoring spans.
+fn matches_match_pattern(a: &MatchPattern, b: &MatchPattern) -> bool {
+    match (a, b) {
+        (MatchPattern::Default(_), MatchPattern::Default(_)) => true,
+        (MatchPattern::Values(v1), MatchPattern::Values(v2)) => {
+            v1.len() == v2.len() && v1.iter().zip(v2).all(|(e1, e2)| e1.kind.matches(&e2.kind))
+        }
+        _ => false,
+    }
+}
+
+/// Helper function to compare MatchExpression instances, ignoring spans.
+fn matches_match_expression(a: &MatchExpression, b: &MatchExpression) -> bool {
+    a.scrutinee.kind.matches(&b.scrutinee.kind)
+        && a.arms.len() == b.arms.len()
+        && a.arms.iter().zip(&b.arms).all(|(a1, a2)| {
+            matches_match_pattern(&a1.pattern, &a2.pattern)
+                && a1.expression.kind.matches(&a2.expression.kind)
+        })
+}
+
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
@@ -722,32 +1023,14 @@ pub struct CheckStatement {
 }
 }
 
-/// Result pattern for matching Ok(x) or Err(e)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResultPattern {
-    /// Match Ok(identifier)
-    Ok(Ident),
-    /// Match Err(identifier)
-    Err(Ident),
-}
-
-impl Spanned for ResultPattern {
-    fn span(&self) -> Span {
-        match self {
-            Self::Ok(ident) | Self::Err(ident) => ident.span(),
-        }
-    }
-}
-
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
-    /// List of values to match
+    /// List of values to match. E.g. `0 | 1 | 2 => ...`
+    /// Can include Ok(x) and Err(e) for Result matching.
     Values(Vec<Expression>),
-    /// Result pattern for matching Ok(x) and Err(e)
-    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -755,7 +1038,6 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
-            Self::ResultPattern(result_pattern) => result_pattern.span(),
         }
     }
 }

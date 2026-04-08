@@ -1,0 +1,41 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <fn 'convert'>: 1,
+    },
+    action_defs: {},
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
+            },
+            FieldDefinition {
+                identifier: "b" @ 20..21,
+                field_type: String @ 22..28,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'convert'>:
+    save SP
+    struct.new 'Foo'
+    const 1
+    struct.set 'a'
+    const "test"
+    struct.set 'b'
+    cast 'Foo'
+    restore SP
+    return
+    exit panic

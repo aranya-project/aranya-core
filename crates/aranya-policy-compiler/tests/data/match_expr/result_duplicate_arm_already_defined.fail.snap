@@ -1,0 +1,6 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+already defined: duplicate match arm value at line 4 col 9:
+	Ok(v)

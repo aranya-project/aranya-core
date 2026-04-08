@@ -1,0 +1,26 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <fn 'f'>: 1,
+    },
+    action_defs: {},
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'f'>:
+    save SP
+    const None
+    is some
+    restore SP
+    return
+    exit panic

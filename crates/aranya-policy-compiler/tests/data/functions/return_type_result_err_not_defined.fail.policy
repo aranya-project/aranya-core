@@ -1,0 +1,3 @@
+function f() result[int, struct Nonexistent] {
+    return Ok(1)
+}

@@ -1,0 +1,110 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <fn 'match_expr_with_return'>: 48,
+        <fn 'match_statement'>: 22,
+        <fn 'may_fail'>: 1,
+    },
+    action_defs: {},
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'may_fail'>:
+    def 'x'
+    save SP
+    get 'x'
+    const 0
+    gt
+    not
+    branch 15
+    block
+    get 'x'
+    wrap ok
+    restore SP
+    return
+    end
+    jump 21
+<15>:
+    block
+    const "negative input"
+    wrap err
+    restore SP
+    return
+    end
+<21>:
+    exit panic
+<fn 'match_statement'>:
+    def 'r'
+    save SP
+    get 'r'
+    dup
+    is ok
+    branch 31
+    dup
+    is err
+    branch 39
+<31>:
+    block
+    unwrap ok
+    def 'v'
+    get 'v'
+    restore SP
+    return
+    end
+    jump 47
+<39>:
+    block
+    unwrap err
+    def 'e'
+    const 0
+    restore SP
+    return
+    end
+    jump 47
+<47>:
+    exit panic
+<fn 'match_expr_with_return'>:
+    def 'x'
+    save SP
+    get 'x'
+    call <fn 'may_fail'>
+    dup
+    is ok
+    branch 58
+    dup
+    is err
+    branch 64
+<58>:
+    block
+    unwrap ok
+    def 'n'
+    get 'n'
+    end
+    jump 73
+<64>:
+    block
+    unwrap err
+    def 'e'
+    get 'e'
+    wrap err
+    restore SP
+    return
+    end
+    jump 73
+<73>:
+    def 'n'
+    get 'n'
+    wrap ok
+    restore SP
+    return
+    exit panic

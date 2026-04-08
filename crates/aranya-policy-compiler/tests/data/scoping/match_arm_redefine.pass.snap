@@ -1,0 +1,56 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <fn 'f'>: 1,
+    },
+    action_defs: {},
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {},
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'f'>:
+    def 'y'
+    save SP
+    get 'y'
+    dup
+    const 1
+    eq
+    branch 13
+    dup
+    const 2
+    eq
+    branch 19
+    jump 25
+<13>:
+    block
+    pop
+    const 3
+    def 'x'
+    end
+    jump 29
+<19>:
+    block
+    pop
+    const 4
+    def 'x'
+    end
+    jump 29
+<25>:
+    block
+    pop
+    end
+    jump 29
+<29>:
+    const false
+    restore SP
+    return
+    exit panic

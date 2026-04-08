@@ -1,0 +1,103 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <policy 'Bar'>: 1,
+        <recall 'Bar'>: 8,
+        <seal 'Bar'>: 11,
+        <open 'Bar'>: 17,
+        <action 'convert'>: 23,
+    },
+    action_defs: {
+        ActionDef {
+            name: "convert" @ 206..213,
+            persistence: Persistent,
+            params: {},
+        },
+    },
+    command_defs: {
+        CommandDef {
+            name: "Bar" @ 48..51,
+            persistence: Persistent,
+            attributes: {},
+            fields: {
+                Field {
+                    name: "a" @ 75..76,
+                    ty: Int @ 77..80,
+                },
+                Field {
+                    name: "b" @ 90..91,
+                    ty: String @ 92..98,
+                },
+            },
+        },
+    },
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "a" @ 75..76,
+                field_type: Int @ 77..80,
+            },
+            FieldDefinition {
+                identifier: "b" @ 90..91,
+                field_type: String @ 92..98,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "a" @ 17..18,
+                field_type: Int @ 19..22,
+            },
+            FieldDefinition {
+                identifier: "b" @ 28..29,
+                field_type: String @ 30..36,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<policy 'Bar'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'Bar'>:
+    def 'envelope'
+    def 'this'
+    return
+<seal 'Bar'>:
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'Bar'>:
+    def 'envelope'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<action 'convert'>:
+    struct.new 'Foo'
+    const 1
+    struct.set 'a'
+    const "test"
+    struct.set 'b'
+    cast 'Bar'
+    def 'bar'
+    get 'bar'
+    publish
+    return

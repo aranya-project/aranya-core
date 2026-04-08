@@ -1,0 +1,59 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <fn 'baz'>: 1,
+    },
+    action_defs: {},
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {
+        "Bar": [
+            FieldDefinition {
+                identifier: "x" @ 42..43,
+                field_type: Int @ 44..47,
+            },
+            FieldDefinition {
+                identifier: "y" @ 49..50,
+                field_type: Bool @ 51..55,
+            },
+            FieldDefinition {
+                identifier: "z" @ 57..58,
+                field_type: String @ 59..65,
+            },
+        ],
+        "Foo": [
+            FieldDefinition {
+                identifier: "x" @ 13..14,
+                field_type: Int @ 15..18,
+            },
+            FieldDefinition {
+                identifier: "y" @ 20..21,
+                field_type: Bool @ 22..26,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'baz'>:
+    def 'foo'
+    save SP
+    struct.new 'Bar'
+    const "z"
+    struct.set 'z'
+    get 'foo'
+    struct.get 'x'
+    struct.set 'x'
+    get 'foo'
+    struct.get 'y'
+    struct.set 'y'
+    restore SP
+    return
+    exit panic

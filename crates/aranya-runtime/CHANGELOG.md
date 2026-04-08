@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.21.0...aranya-runtime-v0.22.0) - 2026-03-31
+
+### Other
+
+- Find needed segments improvements ([#609](https://github.com/aranya-project/aranya-core/pull/609))
+- Change QUIC syncer to TCP syncer ([#629](https://github.com/aranya-project/aranya-core/pull/629))
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.20.0...aranya-runtime-v0.21.0) - 2026-03-17
+
+### Other
+
+- bind session commands to graph ([#615](https://github.com/aranya-project/aranya-core/pull/615))
+- remove unnecessary session command fields ([#614](https://github.com/aranya-project/aranya-core/pull/614))
+  - fix multi-comand ephemeral actions ([#616](https://github.com/aranya-project/aranya-core/pull/616))
+- pass traversal buffers to each method ([#596](https://github.com/aranya-project/aranya-core/pull/596))
+- remove traversal buffers from storage commit and prevent concurrent transactions ([#585](https://github.com/aranya-project/aranya-core/pull/585))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+- remove `many_clients` dsl test ([#586](https://github.com/aranya-project/aranya-core/pull/586))
+- Cache visited segments ([#522](https://github.com/aranya-project/aranya-core/pull/522))
+- remove `MemStorage` in favor of linear storage ([#567](https://github.com/aranya-project/aranya-core/pull/567))
+- *(storage)* remove old unused tests ([#575](https://github.com/aranya-project/aranya-core/pull/575))
+
 ## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.19.0...aranya-runtime-v0.20.0) - 2026-02-17
 
 ### Other

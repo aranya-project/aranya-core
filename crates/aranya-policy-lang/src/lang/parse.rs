@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
     MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Param, Persistence, ResultPattern, ResultTypeKind, ReturnStatement, Statement,
-    StmtKind, Text, TypeKind, UpdateStatement, VType, Version, ident,
+    NamedStruct, Param, Persistence, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text,
+    TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -471,48 +471,15 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a match pattern from a match_arm_expression token.
-    /// Determines if the pattern is a Result pattern (Ok/Err) or a Values pattern.
     fn parse_match_pattern(&self, token: Pair<'_, Rule>) -> Result<MatchPattern, ParseError> {
         assert_eq!(token.as_rule(), Rule::match_arm_expression);
 
-        let pest_span = token.as_span();
         let values = token
             .into_inner()
             .map(|token| self.parse_expression(token.clone()))
             .collect::<Result<Vec<Expression>, ParseError>>()?;
 
-        // Check if this is a single-value Result pattern: Ok(identifier) or Err(identifier)
-        if values.len() == 1 {
-            match &values[0].kind {
-                ExprKind::Ok(inner) => {
-                    if let ExprKind::Identifier(id) = &inner.kind {
-                        Ok(MatchPattern::ResultPattern(ResultPattern::Ok(id.clone())))
-                    } else {
-                        // TODO (#547): Allow literals in addition to identifiers.
-                        Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("Result pattern Ok() must contain an identifier"),
-                            Some(self.to_ast_span(pest_span)?),
-                        ))
-                    }
-                }
-                ExprKind::Err(inner) => {
-                    if let ExprKind::Identifier(id) = &inner.kind {
-                        Ok(MatchPattern::ResultPattern(ResultPattern::Err(id.clone())))
-                    } else {
-                        // TODO (#547): Allow literals in addition to identifiers.
-                        Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("Result pattern Err() must contain an identifier"),
-                            Some(self.to_ast_span(pest_span)?),
-                        ))
-                    }
-                }
-                _ => Ok(MatchPattern::Values(values)),
-            }
-        } else {
-            Ok(MatchPattern::Values(values))
-        }
+        Ok(MatchPattern::Values(values))
     }
 
     fn parse_named_struct_literal(

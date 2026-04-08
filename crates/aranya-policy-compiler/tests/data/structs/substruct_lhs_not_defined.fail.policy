@@ -1,0 +1,8 @@
+struct Baz {
+    x string,
+    y int,
+}
+action foo() {
+    let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz
+    publish new_struct
+}

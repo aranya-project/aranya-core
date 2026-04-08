@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+not defined: struct UndefinedStruct at line 1 col 1:
+	function baz(x option[struct UndefinedStruct]) bool {
+    return true
+}
