@@ -5,10 +5,10 @@
 //!   the same APIs used by `linear::libc`.
 //! - `testing`: in-memory `Vec<u8>` buffer (when libc is not available).
 
-use crate::{StorageError, storage::ScratchFile};
-
 #[cfg(all(feature = "testing", not(feature = "libc")))]
 use alloc::vec::Vec;
+
+use crate::{StorageError, storage::ScratchFile};
 
 // --- libc backend ---
 
