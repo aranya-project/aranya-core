@@ -138,21 +138,25 @@ impl Block {
 /// fills, the least-recently-accessed block is spilled to a temp
 /// file. An in-memory root index maps max_cut ranges to file
 /// offsets for O(1) block lookup.
-pub struct ConvergenceMap {
+pub struct ConvergenceMap<'a> {
     blocks: [Block; NUM_BLOCKS],
     active_block: usize,
     root: heapless::Vec<NodeEntry, ROOT_CAPACITY>,
-    queue: TraversalQueue,
+    queue: &'a mut TraversalQueue,
     lca: Location,
     access_counter: u32,
     spill_file: Option<TempFile>,
     next_file_offset: usize,
 }
 
-impl ConvergenceMap {
+impl<'a> ConvergenceMap<'a> {
     /// Create a new convergence map with BFS seeded from `left` and `right`.
-    pub fn new(left: Location, right: Location, lca: Location) -> Result<Self, ClientError> {
-        let mut queue = TraversalQueue::new();
+    pub fn new(
+        left: Location,
+        right: Location,
+        lca: Location,
+        queue: &'a mut TraversalQueue,
+    ) -> Result<Self, ClientError> {
         queue.push_duplicate(left)?;
         queue.push_duplicate(right)?;
         Ok(Self {

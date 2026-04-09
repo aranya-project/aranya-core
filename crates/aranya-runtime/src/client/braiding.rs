@@ -1,7 +1,7 @@
 use buggy::{Bug, BugExt as _};
 use tracing::trace;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage, StorageError};
+use crate::{ClientError, Location, Prior, Segment as _, Storage, StorageError, storage::TraversalBuffer};
 
 /// Returns the last common ancestor of two Locations.
 ///
@@ -77,12 +77,7 @@ const BRAID_BLOCK_ENTRIES: usize = 256;
 /// Size of one Location on disk: 2 × u64 = 16 bytes.
 const LOCATION_BYTES: usize = 16;
 
-/// Result of the braid algorithm, providing reverse iteration over locations.
-///
-/// Entries are pushed in reverse order (highest priority first). The
-/// iterator yields them in forward order (lowest priority first) by
-/// reading backwards through the in-memory buffer, then backwards
-/// through any spilled blocks on disk.
+/// Accumulates braid locations and iterates them in reverse push order.
 pub(super) struct BraidResult {
     mem: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
     spill_file: Option<crate::storage::TempFile>,
@@ -225,11 +220,10 @@ impl<'a> BraidIter<'a> {
         for _ in 0..count {
             let mut buf = [0u8; LOCATION_BYTES];
             file.read_at(offset, &mut buf)?;
-            // buf is [u8; 16], slices are exactly 8 bytes — infallible.
-            #[allow(clippy::unwrap_used)]
-            let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
-            #[allow(clippy::unwrap_used)]
-            let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
+            let segment =
+                u64::from_le_bytes(buf[0..8].try_into().assume("slice is exactly 8 bytes")?) as usize;
+            let max_cut =
+                u64::from_le_bytes(buf[8..16].try_into().assume("slice is exactly 8 bytes")?) as usize;
             let _ = self.disk_buf.push(Location::new(
                 crate::SegmentIndex(segment),
                 crate::MaxCut(max_cut),
@@ -257,6 +251,7 @@ pub(super) fn braid<S: Storage>(
     left: Location,
     right: Location,
     lca: Location,
+    buffer: &mut TraversalBuffer,
 ) -> Result<BraidResult, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
@@ -265,7 +260,7 @@ pub(super) fn braid<S: Storage>(
 
     trace!(%left, %right, %lca, "braiding");
 
-    let mut convergence = convergence_map::ConvergenceMap::new(left, right, lca)?;
+    let mut convergence = convergence_map::ConvergenceMap::new(left, right, lca, buffer.get())?;
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head, None)?)?;
