@@ -73,6 +73,9 @@ pub enum CompileErrorType {
     /// All patterns were not handled
     #[error("Missing default pattern in `match` statement/expression")]
     MissingDefaultPattern,
+    /// A match arm can never be reached because a previous arm already covered it.
+    #[error("unreachable match arm")]
+    UnreachableMatchArm,
     /// Todo found
     #[error("todo found")]
     TodoFound,
