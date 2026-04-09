@@ -130,9 +130,16 @@ impl TraversalQueue {
             .push(loc)
             .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
         // All duplicate entries are uncovered.
-        let last = self.entries.len().wrapping_sub(1);
+        let last = self
+            .entries
+            .len()
+            .checked_sub(1)
+            .assume("just pushed, len must be >= 1")?;
         self.entries.swap(self.partition, last);
-        self.partition = self.partition.wrapping_add(1);
+        self.partition = self
+            .partition
+            .checked_add(1)
+            .assume("partition must not overflow")?;
         Ok(())
     }
 
@@ -176,13 +183,16 @@ impl TraversalQueue {
         self.entries.iter().max_by_key(|loc| *loc)
     }
 
-    pub fn pop_duplicates(&mut self) -> Option<(Location, usize)> {
+    pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
         // Find the entry with the highest max_cut.
-        let (i, _) = self
+        let Some((i, _)) = self
             .entries
             .iter()
             .enumerate()
-            .max_by_key(|&(_, loc)| *loc)?;
+            .max_by_key(|&(_, loc)| *loc)
+        else {
+            return Ok(None);
+        };
 
         let location = self.entries[i];
 
@@ -191,11 +201,16 @@ impl TraversalQueue {
         let mut count: usize = 0;
         let mut j = self.entries.len();
         while j > 0 {
-            j = j.wrapping_sub(1);
+            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
             if self.entries[j] == location {
-                count = count.wrapping_add(1);
+                count = count
+                    .checked_add(1)
+                    .assume("count bounded by QUEUE_CAPACITY")?;
                 if j < self.partition {
-                    self.partition = self.partition.wrapping_sub(1);
+                    self.partition = self
+                        .partition
+                        .checked_sub(1)
+                        .assume("partition >= 1 when uncovered entry at j < partition")?;
                     self.entries.swap(j, self.partition);
                     self.entries.swap_remove(self.partition);
                 } else {
@@ -204,7 +219,7 @@ impl TraversalQueue {
             }
         }
 
-        Some((location, count))
+        Ok(Some((location, count)))
     }
 
     /// Returns true if all entries are covered (uncovered partition is empty).
@@ -449,6 +464,8 @@ pub enum StorageError {
     TraversalQueueOverflow(usize),
     #[error("strand heap overflow (capacity {0})")]
     StrandHeapOverflow(usize),
+    #[error("convergence root index overflow (capacity {0})")]
+    ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
@@ -1135,15 +1152,15 @@ mod queue_tests {
         queue.push_duplicate(loc(0, 5)).unwrap();
         queue.push_duplicate(loc(1, 3)).unwrap();
 
-        let (location, count) = queue.pop_duplicates().unwrap();
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
         assert_eq!(location, loc(0, 5));
         assert_eq!(count, 2);
 
-        let (location, count) = queue.pop_duplicates().unwrap();
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
         assert_eq!(location, loc(1, 3));
         assert_eq!(count, 1);
 
-        assert!(queue.pop_duplicates().is_none());
+        assert!(queue.pop_duplicates().unwrap().is_none());
     }
 
     #[test]
@@ -1152,19 +1169,19 @@ mod queue_tests {
         queue.push_duplicate(loc(0, 5)).unwrap();
         queue.push_duplicate(loc(1, 5)).unwrap();
 
-        let (location, count) = queue.pop_duplicates().unwrap();
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
         assert_eq!(count, 1);
         assert_eq!(location.max_cut, MaxCut(5));
 
-        let (_, count) = queue.pop_duplicates().unwrap();
+        let (_, count) = queue.pop_duplicates().unwrap().unwrap();
         assert_eq!(count, 1);
 
-        assert!(queue.pop_duplicates().is_none());
+        assert!(queue.pop_duplicates().unwrap().is_none());
     }
 
     #[test]
     fn test_pop_duplicates_empty() {
         let mut queue = TraversalQueue::new();
-        assert!(queue.pop_duplicates().is_none())
+        assert!(queue.pop_duplicates().unwrap().is_none());
     }
 }

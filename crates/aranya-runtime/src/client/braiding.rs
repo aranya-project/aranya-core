@@ -1,4 +1,4 @@
-use buggy::Bug;
+use buggy::{Bug, BugExt as _};
 use tracing::trace;
 
 use crate::{ClientError, Location, Prior, Segment as _, Storage, StorageError};
@@ -111,28 +111,30 @@ impl BraidResult {
         let file = match self.spill_file.as_ref() {
             Some(f) => f,
             None => {
-                self.spill_file = Some(crate::storage::TempFile::new().map_err(|_| {
-                    StorageError::Bug(Bug::new("failed to create braid spill file"))
-                })?);
-                self.spill_file.as_ref().expect("just inserted")
+                self.spill_file = Some(crate::storage::TempFile::new()?);
+                self.spill_file.as_ref().assume("just inserted")?
             }
         };
 
-        let mut offset = self.spill_len.wrapping_mul(LOCATION_BYTES);
+        let mut offset = self
+            .spill_len
+            .checked_mul(LOCATION_BYTES)
+            .assume("spill offset must not overflow")?;
 
         for loc in &self.mem {
             let mut buf = [0u8; LOCATION_BYTES];
             buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_le_bytes());
             buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_le_bytes());
-            file.write_at(offset, &buf)
-                .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
-            offset = offset.wrapping_add(LOCATION_BYTES);
+            file.write_at(offset, &buf)?;
+            offset = offset
+                .checked_add(LOCATION_BYTES)
+                .assume("spill offset must not overflow")?;
         }
 
-        #[allow(clippy::arithmetic_side_effects)]
-        {
-            self.spill_len += self.mem.len();
-        }
+        self.spill_len = self
+            .spill_len
+            .checked_add(self.mem.len())
+            .assume("spill_len must not overflow")?;
         self.mem.clear();
         Ok(())
     }
@@ -148,6 +150,9 @@ impl BraidResult {
 ///
 /// Reads the in-memory buffer backwards first, then reads spilled
 /// blocks from disk in reverse.
+///
+/// Does not implement [`Iterator`] because iteration is fallible
+/// (disk reads may fail). Use [`next`](Self::next) directly.
 pub(super) struct BraidIter<'a> {
     /// In-memory entries, reversed for forward iteration.
     mem: &'a [Location],
@@ -174,29 +179,29 @@ impl<'a> BraidIter<'a> {
     pub fn next(&mut self) -> Result<Option<Location>, ClientError> {
         // First yield from in-memory buffer (backwards).
         if self.mem_pos > 0 {
-            #[allow(clippy::arithmetic_side_effects)]
-            {
-                self.mem_pos -= 1;
-            }
+            self.mem_pos = self
+                .mem_pos
+                .checked_sub(1)
+                .assume("mem_pos > 0 checked above")?;
             return Ok(Some(self.mem[self.mem_pos]));
         }
 
         // Then yield from disk (backwards).
         if self.disk_buf_pos > 0 {
-            #[allow(clippy::arithmetic_side_effects)]
-            {
-                self.disk_buf_pos -= 1;
-            }
+            self.disk_buf_pos = self
+                .disk_buf_pos
+                .checked_sub(1)
+                .assume("disk_buf_pos > 0 checked above")?;
             return Ok(Some(self.disk_buf[self.disk_buf_pos]));
         }
 
         if self.disk_remaining > 0 {
             self.load_prev_block()?;
             if self.disk_buf_pos > 0 {
-                #[allow(clippy::arithmetic_side_effects)]
-                {
-                    self.disk_buf_pos -= 1;
-                }
+                self.disk_buf_pos = self
+                    .disk_buf_pos
+                    .checked_sub(1)
+                    .assume("disk_buf_pos > 0 checked above")?;
                 return Ok(Some(self.disk_buf[self.disk_buf_pos]));
             }
         }
@@ -206,17 +211,20 @@ impl<'a> BraidIter<'a> {
 
     fn load_prev_block(&mut self) -> Result<(), ClientError> {
         let count = self.disk_remaining.min(BRAID_BLOCK_ENTRIES);
-        #[allow(clippy::arithmetic_side_effects)]
-        let start = self.disk_remaining - count;
+        let start = self
+            .disk_remaining
+            .checked_sub(count)
+            .assume("count <= disk_remaining by min")?;
 
-        let file = self.file.as_ref().expect("spill file must exist");
+        let file = self.file.as_ref().assume("spill file must exist")?;
 
         self.disk_buf.clear();
-        let mut offset = start.wrapping_mul(LOCATION_BYTES);
+        let mut offset = start
+            .checked_mul(LOCATION_BYTES)
+            .assume("disk offset must not overflow")?;
         for _ in 0..count {
             let mut buf = [0u8; LOCATION_BYTES];
-            file.read_at(offset, &mut buf)
-                .map_err(|_| StorageError::Bug(Bug::new("braid spill file I/O error")))?;
+            file.read_at(offset, &mut buf)?;
             // buf is [u8; 16], slices are exactly 8 bytes — infallible.
             #[allow(clippy::unwrap_used)]
             let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
@@ -226,7 +234,9 @@ impl<'a> BraidIter<'a> {
                 crate::SegmentIndex(segment),
                 crate::MaxCut(max_cut),
             ));
-            offset = offset.wrapping_add(LOCATION_BYTES);
+            offset = offset
+                .checked_add(LOCATION_BYTES)
+                .assume("disk offset must not overflow")?;
         }
         self.disk_buf_pos = self.disk_buf.len();
         self.disk_remaining = start;
@@ -298,12 +308,9 @@ pub(super) fn braid<S: Storage>(
             }
 
             // Convergence check (incremental BFS, O(1) amortized).
-            match convergence.should_continue(storage, location)? {
-                convergence_map::Convergence::Drop => {
-                    trace!("prior {location} convergence drop");
-                    continue 'location;
-                }
-                convergence_map::Convergence::Continue => {}
+            if !convergence.should_continue(storage, location)? {
+                trace!("prior {location} convergence drop");
+                continue 'location;
             }
 
             trace!("strand at {location}");
@@ -444,5 +451,82 @@ mod strand_heap {
         pub fn iter(&self) -> impl Iterator<Item = &Strand<S>> {
             self.heap.iter()
         }
+    }
+}
+
+#[cfg(test)]
+mod braid_result_tests {
+    use super::*;
+    use crate::{MaxCut, SegmentIndex};
+
+    fn loc(seg: usize, cut: usize) -> Location {
+        Location::new(SegmentIndex(seg), MaxCut(cut))
+    }
+
+    #[test]
+    fn empty_result_yields_nothing() {
+        let mut result = BraidResult::new();
+        let mut iter = result.iter().unwrap();
+        assert!(iter.next().unwrap().is_none());
+    }
+
+    #[test]
+    fn single_entry() {
+        let mut result = BraidResult::new();
+        result.push(loc(0, 1)).unwrap();
+        let mut iter = result.iter().unwrap();
+        assert_eq!(iter.next().unwrap(), Some(loc(0, 1)));
+        assert!(iter.next().unwrap().is_none());
+    }
+
+    #[test]
+    fn yields_in_reverse_push_order() {
+        let mut result = BraidResult::new();
+        result.push(loc(0, 3)).unwrap();
+        result.push(loc(1, 2)).unwrap();
+        result.push(loc(2, 1)).unwrap();
+
+        let mut iter = result.iter().unwrap();
+        assert_eq!(iter.next().unwrap(), Some(loc(2, 1)));
+        assert_eq!(iter.next().unwrap(), Some(loc(1, 2)));
+        assert_eq!(iter.next().unwrap(), Some(loc(0, 3)));
+        assert!(iter.next().unwrap().is_none());
+    }
+
+    #[test]
+    fn spill_to_disk_and_iterate() {
+        let mut result = BraidResult::new();
+        // Push more than BRAID_BLOCK_ENTRIES (256) to force a disk spill.
+        let total = BRAID_BLOCK_ENTRIES + 10;
+        for i in 0..total {
+            result.push(loc(i, i)).unwrap();
+        }
+        assert!(result.spill_file.is_some());
+        assert!(result.spill_len > 0);
+
+        let mut iter = result.iter().unwrap();
+        // Should yield in reverse push order.
+        for i in (0..total).rev() {
+            let entry = iter.next().unwrap().unwrap();
+            assert_eq!(entry, loc(i, i), "mismatch at reverse index {i}");
+        }
+        assert!(iter.next().unwrap().is_none());
+    }
+
+    #[test]
+    fn multiple_spills() {
+        let mut result = BraidResult::new();
+        // Push 3 full blocks worth to force multiple spills.
+        let total = BRAID_BLOCK_ENTRIES * 3 + 5;
+        for i in 0..total {
+            result.push(loc(i, i)).unwrap();
+        }
+
+        let mut iter = result.iter().unwrap();
+        for i in (0..total).rev() {
+            let entry = iter.next().unwrap().unwrap();
+            assert_eq!(entry, loc(i, i), "mismatch at reverse index {i}");
+        }
+        assert!(iter.next().unwrap().is_none());
     }
 }

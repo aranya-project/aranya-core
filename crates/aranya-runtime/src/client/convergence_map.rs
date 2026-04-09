@@ -1,3 +1,5 @@
+use buggy::BugExt as _;
+
 use crate::{
     ClientError, Location, MaxCut, Segment as _, Storage, StorageError, TempFile,
     storage::TraversalQueue,
@@ -7,18 +9,15 @@ use crate::{
 const BLOCK_ENTRIES: usize = 170;
 /// Number of in-memory blocks.
 const NUM_BLOCKS: usize = 3;
+/// Maximum entries in the root index (3 × BLOCK_ENTRIES).
+/// Each root entry points to one spilled block, so this supports
+/// up to 510 × 170 = 86,700 convergence points before overflow.
+const ROOT_CAPACITY: usize = BLOCK_ENTRIES * 3;
 /// Size of one entry on disk: 3 × u64 = 24 bytes.
 const ENTRY_BYTES: usize = 24;
 /// Size of one block on disk.
 const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 
-/// Result of a convergence check.
-pub enum Convergence {
-    /// Not a convergence point, or last arrival — strand continues.
-    Continue,
-    /// Convergence point, not last arrival — drop strand.
-    Drop,
-}
 
 /// A convergence point: location and remaining arrival count.
 #[derive(Clone, Copy)]
@@ -104,27 +103,32 @@ impl Block {
         self.max_max_cut = MaxCut(0);
     }
 
-    fn to_bytes(&self) -> [u8; BLOCK_BYTES] {
+    fn to_bytes(&self) -> Result<[u8; BLOCK_BYTES], ClientError> {
         let mut buf = [0u8; BLOCK_BYTES];
         for (i, entry) in self.entries.iter().enumerate() {
-            let offset = i.wrapping_mul(ENTRY_BYTES);
-            buf[offset..offset.wrapping_add(ENTRY_BYTES)].copy_from_slice(&entry.to_bytes());
+            let offset = i.checked_mul(ENTRY_BYTES).assume("block offset must not overflow")?;
+            let end = offset
+                .checked_add(ENTRY_BYTES)
+                .assume("block end must not overflow")?;
+            buf[offset..end].copy_from_slice(&entry.to_bytes());
         }
-        buf
+        Ok(buf)
     }
 
-    #[allow(clippy::unwrap_used)] // infallible: slice is exactly ENTRY_BYTES
-    fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Self {
+    fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Result<Self, ClientError> {
         let mut block = Self::new();
         for i in 0..num_entries {
-            let offset = i.wrapping_mul(ENTRY_BYTES);
-            let entry_bytes: &[u8; ENTRY_BYTES] = buf[offset..offset.wrapping_add(ENTRY_BYTES)]
+            let offset = i.checked_mul(ENTRY_BYTES).assume("block offset must not overflow")?;
+            let end = offset
+                .checked_add(ENTRY_BYTES)
+                .assume("block end must not overflow")?;
+            let entry_bytes: &[u8; ENTRY_BYTES] = buf[offset..end]
                 .try_into()
-                .unwrap();
+                .assume("slice is exactly ENTRY_BYTES")?;
             let entry = Entry::from_bytes(entry_bytes);
             block.insert(entry);
         }
-        block
+        Ok(block)
     }
 }
 
@@ -137,7 +141,7 @@ impl Block {
 pub struct ConvergenceMap {
     blocks: [Block; NUM_BLOCKS],
     active_block: usize,
-    root: heapless::Vec<NodeEntry, BLOCK_ENTRIES>,
+    root: heapless::Vec<NodeEntry, ROOT_CAPACITY>,
     queue: TraversalQueue,
     lca: Location,
     access_counter: u32,
@@ -194,27 +198,25 @@ impl ConvergenceMap {
         }
 
         let file = match &self.spill_file {
-            Some(_) => self.spill_file.as_ref().expect("just checked"),
+            Some(_) => self.spill_file.as_ref().assume("just checked")?,
             None => {
                 self.spill_file = Some(TempFile::new()?);
-                self.spill_file.as_ref().expect("just created")
+                self.spill_file.as_ref().assume("just created")?
             }
         };
 
-        let data = block.to_bytes();
+        let data = block.to_bytes()?;
         let num_entries = block.entries.len();
         let offset = self.next_file_offset;
 
-        file.write_at(offset, &data[..num_entries.wrapping_mul(ENTRY_BYTES)])
-            .map_err(|_| StorageError::Bug(buggy::Bug::new("convergence spill file I/O error")))?;
+        let byte_len = num_entries
+            .checked_mul(ENTRY_BYTES)
+            .assume("spill byte length must not overflow")?;
+        file.write_at(offset, &data[..byte_len])?;
 
         // Add to root index.
         if self.root.is_full() {
-            // Root overflow — for now treat as error.
-            // This requires > 28,900 convergence points.
-            return Err(
-                StorageError::Bug(buggy::Bug::new("convergence root index overflow")).into(),
-            );
+            return Err(StorageError::ConvergenceRootOverflow(ROOT_CAPACITY).into());
         }
         let _ = self.root.push(NodeEntry {
             min_max_cut: block.min_max_cut,
@@ -223,7 +225,9 @@ impl ConvergenceMap {
             num_entries,
         });
 
-        self.next_file_offset = offset.wrapping_add(num_entries.wrapping_mul(ENTRY_BYTES));
+        self.next_file_offset = offset
+            .checked_add(byte_len)
+            .assume("next file offset must not overflow")?;
 
         // Clear and reuse.
         self.blocks[lru].clear();
@@ -238,16 +242,17 @@ impl ConvergenceMap {
         let file = self
             .spill_file
             .as_ref()
-            .expect("spill file must exist if root has entries");
+            .assume("spill file must exist if root has entries")?;
 
         let num_entries = node.num_entries;
-        let byte_len = num_entries.wrapping_mul(ENTRY_BYTES);
+        let byte_len = num_entries
+            .checked_mul(ENTRY_BYTES)
+            .assume("disk byte length must not overflow")?;
 
         let mut buf = [0u8; BLOCK_BYTES];
-        file.read_at(node.file_offset, &mut buf[..byte_len])
-            .map_err(|_| StorageError::Bug(buggy::Bug::new("convergence spill file I/O error")))?;
+        file.read_at(node.file_offset, &mut buf[..byte_len])?;
 
-        Ok(Block::load_from_bytes(&buf, num_entries))
+        Block::load_from_bytes(&buf, num_entries)
     }
 
     /// Load a spilled block into memory, evicting the LRU block.
@@ -279,8 +284,8 @@ impl ConvergenceMap {
 
             let (loc, count) = self
                 .queue
-                .pop_duplicates()
-                .expect("queue is non-empty after peek");
+                .pop_duplicates()?
+                .assume("queue is non-empty after peek")?;
 
             if loc.max_cut <= self.lca.max_cut {
                 continue;
@@ -318,18 +323,23 @@ impl ConvergenceMap {
         None
     }
 
-    /// Decrement or remove an entry, returning the appropriate Convergence.
-    fn consume_entry(&mut self, block_idx: usize, entry_idx: usize) -> Convergence {
+    /// Decrement or remove an entry, returning whether the strand should continue.
+    fn consume_entry(
+        &mut self,
+        block_idx: usize,
+        entry_idx: usize,
+    ) -> Result<bool, ClientError> {
         self.blocks[block_idx].last_accessed = self.access_counter;
         if self.blocks[block_idx].entries[entry_idx].count > 1 {
-            #[allow(clippy::arithmetic_side_effects)] // safe: count > 1
-            {
-                self.blocks[block_idx].entries[entry_idx].count -= 1;
-            }
-            Convergence::Drop
+            self.blocks[block_idx].entries[entry_idx].count = self.blocks[block_idx].entries
+                [entry_idx]
+                .count
+                .checked_sub(1)
+                .assume("count > 1 checked above")?;
+            Ok(false)
         } else {
             self.blocks[block_idx].entries.swap_remove(entry_idx);
-            Convergence::Continue
+            Ok(true)
         }
     }
 
@@ -338,25 +348,24 @@ impl ConvergenceMap {
     /// Advances the BFS as needed, then looks up the location in
     /// memory and on disk.
     ///
-    /// Returns:
-    /// - `Continue`: not a convergence point, or last arrival.
-    /// - `Drop`: convergence point, not last arrival.
+    /// Returns `true` if the strand should continue (not a convergence
+    /// point, or last arrival), `false` if it should be dropped.
     pub fn should_continue<S: Storage>(
         &mut self,
         storage: &mut S,
         location: Location,
-    ) -> Result<Convergence, ClientError> {
-        #[allow(clippy::arithmetic_side_effects)]
-        {
-            self.access_counter += 1;
-        }
+    ) -> Result<bool, ClientError> {
+        self.access_counter = self
+            .access_counter
+            .checked_add(1)
+            .assume("access_counter must not overflow")?;
 
         // Advance BFS to cover the query location.
         self.advance_to(storage, location.max_cut)?;
 
         // Check in-memory blocks.
         if let Some((bi, ei)) = self.find_in_memory(location) {
-            return Ok(self.consume_entry(bi, ei));
+            return self.consume_entry(bi, ei);
         }
 
         // Check spilled blocks on disk.
@@ -368,18 +377,15 @@ impl ConvergenceMap {
                     // Load block into memory (removes root[ri] via swap_remove).
                     let bi = self.load_block_from_disk(ri)?;
                     if let Some(ei) = self.blocks[bi].find(location) {
-                        return Ok(self.consume_entry(bi, ei));
+                        return self.consume_entry(bi, ei);
                     }
                     // Don't increment ri — swap_remove moved a new entry here.
                 } else {
-                    #[allow(clippy::arithmetic_side_effects)]
-                    {
-                        ri += 1;
-                    }
+                    ri = ri.checked_add(1).assume("ri must not overflow")?;
                 }
             }
         }
 
-        Ok(Convergence::Continue)
+        Ok(true)
     }
 }

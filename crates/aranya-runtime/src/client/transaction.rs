@@ -128,9 +128,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 }
                 let command = policy.merge(&mut buf, merge_ids)?;
 
-                let (braid, last_common_ancestor) = make_braid_segment::<_, PS>(
-                    storage, left_loc, right_loc, sink, policy,
-                )?;
+                let (braid, last_common_ancestor) =
+                    make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy)?;
 
                 let mut perspective = storage.new_merge_perspective(
                     left_loc,

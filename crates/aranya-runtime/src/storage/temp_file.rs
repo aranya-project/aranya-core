@@ -22,8 +22,8 @@ impl TempFile {
     /// is cleaned up when the fd is closed.
     pub fn new() -> Result<Self, StorageError> {
         use aranya_libc::{
-            self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, Path,
-            S_IRUSR, S_IWUSR,
+            self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, Path, S_IRUSR,
+            S_IWUSR,
         };
 
         static COUNTER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
@@ -118,7 +118,9 @@ impl TempFile {
     /// Write `buf` at the given byte offset, extending if needed.
     pub fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
         let mut buf = self.buf.borrow_mut();
-        let end = offset.checked_add(data.len()).ok_or(StorageError::IoError)?;
+        let end = offset
+            .checked_add(data.len())
+            .ok_or(StorageError::IoError)?;
         if end > buf.len() {
             buf.resize(end, 0);
         }
@@ -129,7 +131,9 @@ impl TempFile {
     /// Read exactly `buf.len()` bytes starting at the given byte offset.
     pub fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError> {
         let buf = self.buf.borrow();
-        let end = offset.checked_add(data.len()).ok_or(StorageError::IoError)?;
+        let end = offset
+            .checked_add(data.len())
+            .ok_or(StorageError::IoError)?;
         let src = buf.get(offset..end).ok_or(StorageError::IoError)?;
         data.copy_from_slice(src);
         Ok(())
