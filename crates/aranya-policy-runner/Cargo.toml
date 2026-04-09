@@ -13,7 +13,6 @@ publish = false
 [lib]
 
 [dependencies]
-anyhow = { workspace = true }
 aranya-afc-util = { version = "0.23.0", path = "../aranya-afc-util" }
 aranya-crypto = { version = "0.14.0", path = "../aranya-crypto", features = ["fs-keystore", "memstore"] }
 aranya-crypto-ffi = { version = "0.21.0", path = "../aranya-crypto-ffi" }
@@ -25,6 +24,8 @@ aranya-policy-compiler = { version = "0.22.0", path = "../aranya-policy-compiler
 aranya-policy-lang = { version = "0.14.1", path = "../aranya-policy-lang" }
 aranya-policy-vm = { version = "0.21.0", path = "../aranya-policy-vm" }
 aranya-runtime = { version = "0.22.0", path = "../aranya-runtime", features = ["std", "libc"] }
+
+anyhow = { workspace = true }
 clap = { version = "4.5", features = ["derive"] }
 postcard = { workspace = true }
 rand = { workspace = true, features = ["std_rng"] }
