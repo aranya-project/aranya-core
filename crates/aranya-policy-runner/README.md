@@ -12,10 +12,10 @@ policy-runner [OPTIONS] <POLICY> [RUNS]...
 ```
 
 At its most basic, you must specify a policy document and one or more
-["run files"](#run-files). The run files specify the actions and command
-that are run on the policy. As effects are committed, they are printed
-to the output. For more information, see the command's help output
-(`policy-runner --help`).
+["run files"](#run-files). The run files specify the actions and
+commands that are run on the policy. As effects are emitted, they are
+printed to the output. For more information, see the command's help
+output (`policy-runner --help`).
 
 ### Run Files
 
