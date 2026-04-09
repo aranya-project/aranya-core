@@ -132,7 +132,7 @@ impl TraversalQueue {
 
     /// Enqueues a location without deduplication.
     ///
-    /// Unlike [`push`], each call adds a new entry even if the location
+    /// Unlike [`Self::push`], each call adds a new entry even if the location
     /// is already present. Used by the convergence pre-pass where
     /// duplicate tracking is needed.
     pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
