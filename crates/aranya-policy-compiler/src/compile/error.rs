@@ -76,6 +76,10 @@ pub enum CompileErrorType {
     /// A match arm can never be reached because a previous arm already covered it.
     #[error("unreachable match arm")]
     UnreachableMatchArm,
+    /// A literal pattern in an alternation is redundant because a binding
+    /// in the same arm already matches all values of that variant.
+    #[error("redundant literal pattern in same arm — binding already matches all values")]
+    RedundantMatchArm,
     /// Todo found
     #[error("todo found")]
     TodoFound,
