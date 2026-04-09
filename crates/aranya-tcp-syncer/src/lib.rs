@@ -305,7 +305,12 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().expect("poisoned");
                         let sink = sink_guard.deref_mut();
-                        client.add_commands::<TempFile>(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
+                        client.add_commands::<TempFile>(
+                            &mut trx,
+                            sink,
+                            &cmds,
+                            &mut self.buffers.primary,
+                        )?;
                         client.commit::<TempFile>(trx, sink, &mut self.buffers.primary)?;
                         client.update_heads(
                             graph_id,
