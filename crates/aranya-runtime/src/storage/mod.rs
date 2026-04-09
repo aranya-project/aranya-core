@@ -20,6 +20,16 @@ mod temp_file;
 #[cfg(any(feature = "libc", feature = "testing"))]
 pub use temp_file::TempFile;
 
+/// Temporary scratch file for spilling data to disk.
+pub trait ScratchFile: Sized {
+    /// Create a new scratch file.
+    fn new() -> Result<Self, StorageError>;
+    /// Write `data` at the given byte offset.
+    fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
+    /// Read exactly `data.len()` bytes starting at the given byte offset.
+    fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError>;
+}
+
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"

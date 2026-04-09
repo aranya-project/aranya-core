@@ -6,7 +6,7 @@ use tracing::error;
 use crate::{
     Address, CmdId, Command, GraphId, PeerCache, Perspective as _, Policy, PolicyError,
     PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffer,
-    policy::ActionPlacement,
+    policy::ActionPlacement, storage::ScratchFile,
 };
 
 mod braiding;
@@ -129,26 +129,26 @@ where
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     ///
     /// Returns whether any new commands were added.
-    pub fn commit(
+    pub fn commit<F: ScratchFile>(
         &mut self,
         trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         buffer: &mut TraversalBuffer,
     ) -> Result<bool, ClientError> {
-        trx.commit(&mut self.provider, &mut self.policy_store, sink, buffer)
+        trx.commit::<F>(&mut self.provider, &mut self.policy_store, sink, buffer)
     }
 
     /// Add commands to the transaction, writing the results to
     /// `sink`.
     /// Returns the number of commands that were added.
-    pub fn add_commands(
+    pub fn add_commands<F: ScratchFile>(
         &mut self,
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
         buffer: &mut TraversalBuffer,
     ) -> Result<usize, ClientError> {
-        trx.add_commands(
+        trx.add_commands::<F>(
             commands,
             &mut self.provider,
             &mut self.policy_store,

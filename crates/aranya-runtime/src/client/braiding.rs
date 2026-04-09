@@ -2,7 +2,8 @@ use buggy::{Bug, BugExt as _};
 use tracing::trace;
 
 use crate::{
-    ClientError, Location, Prior, Segment as _, Storage, StorageError, storage::TraversalBuffer,
+    ClientError, Location, Prior, Segment as _, Storage, StorageError,
+    storage::{ScratchFile, TraversalBuffer},
 };
 
 /// Returns the last common ancestor of two Locations.
@@ -80,13 +81,13 @@ const BRAID_BLOCK_ENTRIES: usize = 256;
 const LOCATION_BYTES: usize = 16;
 
 /// Accumulates braid locations and iterates them in reverse push order.
-pub(super) struct BraidResult {
+pub(super) struct BraidResult<F> {
     mem: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
-    spill_file: Option<crate::storage::TempFile>,
+    spill_file: Option<F>,
     spill_len: usize, // total locations written to disk
 }
 
-impl BraidResult {
+impl<F: ScratchFile> BraidResult<F> {
     fn new() -> Self {
         Self {
             mem: heapless::Vec::new(),
@@ -108,7 +109,7 @@ impl BraidResult {
         let file = match self.spill_file.as_ref() {
             Some(f) => f,
             None => {
-                self.spill_file = Some(crate::storage::TempFile::new()?);
+                self.spill_file = Some(F::new()?);
                 self.spill_file.as_ref().assume("just inserted")?
             }
         };
@@ -138,7 +139,7 @@ impl BraidResult {
 
     /// Returns an iterator that yields locations in forward braid order
     /// (reversed from push order).
-    pub fn iter(&mut self) -> Result<BraidIter<'_>, ClientError> {
+    pub fn iter(&mut self) -> Result<BraidIter<'_, F>, ClientError> {
         BraidIter::new(self)
     }
 }
@@ -150,18 +151,18 @@ impl BraidResult {
 ///
 /// Does not implement [`Iterator`] because iteration is fallible
 /// (disk reads may fail). Use [`next`](Self::next) directly.
-pub(super) struct BraidIter<'a> {
+pub(super) struct BraidIter<'a, F> {
     /// In-memory entries, reversed for forward iteration.
     mem: &'a [Location],
     mem_pos: usize,
-    file: Option<&'a crate::storage::TempFile>,
+    file: Option<&'a F>,
     disk_remaining: usize,
     disk_buf: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
     disk_buf_pos: usize,
 }
 
-impl<'a> BraidIter<'a> {
-    fn new(result: &'a mut BraidResult) -> Result<Self, ClientError> {
+impl<'a, F: ScratchFile> BraidIter<'a, F> {
+    fn new(result: &'a mut BraidResult<F>) -> Result<Self, ClientError> {
         Ok(Self {
             mem: result.mem.as_slice(),
             mem_pos: result.mem.len(),
@@ -250,13 +251,13 @@ impl<'a> BraidIter<'a> {
 /// multiple paths. During braiding, each prior location is checked against
 /// the convergence map for O(1) ancestor detection, replacing the previous
 /// O(k) `is_ancestor` BFS per strand.
-pub(super) fn braid<S: Storage>(
+pub(super) fn braid<S: Storage, F: ScratchFile>(
     storage: &mut S,
     left: Location,
     right: Location,
     lca: Location,
     buffer: &mut TraversalBuffer,
-) -> Result<BraidResult, ClientError> {
+) -> Result<BraidResult<F>, ClientError> {
     use strand_heap::{Strand, StrandHeap};
 
     let mut braid = BraidResult::new();
@@ -264,7 +265,8 @@ pub(super) fn braid<S: Storage>(
 
     trace!(%left, %right, %lca, "braiding");
 
-    let mut convergence = convergence_map::ConvergenceMap::new(left, right, lca, buffer.get())?;
+    let mut convergence =
+        convergence_map::ConvergenceMap::<F>::new(left, right, lca, buffer.get())?;
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head, None)?)?;
@@ -456,7 +458,9 @@ mod strand_heap {
 #[cfg(test)]
 mod braid_result_tests {
     use super::*;
-    use crate::{MaxCut, SegmentIndex};
+    use crate::{MaxCut, SegmentIndex, TempFile};
+
+    type TestBraidResult = BraidResult<TempFile>;
 
     fn loc(seg: usize, cut: usize) -> Location {
         Location::new(SegmentIndex(seg), MaxCut(cut))
@@ -464,14 +468,14 @@ mod braid_result_tests {
 
     #[test]
     fn empty_result_yields_nothing() {
-        let mut result = BraidResult::new();
+        let mut result = TestBraidResult::new();
         let mut iter = result.iter().unwrap();
         assert!(iter.next().unwrap().is_none());
     }
 
     #[test]
     fn single_entry() {
-        let mut result = BraidResult::new();
+        let mut result = TestBraidResult::new();
         result.push(loc(0, 1)).unwrap();
         let mut iter = result.iter().unwrap();
         assert_eq!(iter.next().unwrap(), Some(loc(0, 1)));
@@ -480,7 +484,7 @@ mod braid_result_tests {
 
     #[test]
     fn yields_in_reverse_push_order() {
-        let mut result = BraidResult::new();
+        let mut result = TestBraidResult::new();
         result.push(loc(0, 3)).unwrap();
         result.push(loc(1, 2)).unwrap();
         result.push(loc(2, 1)).unwrap();
@@ -494,7 +498,7 @@ mod braid_result_tests {
 
     #[test]
     fn spill_to_disk_and_iterate() {
-        let mut result = BraidResult::new();
+        let mut result = TestBraidResult::new();
         // Push more than BRAID_BLOCK_ENTRIES (256) to force a disk spill.
         let total = BRAID_BLOCK_ENTRIES + 10;
         for i in 0..total {
@@ -514,7 +518,7 @@ mod braid_result_tests {
 
     #[test]
     fn multiple_spills() {
-        let mut result = BraidResult::new();
+        let mut result = TestBraidResult::new();
         // Push 3 full blocks worth to force multiple spills.
         let total = BRAID_BLOCK_ENTRIES * 3 + 5;
         for i in 0..total {

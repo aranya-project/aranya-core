@@ -5,7 +5,7 @@
 //!   the same APIs used by `linear::libc`.
 //! - `testing`: in-memory `Vec<u8>` buffer (when libc is not available).
 
-use crate::StorageError;
+use crate::{StorageError, storage::ScratchFile};
 
 #[cfg(all(feature = "testing", not(feature = "libc")))]
 use alloc::vec::Vec;
@@ -18,12 +18,8 @@ pub struct TempFile {
 }
 
 #[cfg(feature = "libc")]
-impl TempFile {
-    /// Create a new temporary file.
-    ///
-    /// The file is created in `/tmp` and immediately unlinked so it
-    /// is cleaned up when the fd is closed.
-    pub fn new() -> Result<Self, StorageError> {
+impl ScratchFile for TempFile {
+    fn new() -> Result<Self, StorageError> {
         use aranya_libc::{
             self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, Path, S_IRUSR,
             S_IWUSR,
@@ -55,8 +51,7 @@ impl TempFile {
         })
     }
 
-    /// Write `buf` at the given byte offset.
-    pub fn write_at(&self, offset: usize, buf: &[u8]) -> Result<(), StorageError> {
+    fn write_at(&self, offset: usize, buf: &[u8]) -> Result<(), StorageError> {
         use aranya_libc::{self as libc, Errno};
         use buggy::BugExt as _;
 
@@ -78,8 +73,7 @@ impl TempFile {
         Ok(())
     }
 
-    /// Read exactly `buf.len()` bytes starting at the given byte offset.
-    pub fn read_at(&self, offset: usize, buf: &mut [u8]) -> Result<(), StorageError> {
+    fn read_at(&self, offset: usize, buf: &mut [u8]) -> Result<(), StorageError> {
         use aranya_libc::{self as libc, Errno};
         use buggy::BugExt as _;
 
@@ -110,16 +104,14 @@ pub struct TempFile {
 }
 
 #[cfg(all(feature = "testing", not(feature = "libc")))]
-impl TempFile {
-    /// Create a new in-memory temporary file.
-    pub fn new() -> Result<Self, StorageError> {
+impl ScratchFile for TempFile {
+    fn new() -> Result<Self, StorageError> {
         Ok(Self {
             buf: core::cell::RefCell::new(Vec::new()),
         })
     }
 
-    /// Write `buf` at the given byte offset, extending if needed.
-    pub fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
+    fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
         let mut buf = self.buf.borrow_mut();
         let end = offset
             .checked_add(data.len())
@@ -131,8 +123,7 @@ impl TempFile {
         Ok(())
     }
 
-    /// Read exactly `buf.len()` bytes starting at the given byte offset.
-    pub fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError> {
+    fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError> {
         let buf = self.buf.borrow();
         let end = offset
             .checked_add(data.len())

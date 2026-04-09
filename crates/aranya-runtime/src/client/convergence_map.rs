@@ -1,8 +1,8 @@
 use buggy::BugExt as _;
 
 use crate::{
-    ClientError, Location, MaxCut, Segment as _, Storage, StorageError, TempFile,
-    storage::TraversalQueue,
+    ClientError, Location, MaxCut, Segment as _, Storage, StorageError,
+    storage::{ScratchFile, TraversalQueue},
 };
 
 /// Maximum entries per block.
@@ -141,18 +141,18 @@ impl Block {
 /// fills, the least-recently-accessed block is spilled to a temp
 /// file. An in-memory root index maps max_cut ranges to file
 /// offsets for O(1) block lookup.
-pub struct ConvergenceMap<'a> {
+pub struct ConvergenceMap<'a, F> {
     blocks: [Block; NUM_BLOCKS],
     active_block: usize,
     root: heapless::Vec<NodeEntry, ROOT_CAPACITY>,
     queue: &'a mut TraversalQueue,
     lca: Location,
     access_counter: u32,
-    spill_file: Option<TempFile>,
+    spill_file: Option<F>,
     next_file_offset: usize,
 }
 
-impl<'a> ConvergenceMap<'a> {
+impl<'a, F: ScratchFile> ConvergenceMap<'a, F> {
     /// Create a new convergence map with BFS seeded from `left` and `right`.
     pub fn new(
         left: Location,
@@ -207,7 +207,7 @@ impl<'a> ConvergenceMap<'a> {
         let file = match &self.spill_file {
             Some(_) => self.spill_file.as_ref().assume("just checked")?,
             None => {
-                self.spill_file = Some(TempFile::new()?);
+                self.spill_file = Some(F::new()?);
                 self.spill_file.as_ref().assume("just created")?
             }
         };

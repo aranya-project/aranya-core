@@ -68,7 +68,7 @@ use tracing::{debug, error};
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
     Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType, TempFile,
     TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -1012,9 +1012,13 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received =
-            request_state.add_commands(&mut request_trx, sink, &cmds, &mut buffers.primary)?;
-        request_state.commit(request_trx, sink, &mut buffers.primary)?;
+        received = request_state.add_commands::<TempFile>(
+            &mut request_trx,
+            sink,
+            &cmds,
+            &mut buffers.primary,
+        )?;
+        request_state.commit::<TempFile>(request_trx, sink, &mut buffers.primary)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
