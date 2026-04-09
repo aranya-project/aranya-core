@@ -42,26 +42,12 @@ enum OutputDestination {
     File(fs::File),
 }
 
-impl Clone for OutputDestination {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Stdout => Self::Stdout,
-            Self::File(f) => {
-                // As far as I can tell, this can only fail if the OS refuses to duplicate the
-                // underlying FD (e.g. you've hit the ulimit). So assuming this will succeed seems
-                // more or less on the same level as assuming a memory allocation will succeed.
-                Self::File(f.try_clone().expect("cannot clone file"))
-            }
-        }
-    }
-}
-
 /// A `RunSchedule` keeps track of which action thunks are associated
 /// with which file, so they can be run in sequence.
 struct RunSchedule<'a> {
-    pub file_path: &'a Path,
-    pub preamble_values: Vec<Value>,
-    pub thunk_range: Range<usize>,
+    file_path: &'a Path,
+    preamble_values: Vec<Value>,
+    thunk_range: Range<usize>,
 }
 
 /// The core Policy Runner object
@@ -83,7 +69,7 @@ struct RunSchedule<'a> {
 /// | `with_deterministic_rng(bool)` | Use a deterministic RNG implementation. |
 /// | `with_marker(bool)` | Print a marker between run files that shows which run file is producing the effects. |
 /// | `with_validator(bool)` | Run the compiler validator before execution. |
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[must_use]
 pub struct PolicyRunner {
     working_directory: WorkingDirectory,
