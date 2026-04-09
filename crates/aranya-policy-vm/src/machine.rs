@@ -407,7 +407,7 @@ where
     }
 
     /// Access the scope manager to read or change defined variables.
-    pub fn scope(&mut self) -> &ScopeManager<'_> {
+    pub fn scope(&self) -> &ScopeManager<'_> {
         &self.scope
     }
 
