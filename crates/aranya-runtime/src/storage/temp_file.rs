@@ -7,6 +7,9 @@
 
 use crate::StorageError;
 
+#[cfg(all(feature = "testing", not(feature = "libc")))]
+use alloc::vec::Vec;
+
 // --- libc backend ---
 
 #[cfg(feature = "libc")]
@@ -103,7 +106,7 @@ impl TempFile {
 
 #[cfg(all(feature = "testing", not(feature = "libc")))]
 pub struct TempFile {
-    buf: core::cell::RefCell<alloc::vec::Vec<u8>>,
+    buf: core::cell::RefCell<Vec<u8>>,
 }
 
 #[cfg(all(feature = "testing", not(feature = "libc")))]
@@ -111,7 +114,7 @@ impl TempFile {
     /// Create a new in-memory temporary file.
     pub fn new() -> Result<Self, StorageError> {
         Ok(Self {
-            buf: core::cell::RefCell::new(alloc::vec::Vec::new()),
+            buf: core::cell::RefCell::new(Vec::new()),
         })
     }
 

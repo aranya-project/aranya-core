@@ -1,7 +1,9 @@
 use buggy::{Bug, BugExt as _};
 use tracing::trace;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage, StorageError, storage::TraversalBuffer};
+use crate::{
+    ClientError, Location, Prior, Segment as _, Storage, StorageError, storage::TraversalBuffer,
+};
 
 /// Returns the last common ancestor of two Locations.
 ///
@@ -221,9 +223,11 @@ impl<'a> BraidIter<'a> {
             let mut buf = [0u8; LOCATION_BYTES];
             file.read_at(offset, &mut buf)?;
             let segment =
-                u64::from_le_bytes(buf[0..8].try_into().assume("slice is exactly 8 bytes")?) as usize;
+                u64::from_le_bytes(buf[0..8].try_into().assume("slice is exactly 8 bytes")?)
+                    as usize;
             let max_cut =
-                u64::from_le_bytes(buf[8..16].try_into().assume("slice is exactly 8 bytes")?) as usize;
+                u64::from_le_bytes(buf[8..16].try_into().assume("slice is exactly 8 bytes")?)
+                    as usize;
             let _ = self.disk_buf.push(Location::new(
                 crate::SegmentIndex(segment),
                 crate::MaxCut(max_cut),

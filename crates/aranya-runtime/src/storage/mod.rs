@@ -185,12 +185,7 @@ impl TraversalQueue {
 
     pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
         // Find the entry with the highest max_cut.
-        let Some((i, _)) = self
-            .entries
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, loc)| *loc)
-        else {
+        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
             return Ok(None);
         };
 

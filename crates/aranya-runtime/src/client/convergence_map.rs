@@ -18,7 +18,6 @@ const ENTRY_BYTES: usize = 24;
 /// Size of one block on disk.
 const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 
-
 /// A convergence point: location and remaining arrival count.
 #[derive(Clone, Copy)]
 struct Entry {
@@ -106,7 +105,9 @@ impl Block {
     fn to_bytes(&self) -> Result<[u8; BLOCK_BYTES], ClientError> {
         let mut buf = [0u8; BLOCK_BYTES];
         for (i, entry) in self.entries.iter().enumerate() {
-            let offset = i.checked_mul(ENTRY_BYTES).assume("block offset must not overflow")?;
+            let offset = i
+                .checked_mul(ENTRY_BYTES)
+                .assume("block offset must not overflow")?;
             let end = offset
                 .checked_add(ENTRY_BYTES)
                 .assume("block end must not overflow")?;
@@ -118,7 +119,9 @@ impl Block {
     fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Result<Self, ClientError> {
         let mut block = Self::new();
         for i in 0..num_entries {
-            let offset = i.checked_mul(ENTRY_BYTES).assume("block offset must not overflow")?;
+            let offset = i
+                .checked_mul(ENTRY_BYTES)
+                .assume("block offset must not overflow")?;
             let end = offset
                 .checked_add(ENTRY_BYTES)
                 .assume("block end must not overflow")?;
@@ -328,11 +331,7 @@ impl<'a> ConvergenceMap<'a> {
     }
 
     /// Decrement or remove an entry, returning whether the strand should continue.
-    fn consume_entry(
-        &mut self,
-        block_idx: usize,
-        entry_idx: usize,
-    ) -> Result<bool, ClientError> {
+    fn consume_entry(&mut self, block_idx: usize, entry_idx: usize) -> Result<bool, ClientError> {
         self.blocks[block_idx].last_accessed = self.access_counter;
         if self.blocks[block_idx].entries[entry_idx].count > 1 {
             self.blocks[block_idx].entries[entry_idx].count = self.blocks[block_idx].entries
