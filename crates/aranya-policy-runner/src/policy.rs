@@ -50,3 +50,48 @@ pub fn create_vmpolicy<CE: aranya_crypto::Engine>(
     tracing::debug!("Creating Policy Runtime");
     VmPolicy::new(machine, crypto_engine, ffis).context("unable to create `VmPolicy`")
 }
+
+#[cfg(test)]
+mod tests {
+    use aranya_crypto::{DeviceId, keystore::memstore::MemStore};
+    use aranya_runtime::FfiCallable;
+
+    use super::*;
+    use crate::SwitchableRng;
+
+    type TestCE = DefaultEngine<SwitchableRng>;
+
+    /// Verify that FFI_MODULES and the ffis vec in create_vmpolicy
+    /// have the same modules in the same order. A mismatch here would
+    /// cause the VM to call the wrong FFI module at runtime.
+    #[test]
+    fn ffi_module_order_matches() {
+        let keystore = MemStore::new();
+        let device_id = DeviceId::default();
+
+        // Build the ffis vec the same way create_vmpolicy does.
+        let ffis: Vec<Box<dyn FfiCallable<TestCE> + Send + 'static>> = vec![
+            Box::from(AfcFfi::new(keystore.clone())),
+            Box::from(CryptoFfi::new(keystore.clone())),
+            Box::from(DeviceFfi::new(device_id)),
+            Box::from(EnvelopeFfi),
+            Box::from(IdamFfi::new(keystore.clone())),
+            Box::from(PerspectiveFfi),
+        ];
+
+        assert_eq!(
+            ffis.len(),
+            FFI_MODULES.len(),
+            "FFI_MODULES and create_vmpolicy ffis have different lengths"
+        );
+        for (i, (ffi, schema)) in ffis.iter().zip(FFI_MODULES.iter()).enumerate() {
+            assert_eq!(
+                ffi.name(),
+                schema.name,
+                "FFI module at index {i}: runtime name {:?} != schema name {:?}",
+                ffi.name(),
+                schema.name
+            );
+        }
+    }
+}

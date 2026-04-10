@@ -16,6 +16,9 @@ use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
 pub trait FfiCallable<CE> {
+    /// Returns the module name.
+    fn name(&self) -> Identifier;
+
     /// Invokes a function in the module.
     fn call(
         &self,
@@ -31,6 +34,10 @@ where
     FM: FfiModule,
     CE: aranya_crypto::Engine,
 {
+    fn name(&self) -> Identifier {
+        Self::SCHEMA.name
+    }
+
     fn call(
         &self,
         procedure: usize,
