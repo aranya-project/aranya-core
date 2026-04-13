@@ -1,4 +1,4 @@
-use core::iter::DoubleEndedIterator;
+use core::{fmt, iter::DoubleEndedIterator};
 
 use aranya_crypto::Engine;
 use aranya_runtime::{
@@ -59,7 +59,7 @@ pub struct Client<CE, FM: IoManager> {
 
 impl<CE, FM: IoManager> Client<CE, FM> {
     /// Creates a new `Client`.
-    pub fn new(policy_store: VmPolicyStore<CE>, provider: LinearStorageProvider<FM>) -> Self {
+    pub const fn new(policy_store: VmPolicyStore<CE>, provider: LinearStorageProvider<FM>) -> Self {
         Self {
             inner: ClientState::new(policy_store, provider),
         }
@@ -68,6 +68,12 @@ impl<CE, FM: IoManager> Client<CE, FM> {
     /// Provides access to the [`LinearStorageProvider`].
     pub fn provider(&mut self) -> &mut LinearStorageProvider<FM> {
         self.inner.provider()
+    }
+}
+
+impl<CE, FM: IoManager> fmt::Debug for Client<CE, FM> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client").finish_non_exhaustive()
     }
 }
 
