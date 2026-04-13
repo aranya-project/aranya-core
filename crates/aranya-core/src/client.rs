@@ -59,10 +59,7 @@ pub struct Client<CE, FM: IoManager> {
 
 impl<CE, FM: IoManager> Client<CE, FM> {
     /// Creates a new `Client`.
-    pub const fn new(
-        policy_store: VmPolicyStore<CE>,
-        provider: LinearStorageProvider<FM>,
-    ) -> Self {
+    pub const fn new(policy_store: VmPolicyStore<CE>, provider: LinearStorageProvider<FM>) -> Self {
         Self {
             inner: ClientState::new(policy_store, provider),
         }

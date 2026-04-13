@@ -54,11 +54,12 @@ pub mod policy {
     //! used by [`crate::Client`].
 
     #[doc(inline)]
-    pub use crate::client::VmPolicyStore;
-    #[doc(inline)]
     pub use aranya_runtime::vm_policy::{
         FfiCallable, VmAction, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     };
+
+    #[doc(inline)]
+    pub use crate::client::VmPolicyStore;
 }
 
 pub mod sync {
