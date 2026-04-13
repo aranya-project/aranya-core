@@ -3,11 +3,15 @@
 //! This crate provides a curated, stable interface to the Aranya runtime.
 //! Types exported from this crate follow semver and will not introduce
 //! breaking changes without a major version bump.
+//!
+//! Cryptographic types and the reference engine are re-exported under
+//! [`crate::crypto`].
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 
 mod client;
+pub mod crypto;
 
 #[cfg(feature = "libc")]
 #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]

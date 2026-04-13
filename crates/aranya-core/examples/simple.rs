@@ -10,12 +10,12 @@ use anyhow::{Context as _, Result};
 use aranya_core::{
     Client, Command as _, FfiCallable, FileManager, GraphId, LinearStorageProvider, Sink,
     TraversalBuffer, TraversalBuffers, VmEffect, VmPolicy, VmPolicyStore,
+    crypto::{
+        DefaultCipherSuite, DefaultEngine, DeviceId, EncryptionKey, Identified, IdentityKey, Rng,
+        SigningKey,
+        keystore::{KeyStoreExt as _, MemStore},
+    },
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequester, SyncResponder, SyncType},
-};
-use aranya_crypto::{
-    DeviceId, EncryptionKey, IdentityKey, Rng, SigningKey,
-    default::{DefaultCipherSuite, DefaultEngine},
-    keystore::{KeyStoreExt as _, memstore::MemStore},
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -72,8 +72,8 @@ struct DeviceKeys {
     engine: CE,
     store: MemStore,
     device_id: DeviceId,
-    sign_id: <SigningKey<CS> as aranya_crypto::Identified>::Id,
-    enc_id: <EncryptionKey<CS> as aranya_crypto::Identified>::Id,
+    sign_id: <SigningKey<CS> as Identified>::Id,
+    enc_id: <EncryptionKey<CS> as Identified>::Id,
     ident_pk_bytes: Vec<u8>,
     sign_pk_bytes: Vec<u8>,
     enc_pk_bytes: Vec<u8>,
