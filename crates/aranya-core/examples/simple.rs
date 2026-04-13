@@ -8,8 +8,9 @@ use std::fs;
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    Client, Command as _, FfiCallable, FileManager, GraphId, LinearStorageProvider, Sink,
-    TraversalBuffer, TraversalBuffers, VmEffect, VmPolicy, VmPolicyStore,
+    Client, Command as _, GraphId, Sink, TraversalBuffer, TraversalBuffers,
+    policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore},
+    storage::{FileManager, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequester, SyncResponder, SyncType},
 };
 use aranya_crypto::{
