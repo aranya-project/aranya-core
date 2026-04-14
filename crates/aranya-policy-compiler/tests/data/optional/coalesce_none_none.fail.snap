@@ -1,0 +1,7 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: error
+---
+invalid type: Return value of `f()` must be int at line 2 col 5:
+	return None or None

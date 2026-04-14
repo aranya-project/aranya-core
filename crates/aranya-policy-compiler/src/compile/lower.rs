@@ -811,6 +811,34 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
+            ExprKind::Coalesce(lhs, rhs) => {
+                let lhs = self.lower_expression(lhs)?;
+                // Left must be optional<T>. If T is Never, e.g. `None or None`, it will fail unification with the right side
+                let inner_type = match &lhs.vtype {
+                    VType {
+                        kind: TypeKind::Optional(t),
+                        ..
+                    } => (**t).clone(),
+                    _ => {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Left side of `or` must be an optional type".into(),
+                        )));
+                    }
+                };
+                let rhs = self.lower_expression(rhs)?;
+                // Right must be T or Never; unify to get the result type.
+                let result_type =
+                    types::unify_pair(inner_type, rhs.vtype.clone()).map_err(|_| {
+                        self.err(CompileErrorType::InvalidType(
+                            "Right side of `or` must match the optional's inner type".into(),
+                        ))
+                    })?;
+                thir::Expression {
+                    kind: thir::ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
+                    vtype: result_type,
+                    span: expression.span,
+                }
+            }
             kind @ (ExprKind::And(a, b)
             | ExprKind::Or(a, b)
             | ExprKind::Equal(a, b)

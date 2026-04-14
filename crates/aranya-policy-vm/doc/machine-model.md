@@ -83,6 +83,7 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`lt`           | `( a b -- a&lt;b )`  | true if `a` is less than `b`, else false
 |`eq`           | `( a b -- a=b )`     | true if `a` is equal to `b`, else false
 |`as(n)`        | `( t -- t' )`        | replace a struct value with an equivalent struct of the given type
+|`or`           | `( o -- v )`         | optional coalescing: unwrap if `Some`, else evaluate fallback (compiled from `dup`, `is`, `branch`, `pop`, `unwrap`, `jump`)
 
 ## facts
 ||||
@@ -131,3 +132,4 @@ const 3                   Foo[]=>{} "x" 3
 fact.kset                 Foo[x: 3]=>{}
 query                     Foo[x: 3]=>{y: 4}
 ```
+

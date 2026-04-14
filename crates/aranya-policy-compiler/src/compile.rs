@@ -752,6 +752,25 @@ impl<'a> CompileState<'a> {
 
                 self.define_label(end, self.wp)?;
             }
+            thir::ExprKind::Coalesce(lhs, rhs) => {
+                // `a or b` — if a is Some(v), unwrap to v; else evaluate b.
+                let is_some = self.anonymous_label();
+                let end = self.anonymous_label();
+
+                self.compile_typed_expression(*lhs)?;
+                self.append_instruction(Instruction::Dup);
+                self.append_instruction(Instruction::Is(WrapType::Some));
+                self.append_instruction(Instruction::Branch(Target::Unresolved(is_some.clone())));
+                // None path: discard the None value, evaluate fallback
+                self.append_instruction(Instruction::Pop);
+                self.compile_typed_expression(*rhs)?;
+                self.append_instruction(Instruction::Jump(Target::Unresolved(end.clone())));
+                // Some path: unwrap the value
+                self.define_label(is_some, self.wp)?;
+                self.append_instruction(Instruction::Unwrap(WrapType::Some));
+
+                self.define_label(end, self.wp)?;
+            }
             thir::ExprKind::Equal(a, b) => {
                 self.compile_typed_expression(*a)?;
                 self.compile_typed_expression(*b)?;

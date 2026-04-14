@@ -1,0 +1,3 @@
+function f() int {
+    return 42 or 0
+}

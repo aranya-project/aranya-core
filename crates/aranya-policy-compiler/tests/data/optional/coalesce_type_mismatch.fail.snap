@@ -1,0 +1,7 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: error
+---
+invalid type: Right side of `or` must match the optional's inner type at line 2 col 5:
+	return Some(42) or true
