@@ -21,8 +21,7 @@ mod client;
 
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, ClientError, CmdId, Command, GraphId, Session, Sink, Transaction, TraversalBuffer,
-    TraversalBuffers,
+    Address, ClientError, CmdId, Command, GraphId, Sink, TraversalBuffer, TraversalBuffers,
 };
 #[doc(inline)]
 pub use client::{Client, ClientSession, ClientTransaction};
