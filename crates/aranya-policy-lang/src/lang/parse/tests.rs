@@ -150,6 +150,50 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
+fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
+    // Word boundary: `order` should parse as a single identifier, not `or der`.
+    // There should be no coalesce operator in the expression.
+    let mut pairs = PolicyParser::parse(Rule::expression, "x order")?;
+    let token = pairs.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::expression);
+    assert_eq!(token.as_str().trim(), "x");
+    assert!(
+        !token.into_inner().any(|p| p.as_rule() == Rule::coalesce),
+        "Unexpected coalesce operator in expression",
+    );
+
+    // Word boundary: don't split at `_`.
+    let mut pairs = PolicyParser::parse(Rule::expression, "or_thing")?;
+    let token = pairs.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::expression);
+    assert_eq!(token.as_str(), "or_thing");
+
+    // `or` can be followed by a non-whitespace, non-identifier character.
+    let mut pairs = PolicyParser::parse(Rule::expression, "x or(y)")?;
+    let token = pairs.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::expression);
+    let inner: Vec<_> = token
+        .into_inner()
+        .map(|p| (p.as_rule(), p.as_str().to_string()))
+        .collect();
+    assert_eq!(inner[1].0, Rule::coalesce);
+
+    // Right-associativity: `a or b or c` should produce `Coalesce(a, Coalesce(b, c))`, not `Coalesce(Coalesce(a, b), c)`.
+    use aranya_policy_ast::ExprKind;
+    let expr = crate::lang::parse_expression("a or b or c").expect("parse failed");
+    let ExprKind::Coalesce(outer_lhs, outer_rhs) = expr.kind else {
+        panic!("expected outer Coalesce");
+    };
+    // Outer left side is `a` (single identifier)
+    assert!(matches!(outer_lhs.kind, ExprKind::Identifier(_)));
+    // Outer right side is `Coalesce(b, c)`
+    assert!(matches!(outer_rhs.kind, ExprKind::Coalesce(_, _)));
+
+    Ok(())
+}
+
+#[test]
 fn parse_expression_pratt() -> Result<(), ParseError> {
     let source = r#"
         unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
