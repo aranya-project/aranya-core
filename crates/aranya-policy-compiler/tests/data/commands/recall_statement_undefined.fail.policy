@@ -3,8 +3,6 @@ command Cmd {
     seal { return todo() }
     open { return todo() }
     policy {
-        finish {}
-    }
-    recall {
+        recall nonexistent()
     }
 }

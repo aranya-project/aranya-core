@@ -1415,9 +1415,9 @@ fn test_check_errors() -> anyhow::Result<()> {
                 seal { return todo() }
                 open { return todo() }
                 policy {
-                    check false
+                    check false or recall default()
                 }
-                recall {
+                recall default() {
                 }
             }"#,
             ident!("Foo_recall_default"),
@@ -1632,7 +1632,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 finish {}
             }
 
-            recall {
+            recall default() {
                 check envelope.payload == this.test
                 finish {}
             }
@@ -2842,6 +2842,75 @@ fn test_recall_with_args() -> anyhow::Result<()> {
                 KVPair::new(ident!("x"), Value::Int(1)),
                 KVPair::new(ident!("y"), Value::String(text!("oops"))),
             ]
+        )
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_recall_statement() -> anyhow::Result<()> {
+    // Standalone `recall name(args)` statement form (no `check ... or`).
+    let text = r#"
+        effect MyError {
+            x int
+        }
+
+        command Foo {
+            fields { x int }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                recall handle(this.x)
+            }
+            recall handle(a int) {
+                finish {
+                    emit MyError { x: a }
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    let name = ident!("Foo");
+    let this_data = Struct::new(
+        name.clone(),
+        [KVPair::new(ident!("x"), Value::from(7))],
+    );
+    let envelope = Struct::new(
+        ident!("Envelope"),
+        [KVPair::new(
+            ident!("payload"),
+            Value::from(b"test".to_vec()),
+        )],
+    );
+
+    // Exec policy: the recall statement should exit immediately with
+    // Check(Some("Foo_recall_handle")) and put the arg on the stack.
+    let ctx = dummy_ctx_policy(name.clone());
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
+
+    let recall_name = ident!("Foo_recall_handle");
+    assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
+    let stack_values = rs.stack.as_slice();
+    assert_eq!(stack_values.first(), Some(&Value::Int(7)));
+
+    // Exec recall block: should emit MyError { x: 7 }.
+    let recall_ctx = dummy_ctx_recall(name);
+    rs.set_context(recall_ctx);
+    let result = rs.call_command_recall(this_data, envelope, recall_name)?;
+    assert_eq!(result, ExitReason::Normal);
+
+    assert_eq!(
+        io.effect_stack[0],
+        (
+            ident!("MyError"),
+            vec![KVPair::new(ident!("x"), Value::Int(7))],
         )
     );
 
