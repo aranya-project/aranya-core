@@ -634,6 +634,25 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
+            ExprKind::Recall(fc) => {
+                let cmd = match self.get_statement_context()? {
+                    StatementContext::CommandPolicy(cmd) => cmd.clone(),
+                    _ => {
+                        return Err(self.err(CompileErrorType::Unknown(String::from(
+                            "`recall` is only valid in command `policy` blocks",
+                        ))));
+                    }
+                };
+                let fc_thir = self.lower_recall_call(fc, &cmd)?;
+                thir::Expression {
+                    kind: thir::ExprKind::Recall(fc_thir),
+                    vtype: VType {
+                        kind: TypeKind::Never,
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
             ExprKind::Identifier(i) => {
                 let ty = self.identifier_types.get(i).map_err(|_| {
                     self.err(CompileErrorType::NotDefined(format!(
@@ -1037,11 +1056,7 @@ impl CompileState<'_> {
         let recall_block = cmd
             .recalls
             .iter()
-            .find(|rb| {
-                rb.identifier
-                    .as_ref()
-                    .is_some_and(|id| id.as_str() == fc.identifier.name.as_str())
-            })
+            .find(|rb| rb.identifier.as_str() == fc.identifier.name.as_str())
             .ok_or_else(|| {
                 self.err(CompileErrorType::NotDefined(format!(
                     "recall block `{}`",
@@ -1049,7 +1064,7 @@ impl CompileState<'_> {
                 )))
             })?;
 
-        let arg_defs = recall_block.arguments.as_deref().unwrap_or(&[]);
+        let arg_defs = recall_block.arguments.as_slice();
 
         let mut arguments = Vec::new();
         for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
@@ -1821,6 +1836,18 @@ impl CompileState<'_> {
                         identifier: fc.identifier.clone(),
                         arguments: args,
                     })
+                }
+                (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
+                    let fc_thir = self.lower_recall_call(fc, cmd)?;
+                    thir::StmtKind::Recall(fc_thir)
+                }
+                (StmtKind::Recall(_), _) => {
+                    return Err(self.err_loc(
+                        CompileErrorType::Unknown(String::from(
+                            "`recall` is only valid in command `policy` blocks",
+                        )),
+                        statement.span,
+                    ));
                 }
                 (StmtKind::DebugAssert(e), _) => {
                     let e = self.lower_expression(e)?;

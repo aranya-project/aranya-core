@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -8,7 +9,7 @@ Module {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 11,
         <open 'Cmd'>: 17,
-        <recall 'Cmd_recall_default'>: 8,
+        <recall 'Cmd_recall_handle'>: 7,
     },
     action_defs: {},
     command_defs: {
@@ -16,12 +17,22 @@ Module {
             name: "Cmd" @ 8..11,
             persistence: Persistent,
             attributes: {},
-            fields: {},
+            fields: {
+                Field {
+                    name: "x" @ 27..28,
+                    ty: Int @ 29..32,
+                },
+            },
         },
     },
     fact_defs: {},
     struct_defs: {
-        "Cmd": [],
+        "Cmd": [
+            FieldDefinition {
+                identifier: "x" @ 27..28,
+                field_type: Int @ 29..32,
+            },
+        ],
     },
     enum_defs: {},
     globals: {},
@@ -32,14 +43,14 @@ Module {
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
+    get 'this'
+    struct.get 'x'
+    exit check: Cmd_recall_handle
     exit panic
-<recall 'Cmd_recall_default'>:
+<recall 'Cmd_recall_handle'>:
     def 'envelope'
     def 'this'
+    def 'x'
     exit normal
 <seal 'Cmd'>:
     def 'this'

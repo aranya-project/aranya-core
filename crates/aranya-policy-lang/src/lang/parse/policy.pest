@@ -221,6 +221,7 @@ atom = _{
     | match_expression
     | internal_function
     | return_expression
+    | recall_expression
     | function_call
     | foreign_function_call
     | enum_reference
@@ -328,6 +329,11 @@ delete_statement = { "delete" ~ fact_literal }
 emit_statement = { "emit" ~ expression }
 // The return statement returns from a function
 return_statement = { "return" ~ expression }
+// The recall statement immediately transfers policy evaluation to the
+// named recall block. Valid only in `policy` blocks.
+recall_statement = { "recall" ~ function_call }
+// The recall expression form, with type `Never`. Valid only in `policy` blocks.
+recall_expression = { "recall" ~ function_call }
 // debug_assert() optionally runs the contained expression if the debug flag is enabled
 debug_assert = { "debug_assert(" ~ expression ~ ")" }
 
@@ -345,6 +351,7 @@ statements = _{
     | delete_statement
     | emit_statement
     | return_statement
+    | recall_statement
     // Note that debug_assert must take precendence over function_call due to the overlapping syntax
     | debug_assert
     | function_call
@@ -363,7 +370,7 @@ fields_block = { "fields" ~ struct_def }
 policy_block = { "policy" ~ statement_block }
 // The recall statement defines a block of statements that will be
 // executed when a command of this type is recalled.
-recall_block = { "recall" ~ (identifier ~ function_arguments)? ~ statement_block }
+recall_block = { "recall" ~ identifier ~ function_arguments ~ statement_block }
 // The seal block is a pure function with an implicit `this` parameter
 // like the policy/recall blocks. It returns an envelope object.
 seal_block = { "seal" ~ statement_block }

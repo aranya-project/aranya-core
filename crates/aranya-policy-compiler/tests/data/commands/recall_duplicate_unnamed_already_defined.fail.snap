@@ -1,6 +1,0 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
-already defined: recall block 'default' for command 'Cmd' defined more than once at line 6 col 9:
-	finish {}
