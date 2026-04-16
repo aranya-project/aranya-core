@@ -31,8 +31,8 @@ use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule as _, ident};
 // Type Aliases
 // ---------------------------------------------------------------------------
 
-type CE = DefaultEngine<Rng, DefaultCipherSuite>;
 type CS = DefaultCipherSuite;
+type CE = DefaultEngine<Rng, CS>;
 
 struct PrintSink {
     effects: Vec<VmEffect>,
