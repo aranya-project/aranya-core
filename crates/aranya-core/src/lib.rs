@@ -10,9 +10,9 @@
 //! - [`policy`] — VM-backed policy execution (actions, effects, FFI).
 //! - [`sync`] — peer-to-peer sync protocol for replicating graph state.
 //!
-//! The crate root exposes the [`Client`] facade and the fundamental types
-//! that cut across every module (graph/command identity, sinks, traversal
-//! buffers, and transaction/session handles).
+//! The crate root exposes the [`ClientState`] facade and the fundamental
+//! types that cut across every module (graph/command identity, sinks,
+//! traversal buffers, and [`Transaction`]/[`Session`] handles).
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
@@ -21,18 +21,23 @@ mod client;
 
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, ClientError, CmdId, Command, GraphId, Sink, TraversalBuffer, TraversalBuffers,
+    Address, ClientError, ClientState, CmdId, Command, GraphId, Session, Sink, Transaction,
+    TraversalBuffer, TraversalBuffers,
 };
 #[doc(inline)]
-pub use client::{Client, ClientSession, ClientTransaction};
+pub use client::VmPolicyStore;
 
 pub mod storage {
     //! Storage providers and low-level I/O for the graph.
     //!
-    //! [`LinearStorageProvider`] is the stock append-only storage backend used
-    //! by [`crate::Client`]. It is parameterized over an [`IoManager`]
-    //! implementation, for which [`FileManager`] is the file-backed reference
-    //! implementation (available under the `libc` feature).
+    //! [`LinearStorageProvider`] is the stock append-only storage backend
+    //! used by [`crate::ClientState`]; construct one with
+    //! [`LinearStorageProvider::new`]. It is parameterized over an
+    //! [`IoManager`] implementation — the user-swappable piece that owns
+    //! how bytes are actually persisted. [`FileManager`] is the file-backed
+    //! reference [`IoManager`] (available under the `libc` feature); custom
+    //! backends implement [`IoManager`] (and the associated [`Read`]/
+    //! [`Write`] traits) to plug in alternative storage.
 
     #[cfg(feature = "libc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
@@ -48,9 +53,10 @@ pub mod storage {
 pub mod policy {
     //! VM-backed policy primitives: actions, effects, and FFI callables.
     //!
-    //! [`VmPolicy`] compiles and runs policy bytecode against incoming commands,
-    //! emitting [`VmEffect`]s. [`VmPolicyStore`] is the single-policy store
-    //! used by [`crate::Client`].
+    //! [`VmPolicy`] compiles and runs policy bytecode against incoming
+    //! commands, emitting [`VmEffect`]s. [`VmPolicyStore`] is the
+    //! single-policy store used by [`crate::ClientState`]; construct one
+    //! with [`VmPolicyStore::new`].
 
     #[doc(inline)]
     pub use aranya_runtime::vm_policy::{
@@ -58,7 +64,7 @@ pub mod policy {
     };
 
     #[doc(inline)]
-    pub use crate::client::VmPolicyStore;
+    pub use crate::VmPolicyStore;
 }
 
 pub mod sync {

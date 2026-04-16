@@ -1,14 +1,14 @@
 //! Minimal aranya-core usage with the built-in file-backed storage.
 //!
-//! Uses the `FileManager` from `aranya_runtime` (the same storage the real
-//! aranya daemon uses), so there is zero custom storage code. This is the
-//! simplest path to a working `Client`.
+//! Uses the `FileManager` re-exported from `aranya_core::storage` (the same
+//! storage the real aranya daemon uses), so there is zero custom storage
+//! code. This is the simplest path to a working `ClientState`.
 
 use std::fs;
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    Client, Command as _, GraphId, Sink, TraversalBuffer, TraversalBuffers,
+    ClientState, Command as _, GraphId, Sink, TraversalBuffer, TraversalBuffers,
     policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore},
     storage::{FileManager, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequester, SyncResponder, SyncType},
@@ -202,8 +202,8 @@ fn dispatch(
 
 fn sync_graphs(
     graph_id: GraphId,
-    source: &mut Client<CE, FileManager>,
-    dest: &mut Client<CE, FileManager>,
+    source: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
+    dest: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
     sink: &mut PrintSink,
 ) -> Result<()> {
     let mut request_cache = PeerCache::default();
@@ -286,7 +286,7 @@ fn main() -> Result<()> {
     println!("\n== Device A: Create Team ==");
     println!("\nStep 3: Compiling policy for Device A...");
     let policy_store_a = compile_policy(dev_a.engine, dev_a.store, dev_a.device_id)?;
-    let mut cs_a = Client::new(policy_store_a, provider_a);
+    let mut cs_a = ClientState::new(policy_store_a, provider_a);
     let mut sink = PrintSink::new();
 
     // Step 4: Create graph with init action
@@ -347,7 +347,7 @@ fn main() -> Result<()> {
     println!("\n== Sync: A -> B ==");
     println!("\nStep 8: Compiling policy for Device B...");
     let policy_store_b = compile_policy(dev_b.engine, dev_b.store, dev_b.device_id)?;
-    let mut cs_b = Client::new(policy_store_b, provider_b);
+    let mut cs_b = ClientState::new(policy_store_b, provider_b);
 
     // Step 9: Sync graph from A to B
     println!("\nStep 9: Syncing A -> B...");
