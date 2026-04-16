@@ -871,6 +871,74 @@ impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
     }
 }
 
+mod impls {
+    use alloc::boxed::Box;
+
+    use super::{GraphId, PolicyId, StorageError, StorageProvider};
+
+    impl<SP: StorageProvider> StorageProvider for &mut SP {
+        type Perspective = SP::Perspective;
+        type Segment = SP::Segment;
+        type Storage = SP::Storage;
+
+        fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective {
+            SP::new_perspective(self, policy_id)
+        }
+
+        fn new_storage(
+            &mut self,
+            init: Self::Perspective,
+        ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
+            SP::new_storage(self, init)
+        }
+
+        fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError> {
+            SP::get_storage(self, graph)
+        }
+
+        fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+            SP::remove_storage(self, graph)
+        }
+
+        fn list_graph_ids(
+            &mut self,
+        ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+            SP::list_graph_ids(self)
+        }
+    }
+
+    impl<SP: StorageProvider> StorageProvider for Box<SP> {
+        type Perspective = SP::Perspective;
+        type Segment = SP::Segment;
+        type Storage = SP::Storage;
+
+        fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective {
+            SP::new_perspective(self, policy_id)
+        }
+
+        fn new_storage(
+            &mut self,
+            init: Self::Perspective,
+        ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
+            SP::new_storage(self, init)
+        }
+
+        fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError> {
+            SP::get_storage(self, graph)
+        }
+
+        fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+            SP::remove_storage(self, graph)
+        }
+
+        fn list_graph_ids(
+            &mut self,
+        ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+            SP::list_graph_ids(self)
+        }
+    }
+}
+
 #[cfg(test)]
 mod queue_tests {
     use super::*;
