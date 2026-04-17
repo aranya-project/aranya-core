@@ -827,11 +827,12 @@ impl CompileState<'_> {
                 };
                 let rhs = self.lower_expression(rhs)?;
                 // Right must be T or Never; unify to get the result type.
-                let result_type =
-                    types::unify_pair(inner_type, rhs.vtype.clone()).map_err(|_| {
-                        self.err(CompileErrorType::InvalidType(
-                            "Right side of `or` must match the optional's inner type".into(),
-                        ))
+                let result_type = types::unify_pair(inner_type.clone(), rhs.vtype.clone())
+                    .map_err(|_| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "Right side of `or` must match the optional's inner type ({})",
+                            inner_type
+                        )))
                     })?;
                 thir::Expression {
                     kind: thir::ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
