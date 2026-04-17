@@ -887,16 +887,9 @@ impl ChunkParser<'_> {
         let kind = match op.as_rule() {
             Rule::is => {
                 let mut pairs = op.into_inner();
-                let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("is requires some or none"),
-                        Some(op_span),
-                    )
-                })?;
-                let some = match token.as_rule() {
-                    Rule::some => true,
-                    Rule::none => false,
+                let some = match pairs.next().map(|token| token.as_rule()) {
+                    Some(Rule::some) => true,
+                    Some(Rule::none) => false,
                     _ => {
                         return Err(ParseError::new(
                             ParseErrorKind::Bug,
