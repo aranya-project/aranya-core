@@ -4,5 +4,5 @@ expression: error
 ---
 error: a thing being referenced is not in scope
   |
-4 |     check p == None
+4 |     check p == None else todo()
   |           ^ 'p' not in scope

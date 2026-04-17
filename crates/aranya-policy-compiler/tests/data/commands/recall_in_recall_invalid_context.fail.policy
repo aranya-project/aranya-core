@@ -6,6 +6,6 @@ command Cmd {
         finish {}
     }
     recall foo() {
-        check true or recall foo()
+        check true else recall foo()
     }
 }

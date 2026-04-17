@@ -4,5 +4,5 @@ expression: error
 ---
 error: invalid type: int
   |
-5 |         check 0
+5 |         check 0 else todo()
   |               ^ expected `bool` but found `int`

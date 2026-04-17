@@ -4,5 +4,5 @@ expression: error
 ---
 error: a thing being referenced is not in scope
   |
-2 |     check exists Foo[]
+2 |     check exists Foo[] else todo()
   |                  ^^^ fact `Foo` not defined

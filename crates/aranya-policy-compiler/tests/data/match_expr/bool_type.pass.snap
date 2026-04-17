@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -52,6 +53,6 @@ Module {
     def 'b'
     get 'b'
     branch 22
-    exit check
+    exit panic
 <22>:
     return

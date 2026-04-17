@@ -911,9 +911,13 @@ impl<'a> CompileState<'a> {
                 let branch_wp = self.wp;
                 self.append_instruction(Instruction::Branch(Target::Resolved(0)));
 
-                match s.recall {
-                    Some(fc) => self.compile_recall(fc)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
+                // Compile the optional else expression. When present it has
+                // type `Never`, so it always exits. When absent, fall back to
+                // the default `Check` exit.
+                if let Some(else_expr) = s.else_expression {
+                    self.compile_typed_expression(else_expr)?;
+                } else {
+                    self.append_instruction(Instruction::Exit(ExitReason::Check(None)));
                 }
 
                 // Now that we know where the success path begins, patch the branch to jump there.

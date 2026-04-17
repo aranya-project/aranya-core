@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -65,6 +66,6 @@ Module {
     eq
     not
     branch 14
-    exit check
+    exit panic
 <14>:
     return
