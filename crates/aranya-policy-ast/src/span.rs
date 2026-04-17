@@ -6,6 +6,56 @@ use core::{
 
 use serde_derive::{Deserialize, Serialize};
 
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct WithSpan<T> {
+    pub inner: T,
+    pub span: Span,
+}
+
+impl<T> WithSpan<T> {
+    pub fn new(inner: T, span: Span) -> Self {
+        Self { inner, span }
+    }
+}
+
+impl<T> Spanned for WithSpan<T> {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl<T> core::ops::Deref for WithSpan<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for WithSpan<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
 /// A range in the source text.
 #[derive(
     Clone,

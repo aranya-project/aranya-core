@@ -1,28 +1,15 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref, str::FromStr};
+use core::{fmt, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Span, Spanned, Text, span::spanned};
+use crate::{
+    Identifier, Span, Spanned, Text,
+    span::{WithSpan, spanned},
+};
 
 /// An identifier.
-#[derive(
-    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-pub struct Ident {
-    /// The identifier name
-    pub inner: Identifier,
-    /// The source location of this identifier
-    pub span: Span,
-}
-
-impl fmt::Debug for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
+pub type Ident = WithSpan<Identifier>;
 
 impl Ident {
     /// Reports whether the identifiers are the same, ignoring
@@ -32,32 +19,12 @@ impl Ident {
     }
 }
 
-impl Deref for Ident {
-    type Target = Identifier;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl fmt::Display for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)
-    }
-}
-
 impl<T> PartialEq<T> for Ident
 where
     T: AsRef<str> + ?Sized,
 {
     fn eq(&self, other: &T) -> bool {
         self.inner == other.as_ref()
-    }
-}
-
-impl Spanned for Ident {
-    fn span(&self) -> Span {
-        self.span
     }
 }
 
@@ -171,24 +138,7 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[must_use]
-#[derive(
-    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-pub struct VType {
-    /// The type kind
-    pub inner: TypeKind,
-    /// The source location of this type
-    pub span: Span,
-}
-
-impl fmt::Debug for VType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
+pub type VType = WithSpan<TypeKind>;
 
 impl VType {
     /// Reports whether the types are the same, ignoring spans.
@@ -208,18 +158,6 @@ impl VType {
         } else {
             None
         }
-    }
-}
-
-impl fmt::Display for VType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)
-    }
-}
-
-impl Spanned for VType {
-    fn span(&self) -> Span {
-        self.span
     }
 }
 
@@ -601,27 +539,7 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Expression {
-    /// The expression kind
-    pub inner: ExprKind,
-    /// The source location of this expression
-    pub span: Span,
-}
-
-impl fmt::Debug for Expression {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
-
-impl Spanned for Expression {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
+pub type Expression = WithSpan<ExprKind>;
 
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1188,28 +1106,9 @@ pub struct ReturnStatement {
 }
 
 /// Statements in the policy language.
+///
 /// Not all statements are valid in all contexts.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Statement {
-    /// The statement kind
-    pub inner: StmtKind,
-    /// The source location of this statement
-    pub span: Span,
-}
-
-impl fmt::Debug for Statement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
-
-impl Spanned for Statement {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
+pub type Statement = WithSpan<StmtKind>;
 
 /// The kind of [`Statement`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
