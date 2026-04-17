@@ -658,8 +658,7 @@ impl ExprKind {
             }
 
             // Function call
-            (Self::FunctionCall(a), Self::FunctionCall(b))
-            | (Self::Recall(a), Self::Recall(b)) => {
+            (Self::FunctionCall(a), Self::FunctionCall(b)) | (Self::Recall(a), Self::Recall(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
@@ -956,10 +955,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The named recall block to execute if the check fails.
-    /// - `None` — triggers the default unnamed recall block.
-    /// - `Some(fc)` — triggers a named recall block.
-    pub recall: Option<FunctionCall>,
+    /// The expression to evaluate if the check fails. Must be a terminal
+    /// expression (type `Never`), e.g. `return Err(..)` or `recall foo()`.
+    pub else_expression: Expression,
 }
 }
 

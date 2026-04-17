@@ -448,7 +448,7 @@ preamble:
     fn preamble_policy_lang_vm_check() {
         let text = r#"
 preamble:
-    check false
+    let x = check_unwrap None
         "#
         .trim();
 

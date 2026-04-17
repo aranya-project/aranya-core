@@ -78,7 +78,7 @@ function Role_Device() string {
 function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_device_id == device_keys.device_id
+    check got_device_id == device_keys.device_id else todo()
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
@@ -181,7 +181,7 @@ command Init {
     }
 
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else todo()
         finish {}
     }
 
@@ -244,7 +244,7 @@ command AddDeviceKeys {
     policy {
         let author = envelope::author_id(envelope)
         let device_id = idam::derive_device_id(this.ident_pk)
-        check author == device_id
+        check author == device_id else todo()
 
         let device_keys = DeviceKeyBundle {
             device_id: author,
@@ -313,7 +313,7 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        check new_x < 25 else todo()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -416,7 +416,7 @@ ephemeral command VerifyGreeting {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else todo()
         finish {
             emit Success{value: true}
         }
@@ -440,7 +440,7 @@ command VerifyNoHello {
     open { return deserialize(open_basic_command(envelope)) }
 
     policy {
-        check !exists Message[msg: ?]=>{value: ?}
+        check !exists Message[msg: ?]=>{value: ?} else todo()
         finish {
             emit Success{value: true}
         }

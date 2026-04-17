@@ -697,7 +697,7 @@ impl ChunkParser<'_> {
                 }
                 Rule::recall_expression => {
                     let fc = self.parse_recall_call(primary)?;
-                    Ok(Expression { kind: ExprKind::Recall(fc), span })
+                    Ok(Expression { inner: ExprKind::Recall(fc), span })
                 }
                 Rule::enum_reference => {
                     let er = self.parse_enum_reference(primary)?;
@@ -1157,15 +1157,11 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        let recall = pc
-            .consume_optional(Rule::recall_clause)
-            .and_then(|clause| {
-                let pc = self.descend(clause);
-                pc.consume_optional(Rule::function_call)
-            })
-            .map(|call| self.parse_function_call(call))
-            .transpose()?;
-        Ok(CheckStatement { expression, recall })
+        let else_expression = pc.consume_expression(self)?;
+        Ok(CheckStatement {
+            expression,
+            else_expression,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.

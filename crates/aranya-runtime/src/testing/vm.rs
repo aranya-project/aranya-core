@@ -96,7 +96,7 @@ command Increment {
     open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
-        check stuff.y > 0
+        check stuff.y > 0 else recall default()
         let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -104,7 +104,7 @@ command Increment {
         }
     }
 
-    recall {
+    recall default() {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         finish {
             emit OutOfRange {
@@ -131,7 +131,7 @@ ephemeral command IncrementEphemeral {
     open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
-        check stuff.y > 0
+        check stuff.y > 0 else recall default()
         let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -139,7 +139,7 @@ ephemeral command IncrementEphemeral {
         }
     }
 
-    recall {
+    recall default() {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         finish {
             emit OutOfRange {
@@ -159,7 +159,7 @@ ephemeral action increment_ephemeral() {
 
 
 ephemeral action incrementFour(n int) {
-    check n == 4
+    check n == 4 else todo()
     publish IncrementEphemeral {
         key: 1,
         amount: n,
@@ -169,8 +169,8 @@ ephemeral action incrementFour(n int) {
 ephemeral action lookup(k int, v int, expected bool) {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
-        true => { check f is Some }
-        false => { check f is None }
+        true => { check f is Some else todo() }
+        false => { check f is None else todo() }
     }
 }
 

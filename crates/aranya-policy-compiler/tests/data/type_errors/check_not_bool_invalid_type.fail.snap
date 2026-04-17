@@ -1,6 +1,7 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: error
 ---
 invalid type: check must have boolean expression at line 5 col 9:
-	check 0
+	check 0 else todo()

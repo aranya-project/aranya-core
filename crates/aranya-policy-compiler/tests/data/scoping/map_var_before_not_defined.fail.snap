@@ -1,6 +1,7 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: error
 ---
 not defined: Unknown identifier `p` at line 3 col 5:
-	check p == None
+	check p == None else todo()

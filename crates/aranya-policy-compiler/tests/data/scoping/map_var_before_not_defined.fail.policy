@@ -1,5 +1,5 @@
 fact Pet[name string]=>{age int}
 action pets() {
-    check p == None
+    check p == None else todo()
     map Pet[name:?] as p {}
 }

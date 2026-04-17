@@ -209,10 +209,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The named recall block to execute if the check fails.
-    /// - `None` — triggers the default unnamed recall block.
-    /// - `Some(fc)` — triggers a named recall block.
-    pub recall: Option<FunctionCall>,
+    /// The expression to evaluate if the check fails. Has type `Never`.
+    pub else_expression: Expression,
 }
 }
 
