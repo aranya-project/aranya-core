@@ -179,3 +179,71 @@ pub enum CommandPlacement {
     /// The command is being evaluated off-graph in an ephemeral session.
     OffGraph,
 }
+
+mod impls {
+    use alloc::boxed::Box;
+
+    use super::{PolicyError, PolicyId, PolicyStore, Sink};
+
+    impl<PS: PolicyStore> PolicyStore for &mut PS {
+        type Policy = PS::Policy;
+        type Effect = PS::Effect;
+
+        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+            PS::add_policy(self, policy)
+        }
+
+        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+            PS::get_policy(self, id)
+        }
+    }
+
+    impl<PS: PolicyStore> PolicyStore for Box<PS> {
+        type Policy = PS::Policy;
+        type Effect = PS::Effect;
+
+        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+            PS::add_policy(self, policy)
+        }
+
+        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+            PS::get_policy(self, id)
+        }
+    }
+
+    impl<S: Sink<Eff>, Eff> Sink<Eff> for &mut S {
+        fn begin(&mut self) {
+            S::begin(self);
+        }
+
+        fn consume(&mut self, effect: Eff) {
+            S::consume(self, effect);
+        }
+
+        fn rollback(&mut self) {
+            S::rollback(self);
+        }
+
+        fn commit(&mut self) {
+            S::commit(self);
+        }
+    }
+
+    impl<S: Sink<Eff>, Eff> Sink<Eff> for Box<S> {
+        fn begin(&mut self) {
+            S::begin(self);
+        }
+
+        fn consume(&mut self, effect: Eff) {
+            S::consume(self, effect);
+        }
+
+        fn rollback(&mut self) {
+            S::rollback(self);
+        }
+
+        fn commit(&mut self) {
+            S::commit(self);
+        }
+    }
+}
