@@ -907,10 +907,8 @@ impl<'a> CompileState<'a> {
                 let branch_wp = self.wp;
                 self.append_instruction(Instruction::Branch(Target::Resolved(0)));
 
-                match s.recall {
-                    Some(fc) => self.compile_recall(fc)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
-                }
+                // Compile the else expression. It has type `Never`, so it always exits.
+                self.compile_typed_expression(s.else_expression)?;
 
                 // Now that we know where the success path begins, patch the branch to jump there.
                 self.m.progmem[branch_wp] = Instruction::Branch(Target::Resolved(self.wp));
@@ -1316,11 +1314,9 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Def(ident!("this")));
 
             // define args, like compile_function
-            if let Some(args) = &recall_block.arguments {
-                for arg in args.iter().rev() {
-                    self.ensure_type_is_defined(&arg.field_type)?;
-                    self.append_var(arg.identifier.inner.clone(), arg.field_type.clone())?;
-                }
+            for arg in recall_block.arguments.iter().rev() {
+                self.ensure_type_is_defined(&arg.ty)?;
+                self.append_var(arg.name.inner.clone(), arg.ty.clone())?;
             }
 
             self.compile_statements(&recall_block.statements, Scope::Same)?;

@@ -2,6 +2,6 @@ command Foo {
     seal { return todo() }
     open { return todo() }
     policy {
-        check 0
+        check 0 else todo()
     }
 }

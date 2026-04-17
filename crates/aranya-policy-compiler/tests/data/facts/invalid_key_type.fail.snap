@@ -1,6 +1,7 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: error
 ---
 invalid type: Fact `Foo` value field `i` found `string`, not `int` at line 3 col 5:
-	check exists Foo[i: "1"]
+	check exists Foo[i: "1"] else todo()

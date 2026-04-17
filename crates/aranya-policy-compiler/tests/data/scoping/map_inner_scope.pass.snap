@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -66,13 +67,13 @@ Module {
     const 0
     gt
     branch 14
-    exit check
+    exit panic
 <14>:
     get 'n'
     const 42
     eq
     branch 19
-    exit check
+    exit panic
 <19>:
     end
     jump 5

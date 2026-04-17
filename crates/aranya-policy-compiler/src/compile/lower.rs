@@ -647,7 +647,7 @@ impl CompileState<'_> {
                 thir::Expression {
                     kind: thir::ExprKind::Recall(fc_thir),
                     vtype: VType {
-                        kind: TypeKind::Never,
+                        inner: TypeKind::Never,
                         span: expression.span,
                     },
                     span: expression.span,
@@ -1046,7 +1046,9 @@ impl CompileState<'_> {
         })
     }
 
-    /// Lowers a recall invocation (`check ... or recall foo(args)`).
+    /// Lowers a recall invocation (`recall foo(args)`) to a typed function call,
+    /// validating that the named recall block exists on the command and that
+    /// the argument types match its parameters.
     fn lower_recall_call(
         &mut self,
         fc: &FunctionCall,
@@ -1056,7 +1058,7 @@ impl CompileState<'_> {
         let recall_block = cmd
             .recalls
             .iter()
-            .find(|rb| rb.identifier.as_str() == fc.identifier.name.as_str())
+            .find(|rb| rb.identifier.as_str() == fc.identifier.as_str())
             .ok_or_else(|| {
                 self.err(CompileErrorType::NotDefined(format!(
                     "recall block `{}`",
@@ -1525,22 +1527,20 @@ impl CompileState<'_> {
                         ))));
                     }
 
-                    let recall = if let Some(r) = s.recall.as_ref() {
-                        let StatementContext::CommandPolicy(cmd) = &context else {
-                            return Err(self.err_loc(
-                                CompileErrorType::Unknown(String::from(
-                                    "The `or recall` clause is only valid in command `policy`.",
-                                )),
-                                statement.span,
-                            ));
-                        };
-                        Some(self.lower_recall_call(r, cmd)?)
-                    } else {
-                        None
-                    };
+                    // The else expression must be a terminal (Never type) —
+                    // e.g. `return Err(..)` or `recall foo()`.
+                    let else_expression = self.lower_expression(&s.else_expression)?;
+                    if !matches!(else_expression.vtype.inner, TypeKind::Never) {
+                        return Err(self.err_loc(
+                            CompileErrorType::InvalidType(String::from(
+                                "check else clause must be a terminal expression (e.g. `return` or `recall`)",
+                            )),
+                            s.else_expression.span,
+                        ));
+                    }
                     thir::StmtKind::Check(thir::CheckStatement {
                         expression: et,
-                        recall,
+                        else_expression,
                     })
                 }
                 (

@@ -501,19 +501,19 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action testExists() {
-        check exists Foo[] => {x: 3}
-        check exists Foo[]
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True}
+        check exists Foo[] => {x: 3} else todo()
+        check exists Foo[] else todo()
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else todo()
 
-        check exists Foo[] => {x: ?}
-        check exists Bar[i: ?] => {s: ?, b: Bool::True}
+        check exists Foo[] => {x: ?} else todo()
+        check exists Bar[i: ?] => {s: ?, b: Bool::True} else todo()
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True}
-        check !exists Bar[i:1] => {s:"", b:Bool::True}
-        check !exists Bar[i: ?]=>{s: "ab", b: ?}
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else todo()
+        check !exists Bar[i:1] => {s:"", b:Bool::True} else todo()
+        check !exists Bar[i: ?]=>{s: "ab", b: ?} else todo()
     }
     "#;
 
@@ -561,13 +561,13 @@ fn test_counting() -> anyhow::Result<()> {
             open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
-                check count_one == 1
+                check count_one == 1 else todo()
                 let count_two = count_up_to 2 Foo[i:?]
-                check count_two == 2
+                check count_two == 2 else todo()
                 let count_all = count_up_to 10 Foo[i:?]
-                check count_all == 3
+                check count_all == 3 else todo()
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
-                check count_max == 3
+                check count_max == 3 else todo()
                 finish {}
             }
         }
@@ -576,9 +576,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_least 1 Foo[i:?]
-                check at_least 3 Foo[i:?]
-                check at_least 4 Foo[i:?] == false
+                check at_least 1 Foo[i:?] else todo()
+                check at_least 3 Foo[i:?] else todo()
+                check at_least 4 Foo[i:?] == false else todo()
                 finish {}
             }
         }
@@ -587,9 +587,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_most 1 Foo[i:?] == false
-                check at_most 3 Foo[i:?]
-                check at_most 4 Foo[i:?]
+                check at_most 1 Foo[i:?] == false else todo()
+                check at_most 3 Foo[i:?] else todo()
+                check at_most 4 Foo[i:?] else todo()
                 finish {}
             }
         }
@@ -598,9 +598,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check exactly 1 Foo[i:?] == false
-                check exactly 3 Foo[i:?]
-                check exactly 4 Foo[i:?] == false
+                check exactly 1 Foo[i:?] == false else todo()
+                check exactly 3 Foo[i:?] else todo()
+                check exactly 4 Foo[i:?] == false else todo()
                 finish {}
             }
         }
@@ -784,18 +784,18 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         action test_query() {
             let f = unwrap query Foo[i: 1, j: ?]
-            check f.x == 1
+            check f.x == 1 else todo()
             let f2 = unwrap query Foo[i: ?, j: ?]
-            check f2.x == 1
+            check f2.x == 1 else todo()
             let f3 = unwrap query Foo[i:2, j:?]
-            check f3.x == 3
+            check f3.x == 3 else todo()
 
             // bind value
             let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
-            check f4.x == 3
+            check f4.x == 3 else todo()
             // bind key and value
             let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
-            check f5.x == 3
+            check f5.x == 3 else todo()
         }
 
         action test_nonexistent() {
@@ -803,9 +803,9 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_exists() {
-            check exists Foo[i:1, j:?]
-            check exists Foo[i:-1, j:?] == false
-            check !exists Foo[i:1, j:?] => {x:-1, s:?}
+            check exists Foo[i:1, j:?] else todo()
+            check exists Foo[i:-1, j:?] == false else todo()
+            check !exists Foo[i:1, j:?] => {x:-1, s:?} else todo()
         }
     "#;
 
@@ -864,7 +864,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         action test_query() {
             let f = unwrap query Bar[i:Foo::A] => {x: ?}
-            check f.x == Foo::A
+            check f.x == Foo::A else todo()
         }
     "#;
 
@@ -901,7 +901,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
         action test() {
-            check !false
+            check !false else todo()
         }
     "#;
 
@@ -920,7 +920,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                check true == false
+                check true == false else todo()
             }
         }
     "#;
@@ -932,7 +932,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check(None));
+    assert_eq!(result, ExitReason::Panic);
 
     Ok(())
 }
@@ -942,7 +942,7 @@ fn test_if_false() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                check true == false
+                check true == false else todo()
             }
         }
     "#;
@@ -972,17 +972,17 @@ fn test_if_branches() -> anyhow::Result<()> {
 
         action foo(x int) {
             if x == 0 {
-                check true
+                check true else todo()
                 publish Result { s: "0" }
-                check true
+                check true else todo()
             } else if x == 1 {
                 publish Result { s: "1" }
             } else if x == 2 {
-                check true
+                check true else todo()
                 publish Result { s: "2" }
             } else {
                 publish Result { s: "3" }
-                check true
+                check true else todo()
             }
         }
     "#;
@@ -1071,7 +1071,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 0 | 1 => {
-                    check false
+                    check false else todo()
                 }
                 5 | 6 | 7 => {
                     publish Result { x: x }
@@ -1134,7 +1134,7 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action foo(val int) {
-            check val == bar()
+            check val == bar() else todo()
         }
 
         function bar() int {
@@ -1228,10 +1228,10 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
         if x {
-            check x
+            check x else todo()
         }
         if !y {
-            check !y
+            check !y else todo()
         }
     }
     "#;
@@ -1415,7 +1415,7 @@ fn test_check_errors() -> anyhow::Result<()> {
                 seal { return todo() }
                 open { return todo() }
                 policy {
-                    check false or recall default()
+                    check false else recall default()
                 }
                 recall default() {
                 }
@@ -1428,7 +1428,7 @@ fn test_check_errors() -> anyhow::Result<()> {
                 seal { return todo() }
                 open { return todo() }
                 policy {
-                    check false or recall bar()
+                    check false else recall bar()
                 }
                 recall bar() {
                 }
@@ -1477,12 +1477,12 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
         action test_existing() {
             let f = check_unwrap query Foo[i: 1]
-            check f.x == 1
+            check f.x == 1 else todo()
         }
 
         action test_nonexistent() {
             let f = check_unwrap query Foo[i: 0]
-            check false // would exit(panic), but check_unwrap should exit(check) first
+            check false else todo() // would exit(panic), but check_unwrap should exit(check) first
         }
     "#;
 
@@ -1628,12 +1628,12 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             open { return todo() }
 
             policy {
-                check envelope.payload == this.test
+                check envelope.payload == this.test else todo()
                 finish {}
             }
 
             recall default() {
-                check envelope.payload == this.test
+                check envelope.payload == this.test else todo()
                 finish {}
             }
         }
@@ -2362,7 +2362,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!("action f() {{ check {expr} }}"));
+        let machine = compile(&format!("action f() {{ check {expr} else todo() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2387,7 +2387,7 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let machine = compile(&format!("action f() {{ check {expr} }}"));
+        let machine = compile(&format!("action f() {{ check {expr} else todo() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2399,16 +2399,19 @@ fn test_boolean_short_circuit() {
         exit
     }
 
-    assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check(None));
-    assert_eq!(run("true || todo()"), ExitReason::Normal);
-    assert_eq!(run("false || todo()"), ExitReason::Panic);
+    // Under new check semantics, a failing check triggers the `else todo()` which
+    // panics. So the only `Normal` result is when the whole expression is true
+    // *and* any `todo()` inside it was short-circuited away.
+    assert_eq!(run("true && todo()"), ExitReason::Panic); // todo runs in &&
+    assert_eq!(run("false && todo()"), ExitReason::Panic); // short-circuits, but else todo panics
+    assert_eq!(run("true || todo()"), ExitReason::Normal); // || short-circuits, check passes
+    assert_eq!(run("false || todo()"), ExitReason::Panic); // todo runs in ||
 }
 
 #[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!("action f() {{ check {expr} }}"));
+        let machine = compile(&format!("action f() {{ check {expr} else todo() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2501,11 +2504,11 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check true
+            check true else todo()
             // before
-            check false
+            check false else todo()
             // after
-            check true
+            check true else todo()
         }
     "#;
 
@@ -2516,14 +2519,14 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check(None));
+    assert_eq!(result, ExitReason::Panic);
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
         source,
         concat!(
             "at row 4 col 13:\n",
-            "\tcheck false\n",
+            "\tcheck false else todo()\n",
             "            // after\n",
             "            "
         )
@@ -2536,7 +2539,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar()
+            check 42 == bar() else todo()
         }
 
         function bar() int {
@@ -2568,7 +2571,7 @@ fn test_return_expression() -> anyhow::Result<()> {
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar()
+            check 42 == bar() else todo()
         }
 
         function bar() int {
@@ -2783,7 +2786,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check false or recall test(1, "oops")
+                check false else recall test(1, "oops")
             }
             recall test(a int, b string) {
                 finish {
@@ -2877,10 +2880,7 @@ fn test_recall_statement() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
 
     let name = ident!("Foo");
-    let this_data = Struct::new(
-        name.clone(),
-        [KVPair::new(ident!("x"), Value::from(7))],
-    );
+    let this_data = Struct::new(name.clone(), [KVPair::new(ident!("x"), Value::from(7))]);
     let envelope = Struct::new(
         ident!("Envelope"),
         [KVPair::new(
