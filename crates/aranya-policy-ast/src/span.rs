@@ -18,6 +18,7 @@ use serde_derive::{Deserialize, Serialize};
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[must_use]
 pub struct WithSpan<T> {
     pub inner: T,
     pub span: Span,
@@ -26,6 +27,11 @@ pub struct WithSpan<T> {
 impl<T> WithSpan<T> {
     pub fn new(inner: T, span: Span) -> Self {
         Self { inner, span }
+    }
+
+    pub fn with_no_span(mut self) -> Self {
+        self.span = Span::empty();
+        self
     }
 }
 
@@ -55,6 +61,17 @@ impl<T: fmt::Display> fmt::Display for WithSpan<T> {
         self.inner.fmt(f)
     }
 }
+
+pub trait WithSpanExt: Sized {
+    fn at(self, span: impl Into<Span>) -> WithSpan<Self> {
+        WithSpan::new(self, span.into())
+    }
+
+    fn nowhere(self) -> WithSpan<Self> {
+        WithSpan::new(self, Span::empty())
+    }
+}
+impl<T> WithSpanExt for T {}
 
 /// A range in the source text.
 #[derive(

@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, Text, TypeKind, VType};
+use aranya_policy_ast::{Identifier, ResultTypeKind, Text, TypeKind, WithSpanExt as _};
 use serde::{Deserialize, Serialize};
 
 /// A constant or literal value used in policy.
@@ -56,48 +56,27 @@ impl ConstValue {
             Self::Int(_) => TypeKind::Int,
             Self::Bool(_) => TypeKind::Bool,
             Self::String(_) => TypeKind::String,
-            Self::Enum(name, _) => TypeKind::Enum(Ident {
-                inner: name.to_owned(),
-                span: Span::empty(),
-            }),
-            Self::Struct(s) => TypeKind::Struct(Ident {
-                inner: s.name.clone(),
-                span: Span::empty(),
-            }),
+            Self::Enum(name, _) => TypeKind::Enum(name.to_owned().nowhere()),
+            Self::Struct(s) => TypeKind::Struct(s.name.clone().nowhere()),
             Self::Option(o) => {
                 let inner_kind = match o {
                     Some(inner_value) => inner_value.vtype(),
                     None => TypeKind::Never,
                 };
-                TypeKind::Optional(Box::new(VType {
-                    inner: inner_kind,
-                    span: Span::empty(),
-                }))
+                TypeKind::Optional(Box::new(inner_kind.nowhere()))
             }
             Self::Result(Ok(ok)) => {
                 let ok_kind = ok.vtype();
                 TypeKind::Result(Box::new(ResultTypeKind {
-                    ok: VType {
-                        inner: ok_kind,
-                        span: Span::empty(),
-                    },
-                    err: VType {
-                        inner: TypeKind::Never,
-                        span: Span::empty(),
-                    },
+                    ok: ok_kind.nowhere(),
+                    err: TypeKind::Never.nowhere(),
                 }))
             }
             Self::Result(Err(err)) => {
                 let err_kind = err.vtype();
                 TypeKind::Result(Box::new(ResultTypeKind {
-                    ok: VType {
-                        inner: TypeKind::Never,
-                        span: Span::empty(),
-                    },
-                    err: VType {
-                        inner: err_kind,
-                        span: Span::empty(),
-                    },
+                    ok: TypeKind::Never.nowhere(),
+                    err: err_kind.nowhere(),
                 }))
             }
         }
