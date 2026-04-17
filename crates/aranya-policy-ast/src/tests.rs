@@ -8,7 +8,7 @@ use crate::{
 macro_rules! ident_at {
     ($name:expr, $start:expr, $end:expr) => {
         Ident {
-            name: ident!($name),
+            inner: ident!($name),
             span: Span::new($start, $end),
         }
     };
@@ -17,7 +17,7 @@ macro_rules! ident_at {
 macro_rules! expr {
     ($kind:expr, $start:expr, $end:expr) => {
         Expression {
-            kind: $kind,
+            inner: $kind,
             span: Span::new($start, $end),
         }
     };
@@ -77,11 +77,11 @@ macro_rules! result_type {
     ($ok_t:expr, $start1:expr, $end1:expr, $err_t:expr, $start2:expr, $end2:expr) => {
         TypeKind::Result(Box::new(ResultTypeKind {
             ok: VType {
-                kind: $ok_t,
+                inner: $ok_t,
                 span: Span::new($start1, $end1),
             },
             err: VType {
-                kind: $err_t,
+                inner: $err_t,
                 span: Span::new($start2, $end2),
             },
         }))

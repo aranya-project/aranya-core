@@ -57,11 +57,11 @@ impl ConstValue {
             Self::Bool(_) => TypeKind::Bool,
             Self::String(_) => TypeKind::String,
             Self::Enum(name, _) => TypeKind::Enum(Ident {
-                name: name.to_owned(),
+                inner: name.to_owned(),
                 span: Span::empty(),
             }),
             Self::Struct(s) => TypeKind::Struct(Ident {
-                name: s.name.clone(),
+                inner: s.name.clone(),
                 span: Span::empty(),
             }),
             Self::Option(o) => {
@@ -70,7 +70,7 @@ impl ConstValue {
                     None => TypeKind::Never,
                 };
                 TypeKind::Optional(Box::new(VType {
-                    kind: inner_kind,
+                    inner: inner_kind,
                     span: Span::empty(),
                 }))
             }
@@ -78,11 +78,11 @@ impl ConstValue {
                 let ok_kind = ok.vtype();
                 TypeKind::Result(Box::new(ResultTypeKind {
                     ok: VType {
-                        kind: ok_kind,
+                        inner: ok_kind,
                         span: Span::empty(),
                     },
                     err: VType {
-                        kind: TypeKind::Never,
+                        inner: TypeKind::Never,
                         span: Span::empty(),
                     },
                 }))
@@ -91,11 +91,11 @@ impl ConstValue {
                 let err_kind = err.vtype();
                 TypeKind::Result(Box::new(ResultTypeKind {
                     ok: VType {
-                        kind: TypeKind::Never,
+                        inner: TypeKind::Never,
                         span: Span::empty(),
                     },
                     err: VType {
-                        kind: err_kind,
+                        inner: err_kind,
                         span: Span::empty(),
                     },
                 }))

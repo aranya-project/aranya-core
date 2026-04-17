@@ -54,11 +54,11 @@ impl From<&Type<'_>> for VType {
             Type::Bool => TypeKind::Bool,
             Type::Id => TypeKind::Id,
             Type::Struct(s) => TypeKind::Struct(Ident {
-                name: s.clone(),
+                inner: s.clone(),
                 span: Span::default(),
             }),
             Type::Enum(e) => TypeKind::Enum(Ident {
-                name: e.clone(),
+                inner: e.clone(),
                 span: Span::default(),
             }),
             Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
@@ -68,7 +68,7 @@ impl From<&Type<'_>> for VType {
             })),
         };
         Self {
-            kind,
+            inner: kind,
             span: Span::empty(),
         }
     }
