@@ -61,6 +61,11 @@ mod __private {
 pub(crate) use __private::DhKemP256HkdfSha256;
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
+///
+/// `R` is the CSPRNG used for key and nonce generation; it defaults to
+/// [`Rng`], the system CSPRNG. `S` is the [`CipherSuite`]; it defaults
+/// to [`DefaultCipherSuite`]. Most callers should keep both defaults
+/// and construct the engine via [`DefaultEngine::from_entropy`].
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
     aead: S::Aead,
     rng: R,
@@ -88,7 +93,11 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
     }
 
     /// Creates an [`Engine`] using entropy from `rng` and
-    /// returns it and the generated key.
+    /// returns it alongside the generated AEAD key.
+    ///
+    /// The returned key is the root of trust for every key this
+    /// engine wraps; persist it securely. Losing it means losing
+    /// access to all wrapped keys; leaking it compromises them.
     pub fn from_entropy(rng: R) -> (Self, <S::Aead as Aead>::Key) {
         let key = <S::Aead as Aead>::Key::random(&rng);
         let eng = Self::new(&key, rng);
