@@ -26,8 +26,6 @@ pub use aranya_runtime::{
     Address, ClientError, ClientState, CmdId, Command, GraphId, Session, Sink, Transaction,
     TraversalBuffer, TraversalBuffers,
 };
-#[doc(inline)]
-pub use client::VmPolicyStore;
 
 pub mod storage {
     //! Storage providers and low-level I/O for the graph.
@@ -66,7 +64,7 @@ pub mod policy {
     };
 
     #[doc(inline)]
-    pub use crate::VmPolicyStore;
+    pub use crate::client::VmPolicyStore;
 }
 
 pub mod crypto {
