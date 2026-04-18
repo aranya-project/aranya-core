@@ -565,28 +565,18 @@ impl ChunkParser<'_> {
 
     pub fn parse_atom(&self, primary: Pair) -> Result<Expression> {
         let span = self.to_ast_span(primary.as_span())?;
-        match primary.as_rule() {
-            Rule::unit_literal => Ok(Expression {
-                inner: ExprKind::Unit,
-                span,
-            }),
+        let kind = match primary.as_rule() {
+            Rule::unit_literal => ExprKind::Unit,
             Rule::int_literal => {
                 let n = primary.as_str().parse::<i64>().map_err(|e| {
                     let message = e.to_string().replace("target type", "`int`");
-
                     ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
                 })?;
-                Ok(Expression {
-                    inner: ExprKind::Int(IntLiteral::new(n, span)),
-                    span,
-                })
+                ExprKind::Int(IntLiteral::new(n, span))
             }
             Rule::string_literal => {
                 let s = self.parse_string_literal(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::String(s),
-                    span,
-                })
+                ExprKind::String(s)
             }
             Rule::bool_literal => {
                 let mut pairs = primary.into_inner();
@@ -598,19 +588,15 @@ impl ChunkParser<'_> {
                     )
                 })?;
                 match token.as_rule() {
-                    Rule::btrue => Ok(Expression {
-                        inner: ExprKind::Bool(true),
-                        span,
-                    }),
-                    Rule::bfalse => Ok(Expression {
-                        inner: ExprKind::Bool(false),
-                        span,
-                    }),
-                    t => Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        format!("impossible token: {:?}", t),
-                        Some(span),
-                    )),
+                    Rule::btrue => ExprKind::Bool(true),
+                    Rule::bfalse => ExprKind::Bool(false),
+                    t => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("impossible token: {:?}", t),
+                            Some(span),
+                        ));
+                    }
                 }
             }
             Rule::optional_literal => {
@@ -643,10 +629,7 @@ impl ChunkParser<'_> {
                         ));
                     }
                 };
-                Ok(Expression {
-                    inner: ExprKind::Optional(opt_expr),
-                    span,
-                })
+                ExprKind::Optional(opt_expr)
             }
             Rule::result_literal => {
                 let token = primary.into_inner().next().ok_or_else(|| {
@@ -666,10 +649,7 @@ impl ChunkParser<'_> {
                             )
                         })?;
                         let expr = self.parse_expression(v)?;
-                        Ok(Expression {
-                            inner: ExprKind::Ok(Box::new(expr)),
-                            span,
-                        })
+                        ExprKind::Ok(Box::new(expr))
                     }
                     Rule::err => {
                         let v = token.into_inner().next().ok_or_else(|| {
@@ -680,67 +660,45 @@ impl ChunkParser<'_> {
                             )
                         })?;
                         let expr = self.parse_expression(v)?;
-                        Ok(Expression {
-                            inner: ExprKind::Err(Box::new(expr)),
-                            span,
-                        })
+                        ExprKind::Err(Box::new(expr))
                     }
-                    _ => Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        format!("invalid token in result_literal: {:?}", token.as_rule()),
-                        Some(span),
-                    )),
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("invalid token in result_literal: {:?}", token.as_rule()),
+                            Some(span),
+                        ));
+                    }
                 }
             }
             Rule::named_struct_literal => {
                 let ns = self.parse_named_struct_literal(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::NamedStruct(ns),
-                    span,
-                })
+                ExprKind::NamedStruct(ns)
             }
             Rule::function_call => {
                 let fc = self.parse_function_call(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::FunctionCall(fc),
-                    span,
-                })
+                ExprKind::FunctionCall(fc)
             }
             Rule::foreign_function_call => {
                 let ffc = self.parse_foreign_function_call(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::ForeignFunctionCall(ffc),
-                    span,
-                })
+                ExprKind::ForeignFunctionCall(ffc)
             }
             Rule::action_call => {
                 let fc = self.parse_action_call(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::ActionCall(fc),
-                    span,
-                })
+                ExprKind::ActionCall(fc)
             }
             Rule::return_expression => {
                 let pc = self.descend(primary);
                 let expression = pc.consume_expression(self)?;
-                Ok(Expression {
-                    inner: ExprKind::Return(Box::new(expression)),
-                    span,
-                })
+                ExprKind::Return(Box::new(expression))
             }
             Rule::recall_expression => {
                 let fc = self.parse_recall_call(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::Recall(fc),
-                    span,
-                })
+                ExprKind::Recall(fc)
             }
             Rule::enum_reference => {
                 let er = self.parse_enum_reference(primary)?;
-                Ok(Expression {
-                    inner: ExprKind::EnumReference(er),
-                    span,
-                })
+                ExprKind::EnumReference(er)
             }
             Rule::query => {
                 let mut pairs = primary.into_inner();
@@ -752,10 +710,7 @@ impl ChunkParser<'_> {
                     )
                 })?;
                 let fact_literal = self.parse_fact_literal(token)?;
-                Ok(Expression {
-                    inner: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
-                    span,
-                })
+                ExprKind::InternalFunction(InternalFunction::Query(fact_literal))
             }
             Rule::exists => {
                 let mut pairs = primary.into_inner();
@@ -767,54 +722,42 @@ impl ChunkParser<'_> {
                     )
                 })?;
                 let fact_literal = self.parse_fact_literal(token)?;
-                Ok(Expression {
-                    inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
-                    span,
-                })
+                ExprKind::InternalFunction(InternalFunction::Exists(fact_literal))
             }
-            Rule::count_up_to => self.parse_counting_fn(primary, ast::FactCountType::UpTo(span)),
-            Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span)),
-            Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost(span)),
-            Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly(span)),
-            Rule::match_expression => self.parse_match_expression(primary),
-            Rule::if_expr => self.parse_if_expression(primary),
-            Rule::this => Ok(Expression {
-                inner: ExprKind::Identifier(Ident {
-                    inner: ident!("this"),
-                    span,
-                }),
+            Rule::count_up_to => self.parse_counting_fn(primary, ast::FactCountType::UpTo(span))?,
+            Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span))?,
+            Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost(span))?,
+            Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly(span))?,
+            Rule::match_expression => self.parse_match_expression(primary)?,
+            Rule::if_expr => self.parse_if_expression(primary)?,
+            Rule::this => ExprKind::Identifier(Ident {
+                inner: ident!("this"),
                 span,
             }),
-            Rule::todo => Ok(Expression {
-                inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
-                span,
-            }),
+            Rule::todo => ExprKind::InternalFunction(InternalFunction::Todo(span)),
             Rule::test_fail => {
                 let mut pairs = primary.into_inner();
                 let msg = pairs
                     .next()
                     .map(|t| self.parse_string_literal(t))
                     .transpose()?;
-                Ok(Expression {
-                    inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
-                    span,
-                })
+                ExprKind::InternalFunction(InternalFunction::TestFail(msg, span))
             }
             Rule::identifier => {
                 let ident = self.remain(primary).consume_ident(self)?;
-                Ok(Expression {
-                    inner: ExprKind::Identifier(ident),
-                    span,
-                })
+                ExprKind::Identifier(ident)
             }
-            Rule::block_expression => self.parse_block_expression(primary),
-            Rule::expression => self.parse_expression(primary),
-            _ => Err(ParseError::new(
-                ParseErrorKind::Expression,
-                format!("bad atom: {:?}", primary.as_rule()),
-                Some(span),
-            )),
-        }
+            Rule::block_expression => return self.parse_block_expression(primary),
+            Rule::expression => return self.parse_expression(primary),
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Expression,
+                    format!("bad atom: {:?}", primary.as_rule()),
+                    Some(span),
+                ));
+            }
+        };
+        Ok(Expression { inner: kind, span })
     }
 
     pub fn parse_prefix(&self, op: Pair, rhs: Expression) -> Result<Expression> {
@@ -982,8 +925,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_match_expression(&self, expr: Pair) -> Result<Expression> {
-        let span = self.to_ast_span(expr.as_span())?;
+    fn parse_match_expression(&self, expr: Pair) -> Result<ExprKind> {
         let pc = self.descend(expr);
         let scrutinee = pc.consume_expression(self)?;
 
@@ -1019,17 +961,13 @@ impl ChunkParser<'_> {
             });
         }
 
-        Ok(Expression {
-            inner: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
-            span,
-        })
+        Ok(ExprKind::Match(Box::new(MatchExpression {
+            scrutinee,
+            arms,
+        })))
     }
 
-    fn parse_counting_fn(
-        &self,
-        statement: Pair,
-        cmp_type: ast::FactCountType,
-    ) -> Result<Expression> {
+    fn parse_counting_fn(&self, statement: Pair, cmp_type: ast::FactCountType) -> Result<ExprKind> {
         let span = self.to_ast_span(statement.as_span())?;
         let mut pairs = statement.into_inner();
 
@@ -1057,13 +995,12 @@ impl ChunkParser<'_> {
             )
         })?;
         let fact = self.parse_fact_literal(token)?;
-        Ok(Expression {
-            inner: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
-            span,
-        })
+        Ok(ExprKind::InternalFunction(InternalFunction::FactCount(
+            cmp_type, limit, fact,
+        )))
     }
 
-    fn parse_if_expression(&self, expr: Pair) -> Result<Expression> {
+    fn parse_if_expression(&self, expr: Pair) -> Result<ExprKind> {
         let span = self.to_ast_span(expr.as_span())?;
         let mut pairs = expr.into_inner();
 
@@ -1094,14 +1031,11 @@ impl ChunkParser<'_> {
         })?;
         let else_expr = self.parse_block_expression(token)?;
 
-        Ok(Expression {
-            inner: ExprKind::InternalFunction(InternalFunction::If(
-                Box::new(condition),
-                Box::new(then_expr),
-                Box::new(else_expr),
-            )),
-            span,
-        })
+        Ok(ExprKind::InternalFunction(InternalFunction::If(
+            Box::new(condition),
+            Box::new(then_expr),
+            Box::new(else_expr),
+        )))
     }
 
     /// Parses a list of Rule::struct_data items into lists of (String,
