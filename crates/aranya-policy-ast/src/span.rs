@@ -6,6 +6,7 @@ use core::{
 
 use serde_derive::{Deserialize, Serialize};
 
+/// Wraps a type to add a [`Span`].
 #[derive(
     Clone,
     Copy,
@@ -20,15 +21,21 @@ use serde_derive::{Deserialize, Serialize};
 )]
 #[must_use]
 pub struct WithSpan<T> {
+    /// The inner value.
     pub inner: T,
+    /// The span.
     pub span: Span,
 }
 
 impl<T> WithSpan<T> {
+    /// Create a new `WithSpan`.
+    ///
+    /// See also [`WithSpanExt::at`].
     pub fn new(inner: T, span: Span) -> Self {
         Self { inner, span }
     }
 
+    /// Erase this `WithSpan`'s span.
     pub fn with_no_span(mut self) -> Self {
         self.span = Span::empty();
         self
@@ -62,11 +69,26 @@ impl<T: fmt::Display> fmt::Display for WithSpan<T> {
     }
 }
 
+/// Extension trait to wrap `T` into [`WithSpan<T>`].
 pub trait WithSpanExt: Sized {
+    /// Wrap with the given span.
+    ///
+    /// ```
+    /// use aranya_policy_ast::{TypeKind, VType, WithSpanExt};
+    ///
+    /// let vtype: VType = TypeKind::Int.at(10..13);
+    /// ```
     fn at(self, span: impl Into<Span>) -> WithSpan<Self> {
         WithSpan::new(self, span.into())
     }
 
+    /// Wrap with an empty span.
+    ///
+    /// ```
+    /// use aranya_policy_ast::{TypeKind, VType, WithSpanExt};
+    ///
+    /// let vtype: VType = TypeKind::Int.nowhere();
+    /// ```
     fn nowhere(self) -> WithSpan<Self> {
         WithSpan::new(self, Span::empty())
     }
