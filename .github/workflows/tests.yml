@@ -40,3 +40,6 @@ jobs:
 
       - name: Unit Tests
         run: cargo make unit-tests
+
+      - name: Run aranya-core example
+        run: cargo make run-aranya-core-example
