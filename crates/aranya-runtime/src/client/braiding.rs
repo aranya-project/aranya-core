@@ -28,8 +28,8 @@ pub(super) fn last_common_ancestor<S: Storage>(
     let mut right_seg = storage.get_segment(right)?;
     while left != right {
         // The command with the lower max cut could be our least common ancestor
-        // so we keeping following the command with the higher max cut until
-        // both sides converge.
+        // so we keep following the command with the higher max cut until both
+        // sides converge.
         let (location, segment) = match left.max_cut > right.max_cut {
             true => (&mut left, &mut left_seg),
             false => (&mut right, &mut right_seg),
