@@ -1808,7 +1808,7 @@ fn parse_policy_chunk_inner(
 
 pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
     fn inner(s: &str) -> Result<Expression, ParseError> {
-        let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+        let mut pairs = PolicyParser::parse(Rule::complete_expression, s)?;
 
         let token = pairs
             .next()

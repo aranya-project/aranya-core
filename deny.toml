@@ -77,6 +77,7 @@ yanked = "warn"
 # output a note when they are encountered.
 ignore = [
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained but shouldn't need any, and we don't use it directly" },
+    { id = "RUSTSEC-2026-0097", reason = "we don't use the features required to hit the bug" },
     #"RUSTSEC-0000-0000",
     #{ id = "RUSTSEC-0000-0000", reason = "you can specify a reason the advisory is ignored" },
     #"a-crate-that-is-yanked@0.1.1", # you can also ignore yanked crate versions if you wish
@@ -137,8 +138,10 @@ exceptions = [
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-ifgen-macro" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-lang" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-module" },
+    { allow = ["AGPL-3.0-only"], crate = "aranya-policy-runner" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-text" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-text-macro" },
+    { allow = ["AGPL-3.0-only"], crate = "aranya-core" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-vm" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-runtime" },
 ]

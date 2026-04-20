@@ -197,6 +197,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-core"
+version = "0.0.1-alpha"
+dependencies = [
+ "anyhow",
+ "aranya-core",
+ "aranya-crypto",
+ "aranya-crypto-ffi",
+ "aranya-device-ffi",
+ "aranya-envelope-ffi",
+ "aranya-idam-ffi",
+ "aranya-perspective-ffi",
+ "aranya-policy-compiler",
+ "aranya-policy-lang",
+ "aranya-policy-vm",
+ "aranya-runtime",
+ "postcard",
+]
+
+[[package]]
 name = "aranya-crypto"
 version = "0.14.0"
 dependencies = [
@@ -456,6 +475,31 @@ dependencies = [
  "rkyv",
  "serde",
  "thiserror 2.0.7",
+]
+
+[[package]]
+name = "aranya-policy-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aranya-afc-util",
+ "aranya-crypto",
+ "aranya-crypto-ffi",
+ "aranya-device-ffi",
+ "aranya-envelope-ffi",
+ "aranya-idam-ffi",
+ "aranya-perspective-ffi",
+ "aranya-policy-compiler",
+ "aranya-policy-ifgen-build",
+ "aranya-policy-lang",
+ "aranya-policy-vm",
+ "aranya-runtime",
+ "clap",
+ "postcard",
+ "rand",
+ "thiserror 2.0.7",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
