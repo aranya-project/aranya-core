@@ -2,7 +2,9 @@ use aranya_crypto::Engine;
 use aranya_policy_ast::{Text, ident};
 
 use crate::{
-    CommandContext, MachineError, MachineErrorType, Stack, Value,
+    CommandContext, MachineError, MachineErrorType,
+    RefOrBox::Ref,
+    Stack, Value,
     ffi::{self, FfiModule, ModuleSchema},
 };
 
@@ -13,16 +15,16 @@ impl FfiModule for PrintFfi {
 
     const SCHEMA: ModuleSchema<'static> = ModuleSchema {
         name: ident!("print"),
-        functions: &[ffi::Func {
+        functions: Ref(&[ffi::Func {
             name: ident!("print"),
-            args: &[ffi::Arg {
+            args: Ref(&[ffi::Arg {
                 name: ident!("s"),
                 vtype: ffi::Type::String,
-            }],
+            }]),
             return_type: ffi::Type::String,
-        }],
-        structs: &[],
-        enums: &[],
+        }]),
+        structs: Ref(&[]),
+        enums: Ref(&[]),
     };
 
     fn call<E: Engine>(

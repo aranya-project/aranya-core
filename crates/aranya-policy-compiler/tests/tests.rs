@@ -11,43 +11,44 @@ use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Instruction, Label, Module, ModuleData, ModuleV0,
+    RefOrBox::Ref,
     ffi::{self, ModuleSchema},
 };
 
 const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     ModuleSchema {
         name: ident!("test"),
-        functions: &[ffi::Func {
+        functions: Ref(&[ffi::Func {
             name: ident!("doit"),
-            args: &[ffi::Arg {
+            args: Ref(&[ffi::Arg {
                 name: ident!("x"),
                 vtype: ffi::Type::Int,
-            }],
+            }]),
             return_type: ffi::Type::Bool,
-        }],
-        structs: &[],
-        enums: &[],
+        }]),
+        structs: Ref(&[]),
+        enums: Ref(&[]),
     },
     ModuleSchema {
         name: ident!("cyclic_types"),
-        functions: &[],
-        structs: &[
+        functions: Ref(&[]),
+        structs: Ref(&[
             ffi::Struct {
                 name: ident!("FFIFoo"),
-                fields: &[ffi::Arg {
+                fields: Ref(&[ffi::Arg {
                     name: ident!("bar"),
                     vtype: ffi::Type::Struct(ident!("FFIBar")),
-                }],
+                }]),
             },
             ffi::Struct {
                 name: ident!("FFIBar"),
-                fields: &[ffi::Arg {
+                fields: Ref(&[ffi::Arg {
                     name: ident!("foo"),
                     vtype: ffi::Type::Struct(ident!("FFIFoo")),
-                }],
+                }]),
             },
-        ],
-        enums: &[],
+        ]),
+        enums: Ref(&[]),
     },
 ];
 

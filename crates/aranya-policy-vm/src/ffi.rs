@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use aranya_crypto::Engine;
 use aranya_id::{Id, IdTag};
 use aranya_policy_ast::Text;
+use aranya_policy_module::RefOrBox;
 pub use aranya_policy_module::ffi::*;
 
 #[cfg(feature = "derive")]
@@ -70,9 +71,9 @@ impl<Tag: IdTag> Typed for Id<Tag> {
 }
 
 impl<T: Typed> Typed for Option<T> {
-    const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
+    const TYPE: Type<'static> = Type::Optional(RefOrBox::Ref(&T::TYPE));
 }
 
 impl<T: Typed, E: Typed> Typed for Result<T, E> {
-    const TYPE: Type<'static> = Type::Result(&T::TYPE, &E::TYPE);
+    const TYPE: Type<'static> = Type::Result(RefOrBox::Ref(&T::TYPE), RefOrBox::Ref(&E::TYPE));
 }

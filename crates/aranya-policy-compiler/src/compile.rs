@@ -1760,7 +1760,7 @@ impl<'a> CompileState<'a> {
             {
                 continue;
             }
-            for ffi_struct_def in ffi_mod.structs {
+            for ffi_struct_def in ffi_mod.structs.iter() {
                 let deps = ffi_struct_def
                     .fields
                     .iter()

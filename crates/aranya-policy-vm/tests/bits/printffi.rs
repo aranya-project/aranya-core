@@ -1,6 +1,8 @@
 use aranya_crypto::Engine;
 use aranya_policy_vm::{
-    CommandContext, MachineError, MachineErrorType, Stack, Text, Value,
+    CommandContext, MachineError, MachineErrorType,
+    RefOrBox::Ref,
+    Stack, Text, Value,
     ffi::{self, FfiModule, ModuleSchema},
     ident,
 };
@@ -12,16 +14,16 @@ impl FfiModule for PrintFfi {
 
     const SCHEMA: ModuleSchema<'static> = ModuleSchema {
         name: ident!("print"),
-        functions: &[ffi::Func {
+        functions: Ref(&[ffi::Func {
             name: ident!("print"),
-            args: &[ffi::Arg {
+            args: Ref(&[ffi::Arg {
                 name: ident!("s"),
                 vtype: ffi::Type::String,
-            }],
+            }]),
             return_type: ffi::Type::String,
-        }],
-        structs: &[],
-        enums: &[],
+        }]),
+        structs: Ref(&[]),
+        enums: Ref(&[]),
     };
 
     fn call<E: Engine>(
