@@ -400,74 +400,96 @@ impl ChunkParser<'_> {
     ///
     /// Processes \\, \n, and \xNN escapes.
     fn parse_string_literal(&self, string: Pair<'_, Rule>) -> Result<Text, ParseError> {
+        let span = self.to_ast_span(string.as_span())?;
+
         let src = string.as_str();
-        let it = &mut src.chars();
-        let mut out = String::new();
-        // consume the first quote character
-        if it.next() != Some('"') {
-            return Err(ParseError::new(
-                ParseErrorKind::InvalidString,
-                format!("bad string: {}", src),
-                Some(self.to_ast_span(string.as_span())?),
-            ));
-        }
-        while let Some(c) = it.next() {
+        let end = src
+            .len()
+            .checked_sub(1)
+            .assume("string with quotes is not empty")?;
+        let contents = src
+            .get(1..end)
+            .assume("string starts and ends with quote")?;
+
+        let mut it = contents.bytes().enumerate();
+        let mut out: Vec<u8> = Vec::new();
+        while let Some((_, c)) = it.next() {
             match c {
-                '\\' => {
-                    if let Some(next) = it.next() {
-                        match next {
-                            'x' => {
-                                let s: String = it.take(2).collect();
-                                let v = u8::from_str_radix(&s, 16).map_err(|e| {
-                                    self.to_ast_span(string.as_span()).map_or_else(
-                                        |err| err,
-                                        |span| {
-                                            ParseError::new(
-                                                ParseErrorKind::InvalidNumber,
-                                                format!("{}: {}", s, e),
-                                                Some(span),
-                                            )
-                                        },
-                                    )
-                                })?;
-                                out.push(v as char);
-                            }
-                            'n' => {
-                                out.push('\n');
-                            }
-                            _ => {
+                b'\\' => {
+                    let (j, next) = it.next().assume("byte must follow escape")?;
+                    match next {
+                        b'x' => {
+                            let (Some((_, a)), Some((_, b))) = (it.next(), it.next()) else {
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
-                                    format!("invalid escape: {}", next),
-                                    Some(self.to_ast_span(string.as_span())?),
+                                    String::from("hex character escape is too short"),
+                                    Some(span),
+                                ));
+                            };
+
+                            let bytes = [a, b];
+                            let v = str::from_utf8(&bytes)
+                                .ok()
+                                .and_then(|src| u8::from_str_radix(src, 16).ok())
+                                .ok_or_else(|| {
+                                    ParseError::new(
+                                        ParseErrorKind::InvalidString,
+                                        String::from("invalid character in hex character escape"),
+                                        Some(span),
+                                    )
+                                })?;
+                            if !(0x01..=0x7F).contains(&v) {
+                                return Err(ParseError::new(
+                                    ParseErrorKind::InvalidString,
+                                    String::from(
+                                        "hex character escape is out of range [0x01, 0x7F]",
+                                    ),
+                                    Some(span),
                                 ));
                             }
+                            out.push(v);
                         }
-                    } else {
-                        return Err(ParseError::new(
-                            ParseErrorKind::InvalidString,
-                            String::from("end of string while processing escape"),
-                            Some(self.to_ast_span(string.as_span())?),
-                        ));
+                        b'n' => {
+                            out.push(b'\n');
+                        }
+                        b'\\' => {
+                            out.push(b'\\');
+                        }
+                        b'"' => {
+                            out.push(b'"');
+                        }
+                        b'\n' => {
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                String::from("cannot end line with escape"),
+                                Some(span),
+                            ));
+                        }
+                        _ => {
+                            let escape = contents[j..].chars().next().assume("char is present")?;
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                format!("unknown character escape: `{}`", escape.escape_default()),
+                                Some(span),
+                            ));
+                        }
                     }
                 }
-                '"' => break,
+                b'"' => break,
                 _ => out.push(c),
             }
         }
 
-        out.try_into().map_err(|_| {
-            self.to_ast_span(string.as_span()).map_or_else(
-                |err| err,
-                |span| {
-                    ParseError::new(
-                        ParseErrorKind::InvalidString,
-                        String::from("string contained null byte"),
-                        Some(span),
-                    )
-                },
-            )
-        })
+        str::from_utf8(&out)
+            .assume("valid utf8")?
+            .parse()
+            .map_err(|_| {
+                ParseError::new(
+                    ParseErrorKind::InvalidString,
+                    String::from("string contained null byte"),
+                    Some(span),
+                )
+            })
     }
 
     /// Parse a match pattern from a match_arm_expression token.

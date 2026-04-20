@@ -35,33 +35,6 @@ fn parse_negative_number() -> Result<(), PestError<Rule>> {
 
 #[test]
 #[allow(clippy::result_large_err)]
-fn parse_atom_string() -> Result<(), PestError<Rule>> {
-    // basic string
-    let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::string_literal);
-
-    // empty string
-    let mut pair = PolicyParser::parse(Rule::atom, r#""""#)?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::string_literal);
-
-    // escapes
-    let mut pair = PolicyParser::parse(Rule::atom, r#""\n\xf7\\""#)?;
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::string_literal);
-
-    // invalid escapes
-    let cases = vec![r#""\b""#, r#""\xfg""#, r#""\x""#, r#""\""#];
-    for c in cases {
-        let result = PolicyParser::parse(Rule::atom, c);
-        assert!(result.is_err());
-    }
-    Ok(())
-}
-
-#[test]
-#[allow(clippy::result_large_err)]
 fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     // bare call
     let mut pair = PolicyParser::parse(Rule::atom, r#"call()"#)?;

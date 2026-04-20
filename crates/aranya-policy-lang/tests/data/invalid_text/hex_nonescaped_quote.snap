@@ -4,5 +4,5 @@ expression: err
 ---
 error: Invalid string
   |
-1 | let x = "a\x00b"
-  |         ^^^^^^^^ hex character escape is out of range [0x01, 0x7F]
+1 | let x = "a\x\\"
+  |         ^^^^^^^ invalid character in hex character escape
