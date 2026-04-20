@@ -26,6 +26,7 @@ use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule as _, ident};
+use aranya_runtime::TempFile;
 
 // ---------------------------------------------------------------------------
 // Type Aliases
@@ -234,9 +235,9 @@ fn sync_graphs(
             .context("sync receive failed")?
     {
         let _received = dest
-            .add_commands(&mut trx, sink, &cmds, &mut buffer)
+            .add_commands::<TempFile>(&mut trx, sink, &cmds, &mut buffer)
             .context("add_commands failed")?;
-        dest.commit(trx, sink, &mut buffer)
+        dest.commit::<TempFile>(trx, sink, &mut buffer)
             .context("commit failed")?;
         dest.update_heads(
             graph_id,
