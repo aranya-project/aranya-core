@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     CodeMap, ConstValue, Instruction, Label,
+    ffi::ModuleSchema,
     named::{NamedMap, named},
 };
 
@@ -118,6 +119,8 @@ pub struct ModuleV0 {
     pub codemap: Option<CodeMap>,
     /// Global static data
     pub globals: BTreeMap<Identifier, ConstValue>,
+    /// FFI schemas
+    pub ffi_schemas: Box<[ModuleSchema<'static>]>,
 }
 
 /// An action definition.

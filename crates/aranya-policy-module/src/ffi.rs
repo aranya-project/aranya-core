@@ -4,8 +4,31 @@ use alloc::boxed::Box;
 
 use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, TypeKind, VType};
 
+use crate::RefOrBox;
+
 /// The type of a value
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
 pub enum Type<'a> {
     /// A UTF-8 string.
     String,
@@ -22,9 +45,12 @@ pub enum Type<'a> {
     /// A named enum.
     Enum(Identifier),
     /// An optional type of some other type.
-    Optional(&'a Type<'a>),
+    Optional(#[rkyv(omit_bounds)] RefOrBox<'a, Type<'a>>),
     /// Result
-    Result(&'a Type<'a>, &'a Type<'a>),
+    Result(
+        #[rkyv(omit_bounds)] RefOrBox<'a, Type<'a>>,
+        #[rkyv(omit_bounds)] RefOrBox<'a, Type<'a>>,
+    ),
 }
 
 impl Type<'_> {
@@ -38,8 +64,10 @@ impl Type<'_> {
             (String, String) | (Bytes, Bytes) | (Int, Int) | (Bool, Bool) | (Id, Id) => true,
             (Struct(lhs), Struct(rhs)) => lhs.const_eq(rhs),
             (Enum(lhs), Enum(rhs)) => lhs.const_eq(rhs),
-            (Optional(lhs), Optional(rhs)) => lhs.const_eq(rhs),
-            (Result(lhs1, lhs2), Result(rhs1, rhs2)) => lhs1.const_eq(rhs1) && lhs2.const_eq(rhs2),
+            (Optional(lhs), Optional(rhs)) => lhs.as_ref().const_eq(rhs.as_ref()),
+            (Result(lhs1, lhs2), Result(rhs1, rhs2)) => {
+                lhs1.as_ref().const_eq(rhs1.as_ref()) && lhs2.as_ref().const_eq(rhs2.as_ref())
+            }
             _ => false,
         }
     }
@@ -61,10 +89,10 @@ impl From<&Type<'_>> for VType {
                 name: e.clone(),
                 span: Span::default(),
             }),
-            Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
+            Type::Optional(t) => TypeKind::Optional(Box::new(t.as_ref().into())),
             Type::Result(ok, err) => TypeKind::Result(Box::new(ResultTypeKind {
-                ok: (*ok).into(),
-                err: (*err).into(),
+                ok: ok.as_ref().into(),
+                err: err.as_ref().into(),
             })),
         };
         Self {
@@ -75,7 +103,17 @@ impl From<&Type<'_>> for VType {
 }
 
 /// Describes the context in which the function can be called.
-#[derive(Clone, Debug)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Color<'a> {
     /// Function is valid outside of finish blocks, and returns
     /// a value.
@@ -86,18 +124,39 @@ pub enum Color<'a> {
 }
 
 /// A foreign function.
-#[derive(Clone, Debug)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Func<'a> {
     /// The function's name.
     pub name: Identifier,
     /// The function's arguments.
-    pub args: &'a [Arg<'a>],
+    pub args: RefOrBox<'a, [Arg<'a>]>,
     /// The return type of the function.
     pub return_type: Type<'a>,
 }
 
 /// An argument to a foreign function.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+
 pub struct Arg<'a> {
     /// The argument's name.
     pub name: Identifier,
@@ -106,19 +165,42 @@ pub struct Arg<'a> {
 }
 
 /// A struct definition
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+
 pub struct Struct<'a> {
     /// The name of the struct.
     pub name: Identifier,
     /// The fields of the struct.
-    pub fields: &'a [Arg<'a>],
+    pub fields: RefOrBox<'a, [Arg<'a>]>,
 }
 
 /// Enumeration definition
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct Enum<'a> {
     /// name of enumeration
     pub name: Identifier,
     /// list of possible values
-    pub variants: &'a [Identifier],
+    pub variants: RefOrBox<'a, [Identifier]>,
 }
 
 /// Shorthand for creating [`Arg`]s.
@@ -127,6 +209,7 @@ pub struct Enum<'a> {
 ///
 /// ```rust
 /// use aranya_policy_module::{
+///     RefOrBox::Ref,
 ///     arg,
 ///     ast::ident,
 ///     ffi::{Arg, Type},
@@ -178,7 +261,7 @@ pub struct Enum<'a> {
 /// let got = arg!("optional", Optional(&inner));
 /// let want = Arg {
 ///     name: ident!("optional"),
-///     vtype: Type::Optional(const { &Type::Struct(ident!("bar")) }),
+///     vtype: Type::Optional(Ref(const { &Type::Struct(ident!("bar")) })),
 /// };
 /// assert_eq!(got, want);
 ///
@@ -187,7 +270,7 @@ pub struct Enum<'a> {
 /// let got = arg!("result", Result(&ok, &err));
 /// let want = Arg {
 ///     name: ident!("result"),
-///     vtype: Type::Result(const { &Type::String }, const { &Type::Int }),
+///     vtype: Type::Result(Ref(&Type::String), Ref(&Type::Int)),
 /// };
 /// assert_eq!(got, want);
 /// ```
@@ -279,10 +362,10 @@ macro_rules! __type {
         $crate::ffi::Type::Enum($crate::ast::ident!($enum_name))
     };
     (@raw Optional($inner:expr)) => {
-        $crate::ffi::Type::Optional($inner)
+        $crate::ffi::Type::Optional($crate::RefOrBox::Ref($inner))
     };
     (@raw Result($ok:expr, $err:expr)) => {
-        $crate::ffi::Type::Result($ok, $err)
+        $crate::ffi::Type::Result($crate::RefOrBox::Ref($ok), $crate::RefOrBox::Ref($err))
     };
 
     (String) => {{ $crate::__type!(@raw String) }};
@@ -314,13 +397,24 @@ macro_rules! __type {
 }
 
 /// Foreign-function module declaration.
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct ModuleSchema<'a> {
     /// module name
     pub name: Identifier,
     /// list of functions provided by the module
-    pub functions: &'a [Func<'a>],
+    pub functions: RefOrBox<'a, [Func<'a>]>,
     /// list of structs defined by the module
-    pub structs: &'a [Struct<'a>],
+    pub structs: RefOrBox<'a, [Struct<'a>]>,
     /// list of enums
-    pub enums: &'a [Enum<'a>],
+    pub enums: RefOrBox<'a, [Enum<'a>]>,
 }

@@ -11,7 +11,7 @@ use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
-    ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap,
+    ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, ffi::ModuleSchema, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -142,6 +142,8 @@ pub struct Machine {
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
     pub globals: BTreeMap<Identifier, ConstValue>,
+    /// FFI schemas
+    pub ffi_schemas: Box<[ModuleSchema<'static>]>,
 }
 
 impl Machine {
@@ -160,6 +162,7 @@ impl Machine {
             enum_defs: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
+            ffi_schemas: Box::default(),
         }
     }
 
@@ -175,6 +178,7 @@ impl Machine {
             enum_defs: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
+            ffi_schemas: Box::default(),
         }
     }
 
@@ -191,6 +195,7 @@ impl Machine {
                 enum_defs: m.enum_defs,
                 codemap: m.codemap,
                 globals: m.globals,
+                ffi_schemas: m.ffi_schemas,
             }),
         }
     }
@@ -208,6 +213,7 @@ impl Machine {
                 enum_defs: self.enum_defs,
                 codemap: self.codemap,
                 globals: self.globals,
+                ffi_schemas: self.ffi_schemas,
             }),
         }
     }

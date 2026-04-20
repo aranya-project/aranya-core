@@ -70,7 +70,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         quote! {
             #vm::ffi::Struct {
                 name: #vm::ident!(#name),
-                fields: &[#(#fields),*],
+                fields: #vm::RefOrBox::Ref(&[#(#fields),*]),
             }
         }
     });
@@ -171,7 +171,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         quote! {
             #vm::ffi::Enum {
                 name: #vm::ident!(#name),
-                variants: &[#(#vm::ident!(#variants)),*],
+                variants: #vm::RefOrBox::Ref(&[#(#vm::ident!(#variants)),*]),
             }
         }
     });
@@ -348,7 +348,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             quote! {
                 #vm::ffi::Func {
                     name: #vm::ident!(#name),
-                    args: &[#(#args),*],
+                    args: #vm::RefOrBox::Ref(&[#(#args),*]),
                     return_type: #return_type,
                 }
             }
@@ -361,15 +361,15 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
                 const SCHEMA: #vm::ffi::ModuleSchema<'static> = #vm::ffi::ModuleSchema {
                     name: #vm::ident!(#module),
-                    functions: &[
+                    functions: #vm::RefOrBox::Ref(&[
                         #(#funcs),*
-                    ],
-                    structs: &[
+                    ]),
+                    structs: #vm::RefOrBox::Ref(&[
                         #(#structdefs),*
-                    ],
-                    enums: &[
+                    ]),
+                    enums: #vm::RefOrBox::Ref(&[
                         #(#enum_defs),*
-                    ],
+                    ]),
                 };
 
                 #[doc(hidden)]

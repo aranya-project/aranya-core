@@ -5,6 +5,8 @@ use crate::{policy::PolicyError, storage::StorageError};
 #[derive(Debug, thiserror::Error)]
 /// Errors that can occur because of creation or use of VmPolicy.
 pub enum VmPolicyError {
+    #[error("Supplied FFI schemas did not match")]
+    FfiMismatch,
     /// An error happened while deserializing a command struct. Stores an interior
     /// [postcard::Error].
     #[error("deserialize error: {0}")]

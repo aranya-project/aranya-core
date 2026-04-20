@@ -205,6 +205,10 @@ impl<CE> VmPolicy<CE> {
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        if !ffis.iter().map(|ffi| ffi.schema()).eq(&machine.ffi_schemas) {
+            return Err(VmPolicyError::FfiMismatch);
+        }
+
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
