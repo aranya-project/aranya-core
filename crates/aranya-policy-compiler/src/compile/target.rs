@@ -6,7 +6,7 @@ use std::{
 use aranya_policy_ast::{self as ast, Identifier, TypeKind};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, Instruction, Label, Module, ModuleData, ModuleV0,
-    named::NamedMap,
+    ffi::ModuleSchema, named::NamedMap,
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
@@ -45,7 +45,7 @@ impl CompileTarget {
     }
 
     /// Converts the `CompileTarget` into a `Module`.
-    pub fn into_module(self) -> Module {
+    pub fn into_module(self, ffi_schemas: Box<[ModuleSchema<'static>]>) -> Module {
         // Convert enum defs IndexMap into BTreeMap.
         let enum_defs = self
             .interface
@@ -65,6 +65,7 @@ impl CompileTarget {
                 enum_defs,
                 codemap: self.codemap,
                 globals: self.interface.globals,
+                ffi_schemas,
             }),
         }
     }

@@ -208,7 +208,7 @@ struct CompileState<'a> {
     /// Keeps track of identifier types in a stack of scopes
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
-    ffi_modules: &'a [ModuleSchema<'a>],
+    ffi_modules: &'a [ModuleSchema<'static>],
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
@@ -2155,7 +2155,7 @@ enum Scope {
 /// A builder for creating an instance of [`Module`]
 pub struct Compiler<'a> {
     policy: &'a AstPolicy,
-    ffi_modules: &'a [ModuleSchema<'a>],
+    ffi_modules: &'a [ModuleSchema<'static>],
     is_debug: bool,
     stub_ffi: bool,
 }
@@ -2173,7 +2173,7 @@ impl<'a> Compiler<'a> {
 
     /// Sets the FFI modules
     #[must_use]
-    pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
+    pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'static>]) -> Self {
         self.ffi_modules = ffi_modules;
         self
     }
@@ -2195,7 +2195,7 @@ impl<'a> Compiler<'a> {
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
-        Ok(cs.m.into_module())
+        Ok(cs.m.into_module(Box::from(cs.ffi_modules)))
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
