@@ -7,6 +7,7 @@
 //! # Modules
 //!
 //! - [`crypto`] — cryptography engine and cipher suite.
+//! - [`id`] — tagged cryptographic identifiers and the [`custom_id`] macro.
 //! - [`keystore`] — device key material and keystore plumbing.
 //! - [`storage`] — storage providers and I/O plumbing for the graph.
 //! - [`policy`] — VM-backed policy execution (actions, effects, FFI).
@@ -20,6 +21,7 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 
 mod client;
+pub mod id;
 
 #[doc(inline)]
 pub use aranya_runtime::{
