@@ -209,9 +209,10 @@ pub struct Enum<'a> {
 ///
 /// ```rust
 /// use aranya_policy_module::{
+///     RefOrBox::Ref,
 ///     arg,
 ///     ast::ident,
-///     ffi::{Arg, RefOrBox::Ref, Type},
+///     ffi::{Arg, Type},
 /// };
 ///
 /// let got = arg!("string", String);
