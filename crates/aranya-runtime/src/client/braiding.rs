@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 
+use buggy::{BugExt as _, bug};
 use tracing::trace;
 
 use crate::{ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBuffer};
@@ -19,60 +20,34 @@ impl From<strand_heap::ParallelFinalize> for ClientError {
 /// won't be jumping into a branch.
 pub(super) fn last_common_ancestor<S: Storage>(
     storage: &mut S,
-    left: Location,
-    right: Location,
+    mut left: Location,
+    mut right: Location,
 ) -> Result<Location, ClientError> {
     trace!(%left, %right, "finding least common ancestor");
-    let mut left = left;
-    let mut right = right;
+    let mut left_seg = storage.get_segment(left)?;
+    let mut right_seg = storage.get_segment(right)?;
     while left != right {
-        let left_seg = storage.get_segment(left)?;
-        let right_seg = storage.get_segment(right)?;
         // The command with the lower max cut could be our least common ancestor
-        // so we keeping following the command with the higher max cut until
-        // both sides converge.
-        if left.max_cut > right.max_cut {
-            left = if let Some(previous) = left_seg.previous(left) {
-                previous
-            } else {
-                match left_seg.prior() {
-                    Prior::None => left,
+        // so we keep following the command with the higher max cut until both
+        // sides converge.
+        let (location, segment) = match left.max_cut > right.max_cut {
+            true => (&mut left, &mut left_seg),
+            false => (&mut right, &mut right_seg),
+        };
+        match segment.previous(*location) {
+            Some(previous) => *location = previous,
+            None => {
+                *location = match segment.prior() {
+                    Prior::None => bug!("found `Prior::None` before LCA"),
                     Prior::Single(s) => s,
-                    Prior::Merge(_, _) => {
-                        if let Some(l) = left_seg.skip_list().last() {
-                            // If the storage supports skip lists we return the
-                            // last common ancestor of this command.
-                            *l
-                        } else {
-                            // This case will only be hit if the storage doesn't
-                            // support skip lists so we can return anything
-                            // because it won't be used.
-                            return Ok(left);
-                        }
-                    }
-                }
-            };
-        } else {
-            right = if let Some(previous) = right_seg.previous(right) {
-                previous
-            } else {
-                match right_seg.prior() {
-                    Prior::None => right,
-                    Prior::Single(s) => s,
-                    Prior::Merge(_, _) => {
-                        if let Some(r) = right_seg.skip_list().last() {
-                            // If the storage supports skip lists we return the
-                            // last common ancestor of this command.
-                            *r
-                        } else {
-                            // This case will only be hit if the storage doesn't
-                            // support skip lists so we can return anything
-                            // because it won't be used.
-                            return Ok(right);
-                        }
-                    }
-                }
-            };
+                    Prior::Merge(_, _) => segment
+                        .skip_list()
+                        .last()
+                        .copied()
+                        .assume("merge skip list must end with LCA")?,
+                };
+                *segment = storage.get_segment(*location)?;
+            }
         }
     }
     Ok(left)
