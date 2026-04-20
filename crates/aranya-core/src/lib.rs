@@ -89,17 +89,17 @@ pub mod crypto {
     //! to write a conforming engine. Custom engines are security-critical
     //! and should be reviewed by cryptographers.
 
-    #[doc(inline)]
-    pub use aranya_crypto::{
-        CipherSuite, Csprng, Engine, Random, Rng, UnwrapError, WrapError,
-        default::{DefaultCipherSuite, DefaultEngine},
-    };
     #[cfg(feature = "custom-engine")]
     #[cfg_attr(docsrs, doc(cfg(feature = "custom-engine")))]
     #[doc(inline)]
     pub use aranya_crypto::engine::{
         AlgId, RawSecret, RawSecretWrap, Secret, UnwrappedKey, UnwrappedSecret, WrappedKey,
         WrongKeyType,
+    };
+    #[doc(inline)]
+    pub use aranya_crypto::{
+        CipherSuite, Csprng, Engine, Random, Rng, UnwrapError, WrapError,
+        default::{DefaultCipherSuite, DefaultEngine},
     };
 }
 
