@@ -400,45 +400,63 @@ impl ChunkParser<'_> {
     ///
     /// Processes \\, \n, and \xNN escapes.
     fn parse_string_literal(&self, string: Pair<'_, Rule>) -> Result<Text, ParseError> {
-        let span = self.to_ast_span(string.as_span())?;
+        #![allow(
+            clippy::arithmetic_side_effects,
+            reason = "span calculations are all valid since they are subspans of the full string span"
+        )]
 
-        let src = string.as_str();
-        let end = src
-            .len()
-            .checked_sub(1)
-            .assume("string with quotes is not empty")?;
-        let contents = src
-            .get(1..end)
-            .assume("string starts and ends with quote")?;
+        let contents = {
+            let full_str = string.as_str();
+            &full_str[1..full_str.len() - 1]
+        };
+
+        let content_span_start = {
+            let full_span = self.to_ast_span(string.as_span())?;
+            full_span.start() + 1
+        };
 
         let mut it = contents.bytes().enumerate();
         let mut out: Vec<u8> = Vec::new();
-        while let Some((_, c)) = it.next() {
-            match c {
+        while let Some((idx0, byte0)) = it.next() {
+            let byte0_span_start = content_span_start + idx0;
+            match byte0 {
                 b'\\' => {
-                    let (j, next) = it.next().assume("byte must follow escape")?;
-                    match next {
+                    let (idx1, byte1) = it.next().assume("byte must follow escape")?;
+                    match byte1 {
                         b'x' => {
-                            let (Some((_, a)), Some((_, b))) = (it.next(), it.next()) else {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::InvalidString,
-                                    String::from("hex character escape is too short"),
-                                    Some(span),
-                                ));
-                            };
+                            let mut value = 0_u8;
 
-                            let bytes = [a, b];
-                            let v = str::from_utf8(&bytes)
-                                .ok()
-                                .and_then(|src| u8::from_str_radix(src, 16).ok())
-                                .ok_or_else(|| {
-                                    ParseError::new(
+                            for nibble_idx in 0..2 {
+                                let Some((hex_idx, hex_byte)) = it.next() else {
+                                    let span = ast::Span::new(
+                                        byte0_span_start,
+                                        byte0_span_start + 2 + nibble_idx,
+                                    );
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::InvalidString,
+                                        String::from("hex character escape is too short"),
+                                        Some(span),
+                                    ));
+                                };
+                                let Some(nibble) = hex_char_to_nibble(hex_byte) else {
+                                    let nonhex_char_length = contents[hex_idx..]
+                                        .chars()
+                                        .next()
+                                        .assume("char is present")?
+                                        .len_utf8();
+                                    let start = content_span_start + hex_idx;
+                                    let span = ast::Span::new(start, start + nonhex_char_length);
+                                    return Err(ParseError::new(
                                         ParseErrorKind::InvalidString,
                                         String::from("invalid character in hex character escape"),
                                         Some(span),
-                                    )
-                                })?;
-                            if !(0x01..=0x7F).contains(&v) {
+                                    ));
+                                };
+                                value = value << 4 | nibble;
+                            }
+
+                            if !(0x01..=0x7F).contains(&value) {
+                                let span = ast::Span::new(byte0_span_start, byte0_span_start + 4);
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
                                     String::from(
@@ -447,7 +465,7 @@ impl ChunkParser<'_> {
                                     Some(span),
                                 ));
                             }
-                            out.push(v);
+                            out.push(value);
                         }
                         b'n' => {
                             out.push(b'\n');
@@ -459,6 +477,7 @@ impl ChunkParser<'_> {
                             out.push(b'"');
                         }
                         b'\n' => {
+                            let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
                             return Err(ParseError::new(
                                 ParseErrorKind::InvalidString,
                                 String::from("cannot end line with escape"),
@@ -466,30 +485,38 @@ impl ChunkParser<'_> {
                             ));
                         }
                         _ => {
-                            let escape = contents[j..].chars().next().assume("char is present")?;
+                            let bad_escape_char =
+                                contents[idx1..].chars().next().assume("char is present")?;
+                            let end = byte0_span_start + 1 + bad_escape_char.len_utf8();
+                            let span = ast::Span::new(byte0_span_start, end);
                             return Err(ParseError::new(
                                 ParseErrorKind::InvalidString,
-                                format!("unknown character escape: `{}`", escape.escape_default()),
+                                format!(
+                                    "unknown character escape: `{}`",
+                                    bad_escape_char.escape_default()
+                                ),
                                 Some(span),
                             ));
                         }
                     }
                 }
+                b'\0' => {
+                    let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidString,
+                        String::from("string contains null byte"),
+                        Some(span),
+                    ));
+                }
                 b'"' => break,
-                _ => out.push(c),
+                _ => out.push(byte0),
             }
         }
 
-        str::from_utf8(&out)
+        Ok(str::from_utf8(&out)
             .assume("valid utf8")?
             .parse()
-            .map_err(|_| {
-                ParseError::new(
-                    ParseErrorKind::InvalidString,
-                    String::from("string contained null byte"),
-                    Some(span),
-                )
-            })
+            .assume("valid text")?)
     }
 
     /// Parse a match pattern from a match_arm_expression token.
@@ -1961,6 +1988,16 @@ enum TypeStyle {
     Unknown,
     Old,
     New,
+}
+
+fn hex_char_to_nibble(ch: u8) -> Option<u8> {
+    #[allow(clippy::arithmetic_side_effects)]
+    Some(match ch {
+        b'0'..=b'9' => ch - b'0',
+        b'a'..=b'f' => ch - b'a' + 10,
+        b'A'..=b'F' => ch - b'A' + 10,
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

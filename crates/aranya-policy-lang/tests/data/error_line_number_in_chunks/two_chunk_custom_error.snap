@@ -5,4 +5,4 @@ expression: err
 error: Invalid string
    |
 11 |     let y = "a\0b"
-   |             ^^^^^^ unknown character escape: `0`
+   |               ^^ unknown character escape: `0`

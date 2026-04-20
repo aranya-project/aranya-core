@@ -5,4 +5,4 @@ expression: err
 error: Invalid string
   |
 1 | let x = "a\█b"
-  |         ^^^^^^ unknown character escape: `\u{2588}`
+  |           ^^ unknown character escape: `\u{2588}`

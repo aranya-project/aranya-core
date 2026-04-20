@@ -4,7 +4,5 @@ expression: err
 ---
 error: Invalid string
   |
-1 |   let x = "foo \
-  |  _________^
-2 | |     bar"
-  | |________^ cannot end line with escape
+1 | let x = "foo \
+  |              ^ cannot end line with escape

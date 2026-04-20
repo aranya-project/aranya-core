@@ -5,4 +5,4 @@ expression: err
 error: Invalid string
   |
 1 | let x = "a\x0\""
-  |         ^^^^^^^^ invalid character in hex character escape
+  |              ^ invalid character in hex character escape
