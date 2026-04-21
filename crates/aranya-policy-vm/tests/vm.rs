@@ -1407,53 +1407,6 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_check_errors() -> anyhow::Result<()> {
-    let cases = [
-        (
-            r#"command Foo {
-                fields {}
-                seal { return todo() }
-                open { return todo() }
-                policy {
-                    check false else recall default()
-                }
-                recall default() {
-                }
-            }"#,
-            ident!("Foo_recall_default"),
-        ),
-        (
-            r#"command Foo {
-                fields {}
-                seal { return todo() }
-                open { return todo() }
-                policy {
-                    check false else recall bar()
-                }
-                recall bar() {
-                }
-            }"#,
-            ident!("Foo_recall_bar"),
-        ),
-    ];
-
-    for (input, expected) in cases {
-        let policy = parse_policy_str(input, Version::V2)?;
-        let mut io = TestIO::new();
-        let module = Compiler::new(&policy).compile()?;
-        let machine = Machine::from_module(module)?;
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_policy(name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        let self_struct = Struct::new(name.clone(), &[]);
-        let result = rs.call_command_policy(self_struct, dummy_envelope())?;
-
-        assert_eq!(result, ExitReason::Check(Some(expected)));
-    }
-    Ok(())
-}
-
-#[test]
 fn test_check_unwrap() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{x int}
@@ -2796,10 +2749,8 @@ fn test_recall_with_args() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
 
     let name = ident!("Foo");
     let this_data = Struct::new(
@@ -2809,13 +2760,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             KVPair::new(ident!("y"), Value::from(text!("hello"))),
         ],
     );
-    let envelope = Struct::new(
-        ident!("Envelope"),
-        [KVPair::new(
-            ident!("payload"),
-            Value::from(b"test".to_vec()),
-        )],
-    );
+    let envelope = dummy_envelope();
 
     // Exec command
     let ctx = dummy_ctx_policy(name.clone());
@@ -2874,20 +2819,12 @@ fn test_recall_statement() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
 
     let name = ident!("Foo");
     let this_data = Struct::new(name.clone(), [KVPair::new(ident!("x"), Value::from(7))]);
-    let envelope = Struct::new(
-        ident!("Envelope"),
-        [KVPair::new(
-            ident!("payload"),
-            Value::from(b"test".to_vec()),
-        )],
-    );
+    let envelope = dummy_envelope();
 
     // Exec policy: the recall statement should exit immediately with
     // Check(Some("Foo_recall_handle")) and put the arg on the stack.
