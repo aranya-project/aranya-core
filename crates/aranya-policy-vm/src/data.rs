@@ -161,7 +161,7 @@ impl Value {
     ///
     /// let value = Value::Int(1);
     /// let int_type = VType {
-    ///     kind: TypeKind::Int,
+    ///     inner: TypeKind::Int,
     ///     span: Span::empty(),
     /// };
     ///
@@ -169,14 +169,14 @@ impl Value {
     /// ```
     pub fn fits_type(&self, expected_type: &VType) -> bool {
         use aranya_policy_ast::TypeKind;
-        match (self, &expected_type.kind) {
+        match (self, &expected_type.inner) {
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
             (Self::Bytes(_), TypeKind::Bytes) => true,
-            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.name,
+            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.inner,
             (Self::Id(_), TypeKind::Id) => true,
-            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.inner,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
             (Self::Result(Ok(inner)), TypeKind::Result(result_type)) => {
@@ -514,12 +514,12 @@ impl HashableValue {
     /// Checks to see if a [`HashableValue`] matches some [`VType`]
     pub fn fits_type(&self, expected_type: &VType) -> bool {
         use aranya_policy_ast::TypeKind;
-        match (self, &expected_type.kind) {
+        match (self, &expected_type.inner) {
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
             (Self::Id(_), TypeKind::Id) => true,
-            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.name,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.inner,
             // Option and Result are not hashable, so they can never fit a type
             _ => false,
         }

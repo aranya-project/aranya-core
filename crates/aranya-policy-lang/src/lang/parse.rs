@@ -199,7 +199,7 @@ impl ChunkParser<'_> {
                     |span| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), Some(span)),
                 )
             })?;
-        Ok(Ident { name, span })
+        Ok(Ident { inner: name, span })
     }
 
     /// Parse a type token (one of the types under Rule::vtype) into a
@@ -279,7 +279,7 @@ impl ChunkParser<'_> {
                 let inner_type = self.parse_type_inner(token, style, Some(pest_span))?;
 
                 // Disallow nested optionals for old syntax
-                if is_old && matches!(inner_type.kind, TypeKind::Optional(_)) {
+                if is_old && matches!(inner_type.inner, TypeKind::Optional(_)) {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidType,
                         String::from("Cannot nest optional types with `optional T` syntax"),
@@ -342,7 +342,7 @@ impl ChunkParser<'_> {
                 ));
             }
         };
-        Ok(VType { kind, span })
+        Ok(VType { inner: kind, span })
     }
 
     /// Parse a Rule::field_definition token into a FieldDef.
@@ -563,11 +563,11 @@ impl ChunkParser<'_> {
                             Some(span),
                         )
                     })?;
-                    Ok(Expression{kind: ExprKind::Int(n), span})
+                    Ok(Expression{inner: ExprKind::Int(n), span})
                 }
                 Rule::string_literal => {
                     let s = self.parse_string_literal(primary)?;
-                    Ok(Expression{kind: ExprKind::String(s), span})
+                    Ok(Expression{inner: ExprKind::String(s), span})
                 }
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
@@ -580,10 +580,10 @@ impl ChunkParser<'_> {
                     })?;
                     match token.as_rule() {
                         Rule::btrue => {
-                            Ok(Expression{kind:ExprKind::Bool(true), span})
+                            Ok(Expression{inner:ExprKind::Bool(true), span})
                         }
                         Rule::bfalse => {
-                            Ok(Expression{kind:ExprKind::Bool(false), span})
+                            Ok(Expression{inner:ExprKind::Bool(false), span})
                         }
                         t => Err(ParseError::new(
                             ParseErrorKind::Unknown,
@@ -622,7 +622,7 @@ impl ChunkParser<'_> {
                             ))
                         }
                     };
-                    Ok(Expression { kind: ExprKind::Optional(opt_expr), span })
+                    Ok(Expression { inner: ExprKind::Optional(opt_expr), span })
                 }
                 Rule::result_literal => {
                     let token = primary.clone().into_inner().next().ok_or_else(|| {
@@ -644,7 +644,7 @@ impl ChunkParser<'_> {
                             })?;
                             let expr = self.parse_expression(v)?;
                             Ok(Expression {
-                                kind: ExprKind::Ok(Box::new(expr)),
+                                inner: ExprKind::Ok(Box::new(expr)),
                                 span
                             })
                         }
@@ -659,7 +659,7 @@ impl ChunkParser<'_> {
                             })?;
                             let expr = self.parse_expression(v)?;
                             Ok(Expression {
-                                kind: ExprKind::Err(Box::new(expr)),
+                                inner: ExprKind::Err(Box::new(expr)),
                                 span,
                             })
                         }
@@ -672,24 +672,24 @@ impl ChunkParser<'_> {
                 }
                 Rule::named_struct_literal => {
                     let ns = self.parse_named_struct_literal(primary)?;
-                    Ok(Expression { kind: ExprKind::NamedStruct(ns), span })
+                    Ok(Expression { inner: ExprKind::NamedStruct(ns), span })
                 }
                 Rule::function_call => {
                     let fc = self.parse_function_call(primary)?;
-                    Ok(Expression { kind: ExprKind::FunctionCall(fc), span })
+                    Ok(Expression { inner: ExprKind::FunctionCall(fc), span })
                 }
                 Rule::foreign_function_call => {
                     let ffc = self.parse_foreign_function_call(primary)?;
-                    Ok(Expression { kind: ExprKind::ForeignFunctionCall(ffc), span })
+                    Ok(Expression { inner: ExprKind::ForeignFunctionCall(ffc), span })
                 }
                 Rule::return_expression => {
                     let pc = self.descend(primary);
                     let expression = pc.consume_expression(self)?;
-                    Ok(Expression{kind:ExprKind::Return(Box::new(expression)),span})
+                    Ok(Expression{inner:ExprKind::Return(Box::new(expression)),span})
                 }
                 Rule::enum_reference => {
                     let er = self.parse_enum_reference(primary)?;
-                    Ok(Expression { kind: ExprKind::EnumReference(er), span })
+                    Ok(Expression { inner: ExprKind::EnumReference(er), span })
                 }
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
@@ -702,7 +702,7 @@ impl ChunkParser<'_> {
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     Ok(Expression {
-                        kind: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
                         span,
                     })
                 }
@@ -717,7 +717,7 @@ impl ChunkParser<'_> {
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     Ok(Expression{
-                        kind: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
                         span,
                     })
                 }
@@ -746,7 +746,7 @@ impl ChunkParser<'_> {
                     })?;
                     let inner = self.parse_expression(token)?;
                     let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::InternalFunction(
+                    Ok(Expression{inner:ExprKind::InternalFunction(
                         InternalFunction::Serialize(Box::new(inner)),
                     ), span})
                 }
@@ -761,15 +761,15 @@ impl ChunkParser<'_> {
                     })?;
                     let inner = self.parse_expression(token)?;
                     Ok(Expression {
-                        kind: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(inner))),
+                        inner: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(inner))),
                         span,
                     })
                 }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
-                        kind: ExprKind::Identifier(Ident {
-                            name: ident!("this"),
+                        inner: ExprKind::Identifier(Ident {
+                            inner: ident!("this"),
                             span,
                         }),
                         span,
@@ -778,7 +778,7 @@ impl ChunkParser<'_> {
                 Rule::todo => {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
-                        kind: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
                         span,
                     })
                 }
@@ -786,7 +786,7 @@ impl ChunkParser<'_> {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ident = self.remain(primary).consume_ident(self)?;
                     Ok(Expression {
-                        kind: ExprKind::Identifier(ident),
+                        inner: ExprKind::Identifier(ident),
                         span,
                     })
                 }
@@ -816,7 +816,7 @@ impl ChunkParser<'_> {
                         ))
                     }
                 };
-                Ok(Expression{kind,span:combined_span})
+                Ok(Expression{inner: kind,span:combined_span})
             })
             .map_infix(|lhs, op, rhs| {
                 let lhs = lhs?;
@@ -854,7 +854,7 @@ impl ChunkParser<'_> {
                         Some(op_span),
                     )),
                 };
-                Ok(Expression{ kind, span: combined_span })
+                Ok(Expression{ inner: kind, span: combined_span })
             })
             .map_postfix(|lhs, op| {
                 let lhs = lhs?;
@@ -899,7 +899,7 @@ impl ChunkParser<'_> {
                         Some(op_span),
                     )),
                 };
-                Ok(Expression{kind, span: combined_span})
+                Ok(Expression{inner: kind, span: combined_span})
             })
             .parse(pairs)
     }
@@ -912,7 +912,7 @@ impl ChunkParser<'_> {
         let span = self.to_ast_span(expr.as_span())?;
         let stmt_vec = statement_list;
         Ok(Expression {
-            kind: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
+            inner: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
             span,
         })
     }
@@ -955,7 +955,7 @@ impl ChunkParser<'_> {
         }
 
         Ok(Expression {
-            kind: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
+            inner: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
             span,
         })
     }
@@ -988,7 +988,7 @@ impl ChunkParser<'_> {
         })?;
         let fact = self.parse_fact_literal(token)?;
         Ok(Expression {
-            kind: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
+            inner: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
             span,
         })
     }
@@ -1025,7 +1025,7 @@ impl ChunkParser<'_> {
         let else_expr = self.parse_block_expression(token)?;
 
         Ok(Expression {
-            kind: ExprKind::InternalFunction(InternalFunction::If(
+            inner: ExprKind::InternalFunction(InternalFunction::If(
                 Box::new(condition),
                 Box::new(then_expr),
                 Box::new(else_expr),
@@ -1307,7 +1307,7 @@ impl ChunkParser<'_> {
                     ));
                 }
             };
-            statements.push(Statement { kind, span });
+            statements.push(Statement { inner: kind, span });
         }
 
         Ok(statements)

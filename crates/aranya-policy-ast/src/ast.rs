@@ -1,48 +1,21 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref, str::FromStr};
+use core::{fmt, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Span, Spanned, Text, span::spanned};
+use crate::{
+    Identifier, Span, Spanned, Text,
+    span::{WithSpan, spanned},
+};
 
 /// An identifier.
-#[derive(
-    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-pub struct Ident {
-    /// The identifier name
-    pub name: Identifier,
-    /// The source location of this identifier
-    pub span: Span,
-}
-
-impl fmt::Debug for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
+pub type Ident = WithSpan<Identifier>;
 
 impl Ident {
     /// Reports whether the identifiers are the same, ignoring
     /// spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Deref for Ident {
-    type Target = Identifier;
-
-    fn deref(&self) -> &Self::Target {
-        &self.name
-    }
-}
-
-impl fmt::Display for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)
+        self.inner == other.inner
     }
 }
 
@@ -51,13 +24,7 @@ where
     T: AsRef<str> + ?Sized,
 {
     fn eq(&self, other: &T) -> bool {
-        self.name == other.as_ref()
-    }
-}
-
-impl Spanned for Ident {
-    fn span(&self) -> Span {
-        self.span
+        self.inner == other.as_ref()
     }
 }
 
@@ -171,55 +138,26 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[must_use]
-#[derive(
-    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-pub struct VType {
-    /// The type kind
-    pub kind: TypeKind,
-    /// The source location of this type
-    pub span: Span,
-}
-
-impl fmt::Debug for VType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
+pub type VType = WithSpan<TypeKind>;
 
 impl VType {
     /// Reports whether the types are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.kind.matches(&other.kind)
+        self.inner.matches(&other.inner)
     }
 
     /// Checks if two types fit, where `Never` matches with any type.
     pub fn fits_type(&self, other: &Self) -> bool {
-        self.kind.fits_type(&other.kind)
+        self.inner.fits_type(&other.inner)
     }
 
     /// Gets the struct name if this type is a struct.
     pub fn as_struct(&self) -> Option<&Ident> {
-        if let TypeKind::Struct(name) = &self.kind {
+        if let TypeKind::Struct(name) = &self.inner {
             Some(name)
         } else {
             None
         }
-    }
-}
-
-impl fmt::Display for VType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl Spanned for VType {
-    fn span(&self) -> Span {
-        self.span
     }
 }
 
@@ -310,11 +248,11 @@ impl TypeKind {
             | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id)
             | (Self::Never, Self::Never) => true,
-            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
-            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.inner == rhs.inner,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.inner == rhs.inner,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.inner.matches(&rhs.inner),
             (Self::Result(lhs), Self::Result(rhs)) => {
-                lhs.ok.kind.matches(&rhs.ok.kind) && lhs.err.kind.matches(&rhs.err.kind)
+                lhs.ok.inner.matches(&rhs.ok.inner) && lhs.err.inner.matches(&rhs.err.inner)
             }
             _ => false,
         }
@@ -329,9 +267,9 @@ impl TypeKind {
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id) => true,
-            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
-            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.inner == rhs.inner,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.inner == rhs.inner,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.inner.fits_type(&rhs.inner),
             (Self::Result(lhs), Self::Result(rhs)) => {
                 lhs.ok.fits_type(&rhs.ok) && lhs.err.fits_type(&rhs.err)
             }
@@ -601,27 +539,7 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Expression {
-    /// The expression kind
-    pub kind: ExprKind,
-    /// The source location of this expression
-    pub span: Span,
-}
-
-impl fmt::Debug for Expression {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
-
-impl Spanned for Expression {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
+pub type Expression = WithSpan<ExprKind>;
 
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -701,11 +619,11 @@ impl ExprKind {
 
             // Optional types
             (Self::Optional(None), Self::Optional(None)) => true,
-            (Self::Optional(Some(a)), Self::Optional(Some(b))) => a.kind.matches(&b.kind),
+            (Self::Optional(Some(a)), Self::Optional(Some(b))) => a.inner.matches(&b.inner),
 
             // Result types
-            (Self::Ok(a), Self::Ok(b)) => a.kind.matches(&b.kind),
-            (Self::Err(a), Self::Err(b)) => a.kind.matches(&b.kind),
+            (Self::Ok(a), Self::Ok(b)) => a.inner.matches(&b.inner),
+            (Self::Err(a), Self::Err(b)) => a.inner.matches(&b.inner),
 
             // Identifier
             (Self::Identifier(a), Self::Identifier(b)) => a.matches(b),
@@ -717,7 +635,7 @@ impl ExprKind {
                     && a.fields
                         .iter()
                         .zip(&b.fields)
-                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && v1.kind.matches(&v2.kind))
+                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && v1.inner.matches(&v2.inner))
                     && a.sources.len() == b.sources.len()
                     && a.sources
                         .iter()
@@ -737,7 +655,7 @@ impl ExprKind {
                     && a.arguments
                         .iter()
                         .zip(&b.arguments)
-                        .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+                        .all(|(e1, e2)| e1.inner.matches(&e2.inner))
             }
 
             // Foreign function call
@@ -748,7 +666,7 @@ impl ExprKind {
                     && a.arguments
                         .iter()
                         .zip(&b.arguments)
-                        .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+                        .all(|(e1, e2)| e1.inner.matches(&e2.inner))
             }
 
             // Internal functions
@@ -795,13 +713,13 @@ impl ExprKind {
                             }
                     }
                     (InternalFunction::If(c1, t1, e1), InternalFunction::If(c2, t2, e2)) => {
-                        c1.kind.matches(&c2.kind)
-                            && t1.kind.matches(&t2.kind)
-                            && e1.kind.matches(&e2.kind)
+                        c1.inner.matches(&c2.inner)
+                            && t1.inner.matches(&t2.inner)
+                            && e1.inner.matches(&e2.inner)
                     }
                     (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
                     | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
-                        e1.kind.matches(&e2.kind)
+                        e1.inner.matches(&e2.inner)
                     }
                     (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
                     _ => false,
@@ -812,7 +730,7 @@ impl ExprKind {
             (Self::Return(a), Self::Return(b))
             | (Self::Not(a), Self::Not(b))
             | (Self::Unwrap(a), Self::Unwrap(b))
-            | (Self::CheckUnwrap(a), Self::CheckUnwrap(b)) => a.kind.matches(&b.kind),
+            | (Self::CheckUnwrap(a), Self::CheckUnwrap(b)) => a.inner.matches(&b.inner),
 
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))
@@ -824,18 +742,18 @@ impl ExprKind {
             | (Self::LessThan(a1, a2), Self::LessThan(b1, b2))
             | (Self::GreaterThanOrEqual(a1, a2), Self::GreaterThanOrEqual(b1, b2))
             | (Self::LessThanOrEqual(a1, a2), Self::LessThanOrEqual(b1, b2)) => {
-                a1.kind.matches(&b1.kind) && a2.kind.matches(&b2.kind)
+                a1.inner.matches(&b1.inner) && a2.inner.matches(&b2.inner)
             }
 
             // Expression with Ident
             (Self::Dot(e1, i1), Self::Dot(e2, i2))
             | (Self::Cast(e1, i1), Self::Cast(e2, i2))
             | (Self::Substruct(e1, i1), Self::Substruct(e2, i2)) => {
-                e1.kind.matches(&e2.kind) && i1.matches(i2)
+                e1.inner.matches(&e2.inner) && i1.matches(i2)
             }
 
             // Is expression
-            (Self::Is(e1, b1), Self::Is(e2, b2)) => e1.kind.matches(&e2.kind) && b1 == b2,
+            (Self::Is(e1, b1), Self::Is(e2, b2)) => e1.inner.matches(&e2.inner) && b1 == b2,
 
             // Block expression
             (Self::Block(stmts1, expr1), Self::Block(stmts2, expr2)) => {
@@ -844,7 +762,7 @@ impl ExprKind {
                         .iter()
                         .zip(stmts2)
                         .all(|(s1, s2)| matches_statement(s1, s2))
-                    && expr1.kind.matches(&expr2.kind)
+                    && expr1.inner.matches(&expr2.inner)
             }
 
             // Match expression
@@ -859,7 +777,7 @@ impl ExprKind {
 /// Helper function to compare FactField instances, ignoring spans.
 fn matches_fact_field(a: &FactField, b: &FactField) -> bool {
     match (a, b) {
-        (FactField::Expression(e1), FactField::Expression(e2)) => e1.kind.matches(&e2.kind),
+        (FactField::Expression(e1), FactField::Expression(e2)) => e1.inner.matches(&e2.inner),
         (FactField::Bind(_), FactField::Bind(_)) => true,
         _ => false,
     }
@@ -868,13 +786,14 @@ fn matches_fact_field(a: &FactField, b: &FactField) -> bool {
 /// Helper function to compare Statement instances, ignoring spans.
 fn matches_statement(a: &Statement, b: &Statement) -> bool {
     use StmtKind::*;
-    match (&a.kind, &b.kind) {
+    match (&a.inner, &b.inner) {
         (Let(l1), Let(l2)) => {
-            l1.identifier.matches(&l2.identifier) && l1.expression.kind.matches(&l2.expression.kind)
+            l1.identifier.matches(&l2.identifier)
+                && l1.expression.inner.matches(&l2.expression.inner)
         }
-        (Check(c1), Check(c2)) => c1.expression.kind.matches(&c2.expression.kind),
+        (Check(c1), Check(c2)) => c1.expression.inner.matches(&c2.expression.inner),
         (Match(m1), Match(m2)) => {
-            m1.expression.kind.matches(&m2.expression.kind)
+            m1.expression.inner.matches(&m2.expression.inner)
                 && m1.arms.len() == m2.arms.len()
                 && m1.arms.iter().zip(&m2.arms).all(|(a1, a2)| {
                     matches_match_pattern(&a1.pattern, &a2.pattern)
@@ -893,7 +812,7 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .iter()
                     .zip(&i2.branches)
                     .all(|((cond1, stmts1), (cond2, stmts2))| {
-                        cond1.kind.matches(&cond2.kind)
+                        cond1.inner.matches(&cond2.inner)
                             && stmts1.len() == stmts2.len()
                             && stmts1
                                 .iter()
@@ -922,7 +841,7 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .zip(&m2.statements)
                     .all(|(s1, s2)| matches_statement(s1, s2))
         }
-        (Return(r1), Return(r2)) => r1.expression.kind.matches(&r2.expression.kind),
+        (Return(r1), Return(r2)) => r1.expression.inner.matches(&r2.expression.inner),
         (ActionCall(c1), ActionCall(c2)) | (FunctionCall(c1), FunctionCall(c2)) => {
             c1.identifier.matches(&c2.identifier)
                 && c1.arguments.len() == c2.arguments.len()
@@ -930,10 +849,10 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .arguments
                     .iter()
                     .zip(&c2.arguments)
-                    .all(|(e1, e2)| e1.kind.matches(&e2.kind))
+                    .all(|(e1, e2)| e1.inner.matches(&e2.inner))
         }
         (Publish(e1), Publish(e2)) | (Emit(e1), Emit(e2)) | (DebugAssert(e1), DebugAssert(e2)) => {
-            e1.kind.matches(&e2.kind)
+            e1.inner.matches(&e2.inner)
         }
         (Create(c1), Create(c2)) => matches_fact_literal(&c1.fact, &c2.fact),
         (Delete(d1), Delete(d2)) => matches_fact_literal(&d1.fact, &d2.fact),
@@ -976,7 +895,11 @@ fn matches_match_pattern(a: &MatchPattern, b: &MatchPattern) -> bool {
     match (a, b) {
         (MatchPattern::Default(_), MatchPattern::Default(_)) => true,
         (MatchPattern::Values(v1), MatchPattern::Values(v2)) => {
-            v1.len() == v2.len() && v1.iter().zip(v2).all(|(e1, e2)| e1.kind.matches(&e2.kind))
+            v1.len() == v2.len()
+                && v1
+                    .iter()
+                    .zip(v2)
+                    .all(|(e1, e2)| e1.inner.matches(&e2.inner))
         }
         _ => false,
     }
@@ -984,11 +907,11 @@ fn matches_match_pattern(a: &MatchPattern, b: &MatchPattern) -> bool {
 
 /// Helper function to compare MatchExpression instances, ignoring spans.
 fn matches_match_expression(a: &MatchExpression, b: &MatchExpression) -> bool {
-    a.scrutinee.kind.matches(&b.scrutinee.kind)
+    a.scrutinee.inner.matches(&b.scrutinee.inner)
         && a.arms.len() == b.arms.len()
         && a.arms.iter().zip(&b.arms).all(|(a1, a2)| {
             matches_match_pattern(&a1.pattern, &a2.pattern)
-                && a1.expression.kind.matches(&a2.expression.kind)
+                && a1.expression.inner.matches(&a2.expression.inner)
         })
 }
 
@@ -1186,28 +1109,9 @@ pub struct ReturnStatement {
 }
 
 /// Statements in the policy language.
+///
 /// Not all statements are valid in all contexts.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Statement {
-    /// The statement kind
-    pub kind: StmtKind,
-    /// The source location of this statement
-    pub span: Span,
-}
-
-impl fmt::Debug for Statement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
-
-impl Spanned for Statement {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
+pub type Statement = WithSpan<StmtKind>;
 
 /// The kind of [`Statement`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

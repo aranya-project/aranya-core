@@ -42,6 +42,13 @@ args = ["--verbose", "test-all-features", "${@}"]
 dependencies = ["install-cargo-all-features"]
 
 
+[tasks.run-aranya-core-example]
+category = "test"
+description = "Run aranya-core example"
+command = "cargo"
+args = ["run", "-p", "aranya-core", "--example", "simple", "--features", "std,libc"]
+
+
 # Security
 [tasks.security]
 category = "security"

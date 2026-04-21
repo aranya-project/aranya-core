@@ -6,7 +6,7 @@ mod bits;
 use std::{collections::BTreeMap, iter};
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-use aranya_policy_ast::{self as ast, Version};
+use aranya_policy_ast::{self as ast, Version, WithSpanExt as _};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
@@ -175,14 +175,8 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: ast::Ident {
-                name: ident!("x"),
-                span: ast::Span::new(33, 34)
-            },
-            field_type: ast::VType {
-                kind: ast::TypeKind::Int,
-                span: ast::Span::new(35, 38)
-            }
+            identifier: ident!("x").at(33..34),
+            field_type: ast::TypeKind::Int.at(35..38),
         }])
     );
 
@@ -2581,7 +2575,7 @@ fn test_result() -> anyhow::Result<()> {
                 }
             }
         }
-        
+
         function try(succeed bool) result[int, enum Err] {
             // error propagation is done explicilty, until we have `?` operator
             return match try_return(succeed) {

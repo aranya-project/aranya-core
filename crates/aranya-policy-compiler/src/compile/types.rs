@@ -152,7 +152,7 @@ pub fn check_type(
     target_type: VType,
     errmsg: &'static str,
 ) -> Result<VType, TypeUnifyError> {
-    match ty.kind {
+    match ty.inner {
         TypeKind::Never => Ok(target_type),
         _ => {
             if ty.fits_type(&target_type) {
@@ -173,7 +173,7 @@ pub struct DisplayType<'a>(pub &'a VType);
 
 impl Display for DisplayType<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0.kind {
+        match &self.0.inner {
             TypeKind::String => f.write_str("string"),
             TypeKind::Bytes => f.write_str("bytes"),
             TypeKind::Int => f.write_str("int"),
@@ -202,10 +202,10 @@ impl CompileState<'_> {
             .m
             .interface
             .struct_defs
-            .contains_key(&s.identifier.name)
+            .contains_key(&s.identifier.inner)
         {
             Ok(VType {
-                kind: TypeKind::Struct(s.identifier.clone()),
+                inner: TypeKind::Struct(s.identifier.clone()),
                 span: s.identifier.span,
             })
         } else {
@@ -219,9 +219,9 @@ impl CompileState<'_> {
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
     pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, CompileError> {
-        if self.m.fact_defs.contains_key(&f.identifier.name) {
+        if self.m.fact_defs.contains_key(&f.identifier.inner) {
             Ok(VType {
-                kind: TypeKind::Struct(f.identifier.clone()),
+                inner: TypeKind::Struct(f.identifier.clone()),
                 span: f.identifier.span,
             })
         } else {
@@ -235,13 +235,13 @@ impl CompileState<'_> {
 
 #[allow(clippy::result_large_err)]
 pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyError> {
-    match (&left.kind, &right.kind) {
+    match (&left.inner, &right.inner) {
         (_, TypeKind::Never) => Ok(left),
         (TypeKind::Never, _) => Ok(right),
         (TypeKind::Optional(left), TypeKind::Optional(right)) => {
             let inner = unify_pair(left.as_ref().clone(), right.as_ref().clone())?;
             Ok(VType {
-                kind: TypeKind::Optional(Box::new(inner)),
+                inner: TypeKind::Optional(Box::new(inner)),
                 span: aranya_policy_ast::Span::empty(), // TODO
             })
         }
@@ -249,7 +249,7 @@ pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyEr
             let ok = unify_pair(left_result.ok.clone(), right_result.ok.clone())?;
             let err = unify_pair(left_result.err.clone(), right_result.err.clone())?;
             Ok(VType {
-                kind: TypeKind::Result(Box::new(aranya_policy_ast::ResultTypeKind { ok, err })),
+                inner: TypeKind::Result(Box::new(aranya_policy_ast::ResultTypeKind { ok, err })),
                 span: aranya_policy_ast::Span::empty(), // TODO
             })
         }
