@@ -79,12 +79,13 @@ impl CompileTarget {
             TypeKind::Bool => Some(2),
             TypeKind::Optional(vtype) => {
                 // Add 1 for the None case.
-                self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
+                self.cardinality(&vtype.inner)
+                    .and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self.interface.struct_defs.get(&ident.name)?;
+                let defs = self.interface.struct_defs.get(&ident.inner)?;
                 defs.iter()
-                    .map(|def| self.cardinality(&def.field_type.kind))
+                    .map(|def| self.cardinality(&def.field_type.inner))
                     .reduce(|acc, e| match e {
                         None => None,
                         Some(v) => acc.and_then(|w| v.checked_mul(w)),
@@ -92,14 +93,14 @@ impl CompileTarget {
                     .flatten()
             }
             TypeKind::Enum(ident) => {
-                let defs = self.interface.enum_defs.get(&ident.name)?;
+                let defs = self.interface.enum_defs.get(&ident.inner)?;
                 Some(defs.len() as u64)
             }
             TypeKind::Never => Some(0),
             TypeKind::Result(result_type) => {
                 // Result cardinality is the sum of the cardinalities of the ok and err types.
-                let ok_cardinality = self.cardinality(&result_type.ok.kind)?;
-                let err_cardinality = self.cardinality(&result_type.err.kind)?;
+                let ok_cardinality = self.cardinality(&result_type.ok.inner)?;
+                let err_cardinality = self.cardinality(&result_type.err.inner)?;
                 ok_cardinality.checked_add(err_cardinality)
             }
         }
