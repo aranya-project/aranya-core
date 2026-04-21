@@ -7,7 +7,7 @@
 //! # Modules
 //!
 //! - [`crypto`] — cryptography engine and cipher suite.
-//! - [`id`] — tagged cryptographic identifiers and the [`custom_id`] macro.
+//! - [`id`] — tagged cryptographic identifiers and the [`id::custom_id`] macro.
 //! - [`keystore`] — device key material and keystore plumbing.
 //! - [`storage`] — storage providers and I/O plumbing for the graph.
 //! - [`policy`] — VM-backed policy execution (actions, effects, FFI).

@@ -18,8 +18,8 @@
 //!
 //! Each [`Id`] serializes as base58 in human-readable formats and as raw
 //! bytes in binary formats, and implements [`Display`](core::fmt::Display),
-//! [`FromStr`](core::str::FromStr), [`serde::Serialize`]/[`serde::Deserialize`],
-//! [`rkyv::Archive`], and [`subtle::ConstantTimeEq`].
+//! [`FromStr`](core::str::FromStr), `serde::Serialize`/`serde::Deserialize`,
+//! `rkyv::Archive`, and `subtle::ConstantTimeEq`.
 
 #[doc(inline)]
 pub use aranya_id::{BaseId, Id, IdTag, ParseIdError};
