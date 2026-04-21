@@ -2893,10 +2893,8 @@ fn test_recall_with_args() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
 
     let name = ident!("Foo");
     let this_data = Struct::new(
@@ -2906,13 +2904,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             KVPair::new(ident!("y"), Value::from(text!("hello"))),
         ],
     );
-    let envelope = Struct::new(
-        ident!("Envelope"),
-        [KVPair::new(
-            ident!("payload"),
-            Value::from(b"test".to_vec()),
-        )],
-    );
+    let envelope = dummy_envelope();
 
     // Exec command
     let ctx = dummy_ctx_policy(name.clone());
@@ -2972,20 +2964,12 @@ fn test_recall_statement() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
 
     let name = ident!("Foo");
     let this_data = Struct::new(name.clone(), [KVPair::new(ident!("x"), Value::from(7))]);
-    let envelope = Struct::new(
-        ident!("Envelope"),
-        [KVPair::new(
-            ident!("payload"),
-            Value::from(b"test".to_vec()),
-        )],
-    );
+    let envelope = dummy_envelope();
 
     // Exec policy: the recall statement should exit immediately with
     // Check(Some("Foo_recall_handle")) and put the arg on the stack.
