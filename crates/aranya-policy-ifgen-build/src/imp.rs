@@ -176,6 +176,7 @@ pub fn generate_code(target: &PolicyInterface) -> String {
 fn vtype_to_rtype(ty: &VType) -> TokenStream {
     use aranya_policy_ast::TypeKind;
     match &ty.inner {
+        TypeKind::Unit => quote! { () },
         TypeKind::String => quote! { Text },
         TypeKind::Bytes => quote! { Vec<u8> },
         TypeKind::Int => quote! { i64 },
@@ -208,6 +209,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 
 fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
     Some(match value {
+        ConstValue::Unit => quote!(()),
         ConstValue::Int(_) => quote!(i64),
         ConstValue::Bool(_) => quote!(bool),
         ConstValue::String(_) => quote!(Text),
@@ -234,6 +236,7 @@ fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
 
 fn constant_value_to_literal(value: &ConstValue) -> TokenStream {
     match value {
+        ConstValue::Unit => quote!(()),
         ConstValue::Int(n) => quote!(#n),
         ConstValue::Bool(b) => quote!(#b),
         ConstValue::String(text) => {

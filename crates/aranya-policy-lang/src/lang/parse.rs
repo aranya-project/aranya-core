@@ -217,6 +217,7 @@ impl ChunkParser<'_> {
         let pest_span = token.as_span();
         let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
+            Rule::unit_t => TypeKind::Unit,
             Rule::string_t => TypeKind::String,
             Rule::bytes_t => TypeKind::Bytes,
             Rule::int_t => TypeKind::Int,
@@ -553,6 +554,7 @@ impl ChunkParser<'_> {
             .map_primary(|primary| {
                 let span = self.to_ast_span(primary.as_span())?;
                 match primary.as_rule() {
+                Rule::unit_literal => Ok(Expression { inner: ExprKind::Unit, span }),
                 Rule::int_literal => {
                     let n = primary.as_str().parse::<i64>().map_err(|e| {
                         let message = e.to_string().replace("target type", "`int`");
