@@ -12,14 +12,18 @@ use crate::{
 /// - function code paths return values
 /// - commands enter a finish block
 pub fn validate(module: &Module) -> bool {
-    let ModuleData::V0(ref m) = module.data;
+    let module = module.clone();
+    let m = match module.data {
+        ModuleData::V0(m) => m,
+        ModuleData::V1(m) => m.into(),
+    };
     let mut failed = false;
 
     // Get all global variable names
     let global_names: Vec<Identifier> = m.globals.keys().cloned().collect();
 
     for l in m.labels.keys() {
-        let mut tracer = TraceAnalyzerBuilder::new(m);
+        let mut tracer = TraceAnalyzerBuilder::new(&m);
         match l.ltype {
             LabelType::Action => {
                 tracer = tracer.add_analyzer(ActionAnalyzer::new());

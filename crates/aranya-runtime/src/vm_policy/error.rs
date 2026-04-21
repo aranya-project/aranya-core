@@ -18,6 +18,10 @@ pub enum VmPolicyError {
     /// An error happened when parsing command attributes.
     #[error("atribute error: {0}")]
     Attribute(#[from] AttributeError),
+    /// The Machine contract does not match the VM's expectations.
+    #[error("contract mismatch")]
+    // TODO(chip): Add more information about what has mismatched
+    ContractMismatch,
     /// Some other happened and we don't know what it is.
     #[error("unknown error")]
     Unknown,

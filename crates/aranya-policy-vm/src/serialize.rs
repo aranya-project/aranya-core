@@ -341,8 +341,10 @@ mod test {
 
         let defs = {
             let policy = parse_policy_str(src, Version::V2).unwrap();
-            let ModuleData::V0(m) = Compiler::new(&policy).compile().unwrap().data;
-            m.struct_defs
+            match Compiler::new(&policy).compile().unwrap().data {
+                ModuleData::V0(m) => m.struct_defs,
+                ModuleData::V1(m) => m.struct_defs,
+            }
         };
 
         let id = BaseId::from_bytes(core::array::from_fn(|i| u8::MAX - i as u8));
