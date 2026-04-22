@@ -8,6 +8,10 @@ rust-version.workspace = true
 
 [dependencies]
 # aranya-afc-util = { path = "../../crates/aranya-afc-util", features = ["alloc"] }
+aranya-core = { path = "../../crates/aranya-core", default-features = false, features = [
+	"custom-engine",
+	"memstore",
+] }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false, features = [
 	"alloc",
