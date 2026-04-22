@@ -135,6 +135,18 @@ impl fmt::Display for LocalChannelId {
     }
 }
 
+impl From<LocalChannelId> for crate::arena::Index {
+    fn from(id: LocalChannelId) -> Self {
+        unsafe { core::mem::transmute::<u64, Self>(id.to_u64()) }
+    }
+}
+
+impl From<crate::arena::Index> for LocalChannelId {
+    fn from(idx: crate::arena::Index) -> Self {
+        Self::new(unsafe { core::mem::transmute::<crate::arena::Index, u64>(idx) })
+    }
+}
+
 /// An AFC channel.
 #[derive(Copy, Clone)]
 #[derive_where(Debug)]
@@ -399,7 +411,7 @@ mod test {
         fn new_states<CS: CipherSuite>(
             _name: &str,
             _device_idx: DeviceIdx,
-            _max_chans: usize,
+            _max_chans: u32,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = DefaultState::<CS>::new();
             let aranya = afc.clone();

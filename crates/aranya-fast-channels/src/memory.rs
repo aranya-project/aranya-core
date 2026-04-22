@@ -188,7 +188,7 @@ mod tests {
         fn new_states<CS: CipherSuite>(
             _name: &str,
             _id: DeviceIdx,
-            _max_chans: usize,
+            _max_chans: u32,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = State::<CS>::new();
             let aranya = afc.clone();
