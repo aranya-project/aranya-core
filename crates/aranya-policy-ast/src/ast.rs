@@ -574,6 +574,8 @@ pub enum ExprKind {
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
+    /// `expr or expr` — optional coalescing
+    Coalesce(Box<Expression>, Box<Expression>),
     /// expr.expr`
     Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
@@ -733,6 +735,7 @@ impl ExprKind {
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))
             | (Self::Or(a1, a2), Self::Or(b1, b2))
+            | (Self::Coalesce(a1, a2), Self::Coalesce(b1, b2))
             | (Self::Equal(a1, a2), Self::Equal(b1, b2))
             | (Self::NotEqual(a1, a2), Self::NotEqual(b1, b2))
             | (Self::GreaterThan(a1, a2), Self::GreaterThan(b1, b2))
